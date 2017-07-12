@@ -2,7 +2,7 @@ addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "0.14.3")
 
 addSbtPlugin("io.spray" % "sbt-revolver" % "0.8.0")
 
-addSbtPlugin("org.scoverage" % "sbt-coveralls" % "1.0.0")
+addSbtPlugin("org.scoverage" % "sbt-coveralls" % "1.1.0")
 
 // sbt-scoverage 1.5.0 is the first that supports scala 2.12.
 // latest coveralls (1.0.0) is *only* compatible with scoverage 1.0.4 or less: https://github.com/scoverage/sbt-coveralls/issues/49
