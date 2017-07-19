@@ -9,11 +9,11 @@
     </appender>
 
     <appender name="file" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>log/sam.log</file>
+        <file>log/leonardo.log</file>
         <append>true</append>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <!-- daily rollover -->
-            <fileNamePattern>rawls.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <fileNamePattern>leonardo.%d{yyyy-MM-dd}.log</fileNamePattern>
             <!-- keep 30 days' worth of history -->
             <maxHistory>30</maxHistory>
         </rollingPolicy>
