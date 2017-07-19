@@ -20,7 +20,7 @@ trait SwaggerRoutes {
             redirect(uri.withRawQueryString(""), StatusCodes.MovedPermanently)
           }
         } ~
-          serveIndex()
+        serveIndex()
       }
     } ~
     path("api-docs.yaml") {
