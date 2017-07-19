@@ -1,0 +1,109 @@
+swagger: '2.0'
+
+info:
+  title: Leonardo
+  description: |
+    Workbench notebooks service.
+  version: "0.1"
+  license:
+    name: BSD
+    url: http://opensource.org/licenses/BSD-3-Clause
+  termsOfService: https://github.com/broadinstitute/leonardo
+
+basePath: /
+
+produces:
+  - application/json
+
+## UNCOMMENT THIS WHEN WE GET LEO CONF IN FIRECLOUD-DEVELOP
+#security:
+#  - googleoauth:
+#      - openid
+#      - email
+#      - profile
+
+#securityDefinitions:
+#  googleoauth:
+#    type: oauth2
+#    authorizationUrl: 'https://accounts.google.com/o/oauth2/auth'
+#    flow: implicit
+#    scopes:
+#      openid: open id authorization
+#      email: email authorization
+#      profile: profile authorization
+
+##########################################################################################
+## PATHS
+##########################################################################################
+paths:
+
+  /api/ping:
+    post:
+      summary: Ping
+      responses:
+        200:
+          description: Pong
+        500:
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/ErrorReport'
+      operationId: ping
+      tags:
+        - test
+
+##########################################################################################
+## DEFINITIONS
+##########################################################################################
+definitions:
+
+  ErrorReport:
+    description: ''
+    required:
+      - source
+      - message
+      - causes
+      - stackTrace
+    properties:
+      source:
+        type: string
+        description: service causing error
+      message:
+        type: string
+        description: what went wrong
+      exceptionClass:
+        type: string
+        description: class of exception thrown
+      statusCode:
+        type: integer
+        description: HTTP status code
+      causes:
+        type: array
+        description: errors triggering this one
+        items:
+          $ref: '#/definitions/ErrorReport'
+      stackTrace:
+        type: array
+        description: stack trace
+        items:
+          $ref: '#/definitions/StackTraceElement'
+
+  StackTraceElement:
+    description: ''
+    required:
+      - className
+      - methodName
+      - fileName
+      - lineNumber
+    properties:
+      className:
+        type: string
+        description: class name
+      methodName:
+        type: string
+        description: method name
+      fileName:
+        type: string
+        description: source file name
+      lineNumber:
+        type: integer
+        description: line number
