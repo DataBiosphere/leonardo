@@ -38,7 +38,7 @@ produces:
 paths:
 
   /api/ping:
-    post:
+    get:
       summary: Ping
       responses:
         200:
