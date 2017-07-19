@@ -13,7 +13,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest {
   "LeoRoutes" should "200 on ping" in {
     val leoRoutes = new TestLeoRoutes()
 
-    Get("/ping") ~> leoRoutes.route ~> check {
+    Get("/api/ping") ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
     }
   }
