@@ -15,9 +15,11 @@ PROJECT=leonardo
 function make_jar()
 {
     echo "building jar..."
+    # Get the last commit hash of the model directory and set it as an environment variable
+    GIT_MODEL_HASH=$(git log -n 1 --pretty=format:%h)
 
     # make jar.  cache sbt dependencies.
-    docker run --rm -v $PWD:/working -v jar-cache:/root/.ivy -v jar-cache:/root/.ivy2 broadinstitute/scala-baseimage /working/docker/install.sh /working
+    docker run --rm -e GIT_MODEL_HASH=$GIT_MODEL_HASH -v $PWD:/working -v jar-cache:/root/.ivy -v jar-cache:/root/.ivy2 broadinstitute/scala-baseimage /working/docker/install.sh /working
 }
 
 
