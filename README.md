@@ -2,3 +2,15 @@
 
 # leonardo
 Notebook service
+
+## Building service
+
+To build jar and docker image
+```
+./docker/build.sh jar -d build
+```
+
+To build jar and docker image, and push to `broadinstitute/leonardo` tagged with git hash
+```
+./docker/build.sh jar -d push
+```
