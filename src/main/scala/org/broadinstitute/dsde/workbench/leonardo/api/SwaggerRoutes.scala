@@ -48,15 +48,19 @@ trait SwaggerRoutes {
         |        operationsSorter: "alpha",
       """.stripMargin
 
+    def scopeSeparator(sep: String) = {
+      s"""scopeSeparator: "$sep""""
+    }
+
     mapResponseEntity { entityFromJar =>
       entityFromJar.transformDataBytes(Flow.fromFunction[ByteString, ByteString] { original: ByteString =>
         ByteString(original.utf8String
           //        .replace("your-client-id", swaggerConfig.googleClientId) //awaiting integration with dev
           //        .replace("your-realms", swaggerConfig.realm)
           //        .replace("your-app-name", swaggerConfig.realm)
-          .replace("scopeSeparator: \",\"", "scopeSeparator: \" \"")
+          .replace(scopeSeparator(","), scopeSeparator(" "))
           .replace("jsonEditor: false,", "jsonEditor: false," + swaggerOptions)
-          .replace("url = \"http://petstore.swagger.io/v2/swagger.json\";", "url = '/api-docs.yaml';")
+          .replace("""url = "http://petstore.swagger.io/v2/swagger.json";""", "url = '/api-docs.yaml';")
         )
       })
     } {
