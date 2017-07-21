@@ -4,6 +4,8 @@ object Dependencies {
   val akkaV = "2.5.3"
   val akkaHttpV = "10.0.6"
   val jacksonV = "2.8.7"
+  val googleV = "1.22.0"
+  val workbenchV = "0.1-4f8d151-SNAP"
 
   val rootDependencies = Seq(
     // proactively pull in latest versions of Jackson libs, instead of relying on the versions
@@ -26,7 +28,7 @@ object Dependencies {
     "com.iheart"          %%  "ficus" % "1.4.0",
       //    "com.typesafe.akka"   %%  "akka-http-jackson" % akkaHttpV,
     "org.scalatest"       %%  "scalatest"     % "3.0.1"   % "test",
-
+    "com.google.apis"     % "google-api-services-dataproc" % ("v1-rev53-" + googleV),
     "org.broadinstitute.dsde.workbench" %% "workbench-util" % "0.2-f87e766",
     "org.broadinstitute.dsde.workbench" %% "workbench-model" % "0.1-f87e766",
     "org.broadinstitute.dsde.workbench" %% "workbench-google" % "0.1-6924e2f"
