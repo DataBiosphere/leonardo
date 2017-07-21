@@ -17,4 +17,12 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest {
       status shouldEqual StatusCodes.OK
     }
   }
+
+  "Cluster" should "200" in {
+    val leoRoutes = new TestLeoRoutes()
+
+    Put("/cluster") ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+    }
+  }
 }
