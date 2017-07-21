@@ -6,11 +6,8 @@ import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.LazyLogging
-import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.api.LeoRoutes
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
-
-import scala.concurrent.{ExecutionContext, Future}
 
 object Boot extends App with LazyLogging {
 
