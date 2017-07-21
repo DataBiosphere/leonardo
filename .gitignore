@@ -13,6 +13,6 @@ test-output/
 /.settings/
 /bin/
 *.log
-config/
+/config/
 
 *.pid
