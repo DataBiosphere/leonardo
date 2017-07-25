@@ -1,5 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
-import org.broadinstitute.dsde.rawls.google.GoogleUtilities
+import akka.http.scaladsl.server.Directives._
 import akka.actor.ActorSystem
 import akka.event.Logging.LogLevel
 import akka.event.{Logging, LoggingAdapter}
@@ -12,13 +12,10 @@ import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, Logg
 import akka.http.scaladsl.server.{Directive0, ExceptionHandler}
 import akka.stream.Materializer
 import akka.stream.scaladsl.Sink
-import com.google.api.client.auth.oauth2.Credential
-import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
-import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
-import com.google.api.client.json.jackson2.JacksonFactory
-import com.google.api.services.dataproc.Dataproc
-import com.google.api.services.dataproc.model.Cluster
 import com.typesafe.scalalogging.LazyLogging
+import org.broadinstitute.dsde.workbench.leonardo.LeonardoService
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, ErrorReport}
+import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 import org.broadinstitute.dsde.workbench.model.ErrorReport
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
@@ -26,8 +23,9 @@ import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class LeoRoutes(val swaggerConfig: SwaggerConfig)(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext)
-  extends LazyLogging with GoogleUtilities with SwaggerRoutes  {
+class LeoRoutes(val swaggerConfig: SwaggerConfig)(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext) extends LazyLogging  with SwaggerRoutes  {
+
+  val leonardoService = new LeonardoService()
 
   def leoRoutes: server.Route =
     path("ping") {
@@ -39,22 +37,16 @@ class LeoRoutes(val swaggerConfig: SwaggerConfig)(implicit val system: ActorSyst
         }
       }
     } ~
-    path("cluster") {
+    path("cluster" / Segment / Segment) { (googleProject, clusterName) =>
       put {
-        complete{
-          def getDataProcServiceAccountCredential: Credential = {
-            new GoogleCredential.Builder().build()
+        entity(as[ClusterRequest]) { cluster =>
+          //val result = new LeonardoService().build()
+          // complete(HttpEntity(ContentTypes.`text/plain(UTF-8)`, result.getError.getMessage))
+          complete {
+            leonardoService.build(googleProject, clusterName)//, cluster)
+            StatusCodes.OK
           }
-          def build() = {
-            val dataproc = new Dataproc.Builder(GoogleNetHttpTransport.newTrustedTransport, JacksonFactory.getDefaultInstance, getDataProcServiceAccountCredential)
-              .setApplicationName("dataproc").build()
-            val request = dataproc.projects().regions().clusters().create("project", "region", new Cluster())
-
-            executeGoogleRequest(request)
-          }
-          build()
-          StatusCodes.OK
-        }
+       }
       }
     }
 
