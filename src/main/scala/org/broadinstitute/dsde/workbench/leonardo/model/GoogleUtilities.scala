@@ -7,12 +7,7 @@ import com.google.api.client.googleapis.services.AbstractGoogleClientRequest
 import com.google.api.client.http.HttpResponseException
 import com.google.api.client.http.json.JsonHttpContent
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.rawls.model.{ErrorReport, ErrorReportSource, JsonSupport, WorkspaceJsonSupport}
-import org.broadinstitute.dsde.rawls.util.Retry
-import spray.http.StatusCodes
-import spray.json.DefaultJsonProtocol.{jsonFormat, lazyFormat, rootFormat}
-import spray.json.{JsValue, RootJsonFormat}
-
+import spray.json.JsValue
 import scala.collection.JavaConversions._
 import scala.concurrent._
 import scala.util.{Failure, Success, Try}
@@ -116,12 +111,10 @@ trait GoogleUtilities extends LazyLogging with Retry {
     logger.debug(GoogleRequest(request.getRequestMethod, request.buildHttpRequestUrl().toString, payload, System.currentTimeMillis() - startTime, statusCode, errorReport).toJson(GoogleRequestFormat).compactPrint)
   }
 
-  implicit val ErrorReportFormat: RootJsonFormat[ErrorReport] = rootFormat(lazyFormat(jsonFormat(ErrorReport.apply,"source","message","statusCode","causes","stackTrace","exceptionClass")))
-
   protected case class GoogleRequest(method: String, url: String, payload: Option[JsValue], time_ms: Long, statusCode: Option[Int], errorReport: Option[ErrorReport])
-  protected object GoogleRequestJsonSupport extends JsonSupport {
+  protected object GoogleRequestJsonSupport {
     import spray.json.DefaultJsonProtocol._
-
+    import ErrorReportJsonSupport.ErrorReportFormat
     val GoogleRequestFormat = jsonFormat6(GoogleRequest)
   }
 }
