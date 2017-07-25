@@ -1,5 +1,4 @@
 package org.broadinstitute.dsde.workbench.leonardo
-
 import scala.concurrent.duration._
 
 /**
