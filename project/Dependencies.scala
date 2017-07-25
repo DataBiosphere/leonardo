@@ -6,6 +6,7 @@ object Dependencies {
   val jacksonV = "2.8.7"
   val googleV = "1.22.0"
   val workbenchV = "0.1-4f8d151-SNAP"
+  val workbenchUtilV = "0.1-744f644"
 
   val rootDependencies = Seq(
     // proactively pull in latest versions of Jackson libs, instead of relying on the versions
