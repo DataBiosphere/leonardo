@@ -25,6 +25,9 @@ object Dependencies {
     "com.typesafe.akka"   %%  "akka-http-spray-json" % akkaHttpV,
     "com.iheart"          %%  "ficus" % "1.4.0",
       //    "com.typesafe.akka"   %%  "akka-http-jackson" % akkaHttpV,
-    "org.scalatest"       %%  "scalatest"     % "3.0.1"   % "test"
+    "org.scalatest"       %%  "scalatest"     % "3.0.1"   % "test",
+
+    "org.broadinstitute.dsde.workbench" %% "workbench-util" % "0.1-e8bdfd0",
+    "org.broadinstitute.dsde.workbench" %% "workbench-model" % "0.1-4b6f482-SNAP"
   )
 }

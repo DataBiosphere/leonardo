@@ -15,7 +15,7 @@ import akka.stream.Materializer
 import akka.stream.scaladsl.Sink
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
-import org.broadinstitute.dsde.workbench.leonardo.model.ErrorReport
+import org.broadinstitute.dsde.workbench.model.ErrorReport
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -39,7 +39,7 @@ class LeoRoutes(val swaggerConfig: SwaggerConfig)(implicit val system: ActorSyst
   }
 
   private val myExceptionHandler = {
-    import org.broadinstitute.dsde.workbench.leonardo.model.ErrorReportJsonSupport._
+    import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
 
     ExceptionHandler {
       //case withErrorReport: WorkbenchExceptionWithErrorReport =>
