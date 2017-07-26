@@ -15,6 +15,7 @@ import akka.stream.scaladsl.Sink
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 import org.broadinstitute.dsde.workbench.model.ErrorReport
+import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -43,6 +44,7 @@ class LeoRoutes(val swaggerConfig: SwaggerConfig)(implicit val system: ActorSyst
       //case withErrorReport: WorkbenchExceptionWithErrorReport =>
       //  complete(withErrorReport.errorReport.statusCode.getOrElse(StatusCodes.InternalServerError), withErrorReport.errorReport)
       case e: Throwable =>
+        //NOTE: this needs SprayJsonSupport._, ErrorReportJsonSupport._, and errorReportSource all imported to work
         complete(StatusCodes.InternalServerError, ErrorReport(e))
     }
   }
