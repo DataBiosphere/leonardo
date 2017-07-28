@@ -27,7 +27,7 @@ object Dependencies {
       //    "com.typesafe.akka"   %%  "akka-http-jackson" % akkaHttpV,
     "org.scalatest"       %%  "scalatest"     % "3.0.1"   % "test",
 
-    "org.broadinstitute.dsde.workbench" %% "workbench-util" % "0.1-e8bdfd0",
-    "org.broadinstitute.dsde.workbench" %% "workbench-model" % "0.1-4b6f482-SNAP"
+    "org.broadinstitute.dsde.workbench" %% "workbench-util" % "0.2-f87e766",
+    "org.broadinstitute.dsde.workbench" %% "workbench-model" % "0.1-f87e766"
   )
 }
