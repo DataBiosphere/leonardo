@@ -28,6 +28,7 @@ object Dependencies {
     "org.scalatest"       %%  "scalatest"     % "3.0.1"   % "test",
 
     "org.broadinstitute.dsde.workbench" %% "workbench-util" % "0.2-f87e766",
-    "org.broadinstitute.dsde.workbench" %% "workbench-model" % "0.1-f87e766"
+    "org.broadinstitute.dsde.workbench" %% "workbench-model" % "0.1-f87e766",
+    "org.broadinstitute.dsde.workbench" %% "workbench-google" % "0.1-6924e2f"
   )
 }
