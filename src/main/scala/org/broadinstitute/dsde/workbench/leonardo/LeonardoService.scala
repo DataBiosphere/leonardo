@@ -1,7 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 import akka.actor.ActorSystem
 import akka.stream.Materializer
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, GoogleUtilities}
+import org.broadinstitute.dsde.workbench.google.GoogleUtilities
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterRequest
 import com.typesafe.config.ConfigFactory
 import com.google.api.client.auth.oauth2.Credential
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
@@ -13,9 +14,9 @@ import com.google.api.services.dataproc.model._
 import com.google.api.services.pubsub.PubsubScopes
 import com.google.api.services.pubsub.model.Topic
 import com.typesafe.scalalogging.LazyLogging
-import spray.http.StatusCodes
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.ExceptionHandler
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 
@@ -37,7 +38,7 @@ class LeonardoService(implicit val system: ActorSystem, val materializer: Materi
       .setTransport(httpTransport)
       .setJsonFactory(jsonFactory)
       .setServiceAccountId(gcsConf.getString("serviceAccount"))
-      .setServiceAccountScopes(cloudPlatformScopes)
+      .setServiceAccountScopes(cloudPlatformScopes.asJava)
       .setServiceAccountPrivateKeyFromP12File(new java.io.File("leonardo-account.p12"))
       .build()
   }
@@ -61,9 +62,9 @@ class LeonardoService(implicit val system: ActorSystem, val materializer: Materi
       JacksonFactory.getDefaultInstance, getDataProcServiceAccountCredential)
       .setApplicationName("dataproc").build()
     val metadata = Map[String, String](("docker-image", "jmthibault79/jupyter-hail-proto:dydshj-1"))
-    val gce = new GceClusterConfig().setMetadata(metadata).setServiceAccount(clusterRequest.serviceAccount)
+    val gce = new GceClusterConfig().setMetadata(metadata.asJava).setServiceAccount(clusterRequest.serviceAccount)
     val initActions = Seq(new NodeInitializationAction().setExecutableFile("gs://fc-8a820408-6d54-4fde-8780-9f547e07b275/init-action.sh"))
-    val clusterConfig = new ClusterConfig().setGceClusterConfig(gce).setInitializationActions(initActions)
+    val clusterConfig = new ClusterConfig().setGceClusterConfig(gce).setInitializationActions(initActions.asJava)
     val cluster= new Cluster().setClusterName(clusterName).setConfig(clusterConfig)
     val request = dataproc.projects().regions().clusters().create(googleProject, "us-central1", cluster)
     val op = executeGoogleRequest(request)

@@ -1,11 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.LazyLogging
+import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.api.LeoRoutes
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 

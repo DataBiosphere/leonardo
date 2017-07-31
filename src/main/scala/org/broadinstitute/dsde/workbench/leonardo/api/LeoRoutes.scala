@@ -1,5 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
-import akka.http.scaladsl.server.Directives._
+
 import akka.actor.ActorSystem
 import akka.event.Logging.LogLevel
 import akka.event.{Logging, LoggingAdapter}
@@ -13,14 +13,16 @@ import akka.http.scaladsl.server.{Directive0, ExceptionHandler}
 import akka.stream.Materializer
 import akka.stream.scaladsl.Sink
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo.LeonardoService
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, ErrorReport}
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
+
 import org.broadinstitute.dsde.workbench.model.ErrorReport
-import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
+
+import org.broadinstitute.dsde.workbench.leonardo.LeonardoService
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterRequest
+import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
+import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
+import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
+
 
 import scala.concurrent.{ExecutionContext, Future}
 
