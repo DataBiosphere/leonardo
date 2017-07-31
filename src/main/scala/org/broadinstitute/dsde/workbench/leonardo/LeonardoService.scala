@@ -13,7 +13,8 @@ import com.google.api.services.dataproc.model._
 import com.google.api.services.pubsub.PubsubScopes
 import com.google.api.services.pubsub.model.Topic
 import com.typesafe.scalalogging.LazyLogging
-
+import spray.http.StatusCodes
+import akka.http.scaladsl.server.ExceptionHandler
 import scala.collection.JavaConversions._
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
@@ -27,43 +28,47 @@ class LeonardoService(implicit val system: ActorSystem, val materializer: Materi
   "https://www.googleapis.com/auth/bigtable.admin.table",
   "https://www.googleapis.com/auth/bigtable.data",
     "https://www.googleapis.com/auth/devstorage.full_control")
-//  private val conf = ConfigFactory.load()
- // private val gcsConf = conf.getConfig("gcs")
+  private val conf = ConfigFactory.load()
+  private val gcsConf = conf.getConfig("gcs")
 
 
   private def getDataProcServiceAccountCredential: Credential = {
     new GoogleCredential.Builder()
       .setTransport(httpTransport)
       .setJsonFactory(jsonFactory)
-      //.setServiceAccountId(gcsConf.getString("serviceAccount"))
+      .setServiceAccountId(gcsConf.getString("serviceAccount"))
       .setServiceAccountScopes(cloudPlatformScopes)
       .setServiceAccountPrivateKeyFromP12File(new java.io.File("leonardo-account.p12"))
       .build()
   }
 
-  def createCluster() = {
-//    build().onComplete {
-//      case Success(op) => "It worked!"
-//      case Failure(e) => e.getMessage
-//    }
-//    build() match {
-//      case Operation =>
-//    }
+  def createCluster(googleProject: String, clusterName: String, clusterRequest: ClusterRequest) = {
+//     try {
+//       val op = build(googleProject, clusterName, clusterRequest)
+//       if (op.getDone()) {
+//         if (op.getError != None) {
+//         }
+//       } else {
+//
+//       }
+//     } catch {
+//       case t: HttpResponseException if t.getStatusCode == StatusCodes.NotFound.intValue => None
+//     }
   }
 
-  def build(googleProject: String, clusterName: String/*, clusterRequest: ClusterRequest*/) = {
+  def build(googleProject: String, clusterName: String, clusterRequest: ClusterRequest) = {
     val dataproc = new Dataproc.Builder(GoogleNetHttpTransport.newTrustedTransport,
       JacksonFactory.getDefaultInstance, getDataProcServiceAccountCredential)
       .setApplicationName("dataproc").build()
-    val metadata = Map[String, String]()  //Are there changes needed to this docker image?
-    val gce = new GceClusterConfig().setMetadata(metadata)
-    val initActions = Seq(new NodeInitializationAction().
-      setExecutableFile(""))  //Where do we want this init script to reside?
+    val metadata = Map[String, String](("docker-image", "jmthibault79/jupyter-hail-proto:dydshj-1"))
+    val gce = new GceClusterConfig().setMetadata(metadata).setServiceAccount(clusterRequest.serviceAccount)
+    val initActions = Seq(new NodeInitializationAction().setExecutableFile("gs://fc-8a820408-6d54-4fde-8780-9f547e07b275/init-action.sh"))
     val clusterConfig = new ClusterConfig().setGceClusterConfig(gce).setInitializationActions(initActions)
     val cluster= new Cluster().setClusterName(clusterName).setConfig(clusterConfig)
     val request = dataproc.projects().regions().clusters().create(googleProject, "us-central1", cluster)
-    executeGoogleRequest(request)
-
+    val op = executeGoogleRequest(request)
+    val x = 1
+    op
 //    retryWithRecoverWhen500orGoogleError(() => {
 //      executeGoogleRequest(request)
 //      true
