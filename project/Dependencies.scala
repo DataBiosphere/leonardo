@@ -1,7 +1,7 @@
 import sbt._
 
 object Dependencies {
-  val akkaV = "2.5.1"
+  val akkaV = "2.5.3"
   val akkaHttpV = "10.0.6"
   val jacksonV = "2.8.7"
 
@@ -25,6 +25,10 @@ object Dependencies {
     "com.typesafe.akka"   %%  "akka-http-spray-json" % akkaHttpV,
     "com.iheart"          %%  "ficus" % "1.4.0",
       //    "com.typesafe.akka"   %%  "akka-http-jackson" % akkaHttpV,
-    "org.scalatest"       %%  "scalatest"     % "3.0.1"   % "test"
+    "org.scalatest"       %%  "scalatest"     % "3.0.1"   % "test",
+
+    "org.broadinstitute.dsde.workbench" %% "workbench-util" % "0.2-f87e766",
+    "org.broadinstitute.dsde.workbench" %% "workbench-model" % "0.1-f87e766",
+    "org.broadinstitute.dsde.workbench" %% "workbench-google" % "0.1-6924e2f"
   )
 }
