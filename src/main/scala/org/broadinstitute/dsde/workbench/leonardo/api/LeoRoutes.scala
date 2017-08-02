@@ -13,22 +13,18 @@ import akka.http.scaladsl.server.{Directive0, ExceptionHandler}
 import akka.stream.Materializer
 import akka.stream.scaladsl.Sink
 import com.typesafe.scalalogging.LazyLogging
-
-import org.broadinstitute.dsde.workbench.model.ErrorReport
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
-
-import org.broadinstitute.dsde.workbench.leonardo.LeonardoService
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterRequest
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
-
+import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
+import spray.json.{JsBoolean, JsString}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class LeoRoutes(val swaggerConfig: SwaggerConfig)(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext) extends LazyLogging  with SwaggerRoutes  {
-
-  val leonardoService = new LeonardoService()
+class LeoRoutes(val leonardoService: LeonardoService, val swaggerConfig: SwaggerConfig)(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext) extends LazyLogging  with SwaggerRoutes  {
 
   def leoRoutes: server.Route =
     path("ping") {
@@ -44,8 +40,9 @@ class LeoRoutes(val swaggerConfig: SwaggerConfig)(implicit val system: ActorSyst
       put {
         entity(as[ClusterRequest]) { cluster =>
           complete {
-            leonardoService.build(googleProject, clusterName, cluster)
-            StatusCodes.OK
+            leonardoService.createCluster(googleProject, clusterName, cluster).map { createCluster =>
+              StatusCodes.OK -> JsString(createCluster.getResponse.toString)
+            }
           }
         }
       }
@@ -60,8 +57,8 @@ class LeoRoutes(val swaggerConfig: SwaggerConfig)(implicit val system: ActorSyst
 
   private val myExceptionHandler = {
     ExceptionHandler {
-      //case withErrorReport: WorkbenchExceptionWithErrorReport =>
-      //  complete(withErrorReport.errorReport.statusCode.getOrElse(StatusCodes.InternalServerError), withErrorReport.errorReport)
+      case withErrorReport: WorkbenchExceptionWithErrorReport =>
+        complete(withErrorReport.errorReport.statusCode.getOrElse(StatusCodes.InternalServerError), withErrorReport.errorReport)
       case e: Throwable =>
         //NOTE: this needs SprayJsonSupport._, ErrorReportJsonSupport._, and errorReportSource all imported to work
         complete(StatusCodes.InternalServerError, ErrorReport(e))
