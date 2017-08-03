@@ -16,9 +16,11 @@ class LeonardoServiceSpec extends FlatSpec with Matchers with TestSupport {
 
   implicit val system = ActorSystem("leonardotest")
   implicit val materializer = ActorMaterializer()
-  val dataprocConfig = ConfigFactory.load().as[DataprocConfig]("dataproc")
-  val gdDAO = new GoogleDataprocDAO(dataprocConfig)
 
+  val config = ConfigFactory.parseResources("references.conf").withFallback(ConfigFactory.load())
+  val dataprocConfig = config.as[DataprocConfig]("dataproc")
+
+  val gdDAO = new GoogleDataprocDAO(dataprocConfig)
   val service = new LeonardoService(gdDAO)
 
   //ToDo: Commenting out this test right now, but we need to figure out how to properly implement integration testing later
