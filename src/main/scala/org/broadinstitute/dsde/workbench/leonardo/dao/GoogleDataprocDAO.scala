@@ -59,7 +59,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
       val dataproc = new Dataproc.Builder(GoogleNetHttpTransport.newTrustedTransport,
         JacksonFactory.getDefaultInstance, getDataProcServiceAccountCredential)
         .setApplicationName("dataproc").build()
-      val metadata = Map[String, String](("docker-image", dataprocConfig.dataprocDockerImage))
+      val metadata = clusterRequest.labels + ("docker-image" -> dataprocConfig.dataprocDockerImage)
       val gce = new GceClusterConfig().setMetadata(metadata.asJava).setServiceAccount(clusterRequest.serviceAccount)
       val initActions = Seq(new NodeInitializationAction().setExecutableFile(dataprocConfig.dataprocInitScriptURI))
       val clusterConfig = new ClusterConfig().setGceClusterConfig(gce).setInitializationActions(initActions.asJava)
