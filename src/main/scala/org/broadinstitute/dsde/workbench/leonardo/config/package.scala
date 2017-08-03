@@ -12,7 +12,9 @@ package object config {
   implicit val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
     DataprocConfig(config.getString("serviceAccount"),
       config.getString("dataprocInitScriptURI"),
-      config.getString("dataprocDockerImage"))
+      config.getString("dataprocDefaultZone"),
+      config.getString("dataprocDockerImage"),
+      config.getString("pathToLeonardoPem"))
   }
 
 }
