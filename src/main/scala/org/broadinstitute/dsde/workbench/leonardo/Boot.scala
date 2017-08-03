@@ -17,7 +17,7 @@ object Boot extends App with LazyLogging {
 
   private def startup(): Unit = {
 
-    val config = ConfigFactory.load()
+    val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
     val dataprocConfig = config.as[DataprocConfig]("dataproc")
 
     // we need an ActorSystem to host our application in

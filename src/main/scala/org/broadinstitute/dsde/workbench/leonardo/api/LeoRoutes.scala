@@ -12,6 +12,7 @@ import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, Logg
 import akka.http.scaladsl.server.{Directive0, ExceptionHandler}
 import akka.stream.Materializer
 import akka.stream.scaladsl.Sink
+import net.ceedubs.ficus.Ficus._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
@@ -20,7 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
-import spray.json.{JsBoolean, JsString}
+import spray.json.{JsBoolean, JsObject, JsString}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -40,8 +41,8 @@ class LeoRoutes(val leonardoService: LeonardoService, val swaggerConfig: Swagger
       put {
         entity(as[ClusterRequest]) { cluster =>
           complete {
-            leonardoService.createCluster(googleProject, clusterName, cluster).map { createCluster =>
-              StatusCodes.OK -> JsString(createCluster.getResponse.toString)
+            leonardoService.createCluster(googleProject, clusterName, cluster).map { clusterResponse =>
+              StatusCodes.OK -> clusterResponse
             }
           }
         }

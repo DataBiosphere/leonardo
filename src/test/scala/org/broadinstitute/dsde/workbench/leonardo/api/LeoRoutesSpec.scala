@@ -2,20 +2,17 @@ package org.broadinstitute.dsde.workbench.leonardo.api
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterRequest
 import org.scalatest.{FlatSpec, Matchers}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.stream.Materializer
-import spray.json._
-import com.typesafe.config.ConfigFactory
-import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, SwaggerConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{GoogleDataprocDAO, MockGoogleDataprocDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
+import spray.json._
 
 import scala.concurrent.ExecutionContext
-
 
 class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest {
 
@@ -24,7 +21,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest {
     extends LeoRoutes(leonardoService, SwaggerConfig())(system, materializer, executionContext)
 
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO
-  val leonardoService = new LeonardoService(mockGoogleDataprocDAO)  //<-- this will be turned into a mockservice
+  val leonardoService = new LeonardoService(mockGoogleDataprocDAO)
   val leoRoutes = new TestLeoRoutes(leonardoService)
 
   "LeoRoutes" should "200 on ping" in {

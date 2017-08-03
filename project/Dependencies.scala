@@ -6,6 +6,8 @@ object Dependencies {
   val jacksonV = "2.8.7"
   val googleV = "1.22.0"
 
+  def excludeGuavaJDK5(m: ModuleID): ModuleID = m.exclude("com.google.guava", "guava-jdk5")
+
   val rootDependencies = Seq(
     // proactively pull in latest versions of Jackson libs, instead of relying on the versions
     // specified as transitive dependencies, due to OWASP DependencyCheck warnings for earlier versions.
@@ -27,7 +29,7 @@ object Dependencies {
     "com.iheart"          %%  "ficus" % "1.4.0",
       //    "com.typesafe.akka"   %%  "akka-http-jackson" % akkaHttpV,
     "org.scalatest"       %%  "scalatest"     % "3.0.1"   % "test",
-    "com.google.apis"     % "google-api-services-dataproc" % ("v1-rev53-" + googleV),
+    excludeGuavaJDK5("com.google.apis"     % "google-api-services-dataproc" % ("v1-rev53-" + googleV)),
     "org.broadinstitute.dsde.workbench" %% "workbench-util" % "0.2-f87e766",
     "org.broadinstitute.dsde.workbench" %% "workbench-model" % "0.1-f87e766",
     "org.broadinstitute.dsde.workbench" %% "workbench-google" % "0.1-6924e2f"
