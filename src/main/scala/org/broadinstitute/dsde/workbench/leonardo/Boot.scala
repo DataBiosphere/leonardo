@@ -25,8 +25,8 @@ object Boot extends App with LazyLogging {
     implicit val materializer = ActorMaterializer()
     import scala.concurrent.ExecutionContext.Implicits.global
 
-    val ggDAO = new GoogleDataprocDAO(dataprocConfig)
-    val leonardoService = new LeonardoService(ggDAO)
+    val gdDAO = new GoogleDataprocDAO(dataprocConfig)
+    val leonardoService = new LeonardoService(gdDAO)
 
     val leoRoutes = new LeoRoutes(leonardoService, config.as[SwaggerConfig]("swagger"))
 
