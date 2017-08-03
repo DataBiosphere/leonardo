@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
+import java.security.interfaces.DSAPrivateKey
 import java.util
 import javax.naming.Context
 import javax.naming.directory.InitialDirContext
@@ -17,7 +18,7 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.json.jackson2.JacksonFactory
 import com.google.api.services.dataproc.Dataproc
 import com.google.api.services.pubsub.PubsubScopes
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterRequest
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, ClusterResponse}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 
@@ -39,21 +40,21 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
       .setJsonFactory(jsonFactory)
       .setServiceAccountId(dataprocConfig.serviceAccount)
       .setServiceAccountScopes(cloudPlatformScopes.asJava)
-      .setServiceAccountPrivateKeyFromP12File(new java.io.File("leonardo-account.p12"))
+      .setServiceAccountPrivateKeyFromPemFile(new java.io.File(dataprocConfig.serviceAccountPemPath))
       .build()
   }
 
-  protected def withContext[T]()(op: InitialDirContext => T)(implicit executionContext: ExecutionContext): Future[T] = Future {
-    val ctx =  new InitialDirContext(new util.Hashtable[String, String]())
-    val t = Try(op(ctx))
-    ctx.close()
-    t.get
+
+  def createCluster(googleProject: String, clusterName: String, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
+    val op = build(googleProject, clusterName, clusterRequest)
+    op.map{op => {
+      val metadata = op.getMetadata
+      new ClusterResponse(clusterName, googleProject, metadata.get("clusterUuid").toString, metadata.get("status").toString, metadata.get("description").toString, op.getName)}}
   }
 
-  private def withContext[T](op: InitialDirContext => T): Future[T] = withContext()(op)
 
-  def createCluster(googleProject: String, clusterName: String, clusterRequest: ClusterRequest): Future[Operation] = {
-    withContext { ctx =>
+  private def build(googleProject: String, clusterName: String, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[Operation] = {
+    Future {
       //currently, the bucketPath and the labels of the clusterRequest are not used
       val dataproc = new Dataproc.Builder(GoogleNetHttpTransport.newTrustedTransport,
         JacksonFactory.getDefaultInstance, getDataProcServiceAccountCredential)
@@ -63,11 +64,11 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
       val initActions = Seq(new NodeInitializationAction().setExecutableFile(dataprocConfig.dataprocInitScriptURI))
       val clusterConfig = new ClusterConfig().setGceClusterConfig(gce).setInitializationActions(initActions.asJava)
       val cluster = new Cluster().setClusterName(clusterName).setConfig(clusterConfig)
-      val request = dataproc.projects().regions().clusters().create(googleProject, "us-central1", cluster)
+      val request = dataproc.projects().regions().clusters().create(googleProject, dataprocConfig.dataprocDefaultZone, cluster)
       try {
         executeGoogleRequest(request)
       } catch {
-        case e: GoogleJsonResponseException => throw new WorkbenchExceptionWithErrorReport(ErrorReport(StatusCodes.BadRequest, s"Google Request failed: ${e.getDetails.getMessage}"))
+        case e: GoogleJsonResponseException => throw new WorkbenchExceptionWithErrorReport(ErrorReport(StatusCodes.BadRequest, s"Google Request Failed: ${e.getDetails.getMessage}"))
       }
     }
   }

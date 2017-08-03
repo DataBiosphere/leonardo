@@ -14,17 +14,18 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ClusterRequest
 class LeonardoServiceSpec extends FlatSpec with Matchers with TestSupport {
   import scala.concurrent.ExecutionContext.Implicits.global
 
-  implicit val system = ActorSystem("samtest")
+  implicit val system = ActorSystem("leonardotest")
   implicit val materializer = ActorMaterializer()
   val dataprocConfig = ConfigFactory.load().as[DataprocConfig]("dataproc")
   val gdDAO = new GoogleDataprocDAO(dataprocConfig)
 
   val service = new LeonardoService(gdDAO)
 
-  "LeonardoService" should "create a cluster" in {
+  //ToDo: Commenting out this test right now, but we need to figure out how to properly implement integration testing later
+  /*"LeonardoService" should "create a cluster" in {
     val clusterRequest = new ClusterRequest("bucketPath", "serviceAccount", Map[String, String]())
-    val result = service.createCluster("googleProject", "clusterName", clusterRequest).map{operation => operation.getDone}
-    // Unsure what to do here - are we going to create actual clusters to test LeonardoService?
-  }
+    service.createCluster("googleProject", "clusterName", clusterRequest)
+    //Once the DELETE and GET APIs are written, we can test the existence of the cluster and then clean up
+  }*/
 
 }
