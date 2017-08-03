@@ -153,4 +153,4 @@ definitions:
         description: The service account of the user
       labels:
         type: object
-        description: Map[String,String]
+        description: The labels to be placed on the cluster. Of time Map[String,String]
