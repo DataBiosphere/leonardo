@@ -5,9 +5,9 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, Swagge
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterRequest
 import org.scalatest.{FlatSpec, Matchers}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.stream.Materializer
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockGoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import spray.json._
 
@@ -15,12 +15,10 @@ import scala.concurrent.ExecutionContext
 
 class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest {
 
-  class TestLeoRoutes(leonardoService: LeonardoService)
-                     (override implicit val materializer: Materializer, override val executionContext: ExecutionContext)
-    extends LeoRoutes(leonardoService, SwaggerConfig())(materializer, executionContext)
+  class TestLeoRoutes(leonardoService: LeonardoService) extends LeoRoutes(leonardoService, SwaggerConfig())
 
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO
-  val leonardoService = new LeonardoService(mockGoogleDataprocDAO)
+  val leonardoService = new LeonardoService(mockGoogleDataprocDAO, DbSingleton.ref)
   val leoRoutes = new TestLeoRoutes(leonardoService)
 
   "LeoRoutes" should "200 on ping" in {

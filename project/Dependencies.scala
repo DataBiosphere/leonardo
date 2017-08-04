@@ -7,6 +7,7 @@ object Dependencies {
   val googleV       = "1.22.0"
   val scalaLoggingV = "3.7.2"
   val scalaTestV    = "3.0.1"
+  val slickV        = "3.2.1"
 
   val workbenchUtilV   = "0.2-d34dcf2"
   val workbenchModelV  = "0.1-d34dcf2"
@@ -37,7 +38,7 @@ object Dependencies {
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka"   %%  "akka-http-testkit"    % akkaHttpV % "test"
 
   val googleDataproc: ModuleID =    "com.google.apis"     % "google-api-services-dataproc" % s"v1-rev53-$googleV" excludeAll(excludeGuavaJDK5)
-  
+
   val scalaTest: ModuleID = "org.scalatest" %% "scalatest" % scalaTestV % "test"
 
   // All of workbench-libs pull in Akka; exclude it since we provide our own Akka dependency.
@@ -45,6 +46,11 @@ object Dependencies {
   val workbenchUtil: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-util"   % workbenchUtilV
   val workbenchModel: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-model"  % workbenchModelV
   val workbenchGoogle: ModuleID =    "org.broadinstitute.dsde.workbench" %% "workbench-google" % workbenchGoogleV excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics)
+
+  val slick: ModuleID =     "com.typesafe.slick" %% "slick"                 % slickV
+  val hikariCP: ModuleID =  "com.typesafe.slick" %% "slick-hikaricp"        % slickV
+  val mysql: ModuleID =     "mysql"               % "mysql-connector-java"  % "6.0.6"
+  val liquibase: ModuleID = "org.liquibase"       % "liquibase-core"        % "3.5.3"
 
   val rootDependencies = Seq(
     // proactively pull in latest versions of Jackson libs, instead of relying on the versions
@@ -70,6 +76,11 @@ object Dependencies {
     googleDataproc,
 
     scalaTest,
+
+    slick,
+    hikariCP,
+    mysql,
+    liquibase,
 
     workbenchUtil,
     workbenchModel,
