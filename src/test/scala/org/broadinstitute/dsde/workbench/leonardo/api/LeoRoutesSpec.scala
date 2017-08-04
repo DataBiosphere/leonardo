@@ -1,5 +1,4 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
-import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, SwaggerConfig}
@@ -17,8 +16,8 @@ import scala.concurrent.ExecutionContext
 class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest {
 
   class TestLeoRoutes(leonardoService: LeonardoService)
-                     (override implicit val system: ActorSystem, override val materializer: Materializer, override val executionContext: ExecutionContext)
-    extends LeoRoutes(leonardoService, SwaggerConfig())(system, materializer, executionContext)
+                     (override implicit val materializer: Materializer, override val executionContext: ExecutionContext)
+    extends LeoRoutes(leonardoService, SwaggerConfig())(materializer, executionContext)
 
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO
   val leonardoService = new LeonardoService(mockGoogleDataprocDAO)
