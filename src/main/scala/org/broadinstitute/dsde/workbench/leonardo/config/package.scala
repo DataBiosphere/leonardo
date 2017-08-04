@@ -8,4 +8,13 @@ package object config {
   implicit val swaggerReader: ValueReader[SwaggerConfig] = ValueReader.relative { config =>
     SwaggerConfig()
   }
+
+  implicit val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
+    DataprocConfig(config.getString("serviceAccount"),
+      config.getString("dataprocInitScriptURI"),
+      config.getString("dataprocDefaultZone"),
+      config.getString("dataprocDockerImage"),
+      config.getString("pathToLeonardoPem"))
+  }
+
 }
