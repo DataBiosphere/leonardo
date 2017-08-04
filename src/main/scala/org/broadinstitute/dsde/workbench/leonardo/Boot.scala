@@ -21,7 +21,7 @@ object Boot extends App with LazyLogging {
     // we need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")
     implicit val materializer = ActorMaterializer()
-    import scala.concurrent.ExecutionContext.Implicits.global
+    import system.dispatcher
 
     val gdDAO = new GoogleDataprocDAO(dataprocConfig)
     val leonardoService = new LeonardoService(gdDAO)
