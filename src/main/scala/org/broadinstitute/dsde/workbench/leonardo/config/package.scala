@@ -17,4 +17,7 @@ package object config {
       config.getString("pathToLeonardoPem"))
   }
 
+  implicit val liquibaseReader: ValueReader[LiquibaseConfig] = ValueReader.relative { config =>
+    LiquibaseConfig(config.as[String]("changelog"), config.as[Boolean]("initWithLiquibase"))
+  }
 }

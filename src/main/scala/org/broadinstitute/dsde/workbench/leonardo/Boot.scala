@@ -7,12 +7,12 @@ import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.LazyLogging
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.api.LeoRoutes
+import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 
 object Boot extends App with LazyLogging {
-
   private def startup(): Unit = {
 
     val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
@@ -23,8 +23,9 @@ object Boot extends App with LazyLogging {
     implicit val materializer = ActorMaterializer()
     import system.dispatcher
 
+    val dbRef = DbReference.init(config, system)
     val gdDAO = new GoogleDataprocDAO(dataprocConfig)
-    val leonardoService = new LeonardoService(gdDAO)
+    val leonardoService = new LeonardoService(gdDAO, dbRef)
 
     val leoRoutes = new LeoRoutes(leonardoService, config.as[SwaggerConfig]("swagger"))
 

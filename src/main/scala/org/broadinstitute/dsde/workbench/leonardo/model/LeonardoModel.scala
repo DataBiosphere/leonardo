@@ -1,15 +1,95 @@
 package org.broadinstitute.dsde.workbench.leonardo.model
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 
-import scala.util.parsing.json.JSONObject
+import java.time.Instant
+import java.util.UUID
 
-case class ClusterRequest(bucketPath: String, serviceAccount: String, labels: Map[String, String])
-case class ClusterResponse(clusterName: String, googleProject: String, clusterId: String, status: String, description: String, operationName: String) // <--- Expand as needed
+import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
+import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.{GoogleBucket, GoogleProject, GoogleServiceAccount}
+import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat}
 
-object LeonardoJsonSupport {
-  import spray.json.DefaultJsonProtocol._
+// maybe we want to get fancy later
+object ModelTypes {
+  type GoogleProject = String
+  type GoogleServiceAccount = String
+  type GoogleBucket = String
+}
 
-  implicit val ClusterRequestFormat = jsonFormat3(ClusterRequest)
+object ClusterStatus extends Enumeration {
+  type ClusterStatus = Value
+  val Unknown, Creating = Value
+}
+
+object Cluster {
+  def apply(clusterRequest: ClusterRequest, clusterResponse: ClusterResponse): Cluster = Cluster(
+    clusterName = clusterResponse.clusterName,
+    googleId = UUID.fromString(clusterResponse.googleId),
+    googleProject = clusterResponse.googleProject,
+    googleServiceAccount = clusterRequest.serviceAccount,
+    googleBucket = clusterRequest.bucketPath,
+    operationName = clusterResponse.operationName,
+    status = ClusterStatus.Creating,
+    hostIp = None,
+    createdDate = Instant.now(),
+    destroyedDate = None,
+    labels = clusterRequest.labels)
+}
+
+case class Cluster(clusterName: String,
+                   googleId: UUID,
+                   googleProject: GoogleProject,
+                   googleServiceAccount: GoogleServiceAccount,
+                   googleBucket: GoogleBucket,
+                   operationName: String,
+                   status: ClusterStatus,
+                   hostIp: Option[String],
+                   createdDate: Instant,
+                   destroyedDate: Option[Instant],
+                   labels: Map[String, String])
+
+case class ClusterRequest(bucketPath: GoogleBucket,
+                          serviceAccount: String,
+                          labels: Map[String, String])
+
+case class ClusterResponse(clusterName: String,
+                           googleProject: GoogleProject,
+                           googleId: String,
+                           status: String,
+                           description: String,
+                           operationName: String)
+
+object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
+  // needed for Cluster
+  implicit object UUIDFormat extends JsonFormat[UUID] {
+    def write(obj: UUID) = JsString(obj.toString)
+
+    def read(json: JsValue): UUID = json match {
+      case JsString(uuid) => UUID.fromString(uuid)
+      case other => throw DeserializationException("Expected UUID, got: " + other)
+    }
+  }
+
+  // needed for Cluster
+  implicit object InstantFormat extends JsonFormat[Instant] {
+    def write(obj: Instant) = JsString(obj.toString)
+
+    def read(json: JsValue): Instant = json match {
+      case JsString(instant) => Instant.parse(instant)
+      case other => throw DeserializationException("Expected Instant, got: " + other)
+    }
+  }
+
+  // needed for Cluster
+  implicit object ClusterStatusFormat extends JsonFormat[ClusterStatus] {
+    def write(obj: ClusterStatus) = JsString(obj.toString)
+
+    def read(json: JsValue): ClusterStatus = json match {
+      case JsString(status) => ClusterStatus.withName(status)
+      case other => throw DeserializationException("Expected ClusterStatus, got: " + other)
+    }
+  }
+
+  implicit val clusterFormat = jsonFormat11(Cluster.apply)
+  implicit val clusterRequestFormat = jsonFormat3(ClusterRequest)
   implicit val clusterResponseFormat = jsonFormat6(ClusterResponse)
-
 }

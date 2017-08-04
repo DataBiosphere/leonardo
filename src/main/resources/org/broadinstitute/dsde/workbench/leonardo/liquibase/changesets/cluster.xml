@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="thibault" id="cluster">
+        <createTable tableName="CLUSTER">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="clusterName" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="googleId" type="BINARY(16)">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="googleProject" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="googleServiceAccount" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="googleBucket" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="operationName" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(254)" defaultValue="Unknown">
+                <constraints nullable="false"/>
+            </column>
+            <column name="hostIp" type="VARCHAR(254)"/>
+            <column name="createdDate" type="TIMESTAMP(6)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="destroyedDate" type="TIMESTAMP(6)"/>
+        </createTable>
+    </changeSet>
+</databaseChangeLog>
