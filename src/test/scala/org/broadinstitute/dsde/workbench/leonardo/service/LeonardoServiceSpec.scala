@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
 import akka.actor.ActorSystem
-import akka.stream.ActorMaterializer
 import org.broadinstitute.dsde.workbench.leonardo.TestSupport
 import org.scalatest.{FlatSpec, Matchers}
 import com.typesafe.config.ConfigFactory
@@ -15,7 +14,6 @@ class LeonardoServiceSpec extends FlatSpec with Matchers with TestSupport {
   import scala.concurrent.ExecutionContext.Implicits.global
 
   implicit val system = ActorSystem("leonardotest")
-  implicit val materializer = ActorMaterializer()
 
   val config = ConfigFactory.parseResources("references.conf").withFallback(ConfigFactory.load())
   val dataprocConfig = config.as[DataprocConfig]("dataproc")

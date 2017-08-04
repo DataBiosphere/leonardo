@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
-import akka.actor.ActorSystem
 import akka.event.Logging.LogLevel
 import akka.event.{Logging, LoggingAdapter}
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
@@ -25,7 +24,7 @@ import spray.json.{JsBoolean, JsObject, JsString}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class LeoRoutes(val leonardoService: LeonardoService, val swaggerConfig: SwaggerConfig)(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext) extends LazyLogging  with SwaggerRoutes  {
+class LeoRoutes(val leonardoService: LeonardoService, val swaggerConfig: SwaggerConfig)(implicit val materializer: Materializer, val executionContext: ExecutionContext) extends LazyLogging  with SwaggerRoutes  {
 
   def leoRoutes: server.Route =
     path("ping") {
