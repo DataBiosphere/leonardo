@@ -11,8 +11,6 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, Swagge
 import org.broadinstitute.dsde.workbench.leonardo.dao.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 
-import scala.concurrent.{ExecutionContext, Future}
-
 object Boot extends App with LazyLogging {
 
   private def startup(): Unit = {

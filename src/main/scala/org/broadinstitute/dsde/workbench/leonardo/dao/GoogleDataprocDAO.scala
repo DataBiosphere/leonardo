@@ -1,16 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
-import java.security.interfaces.DSAPrivateKey
-import java.util
-import javax.naming.Context
-import javax.naming.directory.InitialDirContext
-
 import com.google.api.services.dataproc.model._
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
-import akka.stream.Materializer
 import com.google.api.client.auth.oauth2.Credential
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
@@ -27,7 +21,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
 
-class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext)
+class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
   extends DataprocDAO with GoogleUtilities {
 
   private val httpTransport = GoogleNetHttpTransport.newTrustedTransport
