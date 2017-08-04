@@ -8,16 +8,16 @@ object Dependencies {
   val scalaLoggingV = "3.7.2"
   val scalaTestV    = "3.0.1"
 
+  val workbenchUtilV   = "0.2-f87e766"
+  val workbenchModelV  = "0.1-6924e2f"
+  val workbenchGoogleV = "0.1-6924e2f"
+
   val excludeAllAkka =          ExclusionRule(organization = "com.typesafe.akka")
   val excludeAkkaActor =        ExclusionRule(organization = "com.typesafe.akka", name = "akka-actor_2.12")
   val excludeGuavaJDK5 =        ExclusionRule(organization = "com.google.guava", name = "guava-jdk5")
   val excludeWorkbenchUtil =    ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-util_2.12")
   val excludeWorkbenchModel =   ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-model_2.12")
   val excludeWorkbenchMetrics = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-metrics_2.12")
-
-  val workbenchUtilV   = "0.2-f87e766"
-  val workbenchModelV  = "0.1-6924e2f"
-  val workbenchGoogleV = "0.1-6924e2f"
 
   val jacksonAnnotations: ModuleID = "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonV
   val jacksonDatabind: ModuleID =    "com.fasterxml.jackson.core" % "jackson-databind"    % jacksonV
