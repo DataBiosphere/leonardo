@@ -1,16 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
 import akka.actor.ActorSystem
-import org.broadinstitute.dsde.workbench.leonardo.TestSupport
-import org.scalatest.{FlatSpec, Matchers}
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, SwaggerConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterRequest
+import org.scalatest.{FlatSpec, Matchers}
 
 
-class LeonardoServiceSpec extends FlatSpec with Matchers with TestSupport {
+class LeonardoServiceSpec extends FlatSpec with Matchers {
   import scala.concurrent.ExecutionContext.Implicits.global
 
   implicit val system = ActorSystem("leonardotest")

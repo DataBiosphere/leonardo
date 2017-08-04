@@ -82,14 +82,12 @@ class LeoRoutes(val leonardoService: LeonardoService, val swaggerConfig: Swagger
           }
           entityAsString(resp.entity).map(data => LogEntry(s"${req.method} ${req.uri}: ${resp.status} entity: $data", logLevel))
         case other =>
-          Future.successful(LogEntry(s"$other", Logging.DebugLevel)) // I don't really know when this case happens
+          Future.successful(LogEntry(s"$other", Logging.ErrorLevel)) // I don't really know when this case happens
       }
       entry.map(_.logTo(logger))
     }
 
-    DebuggingDirectives.logRequestResult(LoggingMagnet(log => myLoggingFunction(log)))
+    DebuggingDirectives.logRequestResult(LoggingMagnet(myLoggingFunction))
   }
-
-  def statusCodeCreated[T](response: T): (StatusCode, T) = (StatusCodes.Created, response)
 
 }
