@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="thibault" id="label">
+        <createTable tableName="LABEL">
+            <column name="clusterId" type="BINARY(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="key" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="value" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex indexName="FK_CLUSTER_ID" tableName="LABEL">
+            <column name="clusterId"/>
+        </createIndex>
+        <addForeignKeyConstraint baseColumnNames="clusterId" baseTableName="LABEL" constraintName="FK_CLUSTER_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="clusterId" referencedTableName="CLUSTER"/>
+        <addUniqueConstraint columnNames="clusterId, key" constraintName="IDX_LABEL_UNIQUE" tableName="LABEL"/>
+    </changeSet>
+</databaseChangeLog>
