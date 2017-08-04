@@ -15,10 +15,8 @@ import com.google.api.services.pubsub.PubsubScopes
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, ClusterResponse}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
-
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Try
 
 
 class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
@@ -41,15 +39,15 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
 
   def createCluster(googleProject: String, clusterName: String, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
     val op = build(googleProject, clusterName, clusterRequest)
-    op.map{op => {
+    op.map{op =>
       val metadata = op.getMetadata
-      new ClusterResponse(clusterName, googleProject, metadata.get("clusterUuid").toString, metadata.get("status").toString, metadata.get("description").toString, op.getName)}}
+      ClusterResponse(clusterName, googleProject, metadata.get("clusterUuid").toString, metadata.get("status").toString, metadata.get("description").toString, op.getName)}
   }
 
 
   private def build(googleProject: String, clusterName: String, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[Operation] = {
     Future {
-      //currently, the bucketPath and the labels of the clusterRequest are not used
+      //currently, the bucketPath of the clusterRequest are not used - it will be used later as a place to store notebooks and results
       val dataproc = new Dataproc.Builder(GoogleNetHttpTransport.newTrustedTransport,
         JacksonFactory.getDefaultInstance, getDataProcServiceAccountCredential)
         .setApplicationName("dataproc").build()
