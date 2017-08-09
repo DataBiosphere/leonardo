@@ -6,52 +6,54 @@ import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterStatus}
 
+import scala.util.Random
+
 class LabelComponentSpec extends TestComponent {
 
   "LabelComponent" should "save, get,and delete" in isolatedDbTest {
 
-    val c1 = Cluster(clusterId = UUID.randomUUID(),
+    val c1 = Cluster(
       clusterName = "name1",
+      googleId = UUID.randomUUID(),
       googleProject = "dsp-leo-test",
       googleServiceAccount = "not-a-service-acct@google.com",
       googleBucket = "bucket1",
       operationName = "op1",
       status = ClusterStatus.Creating,
+      hostIp = None,
       createdDate = Instant.now(),
       destroyedDate = Option(Instant.now()),
       labels = Map.empty)
 
-    val c2 = Cluster(clusterId = UUID.randomUUID(),
+    val c2 = Cluster(
       clusterName = "name2",
+      googleId = UUID.randomUUID(),
       googleProject = "dsp-leo-test",
       googleServiceAccount = "not-a-service-acct@google.com",
       googleBucket = "bucket2",
       operationName = "op2",
       status = ClusterStatus.Unknown,
+      hostIp = Some("sure, this is an IP address"),
       createdDate = Instant.now(),
       destroyedDate = None,
       labels = Map.empty)
 
-    val c1Id = c1.clusterId
-    val c2Id = c2.clusterId
     val c2Map = Map("bam" -> "true", "sample" -> "NA12878")
 
-    dbFutureValue { _.labelQuery.getAll(c1Id) } shouldEqual Map.empty
-    dbFutureValue { _.labelQuery.get(c1Id, "missing") } shouldEqual None
+    val missingId = Random.nextLong()
+    dbFutureValue { _.labelQuery.getAll(missingId) } shouldEqual Map.empty
+    dbFutureValue { _.labelQuery.get(missingId, "missing") } shouldEqual None
+    dbFailure { _.labelQuery.save(missingId, "key1", "value1") } shouldBe a [SQLException]
 
-    // Cluster c1 doesn't exist in the DB
-    dbFailure { _.labelQuery.save(c1.clusterId, "key1", "value1") } shouldBe a [SQLException]
     dbFutureValue { _.clusterQuery.save(c1) } shouldEqual c1
+    val c1Id = dbFutureValue { _.clusterQuery.getIdByGoogleId(c1.googleId) }.get
 
     dbFutureValue { _.labelQuery.save(c1Id, "key1", "value1") } shouldEqual 1
     dbFutureValue { _.labelQuery.getAll(c1Id) } shouldEqual Map("key1" -> "value1")
     dbFutureValue { _.labelQuery.get(c1Id, "key1") } shouldEqual Some("value1")
-    dbFutureValue { _.labelQuery.getAll(c2Id) } shouldEqual Map.empty
-    dbFutureValue { _.labelQuery.get(c2Id, "key1") } shouldEqual None
 
-    // Cluster c2 doesn't exist in the DB
-    dbFailure { _.labelQuery.saveAll(c2.clusterId, c2Map) } shouldBe a [SQLException]
     dbFutureValue { _.clusterQuery.save(c2) } shouldEqual c2
+    val c2Id = dbFutureValue { _.clusterQuery.getIdByGoogleId(c2.googleId) }.get
 
     dbFutureValue { _.labelQuery.saveAll(c2Id, c2Map) }
     dbFutureValue { _.labelQuery.getAll(c2Id) } shouldEqual c2Map

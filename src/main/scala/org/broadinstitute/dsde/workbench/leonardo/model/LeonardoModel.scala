@@ -22,25 +22,27 @@ object ClusterStatus extends Enumeration {
 
 object Cluster {
   def apply(clusterRequest: ClusterRequest, clusterResponse: ClusterResponse): Cluster = Cluster(
-    clusterId = UUID.fromString(clusterResponse.clusterId),
     clusterName = clusterResponse.clusterName,
+    googleId = UUID.fromString(clusterResponse.googleId),
     googleProject = clusterResponse.googleProject,
     googleServiceAccount = clusterRequest.serviceAccount,
     googleBucket = clusterRequest.bucketPath,
     operationName = clusterResponse.operationName,
     status = ClusterStatus.Creating,
+    hostIp = None,
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = clusterRequest.labels)
 }
 
-case class Cluster(clusterId: UUID,
-                   clusterName: String,
+case class Cluster(clusterName: String,
+                   googleId: UUID,
                    googleProject: GoogleProject,
                    googleServiceAccount: GoogleServiceAccount,
                    googleBucket: GoogleBucket,
                    operationName: String,
                    status: ClusterStatus,
+                   hostIp: Option[String],
                    createdDate: Instant,
                    destroyedDate: Option[Instant],
                    labels: Map[String, String])
@@ -51,7 +53,7 @@ case class ClusterRequest(bucketPath: GoogleBucket,
 
 case class ClusterResponse(clusterName: String,
                            googleProject: GoogleProject,
-                           clusterId: String,
+                           googleId: String,
                            status: String,
                            description: String,
                            operationName: String)
@@ -87,7 +89,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     }
   }
 
-  implicit val clusterFormat = jsonFormat10(Cluster.apply)
+  implicit val clusterFormat = jsonFormat11(Cluster.apply)
   implicit val clusterRequestFormat = jsonFormat3(ClusterRequest)
   implicit val clusterResponseFormat = jsonFormat6(ClusterResponse)
 }

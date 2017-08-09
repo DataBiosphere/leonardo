@@ -150,21 +150,22 @@ definitions:
   Cluster:
     description: ''
     required:
-      - clusterId
       - clusterName
+      - googleId
       - googleProject
       - googleServiceAccount
       - googleBucket
       - operationName
+      - status
       - createdDate
       - labels
     properties:
-      clusterId:
-        type: string
-        description: Google's UUID for the cluster
       clusterName:
         type: string
         description: The user-supplied name for the cluster
+      googleId:
+        type: string
+        description: Google's UUID for the cluster
       googleProject:
         type: string
         description: The Google Project used to create the cluster
@@ -177,6 +178,12 @@ definitions:
       operationName:
         type: string
         description: Google's operation ID for the cluster
+      status:
+        type: string
+        description: The current state of the cluster
+      hostIp:
+        type: string
+        description: The IP address of the cluster master node
       createdDate:
         type: string
         description: The date and time the cluster was created, in ISO-8601 format
