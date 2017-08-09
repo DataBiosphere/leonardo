@@ -47,8 +47,7 @@ object DbReference extends LazyLogging {
   }
 
   def init(config: Config, system: ActorSystem)(implicit executionContext: ExecutionContext): DbReference = {
-    val db = "mysql"
-    val dbConfig = DatabaseConfig.forConfig[JdbcProfile](db, config)
+    val dbConfig = DatabaseConfig.forConfig[JdbcProfile]("slick", config)
 
     system.registerOnTermination {
       dbConfig.db.shutdown
