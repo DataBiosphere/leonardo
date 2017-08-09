@@ -27,11 +27,16 @@ object Cluster {
     googleProject = clusterResponse.googleProject,
     googleServiceAccount = clusterRequest.serviceAccount,
     googleBucket = clusterRequest.bucketPath,
+    clusterUrl = getClusterUrl(clusterResponse.googleProject, clusterResponse.clusterName),
     operationName = clusterResponse.operationName,
     status = ClusterStatus.Creating,
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = clusterRequest.labels)
+
+  def getClusterUrl(googleProject: String, clusterName: String): String = {
+    s"https://notebook-service.firecloud/clusters/${googleProject}/${clusterName}"
+  }
 }
 
 case class Cluster(clusterId: UUID,
@@ -39,6 +44,7 @@ case class Cluster(clusterId: UUID,
                    googleProject: GoogleProject,
                    googleServiceAccount: GoogleServiceAccount,
                    googleBucket: GoogleBucket,
+                   clusterUrl: String,
                    operationName: String,
                    status: ClusterStatus,
                    createdDate: Instant,
@@ -87,7 +93,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     }
   }
 
-  implicit val clusterFormat = jsonFormat10(Cluster.apply)
+  implicit val clusterFormat = jsonFormat11(Cluster.apply)
   implicit val clusterRequestFormat = jsonFormat3(ClusterRequest)
   implicit val clusterResponseFormat = jsonFormat6(ClusterResponse)
 }
