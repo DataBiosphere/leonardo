@@ -8,11 +8,10 @@ object Dependencies {
   val scalaLoggingV = "3.7.2"
   val scalaTestV    = "3.0.1"
 
-  val workbenchUtilV   = "0.2-f87e766"
-  val workbenchModelV  = "0.1-6924e2f"
-  val workbenchGoogleV = "0.1-6924e2f"
+  val workbenchUtilV   = "0.2-d34dcf2"
+  val workbenchModelV  = "0.1-d34dcf2"
+  val workbenchGoogleV = "0.1-d34dcf2"
 
-  val excludeAllAkka =          ExclusionRule(organization = "com.typesafe.akka")
   val excludeAkkaActor =        ExclusionRule(organization = "com.typesafe.akka", name = "akka-actor_2.12")
   val excludeGuavaJDK5 =        ExclusionRule(organization = "com.google.guava", name = "guava-jdk5")
   val excludeWorkbenchUtil =    ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-util_2.12")
@@ -43,9 +42,9 @@ object Dependencies {
 
   // All of workbench-libs pull in Akka; exclude it since we provide our own Akka dependency.
   // workbench-google pulls in workbench-{util, model, metrics}; exclude them so we can control the library versions individually.
-  val workbenchUtil: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-util"   % workbenchUtilV   excludeAll(excludeAllAkka)
-  val workbenchModel: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-model"  % workbenchModelV  excludeAll(excludeAllAkka)
-  val workbenchGoogle: ModuleID =    "org.broadinstitute.dsde.workbench" %% "workbench-google" % workbenchGoogleV excludeAll(excludeAllAkka, excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics)
+  val workbenchUtil: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-util"   % workbenchUtilV
+  val workbenchModel: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-model"  % workbenchModelV
+  val workbenchGoogle: ModuleID =    "org.broadinstitute.dsde.workbench" %% "workbench-google" % workbenchGoogleV excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics)
 
   val rootDependencies = Seq(
     // proactively pull in latest versions of Jackson libs, instead of relying on the versions
