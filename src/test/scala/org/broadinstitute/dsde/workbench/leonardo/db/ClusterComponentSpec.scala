@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.db
 import java.time.Instant
 import java.util.UUID
 
-import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
+import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterStatus}
 
 class ClusterComponentSpec extends TestComponent {
 
@@ -16,6 +16,7 @@ class ClusterComponentSpec extends TestComponent {
       googleServiceAccount = "not-a-service-acct@google.com",
       googleBucket = "bucket1",
       operationName = "op1",
+      status = ClusterStatus.Unknown,
       createdDate = Instant.now(),
       destroyedDate = None,
       labels = Map("bam" -> "yes", "vcf" -> "no"))
@@ -26,6 +27,7 @@ class ClusterComponentSpec extends TestComponent {
       googleServiceAccount = "not-a-service-acct@google.com",
       googleBucket = "bucket2",
       operationName = "op2",
+      status = ClusterStatus.Creating,
       createdDate = Instant.now(),
       destroyedDate = None,
       labels = Map.empty)

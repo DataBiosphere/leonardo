@@ -4,7 +4,8 @@ import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
-import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.{GoogleBucket, GoogleProject, GoogleServiceAccount, LeonardoUser}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
+import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.{GoogleBucket, GoogleProject, GoogleServiceAccount}
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat}
 
 // maybe we want to get fancy later
@@ -12,7 +13,11 @@ object ModelTypes {
   type GoogleProject = String
   type GoogleServiceAccount = String
   type GoogleBucket = String
-  type LeonardoUser = String // TODO: email or google subject ID ?
+}
+
+object ClusterStatus extends Enumeration {
+  type ClusterStatus = Value
+  val Unknown, Creating = Value
 }
 
 object Cluster {
@@ -23,6 +28,7 @@ object Cluster {
     googleServiceAccount = clusterRequest.serviceAccount,
     googleBucket = clusterRequest.bucketPath,
     operationName = clusterResponse.operationName,
+    status = ClusterStatus.Creating,
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = clusterRequest.labels)
@@ -34,6 +40,7 @@ case class Cluster(clusterId: UUID,
                    googleServiceAccount: GoogleServiceAccount,
                    googleBucket: GoogleBucket,
                    operationName: String,
+                   status: ClusterStatus,
                    createdDate: Instant,
                    destroyedDate: Option[Instant],
                    labels: Map[String, String])
@@ -70,7 +77,17 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     }
   }
 
-  implicit val clusterFormat = jsonFormat9(Cluster.apply)
+  // needed for Cluster
+  implicit object ClusterStatusFormat extends JsonFormat[ClusterStatus] {
+    def write(obj: ClusterStatus) = JsString(obj.toString)
+
+    def read(json: JsValue): ClusterStatus = json match {
+      case JsString(status) => ClusterStatus.withName(status)
+      case other => throw DeserializationException("Expected ClusterStatus, got: " + other)
+    }
+  }
+
+  implicit val clusterFormat = jsonFormat10(Cluster.apply)
   implicit val clusterRequestFormat = jsonFormat3(ClusterRequest)
   implicit val clusterResponseFormat = jsonFormat6(ClusterResponse)
 }

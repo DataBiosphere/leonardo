@@ -4,7 +4,7 @@ import java.sql.SQLException
 import java.time.Instant
 import java.util.UUID
 
-import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
+import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterStatus}
 
 class LabelComponentSpec extends TestComponent {
 
@@ -16,6 +16,7 @@ class LabelComponentSpec extends TestComponent {
       googleServiceAccount = "not-a-service-acct@google.com",
       googleBucket = "bucket1",
       operationName = "op1",
+      status = ClusterStatus.Creating,
       createdDate = Instant.now(),
       destroyedDate = Option(Instant.now()),
       labels = Map.empty)
@@ -26,6 +27,7 @@ class LabelComponentSpec extends TestComponent {
       googleServiceAccount = "not-a-service-acct@google.com",
       googleBucket = "bucket2",
       operationName = "op2",
+      status = ClusterStatus.Unknown,
       createdDate = Instant.now(),
       destroyedDate = None,
       labels = Map.empty)
