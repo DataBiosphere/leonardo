@@ -1,22 +1,18 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
 import akka.actor.ActorSystem
-import akka.http.javadsl.model
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.Uri.{Host, Path}
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.ws._
-import akka.http.scaladsl.server.{RequestContext, Route}
-import akka.stream.{ActorMaterializer, Materializer}
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Route
+import akka.stream.Materializer
 import akka.stream.scaladsl._
 import com.typesafe.scalalogging.LazyLogging
-import com.typesafe.sslconfig.akka.AkkaSSLConfig
 
-import scala.concurrent.duration._
 import scala.collection.immutable
-import scala.collection.JavaConverters._
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, Future}
 
 /**
   * Created by rtitle on 8/4/17.
@@ -26,46 +22,39 @@ trait ProxyRoutes { self: LazyLogging =>
   implicit val materializer: Materializer
   implicit val executionContext: ExecutionContext
 
-  //val target = "try.jupyter.org"
-  //val target = "tmp59.tmpnb.org"
-  val target = "jupyter.local.com"
-
-  val proxyRoutes = Route { context =>
-    val request = context.request
-    logger.info("context.request is " + request.uri.path)
-    context.complete {
-      request.header[UpgradeToWebSocket] match {
-        case Some(upgrade) => handleWebSocketRequest(request, upgrade)
-        case None => handleHttpRequest(request)
+  val proxyRoutes: Route =
+    path(Segment) { notebookId =>
+      get {
+        extractRequest { request =>
+          complete {
+            request.header[UpgradeToWebSocket] match {
+              case Some(upgrade) => handleWebSocketRequest(request, upgrade)
+              case None => handleHttpRequest(request)
+            }
+          }
+        }
       }
     }
-  }
 
   private def handleHttpRequest(request: HttpRequest): Future[HttpResponse] = {
-  //  logger.info(s"Opening http connection to ${request.uri.authority.host.address}:${request.uri.authority.port}${request.uri.path}")
-    val flow = Http(system).outgoingConnection(target, port = 8888)
-
-//    val newHeaders = filterHeaders(request.getHeaders().asScala.map {
-//      case akka.http.scaladsl.model.headers.Host(_, _) => akka.http.scaladsl.model.headers.Host(target)
-//      case h@HttpHeader(_) => h
-//    }.to[immutable.Seq])
-//    val newRequest = request.copy(headers = newHeaders)
-//    println("headers = " + newRequest.headers)
-    //val newRequest = request.copy(headers = filterHeaders(request.headers), uri = request.uri.copy(authority = request.uri.authority.copy(port = 8888)))
-    //val newRequest = HttpRequest(uri = request.uri.copy(authority = request.uri.authority.copy(port = 8888)))
-    //logger.info(s"newRequest = $newRequest")
-    val newRequest = request.copy(headers = filterHeaders(request.headers), uri = Uri(path = request.uri.path, queryString = request.uri.queryString()))
+    logger.debug(s"Opening http connection to ${request.uri}")
+    // TODO eventually will lookup the outgoing address from the notebook ID
+    val flow = Http(system).outgoingConnection(request.uri.authority.host.address, 8888)
+    val newHeaders = filterHeaders(request.headers)
+    val newUri = Uri(path = request.uri.path, queryString = request.uri.queryString())
+    val newRequest = request.copy(headers = newHeaders, uri = newUri)
     val handler = Source.single(newRequest)
       .via(flow)
       .runWith(Sink.head)
-      .flatMap(_.toStrict(5 seconds))
+      .flatMap(_.toStrict(5 seconds))  // TODO needed?
     handler
   }
 
   private def handleWebSocketRequest(request: HttpRequest, upgrade: UpgradeToWebSocket): Future[HttpResponse] = {
-    logger.info("Opening websocket connection to " + request.uri.authority.host.address)
+    logger.debug(s"Opening websocket connection to ${request.uri}")
     val flow = Flow.fromSinkAndSourceMat(Sink.asPublisher[Message](fanout = false), Source.asSubscriber[Message])(Keep.both)
 
+    // TODO eventually will lookup the outgoing address from the notebook ID
     val (responseFuture, (publisher, subscriber)) = Http().singleWebSocketRequest(
       WebSocketRequest(request.uri.copy(authority = request.uri.authority.copy(port = 8888)), extraHeaders = filterHeaders(request.headers),
         upgrade.requestedProtocols.headOption),
@@ -81,7 +70,7 @@ trait ProxyRoutes { self: LazyLogging =>
         webSocketResponse.withHeaders(webSocketResponse.headers ++ filterHeaders(response.headers))
 
       case InvalidUpgradeResponse(response, cause) =>
-        logger.info("WebSocket upgrade response was invalid: {}", cause)
+        logger.warn("WebSocket upgrade response was invalid: {}", cause)
         response
     }
   }
@@ -99,6 +88,5 @@ trait ProxyRoutes { self: LazyLogging =>
     "Upgrade",
     "Connection"
   ).map(_.toLowerCase)
-
 
 }
