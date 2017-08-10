@@ -22,7 +22,7 @@ trait ProxyRoutes { self: LazyLogging =>
   implicit val materializer: Materializer
   implicit val executionContext: ExecutionContext
 
-  final val JupyterPort = 8000
+  val jupyterPort = 8000
 
   val proxyRoutes: Route =
     pathPrefix(Segment) { notebookId =>  // TODO notebookId not currently used
@@ -39,7 +39,7 @@ trait ProxyRoutes { self: LazyLogging =>
   private def handleHttpRequest(request: HttpRequest): Future[HttpResponse] = {
     logger.info(s"Opening http connection to ${request.uri.authority.host.address}")
     // TODO eventually we will lookup the outgoing address from the notebook ID
-    val flow = Http(system).outgoingConnection(request.uri.authority.host.address, JupyterPort)
+    val flow = Http(system).outgoingConnection(request.uri.authority.host.address, jupyterPort)
     val newHeaders = filterHeaders(request.headers)
     val newUri = Uri(path = request.uri.path, queryString = request.uri.queryString())
     val newRequest = request.copy(headers = newHeaders, uri = newUri)
@@ -56,7 +56,7 @@ trait ProxyRoutes { self: LazyLogging =>
 
     // TODO eventually will lookup the outgoing address from the notebook ID
     val (responseFuture, (publisher, subscriber)) = Http().singleWebSocketRequest(
-      WebSocketRequest(request.uri.copy(authority = request.uri.authority.copy(port = JupyterPort)), extraHeaders = filterHeaders(request.headers),
+      WebSocketRequest(request.uri.copy(authority = request.uri.authority.copy(port = jupyterPort)), extraHeaders = filterHeaders(request.headers),
         upgrade.requestedProtocols.headOption),
       flow
     )
