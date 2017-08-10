@@ -47,8 +47,9 @@ class LeoRoutes(val leonardoService: LeonardoService, val swaggerConfig: Swagger
 
   def route: Route = (logRequestResult & handleExceptions(myExceptionHandler)) {
     swaggerRoutes ~
-    pathPrefix("api") { leoRoutes } ~
-    pathPrefix("view") { proxyRoutes }
+    pathPrefix("notebooks") { proxyRoutes } ~
+    pathPrefix("api") { leoRoutes }
+    pathPrefix("notebooks") { proxyRoutes }
   }
 
   private val myExceptionHandler = {
