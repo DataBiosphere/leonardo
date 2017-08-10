@@ -22,41 +22,41 @@ trait ProxyRoutes { self: LazyLogging =>
   implicit val materializer: Materializer
   implicit val executionContext: ExecutionContext
 
+  final val JupyterPort = 8000
+
   val proxyRoutes: Route =
-    path(Segment) { notebookId =>
-      get {
-        extractRequest { request =>
-          complete {
-            request.header[UpgradeToWebSocket] match {
-              case Some(upgrade) => handleWebSocketRequest(request, upgrade)
-              case None => handleHttpRequest(request)
-            }
+    pathPrefix(Segment) { notebookId =>  // TODO notebookId not currently used
+      extractRequest { request =>
+        complete {
+          request.header[UpgradeToWebSocket] match {
+            case Some(upgrade) => handleWebSocketRequest(request, upgrade)
+            case None => handleHttpRequest(request)
           }
         }
       }
     }
 
   private def handleHttpRequest(request: HttpRequest): Future[HttpResponse] = {
-    logger.debug(s"Opening http connection to ${request.uri}")
-    // TODO eventually will lookup the outgoing address from the notebook ID
-    val flow = Http(system).outgoingConnection(request.uri.authority.host.address, 8888)
+    logger.info(s"Opening http connection to ${request.uri.authority.host.address}")
+    // TODO eventually we will lookup the outgoing address from the notebook ID
+    val flow = Http(system).outgoingConnection(request.uri.authority.host.address, JupyterPort)
     val newHeaders = filterHeaders(request.headers)
     val newUri = Uri(path = request.uri.path, queryString = request.uri.queryString())
     val newRequest = request.copy(headers = newHeaders, uri = newUri)
     val handler = Source.single(newRequest)
       .via(flow)
       .runWith(Sink.head)
-      .flatMap(_.toStrict(5 seconds))  // TODO needed?
+      .flatMap(_.toStrict(5 seconds))
     handler
   }
 
   private def handleWebSocketRequest(request: HttpRequest, upgrade: UpgradeToWebSocket): Future[HttpResponse] = {
-    logger.debug(s"Opening websocket connection to ${request.uri}")
+    logger.info(s"Opening websocket connection to ${request.uri.authority.host.address}")
     val flow = Flow.fromSinkAndSourceMat(Sink.asPublisher[Message](fanout = false), Source.asSubscriber[Message])(Keep.both)
 
     // TODO eventually will lookup the outgoing address from the notebook ID
     val (responseFuture, (publisher, subscriber)) = Http().singleWebSocketRequest(
-      WebSocketRequest(request.uri.copy(authority = request.uri.authority.copy(port = 8888)), extraHeaders = filterHeaders(request.headers),
+      WebSocketRequest(request.uri.copy(authority = request.uri.authority.copy(port = JupyterPort)), extraHeaders = filterHeaders(request.headers),
         upgrade.requestedProtocols.headOption),
       flow
     )
@@ -84,6 +84,7 @@ trait ProxyRoutes { self: LazyLogging =>
     "Sec-WebSocket-Accept",
     "Sec-WebSocket-Version",
     "Sec-WebSocket-Key",
+    "Sec-WebSocket-Extensions",
     "UpgradeToWebSocket",
     "Upgrade",
     "Connection"
