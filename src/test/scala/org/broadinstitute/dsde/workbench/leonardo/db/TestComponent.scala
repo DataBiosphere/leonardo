@@ -23,6 +23,8 @@ trait TestComponent extends FlatSpec with Matchers with ScalaFutures
 
   def isolatedDbTest[T](testCode: => T): T = {
     try {
+      // TODO: why is cleaning up at the end of tests not enough?
+      dbFutureValue { _ => DbSingleton.ref.truncateAll() }
       testCode
     } catch {
       case t: Throwable => t.printStackTrace(); throw t
