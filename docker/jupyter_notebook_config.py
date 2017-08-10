@@ -1,4 +1,5 @@
-# adapted from https://github.com/jupyter/docker-stacks/blob/master/base-notebook/jupyter_notebook_config.py
+# pulled from https://hub.docker.com/r/ansingh7115/leonardo-notebooks/
+# and added base_url configs for local proxy testing
 
 from jupyter_core.paths import jupyter_data_dir
 import subprocess
