@@ -25,7 +25,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with ScalatestRouteTest with ScalaFutures {
   // ScalatestRouteTest sets the Host header to 'www.example.com' by default.
   // We need to set it to localhost for the proxy to work.
-  val LocalHostHeader = akka.http.scaladsl.model.headers.Host("127.0.0.1")
+  val LocalHostHeader = akka.http.scaladsl.model.headers.Host("localhost")
 
   // Convenience class for capturing HTTP data sent to the backend server and returning it back to the caller
   case class Data(method: String, path: String, qs: Option[String], headers: Map[String, String])
@@ -161,7 +161,7 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
     val outgoing = Source.single(TextMessage("Leonardo"))
 
     // Flow to hit the proxy server
-    val webSocketFlow = Http().webSocketClientFlow(WebSocketRequest(Uri("ws://127.0.0.1:9000/notebooks/websocket"))).map {
+    val webSocketFlow = Http().webSocketClientFlow(WebSocketRequest(Uri("ws://localhost:9000/notebooks/websocket"))).map {
       case m: TextMessage.Strict => m.text
       case _ => throw new IllegalArgumentException("ProxyRoutesSpec only supports strict messages")
     }
