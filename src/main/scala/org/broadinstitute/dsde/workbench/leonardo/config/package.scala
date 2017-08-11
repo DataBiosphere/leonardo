@@ -14,7 +14,8 @@ package object config {
       config.getString("dataprocInitScriptURI"),
       config.getString("dataprocDefaultZone"),
       config.getString("dataprocDockerImage"),
-      config.getString("pathToLeonardoPem"))
+      config.getString("pathToLeonardoPem"),
+      config.getString("clusterUrlBase"))
   }
 
   implicit val liquibaseReader: ValueReader[LiquibaseConfig] = ValueReader.relative { config =>
