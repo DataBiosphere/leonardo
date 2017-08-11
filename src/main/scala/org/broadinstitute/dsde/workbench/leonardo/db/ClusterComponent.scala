@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.db
 import java.sql.Timestamp
 import java.util.UUID
 
+import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterStatus}
 
 case class ClusterRecord(id: Long,
@@ -35,6 +36,8 @@ trait ClusterComponent extends LeoComponent {
     def createdDate =           column[Timestamp]         ("createdDate",           O.SqlType("TIMESTAMP(6)"))
     def destroyedDate =         column[Option[Timestamp]] ("destroyedDate",         O.SqlType("TIMESTAMP(6)"))
 
+    def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName), unique = true)
+
     def * = (id, clusterName, googleId, googleProject, googleServiceAccount, googleBucket, operationName, status, hostIp, createdDate, destroyedDate) <> (ClusterRecord.tupled, ClusterRecord.unapply)
   }
 
@@ -52,8 +55,10 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    def getByName(name: String): DBIO[Option[Cluster]] = {
-      clusterQuery.filter { _.clusterName === name }.result flatMap { recs =>
+    // currently any string can be a GoogleProject
+    // but I'm planning to fix that soon
+    def getByName(project: GoogleProject, name: String): DBIO[Option[Cluster]] = {
+      clusterQuery.filter { _.googleProject === project }.filter { _.clusterName === name }.result flatMap { recs =>
         DBIO.sequence(recs map unmarshalWithLabels) map { _.headOption }
       }
     }
