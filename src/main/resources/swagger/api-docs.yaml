@@ -15,6 +15,12 @@ basePath: /
 produces:
   - application/json
 
+tags:
+  - name: test
+    description: Test API
+  - name: cluster
+    description: Clusters API
+
 ## UNCOMMENT THIS WHEN WE GET LEO CONF IN FIRECLOUD-DEVELOP
 #security:
 #  - googleoauth:
@@ -77,6 +83,8 @@ paths:
       responses:
         200:
           description: Cluster creation successful
+          schema:
+            $ref: '#/definitions/Cluster'
         500:
           description: Internal Error
           schema:
@@ -139,6 +147,52 @@ definitions:
         type: integer
         description: line number
 
+  Cluster:
+    description: ''
+    required:
+      - clusterName
+      - googleId
+      - googleProject
+      - googleServiceAccount
+      - googleBucket
+      - operationName
+      - status
+      - createdDate
+      - labels
+    properties:
+      clusterName:
+        type: string
+        description: The user-supplied name for the cluster
+      googleId:
+        type: string
+        description: Google's UUID for the cluster
+      googleProject:
+        type: string
+        description: The Google Project used to create the cluster
+      googleServiceAccount:
+        type: string
+        description: The Google Service Account used to create the cluster
+      googleBucket:
+        type: string
+        description: The Google Bucket associated with the cluster
+      operationName:
+        type: string
+        description: Google's operation ID for the cluster
+      status:
+        type: string
+        description: The current state of the cluster
+      hostIp:
+        type: string
+        description: The IP address of the cluster master node
+      createdDate:
+        type: string
+        description: The date and time the cluster was created, in ISO-8601 format
+      destroyedDate:
+        type: string
+        description: The date and time the cluster was destroyed, in ISO-8601 format
+      labels:
+        type: object
+        description: The labels to be placed on the cluster. Of type Map[String,String]
 
   ClusterRequest:
     description: ''
@@ -156,9 +210,3 @@ definitions:
       labels:
         type: object
         description: The labels to be placed on the cluster. Of type Map[String,String]
-
-  tags:
-    - name: test
-      description: Test API
-    - name: cluster
-      description: Clusters API

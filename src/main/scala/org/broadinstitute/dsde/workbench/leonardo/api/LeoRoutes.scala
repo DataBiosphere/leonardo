@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo.api
 
 import akka.event.Logging.LogLevel
 import akka.event.{Logging, LoggingAdapter}
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server
 import akka.http.scaladsl.server.Directives._
