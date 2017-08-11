@@ -14,6 +14,7 @@ import akka.stream.Materializer
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import com.typesafe.scalalogging.LazyLogging
 import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import spray.json.DefaultJsonProtocol._
 
@@ -23,6 +24,8 @@ import scala.concurrent.{ExecutionContext, Future}
   * Created by rtitle on 8/10/17.
   */
 class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with ScalatestRouteTest with ScalaFutures {
+  implicit val patience = PatienceConfig(timeout = scaled(Span(10, Seconds)))
+
   // ScalatestRouteTest sets the Host header to 'www.example.com' by default.
   // We need to set it to localhost for the proxy to work.
   val LocalHostHeader = akka.http.scaladsl.model.headers.Host("localhost")
