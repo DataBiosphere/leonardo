@@ -45,8 +45,37 @@ class ClusterComponentSpec extends TestComponent {
     dbFutureValue { _.clusterQuery.getByGoogleId(c1.googleId) } shouldEqual Some(c1)
     dbFutureValue { _.clusterQuery.getByGoogleId(c2.googleId) } shouldEqual Some(c2)
 
-    // can't update/overwrite
-    dbFailure { _.clusterQuery.save(c1.copy(googleId = UUID.randomUUID())) } shouldBe a[SQLException]
+    // (project, name) unique key test
+
+    val c3 = Cluster(
+      clusterName = c1.clusterName,
+      googleId = UUID.randomUUID(),
+      googleProject = c1.googleProject,
+      googleServiceAccount = "something-new@google.com",
+      googleBucket = "bucket3",
+      operationName = "op3",
+      status = ClusterStatus.Unknown,
+      hostIp = Some("1.2.3.4"),
+      createdDate = Instant.now(),
+      destroyedDate = None,
+      labels = Map.empty)
+    dbFailure { _.clusterQuery.save(c3) } shouldBe a[SQLException]
+
+    // googleId unique key test
+
+    val c4 = Cluster(
+      clusterName = "name4",
+      googleId = c1.googleId,
+      googleProject = "project4",
+      googleServiceAccount = "something-new@google.com",
+      googleBucket = "bucket3",
+      operationName = "op3",
+      status = ClusterStatus.Unknown,
+      hostIp = Some("1.2.3.4"),
+      createdDate = Instant.now(),
+      destroyedDate = None,
+      labels = Map.empty)
+    dbFailure { _.clusterQuery.save(c4) } shouldBe a[SQLException]
 
     dbFutureValue { _.clusterQuery.deleteByGoogleId(c1.googleId) } shouldEqual 1
     dbFutureValue { _.clusterQuery.list() } should contain theSameElementsAs Seq(c2)

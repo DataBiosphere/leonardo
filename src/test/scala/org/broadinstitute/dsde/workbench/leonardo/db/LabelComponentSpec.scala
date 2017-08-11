@@ -60,9 +60,9 @@ class LabelComponentSpec extends TestComponent {
     dbFutureValue { _.labelQuery.get(c2Id, "bam") } shouldEqual Some("true")
     dbFutureValue { _.labelQuery.getAll(c1Id) } shouldEqual Map("key1" -> "value1")
 
-    // can't update/overwrite
+    // (cluster, key) unique key test
 
-    val c2NewMap = Map("bam" -> "false", "sample" -> "NA12879")
+    val c2NewMap = Map("sample" -> "NA12879")
 
     dbFailure { _.labelQuery.save(c1Id, "key1", "newvalue") } shouldBe a[SQLException]
     dbFailure { _.labelQuery.saveAll(c2Id, c2NewMap) } shouldBe a[SQLException]

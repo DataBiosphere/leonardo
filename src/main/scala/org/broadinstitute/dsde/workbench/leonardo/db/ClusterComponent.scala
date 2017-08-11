@@ -26,7 +26,7 @@ trait ClusterComponent extends LeoComponent {
   class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
     def id =                    column[Long]              ("id",                    O.PrimaryKey, O.AutoInc)
     def clusterName =           column[String]            ("clusterName",           O.Length(254))
-    def googleId =              column[UUID]              ("googleId")
+    def googleId =              column[UUID]              ("googleId",              O.Unique)
     def googleProject =         column[String]            ("googleProject",         O.Length(254))
     def googleServiceAccount =  column[String]            ("googleServiceAccount",  O.Length(254))
     def googleBucket =          column[String]            ("googleBucket",          O.Length(254))
