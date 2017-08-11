@@ -4,6 +4,9 @@ import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
+import com.typesafe.config.ConfigFactory
+import net.ceedubs.ficus.Ficus._
+import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.{GoogleBucket, GoogleProject, GoogleServiceAccount}
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat}
@@ -35,7 +38,9 @@ object Cluster {
     labels = clusterRequest.labels)
 
   def getClusterUrl(googleProject: String, clusterName: String): String = {
-    s"https://notebook-service.firecloud/clusters/${googleProject}/${clusterName}"
+    val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
+    val dataprocConfig = config.as[DataprocConfig]("dataproc")
+    dataprocConfig.clusterUrlBase + googleProject + "/" + clusterName
   }
 }
 
