@@ -78,12 +78,12 @@ class ClusterComponentSpec extends TestComponent {
     dbFailure { _.clusterQuery.save(c4) } shouldBe a[SQLException]
 
     dbFutureValue { _.clusterQuery.deleteByGoogleId(c1.googleId) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.list() } should contain theSameElementsAs Seq(c2)
+    dbFutureValue { _.clusterQuery.list() } shouldEqual Seq(c2)
 
     dbFutureValue { _.clusterQuery.deleteByGoogleId(c1.googleId) } shouldEqual 0
-    dbFutureValue { _.clusterQuery.list() } should contain theSameElementsAs Seq(c2)
+    dbFutureValue { _.clusterQuery.list() } shouldEqual Seq(c2)
 
     dbFutureValue { _.clusterQuery.deleteByGoogleId(c2.googleId) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.list() } should contain theSameElementsAs Seq()
+    dbFutureValue { _.clusterQuery.list() } shouldEqual Seq()
   }
 }
