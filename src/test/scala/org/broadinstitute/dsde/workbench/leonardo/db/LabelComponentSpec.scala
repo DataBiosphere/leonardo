@@ -41,7 +41,7 @@ class LabelComponentSpec extends TestComponent {
     val c2Map = Map("bam" -> "true", "sample" -> "NA12878")
 
     val missingId = Random.nextLong()
-    dbFutureValue { _.labelQuery.getAll(missingId) } shouldEqual Map.empty
+    dbFutureValue { _.labelQuery.getAllForCluster(missingId) } shouldEqual Map.empty
     dbFutureValue { _.labelQuery.get(missingId, "missing") } shouldEqual None
     dbFailure { _.labelQuery.save(missingId, "key1", "value1") } shouldBe a [SQLException]
 
@@ -49,30 +49,30 @@ class LabelComponentSpec extends TestComponent {
     val c1Id = dbFutureValue { _.clusterQuery.getIdByGoogleId(c1.googleId) }.get
 
     dbFutureValue { _.labelQuery.save(c1Id, "key1", "value1") } shouldEqual 1
-    dbFutureValue { _.labelQuery.getAll(c1Id) } shouldEqual Map("key1" -> "value1")
+    dbFutureValue { _.labelQuery.getAllForCluster(c1Id) } shouldEqual Map("key1" -> "value1")
     dbFutureValue { _.labelQuery.get(c1Id, "key1") } shouldEqual Some("value1")
 
     dbFutureValue { _.clusterQuery.save(c2) } shouldEqual c2
     val c2Id = dbFutureValue { _.clusterQuery.getIdByGoogleId(c2.googleId) }.get
 
-    dbFutureValue { _.labelQuery.saveAll(c2Id, c2Map) }
-    dbFutureValue { _.labelQuery.getAll(c2Id) } shouldEqual c2Map
+    dbFutureValue { _.labelQuery.saveAllForCluster(c2Id, c2Map) }
+    dbFutureValue { _.labelQuery.getAllForCluster(c2Id) } shouldEqual c2Map
     dbFutureValue { _.labelQuery.get(c2Id, "bam") } shouldEqual Some("true")
-    dbFutureValue { _.labelQuery.getAll(c1Id) } shouldEqual Map("key1" -> "value1")
+    dbFutureValue { _.labelQuery.getAllForCluster(c1Id) } shouldEqual Map("key1" -> "value1")
 
     // (cluster, key) unique key test
 
     val c2NewMap = Map("sample" -> "NA12879")
 
     dbFailure { _.labelQuery.save(c1Id, "key1", "newvalue") } shouldBe a[SQLException]
-    dbFailure { _.labelQuery.saveAll(c2Id, c2NewMap) } shouldBe a[SQLException]
+    dbFailure { _.labelQuery.saveAllForCluster(c2Id, c2NewMap) } shouldBe a[SQLException]
 
     dbFutureValue { _.labelQuery.delete(c1Id, "key1") } shouldEqual 1
     dbFutureValue { _.labelQuery.delete(c1Id, "key1") } shouldEqual 0
-    dbFutureValue { _.labelQuery.getAll(c1Id) } shouldEqual Map.empty
+    dbFutureValue { _.labelQuery.getAllForCluster(c1Id) } shouldEqual Map.empty
 
-    dbFutureValue { _.labelQuery.deleteAll(c2Id) } shouldEqual 2
-    dbFutureValue { _.labelQuery.deleteAll(c2Id) } shouldEqual 0
-    dbFutureValue { _.labelQuery.getAll(c2Id) } shouldEqual Map.empty
+    dbFutureValue { _.labelQuery.deleteAllForCluster(c2Id) } shouldEqual 2
+    dbFutureValue { _.labelQuery.deleteAllForCluster(c2Id) } shouldEqual 0
+    dbFutureValue { _.labelQuery.getAllForCluster(c2Id) } shouldEqual Map.empty
    }
 }

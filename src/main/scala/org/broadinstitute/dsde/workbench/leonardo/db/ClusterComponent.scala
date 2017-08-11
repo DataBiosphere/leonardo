@@ -45,7 +45,7 @@ trait ClusterComponent extends LeoComponent {
 
     def save(cluster: Cluster): DBIO[Cluster] = {
       (clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster)) flatMap { clusterId =>
-        labelQuery.saveAll(clusterId, cluster.labels)
+        labelQuery.saveAllForCluster(clusterId, cluster.labels)
       } map { _ => cluster }
     }
 
@@ -76,7 +76,7 @@ trait ClusterComponent extends LeoComponent {
     }
 
     private def deleteById(id: Long): DBIO[Int] = {
-      labelQuery.deleteAll(id) flatMap { _ =>
+      labelQuery.deleteAllForCluster(id) flatMap { _ =>
         clusterQuery.filter { _.id === id }.delete
       }
     }
@@ -104,7 +104,7 @@ trait ClusterComponent extends LeoComponent {
     }
 
     private def unmarshalWithLabels(clusterRecord: ClusterRecord): DBIO[Cluster] = {
-      labelQuery.getAll(clusterRecord.id) map { labels =>
+      labelQuery.getAllForCluster(clusterRecord.id) map { labels =>
         unmarshalCluster(clusterRecord, labels)
       }
     }

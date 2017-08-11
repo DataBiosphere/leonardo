@@ -25,11 +25,11 @@ trait LabelComponent extends LeoComponent {
     }
 
     // ++= does not actually produce a useful return value
-    def saveAll(clusterId: Long, m: Map[String, String]): DBIO[Option[Int]] = {
+    def saveAllForCluster(clusterId: Long, m: Map[String, String]): DBIO[Option[Int]] = {
       labelQuery ++= m map { case (key, value) => LabelRecord(clusterId, key, value) }
     }
 
-    def getAll(clusterId: Long): DBIO[Map[String, String]] = {
+    def getAllForCluster(clusterId: Long): DBIO[Map[String, String]] = {
       labelQuery.filter { _.clusterId === clusterId}.result map { recs =>
         val tuples = recs map { rec =>
           rec.key -> rec.value
@@ -50,7 +50,7 @@ trait LabelComponent extends LeoComponent {
       clusterKeyFilter(clusterId, key).delete
     }
 
-    def deleteAll(clusterId: Long): DBIO[Int] = {
+    def deleteAllForCluster(clusterId: Long): DBIO[Int] = {
       labelQuery.filter { _.clusterId === clusterId }.delete
     }
   }
