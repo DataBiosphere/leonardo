@@ -15,9 +15,7 @@ import scala.concurrent.ExecutionContext
 
 class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest {
 
-  class TestLeoRoutes(leonardoService: LeonardoService)
-                     (override implicit val materializer: Materializer, override implicit val executionContext: ExecutionContext)
-    extends LeoRoutes(leonardoService, SwaggerConfig())
+  class TestLeoRoutes(leonardoService: LeonardoService) extends LeoRoutes(leonardoService, SwaggerConfig())
 
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO
   val leonardoService = new LeonardoService(mockGoogleDataprocDAO, DbSingleton.ref)
