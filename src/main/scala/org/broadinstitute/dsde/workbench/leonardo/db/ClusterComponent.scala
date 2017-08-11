@@ -71,7 +71,7 @@ trait ClusterComponent extends LeoComponent {
 
     def deleteByGoogleId(googleId: UUID): DBIO[Int] = {
       clusterQuery.filter { _.googleId === googleId }.result flatMap { recs =>
-        DBIO.sequence(recs map { r => deleteById(r.id) }) map { _.sum }
+        DBIO.fold(recs map { r => deleteById(r.id) }, 0)(_ + _)
       }
     }
 
