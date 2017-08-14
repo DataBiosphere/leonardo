@@ -4,6 +4,9 @@ import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
+import com.typesafe.config.ConfigFactory
+import net.ceedubs.ficus.Ficus._
+import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.{GoogleBucket, GoogleProject, GoogleServiceAccount}
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat}
@@ -27,12 +30,19 @@ object Cluster {
     googleProject = clusterResponse.googleProject,
     googleServiceAccount = clusterRequest.serviceAccount,
     googleBucket = clusterRequest.bucketPath,
+    clusterUrl = getClusterUrl(clusterResponse.googleProject, clusterResponse.clusterName),
     operationName = clusterResponse.operationName,
     status = ClusterStatus.Creating,
     hostIp = None,
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = clusterRequest.labels)
+
+  def getClusterUrl(googleProject: String, clusterName: String): String = {
+    val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
+    val dataprocConfig = config.as[DataprocConfig]("dataproc")
+    dataprocConfig.clusterUrlBase + googleProject + "/" + clusterName
+  }
 }
 
 case class Cluster(clusterName: String,
@@ -40,6 +50,7 @@ case class Cluster(clusterName: String,
                    googleProject: GoogleProject,
                    googleServiceAccount: GoogleServiceAccount,
                    googleBucket: GoogleBucket,
+                   clusterUrl: String,
                    operationName: String,
                    status: ClusterStatus,
                    hostIp: Option[String],
@@ -89,7 +100,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     }
   }
 
-  implicit val clusterFormat = jsonFormat11(Cluster.apply)
+  implicit val clusterFormat = jsonFormat12(Cluster.apply)
   implicit val clusterRequestFormat = jsonFormat3(ClusterRequest)
   implicit val clusterResponseFormat = jsonFormat6(ClusterResponse)
 }
