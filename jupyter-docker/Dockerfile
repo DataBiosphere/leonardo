@@ -32,9 +32,9 @@ ENV HADOOP_CONF_DIR /etc/hadoop/conf
 ENV PATH $SPARK_HOME:$SPARK_HOME/python:$SPARK_HOME/bin:$HAIL_HOME:$PATH
 ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILZIP:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip
 
-ENV USER ansingh
+ENV JUPYTER_USER ansingh
 ENV UID 1000
-ENV HOME /home/$USER
+ENV HOME /home/$JUPYTER_USER
 
 # ensure this matches c.NotebookApp.port in jupyter_notebook_config.py
 ENV JUPYTER_PORT 8000
@@ -86,7 +86,7 @@ RUN echo "deb $DEBIAN_REPO/debian jessie main\ndeb $DEBIAN_REPO/debian-security 
  && cd - \
 
  # NOTE! not sure why, but this must run before pip installation
- && useradd -m -s /bin/bash -N -u $UID $USER \
+ && useradd -m -s /bin/bash -N -u $UID $JUPYTER_USER \
 
  # ubuntu's default pip doesn't work well with jupyter
  && wget https://bootstrap.pypa.io/get-pip.py \
@@ -106,12 +106,14 @@ RUN echo "deb $DEBIAN_REPO/debian jessie main\ndeb $DEBIAN_REPO/debian-security 
  && pip install fastinterval \
  && pip install matplotlib-venn
 
-ADD spark-defaults-temp.conf $SPARK_HOME/conf/spark-defaults-temp.conf
-RUN sed -i "s|HAILHASH|$HAIL_HASH|g" $SPARK_HOME/conf/spark-defaults-temp.conf > $SPARK_HOME/conf/spark-defaults.conf
-ADD jupyter_notebook_config.py $JUPY_HOME
-RUN chown -R $USER:users $JUPY_HOME
 
-USER $USER
+ADD spark-defaults-temp.conf.template $SPARK_HOME/conf/spark-defaults.conf.template
+# Spark defaults conf find and replace [HAILHASH] with the hash
+RUN sed -i "s|[HAILHASH]|$HAIL_HASH|g" $SPARK_HOME/conf/spark-defaults.conf.template > $SPARK_HOME/conf/spark-defaults.conf
+ADD jupyter_notebook_config.py $JUPY_HOME
+RUN chown -R $JUPYTER_USER:users $JUPY_HOME
+
+USER $JUPYTER_USER
 WORKDIR $HOME
 
 EXPOSE $JUPYTER_PORT
