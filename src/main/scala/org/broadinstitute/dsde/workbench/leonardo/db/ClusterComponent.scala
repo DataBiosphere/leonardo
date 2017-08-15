@@ -116,6 +116,7 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.googleProject,
         clusterRecord.googleServiceAccount,
         clusterRecord.googleBucket,
+        Cluster.getClusterUrl(clusterRecord.googleProject, clusterRecord.clusterName),
         clusterRecord.operationName,
         ClusterStatus.withName(clusterRecord.status),
         clusterRecord.hostIp,

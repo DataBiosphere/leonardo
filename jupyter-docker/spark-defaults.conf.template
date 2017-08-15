@@ -1,0 +1,28 @@
+#######################
+# required by DataProc
+#######################
+
+# Uses the YARN configuration in $HADOOP_CONF_DIR
+
+spark.master yarn
+spark.submit.deployMode client
+
+###################
+# required by Hail
+###################
+
+# Distributes from master node to the working directories of executors
+
+spark.jars /spark/spark-2.0.2/gcs-connector.jar,/hail/hail-hail-is-master-all-spark2.0.2-[HAILHASH].jar
+spark.submit.pyFiles /hail/pyhail-hail-is-master-[HAILHASH].zip
+
+# Add JARs to Classpaths: driver can use absolute paths
+spark.driver.extraClassPath /spark/spark-2.0.2/gcs-connector.jar:/hail/hail-hail-is-master-all-spark2.0.2-[HAILHASH].jar
+
+# Add JARs to Classpaths: distributed to executor working directory by above spark.jars directive
+spark.executor.extraClassPath ./gcs-connector.jar:./hail-hail-is-master-all-spark2.0.2-[HAILHASH].jar
+
+# Hail needs at least 50GB
+
+spark.sql.files.maxPartitionBytes=100000000000
+spark.sql.files.openCostInBytes=100000000000
