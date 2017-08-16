@@ -21,4 +21,8 @@ package object config {
   implicit val liquibaseReader: ValueReader[LiquibaseConfig] = ValueReader.relative { config =>
     LiquibaseConfig(config.as[String]("changelog"), config.as[Boolean]("initWithLiquibase"))
   }
+
+  implicit val proxyConfigReader: ValueReader[ProxyConfig] = ValueReader.relative { config =>
+    ProxyConfig(config.getInt("jupyterPort"))
+  }
 }
