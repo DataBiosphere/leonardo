@@ -1,17 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, SwaggerConfig}
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterRequest
+import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, GoogleBucket, GoogleServiceAccount}
 import org.scalatest.{FlatSpec, Matchers}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
-import akka.stream.Materializer
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import spray.json._
-
-import scala.concurrent.ExecutionContext
 
 class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest {
 
@@ -29,7 +26,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest {
 
   it should "200 when creating a cluster" in {
 
-    val newCluster = ClusterRequest("test-bucket-path", "test-service-account", Map[String,String]())
+    val newCluster = ClusterRequest(GoogleBucket("test-bucket-path"), GoogleServiceAccount("test-service-account"), Map.empty)
     val googleProject = "test-project"
     val clusterName = "test-cluster"
 
