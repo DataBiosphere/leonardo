@@ -3,8 +3,8 @@ package org.broadinstitute.dsde.workbench.leonardo.db
 import java.sql.Timestamp
 import java.util.UUID
 
-import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterStatus}
+import org.broadinstitute.dsde.workbench.leonardo.model.TypedString.LabelMap
+import org.broadinstitute.dsde.workbench.leonardo.model._
 
 case class ClusterRecord(id: Long,
                          clusterName: String,
@@ -55,10 +55,8 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    // currently any string can be a GoogleProject
-    // but I'm planning to fix that soon
-    def getByName(project: GoogleProject, name: String): DBIO[Option[Cluster]] = {
-      clusterQuery.filter { _.googleProject === project }.filter { _.clusterName === name }.result flatMap { recs =>
+    def getByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
+      clusterQuery.filter { _.googleProject === project.s }.filter { _.clusterName === name.s }.result flatMap { recs =>
         DBIO.sequence(recs map unmarshalWithLabels) map { _.headOption }
       }
     }
@@ -90,14 +88,14 @@ trait ClusterComponent extends LeoComponent {
     private def marshalCluster(cluster: Cluster): ClusterRecord = {
       ClusterRecord(
         id = 0,    // DB AutoInc
-        cluster.clusterName,
+        cluster.clusterName.s,
         cluster.googleId,
-        cluster.googleProject,
-        cluster.googleServiceAccount,
-        cluster.googleBucket,
-        cluster.operationName,
+        cluster.googleProject.s,
+        cluster.googleServiceAccount.s,
+        cluster.googleBucket.s,
+        cluster.operationName.s,
         cluster.status.toString,
-        cluster.hostIp,
+        cluster.hostIp map(_.s),
         Timestamp.from(cluster.createdDate),
         cluster.destroyedDate map Timestamp.from
       )
@@ -109,17 +107,19 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    private def unmarshalCluster(clusterRecord: ClusterRecord, labels: Map[String,String]): Cluster = {
+    private def unmarshalCluster(clusterRecord: ClusterRecord, labels: LabelMap): Cluster = {
+      val name = ClusterName(clusterRecord.clusterName)
+      val project = GoogleProject(clusterRecord.googleProject)
       Cluster(
-        clusterRecord.clusterName,
+        name,
         clusterRecord.googleId,
-        clusterRecord.googleProject,
-        clusterRecord.googleServiceAccount,
-        clusterRecord.googleBucket,
-        Cluster.getClusterUrl(clusterRecord.googleProject, clusterRecord.clusterName),
-        clusterRecord.operationName,
+        project,
+        GoogleServiceAccount(clusterRecord.googleServiceAccount),
+        GoogleBucket(clusterRecord.googleBucket),
+        Cluster.getClusterUrl(project, name),
+        OperationName(clusterRecord.operationName),
         ClusterStatus.withName(clusterRecord.status),
-        clusterRecord.hostIp,
+        clusterRecord.hostIp map IP,
         clusterRecord.createdDate.toInstant,
         clusterRecord.destroyedDate map { _.toInstant },
         labels

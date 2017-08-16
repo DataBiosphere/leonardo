@@ -14,12 +14,11 @@ import net.ceedubs.ficus.Ficus._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterRequest
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, ClusterRequest, GoogleProject}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
-import spray.json.{JsBoolean, JsObject, JsString}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -39,7 +38,7 @@ class LeoRoutes(val leonardoService: LeonardoService, val swaggerConfig: Swagger
       put {
         entity(as[ClusterRequest]) { cluster =>
           complete {
-            leonardoService.createCluster(googleProject, clusterName, cluster).map { clusterResponse =>
+            leonardoService.createCluster(GoogleProject(googleProject), ClusterName(clusterName), cluster).map { clusterResponse =>
               StatusCodes.OK -> clusterResponse
             }
           }

@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
+import java.util.UUID
+
 import com.google.api.services.dataproc.model._
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities
@@ -12,9 +14,12 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.json.jackson2.JacksonFactory
 import com.google.api.services.dataproc.Dataproc
 import com.google.api.services.pubsub.PubsubScopes
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, ClusterResponse}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
+
+// import everything except Cluster, because it conflicts with Dataproc's Cluster
+import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster => _, _}
+
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -37,11 +42,11 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
   }
 
 
-  def createCluster(googleProject: String, clusterName: String, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
-    val op = build(googleProject, clusterName, clusterRequest)
+  def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
+    val op = build(googleProject.s, clusterName.s, clusterRequest)
     op.map{op =>
       val metadata = op.getMetadata
-      ClusterResponse(clusterName, googleProject, metadata.get("clusterUuid").toString, metadata.get("status").toString, metadata.get("description").toString, op.getName)}
+      ClusterResponse(clusterName, googleProject, UUID.fromString(metadata.get("clusterUuid").toString), metadata.get("status").toString, metadata.get("description").toString, OperationName(op.getName))}
   }
 
 
@@ -52,7 +57,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
         JacksonFactory.getDefaultInstance, getDataProcServiceAccountCredential)
         .setApplicationName("dataproc").build()
       val metadata = clusterRequest.labels + ("docker-image" -> dataprocConfig.dataprocDockerImage)
-      val gce = new GceClusterConfig().setMetadata(metadata.asJava).setServiceAccount(clusterRequest.serviceAccount)
+      val gce = new GceClusterConfig().setMetadata(metadata.asJava).setServiceAccount(clusterRequest.serviceAccount.s)
       val initActions = Seq(new NodeInitializationAction().setExecutableFile(dataprocConfig.dataprocInitScriptURI))
       val clusterConfig = new ClusterConfig().setGceClusterConfig(gce).setInitializationActions(initActions.asJava)
       val cluster = new Cluster().setClusterName(clusterName).setConfig(clusterConfig)

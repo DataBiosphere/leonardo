@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.model
 
+import java.net.URL
 import java.time.Instant
 import java.util.UUID
 
@@ -8,14 +9,19 @@ import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
-import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.{GoogleBucket, GoogleProject, GoogleServiceAccount}
+import org.broadinstitute.dsde.workbench.leonardo.model.TypedString.LabelMap
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat}
 
-// maybe we want to get fancy later
-object ModelTypes {
-  type GoogleProject = String
-  type GoogleServiceAccount = String
-  type GoogleBucket = String
+sealed trait TypedString extends Any
+case class ClusterName(s: String) extends AnyVal with TypedString
+case class GoogleProject(s: String) extends AnyVal with TypedString
+case class GoogleServiceAccount(s: String) extends AnyVal with TypedString
+case class GoogleBucket(s: String) extends AnyVal with TypedString
+case class OperationName(s: String) extends AnyVal with TypedString
+case class IP(s: String) extends AnyVal with TypedString
+
+object TypedString {
+  type LabelMap = Map[String, String]
 }
 
 object ClusterStatus extends Enumeration {
@@ -26,7 +32,7 @@ object ClusterStatus extends Enumeration {
 object Cluster {
   def apply(clusterRequest: ClusterRequest, clusterResponse: ClusterResponse): Cluster = Cluster(
     clusterName = clusterResponse.clusterName,
-    googleId = UUID.fromString(clusterResponse.googleId),
+    googleId = clusterResponse.googleId,
     googleProject = clusterResponse.googleProject,
     googleServiceAccount = clusterRequest.serviceAccount,
     googleBucket = clusterRequest.bucketPath,
@@ -38,39 +44,38 @@ object Cluster {
     destroyedDate = None,
     labels = clusterRequest.labels)
 
-  def getClusterUrl(googleProject: String, clusterName: String): String = {
+  def getClusterUrl(googleProject: GoogleProject, clusterName: ClusterName): URL = {
     val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
     val dataprocConfig = config.as[DataprocConfig]("dataproc")
-    dataprocConfig.clusterUrlBase + googleProject + "/" + clusterName
+    new URL(dataprocConfig.clusterUrlBase + googleProject.s + "/" + clusterName.s)
   }
 }
 
-case class Cluster(clusterName: String,
+case class Cluster(clusterName: ClusterName,
                    googleId: UUID,
                    googleProject: GoogleProject,
                    googleServiceAccount: GoogleServiceAccount,
                    googleBucket: GoogleBucket,
-                   clusterUrl: String,
-                   operationName: String,
+                   clusterUrl: URL,
+                   operationName: OperationName,
                    status: ClusterStatus,
-                   hostIp: Option[String],
+                   hostIp: Option[IP],
                    createdDate: Instant,
                    destroyedDate: Option[Instant],
-                   labels: Map[String, String])
+                   labels: LabelMap)
 
 case class ClusterRequest(bucketPath: GoogleBucket,
-                          serviceAccount: String,
-                          labels: Map[String, String])
+                          serviceAccount: GoogleServiceAccount,
+                          labels: LabelMap)
 
-case class ClusterResponse(clusterName: String,
+case class ClusterResponse(clusterName: ClusterName,
                            googleProject: GoogleProject,
-                           googleId: String,
+                           googleId: UUID,
                            status: String,
                            description: String,
-                           operationName: String)
+                           operationName: OperationName)
 
 object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
-  // needed for Cluster
   implicit object UUIDFormat extends JsonFormat[UUID] {
     def write(obj: UUID) = JsString(obj.toString)
 
@@ -80,7 +85,6 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     }
   }
 
-  // needed for Cluster
   implicit object InstantFormat extends JsonFormat[Instant] {
     def write(obj: Instant) = JsString(obj.toString)
 
@@ -90,7 +94,6 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     }
   }
 
-  // needed for Cluster
   implicit object ClusterStatusFormat extends JsonFormat[ClusterStatus] {
     def write(obj: ClusterStatus) = JsString(obj.toString)
 
@@ -99,6 +102,31 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
       case other => throw DeserializationException("Expected ClusterStatus, got: " + other)
     }
   }
+
+  implicit object URLFormat extends JsonFormat[URL] {
+    def write(obj: URL) = JsString(obj.toString)
+
+    def read(json: JsValue): URL = json match {
+      case JsString(url) => new URL(url)
+      case other => throw DeserializationException("Expected URL, got: " + other)
+    }
+  }
+
+  case class TypedStringFormat[T <: TypedString](create: String => T) extends JsonFormat[T] {
+    def write(obj: T): JsValue = JsString(obj.toString)
+
+    def read(json: JsValue): T = json match {
+      case JsString(value) => create(value)
+      case other => throw DeserializationException("Expected TypedString, got: " + other)
+    }
+  }
+
+  implicit val googleProjectFormat = TypedStringFormat(GoogleProject)
+  implicit val googleServiceAccountFormat = TypedStringFormat(GoogleServiceAccount)
+  implicit val googleBucketFormat = TypedStringFormat(GoogleBucket)
+  implicit val clusterNameFormat = TypedStringFormat(ClusterName)
+  implicit val operationNameFormat = TypedStringFormat(OperationName)
+  implicit val ipFormat = TypedStringFormat(IP)
 
   implicit val clusterFormat = jsonFormat12(Cluster.apply)
   implicit val clusterRequestFormat = jsonFormat3(ClusterRequest)

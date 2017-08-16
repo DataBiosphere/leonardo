@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
+import org.broadinstitute.dsde.workbench.leonardo.model.TypedString.LabelMap
+
 case class LabelRecord(clusterId: Long, key: String, value: String)
 
 trait LabelComponent extends LeoComponent {
@@ -25,11 +27,11 @@ trait LabelComponent extends LeoComponent {
     }
 
     // ++= does not actually produce a useful return value
-    def saveAllForCluster(clusterId: Long, m: Map[String, String]): DBIO[Option[Int]] = {
+    def saveAllForCluster(clusterId: Long, m: LabelMap): DBIO[Option[Int]] = {
       labelQuery ++= m map { case (key, value) => LabelRecord(clusterId, key, value) }
     }
 
-    def getAllForCluster(clusterId: Long): DBIO[Map[String, String]] = {
+    def getAllForCluster(clusterId: Long): DBIO[LabelMap] = {
       labelQuery.filter { _.clusterId === clusterId}.result map { recs =>
         val tuples = recs map { rec =>
           rec.key -> rec.value
