@@ -1,31 +1,29 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
+import akka.actor.ActorSystem
 import akka.event.Logging.LogLevel
 import akka.event.{Logging, LoggingAdapter}
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.server
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.RouteResult.Complete
 import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
-import akka.http.scaladsl.server.{Directive0, ExceptionHandler}
+import akka.http.scaladsl.server.{Directive0, ExceptionHandler, Route}
 import akka.stream.Materializer
-import akka.stream.scaladsl.Sink
-import net.ceedubs.ficus.Ficus._
+import akka.stream.scaladsl._
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
-import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
+import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
+import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterRequest
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
-import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
-import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
-import spray.json.{JsBoolean, JsObject, JsString}
+import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService}
+import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class LeoRoutes(val leonardoService: LeonardoService, val swaggerConfig: SwaggerConfig)(implicit val materializer: Materializer, val executionContext: ExecutionContext) extends LazyLogging  with SwaggerRoutes  {
+class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxyService, val swaggerConfig: SwaggerConfig)(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext) extends LazyLogging with ProxyRoutes with SwaggerRoutes {
 
-  def leoRoutes: server.Route =
+  def leoRoutes: Route =
     path("ping") {
       pathEndOrSingleSlash {
         get {
@@ -47,11 +45,9 @@ class LeoRoutes(val leonardoService: LeonardoService, val swaggerConfig: Swagger
       }
     }
 
-
-
-  def route: server.Route = (logRequestResult & handleExceptions(myExceptionHandler)) {
+  def route: Route = (logRequestResult & handleExceptions(myExceptionHandler)) {
     swaggerRoutes ~
-      pathPrefix("api") { leoRoutes }
+    pathPrefix("api") { leoRoutes ~ proxyRoutes }
   }
 
   private val myExceptionHandler = {

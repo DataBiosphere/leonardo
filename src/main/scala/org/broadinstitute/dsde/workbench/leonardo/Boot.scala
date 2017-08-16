@@ -8,15 +8,16 @@ import com.typesafe.scalalogging.LazyLogging
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.api.LeoRoutes
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, SwaggerConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
+import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService}
 
 object Boot extends App with LazyLogging {
   private def startup(): Unit = {
 
     val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
     val dataprocConfig = config.as[DataprocConfig]("dataproc")
+    val proxyConfig = config.as[ProxyConfig]("proxy")
 
     // we need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")
@@ -30,8 +31,9 @@ object Boot extends App with LazyLogging {
 
     val gdDAO = new GoogleDataprocDAO(dataprocConfig)
     val leonardoService = new LeonardoService(gdDAO, dbRef)
+    val proxyService = new ProxyService(proxyConfig, dbRef)
 
-    val leoRoutes = new LeoRoutes(leonardoService, config.as[SwaggerConfig]("swagger"))
+    val leoRoutes = new LeoRoutes(leonardoService, proxyService, config.as[SwaggerConfig]("swagger"))
 
     Http().bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
       .recover {
