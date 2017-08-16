@@ -32,9 +32,9 @@ ENV HADOOP_CONF_DIR /etc/hadoop/conf
 ENV PATH $SPARK_HOME:$SPARK_HOME/python:$SPARK_HOME/bin:$HAIL_HOME:$PATH
 ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILZIP:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip
 
-ENV JUPYTER_USER ansingh
+ENV USER JUPYTER_USER
 ENV UID 1000
-ENV HOME /home/$JUPYTER_USER
+ENV HOME /home/$USER
 
 # ensure this matches c.NotebookApp.port in jupyter_notebook_config.py
 ENV JUPYTER_PORT 8000
@@ -86,7 +86,7 @@ RUN echo "deb $DEBIAN_REPO/debian jessie main\ndeb $DEBIAN_REPO/debian-security 
  && cd - \
 
  # NOTE! not sure why, but this must run before pip installation
- && useradd -m -s /bin/bash -N -u $UID $JUPYTER_USER \
+ && useradd -m -s /bin/bash -N -u $UID $USER \
 
  # ubuntu's default pip doesn't work well with jupyter
  && wget https://bootstrap.pypa.io/get-pip.py \
@@ -111,9 +111,9 @@ ADD spark-defaults.conf.template $SPARK_HOME/conf/
 # Spark defaults conf find and replace [HAILHASH] with the hash
 RUN sed "s|\[HAILHASH\]|$HAILHASH|g" $SPARK_HOME/conf/spark-defaults.conf.template > $SPARK_HOME/conf/spark-defaults.conf
 ADD jupyter_notebook_config.py $JUPYTER_HOME
-RUN chown -R $JUPYTER_USER:users $JUPYTER_HOME
+RUN chown -R $USER:users $JUPYTER_HOME
 
-USER $JUPYTER_USER
+USER $USER
 WORKDIR $HOME
 
 EXPOSE $JUPYTER_PORT
