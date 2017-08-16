@@ -8,6 +8,7 @@ import akka.http.scaladsl.model.ws._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import com.typesafe.scalalogging.LazyLogging
+import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
@@ -20,9 +21,7 @@ import scala.concurrent.{ExecutionContext, Future}
 /**
   * Created by rtitle on 8/15/17.
   */
-class ProxyService(dbRef: DbReference)(implicit val system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext) extends LazyLogging {
-  // comes from jupyter_notebook_config.py
-  private final val JupyterPort = 8000
+class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit val system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext) extends LazyLogging {
 
   /**
     * Entry point to this class. Given a google project, cluster name, and HTTP request,
@@ -61,7 +60,7 @@ class ProxyService(dbRef: DbReference)(implicit val system: ActorSystem, materia
 
     // Initializes a Flow representing a prospective connection to the given endpoint. The connection
     // is not made until a Source and Sink are plugged into the Flow (i.e. it is materialized).
-    val flow = Http(system).outgoingConnection(targetHost, JupyterPort)
+    val flow = Http(system).outgoingConnection(targetHost, proxyConfig.jupyterPort)
 
     // Now build a Source[Request] out of the original HttpRequest. We need to make some modifications
     // to the original request in order for the proxy to work:
@@ -105,7 +104,7 @@ class ProxyService(dbRef: DbReference)(implicit val system: ActorSystem, materia
     // Make a single WebSocketRequest to the notebook server, passing in our Flow. This returns a Future[WebSocketUpgradeResponse].
     // Keep our publisher/subscriber (e.g. sink/source) for use later. These are returned because we specified Keep.both above.
     val (responseFuture, (publisher, subscriber)) = Http().singleWebSocketRequest(
-      WebSocketRequest(request.uri.copy(authority = request.uri.authority.copy(host = Host(targetHost), port = JupyterPort)), extraHeaders = filterHeaders(request.headers),
+      WebSocketRequest(request.uri.copy(authority = request.uri.authority.copy(host = Host(targetHost), port = proxyConfig.jupyterPort)), extraHeaders = filterHeaders(request.headers),
         upgrade.requestedProtocols.headOption),
       flow
     )
