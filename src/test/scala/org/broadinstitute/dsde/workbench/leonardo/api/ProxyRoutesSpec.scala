@@ -136,7 +136,8 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
       case _ => throw new IllegalArgumentException("ProxyRoutesSpec only supports strict messages")
     }
 
-    // Glue together the source, sink, and flow. Returns a tuple of:
+    // Glue together the source, sink, and flow. This materializes the Flow and actually initiates the HTTP request.
+    // Returns a tuple of:
     //  - `upgradeResponse` is a Future[WebSocketUpgradeResponse] that completes or fails when the connection succeeds or fails.
     //  - `result` is a Future[String] with the stream completion from the incoming sink.
     val (upgradeResponse, result) =

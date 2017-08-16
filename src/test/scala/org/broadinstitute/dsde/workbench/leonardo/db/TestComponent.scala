@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.db
 import org.broadinstitute.dsde.workbench.leonardo.TestExecutionContext
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
-import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Matchers}
 import slick.dbio.DBIO
 import slick.jdbc.JdbcProfile
 
