@@ -23,18 +23,22 @@ object Boot extends App with LazyLogging {
     implicit val materializer = ActorMaterializer()
     import system.dispatcher
 
-    val dbRef = DbReference.init(config, system)
+    val dbRef = DbReference.init(config)
+    system.registerOnTermination {
+      dbRef.database.close()
+    }
+
     val gdDAO = new GoogleDataprocDAO(dataprocConfig)
     val leonardoService = new LeonardoService(gdDAO, dbRef)
 
     val leoRoutes = new LeoRoutes(leonardoService, config.as[SwaggerConfig]("swagger"))
 
-      Http().bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
-        .recover {
-          case t: Throwable =>
-            logger.error("FATAL - failure starting http server", t)
-            throw t
-        }
+    Http().bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
+      .recover {
+        case t: Throwable =>
+          logger.error("FATAL - failure starting http server", t)
+          throw t
+      }
   }
 
   startup()
