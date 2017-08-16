@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo.db
 
 import java.sql.SQLTimeoutException
 
-import akka.actor.ActorSystem
 import com.google.common.base.Throwables
 import com.typesafe.config.Config
 import com.typesafe.scalalogging.LazyLogging
@@ -46,12 +45,8 @@ object DbReference extends LazyLogging {
     }
   }
 
-  def init(config: Config, system: ActorSystem)(implicit executionContext: ExecutionContext): DbReference = {
+  def init(config: Config)(implicit executionContext: ExecutionContext): DbReference = {
     val dbConfig = DatabaseConfig.forConfig[JdbcProfile]("slick", config)
-
-    system.registerOnTermination {
-      dbConfig.db.shutdown
-    }
 
     val liquibaseConf = config.as[LiquibaseConfig]("liquibase")
     if (liquibaseConf.initWithLiquibase)
