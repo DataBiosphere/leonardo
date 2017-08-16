@@ -9,12 +9,6 @@ import spray.json._
 
 class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with TestLeoRoutes with TestComponent {
 
-  override def afterAll(): Unit = {
-    super.afterAll()
-    DbSingleton.actorSystem.terminate()
-    system.terminate()
-  }
-
   "LeoRoutes" should "200 on ping" in {
     Get("/api/ping") ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
@@ -22,7 +16,6 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "200 when creating a cluster" in isolatedDbTest {
-
     val newCluster = ClusterRequest("test-bucket-path", "test-service-account", Map[String,String]())
     val googleProject = "test-project"
     val clusterName = "test-cluster"

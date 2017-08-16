@@ -12,6 +12,11 @@ import scala.concurrent.ExecutionContext
 trait TestComponent extends FlatSpec with Matchers with ScalaFutures with BeforeAndAfterAll
   with LeoComponent {
 
+  override def afterAll(): Unit = {
+    DbSingleton.ref.database.close()
+    super.afterAll()
+  }
+
   override val profile: JdbcProfile = DbSingleton.ref.profile
   override implicit val executionContext: ExecutionContext = TestExecutionContext.testExecutionContext
   implicit override val patienceConfig = PatienceConfig(timeout = scaled(Span(10, Seconds)))

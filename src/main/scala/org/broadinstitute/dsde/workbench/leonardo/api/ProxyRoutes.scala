@@ -11,10 +11,11 @@ import org.broadinstitute.dsde.workbench.leonardo.service.ProxyService
 trait ProxyRoutes { self: LazyLogging =>
   val proxyService: ProxyService
 
-  val proxyRoutes: Route =
+  protected val proxyRoutes: Route =
     pathPrefix("notebooks" / Segment / Segment) { (googleProject, clusterName) =>
       extractRequest { request =>
         complete {
+          // Proxy logic handled by the ProxyService class
           proxyService.proxy(googleProject, clusterName, request)
         }
       }

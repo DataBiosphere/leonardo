@@ -21,44 +21,98 @@ import scala.concurrent.{ExecutionContext, Future}
   * Created by rtitle on 8/15/17.
   */
 class ProxyService(dbRef: DbReference)(implicit val system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext) extends LazyLogging {
+  // comes from jupyter_notebook_config.py
   private final val JupyterPort = 8000
 
+  /**
+    * Entry point to this class. Given a google project, cluster name, and HTTP request,
+    * looks up the notebook server IP and proxies the HTTP request to the notebook server.
+    * Returns NotFound if a notebook server IP could not be found for the project/cluster name.
+    * @param googleProject the Google project
+    * @param clusterName the cluster name
+    * @param request the HTTP request to proxy
+    * @return HttpResponse future representing the proxied response, or NotFound if a notebook
+    *         server IP could not be found.
+    */
   def proxy(googleProject: GoogleProject, clusterName: String, request: HttpRequest): Future[HttpResponse] = {
     getTargetHost(googleProject, clusterName).flatMap {
       case Some(targetHost) =>
+        // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
+        // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
+        // The presence of this header distinguishes WebSocket from http requests.
         request.header[UpgradeToWebSocket] match {
           case Some(upgrade) => handleWebSocketRequest(targetHost, request, upgrade)
           case None => handleHttpRequest(targetHost, request)
         }
       case None =>
-        println("in none")
+        // handled upstream by the LeoRoutes ExceptionHandler
         throw new WorkbenchExceptionWithErrorReport(ErrorReport(StatusCodes.NotFound, s"Could not find notebook server for $googleProject/$clusterName"))
     }
   }
 
   private def handleHttpRequest(targetHost: String, request: HttpRequest): Future[HttpResponse] = {
     logger.debug(s"Opening http connection to $targetHost")
+
+    // A note on akka-http philosophy:
+    // The Akka HTTP server is implemented on top of Streams and makes heavy use of it. Requests come
+    // in as a Source[HttpRequest] and responses are returned as a Sink[HttpResponse]. The transformation
+    // from Source to Sink is done via a Flow[HttpRequest, HttpResponse, _].
+    // For more information, see: http://doc.akka.io/docs/akka-http/10.0.9/scala/http/introduction.html
+
+    // Initializes a Flow representing a prospective connection to the given endpoint. The connection
+    // is not made until a Source and Sink are plugged into the Flow (i.e. it is materialized).
     val flow = Http(system).outgoingConnection(targetHost, JupyterPort)
+
+    // Now build a Source[Request] out of the original HttpRequest. We need to make some modifications
+    // to the original request in order for the proxy to work:
+
+    // 1. filter out headers not needed for the backend server
     val newHeaders = filterHeaders(request.headers)
+    // 2. strip out Uri.Authority:
     val newUri = Uri(path = request.uri.path, queryString = request.uri.queryString())
+    // 3. build a new HttpRequest
     val newRequest = request.copy(headers = newHeaders, uri = newUri)
-    val handler = Source.single(newRequest)
+
+    // Plug a Source and Sink into our Flow. This materializes the Flow and initializes the HTTP connection
+    // to the notebook server.
+    // - the Source is the modified HttpRequest from above
+    // - the Sink just takes the first element because we only expect 1 response
+
+    // Note: we're calling toStrict here which forces the proxy to load the entire response into memory before
+    // returning it to the caller. Technically, this should not be required: we should be able to stream all
+    // data between client, proxy, and server. However Jupyter is doing something strange and the proxy only
+    // works when toStrict is used. Luckily, it's only needed for HTTP requests (which are fairly small) and not
+    // WebSocket requests (which could potentially be large).
+    val handler: Future[HttpResponse] = Source.single(newRequest)
       .via(flow)
       .runWith(Sink.head)
       .flatMap(_.toStrict(5 seconds))
+
+    // That's it! This is our whole HTTP proxy.
     handler
   }
 
   private def handleWebSocketRequest(targetHost: String, request: HttpRequest, upgrade: UpgradeToWebSocket): Future[HttpResponse] = {
     logger.debug(s"Opening websocket connection to $targetHost")
+
+    // This is a similar idea to handleHttpRequest(), we're just using WebSocket APIs instead of HTTP ones.
+    // The basis for this method was lifted from https://github.com/akka/akka-http/issues/1289#issuecomment-316269886.
+
+    // Initialize a Flow for the WebSocket conversation.
+    // `Message` is the root of the ADT for WebSocket messages. A Message may be a TextMessage or a BinaryMessage.
     val flow = Flow.fromSinkAndSourceMat(Sink.asPublisher[Message](fanout = false), Source.asSubscriber[Message])(Keep.both)
 
+    // Make a single WebSocketRequest to the notebook server, passing in our Flow. This returns a Future[WebSocketUpgradeResponse].
+    // Keep our publisher/subscriber (e.g. sink/source) for use later. These are returned because we specified Keep.both above.
     val (responseFuture, (publisher, subscriber)) = Http().singleWebSocketRequest(
       WebSocketRequest(request.uri.copy(authority = request.uri.authority.copy(host = Host(targetHost), port = JupyterPort)), extraHeaders = filterHeaders(request.headers),
         upgrade.requestedProtocols.headOption),
       flow
     )
 
+    // If we got a valid WebSocketUpgradeResponse, call handleMessages with our publisher/subscriber, which are
+    // already materialized from the HttpRequest.
+    // If we got an invalid WebSocketUpgradeResponse, simply return it without proxying any additional messages.
     responseFuture.map {
       case ValidUpgrade(response, chosenSubprotocol) =>
         val webSocketResponse = upgrade.handleMessages(
@@ -73,6 +127,10 @@ class ProxyService(dbRef: DbReference)(implicit val system: ActorSystem, materia
     }
   }
 
+  /**
+    * Gets the notebook server IP from the database given a google project and cluster name.
+    * TODO: if this is too expensive to do for every proxied HTTP request, consider adding a cache.
+    */
   private def getTargetHost(googleProject: GoogleProject, clusterName: String): Future[Option[String]] = {
     dbRef.inTransaction { components =>
       components.clusterQuery.getByName(googleProject, clusterName)
