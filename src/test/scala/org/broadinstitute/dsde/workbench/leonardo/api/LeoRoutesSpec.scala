@@ -1,25 +1,19 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, SwaggerConfig}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterRequest
-import org.scalatest.{FlatSpec, Matchers}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
-import akka.stream.Materializer
-import org.broadinstitute.dsde.workbench.leonardo.dao.MockGoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
-import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
+import org.scalatest.{FlatSpec, Matchers}
 import spray.json._
 
-import scala.concurrent.ExecutionContext
+class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with TestLeoRoutes with TestComponent {
 
-class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest {
-
-  class TestLeoRoutes(leonardoService: LeonardoService) extends LeoRoutes(leonardoService, SwaggerConfig())
-
-  val mockGoogleDataprocDAO = new MockGoogleDataprocDAO
-  val leonardoService = new LeonardoService(mockGoogleDataprocDAO, DbSingleton.ref)
-  val leoRoutes = new TestLeoRoutes(leonardoService)
+  override def afterAll(): Unit = {
+    super.afterAll()
+    DbSingleton.actorSystem.terminate()
+    system.terminate()
+  }
 
   "LeoRoutes" should "200 on ping" in {
     Get("/api/ping") ~> leoRoutes.route ~> check {
@@ -27,7 +21,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest {
     }
   }
 
-  it should "200 when creating a cluster" in {
+  it should "200 when creating a cluster" in isolatedDbTest {
 
     val newCluster = ClusterRequest("test-bucket-path", "test-service-account", Map[String,String]())
     val googleProject = "test-project"

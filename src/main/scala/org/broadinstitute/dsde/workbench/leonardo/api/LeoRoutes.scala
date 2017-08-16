@@ -15,13 +15,13 @@ import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterRequest
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
+import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService}
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class LeoRoutes(val leonardoService: LeonardoService, val swaggerConfig: SwaggerConfig)(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext) extends LazyLogging with ProxyRoutes with SwaggerRoutes {
+class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxyService, val swaggerConfig: SwaggerConfig)(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext) extends LazyLogging with ProxyRoutes with SwaggerRoutes {
 
   def leoRoutes: Route =
     path("ping") {
@@ -47,8 +47,7 @@ class LeoRoutes(val leonardoService: LeonardoService, val swaggerConfig: Swagger
 
   def route: Route = (logRequestResult & handleExceptions(myExceptionHandler)) {
     swaggerRoutes ~
-    pathPrefix("api") { leoRoutes } ~
-    pathPrefix("notebooks") { proxyRoutes }
+    pathPrefix("api") { leoRoutes ~ proxyRoutes }
   }
 
   private val myExceptionHandler = {

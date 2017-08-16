@@ -1,8 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
-import java.time.Instant
-import java.util.UUID
-
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference

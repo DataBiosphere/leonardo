@@ -11,7 +11,5 @@ c = get_config()
 c.NotebookApp.ip = '*'
 c.NotebookApp.port = 8000
 c.NotebookApp.open_browser = False
-c.NotebookApp.base_url = '/notebooks/test/'
-c.NotebookApp.webapp_settings = {'static_url_prefix':'/notebooks/test/static/'}
-
-# set password to 'password' TODO security lol
+c.NotebookApp.base_url = '/api/notebooks/test/test/'
+c.NotebookApp.webapp_settings = {'static_url_prefix':'/api/notebooks/test/test/static/'}

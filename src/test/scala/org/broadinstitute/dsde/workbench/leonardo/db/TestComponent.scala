@@ -3,13 +3,13 @@ package org.broadinstitute.dsde.workbench.leonardo.db
 import org.broadinstitute.dsde.workbench.leonardo.TestExecutionContext
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import slick.dbio.DBIO
 import slick.jdbc.JdbcProfile
 
 import scala.concurrent.ExecutionContext
 
-trait TestComponent extends FlatSpec with Matchers with ScalaFutures
+trait TestComponent extends FlatSpec with Matchers with ScalaFutures with BeforeAndAfterAll
   with LeoComponent {
 
   override val profile: JdbcProfile = DbSingleton.ref.profile
