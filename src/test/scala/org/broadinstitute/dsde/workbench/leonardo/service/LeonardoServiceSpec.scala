@@ -1,18 +1,21 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
 import akka.actor.ActorSystem
+import akka.testkit.TestKit
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FlatSpec, FlatSpecLike, Matchers}
 
+class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfterAll {
+  import system.dispatcher
 
-class LeonardoServiceSpec extends FlatSpec with Matchers {
-  import scala.concurrent.ExecutionContext.Implicits.global
-
-  implicit val system = ActorSystem("leonardotest")
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system)
+    super.afterAll()
+  }
 
   val dataprocConfig = ConfigFactory.load().as[DataprocConfig]("dataproc")
 
@@ -25,5 +28,8 @@ class LeonardoServiceSpec extends FlatSpec with Matchers {
     service.createCluster("googleProject", "clusterName", clusterRequest)
     //Once the DELETE and GET APIs are written, we can test the existence of the cluster and then clean up
   }*/
+
+  // Adding a noop test for now so afterAll() gets called and the ActorSystem is shut down.
+  "LeonardoService" should "noop" in {}
 
 }

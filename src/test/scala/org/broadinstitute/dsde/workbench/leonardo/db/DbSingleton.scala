@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
-import akka.actor.ActorSystem
 import com.typesafe.config.ConfigFactory
 import org.broadinstitute.dsde.workbench.leonardo.TestExecutionContext
 
@@ -8,6 +7,5 @@ import org.broadinstitute.dsde.workbench.leonardo.TestExecutionContext
 object DbSingleton {
   import TestExecutionContext.testExecutionContext
 
-  val actorSystem = ActorSystem("testActorSystem")
-  val ref: DbReference = DbReference.init(ConfigFactory.load(), actorSystem)
+  val ref: DbReference = DbReference.init(ConfigFactory.load())
 }
