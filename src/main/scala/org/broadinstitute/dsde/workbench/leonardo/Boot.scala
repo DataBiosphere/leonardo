@@ -30,7 +30,7 @@ object Boot extends App with LazyLogging {
 
     val gdDAO = new GoogleDataprocDAO(dataprocConfig)
     val leonardoService = new LeonardoService(gdDAO, dbRef)
-    val proxyService = new ProxyService(null)//dbRef)
+    val proxyService = new ProxyService(dbRef)
 
     val leoRoutes = new LeoRoutes(leonardoService, proxyService, config.as[SwaggerConfig]("swagger"))
 

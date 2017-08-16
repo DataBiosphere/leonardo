@@ -9,13 +9,8 @@ import slick.jdbc.JdbcProfile
 
 import scala.concurrent.ExecutionContext
 
-trait TestComponent extends FlatSpec with Matchers with ScalaFutures with BeforeAndAfterAll
+trait TestComponent extends FlatSpec with Matchers with ScalaFutures
   with LeoComponent {
-
-  override def afterAll(): Unit = {
-    DbSingleton.ref.database.close()
-    super.afterAll()
-  }
 
   override val profile: JdbcProfile = DbSingleton.ref.profile
   override implicit val executionContext: ExecutionContext = TestExecutionContext.testExecutionContext

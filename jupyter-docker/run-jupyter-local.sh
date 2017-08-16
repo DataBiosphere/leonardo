@@ -14,7 +14,7 @@ start () {
 
     echo "Starting Jupyter server container..."
     docker create -it --name jupyter-server --rm -p 8000:8000 $DOCKER_IMG
-    docker cp docker/jupyter_notebook_config.py jupyter-server:/etc/jupyter/jupyter_notebook_config.py
+    docker cp jupyter-docker/jupyter_notebook_config-test.py jupyter-server:/etc/jupyter/jupyter_notebook_config.py
     docker start jupyter-server
 
     sleep 5
