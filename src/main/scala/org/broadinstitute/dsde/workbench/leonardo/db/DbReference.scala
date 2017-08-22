@@ -46,7 +46,7 @@ object DbReference extends LazyLogging {
   }
 
   def init(config: Config)(implicit executionContext: ExecutionContext): DbReference = {
-    val dbConfig = DatabaseConfig.forConfig[JdbcProfile]("slick", config)
+    val dbConfig = DatabaseConfig.forConfig[JdbcProfile]("mysql", config)
 
     val liquibaseConf = config.as[LiquibaseConfig]("liquibase")
     if (liquibaseConf.initWithLiquibase)
