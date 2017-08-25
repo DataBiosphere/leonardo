@@ -8,6 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterRequest
+import org.broadinstitute.dsde.workbench.model.WorkbenchExceptionWithErrorReport
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 
@@ -24,7 +25,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   val gdDAO = new MockGoogleDataprocDAO
   val leo = new LeonardoService(gdDAO, DbSingleton.ref)
 
-
   "LeonardoService" should "create and get a cluster" in isolatedDbTest {
     val clusterRequest = ClusterRequest("bucketPath", "serviceAccount", Map[String, String]())
 
@@ -34,6 +34,14 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterCreateResponse shouldEqual clusterGetResponse
     clusterCreateResponse.googleBucket shouldEqual "bucketPath"
     clusterCreateResponse.googleServiceAccount shouldEqual "serviceAccount"
+  }
+
+  it should "throw ClusterNotFoundException for nonexistent clusters" in isolatedDbTest {
+    whenReady( leo.getClusterDetails("nonexistent", "cluster").failed ) { exc =>
+      exc shouldBe a [WorkbenchExceptionWithErrorReport]
+      val wbExc = exc.asInstanceOf[WorkbenchExceptionWithErrorReport]
+      wbExc.errorReport.exceptionClass shouldBe Some(ClusterNotFoundException.getClass)
+    }
   }
 
 }
