@@ -12,7 +12,7 @@ start() {
 
         # start up mysql
         echo "starting up mysql container..."
-        docker run --name $CONTAINER -e MYSQL_ROOT_PASSWORD=${SERVICE}-test -e MYSQL_USER=${SERVICE}-test -e MYSQL_PASSWORD=${SERVICE}-test -e MYSQL_DATABASE=testdb -d -p 3310:3306 mysql/mysql-server:5.7.15
+        docker run --name $CONTAINER -e MYSQL_ROOT_PASSWORD=${SERVICE}-test -e MYSQL_USER=${SERVICE}-test -e MYSQL_PASSWORD=${SERVICE}-test -e MYSQL_DATABASE=leotestdb -d -p 3310:3306 mysql/mysql-server:5.7.15
 
         # validate mysql
         echo "running mysql validation..."
