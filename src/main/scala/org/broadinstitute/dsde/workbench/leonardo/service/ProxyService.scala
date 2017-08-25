@@ -131,8 +131,8 @@ class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit val sy
     * TODO: if this is too expensive to do for every proxied HTTP request, consider adding a cache.
     */
   private def getTargetHost(googleProject: GoogleProject, clusterName: String): Future[Option[String]] = {
-    dbRef.inTransaction { components =>
-      components.clusterQuery.getByName(googleProject, clusterName)
+    dbRef.inTransaction { dataAccess =>
+      dataAccess.clusterQuery.getByName(googleProject, clusterName)
     }.map(_.flatMap(_.hostIp))
   }
 
