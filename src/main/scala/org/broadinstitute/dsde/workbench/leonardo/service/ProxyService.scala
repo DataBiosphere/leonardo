@@ -107,7 +107,7 @@ class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit val sy
     // Make a single WebSocketRequest to the notebook server, passing in our Flow. This returns a Future[WebSocketUpgradeResponse].
     // Keep our publisher/subscriber (e.g. sink/source) for use later. These are returned because we specified Keep.both above.
     val (responseFuture, (publisher, subscriber)) = Http().singleWebSocketRequest(
-      WebSocketRequest(request.uri.copy(authority = request.uri.authority.copy(host = Host(targetHost), port = proxyConfig.jupyterPort)), extraHeaders = filterHeaders(request.headers),
+      WebSocketRequest(request.uri.copy(authority = request.uri.authority.copy(host = Host(targetHost), port = proxyConfig.jupyterPort), scheme = "wss"), extraHeaders = filterHeaders(request.headers),
         upgrade.requestedProtocols.headOption),
       flow
     )
