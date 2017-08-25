@@ -15,6 +15,9 @@ import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, Prox
 object Boot extends App with LazyLogging {
   private def startup(): Unit = {
 
+    System.setProperty("sun.net.spi.nameservice.provider.1", "dns,Jupyter")
+    System.setProperty("sun.net.spi.nameservice.provider.2", "dns,sun")
+
     val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
     val dataprocConfig = config.as[DataprocConfig]("dataproc")
     val proxyConfig = config.as[ProxyConfig]("proxy")

@@ -9,8 +9,9 @@ import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
-import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
+import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
 
@@ -23,6 +24,8 @@ import scala.concurrent.{ExecutionContext, Future}
   */
 class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit val system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext) extends LazyLogging {
 
+  ClusterDnsCache.init(proxyConfig, dbRef)
+
   /**
     * Entry point to this class. Given a google project, cluster name, and HTTP request,
     * looks up the notebook server IP and proxies the HTTP request to the notebook server.
@@ -34,7 +37,7 @@ class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit val sy
     *         server IP could not be found.
     */
   def proxy(googleProject: GoogleProject, clusterName: String, request: HttpRequest): Future[HttpResponse] = {
-    getTargetHost(googleProject, clusterName).flatMap {
+    ClusterDnsCache.ProjectNameToHost.get(googleProject, clusterName) match {
       case Some(targetHost) =>
         // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
         // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
@@ -60,7 +63,7 @@ class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit val sy
 
     // Initializes a Flow representing a prospective connection to the given endpoint. The connection
     // is not made until a Source and Sink are plugged into the Flow (i.e. it is materialized).
-    val flow = Http(system).outgoingConnection(targetHost, proxyConfig.jupyterPort)
+    val flow = Http().outgoingConnectionHttps(targetHost, proxyConfig.jupyterPort)
 
     // Now build a Source[Request] out of the original HttpRequest. We need to make some modifications
     // to the original request in order for the proxy to work:
@@ -124,16 +127,6 @@ class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit val sy
         logger.warn("WebSocket upgrade response was invalid: {}", cause)
         response
     }
-  }
-
-  /**
-    * Gets the notebook server IP from the database given a google project and cluster name.
-    * TODO: if this is too expensive to do for every proxied HTTP request, consider adding a cache.
-    */
-  private def getTargetHost(googleProject: GoogleProject, clusterName: String): Future[Option[String]] = {
-    dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.getByName(googleProject, clusterName)
-    }.map(_.flatMap(_.hostIp))
   }
 
   private def filterHeaders(headers: immutable.Seq[HttpHeader]) = {
