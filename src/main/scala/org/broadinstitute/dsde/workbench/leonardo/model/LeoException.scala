@@ -5,11 +5,8 @@ import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchException,
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 import org.broadinstitute.dsde.workbench.model.ErrorReport._
 
-abstract class LeoException(message: String = null, cause: Throwable = null) extends WorkbenchException(message, cause) {
+abstract class LeoException(message: String = null) extends WorkbenchException(message) {
   def toErrorReport(statusCode: StatusCode): WorkbenchExceptionWithErrorReport = {
-    Option(cause) match {
-      case Some(c) => new WorkbenchExceptionWithErrorReport(ErrorReport(Option(getMessage).getOrElse(""), Some(statusCode), ErrorReport.causes(cause), Seq(), Some(this.getClass)))
-      case None => new WorkbenchExceptionWithErrorReport(ErrorReport(Option(getMessage).getOrElse(""), Some(statusCode), Seq(), Seq(), Some(this.getClass)))
-    }
+    new WorkbenchExceptionWithErrorReport(ErrorReport(Option(getMessage).getOrElse(""), Some(statusCode), Seq(), Seq(), Some(this.getClass)))
   }
 }
