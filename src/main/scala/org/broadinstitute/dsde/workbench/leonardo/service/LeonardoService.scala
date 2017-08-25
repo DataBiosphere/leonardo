@@ -11,8 +11,8 @@ class LeonardoService(gdDAO: DataprocDAO, dbRef: DbReference)(implicit val execu
 
   def createCluster(googleProject: String, clusterName: String, clusterRequest: ClusterRequest): Future[Cluster] = {
     gdDAO.createCluster(googleProject, clusterName, clusterRequest) flatMap { clusterResponse: ClusterResponse =>
-      dbRef.inTransaction { components =>
-        components.clusterQuery.save(Cluster(clusterRequest, clusterResponse))
+      dbRef.inTransaction { dataAccess =>
+        dataAccess.clusterQuery.save(Cluster(clusterRequest, clusterResponse))
       }
     }
   }
