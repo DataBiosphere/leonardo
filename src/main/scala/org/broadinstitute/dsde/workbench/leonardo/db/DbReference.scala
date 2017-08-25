@@ -56,23 +56,23 @@ object DbReference extends LazyLogging {
   }
 }
 
-case class DbReference(private val dbConfig: DatabaseConfig[JdbcProfile])(implicit val executionContext: ExecutionContext) extends AllComponents {
-  override val profile: JdbcProfile = dbConfig.profile
+case class DbReference(private val dbConfig: DatabaseConfig[JdbcProfile])(implicit val executionContext: ExecutionContext) {
+  val dataAccess = new DataAccess(dbConfig.profile)
   val database: JdbcBackend#DatabaseDef = dbConfig.db
 
-  def inTransaction[T](f: (AllComponents) => DBIO[T], isolationLevel: TransactionIsolation = TransactionIsolation.RepeatableRead): Future[T] = {
-    import profile.api._
-
-    database.run(f(this).transactionally.withTransactionIsolation(isolationLevel))
+  def inTransaction[T](f: (DataAccess) => DBIO[T], isolationLevel: TransactionIsolation = TransactionIsolation.RepeatableRead): Future[T] = {
+    import dataAccess.profile.api._
+    database.run(f(dataAccess).transactionally.withTransactionIsolation(isolationLevel))
   }
+}
+
+class DataAccess(val profile: JdbcProfile)(implicit val executionContext: ExecutionContext) extends AllComponents {
 
   def truncateAll(): DBIO[Int] = {
     import profile.api._
 
     // important to keep the right order for referential integrity !
     // if table X has a Foreign Key to table Y, delete table X first
-
     TableQuery[LabelTable].delete andThen TableQuery[ClusterTable].delete
   }
-
 }
