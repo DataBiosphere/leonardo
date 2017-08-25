@@ -9,7 +9,7 @@ import slick.jdbc.JdbcProfile
 
 import scala.concurrent.ExecutionContext
 
-trait TestComponent extends FlatSpec with Matchers with ScalaFutures
+trait TestComponent extends Matchers with ScalaFutures
   with LeoComponent {
 
   override val profile: JdbcProfile = DbSingleton.ref.dataAccess.profile
