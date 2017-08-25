@@ -17,4 +17,10 @@ class LeonardoService(gdDAO: DataprocDAO, dbRef: DbReference)(implicit val execu
     }
   }
 
+  def getClusterDetails(googleProject: String, clusterName: String): Future[Cluster] = {
+    dbRef.inTransaction { components =>
+      components.clusterQuery.getByName(googleProject, clusterName) map( _.get )
+    }
+  }
+
 }
