@@ -42,7 +42,7 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
     clusterUrl = Cluster.getClusterUrl("dsp-leo-test", "name1"),
     operationName = "op1",
     status = ClusterStatus.Unknown,
-    hostIp = Some("127.0.0.1"),
+    hostIp = None, // Not used, specified in MockProxyService
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"))

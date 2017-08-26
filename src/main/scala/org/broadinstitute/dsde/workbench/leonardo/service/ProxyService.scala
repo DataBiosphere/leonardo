@@ -127,6 +127,9 @@ class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit val sy
     }
   }
 
+  /**
+    * Gets the notebook server hostname from the database given a google project and cluster name.
+    */
   protected def getTargetHost(googleProject: GoogleProject, clusterName: String): Option[String] = {
     ClusterDnsCache.ProjectNameToHost.get(googleProject, clusterName)
   }
