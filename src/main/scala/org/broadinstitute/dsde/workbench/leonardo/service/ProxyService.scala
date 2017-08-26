@@ -24,8 +24,6 @@ import scala.concurrent.{ExecutionContext, Future}
   */
 class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit val system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext) extends LazyLogging {
 
-  ClusterDnsCache.init(proxyConfig, dbRef)
-
   /**
     * Entry point to this class. Given a google project, cluster name, and HTTP request,
     * looks up the notebook server IP and proxies the HTTP request to the notebook server.
@@ -37,7 +35,7 @@ class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit val sy
     *         server IP could not be found.
     */
   def proxy(googleProject: GoogleProject, clusterName: String, request: HttpRequest): Future[HttpResponse] = {
-    ClusterDnsCache.ProjectNameToHost.get(googleProject, clusterName) match {
+    getTargetHost(googleProject, clusterName) match {
       case Some(targetHost) =>
         // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
         // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
@@ -53,7 +51,7 @@ class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit val sy
   }
 
   private def handleHttpRequest(targetHost: String, request: HttpRequest): Future[HttpResponse] = {
-    logger.debug(s"Opening http connection to $targetHost")
+    logger.debug(s"Opening https connection to $targetHost:${proxyConfig.jupyterPort}")
 
     // A note on akka-http philosophy:
     // The Akka HTTP server is implemented on top of Streams and makes heavy use of it. Requests come
@@ -127,6 +125,10 @@ class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit val sy
         logger.warn("WebSocket upgrade response was invalid: {}", cause)
         response
     }
+  }
+
+  protected def getTargetHost(googleProject: GoogleProject, clusterName: String): Option[String] = {
+    ClusterDnsCache.ProjectNameToHost.get(googleProject, clusterName)
   }
 
   private def filterHeaders(headers: immutable.Seq[HttpHeader]) = {

@@ -12,8 +12,8 @@ import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, Prox
 trait TestLeoRoutes { this: ScalatestRouteTest =>
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO
   val leonardoService = new LeonardoService(mockGoogleDataprocDAO, DbSingleton.ref)
-  val proxyConfig = ProxyConfig(jupyterPort = 8000)
-  val proxyService = new ProxyService(proxyConfig, DbSingleton.ref)
+  val proxyConfig = ProxyConfig(jupyterPort = 8001)
+  val proxyService = new MockProxyService(proxyConfig, DbSingleton.ref)
   val swaggerConfig = SwaggerConfig("", "")
   val leoRoutes = new LeoRoutes(leonardoService, proxyService, swaggerConfig)
 }

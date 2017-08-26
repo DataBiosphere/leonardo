@@ -1,9 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
+import java.io.InputStream
+import java.security.{KeyStore, SecureRandom}
 import java.time.Instant
 import java.util.UUID
+import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
 
-import akka.http.scaladsl.Http
+import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
 import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model._
@@ -39,7 +42,7 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
     clusterUrl = Cluster.getClusterUrl("dsp-leo-test", "name1"),
     operationName = "op1",
     status = ClusterStatus.Unknown,
-    hostIp = Some("localhost"),
+    hostIp = Some("127.0.0.1"),
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"))
@@ -49,7 +52,25 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-    bindingFuture = Http().bindAndHandle(backendRoute, "0.0.0.0", 8000)
+    val password = "leo-test".toCharArray
+
+    val ks: KeyStore = KeyStore.getInstance("PKCS12")
+    val keystore: InputStream = getClass.getClassLoader.getResourceAsStream("test-jupyter-server.p12")
+
+    require(keystore != null, "Keystore required!")
+    ks.load(keystore, password)
+
+    val keyManagerFactory: KeyManagerFactory = KeyManagerFactory.getInstance("SunX509")
+    keyManagerFactory.init(ks, password)
+
+    val tmf: TrustManagerFactory = TrustManagerFactory.getInstance("SunX509")
+    tmf.init(ks)
+
+    val sslContext: SSLContext = SSLContext.getInstance("TLS")
+    sslContext.init(keyManagerFactory.getKeyManagers, tmf.getTrustManagers, new SecureRandom)
+    val https: HttpsConnectionContext = ConnectionContext.https(sslContext)
+
+    bindingFuture = Http().bindAndHandle(backendRoute, "0.0.0.0", proxyConfig.jupyterPort, https)
   }
 
   override def afterAll(): Unit = {

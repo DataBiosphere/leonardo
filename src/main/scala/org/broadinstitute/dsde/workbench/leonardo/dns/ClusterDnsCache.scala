@@ -18,7 +18,6 @@ import scala.util.{Failure, Success, Try}
 object ClusterDnsCache extends LazyLogging {
 
   @volatile var HostToIp: Map[String, String] = Map.empty
-  @volatile var IpToHost: Map[String, String] = Map.empty
   @volatile var ProjectNameToHost: Map[(GoogleProject, String), String] = Map.empty
 
   // Needs to match the wildcard cert
@@ -38,7 +37,6 @@ object ClusterDnsCache extends LazyLogging {
         val filteredClusters = clusters.filter(_.hostIp.isDefined)
 
         HostToIp = filteredClusters.map(c => c.googleId.toString + HostSuffix -> c.hostIp.get).toMap
-        IpToHost = filteredClusters.map(c => c.hostIp.get -> (c.googleId.toString + HostSuffix)).toMap
         ProjectNameToHost = filteredClusters.map(c => (c.googleProject, c.clusterName) -> (c.googleId.toString + HostSuffix)).toMap
 
         logger.info("Saved {} clusters to DNS cache", filteredClusters.size)

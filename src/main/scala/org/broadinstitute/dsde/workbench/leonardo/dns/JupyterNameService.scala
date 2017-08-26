@@ -10,10 +10,8 @@ import sun.net.spi.nameservice.{NameService, NameServiceDescriptor}
 class JupyterNameService extends NameService {
 
   override def getHostByAddr(addr: Array[Byte]): String = {
-    val addrAsString = InetAddress.getByAddress(addr).getHostAddress
-    ClusterDnsCache.IpToHost.get(addrAsString).getOrElse {
-      throw new UnknownHostException(s"Unknown address: $addrAsString")
-    }
+    // Looking up IP -> hostname is not needed for the Leo use case
+    throw new UnknownHostException
   }
 
   override def lookupAllHostAddr(host: String): Array[InetAddress] = {
