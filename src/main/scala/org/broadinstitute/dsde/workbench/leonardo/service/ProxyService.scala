@@ -1,16 +1,18 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.ws._
+import akka.pattern.ask
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
+import akka.util.Timeout
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
+import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache.GetByProjectAndName
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
@@ -22,7 +24,7 @@ import scala.concurrent.{ExecutionContext, Future}
 /**
   * Created by rtitle on 8/15/17.
   */
-class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit val system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext) extends LazyLogging {
+class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference, clusterDnsCache: ActorRef)(implicit val system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext) extends LazyLogging {
 
   /**
     * Entry point to this class. Given a google project, cluster name, and HTTP request,
@@ -35,7 +37,7 @@ class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit val sy
     *         server IP could not be found.
     */
   def proxy(googleProject: GoogleProject, clusterName: String, request: HttpRequest): Future[HttpResponse] = {
-    getTargetHost(googleProject, clusterName) match {
+    getTargetHost(googleProject, clusterName) flatMap {
       case Some(targetHost) =>
         // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
         // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
@@ -130,8 +132,9 @@ class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit val sy
   /**
     * Gets the notebook server hostname from the database given a google project and cluster name.
     */
-  protected def getTargetHost(googleProject: GoogleProject, clusterName: String): Option[String] = {
-    ClusterDnsCache.ProjectNameToHost.get(googleProject, clusterName)
+  protected def getTargetHost(googleProject: GoogleProject, clusterName: String): Future[Option[String]] = {
+    implicit val timeout: Timeout = Timeout(5 seconds)
+    (clusterDnsCache ? GetByProjectAndName(googleProject, clusterName)).mapTo[Option[String]]
   }
 
   private def filterHeaders(headers: immutable.Seq[HttpHeader]) = {
