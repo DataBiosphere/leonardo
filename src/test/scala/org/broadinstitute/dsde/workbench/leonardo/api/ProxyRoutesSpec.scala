@@ -2,11 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo.api
 
 import java.io.InputStream
 import java.security.{KeyStore, SecureRandom}
-import java.time.Instant
-import java.util.UUID
 import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
 
-import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
 import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model._
@@ -15,10 +12,9 @@ import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage, WebSock
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.api.ProxyRoutesSpec._
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterStatus}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
@@ -30,22 +26,11 @@ import scala.concurrent.Future
 /**
   * Created by rtitle on 8/10/17.
   */
-class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with ScalatestRouteTest with ScalaFutures with TestLeoRoutes with TestComponent {
+class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with ScalatestRouteTest with ScalaFutures with TestLeoRoutes {
   implicit val patience = PatienceConfig(timeout = scaled(Span(10, Seconds)))
 
-  val TestCluster = Cluster(
-    clusterName = "test",
-    googleId = UUID.randomUUID(),
-    googleProject = "dsp-leo-test",
-    googleServiceAccount = "not-a-service-acct@google.com",
-    googleBucket = "bucket1",
-    clusterUrl = Cluster.getClusterUrl("dsp-leo-test", "name1"),
-    operationName = "op1",
-    status = ClusterStatus.Unknown,
-    hostIp = None, // Not used, specified in MockProxyService
-    createdDate = Instant.now(),
-    destroyedDate = None,
-    labels = Map("bam" -> "yes", "vcf" -> "no"))
+  val ClusterName = "test"
+  val GoogleProject = "dsp-leo-test"
 
   // The backend server behind the proxy
   var bindingFuture: Future[ServerBinding] = _
@@ -78,23 +63,16 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
     super.afterAll()
   }
 
-  def withTestCluster[T](testCode: => T): T = {
-    isolatedDbTest {
-      dbFutureValue { _.clusterQuery.save(TestCluster) } shouldEqual TestCluster
-      testCode
-    }
-  }
-
-  "ProxyRoutes" should "listen on /api/notebooks/{project}/{name}/..." in withTestCluster {
-    Get(s"/api/notebooks/${TestCluster.googleProject}/${TestCluster.clusterName}") ~> leoRoutes.route ~> check {
+  "ProxyRoutes" should "listen on /api/notebooks/{project}/{name}/..." in {
+    Get(s"/api/notebooks/$GoogleProject/$ClusterName") ~> leoRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
     }
-    Get(s"/api/notebooks/${TestCluster.googleProject}/${TestCluster.clusterName}/foo") ~> leoRoutes.route ~> check {
+    Get(s"/api/notebooks/$GoogleProject/$ClusterName/foo") ~> leoRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
     }
-    Get(s"/api/notebooks/${TestCluster.googleProject}/aDifferentClusterName") ~> leoRoutes.route ~> check {
+    Get(s"/api/notebooks/$GoogleProject/aDifferentClusterName") ~> leoRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.NotFound
     }
@@ -106,36 +84,36 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
     }
   }
 
-  it should "pass through paths" in withTestCluster {
-    Get(s"/api/notebooks/${TestCluster.googleProject}/${TestCluster.clusterName}") ~> leoRoutes.route ~> check {
+  it should "pass through paths" in {
+    Get(s"/api/notebooks/$GoogleProject/$ClusterName") ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
-      responseAs[Data].path shouldEqual s"/api/notebooks/${TestCluster.googleProject}/${TestCluster.clusterName}"
+      responseAs[Data].path shouldEqual s"/api/notebooks/$GoogleProject/$ClusterName"
     }
   }
 
-  it should "pass through query string params" in withTestCluster {
-    Get(s"/api/notebooks/${TestCluster.googleProject}/${TestCluster.clusterName}") ~> leoRoutes.route ~> check {
+  it should "pass through query string params" in {
+    Get(s"/api/notebooks/$GoogleProject/$ClusterName") ~> leoRoutes.route ~> check {
       responseAs[Data].qs shouldBe None
     }
-    Get(s"/api/notebooks/${TestCluster.googleProject}/${TestCluster.clusterName}?foo=bar&baz=biz") ~> leoRoutes.route ~> check {
+    Get(s"/api/notebooks/$GoogleProject/$ClusterName?foo=bar&baz=biz") ~> leoRoutes.route ~> check {
       responseAs[Data].qs shouldEqual Some("foo=bar&baz=biz")
     }
   }
 
-  it should "pass through http methods" in withTestCluster {
-    Get(s"/api/notebooks/${TestCluster.googleProject}/${TestCluster.clusterName}") ~> leoRoutes.route ~> check {
+  it should "pass through http methods" in {
+    Get(s"/api/notebooks/$GoogleProject/$ClusterName") ~> leoRoutes.route ~> check {
       responseAs[Data].method shouldBe "GET"
     }
-    Post(s"/api/notebooks/${TestCluster.googleProject}/${TestCluster.clusterName}") ~> leoRoutes.route ~> check {
+    Post(s"/api/notebooks/$GoogleProject/$ClusterName") ~> leoRoutes.route ~> check {
       responseAs[Data].method shouldBe "POST"
     }
-    Put(s"/api/notebooks/${TestCluster.googleProject}/${TestCluster.clusterName}") ~> leoRoutes.route ~> check {
+    Put(s"/api/notebooks/$GoogleProject/$ClusterName") ~> leoRoutes.route ~> check {
       responseAs[Data].method shouldBe "PUT"
     }
   }
 
-  it should "pass through headers" in withTestCluster {
-    Get(s"/api/notebooks/${TestCluster.googleProject}/${TestCluster.clusterName}")
+  it should "pass through headers" in {
+    Get(s"/api/notebooks/$GoogleProject/$ClusterName")
       .addHeader(RawHeader("foo", "bar"))
       .addHeader(RawHeader("baz", "biz")) ~> leoRoutes.route ~> check {
       responseAs[Data].headers should contain allElementsOf Map("foo" -> "bar", "baz" -> "biz")
@@ -152,7 +130,7 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
     val outgoing = Source.single(TextMessage("Leonardo"))
 
     // Flow to hit the proxy server
-    val webSocketFlow = Http().webSocketClientFlow(WebSocketRequest(Uri(s"ws://localhost:9000/api/notebooks/${TestCluster.googleProject}/${TestCluster.clusterName}/websocket"))).map {
+    val webSocketFlow = Http().webSocketClientFlow(WebSocketRequest(Uri(s"ws://localhost:9000/api/notebooks/$GoogleProject/$ClusterName/websocket"))).map {
       case m: TextMessage.Strict => m.text
       case _ => throw new IllegalArgumentException("ProxyRoutesSpec only supports strict messages")
     }
@@ -175,7 +153,7 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
 
   // The backend route (i.e. the route behind the proxy)
   val backendRoute: Route =
-    pathPrefix("api" / "notebooks" / TestCluster.googleProject / TestCluster.clusterName) {
+    pathPrefix("api" / "notebooks" / GoogleProject / ClusterName) {
       extractRequest { request =>
         path("websocket") {
           handleWebSocketMessages(greeter)
@@ -213,9 +191,7 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
   def withWebsocketProxy[T](testCode: => T): T = {
     val bindingFuture = Http().bindAndHandle(leoRoutes.route, "0.0.0.0", 9000)
     try {
-      withTestCluster {
-        testCode
-      }
+      testCode
     } finally {
       bindingFuture.flatMap(_.unbind())
     }
