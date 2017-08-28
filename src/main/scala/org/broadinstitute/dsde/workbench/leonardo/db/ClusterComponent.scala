@@ -69,6 +69,13 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
+    def deleteCluster(googleId: UUID):DBIO[Int] = {
+       clusterQuery.filter(_.googleId === googleId)
+         .map(c => (c.destroyedDate, c.status))
+         .update((Option(Timestamp.from(java.time.Instant.now())), ClusterStatus.Deleted.toString))
+
+    }
+
     def deleteByGoogleId(googleId: UUID): DBIO[Int] = {
       clusterQuery.filter { _.googleId === googleId }.result flatMap { recs =>
         DBIO.fold(recs map { r => deleteById(r.id) }, 0)(_ + _)

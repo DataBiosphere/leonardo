@@ -20,7 +20,7 @@ object ModelTypes {
 
 object ClusterStatus extends Enumeration {
   type ClusterStatus = Value
-  val Unknown, Creating = Value
+  val Unknown, Creating, Deleted = Value
 }
 
 object Cluster {

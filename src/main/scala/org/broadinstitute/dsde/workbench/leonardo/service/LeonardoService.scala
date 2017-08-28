@@ -7,6 +7,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, ClusterResponse, LeoException}
 import slick.dbio.DBIO
+import java.util.UUID
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -32,6 +33,13 @@ class LeonardoService(gdDAO: DataprocDAO, dbRef: DbReference)(implicit val execu
   def getClusterDetails(googleProject: GoogleProject, clusterName: String): Future[Cluster] = {
     dbRef.inTransaction { dataAccess =>
       getCluster(googleProject, clusterName, dataAccess)
+    }
+  }
+  def deleteCluster(googleProject: GoogleProject, clusterName: String): Future[Int] = {
+    gdDAO.deleteCluster(googleProject, clusterName) flatMap { clusterResponse: ClusterResponse =>
+      dbRef.inTransaction { components =>
+        components.clusterQuery.deleteCluster(UUID.fromString(clusterResponse.googleId))
+      }
     }
   }
 }

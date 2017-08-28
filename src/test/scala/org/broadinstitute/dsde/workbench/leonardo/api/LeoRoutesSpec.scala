@@ -39,4 +39,14 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       status shouldEqual StatusCodes.NotFound
     }
   }
+
+  it should "200 when deleting a cluster" in {
+
+    val googleProject = "test-project"
+    val clusterName = "test-cluster"
+
+    Delete(s"/api/cluster/$googleProject/$clusterName") ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+    }
+  }
 }

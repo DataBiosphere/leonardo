@@ -8,7 +8,6 @@ import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterRequest
-import org.broadinstitute.dsde.workbench.model.WorkbenchExceptionWithErrorReport
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 
@@ -40,6 +39,14 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     whenReady( leo.getClusterDetails("nonexistent", "cluster").failed ) { exc =>
       exc shouldBe a [ClusterNotFoundException]
     }
+  }
+  "LeonardoService" should "create and delete a cluster" in isolatedDbTest {
+    val clusterRequest = ClusterRequest("bucketPath", "serviceAccount", Map[String, String]())
+
+    val clusterCreateResponse = leo.createCluster("googleProject", "clusterName", clusterRequest).futureValue
+    val clusterGetResponse = leo.deleteCluster("googleProject", "clusterName").futureValue
+
+    clusterGetResponse shouldEqual 1
   }
 
 }

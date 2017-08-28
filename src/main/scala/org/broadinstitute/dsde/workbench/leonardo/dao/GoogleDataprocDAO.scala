@@ -44,7 +44,6 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
       ClusterResponse(clusterName, googleProject, metadata.get("clusterUuid").toString, metadata.get("status").toString, metadata.get("description").toString, op.getName)}
   }
 
-
   private def build(googleProject: String, clusterName: String, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[Operation] = {
     Future {
       //currently, the bucketPath of the clusterRequest are not used - it will be used later as a place to store notebooks and results
@@ -64,4 +63,31 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
       }
     }
   }
+
+
+  def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
+    val op = delete(googleProject, clusterName)
+    op.map{op =>
+      val metadata = op.getMetadata
+      ClusterResponse(clusterName, googleProject, metadata.get("clusterUuid").toString, metadata.get("status").toString, metadata.get("description").toString, op.getName)}
+  }
+
+  def delete(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Operation] = {
+    Future {
+      //currently, the bucketPath of the clusterRequest are not used - it will be used later as a place to store notebooks and results
+      val dataproc = new Dataproc.Builder(GoogleNetHttpTransport.newTrustedTransport,
+        JacksonFactory.getDefaultInstance, getDataProcServiceAccountCredential)
+        .setApplicationName("dataproc").build()
+      val request = dataproc.projects().regions().clusters().delete(googleProject, dataprocConfig.dataprocDefaultZone, clusterName)
+      try {
+        executeGoogleRequest(request)
+      } catch {
+        case e: GoogleJsonResponseException => throw new WorkbenchExceptionWithErrorReport(ErrorReport(StatusCodes.BadRequest, s"Google Request Failed: ${e.getDetails.getMessage}"))
+      }
+    }
+  }
+
+
+
+
 }
