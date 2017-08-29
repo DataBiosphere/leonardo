@@ -8,7 +8,7 @@ start() {
 
     # validate mysql
     echo "running mysql validation..."
-    docker run --rm --link mysql:mysql -v $PWD/docker/sql_validate.sh:/working/sql_validate.sh broadinstitute/dsde-toolbox /working/sql_validate.sh
+    docker run --rm --link $CONTAINER:mysql -v $PWD/docker/sql_validate.sh:/working/sql_validate.sh broadinstitute/dsde-toolbox /working/sql_validate.sh
     if [ 0 -eq $? ]; then
         echo "mysql validation succeeded."
     else
