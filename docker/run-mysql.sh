@@ -4,26 +4,23 @@
 MYSQL_VERSION=5.6
 start() {
 
-    RUNNING=$(docker inspect -f {{.State.Running}} $CONTAINER || echo "false")
+    echo "attempting to remove old $CONTAINER container..."
+    docker rm -f $CONTAINER || echo "docker rm failed. nothing to rm."
 
-    if ! $RUNNING; then
-        echo "attempting to remove old $CONTAINER container..."
-        docker rm -f $CONTAINER || echo "docker rm failed. nothing to rm."
+    # start up mysql
+    echo "starting up mysql container..."
+    docker run --name $CONTAINER -e MYSQL_ROOT_PASSWORD=leonardo-test -e MYSQL_USER=leonardo-test -e MYSQL_PASSWORD=leonardo-test -e MYSQL_DATABASE=leotestdb -d -p 3310:3306 mysql/mysql-server:$MYSQL_VERSION
 
-        # start up mysql
-        echo "starting up mysql container..."
-        docker run --name $CONTAINER -e MYSQL_ROOT_PASSWORD=leonardo-test -e MYSQL_USER=leonardo-test -e MYSQL_PASSWORD=leonardo-test -e MYSQL_DATABASE=leotestdb -d -p 3310:3306 mysql/mysql-server:$MYSQL_VERSION
-
-        # validate mysql
-        echo "running mysql validation..."
-        docker run --rm --link $CONTAINER:mysql -v $PWD/docker/sql_validate.sh:/working/sql_validate.sh broadinstitute/dsde-toolbox /working/sql_validate.sh leonardo
-        if [ 0 -eq $? ]; then
-            echo "mysql validation succeeded."
-        else
-            echo "mysql validation failed."
-            exit 1
-        fi
+    # validate mysql
+    echo "running mysql validation..."
+    docker run --rm --link $CONTAINER:mysql -v $PWD/docker/sql_validate.sh:/working/sql_validate.sh broadinstitute/dsde-toolbox /working/sql_validate.sh leonardo
+    if [ 0 -eq $? ]; then
+        echo "mysql validation succeeded."
+    else
+        echo "mysql validation failed."
+        exit 1
     fi
+
 }
 
 stop() {
