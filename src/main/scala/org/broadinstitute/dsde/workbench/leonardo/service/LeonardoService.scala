@@ -10,13 +10,13 @@ import slick.dbio.DBIO
 
 import scala.concurrent.{ExecutionContext, Future}
 
-case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Cluster $googleProject/$clusterName not found")
+case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Cluster $googleProject/$clusterName not found", StatusCodes.NotFound)
 
 class LeonardoService(gdDAO: DataprocDAO, dbRef: DbReference)(implicit val executionContext: ExecutionContext) extends LazyLogging {
 
   def withCluster[T](googleProject: GoogleProject, clusterName: String, dataAccess: DataAccess)(op: Cluster => DBIO[T]): DBIO[T] = {
     dataAccess.clusterQuery.getByName(googleProject, clusterName) flatMap {
-      case None => throw ClusterNotFoundException(googleProject, clusterName).toErrorReport(StatusCodes.NotFound)
+      case None => throw ClusterNotFoundException(googleProject, clusterName)
       case Some(cluster) => op(cluster)
     }
   }

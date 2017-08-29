@@ -38,9 +38,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "throw ClusterNotFoundException for nonexistent clusters" in isolatedDbTest {
     whenReady( leo.getClusterDetails("nonexistent", "cluster").failed ) { exc =>
-      exc shouldBe a [WorkbenchExceptionWithErrorReport]
-      val wbExc = exc.asInstanceOf[WorkbenchExceptionWithErrorReport]
-      wbExc.errorReport.exceptionClass.value shouldEqual classOf[ClusterNotFoundException]
+      exc shouldBe a [ClusterNotFoundException]
     }
   }
 
