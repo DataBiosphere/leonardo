@@ -50,6 +50,11 @@ function docker_cmd()
 DOCKER_CMD=
 GIT_BRANCH=${GIT_BRANCH:-$(git rev-parse --abbrev-ref HEAD)}  # default to current branch
 REPO=${REPO:-broadinstitute/$PROJECT}  # default to leonardo docker repo
+
+if [ -z "$1" ]; then
+    echo "No argument supplied!  Available choices are jar to build the jar and -d followed by a docker option (build or push)"
+fi
+
 while [ "$1" != "" ]; do
     case $1 in
         jar) make_jar ;;
