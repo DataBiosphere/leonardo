@@ -14,10 +14,10 @@ case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: S
 
 class LeonardoService(gdDAO: DataprocDAO, dbRef: DbReference)(implicit val executionContext: ExecutionContext) extends LazyLogging {
 
-  def withCluster[T](googleProject: GoogleProject, clusterName: String, dataAccess: DataAccess)(op: Cluster => DBIO[T]): DBIO[T] = {
+  protected def getCluster(googleProject: GoogleProject, clusterName: String, dataAccess: DataAccess): DBIO[Cluster] = {
     dataAccess.clusterQuery.getByName(googleProject, clusterName) flatMap {
       case None => throw ClusterNotFoundException(googleProject, clusterName)
-      case Some(cluster) => op(cluster)
+      case Some(cluster) => DBIO.successful(cluster)
     }
   }
 
@@ -31,9 +31,7 @@ class LeonardoService(gdDAO: DataprocDAO, dbRef: DbReference)(implicit val execu
 
   def getClusterDetails(googleProject: GoogleProject, clusterName: String): Future[Cluster] = {
     dbRef.inTransaction { dataAccess =>
-      withCluster(googleProject, clusterName, dataAccess) { cluster =>
-        DBIO.successful(cluster)
-      }
+      getCluster(googleProject, clusterName, dataAccess)
     }
   }
 }

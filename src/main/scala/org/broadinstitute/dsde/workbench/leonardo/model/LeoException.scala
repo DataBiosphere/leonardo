@@ -10,7 +10,6 @@ abstract class LeoException(
                         val statusCode: StatusCode = StatusCodes.InternalServerError,
                         val cause: Throwable = null) extends WorkbenchException(message) {
   def toErrorReport: ErrorReport = {
-    val causeErrorReports = Option(cause).map(causes).getOrElse(Array.empty[ErrorReport])
-    ErrorReport(Option(getMessage).getOrElse(""), Some(statusCode), causeErrorReports, Seq(), Some(this.getClass))
+    ErrorReport(Option(getMessage).getOrElse(""), Some(statusCode), Seq(), Seq(), Some(this.getClass))
   }
 }
