@@ -4,6 +4,7 @@ set -e
 
 LEONARDO_DIR=$1
 cd $LEONARDO_DIR
+rm -f leonardo*.jar
 
 # Test
 sbt -J-Xms4g -J-Xmx4g test -Dmysql.host=mysql -Dmysql.port=3306
