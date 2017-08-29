@@ -32,7 +32,7 @@ stop() {
     docker rm -v $CONTAINER || echo "mysql rm -v failed.  container already destroyed."
 }
 
-CONTAINER=mysql
+CONTAINER=mysql-$(date +%s)
 COMMAND=$1
 SERVICE=$2
 if [ $COMMAND = "start" ]; then
