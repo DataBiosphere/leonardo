@@ -5,8 +5,9 @@ import java.time.Instant
 import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterStatus}
+import org.scalatest.FlatSpecLike
 
-class ClusterComponentSpec extends TestComponent {
+class ClusterComponentSpec extends TestComponent with FlatSpecLike {
 
   "ClusterComponent" should "list, save, get, and delete" in isolatedDbTest {
     dbFutureValue { _.clusterQuery.list() } shouldEqual Seq()
