@@ -52,11 +52,13 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
   }
 
   def scheduleRefresh = {
-    context.system.scheduler.scheduleOnce(1 minute)(RefreshFromDatabase)
+    context.system.scheduler.scheduleOnce(1 second, self, RefreshFromDatabase)
   }
 
   def queryForClusters: Future[ProcessClusters] ={
-    dbRef.inTransaction(_.clusterQuery.list()).map(ProcessClusters)
+    dbRef.inTransaction { dataAccess =>
+      dataAccess.clusterQuery.list()
+    }.map(ProcessClusters.apply)
   }
 
   def processClusters(clusters: Seq[Cluster]): Unit = {
@@ -69,7 +71,7 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
   def storeClusters(clusters: Seq[Cluster]): Unit = {
     ClusterDnsCache.HostToIp = clusters.map(c => c.googleId.toString + proxyConfig.jupyterDomain -> c.hostIp.get).toMap
     ProjectNameToHost = clusters.map(c => (c.googleProject, c.clusterName) -> (c.googleId.toString + proxyConfig.jupyterDomain)).toMap
-    logger.info("Saved {} clusters to DNS cache", clusters.size)
+    logger.info(s"Saved ${clusters.size} clusters to DNS cache")
   }
 
 }

@@ -70,8 +70,10 @@ class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxySer
       case leoException: LeoException =>
         complete(leoException.statusCode, leoException.toErrorReport)
       case withErrorReport: WorkbenchExceptionWithErrorReport =>
+        logger.error("Error occurred in LeoRoutes", withErrorReport)
         complete(withErrorReport.errorReport.statusCode.getOrElse(StatusCodes.InternalServerError), withErrorReport.errorReport)
       case e: Throwable =>
+        logger.error("Error occurred in LeoRoutes", e)
         //NOTE: this needs SprayJsonSupport._, ErrorReportJsonSupport._, and errorReportSource all imported to work
         complete(StatusCodes.InternalServerError, ErrorReport(e))
     }
