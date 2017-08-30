@@ -5,11 +5,14 @@ import akka.testkit.TestKit
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
-import org.scalatest.{BeforeAndAfterAll, FlatSpec, FlatSpecLike, Matchers}
+import org.broadinstitute.dsde.workbench.leonardo.dao.MockGoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterRequest
+import org.broadinstitute.dsde.workbench.model.WorkbenchExceptionWithErrorReport
+import org.scalatest._
+import org.scalatest.concurrent.ScalaFutures
 
-class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfterAll {
+class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfterAll with TestComponent with ScalaFutures with OptionValues {
   import system.dispatcher
 
   override def afterAll(): Unit = {
@@ -19,17 +22,24 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   val dataprocConfig = ConfigFactory.load().as[DataprocConfig]("dataproc")
 
-  val gdDAO = new GoogleDataprocDAO(dataprocConfig)
-  val service = new LeonardoService(gdDAO, DbSingleton.ref)
+  val gdDAO = new MockGoogleDataprocDAO
+  val leo = new LeonardoService(gdDAO, DbSingleton.ref)
 
-  //ToDo: Commenting out this test right now, but we need to figure out how to properly implement integration testing later
-  /*"LeonardoService" should "create a cluster" in {
-    val clusterRequest = new ClusterRequest("bucketPath", "serviceAccount", Map[String, String]())
-    service.createCluster("googleProject", "clusterName", clusterRequest)
-    //Once the DELETE and GET APIs are written, we can test the existence of the cluster and then clean up
-  }*/
+  "LeonardoService" should "create and get a cluster" in isolatedDbTest {
+    val clusterRequest = ClusterRequest("bucketPath", "serviceAccount", Map[String, String]())
 
-  // Adding a noop test for now so afterAll() gets called and the ActorSystem is shut down.
-  "LeonardoService" should "noop" in {}
+    val clusterCreateResponse = leo.createCluster("googleProject", "clusterName", clusterRequest).futureValue
+    val clusterGetResponse = leo.getClusterDetails("googleProject", "clusterName").futureValue
+
+    clusterCreateResponse shouldEqual clusterGetResponse
+    clusterCreateResponse.googleBucket shouldEqual "bucketPath"
+    clusterCreateResponse.googleServiceAccount shouldEqual "serviceAccount"
+  }
+
+  it should "throw ClusterNotFoundException for nonexistent clusters" in isolatedDbTest {
+    whenReady( leo.getClusterDetails("nonexistent", "cluster").failed ) { exc =>
+      exc shouldBe a [ClusterNotFoundException]
+    }
+  }
 
 }
