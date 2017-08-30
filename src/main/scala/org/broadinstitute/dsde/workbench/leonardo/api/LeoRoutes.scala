@@ -13,7 +13,7 @@ import akka.stream.scaladsl._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterRequest
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService}
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
@@ -42,6 +42,13 @@ class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxySer
             }
           }
         }
+      } ~
+      get {
+        complete {
+          leonardoService.getClusterDetails(googleProject, clusterName). map { clusterDetails =>
+            StatusCodes.OK -> clusterDetails
+          }
+        }
       }
     }
 
@@ -52,6 +59,8 @@ class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxySer
 
   private val myExceptionHandler = {
     ExceptionHandler {
+      case leoException: LeoException =>
+        complete(leoException.statusCode, leoException.toErrorReport)
       case withErrorReport: WorkbenchExceptionWithErrorReport =>
         complete(withErrorReport.errorReport.statusCode.getOrElse(StatusCodes.InternalServerError), withErrorReport.errorReport)
       case e: Throwable =>

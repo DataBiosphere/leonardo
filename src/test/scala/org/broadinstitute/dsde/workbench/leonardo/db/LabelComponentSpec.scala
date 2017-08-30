@@ -5,10 +5,11 @@ import java.time.Instant
 import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterStatus}
+import org.scalatest.FlatSpecLike
 
 import scala.util.Random
 
-class LabelComponentSpec extends TestComponent {
+class LabelComponentSpec extends TestComponent with FlatSpecLike {
 
   "LabelComponent" should "save, get,and delete" in isolatedDbTest {
 
