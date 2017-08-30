@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.model._
+import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import net.ceedubs.ficus.Ficus._
 
 package object config {
@@ -26,6 +27,6 @@ package object config {
   }
 
   implicit val proxyConfigReader: ValueReader[ProxyConfig] = ValueReader.relative { config =>
-    ProxyConfig(config.getInt("jupyterPort"), config.getString("jupyterDomain"))
+    ProxyConfig(config.getInt("jupyterPort"), config.getString("jupyterDomain"), toScalaDuration(config.getDuration("dnsPollPeriod")))
   }
 }

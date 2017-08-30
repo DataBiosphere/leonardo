@@ -1,6 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
+import scala.concurrent.duration.FiniteDuration
+
 case class ProxyConfig(
   jupyterPort: Int,
-  jupyterDomain: String
+  jupyterDomain: String,
+  dnsPollPeriod: FiniteDuration
 )

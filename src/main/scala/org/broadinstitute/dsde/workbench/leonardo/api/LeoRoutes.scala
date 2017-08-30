@@ -68,6 +68,7 @@ class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxySer
   private val myExceptionHandler = {
     ExceptionHandler {
       case leoException: LeoException =>
+        logger.error("Error occurred in LeoRoutes", leoException)
         complete(leoException.statusCode, leoException.toErrorReport)
       case withErrorReport: WorkbenchExceptionWithErrorReport =>
         logger.error("Error occurred in LeoRoutes", withErrorReport)

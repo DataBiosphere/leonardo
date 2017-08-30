@@ -12,11 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-/**
-  * Created by rtitle on 8/25/17.
-  */
 object ClusterDnsCache {
-
   // This is stored as volatile in the object instead of inside the actor because it needs to be
   // accessed by JupyterNameService. JupyterNameService is instantiated by the container and is
   // stateless, so it doesn't have an ExecutionContext, etc needed to interact with an Actor.
@@ -25,12 +21,25 @@ object ClusterDnsCache {
   def props(proxyConfig: ProxyConfig, dbRef: DbReference): Props =
     Props(new ClusterDnsCache(proxyConfig, dbRef))
 
+  // Actor messages:
   sealed trait ClusterDnsCacheMessage
   case object RefreshFromDatabase extends ClusterDnsCacheMessage
   case class ProcessClusters(clusters: Seq[Cluster]) extends ClusterDnsCacheMessage
   case class GetByProjectAndName(googleProject: GoogleProject, clusterName: String) extends ClusterDnsCacheMessage
 }
 
+/**
+  * This actor periodically queries the DB for all clusters, and updates in-memory caches of:
+  * 1. (GoogleProject, ClusterName) -> Hostname
+  *    This is used by ProxyService to look up the hostname to connect to given the GoogleProject/ClusterName
+  *    in the Leo request URI.
+  * 2. Hostname -> IP
+  *    This is used by JupyterNameService to match a "fake" hostname to a real IP address. Note
+  *    this cache is in the object not the Actor because JupyterNameService doesn't have an ExecutionContext
+  *    to query the Actor.
+  * @param proxyConfig the proxy configuration
+  * @param dbRef provides access to the database
+  */
 class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Actor with LazyLogging {
   var ProjectNameToHost: Map[(GoogleProject, String), String] = Map.empty
 
@@ -44,15 +53,17 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
   override def receive: Receive = {
     case RefreshFromDatabase =>
       queryForClusters pipeTo self
+
     case ProcessClusters(clusters) =>
       storeClusters(clusters)
       scheduleRefresh
+
     case GetByProjectAndName(googleProject, clusterName) =>
       sender ! ProjectNameToHost.get(googleProject, clusterName)
   }
 
   def scheduleRefresh = {
-    context.system.scheduler.scheduleOnce(1 second, self, RefreshFromDatabase)
+    context.system.scheduler.scheduleOnce(proxyConfig.dnsPollPeriod, self, RefreshFromDatabase)
   }
 
   def queryForClusters: Future[ProcessClusters] ={
@@ -63,7 +74,7 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
 
   def processClusters(clusters: Seq[Cluster]): Unit = {
     clusters.partition(_.hostIp.isDefined) match {
-      case (hasIp, noIp /* TODO GAWB-2498 */) =>
+      case (hasIp, _) =>
         storeClusters(hasIp)
     }
   }
