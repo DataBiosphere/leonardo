@@ -124,6 +124,24 @@ paths:
             - openid
             - email
             - profile
+  '/api/notebooks/{googleProject}/{clusterName}':
+    get:
+      summary: Access Jupyter notebooks on a dataproc cluster
+      description: Serves as a proxy for the Jupyer notebook server running the given dataproc cluster managed by Leo.
+      operationId: proxyCluster
+      tags:
+        - proxy
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          type: string
+        - in: path
+          name: clusterName
+          description: clusterName
+          required: true
+          type: string
 
     delete:
       summary: Deletes an existing dataproc cluster in the given project
