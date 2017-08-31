@@ -143,8 +143,8 @@ paths:
           required: true
           type: string
       responses:
-        '200':
-          description: Cluster deletion successful
+        '202':
+          description: Cluster deletion request accepted
         '500':
           description: Internal Error
           schema:
