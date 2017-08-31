@@ -16,6 +16,8 @@ tags:
     description: Test API
   - name: cluster
     description: Clusters API
+  - name: notebooks
+    description: Notebooks API
 
 security:
   - googleoauth:
@@ -130,7 +132,7 @@ paths:
       description: Serves as a proxy for the Jupyer notebook server running the given dataproc cluster managed by Leo.
       operationId: proxyCluster
       tags:
-        - proxy
+        - notebooks
       parameters:
         - in: path
           name: googleProject
