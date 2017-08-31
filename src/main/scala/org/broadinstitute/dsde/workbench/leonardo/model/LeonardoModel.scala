@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.{GoogleBucket, GoogleProject, GoogleServiceAccount}
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat}
+import scala.language.implicitConversions
 
 // maybe we want to get fancy later
 object ModelTypes {
@@ -20,7 +21,12 @@ object ModelTypes {
 
 object ClusterStatus extends Enumeration {
   type ClusterStatus = Value
-  val Unknown, Creating, Deleted, Deleting = Value
+  val Unknown, Creating, Deleting, Deleted = Value
+
+  class StatusValue(status: Value) {
+    def isActive:Boolean = {!(Seq(Deleting, Deleted) contains status)}
+  }
+  implicit def value2StatusValue(status: Value):StatusValue = new StatusValue(status)
 }
 
 object Cluster {

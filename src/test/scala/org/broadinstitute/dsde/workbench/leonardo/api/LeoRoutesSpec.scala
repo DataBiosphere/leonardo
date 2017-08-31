@@ -40,8 +40,8 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
     }
   }
 
-  it should "202 when deleting a cluster" in {
-    val newCluster = ClusterRequest("test-bucket-path", "test-service-account", Map[String,String]())
+  it should "202 when deleting a cluster" in isolatedDbTest{
+    val newCluster = ClusterRequest("test-bucket-path", "test-service-account", Map.empty)
     val googleProject = "test-project"
     val clusterName = "test-cluster"
 

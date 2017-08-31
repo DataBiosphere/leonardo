@@ -145,6 +145,10 @@ paths:
       responses:
         '202':
           description: Cluster deletion request accepted
+        '404':
+          description: Cluster not found
+          schema:
+            $ref: '#/definitions/ErrorReport'
         '500':
           description: Internal Error
           schema:

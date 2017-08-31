@@ -12,7 +12,7 @@ class MockGoogleDataprocDAO extends DataprocDAO {
 
   private val clusters: mutable.Map[String, Cluster] = new TrieMap()
 
-  private val googleID = UUID.randomUUID().toString
+  private def googleID = UUID.randomUUID().toString
 
   override def createCluster(googleProject: String, clusterName: String, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
     val clusterResponse = ClusterResponse(clusterName, googleProject, googleID, "status", "desc", "op-name")
@@ -23,7 +23,8 @@ class MockGoogleDataprocDAO extends DataprocDAO {
   }
 
   override def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    Future{val clusterResponse = ClusterResponse(clusterName, googleProject, googleID, "status", "desc", "op-name")}
+    if(clusters.contains(clusterName))
+      clusters.remove(clusterName)
+    Future(())
   }
-
 }

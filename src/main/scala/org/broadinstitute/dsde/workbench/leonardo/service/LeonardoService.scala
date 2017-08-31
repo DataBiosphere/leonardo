@@ -36,8 +36,8 @@ class LeonardoService(gdDAO: DataprocDAO, dbRef: DbReference)(implicit val execu
   }
 
   def deleteCluster(googleProject: GoogleProject, clusterName: String): Future[Int] = {
-    getClusterDetails(googleProject, clusterName) flatMap  { cluster:Cluster =>
-      if(cluster.status != ClusterStatus.Deleting && cluster.status != ClusterStatus.Deleted) {
+    getClusterDetails(googleProject, clusterName) flatMap  { cluster =>
+      if(cluster.status.isActive) {
         for {
           _ <- gdDAO.deleteCluster(googleProject, clusterName)
           recordCount <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.deleteCluster(cluster.googleId))
