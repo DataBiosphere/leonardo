@@ -23,7 +23,7 @@ object Boot extends App with LazyLogging {
     // We do this so we can map *.jupyter-{{env}}.firecloud.org names to real Dataproc IP addresses, and
     // still pass SSL wildcard certificate verification. If we change this to not use a wildcard cert
     // and instead generate a new cert per Dataproc cluster, then we could probably generate the certs
-    // based on the IP address and probably get rid of this code.
+    // based on the IP address and get rid of this code.
     //
     // See also: http://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html
     System.setProperty("sun.net.spi.nameservice.provider.1", "dns,Jupyter")
