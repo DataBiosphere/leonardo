@@ -1,4 +1,3 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
-//nothin' yet
-case class SwaggerConfig()
+case class SwaggerConfig(googleClientId: String, realm: String)
