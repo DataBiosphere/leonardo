@@ -6,7 +6,10 @@ import net.ceedubs.ficus.Ficus._
 
 package object config {
   implicit val swaggerReader: ValueReader[SwaggerConfig] = ValueReader.relative { config =>
-    SwaggerConfig()
+    SwaggerConfig(
+      config.getString("googleClientId"),
+      config.getString("realm")
+    )
   }
 
   implicit val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
