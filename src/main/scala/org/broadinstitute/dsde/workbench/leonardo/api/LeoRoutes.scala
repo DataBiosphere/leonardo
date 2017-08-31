@@ -23,7 +23,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxyService, val swaggerConfig: SwaggerConfig)(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext) extends LazyLogging with ProxyRoutes with SwaggerRoutes {
 
-  def leoRoutes: Route =
+  def unauthedRoutes: Route =
     path("ping") {
       pathEndOrSingleSlash {
         get {
@@ -32,7 +32,9 @@ class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxySer
           }
         }
       }
-    } ~
+    }
+
+  def leoRoutes: Route =
     path("cluster" / Segment / Segment) { (googleProject, clusterName) =>
       put {
         entity(as[ClusterRequest]) { cluster =>
@@ -53,7 +55,7 @@ class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxySer
     }
 
   def route: Route = (logRequestResult & handleExceptions(myExceptionHandler)) {
-    swaggerRoutes ~
+    swaggerRoutes ~ unauthedRoutes ~
     pathPrefix("api") { leoRoutes ~ proxyRoutes }
   }
 
