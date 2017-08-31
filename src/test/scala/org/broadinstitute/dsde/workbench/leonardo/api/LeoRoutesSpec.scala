@@ -12,7 +12,7 @@ import spray.json._
 class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with TestLeoRoutes with TestComponent {
 
   "LeoRoutes" should "200 on ping" in {
-    Get("/api/ping") ~> leoRoutes.route ~> check {
+    Get("/ping") ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
     }
   }
