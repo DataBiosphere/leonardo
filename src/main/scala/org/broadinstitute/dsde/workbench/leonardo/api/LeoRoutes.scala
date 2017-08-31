@@ -55,7 +55,7 @@ class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxySer
       delete {
           complete {
             leonardoService.deleteCluster(googleProject, clusterName).map { _ =>
-              StatusCodes.OK
+              StatusCodes.Accepted
             }
           }
       }
