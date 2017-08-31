@@ -21,7 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
 
-case class CallToGoogleApiFailedException(googleProject: GoogleProject, clusterName:String) extends LeoException(s"Call to Google API failed for $googleProject/$clusterName")
+case class CallToGoogleApiFailedException(googleProject: GoogleProject, clusterName:String, exceptionStatusCode: Int, errorMessage:String) extends LeoException(s"Call to Google API failed for $googleProject/$clusterName. Message: $errorMessage",exceptionStatusCode)
 
 class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
   extends DataprocDAO with GoogleUtilities {
@@ -82,7 +82,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
       } catch {
         case e:GoogleJsonResponseException =>
           if(e.getStatusCode!=404)
-            throw CallToGoogleApiFailedException(googleProject, clusterName)
+            throw CallToGoogleApiFailedException(googleProject, clusterName, e.getStatusCode, e.getDetails.getMessage)
       }
     }
   }
