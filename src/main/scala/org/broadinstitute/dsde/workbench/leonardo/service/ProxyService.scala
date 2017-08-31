@@ -14,12 +14,15 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache.GetByProjectAndName
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
 
 import scala.collection.immutable
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
+
+case class ProxyException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Unable to proxy connection to Jupyter notebook on $googleProject/$clusterName", StatusCodes.InternalServerError)
 
 /**
   * Created by rtitle on 8/15/17.
@@ -49,6 +52,9 @@ class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference, clusterDnsCache
       case None =>
         // handled upstream by the LeoRoutes ExceptionHandler
         throw new WorkbenchExceptionWithErrorReport(ErrorReport(StatusCodes.NotFound, s"Could not find notebook server for $googleProject/$clusterName"))
+    } recover { case e =>
+      logger.error("Error occurred in Jupyter proxy", e)
+      throw ProxyException(googleProject, clusterName)
     }
   }
 

@@ -144,6 +144,16 @@ paths:
           description: clusterName
           required: true
           type: string
+      responses:
+        200:
+          description: Proxy connection successful
+        500:
+          description: Internal Error
+      security:
+        - googleoauth:
+            - openid
+            - email
+            - profile
 
     delete:
       summary: Deletes an existing dataproc cluster in the given project

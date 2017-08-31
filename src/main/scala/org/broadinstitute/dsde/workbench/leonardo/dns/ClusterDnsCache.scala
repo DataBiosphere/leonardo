@@ -47,7 +47,7 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
 
   override def preStart(): Unit = {
     super.preStart()
-    scheduleRefresh
+    self ! RefreshFromDatabase
   }
 
   override def receive: Receive = {
@@ -55,7 +55,7 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
       queryForClusters pipeTo self
 
     case ProcessClusters(clusters) =>
-      storeClusters(clusters)
+      processClusters(clusters)
       scheduleRefresh
 
     case GetByProjectAndName(googleProject, clusterName) =>
@@ -68,21 +68,15 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
 
   def queryForClusters: Future[ProcessClusters] ={
     dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.list()
+      dataAccess.clusterQuery.listActive()
     }.map(ProcessClusters.apply)
   }
 
   def processClusters(clusters: Seq[Cluster]): Unit = {
-    clusters.partition(_.hostIp.isDefined) match {
-      case (hasIp, _) =>
-        storeClusters(hasIp)
-    }
-  }
-
-  def storeClusters(clusters: Seq[Cluster]): Unit = {
-    ClusterDnsCache.HostToIp = clusters.map(c => c.googleId.toString + proxyConfig.jupyterDomain -> c.hostIp.get).toMap
-    ProjectNameToHost = clusters.map(c => (c.googleProject, c.clusterName) -> (c.googleId.toString + proxyConfig.jupyterDomain)).toMap
-    logger.info(s"Saved ${clusters.size} clusters to DNS cache")
+    val clustersWithIp = clusters.filter(_.hostIp.isDefined)
+    ClusterDnsCache.HostToIp = clustersWithIp.map(c => c.googleId.toString + proxyConfig.jupyterDomain -> c.hostIp.get).toMap
+    ProjectNameToHost = clustersWithIp.map(c => (c.googleProject, c.clusterName) -> (c.googleId.toString + proxyConfig.jupyterDomain)).toMap
+    logger.info(s"Saved ${clustersWithIp.size} clusters to DNS cache")
   }
 
 }
