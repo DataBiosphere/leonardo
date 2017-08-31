@@ -12,12 +12,16 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.json.jackson2.JacksonFactory
 import com.google.api.services.dataproc.Dataproc
 import com.google.api.services.pubsub.PubsubScopes
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, ClusterResponse}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, ClusterResponse, LeoException}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
+import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
+
+
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
 
+case class CallToGoogleApiFailedException(googleProject: GoogleProject, clusterName:String) extends LeoException(s"Call to Google API failed for $googleProject/$clusterName", StatusCodes.NotFound)
 
 class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
   extends DataprocDAO with GoogleUtilities {
@@ -68,14 +72,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
   }
 
 
-  def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
-    val op = delete(googleProject, clusterName)
-    op.map{op =>
-      val metadata = op.getMetadata
-      ClusterResponse(clusterName, googleProject, metadata.get("clusterUuid").toString, metadata.get("status").toString, metadata.get("description").toString, op.getName)}
-  }
-
-  def delete(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Operation] = {
+  def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
     Future {
       //currently, the bucketPath of the clusterRequest are not used - it will be used later as a place to store notebooks and results
       val dataproc = getDataProc("dataproc")
@@ -83,12 +80,11 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
       try {
         executeGoogleRequest(request)
       } catch {
-        case e: GoogleJsonResponseException => throw new WorkbenchExceptionWithErrorReport(ErrorReport(StatusCodes.BadRequest, s"Google Request Failed: ${e.getDetails.getMessage}"))
+        case e:GoogleJsonResponseException =>
+          if(e.getStatusCode!=404)
+            throw CallToGoogleApiFailedException(googleProject, clusterName)
       }
     }
   }
-
-
-
 
 }

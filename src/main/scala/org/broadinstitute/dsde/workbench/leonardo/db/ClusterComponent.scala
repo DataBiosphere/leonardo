@@ -72,7 +72,7 @@ trait ClusterComponent extends LeoComponent {
     def deleteCluster(googleId: UUID):DBIO[Int] = {
        clusterQuery.filter(_.googleId === googleId)
          .map(c => (c.destroyedDate, c.status))
-         .update((Option(Timestamp.from(java.time.Instant.now())), ClusterStatus.Deleted.toString))
+         .update((Option(Timestamp.from(java.time.Instant.now())), ClusterStatus.Deleting.toString))
 
     }
 

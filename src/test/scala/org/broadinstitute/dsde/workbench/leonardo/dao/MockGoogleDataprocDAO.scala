@@ -22,10 +22,8 @@ class MockGoogleDataprocDAO extends DataprocDAO {
     Future.successful(clusterResponse)
   }
 
-  override def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
-    val clusterResponse = ClusterResponse(clusterName, googleProject, googleID, "status", "desc", "op-name")
-
-    Future.successful(clusterResponse)
+  override def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
+    Future{val clusterResponse = ClusterResponse(clusterName, googleProject, googleID, "status", "desc", "op-name")}
   }
 
 }

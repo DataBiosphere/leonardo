@@ -40,17 +40,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
     }
   }
 
-  it should "200 when deleting a cluster" in {
-
-    val googleProject = "test-project"
-    val clusterName = "test-cluster"
-
-    Delete(s"/api/cluster/$googleProject/$clusterName") ~> leoRoutes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
-    }
-  }
-
-  it should "404 when deleting a cluster that does not exist" in {
+  it should "202 when deleting a cluster" in {
     val newCluster = ClusterRequest("test-bucket-path", "test-service-account", Map[String,String]())
     val googleProject = "test-project"
     val clusterName = "test-cluster"
@@ -58,10 +48,15 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
     Put(s"/api/cluster/$googleProject/$clusterName", newCluster.toJson) ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
     }
-
     Delete(s"/api/cluster/$googleProject/$clusterName") ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
     }
+  }
 
+  it should "404 when deleting a cluster that does not exist" in {
+    Delete(s"/api/cluster/nonexistent/bestclustername") ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.NotFound
+    }
+  }
 
 }

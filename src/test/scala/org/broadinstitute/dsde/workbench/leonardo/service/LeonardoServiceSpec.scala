@@ -40,13 +40,20 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       exc shouldBe a [ClusterNotFoundException]
     }
   }
-  "LeonardoService" should "create and delete a cluster" in isolatedDbTest {
+  "LeonardoService" should "delete a cluster" in isolatedDbTest {
     val clusterRequest = ClusterRequest("bucketPath", "serviceAccount", Map[String, String]())
 
     val clusterCreateResponse = leo.createCluster("googleProject", "clusterName", clusterRequest).futureValue
     val clusterGetResponse = leo.deleteCluster("googleProject", "clusterName").futureValue
-
     clusterGetResponse shouldEqual 1
   }
+
+  "LeonardoService" should "throw ClusterNotFoundException when deleting non existent clusters" in isolatedDbTest {
+
+    whenReady( leo.deleteCluster("nonexistent", "cluster").failed ) { exc =>
+      exc shouldBe a [ClusterNotFoundException]
+    }
+  }
+
 
 }
