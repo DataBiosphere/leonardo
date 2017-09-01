@@ -1,10 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
-import java.io.{ByteArrayInputStream, File, InputStream, PrintWriter}
-import java.nio.charset.StandardCharsets
-import java.util.UUID
-
 import com.google.api.services.dataproc.model._
+import com.google.api.services.dataproc.model.{Cluster => GoogleCluster}
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities
 import akka.actor.ActorSystem
@@ -15,15 +12,19 @@ import com.google.api.client.auth.oauth2.Credential
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
-import com.google.api.client.http.{FileContent, InputStreamContent}
+import com.google.api.client.http.{AbstractInputStreamContent, FileContent, InputStreamContent}
 import com.google.api.client.json.jackson2.JacksonFactory
 import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.compute.Compute
-import com.google.api.services.compute.model.{Firewall, Project}
+import com.google.api.services.compute.model.Firewall
 import com.google.api.services.compute.model.Firewall.Allowed
 import com.google.api.services.dataproc.Dataproc
 import com.google.api.services.plus.PlusScopes
 import com.google.api.services.storage.{Storage, StorageScopes}
+import com.google.api.services.storage.model.{Bucket, StorageObject}
+import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
+import spray.json._
 import com.google.api.services.storage.model.{Bucket, ComposeRequest, StorageObject}
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterInitValues, ClusterRequest, ClusterResponse}
 import com.google.api.services.pubsub.PubsubScopes
@@ -33,6 +34,9 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterInitValues, Clus
 import org.broadinstitute.dsde.workbench.model.ErrorReport
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
+import java.io.{ByteArrayInputStream, File}
+import java.nio.charset.StandardCharsets
+import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 
@@ -108,57 +112,40 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
     }
   }
 
-  private def createBucketUri(bucketName: String, fileName: String): String = {
-    s"gs://${bucketName}/${fileName}"
-  }
 
-  private def initializeBucket(googleProject: GoogleProject, clusterName: String, bucketName:String, serviceAccount: String): Future[Bucket] = {
-    import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
-    import spray.json._
+  private def initializeBucket(googleProject: GoogleProject, clusterName: String, bucketName:String, serviceAccount: String) = {
     Future {
       val bucket = new Bucket().setName(bucketName)
       val bucketInserter = getStorage(getBucketServiceAccountCredential).buckets().insert(googleProject, bucket)
       try {
-       executeGoogleRequest(bucketInserter) //returns a Bucket
+        executeGoogleRequest(bucketInserter) //returns a Bucket
       } catch {
         case e: GoogleJsonResponseException => throw new BucketNotCreatedException(googleProject, clusterName)
-      } finally {
-        val initScriptRaw = scala.io.Source.fromFile(dc.configFolderPath + dc.initActionsScriptName).mkString
-        val replacements =  ClusterInitValues(clusterName, googleProject, dc.dataprocDockerImage,
-                  dc.jupyterProxyDockerImage, createBucketUri(bucketName, dc.jupyterServerCrtName), createBucketUri(bucketName, dc.jupyterServerKeyName),
-                  createBucketUri(bucketName, dc.jupyterRootCaPemName), createBucketUri(bucketName, dc.clusterDockerComposeName), dc.jupyterServerName, dc.proxyServerName).toJson.asJsObject.fields
-        val initScript = replacements.foldLeft(initScriptRaw)((a, b) => a.replaceAllLiterally("$(" + b._1 +")", b._2.toString()))
-
-        val jupyterServerCrtFile = new File(dc.configFolderPath + dc.jupyterServerCrtName)
-        val jupyterServerKeyFile = new File(dc.configFolderPath + dc.jupyterServerKeyName)
-        val jupyterRootCaPemFile = new File(dc.configFolderPath + dc.jupyterRootCaPemName)
-        val clusterDockerCompose = new File(dc.configFolderPath + dc.clusterDockerComposeName)
-
-        populateInitBucket(googleProject, bucketName, dc.initActionsScriptName, Right(initScript))
-        populateInitBucket(googleProject, bucketName, dc.clusterDockerComposeName, Left(clusterDockerCompose))
-        populateInitBucket(googleProject, bucketName, dc.jupyterServerCrtName, Left(jupyterServerCrtFile))
-        populateInitBucket(googleProject, bucketName, dc.jupyterServerKeyName, Left(jupyterServerKeyFile))
-        populateInitBucket(googleProject, bucketName, dc.jupyterRootCaPemName, Left(jupyterRootCaPemFile))
       }
+
+      //Give init-actions.sh cluster-specific information and put in bucket
+      val initScriptRaw = scala.io.Source.fromFile(dc.configFolderPath + dc.initActionsScriptName).mkString
+      val replacements = ClusterInitValues(clusterName, googleProject, bucketName, dc).toJson.asJsObject.fields
+      val initScript = replacements.foldLeft(initScriptRaw)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", b._2.toString()))
+      val content = new InputStreamContent(null, new ByteArrayInputStream(initScript.getBytes(StandardCharsets.UTF_8)))
+      populateInitBucket(googleProject, bucketName, dc.initActionsScriptName, content)
+
+      //put certs and docker compose file into bucket
+      val certs = Array(dc.jupyterServerCrtName, dc.jupyterServerKeyName, dc.jupyterRootCaPemName, dc.clusterDockerComposeName)
+      certs.map { certName => populateInitBucket(googleProject, bucketName, certName, new FileContent(null, new File(dc.configFolderPath, certName)))}
     }
   }
 
-  private def populateInitBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: Either[File, String]): Future[StorageObject] = {
+  private def populateInitBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: AbstractInputStreamContent): Future[StorageObject] = {
     Future {
       val so = new StorageObject().setName(fileName)
-
-      val bucketContent = content match {
-        case Left(file) => new FileContent(null, file)
-        case Right(str) => new InputStreamContent(null, new ByteArrayInputStream(str.getBytes(StandardCharsets.UTF_8)))
-      }
-
-      val fileInserter = getStorage(getBucketServiceAccountCredential).objects().insert(bucketName, so, bucketContent)
+      val fileInserter = getStorage(getBucketServiceAccountCredential).objects().insert(bucketName, so, content)
       fileInserter.getMediaHttpUploader().setDirectUploadEnabled(true)
 
       try {
         executeGoogleRequest(fileInserter) //returns a StorageObject
       } catch {
-        case e: GoogleJsonResponseException => throw new BucketInsertionException()
+        case e: GoogleJsonResponseException => throw new BucketInsertionException(googleProject, bucketName)
       }
     }
   }
@@ -180,7 +167,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
         .setServiceAccount(clusterRequest.serviceAccount)
         .setTags(List("leonardo").asJava)
 
-      val initActions = Seq(new NodeInitializationAction().setExecutableFile(createBucketUri(bucketName, dc.initActionsScriptName)))
+      val initActions = Seq(new NodeInitializationAction().setExecutableFile(GoogleBucketUri(bucketName, dc.initActionsScriptName)))
 
       val worksInstancConfig = new InstanceGroupConfig().setNumInstances(0)
 
@@ -189,7 +176,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
         .setInitializationActions(initActions.asJava)
         .setWorkerConfig(worksInstancConfig)
 
-      val cluster = new Cluster()
+      val cluster = new GoogleCluster()
         .setClusterName(clusterName)
         .setConfig(clusterConfig)
 

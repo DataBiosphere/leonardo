@@ -54,6 +54,29 @@ object Cluster {
   }
 }
 
+object GoogleBucketUri {
+  def apply (bucketName: String, fileName: String): String = {
+    s"gs://${bucketName}/${fileName}"
+  }
+}
+
+object ClusterInitValues {
+  def apply(googleProject: GoogleProject, clusterName: String, bucketName: String, dataprocConfig: DataprocConfig): ClusterInitValues = ClusterInitValues(
+    clusterName,
+    googleProject,
+    dataprocConfig.dataprocDockerImage,
+    dataprocConfig.jupyterProxyDockerImage,
+    GoogleBucketUri(bucketName, dataprocConfig.jupyterServerCrtName),
+    GoogleBucketUri(bucketName, dataprocConfig.jupyterServerKeyName),
+    GoogleBucketUri(bucketName, dataprocConfig.jupyterRootCaPemName),
+    GoogleBucketUri(bucketName, dataprocConfig.clusterDockerComposeName),
+    dataprocConfig.jupyterServerName,
+    dataprocConfig.proxyServerName
+  )
+
+}
+
+
 case class Cluster(clusterName: String,
                    googleId: UUID,
                    googleProject: GoogleProject,
@@ -90,6 +113,9 @@ case class ClusterInitValues(clusterName: String,
                              proxyServerName: String)
 
 
+case class GoogleBucketUri(uri: String)
+
+
 object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   // needed for Cluster
   implicit object UUIDFormat extends JsonFormat[UUID] {
@@ -124,5 +150,5 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val clusterFormat = jsonFormat12(Cluster.apply)
   implicit val clusterRequestFormat = jsonFormat3(ClusterRequest)
   implicit val clusterResponseFormat = jsonFormat6(ClusterResponse)
-  implicit val clusterMetadataFormat = jsonFormat10(ClusterInitValues)
+  implicit val clusterMetadataFormat = jsonFormat10(ClusterInitValues.apply)
 }
