@@ -22,11 +22,12 @@ object ModelTypes {
 object ClusterStatus extends Enumeration {
   type ClusterStatus = Value
   val Unknown, Creating, Deleting, Deleted = Value
+  val activeStatuses = Seq(Unknown, Creating)
 
   class StatusValue(status: Value) {
-    def isActive:Boolean = {!(Seq(Deleting, Deleted) contains status)}
+    def isActive:Boolean = activeStatuses contains status
   }
-  implicit def value2StatusValue(status: Value):StatusValue = new StatusValue(status)
+  implicit def enumConvert(status: Value): StatusValue = new StatusValue(status)
 }
 
 object Cluster {

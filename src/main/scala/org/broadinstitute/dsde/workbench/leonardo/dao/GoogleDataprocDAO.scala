@@ -30,7 +30,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
   private val jsonFactory = JacksonFactory.getDefaultInstance
   private val cloudPlatformScopes = List(PubsubScopes.CLOUD_PLATFORM)
 
-  private lazy val getDataProc = {
+  private lazy val dataproc = {
     new Dataproc.Builder(GoogleNetHttpTransport.newTrustedTransport,
       JacksonFactory.getDefaultInstance, getDataProcServiceAccountCredential)
       .setApplicationName("dataproc").build()
@@ -56,7 +56,6 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
   private def build(googleProject: String, clusterName: String, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[Operation] = {
     Future {
       //currently, the bucketPath of the clusterRequest are not used - it will be used later as a place to store notebooks and results
-      val dataproc = getDataProc
       val metadata = clusterRequest.labels + ("docker-image" -> dataprocConfig.dataprocDockerImage)
       val gce = new GceClusterConfig().setMetadata(metadata.asJava).setServiceAccount(clusterRequest.serviceAccount)
       val initActions = Seq(new NodeInitializationAction().setExecutableFile(dataprocConfig.dataprocInitScriptURI))
@@ -75,7 +74,6 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
   def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
     Future {
       //currently, the bucketPath of the clusterRequest are not used - it will be used later as a place to store notebooks and results
-      val dataproc = getDataProc
       val request = dataproc.projects().regions().clusters().delete(googleProject, dataprocConfig.dataprocDefaultZone, clusterName)
       try {
         executeGoogleRequest(request)
