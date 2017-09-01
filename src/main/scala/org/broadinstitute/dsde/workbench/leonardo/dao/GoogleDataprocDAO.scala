@@ -103,7 +103,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
     updateFirewallRules(googleProject)  //when should this rule be created? Before or after cluster creation?
 
     val bucketResponse = initializeBucket(googleProject, clusterName, bucketName, clusterRequest.serviceAccount)
-    bucketResponse.flatMap[ClusterResponse]{ Bucket =>
+    bucketResponse.flatMap[ClusterResponse]{ _ =>
       val op = build(googleProject, clusterName, clusterRequest, bucketName)
       op.map { op =>
         val metadata = op.getMetadata
@@ -113,27 +113,29 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
   }
 
 
-  private def initializeBucket(googleProject: GoogleProject, clusterName: String, bucketName:String, serviceAccount: String) = {
+  private def initializeBucket(googleProject: GoogleProject, clusterName: String, bucketName:String, serviceAccount: String): Future[Bucket] = {
     Future {
       val bucket = new Bucket().setName(bucketName)
       val bucketInserter = getStorage(getBucketServiceAccountCredential).buckets().insert(googleProject, bucket)
       try {
-        executeGoogleRequest(bucketInserter) //returns a Bucket
+        executeGoogleRequest(bucketInserter)
       } catch {
         case e: GoogleJsonResponseException => throw new BucketNotCreatedException(googleProject, clusterName)
       }
-
-      //Give init-actions.sh cluster-specific information and put in bucket
-      val initScriptRaw = scala.io.Source.fromFile(dc.configFolderPath + dc.initActionsScriptName).mkString
-      val replacements = ClusterInitValues(clusterName, googleProject, bucketName, dc).toJson.asJsObject.fields
-      val initScript = replacements.foldLeft(initScriptRaw)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", b._2.toString()))
-      val content = new InputStreamContent(null, new ByteArrayInputStream(initScript.getBytes(StandardCharsets.UTF_8)))
-      populateInitBucket(googleProject, bucketName, dc.initActionsScriptName, content)
-
-      //put certs and docker compose file into bucket
-      val certs = Array(dc.jupyterServerCrtName, dc.jupyterServerKeyName, dc.jupyterRootCaPemName, dc.clusterDockerComposeName)
-      certs.map { certName => populateInitBucket(googleProject, bucketName, certName, new FileContent(null, new File(dc.configFolderPath, certName)))}
     }
+  }
+
+  private def initializeBucketObjects(googleProject: GoogleProject, clusterName: String, bucketName: String) = {
+    //Give init-actions.sh cluster-specific information and put in bucket
+    val initScriptRaw = scala.io.Source.fromFile(dc.configFolderPath + dc.initActionsScriptName).mkString
+    val replacements = ClusterInitValues(clusterName, googleProject, bucketName, dc).toJson.asJsObject.fields
+    val initScript = replacements.foldLeft(initScriptRaw)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", b._2.toString()))
+    val content = new InputStreamContent(null, new ByteArrayInputStream(initScript.getBytes(StandardCharsets.UTF_8)))
+    populateInitBucket(googleProject, bucketName, dc.initActionsScriptName, content)
+
+    //put certs and docker compose file into bucket
+    val certs = Array(dc.jupyterServerCrtName, dc.jupyterServerKeyName, dc.jupyterRootCaPemName, dc.clusterDockerComposeName)
+    certs.map { certName => populateInitBucket(googleProject, bucketName, certName, new FileContent(null, new File(dc.configFolderPath, certName)))}
   }
 
   private def populateInitBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: AbstractInputStreamContent): Future[StorageObject] = {

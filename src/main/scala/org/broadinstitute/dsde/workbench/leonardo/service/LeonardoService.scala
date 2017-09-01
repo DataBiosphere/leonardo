@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest
 import scala.concurrent.{ExecutionContext, Future}
 
 case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Cluster $googleProject/$clusterName not found", StatusCodes.NotFound)
-case class ClusterAlreadyExistsException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Ckuster$googleProject/$clusterName already exists", StatusCodes.Found)
+case class ClusterAlreadyExistsException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Cluster$googleProject/$clusterName already exists", StatusCodes.Found)
 
 class LeonardoService(gdDAO: DataprocDAO, dbRef: DbReference)(implicit val executionContext: ExecutionContext) extends LazyLogging {
 
@@ -27,17 +27,18 @@ class LeonardoService(gdDAO: DataprocDAO, dbRef: DbReference)(implicit val execu
   }
 
   def createCluster(googleProject: String, clusterName: String, clusterRequest: ClusterRequest): Future[Cluster] = {
-    def create = gdDAO.createCluster(googleProject, clusterName, clusterRequest) flatMap { clusterResponse: ClusterResponse =>
-      dbRef.inTransaction { dataAccess =>
-        dataAccess.clusterQuery.save(Cluster(clusterRequest, clusterResponse))
+    def create() =
+      gdDAO.createCluster(googleProject, clusterName, clusterRequest) flatMap { clusterResponse: ClusterResponse =>
+        dbRef.inTransaction { dataAccess =>
+          dataAccess.clusterQuery.save(Cluster(clusterRequest, clusterResponse))
+        }
       }
-    }
 
-    dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.getByName(googleProject, clusterName)} flatMap {
+    dbRef.inTransaction { dataAccess => dataAccess.clusterQuery.getByName(googleProject, clusterName) } flatMap {
       case Some(c: Cluster) => throw ClusterAlreadyExistsException(googleProject, clusterName)
       case None => create
     }
+
   }
 
   def getClusterDetails(googleProject: GoogleProject, clusterName: String): Future[Cluster] = {
