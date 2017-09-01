@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.google.GoogleUtilities
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 
-import scala.collection.JavaConversions._
+
 import com.google.api.client.auth.oauth2.Credential
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
@@ -44,10 +44,10 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
 
   private val httpTransport = GoogleNetHttpTransport.newTrustedTransport
   private val jsonFactory = JacksonFactory.getDefaultInstance
-  private val cloudPlatformScopes = List(ComputeScopes.CLOUD_PLATFORM)  // Maybe this would not need to be so high if we used ComputeScopes instead of Pubsub
+  private val cloudPlatformScopes = List(ComputeScopes.CLOUD_PLATFORM)
   private val storageScopes = Seq(StorageScopes.DEVSTORAGE_FULL_CONTROL, ComputeScopes.COMPUTE, PlusScopes.USERINFO_EMAIL, PlusScopes.USERINFO_PROFILE)
   private val vmScopes = List(ComputeScopes.COMPUTE, ComputeScopes.CLOUD_PLATFORM)
-  private val serviceAccountPemFile = new File(dc.configFolderPath + dc.serviceAccountPemName)
+  private val serviceAccountPemFile = new File(dc.configFolderPath, dc.serviceAccountPemName)
 
   private lazy val dataproc = {
     new Dataproc.Builder(GoogleNetHttpTransport.newTrustedTransport,
@@ -70,7 +70,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
       .setTransport(httpTransport)
       .setJsonFactory(jsonFactory)
       .setServiceAccountId(dc.serviceAccount)
-      .setServiceAccountScopes(storageScopes) // grant bucket-creation powers
+      .setServiceAccountScopes(storageScopes.asJava) // grant bucket-creation powers
       .setServiceAccountPrivateKeyFromPemFile(serviceAccountPemFile)
       .build()
   }
@@ -169,7 +169,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
 
       val gce = new GceClusterConfig()
         .setServiceAccount(clusterRequest.serviceAccount)
-        .setTags(List("leonardo"))
+        .setTags(List("leonardo").asJava)
 
       val initActions = Seq(new NodeInitializationAction().setExecutableFile(createBucketUri(bucketName, dc.initActionsScriptName)))
 
@@ -204,12 +204,13 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
     }
   }
 
-  private def addFirewallRule(googleProject: String) = {    val allowed = new Allowed().set("tcp", "443").setIPProtocol("tcp").setPorts(List("443"))
+  private def addFirewallRule(googleProject: String) = {
+    val allowed = new Allowed().set("tcp", "443").setIPProtocol("tcp").setPorts(List("443").asJava)
 
     val firewallRule = new Firewall()
       .setName("leonardo-notebooks-rule")
-      .setTargetTags(List("leonardo"))
-      .setAllowed(List(allowed))
+      .setTargetTags(List("leonardo").asJava)
+      .setAllowed(List(allowed).asJava)
 
     val request = new Compute(httpTransport, jsonFactory, getVmServiceAccountCredential).firewalls().insert(googleProject, firewallRule)
 

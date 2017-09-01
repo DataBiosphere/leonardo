@@ -1,7 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
-import scala.util.matching.Regex
-
 case class DataprocConfig(serviceAccount: String,
                           dataprocDefaultZone: String,
                           dataprocDockerImage: String,
