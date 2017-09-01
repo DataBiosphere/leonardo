@@ -79,7 +79,7 @@ case class ClusterResponse(clusterName: String,
                            operationName: String)
 
 case class ClusterInitValues(clusterName: String,
-                             googleProject: String,
+                             googleProject: GoogleProject,
                              jupyterDockerImage: String,
                              proxyDockerImage: String,
                              jupyterServerCrt: String,

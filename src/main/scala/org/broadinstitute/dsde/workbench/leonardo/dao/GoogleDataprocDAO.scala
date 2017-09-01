@@ -29,7 +29,10 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterInitValues, Clus
 import com.google.api.services.pubsub.PubsubScopes
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, ClusterResponse, LeoException}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterInitValues, ClusterRequest, ClusterResponse, LeoException}
+import org.broadinstitute.dsde.workbench.model.ErrorReport
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
+import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 
@@ -37,6 +40,11 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
 
+case class BucketNotCreatedException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Cluster $googleProject/$clusterName failed to create required resource.", StatusCodes.InternalServerError)
+case class BucketInsertionException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Cluster $googleProject/$clusterName failed to upload Jupyter certificates", StatusCodes.InternalServerError)
+case class ClusterNotCreatedException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Failed to create cluster $googleProject/$clusterName", StatusCodes.InternalServerError)
+case class FirewallRuleInaccessibleException(googleProject: GoogleProject, firewallRule: String) extends LeoException(s"Unable to access firewall rule $googleProject/$firewallRule", StatusCodes.InternalServerError)
+case class FirewallRuleInsertionException(googleProject: GoogleProject, firewallRule: String) extends LeoException(s"Unable to insert new firewall rule $googleProject/$firewallRule", StatusCodes.InternalServerError)
 case class CallToGoogleApiFailedException(googleProject: GoogleProject, clusterName:String, exceptionStatusCode: Int, errorMessage:String) extends LeoException(s"Call to Google API failed for $googleProject/$clusterName. Message: $errorMessage",exceptionStatusCode)
 
 class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
@@ -55,7 +63,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
       .setApplicationName("dataproc").build()
   }
 
-  private def getDataProcServiceAccountCredential: Credential = {
+  private lazy val getDataProcServiceAccountCredential: Credential = {
     new GoogleCredential.Builder()
       .setTransport(httpTransport)
       .setJsonFactory(jsonFactory)
@@ -65,7 +73,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
       .build()
   }
 
-  def getBucketServiceAccountCredential: Credential = {
+  private lazy val getBucketServiceAccountCredential: Credential = {
     new GoogleCredential.Builder()
       .setTransport(httpTransport)
       .setJsonFactory(jsonFactory)
@@ -75,7 +83,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
       .build()
   }
 
-  private def getVmServiceAccountCredential: Credential = {
+  private lazy val getVmServiceAccountCredential: Credential = {
     new GoogleCredential.Builder()
       .setTransport(httpTransport)
       .setJsonFactory(jsonFactory)
@@ -85,7 +93,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
       .build()
   }
 
-  def createCluster(googleProject: String, clusterName: String, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
+  def createCluster(googleProject: GoogleProject, clusterName: String, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
     val bucketName = s"${clusterName}-${UUID.randomUUID.toString}"
 
     updateFirewallRules(googleProject)  //when should this rule be created? Before or after cluster creation?
@@ -104,7 +112,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
     s"gs://${bucketName}/${fileName}"
   }
 
-  private def initializeBucket(googleProject: String, clusterName: String, bucketName:String, serviceAccount: String): Future[Bucket] = {
+  private def initializeBucket(googleProject: GoogleProject, clusterName: String, bucketName:String, serviceAccount: String): Future[Bucket] = {
     import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
     import spray.json._
     Future {
@@ -113,7 +121,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
       try {
        executeGoogleRequest(bucketInserter) //returns a Bucket
       } catch {
-        case e: GoogleJsonResponseException => throw new WorkbenchExceptionWithErrorReport(ErrorReport(StatusCodes.BadRequest, s"Google Request Failed: ${e.getDetails.getMessage}"))
+        case e: GoogleJsonResponseException => throw new BucketNotCreatedException(googleProject, clusterName)
       } finally {
         val initScriptRaw = scala.io.Source.fromFile(dc.configFolderPath + dc.initActionsScriptName).mkString
         val replacements =  ClusterInitValues(clusterName, googleProject, dc.dataprocDockerImage,
@@ -126,16 +134,16 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
         val jupyterRootCaPemFile = new File(dc.configFolderPath + dc.jupyterRootCaPemName)
         val clusterDockerCompose = new File(dc.configFolderPath + dc.clusterDockerComposeName)
 
-        populateInitBucket(bucketName, dc.initActionsScriptName, Right(initScript))
-        populateInitBucket(bucketName, dc.clusterDockerComposeName, Left(clusterDockerCompose))
-        populateInitBucket(bucketName, dc.jupyterServerCrtName, Left(jupyterServerCrtFile))
-        populateInitBucket(bucketName, dc.jupyterServerKeyName, Left(jupyterServerKeyFile))
-        populateInitBucket(bucketName, dc.jupyterRootCaPemName, Left(jupyterRootCaPemFile))
+        populateInitBucket(googleProject, bucketName, dc.initActionsScriptName, Right(initScript))
+        populateInitBucket(googleProject, bucketName, dc.clusterDockerComposeName, Left(clusterDockerCompose))
+        populateInitBucket(googleProject, bucketName, dc.jupyterServerCrtName, Left(jupyterServerCrtFile))
+        populateInitBucket(googleProject, bucketName, dc.jupyterServerKeyName, Left(jupyterServerKeyFile))
+        populateInitBucket(googleProject, bucketName, dc.jupyterRootCaPemName, Left(jupyterRootCaPemFile))
       }
     }
   }
 
-  private def populateInitBucket(bucketName: String, fileName: String, content: Either[File, String]): Future[StorageObject] = {
+  private def populateInitBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: Either[File, String]): Future[StorageObject] = {
     Future {
       val so = new StorageObject().setName(fileName)
 
@@ -150,7 +158,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
       try {
         executeGoogleRequest(fileInserter) //returns a StorageObject
       } catch {
-        case e: GoogleJsonResponseException => throw new WorkbenchExceptionWithErrorReport(ErrorReport(StatusCodes.BadRequest, s"Google Request Failed: ${e.getDetails.getMessage}"))
+        case e: GoogleJsonResponseException => throw new BucketInsertionException()
       }
     }
   }
@@ -161,7 +169,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
 
 
 
-  private def build(googleProject: String, clusterName: String, clusterRequest: ClusterRequest, bucketName: String)(implicit executionContext: ExecutionContext): Future[Operation] = {
+  private def build(googleProject: GoogleProject, clusterName: String, clusterRequest: ClusterRequest, bucketName: String)(implicit executionContext: ExecutionContext): Future[Operation] = {
     Future {
       //currently, the bucketPath of the clusterRequest is not used - it will be used later as a place to store notebooks and results
       val dataproc = new Dataproc.Builder(GoogleNetHttpTransport.newTrustedTransport,
@@ -190,18 +198,18 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
       try {
         executeGoogleRequest(request)
       } catch {
-        case e: GoogleJsonResponseException => throw new WorkbenchExceptionWithErrorReport(ErrorReport(StatusCodes.BadRequest, s"Google Request Failed: ${e.getDetails.getMessage}"))
+        case e: GoogleJsonResponseException => throw new ClusterNotCreatedException(googleProject, clusterName)
       }
     }
   }
 
   private def updateFirewallRules(googleProject: String) = {
-    val request = new Compute(httpTransport, jsonFactory, getVmServiceAccountCredential).firewalls().get(googleProject, "leonardo-notebooks-rule")
+    val request = new Compute(httpTransport, jsonFactory, getVmServiceAccountCredential).firewalls().get(googleProject, dc.clusterFirewallRuleName)
     try {
       executeGoogleRequest(request)
     } catch {
       case t: GoogleJsonResponseException if t.getStatusCode == 404 => addFirewallRule(googleProject)
-      case e: GoogleJsonResponseException => throw new WorkbenchExceptionWithErrorReport(ErrorReport(StatusCodes.BadRequest, s"Google Request Failed: ${e.getDetails.getMessage}"))
+      case e: GoogleJsonResponseException => throw new FirewallRuleInaccessibleException(googleProject, dc.clusterFirewallRuleName)
     }
   }
 
@@ -218,7 +226,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
     try {
       executeGoogleRequest(request)
     } catch {
-      case e: GoogleJsonResponseException => throw new WorkbenchExceptionWithErrorReport(ErrorReport(StatusCodes.BadRequest, s"Google Request Failed: ${e.getDetails.getMessage}"))
+      case e: GoogleJsonResponseException => throw new FirewallRuleInsertionException(googleProject, dc.clusterFirewallRuleName)
     }
   }
 

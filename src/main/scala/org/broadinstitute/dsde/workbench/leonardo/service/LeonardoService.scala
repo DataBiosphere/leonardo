@@ -3,9 +3,11 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 import akka.http.scaladsl.model.StatusCodes
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess}
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, ClusterResponse, ClusterStatus, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
+import org.broadinstitute.dsde.workbench.leonardo.model.{LeoException}
 import slick.dbio.DBIO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, ClusterResponse}
@@ -13,7 +15,8 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest
 import scala.concurrent.{ExecutionContext, Future}
 
 case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Cluster $googleProject/$clusterName not found", StatusCodes.NotFound)
-case class ClusterAlreadyExists(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Ckuster$googleProject/$clusterName already exists", StatusCodes.Found)
+case class ClusterAlreadyExistsException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Ckuster$googleProject/$clusterName already exists", StatusCodes.Found)
+
 class LeonardoService(gdDAO: DataprocDAO, dbRef: DbReference)(implicit val executionContext: ExecutionContext) extends LazyLogging {
 
   protected def getCluster(googleProject: GoogleProject, clusterName: String, dataAccess: DataAccess): DBIO[Cluster] = {
@@ -32,7 +35,7 @@ class LeonardoService(gdDAO: DataprocDAO, dbRef: DbReference)(implicit val execu
 
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getByName(googleProject, clusterName)} flatMap {
-      case Some(c: Cluster) => throw ClusterAlreadyExists(googleProject, clusterName)
+      case Some(c: Cluster) => throw ClusterAlreadyExistsException(googleProject, clusterName)
       case None => create
     }
   }
