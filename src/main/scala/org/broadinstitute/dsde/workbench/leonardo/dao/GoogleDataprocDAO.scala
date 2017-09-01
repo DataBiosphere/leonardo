@@ -88,8 +88,9 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
   def createCluster(googleProject: String, clusterName: String, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
     val bucketName = s"${clusterName}-${UUID.randomUUID.toString}"
 
-    val bucketResponse = initializeBucket(googleProject, clusterName, bucketName, clusterRequest.serviceAccount)
+    updateFirewallRules(googleProject)  //when should this rule be created? Before or after cluster creation?
 
+    val bucketResponse = initializeBucket(googleProject, clusterName, bucketName, clusterRequest.serviceAccount)
     bucketResponse.flatMap[ClusterResponse]{ Bucket =>
       val op = build(googleProject, clusterName, clusterRequest, bucketName)
       op.map { op =>
@@ -114,7 +115,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
       } catch {
         case e: GoogleJsonResponseException => throw new WorkbenchExceptionWithErrorReport(ErrorReport(StatusCodes.BadRequest, s"Google Request Failed: ${e.getDetails.getMessage}"))
       } finally {
-        val initScriptRaw = scala.io.Source.fromFile(dc.jupyterConfigFolderPath + dc.initActionsScriptName).mkString
+        val initScriptRaw = scala.io.Source.fromFile(dc.configFolderPath + dc.initActionsScriptName).mkString
         val replacements =  ClusterInitValues(clusterName, googleProject, dc.dataprocDockerImage,
                   dc.jupyterProxyDockerImage, createBucketUri(bucketName, dc.jupyterServerCrtName), createBucketUri(bucketName, dc.jupyterServerKeyName),
                   createBucketUri(bucketName, dc.jupyterRootCaPemName), createBucketUri(bucketName, dc.clusterDockerComposeName), dc.jupyterServerName, dc.proxyServerName).toJson.asJsObject.fields
@@ -197,7 +198,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
   private def updateFirewallRules(googleProject: String) = {
     val request = new Compute(httpTransport, jsonFactory, getVmServiceAccountCredential).firewalls().get(googleProject, "leonardo-notebooks-rule")
     try {
-      val response = executeGoogleRequest(request)
+      executeGoogleRequest(request)
     } catch {
       case t: GoogleJsonResponseException if t.getStatusCode == 404 => addFirewallRule(googleProject)
       case e: GoogleJsonResponseException => throw new WorkbenchExceptionWithErrorReport(ErrorReport(StatusCodes.BadRequest, s"Google Request Failed: ${e.getDetails.getMessage}"))
