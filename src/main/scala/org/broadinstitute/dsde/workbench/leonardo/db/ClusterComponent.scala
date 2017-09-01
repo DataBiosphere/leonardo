@@ -104,13 +104,13 @@ trait ClusterComponent extends LeoComponent {
     }
 
     private def unmarshalClustersWithLabels(clusterLabels: Seq[(ClusterRecord, Option[LabelRecord])]): Seq[Cluster] = {
-      // Call foldMap to aggregate a Seq of (cluster, label) returned by the query to a Map of cluster -> labelMap.
+      // Call foldMap to aggregate a Seq[(ClusterRecord, LabelRecord)] returned by the query to a Map[ClusterRecord, Map[labelKey, labelValue]].
       val clusterLabelMap: Map[ClusterRecord, Map[String, String]] = clusterLabels.toList.foldMap { case (clusterRecord, labelRecordOpt) =>
         val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> labelRecordOpt.value).toMap
         Map(clusterRecord -> labelMap)
       }
 
-      // Unmarshal each (cluster, labelMap) to a Cluster object
+      // Unmarshal each (ClusterRecord, Map[labelKey, labelValue]) to a Cluster object
       clusterLabelMap.map { case (clusterRec, labelMap) =>
         unmarshalCluster(clusterRec, labelMap)
       }.toSeq
@@ -135,7 +135,7 @@ trait ClusterComponent extends LeoComponent {
 
   }
 
-  // select c.*, l.* from cluster c left join label l on c.id = l.clusterId
+  // select * from cluster c left join label l on c.id = l.clusterId
   val clusterQueryWithLabels: Query[(ClusterTable, Rep[Option[LabelTable]]), (ClusterRecord, Option[LabelRecord]), Seq] = {
     for {
       (cluster, label) <- clusterQuery joinLeft labelQuery on (_.id === _.clusterId)
