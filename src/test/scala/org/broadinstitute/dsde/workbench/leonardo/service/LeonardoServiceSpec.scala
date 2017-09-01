@@ -12,7 +12,6 @@ import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 
 class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfterAll with TestComponent with ScalaFutures with OptionValues {
-  import system.dispatcher
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)

@@ -28,6 +28,7 @@ object Dependencies {
   val scalaLogging: ModuleID =   "com.typesafe.scala-logging" %% "scala-logging"   % scalaLoggingV
   val swaggerUi: ModuleID =      "org.webjars"                %  "swagger-ui"      % "2.2.5"
   val ficus: ModuleID =          "com.iheart"                 %% "ficus"           % "1.4.0"
+  val cats: ModuleID =           "org.typelevel"              %% "cats"            % "0.9.0"
 
   val akkaActor: ModuleID =         "com.typesafe.akka"   %%  "akka-actor"           % akkaV
   val akkaContrib: ModuleID =       "com.typesafe.akka"   %%  "akka-contrib"         % akkaV
@@ -64,6 +65,7 @@ object Dependencies {
     scalaLogging,
     swaggerUi,
     ficus,
+    cats,
 
     akkaActor,
     akkaContrib,
