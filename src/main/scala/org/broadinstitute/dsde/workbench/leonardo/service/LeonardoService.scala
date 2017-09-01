@@ -3,9 +3,9 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 import akka.http.scaladsl.model.StatusCodes
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, ClusterResponse, ClusterStatus, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, ClusterResponse, LeoException}
 import slick.dbio.DBIO
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -32,6 +32,17 @@ class LeonardoService(gdDAO: DataprocDAO, dbRef: DbReference)(implicit val execu
   def getClusterDetails(googleProject: GoogleProject, clusterName: String): Future[Cluster] = {
     dbRef.inTransaction { dataAccess =>
       getCluster(googleProject, clusterName, dataAccess)
+    }
+  }
+
+  def deleteCluster(googleProject: GoogleProject, clusterName: String): Future[Int] = {
+    getClusterDetails(googleProject, clusterName) flatMap  { cluster =>
+      if(cluster.status.isActive) {
+        for {
+          _ <- gdDAO.deleteCluster(googleProject, clusterName)
+          recordCount <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.deleteCluster(cluster.googleId))
+        } yield recordCount
+      } else Future.successful(0)
     }
   }
 }

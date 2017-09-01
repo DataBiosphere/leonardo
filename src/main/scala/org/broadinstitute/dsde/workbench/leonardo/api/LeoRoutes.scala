@@ -51,9 +51,15 @@ class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxySer
             StatusCodes.OK -> clusterDetails
           }
         }
+      } ~
+      delete {
+        complete {
+          leonardoService.deleteCluster(googleProject, clusterName).map { _ =>
+            StatusCodes.Accepted
+          }
+        }
       }
-    }
-
+  }
   def route: Route = (logRequestResult & handleExceptions(myExceptionHandler)) {
     swaggerRoutes ~ unauthedRoutes ~
     pathPrefix("api") { leoRoutes ~ proxyRoutes }
