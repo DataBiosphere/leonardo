@@ -28,6 +28,8 @@ object ClusterStatus extends Enumeration {
     def isActive:Boolean = activeStatuses contains status
   }
   implicit def enumConvert(status: Value): StatusValue = new StatusValue(status)
+
+  def withNameOpt(s: String): Option[Value] = values.find(_.toString == s)
 }
 
 object Cluster {

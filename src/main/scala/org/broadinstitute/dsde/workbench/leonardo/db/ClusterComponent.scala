@@ -1,10 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
+import cats.implicits._
 import java.sql.Timestamp
 import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterStatus}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
 
 case class ClusterRecord(id: Long,
                          clusterName: String,
@@ -50,22 +52,26 @@ trait ClusterComponent extends LeoComponent {
     }
 
     def list(): DBIO[Seq[Cluster]] = {
-      clusterQuery.result flatMap { recs =>
-        DBIO.sequence(recs map unmarshalWithLabels)
+      clusterQueryWithLabels.result.map(unmarshalClustersWithLabels)
+    }
+
+    def listActive(): DBIO[Seq[Cluster]] = {
+      clusterQueryWithLabels.filter { _._1.status inSetBind ClusterStatus.activeStatuses.map(_.toString) }.result map { recs =>
+        unmarshalClustersWithLabels(recs)
       }
     }
 
     // currently any string can be a GoogleProject
     // but I'm planning to fix that soon
     def getByName(project: GoogleProject, name: String): DBIO[Option[Cluster]] = {
-      clusterQuery.filter { _.googleProject === project }.filter { _.clusterName === name }.result flatMap { recs =>
-        DBIO.sequence(recs map unmarshalWithLabels) map { _.headOption }
+      clusterQueryWithLabels.filter { _._1.googleProject === project }.filter { _._1.clusterName === name }.result map { recs =>
+        unmarshalClustersWithLabels(recs).headOption
       }
     }
 
     def getByGoogleId(googleId: UUID): DBIO[Option[Cluster]] = {
-      clusterQuery.filter { _.googleId === googleId }.result flatMap { recs =>
-        DBIO.sequence(recs map unmarshalWithLabels) map { _.headOption }
+      clusterQueryWithLabels.filter { _._1.googleId === googleId }.result map { recs =>
+        unmarshalClustersWithLabels(recs).headOption
       }
     }
 
@@ -98,10 +104,17 @@ trait ClusterComponent extends LeoComponent {
       )
     }
 
-    private def unmarshalWithLabels(clusterRecord: ClusterRecord): DBIO[Cluster] = {
-      labelQuery.getAllForCluster(clusterRecord.id) map { labels =>
-        unmarshalCluster(clusterRecord, labels)
+    private def unmarshalClustersWithLabels(clusterLabels: Seq[(ClusterRecord, Option[LabelRecord])]): Seq[Cluster] = {
+      // Call foldMap to aggregate a Seq[(ClusterRecord, LabelRecord)] returned by the query to a Map[ClusterRecord, Map[labelKey, labelValue]].
+      val clusterLabelMap: Map[ClusterRecord, Map[String, String]] = clusterLabels.toList.foldMap { case (clusterRecord, labelRecordOpt) =>
+        val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> labelRecordOpt.value).toMap
+        Map(clusterRecord -> labelMap)
       }
+
+      // Unmarshal each (ClusterRecord, Map[labelKey, labelValue]) to a Cluster object
+      clusterLabelMap.map { case (clusterRec, labelMap) =>
+        unmarshalCluster(clusterRec, labelMap)
+      }.toSeq
     }
 
     private def unmarshalCluster(clusterRecord: ClusterRecord, labels: Map[String,String]): Cluster = {
@@ -121,6 +134,13 @@ trait ClusterComponent extends LeoComponent {
       )
     }
 
+  }
+
+  // select * from cluster c left join label l on c.id = l.clusterId
+  val clusterQueryWithLabels: Query[(ClusterTable, Rep[Option[LabelTable]]), (ClusterRecord, Option[LabelRecord]), Seq] = {
+    for {
+      (cluster, label) <- clusterQuery joinLeft labelQuery on (_.id === _.clusterId)
+    } yield (cluster, label)
   }
 
 }
