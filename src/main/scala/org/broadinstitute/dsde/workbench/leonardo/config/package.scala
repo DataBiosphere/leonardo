@@ -15,11 +15,20 @@ package object config {
 
   implicit val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
     DataprocConfig(config.getString("serviceAccount"),
-      config.getString("dataprocInitScriptURI"),
       config.getString("dataprocDefaultZone"),
       config.getString("dataprocDockerImage"),
-      config.getString("pathToLeonardoPem"),
-      config.getString("clusterUrlBase"))
+      config.getString("jupyterProxyDockerImage"),
+      config.getString("jupyterConfigFolderPath"),
+      config.getString("initActionsFileName"),
+      config.getString("clusterDockerCompose"),
+      config.getString("configFolderPath"),
+      config.getString("leonardoServicePemName"),
+      config.getString("jupyterServerCrtName"),
+      config.getString("jupyterServerKeyName"),
+      config.getString("jupyterRootCaPemName"),
+      config.getString("clusterUrlBase"),
+      config.getString("jupyterServerName"),
+      config.getString("proxyServerName"))
   }
 
   implicit val liquibaseReader: ValueReader[LiquibaseConfig] = ValueReader.relative { config =>

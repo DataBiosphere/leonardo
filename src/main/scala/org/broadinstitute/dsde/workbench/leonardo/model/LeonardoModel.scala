@@ -78,6 +78,18 @@ case class ClusterResponse(clusterName: String,
                            description: String,
                            operationName: String)
 
+case class ClusterInitValues(clusterName: String,
+                             googleProject: String,
+                             jupyterDockerImage: String,
+                             proxyDockerImage: String,
+                             jupyterServerCrt: String,
+                             jupyterServerKey: String,
+                             rootCaPem: String,
+                             jupyterDockerCompose: String,
+                             jupyterServerName: String,
+                             proxyServerName: String)
+
+
 object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   // needed for Cluster
   implicit object UUIDFormat extends JsonFormat[UUID] {
@@ -112,4 +124,5 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val clusterFormat = jsonFormat12(Cluster.apply)
   implicit val clusterRequestFormat = jsonFormat3(ClusterRequest)
   implicit val clusterResponseFormat = jsonFormat6(ClusterResponse)
+  implicit val clusterMetadataFormat = jsonFormat10(ClusterInitValues)
 }

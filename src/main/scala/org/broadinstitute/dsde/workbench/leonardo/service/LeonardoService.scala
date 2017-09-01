@@ -7,6 +7,8 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import slick.dbio.DBIO
+import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, ClusterResponse}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -22,10 +24,16 @@ class LeonardoService(gdDAO: DataprocDAO, dbRef: DbReference)(implicit val execu
   }
 
   def createCluster(googleProject: String, clusterName: String, clusterRequest: ClusterRequest): Future[Cluster] = {
-    gdDAO.createCluster(googleProject, clusterName, clusterRequest) flatMap { clusterResponse: ClusterResponse =>
+    def create = gdDAO.createCluster(googleProject, clusterName, clusterRequest) flatMap { clusterResponse: ClusterResponse =>
       dbRef.inTransaction { dataAccess =>
         dataAccess.clusterQuery.save(Cluster(clusterRequest, clusterResponse))
       }
+    }
+
+    dbRef.inTransaction { dataAccess =>
+      dataAccess.clusterQuery.getByName(googleProject, clusterName)} flatMap {
+      case Some(c: Cluster) => throw new ClusterNotFoundException(googleProject, clusterName)
+      case None => create
     }
   }
 

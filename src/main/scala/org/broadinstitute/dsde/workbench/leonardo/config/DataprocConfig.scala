@@ -1,8 +1,19 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
+import scala.util.matching.Regex
+
 case class DataprocConfig(serviceAccount: String,
-                          dataprocInitScriptURI: String,
                           dataprocDefaultZone: String,
                           dataprocDockerImage: String,
-                          serviceAccountPemPath: String,
-                          clusterUrlBase: String)
+                          jupyterProxyDockerImage: String,
+                          jupyterConfigFolderPath: String,
+                          initActionsScriptName: String,
+                          clusterDockerComposeName: String,
+                          configFolderPath: String,
+                          serviceAccountPemName: String,
+                          jupyterServerCrtName: String,
+                          jupyterServerKeyName: String,
+                          jupyterRootCaPemName: String,
+                          clusterUrlBase: String,
+                          jupyterServerName: String,
+                          proxyServerName: String)
