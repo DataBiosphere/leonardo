@@ -30,6 +30,12 @@ stop() {
 }
 
 CONTAINER=mysql
+
+if [ ${#@} == 0 ]; then
+    echo "Usage: $0 stop|start <service>"
+    exit 1
+fi
+
 COMMAND=$1
 
 if [ ${#@} == 0 ]; then

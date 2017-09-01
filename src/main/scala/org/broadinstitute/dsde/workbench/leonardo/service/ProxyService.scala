@@ -1,27 +1,32 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.ws._
+import akka.pattern.ask
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
+import akka.util.Timeout
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
-import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
 
 import scala.collection.immutable
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
+case class ClusterNotReadyException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Cluster $googleProject/$clusterName is not ready yet, chill out and try again later", StatusCodes.EnhanceYourCalm)
+case class ProxyException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Unable to proxy connection to Jupyter notebook on $googleProject/$clusterName", StatusCodes.InternalServerError)
+
 /**
   * Created by rtitle on 8/15/17.
   */
-class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit val system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext) extends LazyLogging {
+class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference, clusterDnsCache: ActorRef)(implicit val system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext) extends LazyLogging {
 
   /**
     * Entry point to this class. Given a google project, cluster name, and HTTP request,
@@ -34,8 +39,8 @@ class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit val sy
     *         server IP could not be found.
     */
   def proxy(googleProject: GoogleProject, clusterName: String, request: HttpRequest): Future[HttpResponse] = {
-    getTargetHost(googleProject, clusterName).flatMap {
-      case Some(targetHost) =>
+    getTargetHost(googleProject, clusterName) flatMap {
+      case ClusterReady(targetHost) =>
         // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
         // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
         // The presence of this header distinguishes WebSocket from http requests.
@@ -43,14 +48,18 @@ class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit val sy
           case Some(upgrade) => handleWebSocketRequest(targetHost, request, upgrade)
           case None => handleHttpRequest(targetHost, request)
         }
-      case None =>
-        // handled upstream by the LeoRoutes ExceptionHandler
-        throw new WorkbenchExceptionWithErrorReport(ErrorReport(StatusCodes.NotFound, s"Could not find notebook server for $googleProject/$clusterName"))
+      case ClusterNotReady =>
+        throw ClusterNotReadyException(googleProject, clusterName)
+      case ClusterNotFound =>
+        throw ClusterNotFoundException(googleProject, clusterName)
+    } recover { case e =>
+      logger.error("Error occurred in Jupyter proxy", e)
+      throw ProxyException(googleProject, clusterName)
     }
   }
 
   private def handleHttpRequest(targetHost: String, request: HttpRequest): Future[HttpResponse] = {
-    logger.debug(s"Opening http connection to $targetHost")
+    logger.debug(s"Opening https connection to $targetHost:${proxyConfig.jupyterPort}")
 
     // A note on akka-http philosophy:
     // The Akka HTTP server is implemented on top of Streams and makes heavy use of it. Requests come
@@ -60,7 +69,7 @@ class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit val sy
 
     // Initializes a Flow representing a prospective connection to the given endpoint. The connection
     // is not made until a Source and Sink are plugged into the Flow (i.e. it is materialized).
-    val flow = Http(system).outgoingConnection(targetHost, proxyConfig.jupyterPort)
+    val flow = Http().outgoingConnectionHttps(targetHost, proxyConfig.jupyterPort)
 
     // Now build a Source[Request] out of the original HttpRequest. We need to make some modifications
     // to the original request in order for the proxy to work:
@@ -104,7 +113,7 @@ class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit val sy
     // Make a single WebSocketRequest to the notebook server, passing in our Flow. This returns a Future[WebSocketUpgradeResponse].
     // Keep our publisher/subscriber (e.g. sink/source) for use later. These are returned because we specified Keep.both above.
     val (responseFuture, (publisher, subscriber)) = Http().singleWebSocketRequest(
-      WebSocketRequest(request.uri.copy(authority = request.uri.authority.copy(host = Host(targetHost), port = proxyConfig.jupyterPort)), extraHeaders = filterHeaders(request.headers),
+      WebSocketRequest(request.uri.copy(authority = request.uri.authority.copy(host = Host(targetHost), port = proxyConfig.jupyterPort), scheme = "wss"), extraHeaders = filterHeaders(request.headers),
         upgrade.requestedProtocols.headOption),
       flow
     )
@@ -127,13 +136,11 @@ class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit val sy
   }
 
   /**
-    * Gets the notebook server IP from the database given a google project and cluster name.
-    * TODO: if this is too expensive to do for every proxied HTTP request, consider adding a cache.
+    * Gets the notebook server hostname from the database given a google project and cluster name.
     */
-  private def getTargetHost(googleProject: GoogleProject, clusterName: String): Future[Option[String]] = {
-    dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.getByName(googleProject, clusterName)
-    }.map(_.flatMap(_.hostIp))
+  protected def getTargetHost(googleProject: GoogleProject, clusterName: String): Future[GetClusterResponse] = {
+    implicit val timeout: Timeout = Timeout(5 seconds)
+    (clusterDnsCache ? GetByProjectAndName(googleProject, clusterName)).mapTo[GetClusterResponse]
   }
 
   private def filterHeaders(headers: immutable.Seq[HttpHeader]) = {

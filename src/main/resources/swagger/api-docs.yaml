@@ -16,6 +16,8 @@ tags:
     description: Test API
   - name: cluster
     description: Clusters API
+  - name: notebooks
+    description: Notebooks API
 
 security:
   - googleoauth:
@@ -70,15 +72,15 @@ paths:
           required: true
           type: string
       responses:
-        200:
+        '200':
           description: Cluster found, here are the details
           schema:
             $ref: '#/definitions/Cluster'
-        404:
+        '404':
           description: Cluster not found
           schema:
             $ref: '#/definitions/ErrorReport'
-        500:
+        '500':
           description: Internal Error
           schema:
             $ref: '#/definitions/ErrorReport'
@@ -124,7 +126,44 @@ paths:
             - openid
             - email
             - profile
-
+  '/api/notebooks/{googleProject}/{clusterName}':
+    get:
+      summary: Access Jupyter notebooks on a dataproc cluster
+      description: Serves as a proxy for the Jupyer notebook server running the given dataproc cluster managed by Leo.
+      operationId: proxyCluster
+      tags:
+        - notebooks
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          type: string
+        - in: path
+          name: clusterName
+          description: clusterName
+          required: true
+          type: string
+      responses:
+        '200':
+          description: Proxy connection successful
+        '404':
+          description: Cluster not found
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '420':
+          description: Cluster not ready
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '500':
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/ErrorReport'
+      security:
+        - googleoauth:
+            - openid
+            - email
+            - profile
     delete:
       summary: Deletes an existing dataproc cluster in the given project
       description: deletes a dataproc cluster
