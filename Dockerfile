@@ -3,7 +3,7 @@ FROM openjdk:8
 EXPOSE 8080
 EXPOSE 5050
 
-ENV GIT_MODEL_HASH $GIT_MODEL_HASH
+ENV GIT_HASH $GIT_HASH
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
