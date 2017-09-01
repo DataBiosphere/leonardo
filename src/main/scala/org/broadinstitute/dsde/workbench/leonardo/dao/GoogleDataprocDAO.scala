@@ -12,12 +12,16 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.json.jackson2.JacksonFactory
 import com.google.api.services.dataproc.Dataproc
 import com.google.api.services.pubsub.PubsubScopes
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, ClusterResponse}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, ClusterResponse, LeoException}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
+import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
+
+
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
 
+case class CallToGoogleApiFailedException(googleProject: GoogleProject, clusterName:String, exceptionStatusCode: Int, errorMessage:String) extends LeoException(s"Call to Google API failed for $googleProject/$clusterName. Message: $errorMessage",exceptionStatusCode)
 
 class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
   extends DataprocDAO with GoogleUtilities {
@@ -26,6 +30,11 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
   private val jsonFactory = JacksonFactory.getDefaultInstance
   private val cloudPlatformScopes = List(PubsubScopes.CLOUD_PLATFORM)
 
+  private lazy val dataproc = {
+    new Dataproc.Builder(GoogleNetHttpTransport.newTrustedTransport,
+      JacksonFactory.getDefaultInstance, getDataProcServiceAccountCredential)
+      .setApplicationName("dataproc").build()
+  }
   private def getDataProcServiceAccountCredential: Credential = {
     new GoogleCredential.Builder()
       .setTransport(httpTransport)
@@ -44,13 +53,9 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
       ClusterResponse(clusterName, googleProject, metadata.get("clusterUuid").toString, metadata.get("status").toString, metadata.get("description").toString, op.getName)}
   }
 
-
   private def build(googleProject: String, clusterName: String, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[Operation] = {
     Future {
       //currently, the bucketPath of the clusterRequest are not used - it will be used later as a place to store notebooks and results
-      val dataproc = new Dataproc.Builder(GoogleNetHttpTransport.newTrustedTransport,
-        JacksonFactory.getDefaultInstance, getDataProcServiceAccountCredential)
-        .setApplicationName("dataproc").build()
       val metadata = clusterRequest.labels + ("docker-image" -> dataprocConfig.dataprocDockerImage)
       val gce = new GceClusterConfig().setMetadata(metadata.asJava).setServiceAccount(clusterRequest.serviceAccount)
       val initActions = Seq(new NodeInitializationAction().setExecutableFile(dataprocConfig.dataprocInitScriptURI))
@@ -64,4 +69,20 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
       }
     }
   }
+
+
+  def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
+    Future {
+      //currently, the bucketPath of the clusterRequest are not used - it will be used later as a place to store notebooks and results
+      val request = dataproc.projects().regions().clusters().delete(googleProject, dataprocConfig.dataprocDefaultZone, clusterName)
+      try {
+        executeGoogleRequest(request)
+      } catch {
+        case e:GoogleJsonResponseException =>
+          if(e.getStatusCode!=404)
+            throw CallToGoogleApiFailedException(googleProject, clusterName, e.getStatusCode, e.getDetails.getMessage)
+      }
+    }
+  }
+
 }

@@ -4,4 +4,5 @@
     <include file="changesets/label.xml" relativeToChangelogFile="true"/>
     <include file="changesets/cluster-unique-key.xml" relativeToChangelogFile="true"/>
     <include file="changesets/cluster-googleId-unique-key.xml" relativeToChangelogFile="true"/>
+    <include file="changesets/cluster-createdDate-default.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>
