@@ -72,15 +72,15 @@ paths:
           required: true
           type: string
       responses:
-        200:
+        '200':
           description: Cluster found, here are the details
           schema:
             $ref: '#/definitions/Cluster'
-        404:
+        '404':
           description: Cluster not found
           schema:
             $ref: '#/definitions/ErrorReport'
-        500:
+        '500':
           description: Internal Error
           schema:
             $ref: '#/definitions/ErrorReport'
@@ -145,16 +145,25 @@ paths:
           required: true
           type: string
       responses:
-        200:
+        '200':
           description: Proxy connection successful
-        500:
+        '404':
+          description: Cluster not found
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '420':
+          description: Cluster not ready
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '500':
           description: Internal Error
+          schema:
+            $ref: '#/definitions/ErrorReport'
       security:
         - googleoauth:
             - openid
             - email
             - profile
-
     delete:
       summary: Deletes an existing dataproc cluster in the given project
       description: deletes a dataproc cluster
