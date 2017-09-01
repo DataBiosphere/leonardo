@@ -12,7 +12,7 @@ import akka.util.Timeout
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache.GetByProjectAndName
+import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
@@ -22,6 +22,7 @@ import scala.collection.immutable
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
+case class ClusterNotReadyException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Cluster $googleProject/$clusterName is not ready yet, chill out and try again later", StatusCodes.EnhanceYourCalm)
 case class ProxyException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Unable to proxy connection to Jupyter notebook on $googleProject/$clusterName", StatusCodes.InternalServerError)
 
 /**
@@ -41,7 +42,7 @@ class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference, clusterDnsCache
     */
   def proxy(googleProject: GoogleProject, clusterName: String, request: HttpRequest): Future[HttpResponse] = {
     getTargetHost(googleProject, clusterName) flatMap {
-      case Some(targetHost) =>
+      case ClusterReady(targetHost) =>
         // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
         // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
         // The presence of this header distinguishes WebSocket from http requests.
@@ -49,9 +50,10 @@ class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference, clusterDnsCache
           case Some(upgrade) => handleWebSocketRequest(targetHost, request, upgrade)
           case None => handleHttpRequest(targetHost, request)
         }
-      case None =>
-        // handled upstream by the LeoRoutes ExceptionHandler
-        throw new WorkbenchExceptionWithErrorReport(ErrorReport(StatusCodes.NotFound, s"Could not find notebook server for $googleProject/$clusterName"))
+      case ClusterNotReady =>
+        throw ClusterNotReadyException(googleProject, clusterName)
+      case ClusterNotFound =>
+        throw ClusterNotFoundException(googleProject, clusterName)
     } recover { case e =>
       logger.error("Error occurred in Jupyter proxy", e)
       throw ProxyException(googleProject, clusterName)
@@ -138,9 +140,9 @@ class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference, clusterDnsCache
   /**
     * Gets the notebook server hostname from the database given a google project and cluster name.
     */
-  protected def getTargetHost(googleProject: GoogleProject, clusterName: String): Future[Option[String]] = {
+  protected def getTargetHost(googleProject: GoogleProject, clusterName: String): Future[GetClusterResponse] = {
     implicit val timeout: Timeout = Timeout(5 seconds)
-    (clusterDnsCache ? GetByProjectAndName(googleProject, clusterName)).mapTo[Option[String]]
+    (clusterDnsCache ? GetByProjectAndName(googleProject, clusterName)).mapTo[GetClusterResponse]
   }
 
   private def filterHeaders(headers: immutable.Seq[HttpHeader]) = {

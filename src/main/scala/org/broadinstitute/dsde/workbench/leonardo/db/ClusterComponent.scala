@@ -6,6 +6,7 @@ import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterStatus}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
 
 case class ClusterRecord(id: Long,
                          clusterName: String,
@@ -55,7 +56,7 @@ trait ClusterComponent extends LeoComponent {
     }
 
     def listActive(): DBIO[Seq[Cluster]] = {
-      clusterQueryWithLabels.filter { rec => rec._1.status =!= ClusterStatus.Deleted.toString && rec._1.status =!= ClusterStatus.Deleting.toString }.result map { recs =>
+      clusterQueryWithLabels.filter { _._1.status inSetBind ClusterStatus.activeStatuses.map(_.toString) }.result map { recs =>
         unmarshalClustersWithLabels(recs)
       }
     }

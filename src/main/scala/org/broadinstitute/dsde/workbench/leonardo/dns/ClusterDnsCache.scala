@@ -5,12 +5,10 @@ import akka.pattern.pipe
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache.{GetByProjectAndName, ProcessClusters, RefreshFromDatabase}
+import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
-
 import scala.concurrent.Future
-import scala.concurrent.duration._
 
 object ClusterDnsCache {
   // This is stored as volatile in the object instead of inside the actor because it needs to be
@@ -26,6 +24,12 @@ object ClusterDnsCache {
   case object RefreshFromDatabase extends ClusterDnsCacheMessage
   case class ProcessClusters(clusters: Seq[Cluster]) extends ClusterDnsCacheMessage
   case class GetByProjectAndName(googleProject: GoogleProject, clusterName: String) extends ClusterDnsCacheMessage
+
+  // Responses to GetByProjectAndName message
+  sealed trait GetClusterResponse
+  case object ClusterNotFound extends GetClusterResponse
+  case object ClusterNotReady extends GetClusterResponse
+  case class ClusterReady(hostname: String) extends GetClusterResponse
 }
 
 /**
@@ -41,7 +45,7 @@ object ClusterDnsCache {
   * @param dbRef provides access to the database
   */
 class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Actor with LazyLogging {
-  var ProjectNameToHost: Map[(GoogleProject, String), String] = Map.empty
+  var ProjectNameToHost: Map[(GoogleProject, String), GetClusterResponse] = Map.empty
 
   import context.dispatcher
 
@@ -59,7 +63,7 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
       scheduleRefresh
 
     case GetByProjectAndName(googleProject, clusterName) =>
-      sender ! ProjectNameToHost.get(googleProject, clusterName)
+      sender ! ProjectNameToHost.get((googleProject, clusterName)).getOrElse(ClusterNotFound)
   }
 
   def scheduleRefresh = {
@@ -73,10 +77,19 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
   }
 
   def processClusters(clusters: Seq[Cluster]): Unit = {
+    // Only populate the HostToIp map for clusters with an IP address
     val clustersWithIp = clusters.filter(_.hostIp.isDefined)
     ClusterDnsCache.HostToIp = clustersWithIp.map(c => c.googleId.toString + proxyConfig.jupyterDomain -> c.hostIp.get).toMap
-    ProjectNameToHost = clustersWithIp.map(c => (c.googleProject, c.clusterName) -> (c.googleId.toString + proxyConfig.jupyterDomain)).toMap
-    logger.info(s"Saved ${clustersWithIp.size} clusters to DNS cache")
+
+    // Populate the ProjectNameToHost map with all clusters
+    ProjectNameToHost = clusters.map {
+      case c if c.hostIp.isDefined =>
+        (c.googleProject, c.clusterName) -> ClusterReady(c.googleId.toString + proxyConfig.jupyterDomain)
+      case c =>
+        (c.googleProject, c.clusterName) -> ClusterNotReady
+    }.toMap
+
+    logger.info(s"Saved ${clusters.size} clusters to DNS cache, ${clustersWithIp.size} with IPs")
   }
 
 }
