@@ -51,7 +51,7 @@ case class FirewallRuleInaccessibleException(googleProject: GoogleProject, firew
 case class FirewallRuleInsertionException(googleProject: GoogleProject, firewallRule: String) extends LeoException(s"Unable to insert new firewall rule $googleProject/$firewallRule", StatusCodes.InternalServerError)
 case class CallToGoogleApiFailedException(googleProject: GoogleProject, clusterName:String, exceptionStatusCode: Int, errorMessage:String) extends LeoException(s"Call to Google API failed for $googleProject/$clusterName. Message: $errorMessage",exceptionStatusCode)
 
-class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
+class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
   extends DataprocDAO with GoogleUtilities {
 
   private val httpTransport = GoogleNetHttpTransport.newTrustedTransport
@@ -59,7 +59,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
   private val cloudPlatformScopes = List(ComputeScopes.CLOUD_PLATFORM)
   private val storageScopes = Seq(StorageScopes.DEVSTORAGE_FULL_CONTROL, ComputeScopes.COMPUTE, PlusScopes.USERINFO_EMAIL, PlusScopes.USERINFO_PROFILE)
   private val vmScopes = List(ComputeScopes.COMPUTE, ComputeScopes.CLOUD_PLATFORM)
-  private val serviceAccountPemFile = new File(dc.configFolderPath, dc.serviceAccountPemName)
+  private val serviceAccountPemFile = new File(dataprocConfig.configFolderPath, dataprocConfig.serviceAccountPemName)
 
   private lazy val dataproc = {
     new Dataproc.Builder(GoogleNetHttpTransport.newTrustedTransport,
@@ -71,7 +71,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
     new GoogleCredential.Builder()
       .setTransport(httpTransport)
       .setJsonFactory(jsonFactory)
-      .setServiceAccountId(dc.serviceAccount)
+      .setServiceAccountId(dataprocConfig.serviceAccount)
       .setServiceAccountScopes(cloudPlatformScopes.asJava)
       .setServiceAccountPrivateKeyFromPemFile(serviceAccountPemFile)
       .build()
@@ -81,7 +81,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
     new GoogleCredential.Builder()
       .setTransport(httpTransport)
       .setJsonFactory(jsonFactory)
-      .setServiceAccountId(dc.serviceAccount)
+      .setServiceAccountId(dataprocConfig.serviceAccount)
       .setServiceAccountScopes(storageScopes.asJava) // grant bucket-creation powers
       .setServiceAccountPrivateKeyFromPemFile(serviceAccountPemFile)
       .build()
@@ -91,7 +91,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
     new GoogleCredential.Builder()
       .setTransport(httpTransport)
       .setJsonFactory(jsonFactory)
-      .setServiceAccountId(dc.serviceAccount)
+      .setServiceAccountId(dataprocConfig.serviceAccount)
       .setServiceAccountScopes(vmScopes.asJava)
       .setServiceAccountPrivateKeyFromPemFile(serviceAccountPemFile)
       .build()
@@ -103,7 +103,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
     updateFirewallRules(googleProject)  //when should this rule be created? Before or after cluster creation?
 
     val bucketResponse = initializeBucket(googleProject, clusterName, bucketName, clusterRequest.serviceAccount)
-    bucketResponse.flatMap[ClusterResponse]{ _ =>
+    bucketResponse.flatMap[ClusterResponse] { _ =>
       val op = build(googleProject, clusterName, clusterRequest, bucketName)
       op.map { op =>
         val metadata = op.getMetadata
@@ -112,8 +112,15 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
     }
   }
 
+  private def initializeBucket(googleProject: GoogleProject, clusterName: String, bucketName: String, serviceAccount: String) = {
+    val bucketResponse = createBucket(googleProject, clusterName, bucketName, serviceAccount)
+    bucketResponse.map { _ =>
+      val objectResponse = initializeBucketObjects(googleProject, clusterName, bucketName)
+    }
+  }
 
-  private def initializeBucket(googleProject: GoogleProject, clusterName: String, bucketName:String, serviceAccount: String): Future[Bucket] = {
+
+  private def createBucket(googleProject: GoogleProject, clusterName: String, bucketName:String, serviceAccount: String): Future[Bucket] = {
     Future {
       val bucket = new Bucket().setName(bucketName)
       val bucketInserter = getStorage(getBucketServiceAccountCredential).buckets().insert(googleProject, bucket)
@@ -125,21 +132,22 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
     }
   }
 
-  private def initializeBucketObjects(googleProject: GoogleProject, clusterName: String, bucketName: String) = {
-    //Give init-actions.sh cluster-specific information and put in bucket
-    val initScriptRaw = scala.io.Source.fromFile(dc.configFolderPath + dc.initActionsScriptName).mkString
-    val replacements = ClusterInitValues(clusterName, googleProject, bucketName, dc).toJson.asJsObject.fields
-    val initScript = replacements.foldLeft(initScriptRaw)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", b._2.toString()))
-    val content = new InputStreamContent(null, new ByteArrayInputStream(initScript.getBytes(StandardCharsets.UTF_8)))
-    populateInitBucket(googleProject, bucketName, dc.initActionsScriptName, content)
+  private def initializeBucketObjects(googleProject: GoogleProject, clusterName: String, bucketName: String): Future[Array[StorageObject]] = {
+   Future {
+     //Give init-actions.sh cluster-specific information and put in bucket
+     val initScriptRaw = scala.io.Source.fromFile(dataprocConfig.configFolderPath + dataprocConfig.initActionsScriptName).mkString
+     val replacements = ClusterInitValues(googleProject, clusterName, bucketName, dataprocConfig).toJson.asJsObject.fields
+     val initScript = replacements.foldLeft(initScriptRaw)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", b._2.toString()))
+     val content = new InputStreamContent(null, new ByteArrayInputStream(initScript.getBytes(StandardCharsets.UTF_8)))
+     populateInitBucket(googleProject, bucketName, dataprocConfig.initActionsScriptName, content)
 
-    //put certs and docker compose file into bucket
-    val certs = Array(dc.jupyterServerCrtName, dc.jupyterServerKeyName, dc.jupyterRootCaPemName, dc.clusterDockerComposeName)
-    certs.map { certName => populateInitBucket(googleProject, bucketName, certName, new FileContent(null, new File(dc.configFolderPath, certName)))}
+     //put certs and docker compose file into bucket
+     val certs = Array(dataprocConfig.jupyterServerCrtName, dataprocConfig.jupyterServerKeyName, dataprocConfig.jupyterRootCaPemName, dataprocConfig.clusterDockerComposeName)
+     certs.map { certName => populateInitBucket(googleProject, bucketName, certName, new FileContent(null, new File(dataprocConfig.configFolderPath, certName))) }
+   }
   }
 
-  private def populateInitBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: AbstractInputStreamContent): Future[StorageObject] = {
-    Future {
+  private def populateInitBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: AbstractInputStreamContent): StorageObject = {
       val so = new StorageObject().setName(fileName)
       val fileInserter = getStorage(getBucketServiceAccountCredential).objects().insert(bucketName, so, content)
       fileInserter.getMediaHttpUploader().setDirectUploadEnabled(true)
@@ -149,7 +157,6 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
       } catch {
         case e: GoogleJsonResponseException => throw new BucketInsertionException(googleProject, bucketName)
       }
-    }
   }
 
   private def getStorage(credential: Credential) = {
@@ -169,7 +176,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
         .setServiceAccount(clusterRequest.serviceAccount)
         .setTags(List("leonardo").asJava)
 
-      val initActions = Seq(new NodeInitializationAction().setExecutableFile(GoogleBucketUri(bucketName, dc.initActionsScriptName)))
+      val initActions = Seq(new NodeInitializationAction().setExecutableFile(GoogleBucketUri(bucketName, dataprocConfig.initActionsScriptName)))
 
       val worksInstancConfig = new InstanceGroupConfig().setNumInstances(0)
 
@@ -182,7 +189,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
         .setClusterName(clusterName)
         .setConfig(clusterConfig)
 
-      val request = dataproc.projects().regions().clusters().create(googleProject, dc.dataprocDefaultZone, cluster)
+      val request = dataproc.projects().regions().clusters().create(googleProject, dataprocConfig.dataprocDefaultZone, cluster)
 
       try {
         executeGoogleRequest(request)
@@ -193,12 +200,12 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
   }
 
   private def updateFirewallRules(googleProject: String) = {
-    val request = new Compute(httpTransport, jsonFactory, getVmServiceAccountCredential).firewalls().get(googleProject, dc.clusterFirewallRuleName)
+    val request = new Compute(httpTransport, jsonFactory, getVmServiceAccountCredential).firewalls().get(googleProject, dataprocConfig.clusterFirewallRuleName)
     try {
       executeGoogleRequest(request)
     } catch {
       case t: GoogleJsonResponseException if t.getStatusCode == 404 => addFirewallRule(googleProject)
-      case e: GoogleJsonResponseException => throw new FirewallRuleInaccessibleException(googleProject, dc.clusterFirewallRuleName)
+      case e: GoogleJsonResponseException => throw new FirewallRuleInaccessibleException(googleProject, dataprocConfig.clusterFirewallRuleName)
     }
   }
 
@@ -215,7 +222,7 @@ class GoogleDataprocDAO(protected val dc: DataprocConfig)(implicit val system: A
     try {
       executeGoogleRequest(request)
     } catch {
-      case e: GoogleJsonResponseException => throw new FirewallRuleInsertionException(googleProject, dc.clusterFirewallRuleName)
+      case e: GoogleJsonResponseException => throw new FirewallRuleInsertionException(googleProject, dataprocConfig.clusterFirewallRuleName)
     }
   }
 

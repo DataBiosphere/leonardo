@@ -62,8 +62,8 @@ object GoogleBucketUri {
 
 object ClusterInitValues {
   def apply(googleProject: GoogleProject, clusterName: String, bucketName: String, dataprocConfig: DataprocConfig): ClusterInitValues = ClusterInitValues(
-    clusterName,
     googleProject,
+    clusterName,
     dataprocConfig.dataprocDockerImage,
     dataprocConfig.jupyterProxyDockerImage,
     GoogleBucketUri(bucketName, dataprocConfig.jupyterServerCrtName),
@@ -101,8 +101,8 @@ case class ClusterResponse(clusterName: String,
                            description: String,
                            operationName: String)
 
-case class ClusterInitValues(clusterName: String,
-                             googleProject: GoogleProject,
+case class ClusterInitValues(googleProject: GoogleProject,
+                             clusterName: String,
                              jupyterDockerImage: String,
                              proxyDockerImage: String,
                              jupyterServerCrt: String,
