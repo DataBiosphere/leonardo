@@ -32,7 +32,9 @@ class LeonardoService(gdDAO: DataprocDAO, dbRef: DbReference)(implicit val execu
         }
       }
 
-    dbRef.inTransaction { dataAccess => dataAccess.clusterQuery.getByName(googleProject, clusterName) } flatMap {
+    dbRef.inTransaction { dataAccess =>
+      dataAccess.clusterQuery.getByName(googleProject, clusterName)
+    } flatMap {
       case Some(c: Cluster) => throw ClusterAlreadyExistsException(googleProject, clusterName)
       case None => create
     }

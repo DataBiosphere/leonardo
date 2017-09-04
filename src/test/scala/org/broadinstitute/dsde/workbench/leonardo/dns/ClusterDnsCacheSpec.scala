@@ -21,7 +21,7 @@ import scala.concurrent.duration._
   */
 class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfterAll with TestComponent with ScalaFutures with Eventually {
 
-  val proxyConfig = ProxyConfig(jupyterPort = 8001, jupyterDomain = ".jupyter.firecloud.org", dnsPollPeriod = 1 second)
+  val proxyConfig = ProxyConfig(jupyterPort = 8001, jupyterProtocol = "tcp", jupyterDomain = ".jupyter.firecloud.org", dnsPollPeriod = 1 second)
   implicit val timeout = Timeout(5 seconds)
 
   override def afterAll(): Unit = {

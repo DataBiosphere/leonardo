@@ -43,7 +43,7 @@ object Boot extends App with LazyLogging {
       dbRef.database.close()
     }
 
-    val gdDAO = new GoogleDataprocDAO(dataprocConfig)
+    val gdDAO = new GoogleDataprocDAO(dataprocConfig, proxyConfig)
     val leonardoService = new LeonardoService(gdDAO, dbRef)
     val clusterDnsCache = system.actorOf(ClusterDnsCache.props(proxyConfig, dbRef))
     val proxyService = new ProxyService(proxyConfig, dbRef, clusterDnsCache)
