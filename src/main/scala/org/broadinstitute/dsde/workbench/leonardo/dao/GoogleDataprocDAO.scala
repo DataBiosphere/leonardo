@@ -142,7 +142,8 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
      populateInitBucket(googleProject, bucketName, dataprocConfig.initActionsScriptName, content)
 
      //put certs and docker compose file into bucket
-     val certs = Array(dataprocConfig.jupyterServerCrtName, dataprocConfig.jupyterServerKeyName, dataprocConfig.jupyterRootCaPemName, dataprocConfig.clusterDockerComposeName)
+     val certs = Array(dataprocConfig.jupyterServerCrtName, dataprocConfig.jupyterServerKeyName, dataprocConfig.jupyterRootCaPemName,
+       dataprocConfig.clusterDockerComposeName, dataprocConfig.jupyterProxySiteConfName)
      certs.map { certName => populateInitBucket(googleProject, bucketName, certName, new FileContent(null, new File(dataprocConfig.configFolderPath, certName))) }
    }
   }

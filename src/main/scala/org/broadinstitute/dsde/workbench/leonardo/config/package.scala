@@ -26,7 +26,8 @@ package object config {
       config.getString("jupyterServerCrtName"),
       config.getString("jupyterServerKeyName"),
       config.getString("jupyterRootCaPemName"),
-      config.getString("jupyterRootCaKeyName "),
+      config.getString("jupyterRootCaKeyName"),
+      config.getString("proxySiteConf"),
       config.getString("clusterUrlBase"),
       config.getString("jupyterServerName"),
       config.getString("proxyServerName"))
