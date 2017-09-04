@@ -6,8 +6,6 @@ import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
-
-
 import com.google.api.client.auth.oauth2.Credential
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
@@ -21,26 +19,15 @@ import com.google.api.services.compute.model.Firewall.Allowed
 import com.google.api.services.dataproc.Dataproc
 import com.google.api.services.plus.PlusScopes
 import com.google.api.services.storage.{Storage, StorageScopes}
-import com.google.api.services.storage.model.{Bucket, StorageObject}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import spray.json._
-import com.google.api.services.storage.model.{Bucket, ComposeRequest, StorageObject}
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterInitValues, ClusterRequest, ClusterResponse}
-import com.google.api.services.pubsub.PubsubScopes
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, ClusterResponse, LeoException}
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
+import com.google.api.services.storage.model.{Bucket, StorageObject}
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterInitValues, ClusterRequest, ClusterResponse, LeoException}
-import org.broadinstitute.dsde.workbench.model.ErrorReport
-import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
-import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import java.io.{ByteArrayInputStream, File}
 import java.nio.charset.StandardCharsets
 import java.util.UUID
-
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
-
-
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
 
