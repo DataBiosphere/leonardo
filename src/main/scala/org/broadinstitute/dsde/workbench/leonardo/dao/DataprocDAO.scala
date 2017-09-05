@@ -18,4 +18,10 @@ trait DataprocDAO {
   def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: File): Future[Unit]
 
   def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: String): Future[Unit]
+
+  def getCluster(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[Cluster]
+
+  def getOperation(operationName: String): Future[Operation]
+
+  def getInstance(googleProject: GoogleProject, instanceName: String): Future[Instance]
 }

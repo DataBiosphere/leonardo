@@ -222,4 +222,40 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     }
   }
 
+  override def getCluster(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[Cluster] = {
+    Future {
+      val request = dataproc.projects().regions().clusters().get(googleProject, dataprocConfig.dataprocDefaultZone, clusterName)
+      try {
+        executeGoogleRequest(request)
+      } catch {
+        case e: GoogleJsonResponseException =>
+          throw CallToGoogleApiFailedException(googleProject, clusterName, e.getStatusCode, e.getDetails.getMessage)
+      }
+    }
+  }
+
+  override def getOperation(operationName: String): Future[Operation] = {
+    Future {
+      val request = dataproc.projects().regions().operations().get(operationName)
+      try {
+        executeGoogleRequest(request)
+      } catch {
+        case e: GoogleJsonResponseException =>
+          throw CallToGoogleApiFailedException("", "", e.getStatusCode, e.getDetails.getMessage)
+      }
+    }
+  }
+
+  override def getInstance(googleProject: GoogleProject, instanceName: String): Future[Instance] = {
+    Future {
+      val request = compute.instances().get(googleProject, dataprocConfig.dataprocDefaultZone, instanceName)
+      try {
+        executeGoogleRequest(request)
+      } catch {
+        case e: GoogleJsonResponseException =>
+          throw CallToGoogleApiFailedException(googleProject, instanceName, e.getStatusCode, e.getDetails.getMessage)
+      }
+    }
+  }
+
 }
