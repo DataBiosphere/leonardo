@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest
 import scala.concurrent.{ExecutionContext, Future}
 
 case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Cluster $googleProject/$clusterName not found", StatusCodes.NotFound)
-case class ClusterAlreadyExistsException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Cluster$googleProject/$clusterName already exists", StatusCodes.Found)
+case class ClusterAlreadyExistsException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Cluster $googleProject/$clusterName already exists", StatusCodes.Found)
 
 class LeonardoService(gdDAO: DataprocDAO, dbRef: DbReference)(implicit val executionContext: ExecutionContext) extends LazyLogging {
 

@@ -44,7 +44,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterRequest = ClusterRequest("bucketPath", "serviceAccount", Map[String, String]())
     val clusterCreateResponse = leo.createCluster("googleProject1", "clusterName1", clusterRequest).futureValue
 
-    whenReady( leo.createCluster("googleProject1", "clusterName1", clusterRequest)) { exc =>
+    whenReady( leo.createCluster("googleProject1", "clusterName1", clusterRequest).failed ) { exc =>
       exc shouldBe a [ClusterAlreadyExistsException]
     }
   }
