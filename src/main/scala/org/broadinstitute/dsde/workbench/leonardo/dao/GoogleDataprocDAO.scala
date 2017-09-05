@@ -74,8 +74,8 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   }
 
   /* Creates a cluster in the given google project:
-       - Add a firewall rule to the google project if it doesn't exist, so we can access the cluster
-       - Create the initialization bucket for the cluster
+       - Add a firewall rule to the user's google project if it doesn't exist, so we can access the cluster
+       - Create the initialization bucket for the cluster in the leo google project
        - Upload all the necessary initialization files to the bucket
        - Create the cluster in the google project
      Currently, the bucketPath of the clusterRequest is not used - it will be used later as a place to store notebook results */
@@ -84,8 +84,8 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     updateFirewallRules(googleProject)
 
     val bucketName = s"${clusterName}-${UUID.randomUUID.toString}"
-    // Create the bucket and populate with initialization files
-    val bucketResponse = initializeBucket(googleProject, clusterName, bucketName)
+    // Create the bucket in leo's google bucket and populate with initialization files
+    val bucketResponse = initializeBucket(dataprocConfig.leoGoogleBucket, clusterName, bucketName)
     // Once the bucket is ready, build the cluster
     bucketResponse.flatMap[ClusterResponse] { _ =>
       val operation = build(googleProject, clusterName, clusterRequest, bucketName)
@@ -103,8 +103,11 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     try {
       executeGoogleRequest(request) // returns a Firewall
     } catch {
-      case t: GoogleJsonResponseException if t.getStatusCode == 404 => addFirewallRule(googleProject)
-      case e: GoogleJsonResponseException => throw new FirewallRuleInaccessibleException(googleProject, dataprocConfig.clusterFirewallRuleName)
+      case e: GoogleJsonResponseException =>
+        if (e.getStatusCode == 404)
+          addFirewallRule(googleProject)
+        else
+          throw new FirewallRuleInaccessibleException(googleProject, dataprocConfig.clusterFirewallRuleName)
     }
   }
 
@@ -113,11 +116,12 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     To think about: do we want to remove this rule if a google project no longer has any clusters? */
   private def addFirewallRule(googleProject: String): Future[ComputeOperation] = {
     Future {
+      // Create an Allowed object that specifies the port and protocol of rule
       val allowed = new Allowed().setIPProtocol(proxyConfig.jupyterProtocol).setPorts(List(proxyConfig.jupyterPort.toString).asJava)
-
+      // Create a firewall rule that takes an Allowed object, a name, and the network tag a cluster must have to be accessed through the rule
       val firewallRule = new Firewall()
         .setName(dataprocConfig.clusterFirewallRuleName)
-        .setTargetTags(List("leonardo").asJava) // put this in config
+        .setTargetTags(List(dataprocConfig.clusterNetworkTag).asJava)
         .setAllowed(List(allowed).asJava)
 
       val request = new Compute(httpTransport, jsonFactory, getServiceAccountCredential(vmScopes)).firewalls().insert(googleProject, firewallRule)
@@ -135,7 +139,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     val bucketResponse = createBucket(googleProject, clusterName, bucketName)
     // Add initialization files after the bucket has been created
     bucketResponse.map { _ =>
-      val objectResponse = initializeBucketObjects(googleProject, clusterName, bucketName)
+      initializeBucketObjects(googleProject, clusterName, bucketName)
     }
   }
 
@@ -199,7 +203,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       //   Set the network tag, which is needed by the firewall rule that allows leo to talk to the cluster
       val gce = new GceClusterConfig()
         .setServiceAccount(clusterRequest.serviceAccount)
-        .setTags(List("leonardo").asJava)
+        .setTags(List(dataprocConfig.clusterNetworkTag).asJava)
 
       // Create a NodeInitializationAction, which specifies the executable to run on a node.
       //    This executable is our init-actions.sh, which will stand up our jupyter server and proxy.
@@ -218,7 +222,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
         .setClusterName(clusterName)
         .setConfig(clusterConfig)
 
-      // Create a dataproc create request and give it the google project, a zone. and the Cluster
+      // Create a dataproc create request and give it the google project, a zone, and the Cluster
       val request = dataproc.projects().regions().clusters().create(googleProject, dataprocConfig.dataprocDefaultZone, cluster)
 
       try {

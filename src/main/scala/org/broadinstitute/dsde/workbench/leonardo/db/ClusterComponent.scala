@@ -68,7 +68,6 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-
     def getByGoogleId(googleId: UUID): DBIO[Option[Cluster]] = {
       clusterQueryWithLabels.filter { _._1.googleId === googleId }.result map { recs =>
         unmarshalClustersWithLabels(recs).headOption

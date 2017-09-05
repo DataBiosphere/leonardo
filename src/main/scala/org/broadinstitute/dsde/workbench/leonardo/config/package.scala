@@ -16,9 +16,11 @@ package object config {
   implicit val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
     DataprocConfig(config.getString("serviceAccount"),
       config.getString("dataprocDefaultZone"),
+      config.getString("leoGoogleBucket"),
       config.getString("dataprocDockerImage"),
       config.getString("jupyterProxyDockerImage"),
       config.getString("clusterFirewallRuleName"),
+      config.getString("clusterNetworkTag"),
       config.getString("configFolderPath"),
       config.getString("initActionsFileName"),
       config.getString("clusterDockerComposeName"),
