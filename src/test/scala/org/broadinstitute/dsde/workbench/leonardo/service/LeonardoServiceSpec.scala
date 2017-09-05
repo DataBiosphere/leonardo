@@ -39,6 +39,16 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       exc shouldBe a [ClusterNotFoundException]
     }
   }
+
+  "LeonardoService" should "throw ClusterAlreadyExistsException when creating a cluster with same name and project as an existing cluster" in isolatedDbTest {
+    val clusterRequest = ClusterRequest("bucketPath", "serviceAccount", Map[String, String]())
+    val clusterCreateResponse = leo.createCluster("googleProject1", "clusterName1", clusterRequest).futureValue
+
+    whenReady( leo.createCluster("googleProject2", "clusterName2", clusterRequest)) { exc =>
+      exc shouldBe a [ClusterAlreadyExistsException]
+    }
+  }
+
   "LeonardoService" should "delete a cluster" in isolatedDbTest {
     val clusterRequest = ClusterRequest("bucketPath", "serviceAccount", Map[String, String]())
 

@@ -135,11 +135,14 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   }
 
   /* Create init bucket for the cluster and populate it with the cluster initialization files */
-  private def initializeBucket(googleProject: GoogleProject, clusterName: String, bucketName: String) = {
-    val bucketResponse = createBucket(googleProject, clusterName, bucketName)
-    // Add initialization files after the bucket has been created
-    bucketResponse.map { _ =>
-      initializeBucketObjects(googleProject, clusterName, bucketName)
+  private def initializeBucket(googleProject: GoogleProject, clusterName: String, bucketName: String): Future[(Bucket, Array[StorageObject])] = {
+    for {
+      // Create a bucket for the cluster
+      bucketResponse <- createBucket(googleProject, clusterName, bucketName)
+      // Add initialization files after the bucket has been created
+      storageObjectsResponse <- initializeBucketObjects(googleProject, clusterName, bucketName)
+    } yield {
+      (bucketResponse, storageObjectsResponse)
     }
   }
 
