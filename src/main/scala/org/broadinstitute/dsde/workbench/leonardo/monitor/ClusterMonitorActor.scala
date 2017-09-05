@@ -54,63 +54,70 @@ class ClusterMonitorActor(val cluster: Cluster,
     case StartMonitorPass => getGoogleCluster pipeTo self
   }
 
-  private def getGoogleCluster: Future[ClusterMonitorMessage] = {
-    gdDAO.getCluster(cluster.googleProject, cluster.clusterName).flatMap { c =>
-      val googleClusterStatus = getGoogleClusterStatus(c)
-      googleClusterStatus match {
-        case Unknown | Creating | Updating => Future.successful(NotReadyCluster(googleClusterStatus))
-        case Running => processRunningCluster(c)
+  private def getGoogleCluster: EitherT[Future, String, ClusterMonitorMessage] = {
+    for {
+      googleCluster <- gdDAO.getCluster(cluster.googleProject, cluster.clusterName).attemptT
+      status <- getGoogleClusterStatus(googleCluster)
+      result <- status match {
+        case Unknown | Creating | Updating => EitherT.right(Future.successful(NotReadyCluster(status)))
+        case Running => processRunningCluster(googleCluster)
         case Error => processFailedCluster()
-        case Deleted => Future.successful(ClusterDeleted)
+        case Deleted => EitherT.right(Future.successful(ClusterDeleted))
       }
-    }
+    } yield result
   }
 
-  private def getGoogleClusterStatus(cluster: GoogleCluster): GoogleClusterStatus = {
-    val statusOpt = Option(cluster.getStatus).map(_.getState).flatMap(GoogleClusterStatusEnum.fromStringIgnoreCase)
+  private def getGoogleClusterStatus(cluster: GoogleCluster): EitherT[Future, String, GoogleClusterStatus] = {
+    val errorOrGoogleStatus = for {
+      status <- Option(cluster.getStatus).toRight("Cluster status is null")
+      state <- Option(status.getState).toRight("Cluster state is null")
+      googleStatus <- GoogleClusterStatusEnum.fromStringIgnoreCase(state).toRight(s"Unknown Google cluster status: $state")
+    } yield googleStatus
 
-    statusOpt.getOrElse(throw new IllegalStateException(s"Unknown google status: ${cluster.getStatus}"))
+    EitherT(Future.successful(errorOrGoogleStatus))
   }
 
-  private def getMasterInstanceName(cluster: GoogleCluster): String = {
-    val masterInstanceOpt = for {
-      config <- Option(cluster.getConfig)
-      masterConfig <- Option(config.getMasterConfig)
-      instanceNames <- Option(masterConfig.getInstanceNames)
-      masterInstance <- instanceNames.asScala.headOption
+  private def getMasterInstanceName(cluster: GoogleCluster): EitherT[Future, String, String] = {
+    val errorOrMasterInstanceName = for {
+      config <- Option(cluster.getConfig).toRight("Cluster config is null")
+      masterConfig <- Option(config.getMasterConfig).toRight("Cluster master config is null")
+      instanceNames <- Option(masterConfig.getInstanceNames).toRight("Master config instance names is null")
+      masterInstance <- instanceNames.asScala.headOption.toRight("Master instance not found")
     } yield masterInstance
 
-    masterInstanceOpt.getOrElse(throw new IllegalStateException(s"Could not get master node from cluster ${cluster.getClusterName}"))
+    EitherT(Future.successful(errorOrMasterInstanceName))
   }
 
-  private def getInstanceIP(instance: Instance): String = {
-    val ipOpt = for {
-      interfaces <- Option(instance.getNetworkInterfaces)
-      interface <- interfaces.asScala.headOption
-      accessConfigs <- Option(interface.getAccessConfigs)
-      accessConfig <- accessConfigs.asScala.headOption
+  private def getInstanceIP(instance: Instance): EitherT[Future, String, String] = {
+    val errorOrIp = for {
+      interfaces <- Option(instance.getNetworkInterfaces).toRight("Network interfaces is null")
+      interface <- interfaces.asScala.headOption.toRight("Network interface not found")
+      accessConfigs <- Option(interface.getAccessConfigs).toRight("Access configs is null")
+      accessConfig <- accessConfigs.asScala.headOption.toRight("Access config not found")
     } yield accessConfig.getNatIP
 
-    ipOpt.getOrElse(throw new IllegalStateException(s"Could not get IP from instance ${instance.getName}"))
+    EitherT(Future.successful(errorOrIp))
   }
 
 
 
-  private def processRunningCluster(cluster: GoogleCluster): Future[ReadyCluster] = {
-    gdDAO.getInstance(cluster.getProjectId, getMasterInstanceName(cluster)).map { instance =>
-      ReadyCluster(getInstanceIP(instance))
-    }
+  private def processRunningCluster(cluster: GoogleCluster): EitherT[Future, String, ReadyCluster] = {
+    for {
+      masterInstanceName <- getMasterInstanceName(cluster)
+      instance <- EitherT.right(gdDAO.getInstance(cluster.getProjectId, masterInstanceName))
+      ip <- getInstanceIP(instance)
+    } yield ReadyCluster(ip)
   }
 
-  private def processFailedCluster(): Future[FailedCluster] = {
-    gdDAO.getOperation(cluster.operationName).map { op =>
+  private def processFailedCluster(): EitherT[Future, String, FailedCluster] = {
+    EitherT.right(gdDAO.getOperation(cluster.operationName).map { op =>
       val googleClusterErrorOpt = for {
         done <- Option(op.getDone) if done == true
         error <- Option(op.getError)
       } yield GoogleClusterError(error.getCode, error.getMessage)
 
       FailedCluster(googleClusterErrorOpt)
-    }
+    })
   }
 
 
