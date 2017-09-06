@@ -7,7 +7,8 @@ import java.util.UUID
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
-import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.{GoogleBucket, GoogleBucketUri, GoogleProject, GoogleServiceAccount}
+import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.{GoogleBucket, GoogleProject, GoogleServiceAccount}
+import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat}
 import scala.language.implicitConversions
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsonFormat, JsString, JsValue}
 
@@ -27,15 +28,19 @@ object GoogleBucketUri {
 
 object ClusterStatus extends Enumeration {
   type ClusterStatus = Value
-  val Unknown, Creating, Deleting, Deleted = Value
-  val activeStatuses = Seq(Unknown, Creating)
+  val Unknown, Creating, Running, Updating, Error, Deleting, Deleted = Value
+  val activeStatuses = Seq(Unknown, Creating, Updating)
 
-  class StatusValue(status: Value) {
+  class StatusValue(status: ClusterStatus) {
     def isActive:Boolean = activeStatuses contains status
   }
-  implicit def enumConvert(status: Value): StatusValue = new StatusValue(status)
+  implicit def enumConvert(status: ClusterStatus): StatusValue = new StatusValue(status)
 
-  def withNameOpt(s: String): Option[Value] = values.find(_.toString == s)
+  def withNameOpt(s: String): Option[ClusterStatus] = values.find(_.toString == s)
+
+  def withNameIgnoreCase(str: String): Option[ClusterStatus] = {
+    values.find(_.toString.equalsIgnoreCase(str))
+  }
 }
 
 

@@ -6,6 +6,9 @@ import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterStatus}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
+import slick.dbio.Effect
+import slick.sql.FixedSqlAction
 
 case class ClusterRecord(id: Long,
                          clusterName: String,
@@ -75,16 +78,23 @@ trait ClusterComponent extends LeoComponent {
     }
 
     def deleteCluster(googleId: UUID):DBIO[Int] = {
-       clusterQuery.filter(_.googleId === googleId)
-         .map(c => (c.destroyedDate, c.status))
-         .update((Option(Timestamp.from(java.time.Instant.now())), ClusterStatus.Deleting.toString))
+      clusterQuery.filter(_.googleId === googleId)
+        .map(c => (c.destroyedDate, c.status))
+        .update((Option(Timestamp.from(java.time.Instant.now())), ClusterStatus.Deleting.toString))
+    }
 
+    def updateClusterStatus(googleId: UUID, newStatus: ClusterStatus): DBIO[Int] = {
+      clusterQuery.filter { _.googleId === googleId }.map(_.status).update(newStatus.toString)
     }
 
     def getIdByGoogleId(googleId: UUID): DBIO[Option[Long]] = {
       clusterQuery.filter { _.googleId === googleId }.result map { recs =>
         recs.headOption map { _.id }
       }
+    }
+
+    def updateIpByGoogleId(googleId: UUID, newIp: String): DBIO[Int] = {
+      clusterQuery.filter(_.googleId === googleId).map(_.hostIp).update(Some(newIp))
     }
 
     private def marshalCluster(cluster: Cluster): ClusterRecord = {

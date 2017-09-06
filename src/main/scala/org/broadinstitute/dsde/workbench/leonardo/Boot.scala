@@ -11,6 +11,8 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyC
 import org.broadinstitute.dsde.workbench.leonardo.dao.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
+import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig, SwaggerConfig}
+import org.broadinstitute.dsde.workbench.leonardo.dao.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService}
 
 object Boot extends App with LazyLogging {
@@ -44,7 +46,8 @@ object Boot extends App with LazyLogging {
     }
 
     val gdDAO = new GoogleDataprocDAO(dataprocConfig, proxyConfig)
-    val leonardoService = new LeonardoService(dataprocConfig, gdDAO, dbRef)
+    val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(gdDAO, dbRef))
+    val leonardoService = new LeonardoService(dataprocConfig, gdDAO, dbRef, clusterMonitorSupervisor)
     val clusterDnsCache = system.actorOf(ClusterDnsCache.props(proxyConfig, dbRef))
     val proxyService = new ProxyService(proxyConfig, dbRef, clusterDnsCache)
 
