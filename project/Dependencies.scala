@@ -39,6 +39,7 @@ object Dependencies {
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka"   %%  "akka-http-testkit"    % akkaHttpV % "test"
 
   val googleDataproc: ModuleID =    "com.google.apis"     % "google-api-services-dataproc" % s"v1-rev53-$googleV" excludeAll(excludeGuavaJDK5)
+  val googleRpc: ModuleID = "io.grpc" % "grpc-core" % "1.5.0"
 
   val scalaTest: ModuleID = "org.scalatest" %% "scalatest" % scalaTestV % "test"
 
@@ -76,6 +77,7 @@ object Dependencies {
     akkaHttpTestKit,
 
     googleDataproc,
+    googleRpc,
 
     scalaTest,
 
