@@ -126,21 +126,24 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return error or ShutdownActor
     */
   private def handleFailedCluster(code: Int, message: Option[String]): EitherT[Future, Throwable, ShutdownActor] = {
-    dbRef.inTransaction(_.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Error)).attemptT.flatMap { _ =>
-      val future = if (shouldRecreateCluster(code, message)) {
-        // Delete the cluster in Google and update the Operation in the database.
-        // Then shutdown this actor, but register a callback message to the supervisor
-        // telling it to recreate the cluster.
-        logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is in an error state with code $code and message $message. Attempting to delete and recreate...")
-        for {
-          operation <- gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)
-          _ <- dbRef.inTransaction(_.clusterQuery.updateClusterOperation(cluster.googleId, operation.map(_.getName)))
-        } yield ShutdownActor(Some(ClusterDeleted(cluster, recreate = true)))
-      } else {
-        logger.warn(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is in an error state with code $code and message $message'. Unable to recreate cluster.")
-        Future.successful(ShutdownActor())
-      }
-      future.attemptT
+    if (shouldRecreateCluster(code, message)) {
+      // Delete the cluster in Google and update the database record to Deleting.
+      // Then shutdown this actor, but register a callback message to the supervisor
+      // telling it to recreate the cluster.
+      logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is in an error state with code $code and message $message. Attempting to delete and recreate...")
+      for {
+        operation <- gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName).attemptT
+        _ <- dbRef.inTransaction { dataAccess =>
+          dataAccess.clusterQuery.deleteCluster(cluster.googleId) andThen
+            dataAccess.clusterQuery.updateClusterOperation(cluster.googleId, operation.map(_.getName))
+        }.attemptT
+      } yield ShutdownActor(Some(ClusterDeleted(cluster, recreate = true)))
+    } else {
+      // Update the database record to Error and shutdown this actor.
+      logger.warn(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is in an error state with code $code and message $message'. Unable to recreate cluster.")
+      dbRef.inTransaction(_.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Error)).map { _ =>
+        ShutdownActor()
+      }.attemptT
     }
   }
 

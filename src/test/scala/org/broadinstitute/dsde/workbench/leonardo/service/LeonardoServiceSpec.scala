@@ -44,7 +44,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     val clusterCreateResponse = leo.createCluster("googleProject", "clusterName", clusterRequest).futureValue
     val clusterDeleteResponse = leo.deleteCluster("googleProject", "clusterName").futureValue
-    clusterDeleteResponse shouldEqual ()
   }
 
   "LeonardoService" should "throw ClusterNotFoundException when deleting non existent clusters" in isolatedDbTest {

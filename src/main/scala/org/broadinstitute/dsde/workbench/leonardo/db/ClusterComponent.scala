@@ -63,6 +63,12 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
+    def listPending(): DBIO[Seq[Cluster]] = {
+      clusterQueryWithLabels.filter { _._1.status inSetBind ClusterStatus.pendingStatuses.map(_.toString) }.result map { recs =>
+        unmarshalClustersWithLabels(recs)
+      }
+    }
+
     // currently any string can be a GoogleProject
     // but I'm planning to fix that soon
     def getByName(project: GoogleProject, name: String): DBIO[Option[Cluster]] = {

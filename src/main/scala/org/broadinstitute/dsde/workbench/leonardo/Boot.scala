@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
 import com.typesafe.config.ConfigFactory
@@ -11,8 +11,12 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.GoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService}
+
+import scala.concurrent.ExecutionContext
 
 object Boot extends App with LazyLogging {
   private def startup(): Unit = {
@@ -50,8 +54,9 @@ object Boot extends App with LazyLogging {
     val leonardoService = new LeonardoService(gdDAO, dbRef, clusterMonitorSupervisor)
     val clusterDnsCache = system.actorOf(ClusterDnsCache.props(proxyConfig, dbRef))
     val proxyService = new ProxyService(proxyConfig, dbRef, clusterDnsCache)
-
     val leoRoutes = new LeoRoutes(leonardoService, proxyService, config.as[SwaggerConfig]("swagger"))
+
+    startClusterMontitors(dbRef, clusterMonitorSupervisor)
 
     Http().bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
       .recover {
@@ -59,6 +64,22 @@ object Boot extends App with LazyLogging {
           logger.error("FATAL - failure starting http server", t)
           throw t
       }
+  }
+
+  def startClusterMontitors(dbRef: DbReference, clusterMonitor: ActorRef)(implicit executionContext: ExecutionContext) = {
+    dbRef.inTransaction { dataAccess =>
+      dataAccess.clusterQuery.listPending.map { clusters =>
+        clusters.foreach { cluster =>
+          if (cluster.status == ClusterStatus.Deleting) {
+            clusterMonitor ! ClusterDeleted(cluster)
+          } else {
+            clusterMonitor ! ClusterCreated(cluster)
+          }
+        }
+      }
+    }.failed.foreach { case t: Throwable =>
+      logger.error("Error starting cluster monitor", t)
+    }
   }
 
   startup()
