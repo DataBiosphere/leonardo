@@ -9,7 +9,7 @@ import com.google.api.services.dataproc.model.{Operation, Cluster => GoogleClust
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.leonardo.config.MonitorConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, DataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterStatus, LeoException}
@@ -18,7 +18,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervis
 
 import scala.collection.JavaConverters._
 import scala.concurrent.Future
-import scala.concurrent.duration._
 import scala.util.Failure
 
 object ClusterMonitorActor {
@@ -166,7 +165,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return error or ClusterMonitorMessage
     */
   private def getGoogleCluster: EitherT[Future, Throwable, ClusterMonitorMessage] = {
-    for {
+    val errorOrMessage: EitherT[Future, Throwable, ClusterMonitorMessage] = for {
       googleCluster <- gdDAO.getCluster(cluster.googleProject, cluster.clusterName).attemptT
       status <- getGoogleClusterStatus(googleCluster)
       result <- status match {
@@ -176,6 +175,11 @@ class ClusterMonitorActor(val cluster: Cluster,
         case Deleted => Future.successful(DeletedCluster()).attemptT
       }
     } yield result
+
+    // Recover from Google 404 errors, and assume the cluster is deleted
+    errorOrMessage.recover {
+      case CallToGoogleApiFailedException(_, _, 404, _) => DeletedCluster()
+    }
   }
 
   /**
