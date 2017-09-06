@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.config
 
 case class DataprocConfig(applicationName: String,
                           serviceAccount: String,
-                          dataprocDefaultZone: String,
+                          dataprocDefaultRegion: String,
                           leoGoogleBucket: String,
                           dataprocDockerImage: String,
                           jupyterProxyDockerImage: String,

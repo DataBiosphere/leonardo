@@ -56,7 +56,7 @@ object Boot extends App with LazyLogging {
     val proxyService = new ProxyService(proxyConfig, dbRef, clusterDnsCache)
     val leoRoutes = new LeoRoutes(leonardoService, proxyService, config.as[SwaggerConfig]("swagger"))
 
-    startClusterMontitors(dbRef, clusterMonitorSupervisor)
+    startClusterMonitors(dbRef, clusterMonitorSupervisor)
 
     Http().bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
       .recover {
@@ -66,7 +66,7 @@ object Boot extends App with LazyLogging {
       }
   }
 
-  def startClusterMontitors(dbRef: DbReference, clusterMonitor: ActorRef)(implicit executionContext: ExecutionContext) = {
+  private def startClusterMonitors(dbRef: DbReference, clusterMonitor: ActorRef)(implicit executionContext: ExecutionContext) = {
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.listPending.map { clusters =>
         clusters.foreach { cluster =>
