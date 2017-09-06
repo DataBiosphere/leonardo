@@ -27,9 +27,11 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, gdDAO: DataprocDAO,
 
   override def receive: Receive = {
     case ClusterCreated(cluster) =>
+      logger.info(s"Monitoring cluster ${cluster.googleProject}/${cluster.clusterName}")
       startClusterMonitorActor(cluster)
 
     case ClusterDeleted(cluster, recreate) =>
+      logger.info(s"Monitoring cluster ${cluster.googleProject}/${cluster.clusterName}")
       startClusterMonitorActor(cluster, recreate)
 
     case RecreateCluster(cluster) =>

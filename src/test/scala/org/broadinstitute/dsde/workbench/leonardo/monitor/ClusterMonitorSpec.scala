@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, ClusterResponse, ClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted}
-import org.mockito.ArgumentMatchers.{any, eq => eqq}
+import org.mockito.ArgumentMatchers.{eq => eqq, _}
 import org.mockito.Mockito._
 import org.scalatest.mockito.MockitoSugar
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
@@ -89,10 +89,12 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       dao.getCluster(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful {
       new GoogleCluster().setStatus(new GoogleClusterStatus().setState("RUNNING")).setProjectId(creatingCluster.googleProject)
-        .setConfig(new ClusterConfig().setMasterConfig(new InstanceGroupConfig().setInstanceNames(List("masterInstance").asJava)))
+        .setConfig(new ClusterConfig()
+          .setMasterConfig(new InstanceGroupConfig().setInstanceNames(List("masterInstance").asJava))
+          .setGceClusterConfig(new GceClusterConfig().setZoneUri("us-central1-c")))
     }
     when {
-      dao.getInstance(eqq(creatingCluster.googleProject), eqq("masterInstance"))(any[ExecutionContext])
+      dao.getInstance(eqq(creatingCluster.googleProject), anyString, eqq("masterInstance"))(any[ExecutionContext])
     } thenReturn Future.successful {
       new Instance().setNetworkInterfaces(List(new NetworkInterface().setAccessConfigs(List(new AccessConfig().setNatIP("1.2.3.4")).asJava)).asJava)
     }
@@ -210,7 +212,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       new GoogleCluster().setStatus(new GoogleClusterStatus().setState("CREATING"))
     } thenReturn Future.successful {
       new GoogleCluster().setStatus(new GoogleClusterStatus().setState("RUNNING")).setProjectId(creatingCluster.googleProject)
-        .setConfig(new ClusterConfig().setMasterConfig(new InstanceGroupConfig().setInstanceNames(List("masterInstance").asJava)))
+        .setConfig(new ClusterConfig().setMasterConfig(new InstanceGroupConfig().setInstanceNames(List("masterInstance").asJava))
+        .setGceClusterConfig(new GceClusterConfig().setZoneUri("us-central1-c")))
     }
 
     when {
@@ -231,7 +234,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     }
 
     when {
-      dao.getInstance(eqq(creatingCluster.googleProject), eqq("masterInstance"))(any[ExecutionContext])
+      dao.getInstance(eqq(creatingCluster.googleProject), anyString, eqq("masterInstance"))(any[ExecutionContext])
     } thenReturn Future.successful {
       new Instance().setNetworkInterfaces(List(new NetworkInterface().setAccessConfigs(List(new AccessConfig().setNatIP("1.2.3.4")).asJava)).asJava)
     }

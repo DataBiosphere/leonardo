@@ -23,5 +23,5 @@ trait DataprocDAO {
 
   def getOperation(operationName: String)(implicit executionContext: ExecutionContext): Future[Operation]
 
-  def getInstance(googleProject: GoogleProject, instanceName: String)(implicit executionContext: ExecutionContext): Future[Instance]
+  def getInstance(googleProject: GoogleProject, zone: String, instanceName: String)(implicit executionContext: ExecutionContext): Future[Instance]
 }
