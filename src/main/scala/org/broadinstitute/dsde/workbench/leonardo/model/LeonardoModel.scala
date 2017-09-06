@@ -29,10 +29,12 @@ object GoogleBucketUri {
 object ClusterStatus extends Enumeration {
   type ClusterStatus = Value
   val Unknown, Creating, Running, Updating, Error, Deleting, Deleted = Value
-  val activeStatuses = Seq(Unknown, Creating, Updating)
+  val activeStatuses = Set(Unknown, Creating, Running, Updating)
+  val pendingStatuses = Set(Unknown, Creating, Updating, Deleting)
 
   class StatusValue(status: ClusterStatus) {
-    def isActive:Boolean = activeStatuses contains status
+    def isActive: Boolean = activeStatuses contains status
+    def isPending: Boolean = pendingStatuses contains status
   }
   implicit def enumConvert(status: ClusterStatus): StatusValue = new StatusValue(status)
 
