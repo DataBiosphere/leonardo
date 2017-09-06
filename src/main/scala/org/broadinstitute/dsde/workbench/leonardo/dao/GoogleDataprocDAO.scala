@@ -69,7 +69,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
       val initActions = Seq(new NodeInitializationAction().setExecutableFile(dataprocConfig.dataprocInitScriptURI))
       val clusterConfig = new ClusterConfig().setGceClusterConfig(gce).setInitializationActions(initActions.asJava)
       val cluster = new Cluster().setClusterName(clusterName).setConfig(clusterConfig)
-      val request = dataproc.projects().regions().clusters().create(googleProject, dataprocConfig.dataprocDefaultZone, cluster)
+      val request = dataproc.projects().regions().clusters().create(googleProject, dataprocConfig.dataprocDefaultRegion, cluster)
       try {
         executeGoogleRequest(request)
       } catch {
@@ -81,7 +81,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
   def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Option[Operation]] = {
     Future {
       //currently, the bucketPath of the clusterRequest are not used - it will be used later as a place to store notebooks and results
-      val request = dataproc.projects().regions().clusters().delete(googleProject, dataprocConfig.dataprocDefaultZone, clusterName)
+      val request = dataproc.projects().regions().clusters().delete(googleProject, dataprocConfig.dataprocDefaultRegion, clusterName)
       try {
         Some(executeGoogleRequest(request))
       } catch {
@@ -94,7 +94,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
 
   override def getCluster(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[Cluster] = {
     Future {
-      val request = dataproc.projects().regions().clusters().get(googleProject, dataprocConfig.dataprocDefaultZone, clusterName)
+      val request = dataproc.projects().regions().clusters().get(googleProject, dataprocConfig.dataprocDefaultRegion, clusterName)
       try {
         executeGoogleRequest(request)
       } catch {

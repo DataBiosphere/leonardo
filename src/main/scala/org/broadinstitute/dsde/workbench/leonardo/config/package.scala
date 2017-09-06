@@ -16,7 +16,7 @@ package object config {
   implicit val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
     DataprocConfig(config.getString("serviceAccount"),
       config.getString("dataprocInitScriptURI"),
-      config.getString("dataprocDefaultZone"),
+      config.getString("dataprocDefaultRegion"),
       config.getString("dataprocDockerImage"),
       config.getString("pathToLeonardoPem"),
       config.getString("clusterUrlBase"))
