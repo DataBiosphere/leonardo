@@ -47,4 +47,8 @@ package object config {
       config.getString("jupyterDomain"),
       toScalaDuration(config.getDuration("dnsPollPeriod")))
   }
+
+  implicit val monitorConfigReader: ValueReader[MonitorConfig] = ValueReader.relative { config =>
+    MonitorConfig(toScalaDuration(config.getDuration("pollPeriod")), config.getInt("maxRetries"), config.getBoolean("canRecreateCluster"))
+  }
 }

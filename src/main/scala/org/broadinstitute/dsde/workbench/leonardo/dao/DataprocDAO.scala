@@ -9,7 +9,7 @@ import scala.concurrent.{ExecutionContext, Future}
 trait DataprocDAO {
   def createCluster(googleProject: GoogleProject, clusterName: String, clusterRequest: ClusterRequest, bucketName: String)(implicit executionContext: ExecutionContext): Future[ClusterResponse]
 
-  def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit]
+  def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Option[Operation]]
 
   def updateFirewallRule(googleProject: GoogleProject): Future[Unit]
 
@@ -21,7 +21,7 @@ trait DataprocDAO {
 
   def getCluster(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[Cluster]
 
-  def getOperation(operationName: String): Future[Operation]
+  def getOperation(operationName: String)(implicit executionContext: ExecutionContext): Future[Operation]
 
-  def getInstance(googleProject: GoogleProject, instanceName: String): Future[Instance]
+  def getInstance(googleProject: GoogleProject, instanceName: String)(implicit executionContext: ExecutionContext): Future[Instance]
 }

@@ -18,7 +18,7 @@ trait TestLeoRoutes { this: ScalatestRouteTest =>
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO(dataprocConfig)
   val proxyConfig = ProxyConfig(jupyterPort = 8001, jupyterProtocol = "tcp", jupyterDomain = "", dnsPollPeriod = 1 day)
-  val leonardoService = new LeonardoService(dataprocConfig, mockGoogleDataprocDAO, DbSingleton.ref)
+  val leonardoService = new LeonardoService(dataprocConfig, mockGoogleDataprocDAO, DbSingleton.ref, sytem.deadLetters)
   val proxyService = new MockProxyService(proxyConfig, DbSingleton.ref)
   val swaggerConfig = SwaggerConfig("", "")
   val leoRoutes = new LeoRoutes(leonardoService, proxyService, swaggerConfig)

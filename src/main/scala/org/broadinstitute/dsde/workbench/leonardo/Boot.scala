@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyC
 import org.broadinstitute.dsde.workbench.leonardo.dao.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
-import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig, SwaggerConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService}
 
@@ -34,6 +34,7 @@ object Boot extends App with LazyLogging {
     val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
     val dataprocConfig = config.as[DataprocConfig]("dataproc")
     val proxyConfig = config.as[ProxyConfig]("proxy")
+    val monitorConfig = config.as[MonitorConfig]("monitor")
 
     // we need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")
