@@ -78,17 +78,16 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
     }
   }
 
-
-  def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Option[Operation]] = {
     Future {
       //currently, the bucketPath of the clusterRequest are not used - it will be used later as a place to store notebooks and results
       val request = dataproc.projects().regions().clusters().delete(googleProject, dataprocConfig.dataprocDefaultZone, clusterName)
       try {
-        executeGoogleRequest(request)
+        Some(executeGoogleRequest(request))
       } catch {
-        case e:GoogleJsonResponseException =>
-          if(e.getStatusCode!=404)
-            throw CallToGoogleApiFailedException(googleProject, clusterName, e.getStatusCode, e.getDetails.getMessage)
+        case e: GoogleJsonResponseException if e.getStatusCode != 404 =>
+          throw CallToGoogleApiFailedException(googleProject, clusterName, e.getStatusCode, e.getDetails.getMessage)
+        case _: GoogleJsonResponseException => None
       }
     }
   }
@@ -105,7 +104,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
     }
   }
 
-  override def getOperation(operationName: String): Future[Operation] = {
+  override def getOperation(operationName: String)(implicit executionContext: ExecutionContext): Future[Operation] = {
     Future {
       val request = dataproc.projects().regions().operations().get(operationName)
       try {
@@ -117,7 +116,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
     }
   }
 
-  override def getInstance(googleProject: GoogleProject, instanceName: String): Future[Instance] = {
+  override def getInstance(googleProject: GoogleProject, instanceName: String)(implicit executionContext: ExecutionContext): Future[Instance] = {
     Future {
       val request = compute.instances().get(googleProject, dataprocConfig.dataprocDefaultZone, instanceName)
       try {

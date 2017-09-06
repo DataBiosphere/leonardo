@@ -9,7 +9,7 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.api.LeoRoutes
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
-import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig, SwaggerConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService}
@@ -33,6 +33,7 @@ object Boot extends App with LazyLogging {
     val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
     val dataprocConfig = config.as[DataprocConfig]("dataproc")
     val proxyConfig = config.as[ProxyConfig]("proxy")
+    val monitorConfig = config.as[MonitorConfig]("monitor")
 
     // we need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")
@@ -45,7 +46,7 @@ object Boot extends App with LazyLogging {
     }
 
     val gdDAO = new GoogleDataprocDAO(dataprocConfig)
-    val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(gdDAO, dbRef))
+    val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, gdDAO, dbRef))
     val leonardoService = new LeonardoService(gdDAO, dbRef, clusterMonitorSupervisor)
     val clusterDnsCache = system.actorOf(ClusterDnsCache.props(proxyConfig, dbRef))
     val proxyService = new ProxyService(proxyConfig, dbRef, clusterDnsCache)

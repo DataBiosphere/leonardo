@@ -21,7 +21,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   val dataprocConfig = ConfigFactory.load().as[DataprocConfig]("dataproc")
 
   val gdDAO = new MockGoogleDataprocDAO
-  val leo = new LeonardoService(gdDAO, DbSingleton.ref)
+  val leo = new LeonardoService(gdDAO, DbSingleton.ref, system.deadLetters)
 
   "LeonardoService" should "create and get a cluster" in isolatedDbTest {
     val clusterRequest = ClusterRequest("bucketPath", "serviceAccount", Map[String, String]())
@@ -43,8 +43,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterRequest = ClusterRequest("bucketPath", "serviceAccount", Map[String, String]())
 
     val clusterCreateResponse = leo.createCluster("googleProject", "clusterName", clusterRequest).futureValue
-    val clusterGetResponse = leo.deleteCluster("googleProject", "clusterName").futureValue
-    clusterGetResponse shouldEqual 1
+    val clusterDeleteResponse = leo.deleteCluster("googleProject", "clusterName").futureValue
+    clusterDeleteResponse shouldEqual ()
   }
 
   "LeonardoService" should "throw ClusterNotFoundException when deleting non existent clusters" in isolatedDbTest {

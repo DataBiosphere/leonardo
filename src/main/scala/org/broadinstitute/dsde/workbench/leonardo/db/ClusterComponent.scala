@@ -77,7 +77,7 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    def deleteCluster(googleId: UUID):DBIO[Int] = {
+    def deleteCluster(googleId: UUID): DBIO[Int] = {
       clusterQuery.filter(_.googleId === googleId)
         .map(c => (c.destroyedDate, c.status))
         .update((Option(Timestamp.from(java.time.Instant.now())), ClusterStatus.Deleting.toString))
@@ -85,6 +85,16 @@ trait ClusterComponent extends LeoComponent {
 
     def updateClusterStatus(googleId: UUID, newStatus: ClusterStatus): DBIO[Int] = {
       clusterQuery.filter { _.googleId === googleId }.map(_.status).update(newStatus.toString)
+    }
+
+    def updateClusterOperation(googleId: UUID, newOperation: Option[String]): DBIO[Int] = {
+      newOperation.map { op =>
+        clusterQuery.filter { _.googleId === googleId }.map(_.operationName).update(op)
+      }.getOrElse(DBIO.successful(0))
+    }
+
+    def updateClusterName(googleId: UUID, newName: String): DBIO[Int] = {
+      clusterQuery.filter { _.googleId === googleId }.map(_.clusterName).update(newName)
     }
 
     def getIdByGoogleId(googleId: UUID): DBIO[Option[Long]] = {

@@ -2,6 +2,9 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import java.util.UUID
 
+import com.google.api.services.compute.model.Instance
+import com.google.api.services.dataproc.model.{Cluster => GoogleCluster, _}
+import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, ClusterResponse}
 
 import scala.collection.concurrent.TrieMap
@@ -22,9 +25,15 @@ class MockGoogleDataprocDAO extends DataprocDAO {
     Future.successful(clusterResponse)
   }
 
-  override def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  override def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Option[Operation]] = {
     if(clusters.contains(clusterName))
       clusters.remove(clusterName)
-    Future(())
+    Future(None)
   }
+
+  override def getCluster(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[GoogleCluster] = ???
+
+  override def getOperation(operationName: String)(implicit executionContext: ExecutionContext): Future[Operation] = ???
+
+  override def getInstance(googleProject: GoogleProject, instanceName: String)(implicit executionContext: ExecutionContext): Future[Instance] = ???
 }

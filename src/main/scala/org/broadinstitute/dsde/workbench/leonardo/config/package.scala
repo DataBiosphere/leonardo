@@ -29,4 +29,8 @@ package object config {
   implicit val proxyConfigReader: ValueReader[ProxyConfig] = ValueReader.relative { config =>
     ProxyConfig(config.getInt("jupyterPort"), config.getString("jupyterDomain"), toScalaDuration(config.getDuration("dnsPollPeriod")))
   }
+
+  implicit val monitorConfigReader: ValueReader[MonitorConfig] = ValueReader.relative { config =>
+    MonitorConfig(toScalaDuration(config.getDuration("pollPeriod")), config.getInt("maxRetries"), config.getBoolean("canRecreateCluster"))
+  }
 }

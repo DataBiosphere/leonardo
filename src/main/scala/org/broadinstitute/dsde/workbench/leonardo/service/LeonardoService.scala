@@ -41,17 +41,19 @@ class LeonardoService(gdDAO: DataprocDAO, dbRef: DbReference, val clusterMonitor
     }
   }
 
-  def deleteCluster(googleProject: GoogleProject, clusterName: String): Future[Int] = {
+  def deleteCluster(googleProject: GoogleProject, clusterName: String): Future[Unit] = {
     getClusterDetails(googleProject, clusterName) flatMap  { cluster =>
-      if(cluster.status.isActive) {
-        val deletFuture = for {
-          _ <- gdDAO.deleteCluster(googleProject, clusterName)
-          recordCount <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.deleteCluster(cluster.googleId))
-        } yield recordCount
-        deletFuture andThen { case Success(_) =>
+      if (cluster.status.isActive) {
+        for {
+          operation <- gdDAO.deleteCluster(googleProject, clusterName)
+          _ <- dbRef.inTransaction { dataAccess =>
+            dataAccess.clusterQuery.deleteCluster(cluster.googleId) andThen
+              dataAccess.clusterQuery.updateClusterOperation(cluster.googleId, operation.map(_.getName))
+          }
+        } yield {
           clusterMonitorSupervisor ! ClusterDeleted(cluster)
         }
-      } else Future.successful(0)
+      } else Future.successful(())
     }
   }
 }

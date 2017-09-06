@@ -10,11 +10,11 @@ import scala.concurrent.{ExecutionContext, Future}
 trait DataprocDAO {
   def createCluster(googleProject: String, clusterName: String, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[ClusterResponse]
 
-  def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit]
+  def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Option[Operation]]
 
   def getCluster(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[Cluster]
 
-  def getOperation(operationName: String): Future[Operation]
+  def getOperation(operationName: String)(implicit executionContext: ExecutionContext): Future[Operation]
 
-  def getInstance(googleProject: GoogleProject, instanceName: String): Future[Instance]
+  def getInstance(googleProject: GoogleProject, instanceName: String)(implicit executionContext: ExecutionContext): Future[Instance]
 }
