@@ -116,9 +116,9 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
     }
   }
 
-  override def getInstance(googleProject: GoogleProject, instanceName: String)(implicit executionContext: ExecutionContext): Future[Instance] = {
+  override def getInstance(googleProject: GoogleProject, zone: String, instanceName: String)(implicit executionContext: ExecutionContext): Future[Instance] = {
     Future {
-      val request = compute.instances().get(googleProject, dataprocConfig.dataprocDefaultZone, instanceName)
+      val request = compute.instances().get(googleProject, zone, instanceName)
       try {
         executeGoogleRequest(request)
       } catch {

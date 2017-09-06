@@ -78,14 +78,12 @@ class ClusterMonitorActor(val cluster: Cluster,
       }
 
     case Left(exception: Throwable) =>
-      // An error occurred, let the supervisor handle it
-      logger.error("Error occurred in ClusterMonitorActor", exception)
+      // An error occurred, let the supervisor handle & log it
       throw exception
 
     case Failure(exception) =>
       // Shouldn't really happen as all Futures are lifted into EitherT.
       // But take the same action anyway.
-      logger.error("Error occurred in ClusterMonitorActor", exception)
       throw exception
   }
 
@@ -188,7 +186,8 @@ class ClusterMonitorActor(val cluster: Cluster,
   private def processRunningCluster(cluster: GoogleCluster): EitherT[Future, Throwable, ReadyCluster] = {
     for {
       masterInstanceName <- getMasterInstanceName(cluster)
-      instance <- gdDAO.getInstance(cluster.getProjectId, masterInstanceName).attemptT
+      zone <- getMasterInstanceZone(cluster)
+      instance <- gdDAO.getInstance(cluster.getProjectId, zone, masterInstanceName).attemptT
       ip <- getInstanceIP(instance)
     } yield ReadyCluster(ip)
   }
@@ -233,6 +232,28 @@ class ClusterMonitorActor(val cluster: Cluster,
     } yield masterInstance
 
     EitherT(Future.successful(errorOrMasterInstanceName))
+  }
+
+  /**
+    * Gets the master instance zone (not to be confused with region), with error handling.
+    * @param cluster the Google dataproc cluster
+    * @return error or the master instance zone
+    */
+  private def getMasterInstanceZone(cluster: GoogleCluster): EitherT[Future, Throwable, String] = {
+    def parseZone(zoneUri: String): String = {
+      zoneUri.lastIndexOf('/') match {
+        case -1 => zoneUri
+        case n => zoneUri.substring(n + 1)
+      }
+    }
+
+    val errorOrMasterInstanceZone = for {
+      config <- Option(cluster.getConfig)            .toRight(ClusterMonitorException("Cluster config is null"))
+      gceConfig <- Option(config.getGceClusterConfig).toRight(ClusterMonitorException("Cluster GCE config is null"))
+      zoneUri <- Option(gceConfig.getZoneUri)           .toRight(ClusterMonitorException("Cluster zone is null"))
+    } yield parseZone(zoneUri)
+
+    EitherT(Future.successful(errorOrMasterInstanceZone))
   }
 
   /**

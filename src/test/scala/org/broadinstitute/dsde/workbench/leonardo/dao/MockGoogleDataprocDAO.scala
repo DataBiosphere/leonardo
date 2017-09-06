@@ -35,5 +35,5 @@ class MockGoogleDataprocDAO extends DataprocDAO {
 
   override def getOperation(operationName: String)(implicit executionContext: ExecutionContext): Future[Operation] = ???
 
-  override def getInstance(googleProject: GoogleProject, instanceName: String)(implicit executionContext: ExecutionContext): Future[Instance] = ???
+  override def getInstance(googleProject: GoogleProject, zone: String, instanceName: String)(implicit executionContext: ExecutionContext): Future[Instance] = ???
 }
