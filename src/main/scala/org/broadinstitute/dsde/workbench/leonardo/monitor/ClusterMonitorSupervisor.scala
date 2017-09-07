@@ -41,12 +41,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, gdDAO: DataprocDAO,
         val clusterCreatedFuture = for {
           clusterResponse <- gdDAO.createCluster(cluster.googleProject, cluster.clusterName, clusterRequest)
           newCluster <- Future.successful(Cluster(clusterRequest, clusterResponse))
-          _ <- dbRef.inTransaction { dataAccess =>
-            // Append a random suffix to the old cluster name to prevent unique key conflicts in the database.
-            // This is a bit ugly; a better solution would be to have a unique yet on (googleId, clusterName, deletedAt)
-            dataAccess.clusterQuery.updateClusterName(cluster.googleId, appendRandomSuffix(cluster.clusterName)) andThen
-              dataAccess.clusterQuery.save(newCluster)
-          }
+          _ <- dbRef.inTransaction { _.clusterQuery.save(newCluster) }
         } yield ClusterCreated(newCluster)
 
         clusterCreatedFuture.onComplete {

@@ -4,10 +4,9 @@ import akka.actor.ActorRef
 import akka.http.scaladsl.model.StatusCodes
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, ClusterResponse, ClusterStatus, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor
+import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, ClusterResponse, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted}
 import slick.dbio.DBIO
 
@@ -46,10 +45,7 @@ class LeonardoService(gdDAO: DataprocDAO, dbRef: DbReference, val clusterMonitor
       if (cluster.status.isActive) {
         for {
           operation <- gdDAO.deleteCluster(googleProject, clusterName)
-          _ <- dbRef.inTransaction { dataAccess =>
-            dataAccess.clusterQuery.deleteCluster(cluster.googleId) andThen
-              dataAccess.clusterQuery.updateClusterOperation(cluster.googleId, operation.map(_.getName))
-          }
+          _ <- dbRef.inTransaction { _.clusterQuery.deleteCluster(cluster.googleId, operation.map(_.getName)) }
         } yield {
           clusterMonitorSupervisor ! ClusterDeleted(cluster)
         }

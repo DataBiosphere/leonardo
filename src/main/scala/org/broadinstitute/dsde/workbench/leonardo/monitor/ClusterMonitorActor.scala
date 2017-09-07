@@ -131,8 +131,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       for {
         operation <- gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName).attemptT
         _ <- dbRef.inTransaction { dataAccess =>
-          dataAccess.clusterQuery.deleteCluster(cluster.googleId) andThen
-            dataAccess.clusterQuery.updateClusterOperation(cluster.googleId, operation.map(_.getName))
+          dataAccess.clusterQuery.deleteCluster(cluster.googleId, operation.map(_.getName))
         }.attemptT
       } yield ShutdownActor(Some(ClusterDeleted(cluster, recreate = true)))
     } else {
@@ -156,7 +155,7 @@ class ClusterMonitorActor(val cluster: Cluster,
   private def handleDeletedCluster(): EitherT[Future, Throwable, ShutdownActor] = {
     logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} has been deleted.")
     dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Deleted)
+      dataAccess.clusterQuery.completeDeletion(cluster.googleId, cluster.clusterName)
     }.map(_ => ShutdownActor()).attemptT
   }
 

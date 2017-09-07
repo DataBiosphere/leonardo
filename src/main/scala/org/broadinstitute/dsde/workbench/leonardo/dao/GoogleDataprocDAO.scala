@@ -111,7 +111,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
         executeGoogleRequest(request)
       } catch {
         case e: GoogleJsonResponseException =>
-          throw CallToGoogleApiFailedException("", "", e.getStatusCode, e.getDetails.getMessage)
+          throw CallToGoogleApiFailedException("operation", operationName, e.getStatusCode, e.getDetails.getMessage)
       }
     }
   }
