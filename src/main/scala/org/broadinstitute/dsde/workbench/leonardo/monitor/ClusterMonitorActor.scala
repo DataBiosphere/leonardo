@@ -62,7 +62,7 @@ class ClusterMonitorActor(val cluster: Cluster,
 
   override def receive: Receive = {
     case Right(msg) =>
-      logger.debug(s"Received message $msg")
+      logger.debug(s"ClusterMonitorActor: Received message $msg")
 
       msg match {
         case ScheduleMonitorPass() => scheduleMonitorPass
@@ -81,8 +81,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       throw exception
 
     case Failure(exception) =>
-      // Shouldn't really happen as all Futures are lifted into EitherT.
-      // But take the same action anyway.
+      // An error occurred, let the supervisor handle & log it
       throw exception
   }
 
