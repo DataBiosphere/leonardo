@@ -96,7 +96,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return error or ScheduleMonitorPass
     */
   private def handleNotReadyCluster(status: ClusterStatus): EitherT[Future, Throwable, ScheduleMonitorPass] = {
-    Future.successful(ScheduleMonitorPass()).attemptT
+    EitherT.pure(ScheduleMonitorPass())
   }
 
   /**
@@ -167,10 +167,10 @@ class ClusterMonitorActor(val cluster: Cluster,
       googleCluster <- gdDAO.getCluster(cluster.googleProject, cluster.clusterName).attemptT
       status <- getGoogleClusterStatus(googleCluster)
       result <- status match {
-        case Unknown | Creating | Updating => Future.successful(NotReadyCluster(status)).attemptT
+        case Unknown | Creating | Updating => EitherT.pure[Future, Throwable, ClusterMonitorMessage](NotReadyCluster(status))
         case Running => processRunningCluster(googleCluster)
         case Error => processFailedCluster()
-        case Deleted => Future.successful(DeletedCluster()).attemptT
+        case Deleted => EitherT.pure[Future, Throwable, ClusterMonitorMessage](DeletedCluster())
       }
     } yield result
 
