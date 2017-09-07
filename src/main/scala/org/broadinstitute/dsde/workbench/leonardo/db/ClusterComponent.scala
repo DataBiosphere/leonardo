@@ -7,6 +7,10 @@ import java.util.UUID
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
+import slick.dbio.Effect
+import slick.sql.FixedSqlAction
+
+import scala.util.Random
 
 case class ClusterRecord(id: Long,
                          clusterName: String,
@@ -61,6 +65,12 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
+    def listPending(): DBIO[Seq[Cluster]] = {
+      clusterQueryWithLabels.filter { _._1.status inSetBind ClusterStatus.pendingStatuses.map(_.toString) }.result map { recs =>
+        unmarshalClustersWithLabels(recs)
+      }
+    }
+
     // currently any string can be a GoogleProject
     // but I'm planning to fix that soon
     def getByName(project: GoogleProject, name: String): DBIO[Option[Cluster]] = {
@@ -75,17 +85,43 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    def deleteCluster(googleId: UUID):DBIO[Int] = {
-       clusterQuery.filter(_.googleId === googleId)
-         .map(c => (c.destroyedDate, c.status))
-         .update((Option(Timestamp.from(java.time.Instant.now())), ClusterStatus.Deleting.toString))
+    def deleteCluster(googleId: UUID, newOperation: Option[String]): DBIO[Int] = {
+      val query = clusterQuery.filter(_.googleId === googleId)
+      // Update the operation name if we have one
+      newOperation match {
+        case Some(op) =>
+          query.map(c => (c.destroyedDate, c.status, c.operationName))
+            .update((Option(Timestamp.from(java.time.Instant.now())), ClusterStatus.Deleting.toString, op))
+        case None =>
+          query.map(c => (c.destroyedDate, c.status))
+            .update((Option(Timestamp.from(java.time.Instant.now())), ClusterStatus.Deleting.toString))
+      }
+    }
 
+    def completeDeletion(googleId: UUID, clusterName: String): DBIO[Int] = {
+      updateClusterStatus(googleId, ClusterStatus.Deleted) andThen
+        // Append a random suffix to the cluster name to prevent unique key conflicts in case a cluster
+        // with the same name is recreated.
+        // TODO: This is a bit ugly; a better solution would be to have a unique key on (googleId, clusterName, deletedAt)
+        updateClusterName(googleId, appendRandomSuffix(clusterName))
+    }
+
+    def updateClusterStatus(googleId: UUID, newStatus: ClusterStatus): DBIO[Int] = {
+      clusterQuery.filter { _.googleId === googleId }.map(_.status).update(newStatus.toString)
+    }
+
+    private def updateClusterName(googleId: UUID, newName: String): DBIO[Int] = {
+      clusterQuery.filter { _.googleId === googleId }.map(_.clusterName).update(newName)
     }
 
     def getIdByGoogleId(googleId: UUID): DBIO[Option[Long]] = {
       clusterQuery.filter { _.googleId === googleId }.result map { recs =>
         recs.headOption map { _.id }
       }
+    }
+
+    def updateIpByGoogleId(googleId: UUID, newIp: String): DBIO[Int] = {
+      clusterQuery.filter(_.googleId === googleId).map(_.hostIp).update(Some(newIp))
     }
 
     private def marshalCluster(cluster: Cluster): ClusterRecord = {
@@ -132,6 +168,10 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.destroyedDate map { _.toInstant },
         labels
       )
+    }
+
+    private def appendRandomSuffix(str: String, n: Int = 6): String = {
+      s"${str}_${Random.alphanumeric.take(n).mkString}"
     }
 
   }

@@ -10,13 +10,14 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.json.jackson2.JacksonFactory
+import com.google.api.services.compute.Compute
+import com.google.api.services.compute.model.Instance
 import com.google.api.services.dataproc.Dataproc
 import com.google.api.services.pubsub.PubsubScopes
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, ClusterResponse, LeoException}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
-
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
@@ -35,6 +36,13 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
       JacksonFactory.getDefaultInstance, getDataProcServiceAccountCredential)
       .setApplicationName("dataproc").build()
   }
+
+  private lazy val compute = {
+    new Compute.Builder(GoogleNetHttpTransport.newTrustedTransport,
+      JacksonFactory.getDefaultInstance, getDataProcServiceAccountCredential)
+      .setApplicationName("firecloud:leonardo").build()
+  }
+
   private def getDataProcServiceAccountCredential: Credential = {
     new GoogleCredential.Builder()
       .setTransport(httpTransport)
@@ -61,7 +69,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
       val initActions = Seq(new NodeInitializationAction().setExecutableFile(dataprocConfig.dataprocInitScriptURI))
       val clusterConfig = new ClusterConfig().setGceClusterConfig(gce).setInitializationActions(initActions.asJava)
       val cluster = new Cluster().setClusterName(clusterName).setConfig(clusterConfig)
-      val request = dataproc.projects().regions().clusters().create(googleProject, dataprocConfig.dataprocDefaultZone, cluster)
+      val request = dataproc.projects().regions().clusters().create(googleProject, dataprocConfig.dataprocDefaultRegion, cluster)
       try {
         executeGoogleRequest(request)
       } catch {
@@ -70,19 +78,53 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig)(implicit v
     }
   }
 
-
-  def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Option[Operation]] = {
     Future {
       //currently, the bucketPath of the clusterRequest are not used - it will be used later as a place to store notebooks and results
-      val request = dataproc.projects().regions().clusters().delete(googleProject, dataprocConfig.dataprocDefaultZone, clusterName)
+      val request = dataproc.projects().regions().clusters().delete(googleProject, dataprocConfig.dataprocDefaultRegion, clusterName)
       try {
-        executeGoogleRequest(request)
+        Some(executeGoogleRequest(request))
       } catch {
-        case e:GoogleJsonResponseException =>
-          if(e.getStatusCode!=404)
-            throw CallToGoogleApiFailedException(googleProject, clusterName, e.getStatusCode, e.getDetails.getMessage)
+        case e: GoogleJsonResponseException if e.getStatusCode != 404 =>
+          throw CallToGoogleApiFailedException(googleProject, clusterName, e.getStatusCode, e.getDetails.getMessage)
+        case _: GoogleJsonResponseException => None
       }
     }
   }
 
+  override def getCluster(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[Cluster] = {
+    Future {
+      val request = dataproc.projects().regions().clusters().get(googleProject, dataprocConfig.dataprocDefaultRegion, clusterName)
+      try {
+        executeGoogleRequest(request)
+      } catch {
+        case e: GoogleJsonResponseException =>
+          throw CallToGoogleApiFailedException(googleProject, clusterName, e.getStatusCode, e.getDetails.getMessage)
+      }
+    }
+  }
+
+  override def getOperation(operationName: String)(implicit executionContext: ExecutionContext): Future[Operation] = {
+    Future {
+      val request = dataproc.projects().regions().operations().get(operationName)
+      try {
+        executeGoogleRequest(request)
+      } catch {
+        case e: GoogleJsonResponseException =>
+          throw CallToGoogleApiFailedException("operation", operationName, e.getStatusCode, e.getDetails.getMessage)
+      }
+    }
+  }
+
+  override def getInstance(googleProject: GoogleProject, zone: String, instanceName: String)(implicit executionContext: ExecutionContext): Future[Instance] = {
+    Future {
+      val request = compute.instances().get(googleProject, zone, instanceName)
+      try {
+        executeGoogleRequest(request)
+      } catch {
+        case e: GoogleJsonResponseException =>
+          throw CallToGoogleApiFailedException(googleProject, instanceName, e.getStatusCode, e.getDetails.getMessage)
+      }
+    }
+  }
 }

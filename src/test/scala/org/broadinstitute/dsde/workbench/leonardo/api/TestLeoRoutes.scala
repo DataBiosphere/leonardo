@@ -12,7 +12,7 @@ import scala.concurrent.duration._
   */
 trait TestLeoRoutes { this: ScalatestRouteTest =>
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO
-  val leonardoService = new LeonardoService(mockGoogleDataprocDAO, DbSingleton.ref)
+  val leonardoService = new LeonardoService(mockGoogleDataprocDAO, DbSingleton.ref, system.deadLetters)
   val proxyConfig = ProxyConfig(jupyterPort = 8001, jupyterDomain = "", dnsPollPeriod = 1 day)
   val proxyService = new MockProxyService(proxyConfig, DbSingleton.ref)
   val swaggerConfig = SwaggerConfig("", "")

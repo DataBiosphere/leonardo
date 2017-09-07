@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.{GoogleBucket, GoogleProject, GoogleServiceAccount}
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat}
+
 import scala.language.implicitConversions
 
 // maybe we want to get fancy later
@@ -21,15 +22,21 @@ object ModelTypes {
 
 object ClusterStatus extends Enumeration {
   type ClusterStatus = Value
-  val Unknown, Creating, Deleting, Deleted = Value
-  val activeStatuses = Seq(Unknown, Creating)
+  val Unknown, Creating, Running, Updating, Error, Deleting, Deleted = Value
+  val activeStatuses = Set(Unknown, Creating, Running, Updating)
+  val pendingStatuses = Set(Unknown, Creating, Updating, Deleting)
 
-  class StatusValue(status: Value) {
-    def isActive:Boolean = activeStatuses contains status
+  class StatusValue(status: ClusterStatus) {
+    def isActive: Boolean = activeStatuses contains status
+    def isPending: Boolean = pendingStatuses contains status
   }
-  implicit def enumConvert(status: Value): StatusValue = new StatusValue(status)
+  implicit def enumConvert(status: ClusterStatus): StatusValue = new StatusValue(status)
 
-  def withNameOpt(s: String): Option[Value] = values.find(_.toString == s)
+  def withNameOpt(s: String): Option[ClusterStatus] = values.find(_.toString == s)
+
+  def withNameIgnoreCase(str: String): Option[ClusterStatus] = {
+    values.find(_.toString.equalsIgnoreCase(str))
+  }
 }
 
 object Cluster {
