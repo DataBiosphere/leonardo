@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 
 import scala.concurrent.Future
-import scala.util.{Failure, Random, Success}
+import scala.util.{Failure, Success}
 
 object ClusterMonitorSupervisor {
   def props(monitorConfig: MonitorConfig, gdDAO: DataprocDAO, dbRef: DbReference): Props =
@@ -72,9 +72,5 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, gdDAO: DataprocDAO,
     OneForOneStrategy(maxNrOfRetries = monitorConfig.maxRetries) {
       case _ => Restart
     }
-  }
-
-  private def appendRandomSuffix(str: String): String = {
-    s"${str}_${Random.alphanumeric.take(6).mkString}"
   }
 }
