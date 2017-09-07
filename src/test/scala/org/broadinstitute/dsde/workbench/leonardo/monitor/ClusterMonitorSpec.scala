@@ -184,7 +184,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     createClusterSupervisor(dao) ! ClusterDeleted(deletingCluster)
 
     expectMsgClass(5 seconds, classOf[Terminated])
-    val updatedCluster = dbFutureValue { _.clusterQuery.getByName(deletingCluster.googleProject, deletingCluster.clusterName) }
+    val updatedCluster = dbFutureValue { _.clusterQuery.getByGoogleId(deletingCluster.googleId) }
     updatedCluster shouldBe 'defined
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Deleted)
     updatedCluster.flatMap(_.hostIp) shouldBe deletingCluster.hostIp
