@@ -219,7 +219,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       googleStatus <- withNameIgnoreCase(state).toRight(ClusterMonitorException(s"Unknown Google cluster status: $state"))
     } yield googleStatus
 
-    EitherT(Future.successful(errorOrGoogleStatus))
+    EitherT.fromEither[Future](errorOrGoogleStatus)
   }
 
   /**
@@ -235,7 +235,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       masterInstance <- instanceNames.asScala.headOption    .toRight(ClusterMonitorException("Master instance not found"))
     } yield masterInstance
 
-    EitherT(Future.successful(errorOrMasterInstanceName))
+    EitherT.fromEither[Future](errorOrMasterInstanceName)
   }
 
   /**
@@ -257,7 +257,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       zoneUri <- Option(gceConfig.getZoneUri)           .toRight(ClusterMonitorException("Cluster zone is null"))
     } yield parseZone(zoneUri)
 
-    EitherT(Future.successful(errorOrMasterInstanceZone))
+    EitherT.fromEither[Future](errorOrMasterInstanceZone)
   }
 
   /**
@@ -273,7 +273,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       accessConfig <- accessConfigs.asScala.headOption   .toRight(ClusterMonitorException("Access config not found"))
     } yield accessConfig.getNatIP
 
-    EitherT(Future.successful(errorOrIp))
+    EitherT.fromEither[Future](errorOrIp)
   }
 
   /**
@@ -288,6 +288,6 @@ class ClusterMonitorActor(val cluster: Cluster,
       code <- Option(error.getCode)      .toRight(ClusterMonitorException("Operation code is null"))
     } yield (code.toInt, Option(error.getMessage))
 
-    EitherT(Future.successful(errorOrCodeAndMessage))
+    EitherT.fromEither[Future](errorOrCodeAndMessage)
   }
 }
