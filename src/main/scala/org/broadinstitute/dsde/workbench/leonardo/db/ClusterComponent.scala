@@ -87,6 +87,7 @@ trait ClusterComponent extends LeoComponent {
 
     def deleteCluster(googleId: UUID, newOperation: Option[String]): DBIO[Int] = {
       val query = clusterQuery.filter(_.googleId === googleId)
+      // Update the operation name if we have one
       newOperation match {
         case Some(op) =>
           query.map(c => (c.destroyedDate, c.status, c.operationName))
@@ -99,7 +100,7 @@ trait ClusterComponent extends LeoComponent {
 
     def completeDeletion(googleId: UUID, clusterName: String): DBIO[Int] = {
       updateClusterStatus(googleId, ClusterStatus.Deleted) andThen
-        // Append a random suffix to the cluster name to prevent unique key conflicts in the database in case a cluster
+        // Append a random suffix to the cluster name to prevent unique key conflicts in case a cluster
         // with the same name is recreated.
         // TODO: This is a bit ugly; a better solution would be to have a unique key on (googleId, clusterName, deletedAt)
         updateClusterName(googleId, appendRandomSuffix(clusterName))
@@ -169,8 +170,8 @@ trait ClusterComponent extends LeoComponent {
       )
     }
 
-    private def appendRandomSuffix(str: String): String = {
-      s"${str}_${Random.alphanumeric.take(6).mkString}"
+    private def appendRandomSuffix(str: String, n: Int = 6): String = {
+      s"${str}_${Random.alphanumeric.take(n).mkString}"
     }
 
   }

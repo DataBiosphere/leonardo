@@ -67,8 +67,8 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, gdDAO: DataprocDAO,
   }
 
   override val supervisorStrategy = {
-    // TODO add threshold monitoring stuff
-    // for now always restart
+    // TODO add threshold monitoring stuff from Rawls
+    // for now always restart the child actor in case of failure
     OneForOneStrategy(maxNrOfRetries = monitorConfig.maxRetries) {
       case _ => Restart
     }
