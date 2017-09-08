@@ -5,6 +5,16 @@ Notebook service
 
 ## Building service
 
+To install git-secrets
+```$xslt
+brew install git-secrets
+```
+To ensure git hooks are run
+```$xslt
+cp -r hooks/ .git/hooks/
+chmod 755 .git/hooks/apply-git-secrets.sh
+```
+
 To build jar and docker image
 ```
 ./docker/build.sh jar -d build
