@@ -20,13 +20,14 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   val dataprocConfig = ConfigFactory.load().as[DataprocConfig]("dataproc")
 
-  val gdDAO = new MockGoogleDataprocDAO
-  val leo = new LeonardoService(gdDAO, DbSingleton.ref)
+  val gdDAO = new MockGoogleDataprocDAO(dataprocConfig)
+  val leo = new LeonardoService(dataprocConfig, gdDAO, DbSingleton.ref)
+
+  private val testClusterRequest = ClusterRequest("bucketPath", "serviceAccount", Map.empty)
 
   "LeonardoService" should "create and get a cluster" in isolatedDbTest {
-    val clusterRequest = ClusterRequest("bucketPath", "serviceAccount", Map[String, String]())
 
-    val clusterCreateResponse = leo.createCluster("googleProject", "clusterName", clusterRequest).futureValue
+    val clusterCreateResponse = leo.createCluster("googleProject", "clusterName", testClusterRequest).futureValue
     val clusterGetResponse = leo.getClusterDetails("googleProject", "clusterName").futureValue
 
     clusterCreateResponse shouldEqual clusterGetResponse
@@ -41,18 +42,16 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   "LeonardoService" should "throw ClusterAlreadyExistsException when creating a cluster with same name and project as an existing cluster" in isolatedDbTest {
-    val clusterRequest = ClusterRequest("bucketPath", "serviceAccount", Map[String, String]())
-    val clusterCreateResponse = leo.createCluster("googleProject1", "clusterName1", clusterRequest).futureValue
+    val clusterCreateResponse = leo.createCluster("googleProject1", "clusterName1", testClusterRequest).futureValue
 
-    whenReady( leo.createCluster("googleProject1", "clusterName1", clusterRequest).failed ) { exc =>
+    whenReady( leo.createCluster("googleProject1", "clusterName1", testClusterRequest).failed ) { exc =>
       exc shouldBe a [ClusterAlreadyExistsException]
     }
   }
 
   "LeonardoService" should "delete a cluster" in isolatedDbTest {
-    val clusterRequest = ClusterRequest("bucketPath", "serviceAccount", Map[String, String]())
 
-    val clusterCreateResponse = leo.createCluster("googleProject", "clusterName", clusterRequest).futureValue
+    val clusterCreateResponse = leo.createCluster("googleProject", "clusterName", testClusterRequest).futureValue
     val clusterGetResponse = leo.deleteCluster("googleProject", "clusterName").futureValue
     clusterGetResponse shouldEqual 1
   }
@@ -62,6 +61,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     whenReady( leo.deleteCluster("nonexistent", "cluster").failed ) { exc =>
       exc shouldBe a [ClusterNotFoundException]
     }
+  }
+
+  "LeonardoService" should "initialize bucket with correct files" in isolatedDbTest {
+
+    leo.initializeBucket("googleProject", "cluster", "bucket")
   }
 
 

@@ -1,11 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
-import com.google.api.services.dataproc.model._
-import com.google.api.services.dataproc.model.{Cluster => GoogleCluster}
-import com.google.api.services.dataproc.model.{Operation => DataprocOperation}
-import com.google.api.services.compute.model.{Operation => ComputeOperation}
-import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig}
-import org.broadinstitute.dsde.workbench.google.GoogleUtilities
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import com.google.api.client.auth.oauth2.Credential
@@ -14,33 +8,46 @@ import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.{AbstractInputStreamContent, FileContent, InputStreamContent}
 import com.google.api.client.json.jackson2.JacksonFactory
-import com.google.api.services.compute.ComputeScopes
-import com.google.api.services.compute.Compute
-import com.google.api.services.compute.model.Firewall
-import com.google.api.services.compute.model.Firewall.Allowed
+import com.google.api.services.compute.{Compute, ComputeScopes}
+import com.google.api.services.compute.model.{Operation => ComputeOperation}
+import com.google.api.services.compute.model.{Firewall => GoogleFirewall}
+import com.google.api.services.compute.model.Firewall.{Allowed => GoogleAllowed}
+import com.google.api.services.dataproc.model.{Cluster => GoogleCluster, Operation => DataprocOperation, _}
 import com.google.api.services.dataproc.Dataproc
 import com.google.api.services.plus.PlusScopes
 import com.google.api.services.storage.{Storage, StorageScopes}
-import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
-import spray.json._
 import com.google.api.services.storage.model.{Bucket, StorageObject}
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterInitValues, ClusterRequest, ClusterResponse, LeoException}
-import java.io.{ByteArrayInputStream, File}
+import java.io.{ByteArrayInputStream, File, IOException}
 import java.nio.charset.StandardCharsets
 import java.util.UUID
-
+import org.broadinstitute.dsde.workbench.google.GoogleUtilities
+import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, ClusterResponse, LeoException, _}
+import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
-
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
+import spray.json._
 
-case class BucketNotCreatedException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Cluster $googleProject/$clusterName failed to create required resource.", StatusCodes.InternalServerError)
-case class BucketInsertionException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Cluster $googleProject/$clusterName failed to upload Jupyter certificates", StatusCodes.InternalServerError)
-case class ClusterNotCreatedException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Failed to create cluster $googleProject/$clusterName", StatusCodes.InternalServerError)
-case class FirewallRuleInaccessibleException(googleProject: GoogleProject, firewallRule: String) extends LeoException(s"Unable to access firewall rule $googleProject/$firewallRule", StatusCodes.InternalServerError)
-case class FirewallRuleInsertionException(googleProject: GoogleProject, firewallRule: String) extends LeoException(s"Unable to insert new firewall rule $googleProject/$firewallRule", StatusCodes.InternalServerError)
-case class CallToGoogleApiFailedException(googleProject: GoogleProject, clusterName:String, exceptionStatusCode: Int, errorMessage:String) extends LeoException(s"Call to Google API failed for $googleProject/$clusterName. Message: $errorMessage",exceptionStatusCode)
+case class BucketNotCreatedException(googleProject: GoogleProject, clusterName: String)
+  extends LeoException(s"Cluster $googleProject/$clusterName failed to create required resource.", StatusCodes.InternalServerError)
+case class BucketInsertionException(googleProject: GoogleProject, clusterName: String)
+  extends LeoException(s"Cluster $googleProject/$clusterName failed to upload Jupyter certificates", StatusCodes.InternalServerError)
+case class ClusterNotCreatedException(googleProject: GoogleProject, clusterName: String)
+  extends LeoException(s"Failed to create cluster $googleProject/$clusterName", StatusCodes.InternalServerError)
+case class FirewallRuleInaccessibleException(googleProject: GoogleProject, firewallRule: String)
+  extends LeoException(s"Unable to access firewall rule $googleProject/$firewallRule", StatusCodes.InternalServerError)
+case class FirewallRuleInsertionException(googleProject: GoogleProject, firewallRule: String)
+  extends LeoException(s"Unable to insert new firewall rule $googleProject/$firewallRule", StatusCodes.InternalServerError)
+case class CallToGoogleApiFailedException(googleProject: GoogleProject, clusterName:String, exceptionStatusCode: Int, errorMessage: String)
+  extends LeoException(s"Call to Google API failed for $googleProject/$clusterName. Message: $errorMessage",exceptionStatusCode)
+case class InitializationFileException(googleProject: GoogleProject, clusterName: String)
+  extends LeoException(s"Unable to process initialization files for $googleProject/$clusterName.", StatusCodes.Conflict)
+case class TemplatingException(filePath: String)
+  extends LeoException(s"Unable to template file: $filePath.", StatusCodes.Conflict)
+case class FirewallRuleNotFoundException(googleProjet: GoogleProject, firewallRuleName: String)
+  extends LeoException(s"Firewall rule $firewallRuleName not found in project $googleProjet", StatusCodes.NotFound)
+
 
 class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected val proxyConfig: ProxyConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
   extends DataprocDAO with GoogleUtilities {
@@ -54,12 +61,17 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
 
   private lazy val dataproc = {
     new Dataproc.Builder(httpTransport, jsonFactory, getServiceAccountCredential(cloudPlatformScopes))
-      .setApplicationName("dataproc").build()
+      .setApplicationName(dataprocConfig.applicationName).build()
   }
 
   private lazy val storage = {
     new Storage.Builder(httpTransport, jsonFactory, getServiceAccountCredential(storageScopes))
-      .setApplicationName("storage").build()
+      .setApplicationName(dataprocConfig.applicationName).build()
+  }
+
+  private lazy val compute = {
+    new Compute.Builder(httpTransport,jsonFactory,getServiceAccountCredential(vmScopes))
+      .setApplicationName(dataprocConfig.applicationName).build()
   }
 
 
@@ -73,133 +85,17 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       .build()
   }
 
-  /* Creates a cluster in the given google project:
-       - Add a firewall rule to the user's google project if it doesn't exist, so we can access the cluster
-       - Create the initialization bucket for the cluster in the leo google project
-       - Upload all the necessary initialization files to the bucket
-       - Create the cluster in the google project
-     Currently, the bucketPath of the clusterRequest is not used - it will be used later as a place to store notebook results */
-  def createCluster(googleProject: GoogleProject, clusterName: String, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
-    // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
-    updateFirewallRules(googleProject)
-
-    val bucketName = s"${clusterName}-${UUID.randomUUID.toString}"
-    // Create the bucket in leo's google bucket and populate with initialization files
-    val bucketResponse = initializeBucket(dataprocConfig.leoGoogleBucket, clusterName, bucketName)
-    // Once the bucket is ready, build the cluster
-    bucketResponse.flatMap[ClusterResponse] { _ =>
-      val operation = build(googleProject, clusterName, clusterRequest, bucketName)
+  def createCluster(googleProject: GoogleProject, clusterName: String, clusterRequest: ClusterRequest, bucketName: String)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
+    buildCluster(googleProject, clusterName, clusterRequest, bucketName).map { operation =>
       // Once the cluster creation request is sent to Google, it returns a DataprocOperation, which we transform into a ClusterResponse
-      operation.map { op =>
-        val metadata = op.getMetadata
-        ClusterResponse(clusterName, googleProject, metadata.get("clusterUuid").toString, metadata.get("status").toString, metadata.get("description").toString, op.getName)
-      }
+      val metadata = operation.getMetadata()
+      ClusterResponse(clusterName, googleProject, metadata.get("clusterUuid").toString, metadata.get("status").toString, metadata.get("description").toString, operation.getName)
     }
-  }
-
-  /* Adds a firewall rule in the given google project if it does not already exist. */
-  private def updateFirewallRules(googleProject: String) = {
-    val request = new Compute(httpTransport, jsonFactory, getServiceAccountCredential(vmScopes)).firewalls().get(googleProject, dataprocConfig.clusterFirewallRuleName)
-    try {
-      executeGoogleRequest(request) // returns a Firewall
-    } catch {
-      case e: GoogleJsonResponseException =>
-        if (e.getStatusCode == 404)
-          addFirewallRule(googleProject)
-        else
-          throw new FirewallRuleInaccessibleException(googleProject, dataprocConfig.clusterFirewallRuleName)
-    }
-  }
-
-  /* Adds a firewall rule in the given google project. This firewall rule allows ingress traffic through a specified port for all
-     VMs with the network tag "leonardo". This rule should only be added once per project.
-    To think about: do we want to remove this rule if a google project no longer has any clusters? */
-  private def addFirewallRule(googleProject: String): Future[ComputeOperation] = {
-    Future {
-      // Create an Allowed object that specifies the port and protocol of rule
-      val allowed = new Allowed().setIPProtocol(proxyConfig.jupyterProtocol).setPorts(List(proxyConfig.jupyterPort.toString).asJava)
-      // Create a firewall rule that takes an Allowed object, a name, and the network tag a cluster must have to be accessed through the rule
-      val firewallRule = new Firewall()
-        .setName(dataprocConfig.clusterFirewallRuleName)
-        .setTargetTags(List(dataprocConfig.clusterNetworkTag).asJava)
-        .setAllowed(List(allowed).asJava)
-
-      val request = new Compute(httpTransport, jsonFactory, getServiceAccountCredential(vmScopes)).firewalls().insert(googleProject, firewallRule)
-
-      try {
-        executeGoogleRequest(request) // returns a ComputeOperation
-      } catch {
-        case e: GoogleJsonResponseException => throw new FirewallRuleInsertionException(googleProject, dataprocConfig.clusterFirewallRuleName)
-      }
-    }
-  }
-
-  /* Create init bucket for the cluster and populate it with the cluster initialization files */
-  private def initializeBucket(googleProject: GoogleProject, clusterName: String, bucketName: String): Future[(Bucket, Array[StorageObject])] = {
-    for {
-      // Create a bucket for the cluster
-      bucketResponse <- createBucket(googleProject, clusterName, bucketName)
-      // Add initialization files after the bucket has been created
-      storageObjectsResponse <- initializeBucketObjects(googleProject, clusterName, bucketName)
-    } yield {
-      (bucketResponse, storageObjectsResponse)
-    }
-  }
-
-  /* Create a bucket in the given google project for the initialization files when creating a cluster */
-  private def createBucket(googleProject: GoogleProject, clusterName: String, bucketName:String): Future[Bucket] = {
-    Future {
-      val bucket = new Bucket().setName(bucketName)
-      val bucketInserter = storage.buckets().insert(googleProject, bucket)
-      try {
-        executeGoogleRequest(bucketInserter) // returns a Bucket
-      } catch {
-        case e: GoogleJsonResponseException => throw new BucketNotCreatedException(googleProject, clusterName)
-      }
-    }
-  }
-
-  /* Process the templated cluster init script and put all initialization files in the init bucket */
-  private def initializeBucketObjects(googleProject: GoogleProject, clusterName: String, bucketName: String): Future[Array[StorageObject]] = {
-    Future {
-      // Get the init script
-      val initScriptRaw = scala.io.Source.fromFile(dataprocConfig.configFolderPath + dataprocConfig.initActionsScriptName).mkString
-      // Get a map of the template values to be replaced
-      val replacements = ClusterInitValues(googleProject, clusterName, bucketName, dataprocConfig).toJson.asJsObject.fields
-      // Replace templated values in the raw init script with actual values before populating the bucket
-      val initScript = replacements.foldLeft(initScriptRaw)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", b._2.toString()))
-      // Create InputStreamContent using the new init script
-      val content = new InputStreamContent(null, new ByteArrayInputStream(initScript.getBytes(StandardCharsets.UTF_8)))
-      // Put init script in bucket
-      val initScriptStorageObject = populateBucket(googleProject, bucketName, dataprocConfig.initActionsScriptName, content)
-
-      // Create an array of all the certs, cluster docker compose file, and the site.conf for the apache proxy
-      val certs = Array(dataprocConfig.jupyterServerCrtName, dataprocConfig.jupyterServerKeyName, dataprocConfig.jupyterRootCaPemName,
-        dataprocConfig.clusterDockerComposeName, dataprocConfig.jupyterProxySiteConfName)
-      // Put the rest of the initialization files in the init bucket
-      val storageObjects = certs.map { certName => populateBucket(googleProject, bucketName, certName, new FileContent(null, new File(dataprocConfig.configFolderPath, certName))) }
-      // Return an array of all the Storage Objects
-      storageObjects :+ initScriptStorageObject
-    }
-  }
-
-  /* Upload the given file into the given bucket */
-  private def populateBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: AbstractInputStreamContent): StorageObject = {
-    // Create a storage object
-    val storageObject = new StorageObject().setName(fileName)
-    // Create a storage object insertion request
-    val fileInserter = storage.objects().insert(bucketName, storageObject, content)
-    // Enable direct media upload
-    fileInserter.getMediaHttpUploader().setDirectUploadEnabled(true)
-    try {
-      executeGoogleRequest(fileInserter) //returns a StorageObject
-    } catch {
-      case e: GoogleJsonResponseException => throw new BucketInsertionException(googleProject, bucketName)
-    }
+    // ??? need error handling here
   }
 
   /* Kicks off building the cluster. This will return before the cluster finishes creating. */
-  private def build(googleProject: GoogleProject, clusterName: String, clusterRequest: ClusterRequest, bucketName: String)(implicit executionContext: ExecutionContext): Future[DataprocOperation] = {
+  private def buildCluster(googleProject: GoogleProject, clusterName: String, clusterRequest: ClusterRequest, bucketName: String)(implicit executionContext: ExecutionContext): Future[DataprocOperation] = {
     Future {
       // Create a GceClusterConfig, which has the common config settings for resources of Google Compute Engine cluster instances,
       //   applicable to all instances in the cluster. Give it the user's service account.
@@ -231,8 +127,92 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       try {
         executeGoogleRequest(request) // returns a DataprocOperation
       } catch {
-        case e: GoogleJsonResponseException => throw new ClusterNotCreatedException(googleProject, clusterName)
+        case e: GoogleJsonResponseException => throw ClusterNotCreatedException(googleProject, clusterName)
       }
+    }
+  }
+
+
+  def updateFirewallRule(googleProject: GoogleProject): Future[Unit] = {
+    getFirewallRule(googleProject, dataprocConfig.clusterFirewallRuleName).recoverWith {
+      case e: FirewallRuleNotFoundException => addFirewallRule(googleProject)
+      case _: Throwable => throw FirewallRuleInaccessibleException(googleProject, dataprocConfig.clusterFirewallRuleName)
+    }.mapTo[Unit]
+  }
+
+
+  private def getFirewallRule(googleProject: String, firewallRuleName: String): Future[GoogleFirewall] = {
+    Future {
+      val request = compute.firewalls().get(googleProject, firewallRuleName)
+      executeGoogleRequest(request) // returns a Firewall
+    } recoverWith {
+      case e: GoogleJsonResponseException if e.getStatusCode == 404 => throw FirewallRuleNotFoundException(googleProject, firewallRuleName)
+    }
+  }
+
+
+  /* Adds a firewall rule in the given google project. This firewall rule allows ingress traffic through a specified port for all
+     VMs with the network tag "leonardo". This rule should only be added once per project.
+    To think about: do we want to remove this rule if a google project no longer has any clusters? */
+  private def addFirewallRule(googleProject: GoogleProject): Future[ComputeOperation] = {
+    Future {
+      // Create an Allowed object that specifies the port and protocol of rule
+     //val allowedList = firewallRule.allowed.map(allowedPair => new GoogleAllowed().setIPProtocol(allowedPair.protocol).setPorts(allowedPair.port.asJava))
+      val allowed = new GoogleAllowed().setIPProtocol(proxyConfig.jupyterProtocol).setPorts(List(proxyConfig.jupyterPort.toString).asJava)
+      // Create a firewall rule that takes an Allowed object, a name, and the network tag a cluster must have to be accessed through the rule
+      val googleFirewallRule = new GoogleFirewall()
+        .setName(dataprocConfig.clusterFirewallRuleName)
+        .setTargetTags(List(dataprocConfig.clusterNetworkTag).asJava)
+        .setAllowed(List(allowed).asJava)
+
+      val request = compute.firewalls().insert(googleProject, googleFirewallRule)
+
+      executeGoogleRequest(request) // returns a ComputeOperation
+    } recoverWith {
+      case e: GoogleJsonResponseException => throw FirewallRuleInsertionException(googleProject, dataprocConfig.clusterFirewallRuleName)
+    }
+  }
+  // ??? Should the configs be in gdDAO? Should we just pass stuff to the functions?
+
+
+  /* Create a bucket in the given google project for the initialization files when creating a cluster */
+  def createBucket(googleProject: GoogleProject, bucketName: String): Future[Unit] = {
+    Future {
+      val bucket = new Bucket().setName(bucketName)
+      val bucketInserter = storage.buckets().insert(googleProject, bucket)
+      executeGoogleRequest(bucketInserter) // returns a Bucket
+    } recoverWith {
+      case e: GoogleJsonResponseException => throw BucketNotCreatedException(googleProject, bucketName)
+    } map { bucket =>
+      BucketResponse(bucket.getName, bucket.getTimeCreated.toString)
+    }
+  }
+
+  def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: File): Future[Unit] = {
+    val fileContent = new FileContent(null, content)
+    uploadToBucket(googleProject, bucketName, fileName, fileContent).mapTo[Unit]
+  }
+
+  def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: String): Future[Unit] = {
+    val inputStreamContent = new InputStreamContent(null, new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8)))
+    uploadToBucket(googleProject, bucketName, fileName, inputStreamContent).mapTo[Unit]
+  }
+
+  /* Upload the given file into the given bucket */
+  private def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: AbstractInputStreamContent): Future[StorageObjectResponse] = {
+    Future {
+      // Create a storage object
+      val storageObject = new StorageObject().setName(fileName)
+      // Create a storage object insertion request
+      val fileInserter = storage.objects().insert(bucketName, storageObject, content)
+      // Enable direct media upload
+      fileInserter.getMediaHttpUploader().setDirectUploadEnabled(true)
+      executeGoogleRequest(fileInserter) //returns a StorageObject
+    }.recoverWith {
+      case e: GoogleJsonResponseException => throw BucketInsertionException(googleProject, bucketName)
+    } map { storageObject =>
+      StorageObjectResponse(storageObject.getName, storageObject.getBucket, storageObject.getTimeCreated.toString)
+
     }
   }
 

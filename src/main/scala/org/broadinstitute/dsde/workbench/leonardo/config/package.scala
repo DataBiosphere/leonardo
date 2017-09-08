@@ -1,9 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import net.ceedubs.ficus.readers.ValueReader
-import org.broadinstitute.dsde.workbench.model._
-import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import net.ceedubs.ficus.Ficus._
+import net.ceedubs.ficus.readers.ValueReader
+import org.broadinstitute.dsde.workbench.util.toScalaDuration
+
 
 package object config {
   implicit val swaggerReader: ValueReader[SwaggerConfig] = ValueReader.relative { config =>
@@ -14,12 +14,14 @@ package object config {
   }
 
   implicit val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
-    DataprocConfig(config.getString("serviceAccount"),
+    DataprocConfig(config.getString("applicationName"),
+      config.getString("serviceAccount"),
       config.getString("dataprocDefaultZone"),
       config.getString("leoGoogleBucket"),
       config.getString("dataprocDockerImage"),
       config.getString("jupyterProxyDockerImage"),
       config.getString("clusterFirewallRuleName"),
+      config.getString("clusterFirewallVPCNetwork"),
       config.getString("clusterNetworkTag"),
       config.getString("configFolderPath"),
       config.getString("initActionsFileName"),

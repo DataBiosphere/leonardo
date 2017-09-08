@@ -1,22 +1,29 @@
 package org.broadinstitute.dsde.workbench.leonardo.model
 
-import java.time.Instant
-import java.util.UUID
-
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import com.typesafe.config.ConfigFactory
+import java.time.Instant
+import java.util.UUID
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
-import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.{GoogleBucket, GoogleProject, GoogleServiceAccount}
-import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat}
+import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.{GoogleBucket, GoogleBucketUri, GoogleProject, GoogleServiceAccount}
+
 import scala.language.implicitConversions
+import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat}
 
 // maybe we want to get fancy later
 object ModelTypes {
   type GoogleProject = String
   type GoogleServiceAccount = String
   type GoogleBucket = String
+  type GoogleBucketUri = String
+}
+
+object GoogleBucketUri {
+  def apply (bucketName: String, fileName: String): GoogleBucketUri = {
+    s"gs://${bucketName}/${fileName}"
+  }
 }
 
 object ClusterStatus extends Enumeration {
@@ -31,6 +38,7 @@ object ClusterStatus extends Enumeration {
 
   def withNameOpt(s: String): Option[Value] = values.find(_.toString == s)
 }
+
 
 object Cluster {
   def apply(clusterRequest: ClusterRequest, clusterResponse: ClusterResponse): Cluster = Cluster(
@@ -53,30 +61,6 @@ object Cluster {
     dataprocConfig.clusterUrlBase + googleProject + "/" + clusterName
   }
 }
-
-object GoogleBucketUri {
-  def apply (bucketName: String, fileName: String): String = {
-    s"gs://${bucketName}/${fileName}"
-  }
-}
-
-object ClusterInitValues {
-  def apply(googleProject: GoogleProject, clusterName: String, bucketName: String, dataprocConfig: DataprocConfig): ClusterInitValues = ClusterInitValues(
-    googleProject,
-    clusterName,
-    dataprocConfig.dataprocDockerImage,
-    dataprocConfig.jupyterProxyDockerImage,
-    GoogleBucketUri(bucketName, dataprocConfig.jupyterServerCrtName),
-    GoogleBucketUri(bucketName, dataprocConfig.jupyterServerKeyName),
-    GoogleBucketUri(bucketName, dataprocConfig.jupyterRootCaPemName),
-    GoogleBucketUri(bucketName, dataprocConfig.clusterDockerComposeName),
-    GoogleBucketUri(bucketName, dataprocConfig.jupyterProxySiteConfName),
-    dataprocConfig.jupyterServerName,
-    dataprocConfig.proxyServerName
-  )
-
-}
-
 
 case class Cluster(clusterName: String,
                    googleId: UUID,
@@ -102,20 +86,92 @@ case class ClusterResponse(clusterName: String,
                            description: String,
                            operationName: String)
 
+object ClusterInitValues {
+  def apply(googleProject: GoogleProject, clusterName: String, bucketName: String, dataprocConfig: DataprocConfig): ClusterInitValues =
+    ClusterInitValues(
+      googleProject,
+      clusterName,
+      dataprocConfig.dataprocDockerImage,
+      dataprocConfig.jupyterProxyDockerImage,
+      GoogleBucketUri(bucketName, dataprocConfig.jupyterServerCrtName),
+      GoogleBucketUri(bucketName, dataprocConfig.jupyterServerKeyName),
+      GoogleBucketUri(bucketName, dataprocConfig.jupyterRootCaPemName),
+      GoogleBucketUri(bucketName, dataprocConfig.clusterDockerComposeName),
+      GoogleBucketUri(bucketName, dataprocConfig.jupyterProxySiteConfName),
+      dataprocConfig.jupyterServerName,
+      dataprocConfig.proxyServerName
+    )
+
+}
+
 case class ClusterInitValues(googleProject: GoogleProject,
                              clusterName: String,
                              jupyterDockerImage: String,
                              proxyDockerImage: String,
-                             jupyterServerCrt: String,
-                             jupyterServerKey: String,
-                             rootCaPem: String,
-                             jupyterDockerCompose: String,
-                             jupyterProxySiteConf: String,
+                             jupyterServerCrt: GoogleBucketUri,
+                             jupyterServerKey: GoogleBucketUri,
+                             rootCaPem: GoogleBucketUri,
+                             jupyterDockerCompose: GoogleBucketUri,
+                             jupyterProxySiteConf: GoogleBucketUri,
                              jupyterServerName: String,
                              proxyServerName: String)
 
 
-case class GoogleBucketUri(uri: String)
+object FirewallRuleRequest {
+  def apply(googleProject: GoogleProject, dataprocConfig: DataprocConfig, proxyConfig: ProxyConfig): FirewallRuleRequest =
+    FirewallRuleRequest(name = dataprocConfig.clusterFirewallRuleName,
+      googleProject = googleProject,
+      targetTags = List(dataprocConfig.clusterNetworkTag),
+      port = proxyConfig.jupyterPort.toString,
+      protocol = proxyConfig.jupyterProtocol
+    )
+}
+
+case class FirewallRuleRequest(name: String,
+                               googleProject: GoogleProject,
+                               targetTags: List[String] = List.empty,
+                               port: String, // could be a number "80" or range "5000-6000"
+                               protocol: String
+                              )
+
+//object FirewallRuleResponse {
+//  def apply(name: String, VPCNetwork: String,  sourceIPRange: List[String],  targetTags: List[String],)
+//}
+
+//
+//trait Firewall
+//
+//object FirewallRule {
+//  def apply(googleProject: GoogleProject, dataprocConfig: DataprocConfig, proxyConfig: ProxyConfig): FirewallRule =
+//    FirewallRule(name = dataprocConfig.clusterFirewallRuleName,
+//      VPCNetwork = dataprocConfig.clusterFirewallVPCNetwork,
+//      targetTags = List(dataprocConfig.clusterNetworkTag),
+//      allowed = List(Allowed(proxyConfig.jupyterProtocol, List(proxyConfig.jupyterPort.toString)))
+//    )
+//}
+////
+//case class FirewallRule(name: String,
+//                        VPCNetwork: String,
+//                        targetTags: List[String],
+//                        allowed: List[Allowed]
+//                       ) extends Firewall
+//
+//
+//
+//case class FirewallRuleOperation(ruleName: String,
+//                                 googleProject: GoogleProject,
+//                                 timeCreated: String) extends Firewall
+//
+//case class Allowed(protocol: String, port: List[String]) // port could be a number "80" or range "5000-6000"
+
+case class BucketResponse(name: String, timeCreated: String)
+
+case class StorageObjectResponse(name: String,
+                                 bucketName: String,
+                                 timeCreated: String)
+
+
+case class Bucket(bucketName: String)
 
 
 object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
