@@ -33,23 +33,43 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   val initFiles = Array( dataprocConfig.clusterDockerComposeName, dataprocConfig.initActionsScriptName, dataprocConfig.jupyterServerCrtName,
     dataprocConfig.jupyterServerKeyName, dataprocConfig.jupyterRootCaPemName, dataprocConfig.jupyterProxySiteConfName)
 
-  "LeonardoService" should "create and get a cluster" in isolatedDbTest {
-    val clusterName = s"cluster-name-${UUID.randomUUID.toString}"
+  "LeonardoService" should "create a cluster" in isolatedDbTest {
+    // set unique names for our cluster
+    val clusterName = s"cluster-${UUID.randomUUID.toString}"
+    val googleProject = s"project-${UUID.randomUUID.toString}"
 
+    // create the cluster
     val clusterCreateResponse = leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
-    val clusterGetResponse = leo.getClusterDetails(googleProject, clusterName).futureValue
 
-    clusterCreateResponse shouldEqual clusterGetResponse
+    // check the create response has the correct info
     clusterCreateResponse.googleBucket shouldEqual bucketPath
     clusterCreateResponse.googleServiceAccount shouldEqual serviceAccount
 
+    // check the firewall rule was created for the project
     assert(gdDAO.firewallRules.exists(_  == (googleProject, dataprocConfig.clusterFirewallRuleName)))
 
-    assert(gdDAO.buckets.contains(clusterGetResponse.googleBucket))
+    // check the bucket was created for the cluster
+    assert(gdDAO.buckets.contains(clusterCreateResponse.googleBucket))
 
-    initFiles.map(initFile => assert(gdDAO.bucketObjects.exists(_ == (clusterGetResponse.googleBucket, initFile))))
-
+    // check the init files were added to the bucket
+    initFiles.map(initFile => assert(gdDAO.bucketObjects.exists(_ == (clusterCreateResponse.googleBucket, initFile))))
   }
+
+  "LeonardoService" should "create and get a cluster" in isolatedDbTest {
+    // set unique names for our cluster
+    val clusterName = s"cluster-${UUID.randomUUID.toString}"
+    val googleProject = s"project-${UUID.randomUUID.toString}"
+
+    // create the cluster
+    val clusterCreateResponse = leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
+
+    // get the cluster detail
+    val clusterGetResponse = leo.getClusterDetails(googleProject, clusterName).futureValue
+
+    // check the create response and get response are the same
+    clusterCreateResponse shouldEqual clusterGetResponse
+  }
+
 
   it should "throw ClusterNotFoundException for nonexistent clusters" in isolatedDbTest {
     whenReady( leo.getClusterDetails("nonexistent", "cluster").failed ) { exc =>
@@ -93,6 +113,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // assert that our bucket now exists
     assert(gdDAO.buckets.contains(bucketName))
 
+    // assert that the init files are in the bucket
     initFiles.map(initFile => assert(gdDAO.bucketObjects.exists(_ == (bucketName, initFile))))
   }
 
@@ -106,13 +127,13 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     assert(!gdDAO.firewallRules.exists(_ == (googleProject, dataprocConfig.clusterFirewallRuleName)))
 
     // create the first cluster, this should create a firewall rule in our project
-    val cluster1CreateResponse = leo.createCluster(googleProject, cluster1, testClusterRequest).futureValue
+    leo.createCluster(googleProject, cluster1, testClusterRequest).futureValue
 
     // check that there is exactly 1 firewall rule for our project
     assert(gdDAO.firewallRules.filterKeys(_ == googleProject) == 1)
 
     // create the second cluster. This should check that our project has a firewall rule and not try to add it again
-    val cluster2CreateResponse = leo.createCluster(googleProject, cluster2, testClusterRequest).futureValue
+    leo.createCluster(googleProject, cluster2, testClusterRequest).futureValue
 
     // check that there is still exactly 1 firewall rule in our project
     assert(gdDAO.firewallRules.filterKeys(_ == googleProject) == 1)
