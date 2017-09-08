@@ -1,18 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
-import java.io.{ByteArrayInputStream, File, IOException}
-import java.nio.charset.StandardCharsets
-import java.util.UUID
-
 import akka.http.scaladsl.model.StatusCodes
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig}
+import java.io.{File, IOException}
+import java.util.UUID
+import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
-import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
-
 import scala.concurrent.{ExecutionContext, Future}
 import slick.dbio.DBIO
 import spray.json._

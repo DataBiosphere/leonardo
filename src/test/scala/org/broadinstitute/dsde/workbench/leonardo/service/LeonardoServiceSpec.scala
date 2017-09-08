@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
+import java.util.UUID
+
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import com.typesafe.config.ConfigFactory
@@ -18,21 +20,35 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     super.afterAll()
   }
 
-  val dataprocConfig = ConfigFactory.load().as[DataprocConfig]("dataproc")
+  private val dataprocConfig = ConfigFactory.load().as[DataprocConfig]("dataproc")
 
-  val gdDAO = new MockGoogleDataprocDAO(dataprocConfig)
-  val leo = new LeonardoService(dataprocConfig, gdDAO, DbSingleton.ref)
+  private val gdDAO = new MockGoogleDataprocDAO(dataprocConfig)
+  private val leo = new LeonardoService(dataprocConfig, gdDAO, DbSingleton.ref)
 
-  private val testClusterRequest = ClusterRequest("bucketPath", "serviceAccount", Map.empty)
+  private val bucketPath = "bucket-path"
+  private val serviceAccount = "service-account"
+  val googleProject = "test-google-project"
+  private val testClusterRequest = ClusterRequest(bucketPath, serviceAccount, Map.empty)
+
+  val initFiles = Array( dataprocConfig.clusterDockerComposeName, dataprocConfig.initActionsScriptName, dataprocConfig.jupyterServerCrtName,
+    dataprocConfig.jupyterServerKeyName, dataprocConfig.jupyterRootCaPemName, dataprocConfig.jupyterProxySiteConfName)
 
   "LeonardoService" should "create and get a cluster" in isolatedDbTest {
+    val clusterName = s"cluster-name-${UUID.randomUUID.toString}"
 
-    val clusterCreateResponse = leo.createCluster("googleProject", "clusterName", testClusterRequest).futureValue
-    val clusterGetResponse = leo.getClusterDetails("googleProject", "clusterName").futureValue
+    val clusterCreateResponse = leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
+    val clusterGetResponse = leo.getClusterDetails(googleProject, clusterName).futureValue
 
     clusterCreateResponse shouldEqual clusterGetResponse
-    clusterCreateResponse.googleBucket shouldEqual "bucketPath"
-    clusterCreateResponse.googleServiceAccount shouldEqual "serviceAccount"
+    clusterCreateResponse.googleBucket shouldEqual bucketPath
+    clusterCreateResponse.googleServiceAccount shouldEqual serviceAccount
+
+    assert(gdDAO.firewallRules.exists(_  == (googleProject, dataprocConfig.clusterFirewallRuleName)))
+
+    assert(gdDAO.buckets.contains(clusterGetResponse.googleBucket))
+
+    initFiles.map(initFile => assert(gdDAO.bucketObjects.exists(_ == (clusterGetResponse.googleBucket, initFile))))
+
   }
 
   it should "throw ClusterNotFoundException for nonexistent clusters" in isolatedDbTest {
@@ -64,8 +80,42 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   "LeonardoService" should "initialize bucket with correct files" in isolatedDbTest {
+    // set unique names for our cluster name and bucket name
+    val clusterName = s"cluster-${UUID.randomUUID.toString}"
+    val bucketName = s"bucket-${clusterName}"
 
-    leo.initializeBucket("googleProject", "cluster", "bucket")
+    // assert that our bucket does not exist
+    assert(!gdDAO.buckets.contains(bucketName))
+
+    // create the bucket and add files
+    leo.initializeBucket(googleProject, clusterName, bucketName)
+
+    // assert that our bucket now exists
+    assert(gdDAO.buckets.contains(bucketName))
+
+    initFiles.map(initFile => assert(gdDAO.bucketObjects.exists(_ == (bucketName, initFile))))
+  }
+
+  "LeonardoService" should "create a firewall rule in a project only once when the first cluster is added" in isolatedDbTest {
+    // set unique names for the google project and the two clusters we'll be creatings
+    val cluster1 = s"cluster-${UUID.randomUUID.toString}"
+    val cluster2 = s"cluster-${UUID.randomUUID.toString}"
+    val googleProject = s"project-${UUID.randomUUID().toString}"
+
+    // assert that our google project has no firewall rules
+    assert(!gdDAO.firewallRules.exists(_ == (googleProject, dataprocConfig.clusterFirewallRuleName)))
+
+    // create the first cluster, this should create a firewall rule in our project
+    val cluster1CreateResponse = leo.createCluster(googleProject, cluster1, testClusterRequest).futureValue
+
+    // check that there is exactly 1 firewall rule for our project
+    assert(gdDAO.firewallRules.filterKeys(_ == googleProject) == 1)
+
+    // create the second cluster. This should check that our project has a firewall rule and not try to add it again
+    val cluster2CreateResponse = leo.createCluster(googleProject, cluster2, testClusterRequest).futureValue
+
+    // check that there is still exactly 1 firewall rule in our project
+    assert(gdDAO.firewallRules.filterKeys(_ == googleProject) == 1)
   }
 
 

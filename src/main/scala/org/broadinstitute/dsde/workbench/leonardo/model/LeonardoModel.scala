@@ -134,35 +134,6 @@ case class FirewallRuleRequest(name: String,
                                protocol: String
                               )
 
-//object FirewallRuleResponse {
-//  def apply(name: String, VPCNetwork: String,  sourceIPRange: List[String],  targetTags: List[String],)
-//}
-
-//
-//trait Firewall
-//
-//object FirewallRule {
-//  def apply(googleProject: GoogleProject, dataprocConfig: DataprocConfig, proxyConfig: ProxyConfig): FirewallRule =
-//    FirewallRule(name = dataprocConfig.clusterFirewallRuleName,
-//      VPCNetwork = dataprocConfig.clusterFirewallVPCNetwork,
-//      targetTags = List(dataprocConfig.clusterNetworkTag),
-//      allowed = List(Allowed(proxyConfig.jupyterProtocol, List(proxyConfig.jupyterPort.toString)))
-//    )
-//}
-////
-//case class FirewallRule(name: String,
-//                        VPCNetwork: String,
-//                        targetTags: List[String],
-//                        allowed: List[Allowed]
-//                       ) extends Firewall
-//
-//
-//
-//case class FirewallRuleOperation(ruleName: String,
-//                                 googleProject: GoogleProject,
-//                                 timeCreated: String) extends Firewall
-//
-//case class Allowed(protocol: String, port: List[String]) // port could be a number "80" or range "5000-6000"
 
 case class BucketResponse(name: String, timeCreated: String)
 

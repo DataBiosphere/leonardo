@@ -13,10 +13,10 @@ import scala.concurrent.{ExecutionContext, Future}
 
 class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extends DataprocDAO {
 
-  private val clusters: mutable.Map[String, Cluster] = new TrieMap()  // Cluster Name and Cluster
-  private val firewallRules: mutable.Map[GoogleProject, String] = new TrieMap()  // Google Project and Rule Name
-  private val buckets: mutable.Map[GoogleProject, String] = new TrieMap()  // Google Project and Bucket Name ???
-  private val bucketObjects: mutable.Map[String, String] = new TrieMap()   // Bucket Name and File Name
+  val clusters: mutable.Map[String, Cluster] = new TrieMap()  // Cluster Name and Cluster
+  val firewallRules: mutable.Map[GoogleProject, String] = new TrieMap()  // Google Project and Rule Name
+  val buckets: Array[String] = Array.empty // Array of bucket names - not keeping track of google projects since it's all in leo's project
+  val bucketObjects: mutable.Map[String, String] = new TrieMap()   // Bucket Name and File Name
 
 
   private def googleID = UUID.randomUUID().toString
@@ -47,7 +47,9 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extend
   }
 
   override def createBucket(googleProject: GoogleProject, bucketName: String): Future[Unit] = {
-    Future.successful(buckets += googleProject -> bucketName)
+    Future.successful(if (!buckets.contains(bucketName)) {
+      Future.successful(buckets +: bucketName)
+    })
   }
 
   override def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: File): Future[Unit] = {
