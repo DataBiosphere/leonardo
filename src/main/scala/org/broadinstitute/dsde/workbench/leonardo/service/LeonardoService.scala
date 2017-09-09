@@ -67,7 +67,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
       bucketResponse <- gdDAO.createBucket(googleProject, bucketName)
       storageObjectsResponse <- initializeBucketObjects(googleProject, clusterName, bucketName)
     } yield {
-      (bucketResponse, storageObjectsResponse)
+      storageObjectsResponse
     }
   }
 

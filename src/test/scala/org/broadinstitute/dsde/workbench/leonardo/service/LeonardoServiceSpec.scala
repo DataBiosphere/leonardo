@@ -27,7 +27,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   private val bucketPath = "bucket-path"
   private val serviceAccount = "service-account"
-  val googleProject = "test-google-project"
+  private val googleProject = "test-google-project"
   private val testClusterRequest = ClusterRequest(bucketPath, serviceAccount, Map.empty)
 
   val initFiles = Array( dataprocConfig.clusterDockerComposeName, dataprocConfig.initActionsScriptName, dataprocConfig.jupyterServerCrtName,

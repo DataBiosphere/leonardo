@@ -47,9 +47,10 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extend
   }
 
   override def createBucket(googleProject: GoogleProject, bucketName: String): Future[Unit] = {
-    Future.successful(if (!buckets.contains(bucketName)) {
-      Future.successful(buckets +: bucketName)
-    })
+    Future.successful(
+      if (!buckets.contains(bucketName)) {
+        buckets +: bucketName
+      })
   }
 
   override def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: File): Future[Unit] = {
