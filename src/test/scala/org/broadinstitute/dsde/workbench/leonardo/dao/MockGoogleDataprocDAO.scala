@@ -9,13 +9,14 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.{ExecutionContext, Future}
 
 class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extends DataprocDAO {
 
   val clusters: mutable.Map[String, Cluster] = new TrieMap()  // Cluster Name and Cluster
   val firewallRules: mutable.Map[GoogleProject, String] = new TrieMap()  // Google Project and Rule Name
-  val buckets: Array[String] = Array[String]() // Array of bucket names - not keeping track of google projects since it's all in leo's project
+  val buckets: mutable.ArrayBuffer[String] = new ArrayBuffer() // Array of bucket names - not keeping track of google projects since it's all in leo's project
   val bucketObjects: mutable.Map[String, String] = new TrieMap()   // Bucket Name and File Name
 
 
@@ -48,9 +49,8 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extend
 
   override def createBucket(googleProject: GoogleProject, bucketName: String): Future[Unit] = {
     Future.successful{
-      println(buckets.toString)
       if (!buckets.contains(bucketName)) {
-        buckets ++ bucketName
+        buckets += bucketName
       }
     }
   }
