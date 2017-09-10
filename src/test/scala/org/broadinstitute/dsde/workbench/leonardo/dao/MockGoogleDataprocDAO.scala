@@ -64,7 +64,7 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extend
   }
 
   private def addToBucket(googleProject: GoogleProject, bucketName: String, fileName: String): Future[Unit] = {
-    Future.successful(if (buckets.exists(_ == (googleProject, bucketName))) {
+    Future.successful(if (buckets.contains(bucketName)) {
       bucketObjects += bucketName -> fileName
     })
   }
