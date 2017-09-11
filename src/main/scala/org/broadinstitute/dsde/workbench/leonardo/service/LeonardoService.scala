@@ -39,22 +39,22 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
       case Some(_) => throw ClusterAlreadyExistsException(googleProject, clusterName)
       case None => create
     }
-
   }
+
 
   /* Creates a cluster in the given google project:
      - Add a firewall rule to the user's google project if it doesn't exist, so we can access the cluster
      - Create the initialization bucket for the cluster in the leo google project
      - Upload all the necessary initialization files to the bucket
-     - Create the cluster in the googl e project
+     - Create the cluster in the google project
    Currently, the bucketPath of the clusterRequest is not used - it will be used later as a place to store notebook results */
   def createGoogleCluster(googleProject: GoogleProject, clusterName: String, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
     val bucketName = s"${clusterName}-${UUID.randomUUID.toString}"
     for {
     // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
-      _ <- gdDAO.updateFirewallRule(googleProject)
+    //  _ <- gdDAO.updateFirewallRule(googleProject)
       // Create the bucket in leo's google bucket and populate with initialization files
-      _ <- initializeBucket(dataprocConfig.leoGoogleBucket, clusterName, bucketName)
+    //  _ <- initializeBucket(dataprocConfig.leoGoogleBucket, clusterName, bucketName)
       // Once the bucket is ready, build the cluster
       clusterResponse <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, bucketName)
     } yield {

@@ -114,7 +114,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     assert(gdDAO.buckets.contains(bucketName))
 
     // assert that the init files are in the bucket
-    initFiles.map(initFile => assert(gdDAO.bucketObjects.contains((bucketName, initFile))))
+    initFiles.map(initFile => assert(gdDAO.bucketObjects.exists(_ == (bucketName, initFile))))
   }
 
   "LeonardoService" should "create a firewall rule in a project only once when the first cluster is added" in isolatedDbTest {
