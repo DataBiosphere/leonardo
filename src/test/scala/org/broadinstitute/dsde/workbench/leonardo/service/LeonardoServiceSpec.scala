@@ -157,15 +157,14 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   "LeonardoService" should "template a script using config values" in isolatedDbTest {
     val clusterName = s"cluster-${UUID.randomUUID.toString}"
-    val bucketName = s"bucket-${clusterName}"
+    val bucketName = s"bucket-${UUID.randomUUID.toString}"
+    val googleProject = s"projet-${UUID.randomUUID.toString}"
     val filePath = dataprocConfig.configFolderPath + dataprocConfig.initActionsScriptName
     val replacements = ClusterInitValues(googleProject, clusterName, bucketName, dataprocConfig).toJson.asJsObject.fields
 
-    assert(filePath == "src/test/resources/test-init-actions.sh")
-
-    val result = leo.template("src/test/resources/test-init-actions.sh", replacements).futureValue
-
-    assert(result == "")
+    val result = leo.template(filePath, replacements).futureValue
+    val expected = s"${clusterName}\n${googleProject}\n${dataprocConfig.jupyterProxyDockerImage}"
+    assert(result == expected)
 
   }
 
