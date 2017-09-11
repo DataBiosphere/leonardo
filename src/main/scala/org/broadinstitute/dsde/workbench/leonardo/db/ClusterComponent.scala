@@ -1,14 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
-import cats.implicits._
 import java.sql.Timestamp
 import java.util.UUID
 
+import cats.implicits._
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterStatus}
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
-import slick.dbio.Effect
-import slick.sql.FixedSqlAction
 
 import scala.util.Random
 
@@ -103,10 +101,6 @@ trait ClusterComponent extends LeoComponent {
       clusterQuery.filter { _.googleId === googleId }.map(_.status).update(newStatus.toString)
     }
 
-    private def updateClusterName(googleId: UUID, newName: String): DBIO[Int] = {
-      clusterQuery.filter { _.googleId === googleId }.map(_.clusterName).update(newName)
-    }
-
     def getIdByGoogleId(googleId: UUID): DBIO[Option[Long]] = {
       clusterQuery.filter { _.googleId === googleId }.result map { recs =>
         recs.headOption map { _.id }
@@ -161,6 +155,10 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.destroyedDate map { _.toInstant },
         labels
       )
+    }
+
+    private def updateClusterName(googleId: UUID, newName: String): DBIO[Int] = {
+      clusterQuery.filter { _.googleId === googleId }.map(_.clusterName).update(newName)
     }
 
     private def appendRandomSuffix(str: String, n: Int = 6): String = {

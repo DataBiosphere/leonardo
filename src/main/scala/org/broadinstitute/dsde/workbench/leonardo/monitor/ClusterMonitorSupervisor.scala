@@ -42,10 +42,10 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, gdDAO: DataprocDAO,
           clusterResponse <- gdDAO.createCluster(cluster.googleProject, cluster.clusterName, clusterRequest)
           newCluster <- Future.successful(Cluster(clusterRequest, clusterResponse))
           _ <- dbRef.inTransaction { _.clusterQuery.save(newCluster) }
-        } yield ClusterCreated(newCluster)
+        } yield newCluster
 
         clusterCreatedFuture.onComplete {
-          case Success(c) => self ! c
+          case Success(newCluster) => self ! ClusterCreated(newCluster)
           case Failure(e) =>
             logger.error(s"Error recreating cluster ${cluster.googleProject}/${cluster.clusterName}", e)
         }
