@@ -52,9 +52,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     val bucketName = s"${clusterName}-${UUID.randomUUID.toString}"
     for {
     // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
-    //  _ <- gdDAO.updateFirewallRule(googleProject)
+      _ <- gdDAO.updateFirewallRule(googleProject)
       // Create the bucket in leo's google bucket and populate with initialization files
-    //  _ <- initializeBucket(dataprocConfig.leoGoogleBucket, clusterName, bucketName)
+      //_ <- initializeBucket(dataprocConfig.leoGoogleBucket, clusterName, bucketName)
       // Once the bucket is ready, build the cluster
       clusterResponse <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, bucketName)
     } yield {
