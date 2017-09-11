@@ -124,6 +124,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val bucketName = s"bucket-${UUID.randomUUID.toString}"
     val googleProject = s"project-${UUID.randomUUID.toString}"
 
+    gdDAO.buckets += bucketName
+
     leo.initializeBucketObjects(googleProject, clusterName, bucketName)
 
     assert(gdDAO.buckets.contains(bucketName))
