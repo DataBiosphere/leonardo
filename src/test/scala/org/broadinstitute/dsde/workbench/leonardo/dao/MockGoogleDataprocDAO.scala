@@ -23,10 +23,6 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extend
   private def googleID = UUID.randomUUID().toString
 
   override def createCluster(googleProject: String, clusterName: String, clusterRequest: ClusterRequest, bucketName: String)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
-    updateFirewallRule(googleProject)
-    createBucket(googleProject, bucketName)
-    uploadToBucket(googleProject, bucketName, "fileName", "fileContent")
-
     val clusterResponse = ClusterResponse(clusterName, googleProject, googleID, "status", "desc", "op-name")
 
     clusters += clusterName -> Cluster(clusterRequest, clusterResponse)

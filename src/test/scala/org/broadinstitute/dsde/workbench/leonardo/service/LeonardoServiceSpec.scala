@@ -118,10 +118,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   "LeonardoService" should "create a firewall rule in a project only once when the first cluster is added" in isolatedDbTest {
-    // set unique names for the google project and the two clusters we'll be creatings
+    // set unique names for the google project and the two clusters we'll be creating
     val cluster1 = s"cluster-${UUID.randomUUID.toString}"
     val cluster2 = s"cluster-${UUID.randomUUID.toString}"
-    val googleProject = s"project-${UUID.randomUUID().toString}"
+    val googleProject = s"project-${UUID.randomUUID.toString}"
 
     // assert that our google project has no firewall rules
     assert(!gdDAO.firewallRules.exists(_ == (googleProject, dataprocConfig.clusterFirewallRuleName)))
