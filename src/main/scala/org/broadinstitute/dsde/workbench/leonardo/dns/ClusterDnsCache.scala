@@ -89,7 +89,7 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
         (c.googleProject, c.clusterName) -> ClusterNotReady
     }.toMap
 
-    logger.info(s"Saved ${clusters.size} clusters to DNS cache, ${clustersWithIp.size} with IPs")
+    logger.debug(s"Saved ${clusters.size} clusters to DNS cache, ${clustersWithIp.size} with IPs")
   }
 
 }
