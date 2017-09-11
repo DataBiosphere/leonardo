@@ -9,9 +9,10 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterRequest
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterInitValues, ClusterRequest}
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
+import spray.json._
 
 class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfterAll with TestComponent with ScalaFutures with OptionValues {
 
@@ -130,13 +131,27 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.createCluster(googleProject, cluster1, testClusterRequest).futureValue
 
     // check that there is exactly 1 firewall rule for our project
-    assert(gdDAO.firewallRules.filterKeys(_ == googleProject) == 1)
+    assert(gdDAO.firewallRules.filterKeys(_ == googleProject).size == 1)
 
     // create the second cluster. This should check that our project has a firewall rule and not try to add it again
     leo.createCluster(googleProject, cluster2, testClusterRequest).futureValue
 
     // check that there is still exactly 1 firewall rule in our project
-    assert(gdDAO.firewallRules.filterKeys(_ == googleProject) == 1)
+    assert(gdDAO.firewallRules.filterKeys(_ == googleProject).size == 1)
+  }
+
+  "LeonardoService" should "template a script using config values" in isolatedDbTest {
+    val clusterName = s"cluster-${UUID.randomUUID.toString}"
+    val bucketName = s"bucket-${clusterName}"
+    val filePath = dataprocConfig.configFolderPath + dataprocConfig.initActionsScriptName
+    val replacements = ClusterInitValues(googleProject, clusterName, bucketName, dataprocConfig).toJson.asJsObject.fields
+
+    assert(filePath == "src/test/resources/test-init-actions.sh")
+
+    val result = leo.template("src/test/resources/test-init-actions.sh", replacements).futureValue
+
+    assert(result == "")
+
   }
 
 

@@ -90,7 +90,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     }.mapTo[Unit]
   }
 
-  private def template(filePath: String, replacementMap: Map[String, JsValue]): Future[String] = {
+  def template(filePath: String, replacementMap: Map[String, JsValue]): Future[String] = {
     Future {
       val raw = scala.io.Source.fromFile(filePath).mkString
       replacementMap.foldLeft(raw)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", b._2.toString()))
