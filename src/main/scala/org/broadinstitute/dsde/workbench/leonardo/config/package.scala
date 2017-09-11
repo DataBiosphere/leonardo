@@ -49,6 +49,6 @@ package object config {
   }
 
   implicit val monitorConfigReader: ValueReader[MonitorConfig] = ValueReader.relative { config =>
-    MonitorConfig(toScalaDuration(config.getDuration("pollPeriod")), config.getInt("maxRetries"), config.getBoolean("canRecreateCluster"))
+    MonitorConfig(toScalaDuration(config.getDuration("pollPeriod")), config.getInt("maxRetries"), config.getBoolean("recreateCluster"))
   }
 }

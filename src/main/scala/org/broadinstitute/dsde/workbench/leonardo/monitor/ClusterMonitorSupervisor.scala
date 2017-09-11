@@ -8,9 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
-
-import scala.concurrent.Future
-import scala.util.{Failure, Success}
+import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 
 object ClusterMonitorSupervisor {
   def props(monitorConfig: MonitorConfig, gdDAO: DataprocDAO, dbRef: DbReference): Props =
@@ -35,20 +33,10 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, gdDAO: DataprocDAO,
       startClusterMonitorActor(cluster, recreate)
 
     case RecreateCluster(cluster) =>
-      if (monitorConfig.canRecreateCluster) {
+      if (monitorConfig.recreateCluster) {
         logger.info(s"Recreating cluster ${cluster.googleProject}/${cluster.clusterName}...")
         val clusterRequest = ClusterRequest(cluster.googleBucket, cluster.googleServiceAccount, cluster.labels)
-        val clusterCreatedFuture = for {
-          clusterResponse <- gdDAO.createCluster(cluster.googleProject, cluster.clusterName, clusterRequest)
-          newCluster <- Future.successful(Cluster(clusterRequest, clusterResponse))
-          _ <- dbRef.inTransaction { _.clusterQuery.save(newCluster) }
-        } yield newCluster
-
-        clusterCreatedFuture.onComplete {
-          case Success(newCluster) => self ! ClusterCreated(newCluster)
-          case Failure(e) =>
-            logger.error(s"Error recreating cluster ${cluster.googleProject}/${cluster.clusterName}", e)
-        }
+        LeonardoService.createCluster(gdDAO, dbRef, self, cluster.googleProject, cluster.clusterName, clusterRequest)
       } else {
         logger.warn(s"Received RecreateCluster message for cluster ${cluster} but cluster recreation is disabled.")
       }
@@ -61,7 +49,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, gdDAO: DataprocDAO,
   def startClusterMonitorActor(cluster: Cluster, recreate: Boolean = false): Unit = {
     val child = createChildActor(cluster)
 
-    if (recreate && monitorConfig.canRecreateCluster) {
+    if (recreate && monitorConfig.recreateCluster) {
       context.watchWith(child, RecreateCluster(cluster))
     }
   }

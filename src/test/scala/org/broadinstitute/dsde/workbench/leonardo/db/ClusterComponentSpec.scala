@@ -82,13 +82,13 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike {
       labels = Map.empty)
     dbFailure { _.clusterQuery.save(c4) } shouldBe a[SQLException]
 
-    dbFutureValue { _.clusterQuery.deleteCluster(c1.googleId) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.markPendingDeletion(c1.googleId) } shouldEqual 1
     dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq(c2)
     val c1status = dbFutureValue { _.clusterQuery.getByGoogleId(c1.googleId) }.get
     c1status.status shouldEqual ClusterStatus.Deleting
     assert(c1status.destroyedDate.nonEmpty)
 
-    dbFutureValue { _.clusterQuery.deleteCluster(c2.googleId) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.markPendingDeletion(c2.googleId) } shouldEqual 1
     dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq()
     val c2status = dbFutureValue { _.clusterQuery.getByGoogleId(c2.googleId) }.get
     c2status.status shouldEqual ClusterStatus.Deleting

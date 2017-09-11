@@ -30,11 +30,11 @@ object ClusterStatus extends Enumeration {
   type ClusterStatus = Value
   val Unknown, Creating, Running, Updating, Error, Deleting, Deleted = Value
   val activeStatuses = Set(Unknown, Creating, Running, Updating)
-  val pendingStatuses = Set(Unknown, Creating, Updating, Deleting)
+  val monitoredStatuses = Set(Unknown, Creating, Updating, Deleting)
 
   class StatusValue(status: ClusterStatus) {
     def isActive: Boolean = activeStatuses contains status
-    def isPending: Boolean = pendingStatuses contains status
+    def isMonitored: Boolean = pendingStatuses contains status
   }
   implicit def enumConvert(status: ClusterStatus): StatusValue = new StatusValue(status)
 
@@ -91,6 +91,8 @@ case class ClusterResponse(clusterName: String,
                            status: String,
                            description: String,
                            operationName: String)
+
+case class ClusterErrorDetails(code: Int, message: Option[String])
 
 object ClusterInitValues {
   def apply(googleProject: GoogleProject, clusterName: String, bucketName: String, dataprocConfig: DataprocConfig): ClusterInitValues =

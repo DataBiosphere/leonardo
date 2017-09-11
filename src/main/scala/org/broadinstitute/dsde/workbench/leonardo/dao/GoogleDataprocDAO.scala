@@ -222,14 +222,16 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     }
   }
 
-override def getClusterStatus(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[ClusterStatus] = {
+  override def getClusterStatus(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[LeoClusterStatus] = {
     getCluster(googleProject, clusterName).map { cluster =>
-      ClusterStatus.withNameIgnoreCase(cluster.getStatus.getState)
+      LeoClusterStatus.withNameIgnoreCase(cluster.getStatus.getState)
     }
   }
 
   override def getClusterMasterInstanceIp(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[Option[String]] = {
-    val ipOpt = for {
+    // OptionT is handy when you potentially want to deal with Future[A], Option[A],
+    // Future[Option[A]], and A all in the same flatMap!
+    val ipOpt: OptionT[Future, String] = for {
       cluster <- OptionT.liftF[Future, Cluster] { getCluster(googleProject, clusterName) }
       masterInstanceName <- OptionT.fromOption { getMasterInstanceName(cluster) }
       masterInstanceZone <- OptionT.fromOption { getZone(cluster) }
@@ -237,13 +239,15 @@ override def getClusterStatus(googleProject: GoogleProject, clusterName: String)
       masterInstanceIp <- OptionT.fromOption { getInstanceIP(masterInstance) }
     } yield masterInstanceIp
 
+    // OptionT[Future, String] is simply a case class wrapper for Future[Option[String]].
+    // So this just grabs the inner value and returns it.
     ipOpt.value
   }
 
   override def getClusterErrorDetails(operationName: String)(implicit executionContext: ExecutionContext): Future[Option[ClusterErrorDetails]] = {
-    val errorOpt = for {
+    val errorOpt: OptionT[Future, ClusterErrorDetails] = for {
       operation <- OptionT.liftF[Future, Operation] { getOperation(operationName) }
-      done <- OptionT.pure { operation.getDone } if done == true
+      _ <- OptionT.pure { operation.getDone }.filter(_ == true)
       error <- OptionT.pure { operation.getError }
       code <- OptionT.pure { error.getCode }
     } yield ClusterErrorDetails(code, Option(error.getMessage))
@@ -256,12 +260,7 @@ override def getClusterStatus(googleProject: GoogleProject, clusterName: String)
     */
   private def getCluster(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[Cluster] = {
     val request = dataproc.projects().regions().clusters().get(googleProject, dataprocConfig.dataprocDefaultRegion, clusterName)
-    Future {
-      executeGoogleRequest(request)
-    } recover {
-      case e: GoogleJsonResponseException =>
-        throw CallToGoogleApiFailedException(googleProject, clusterName, e.getStatusCode, e.getDetails.getMessage)
-    }
+    executeGoogleRequestAsync(googleProject, clusterName)(request)
   }
 
   /**
@@ -269,12 +268,7 @@ override def getClusterStatus(googleProject: GoogleProject, clusterName: String)
     */
   private def getInstance(googleProject: GoogleProject, zone: String, name: String)(implicit executionContext: ExecutionContext): Future[Instance] = {
     val request = compute.instances().get(googleProject, zone, name)
-    Future {
-      executeGoogleRequest(request)
-    } recover {
-      case e: GoogleJsonResponseException =>
-        throw CallToGoogleApiFailedException(googleProject, name, e.getStatusCode, e.getDetails.getMessage)
-    }
+    executeGoogleRequestAsync(googleProject, name)(request)
   }
 
   /**
@@ -282,12 +276,7 @@ override def getClusterStatus(googleProject: GoogleProject, clusterName: String)
     */
   private def getOperation(operationName: String)(implicit executionContext: ExecutionContext): Future[Operation] = {
     val request = dataproc.projects().regions().operations().get(operationName)
-    Future {
-      executeGoogleRequest(request)
-    } recover {
-      case e: GoogleJsonResponseException =>
-        throw CallToGoogleApiFailedException("operation", operationName, e.getStatusCode, e.getDetails.getMessage)
-    }
+    executeGoogleRequestAsync("operation", operationName)(request)
   }
 
   /**
@@ -338,4 +327,12 @@ override def getClusterStatus(googleProject: GoogleProject, clusterName: String)
     } yield accessConfig.getNatIP
   }
 
+  private def executeGoogleRequestAsync[A](googleProject: GoogleProject, clusterName: String)(request: AbstractGoogleClientRequest[A])(implicit executionContext: ExecutionContext): Future[A] = {
+    Future {
+      blocking(executeGoogleRequest(request))
+    } recover {
+      case e: GoogleJsonResponseException =>
+        throw CallToGoogleApiFailedException(googleProject, clusterName, e.getStatusCode, e.getDetails.getMessage)
+    }
+  }
 }

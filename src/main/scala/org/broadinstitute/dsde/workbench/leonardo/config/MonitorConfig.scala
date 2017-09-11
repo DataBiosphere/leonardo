@@ -7,4 +7,4 @@ import scala.concurrent.duration.FiniteDuration
   */
 case class MonitorConfig(pollPeriod: FiniteDuration,
                          maxRetries: Int = -1,
-                         canRecreateCluster: Boolean = true)
+                         recreateCluster: Boolean = true)

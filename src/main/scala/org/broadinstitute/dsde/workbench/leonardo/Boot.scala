@@ -68,12 +68,11 @@ object Boot extends App with LazyLogging {
 
   private def startClusterMonitors(dbRef: DbReference, clusterMonitor: ActorRef)(implicit executionContext: ExecutionContext) = {
     dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.listPending.map { clusters =>
+      dataAccess.clusterQuery.listMonitored.map { clusters =>
         clusters.foreach { cluster =>
-          if (cluster.status == ClusterStatus.Deleting) {
-            clusterMonitor ! ClusterDeleted(cluster)
-          } else {
-            clusterMonitor ! ClusterCreated(cluster)
+          cluster.status match {
+            case Deleting => clusterMonitor ! ClusterDeleted(cluster)
+            case _ => clusterMonitor ! ClusterCreated(cluster)
           }
         }
       }

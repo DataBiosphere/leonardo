@@ -4,6 +4,7 @@ import akka.actor.{Actor, Props}
 import akka.pattern.pipe
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
+import org.broadinstitute.dsde.workbench.util.addJitter
 import org.broadinstitute.dsde.workbench.leonardo.config.MonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, DataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -13,6 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterDeleted
 
 import scala.concurrent.Future
+import scala.concurrent.duration._
 import scala.util.Failure
 
 object ClusterMonitorActor {
@@ -50,12 +52,12 @@ class ClusterMonitorActor(val cluster: Cluster,
 
   override def preStart(): Unit = {
     super.preStart()
-    scheduleMonitorPass
+    scheduleInitialMonitorPass
   }
 
   override def receive: Receive = {
     case ScheduleMonitorPass =>
-      scheduleMonitorPass
+      scheduleNextMonitorPass
 
     case QueryForCluster =>
       checkCluster pipeTo self
@@ -82,8 +84,13 @@ class ClusterMonitorActor(val cluster: Cluster,
       throw e
   }
 
-  private def scheduleMonitorPass: Unit = {
-    system.scheduler.scheduleOnce(monitorConfig.pollPeriod, self, QueryForCluster)
+  private def scheduleInitialMonitorPass: Unit = {
+    // Wait anything _up to_ the poll interval for a much wider distribution of cluster monitor start times when Leo starts up
+    system.scheduler.scheduleOnce(addJitter(0 seconds, monitorConfig.pollPeriod), self, QueryForCluster)
+  }
+
+  private def scheduleNextMonitorPass: Unit = {
+    system.scheduler.scheduleOnce(addJitter(monitorConfig.pollPeriod), self, QueryForCluster)
   }
 
   /**
@@ -106,39 +113,43 @@ class ClusterMonitorActor(val cluster: Cluster,
   private def handleReadyCluster(publicIp: String): Future[ClusterMonitorMessage] = {
     logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is ready for use!")
     dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Running) andThen
-        dataAccess.clusterQuery.updateIpByGoogleId(cluster.googleId, publicIp)
+      dataAccess.clusterQuery.setToRunning(cluster.googleId, publicIp)
     }.map(_ => ShutdownActor())
   }
 
   /**
-    * Handles a dataproc cluster which has failed. If it is a recoverable error, then we will
-    * try to delete and recreate the cluster. Otherwise, just set the status to Error in the
-    * database and stop monitoring the cluster.
+    * Handles a dataproc cluster which has failed. We delete the cluster in Google, and then:
+    * - if this is a recoverable error, recreate the cluster
+    * - otherwise, just set the status to Error and stop monitoring the cluster
     * @param errorDetails cluster error details from Google
     * @return ShutdownActor
     */
   private def handleFailedCluster(errorDetails: ClusterErrorDetails): Future[ClusterMonitorMessage] = {
-    if (shouldRecreateCluster(errorDetails.code, errorDetails.message)) {
-      // Delete the cluster in Google and update the database record to Deleting.
-      // Then shutdown this actor, but register a callback message to the supervisor
-      // telling it to recreate the cluster.
-      logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is in an error state with $errorDetails. Attempting to delete and recreate...")
-      for {
-        _ <- gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)
-        _ <- dbRef.inTransaction { _.clusterQuery.deleteCluster(cluster.googleId) }
-      } yield ShutdownActor(Some(ClusterDeleted(cluster, recreate = true)))
-    } else {
-      // Update the database record to Error and shutdown this actor.
-      logger.warn(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is in an error state with $errorDetails'. Unable to recreate cluster.")
-      for {
-        _ <- dbRef.inTransaction(_.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Error))
-      } yield ShutdownActor()
+    gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName).flatMap { _ =>
+      if (shouldRecreateCluster(errorDetails.code, errorDetails.message)) {
+        // Update the database record to Deleting, shutdown this actor, and register a callback message
+        // to the supervisor telling it to recreate the cluster.
+        logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is in an error state with $errorDetails. Attempting to recreate...")
+        dbRef.inTransaction { dataAccess =>
+          dataAccess.clusterQuery.markPendingDeletion(cluster.googleId)
+        } map { _ =>
+          ShutdownActor(Some(ClusterDeleted(cluster, recreate = true)))
+        }
+      } else {
+        // Update the database record to Error and shutdown this actor.
+        logger.warn(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is in an error state with $errorDetails'. Unable to recreate cluster.")
+        dbRef.inTransaction { dataAccess =>
+          dataAccess.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Error)
+        } map { _ =>
+          ShutdownActor()
+        }
+      }
     }
   }
 
   private def shouldRecreateCluster(code: Int, message: Option[String]): Boolean = {
-    monitorConfig.canRecreateCluster && (code == Code.UNKNOWN.value)
+    // TODO: potentially add more checks here as we learn which errors are recoverable
+    monitorConfig.recreateCluster && (code == Code.UNKNOWN.value)
   }
 
   /**

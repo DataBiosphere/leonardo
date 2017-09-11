@@ -63,8 +63,8 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    def listPending(): DBIO[Seq[Cluster]] = {
-      clusterQueryWithLabels.filter { _._1.status inSetBind ClusterStatus.pendingStatuses.map(_.toString) }.result map { recs =>
+    def listMonitored(): DBIO[Seq[Cluster]] = {
+      clusterQueryWithLabels.filter { _._1.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }.result map { recs =>
         unmarshalClustersWithLabels(recs)
       }
     }
@@ -83,7 +83,7 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    def deleteCluster(googleId: UUID): DBIO[Int] = {
+    def markPendingDeletion(googleId: UUID): DBIO[Int] = {
       clusterQuery.filter(_.googleId === googleId)
         .map(c => (c.destroyedDate, c.status))
         .update((Option(Timestamp.from(java.time.Instant.now())), ClusterStatus.Deleting.toString))
@@ -97,6 +97,12 @@ trait ClusterComponent extends LeoComponent {
         updateClusterName(googleId, appendRandomSuffix(clusterName))
     }
 
+    def setToRunning(googleId: UUID, hostIp: String): DBIO[Int] = {
+      clusterQuery.filter { _.googleId === googleId }
+        .map(c => (c.status, c.hostIp))
+        .update((ClusterStatus.Running.toString, Some(hostIp)))
+    }
+
     def updateClusterStatus(googleId: UUID, newStatus: ClusterStatus): DBIO[Int] = {
       clusterQuery.filter { _.googleId === googleId }.map(_.status).update(newStatus.toString)
     }
@@ -105,10 +111,6 @@ trait ClusterComponent extends LeoComponent {
       clusterQuery.filter { _.googleId === googleId }.result map { recs =>
         recs.headOption map { _.id }
       }
-    }
-
-    def updateIpByGoogleId(googleId: UUID, newIp: String): DBIO[Int] = {
-      clusterQuery.filter(_.googleId === googleId).map(_.hostIp).update(Some(newIp))
     }
 
     private def marshalCluster(cluster: Cluster): ClusterRecord = {

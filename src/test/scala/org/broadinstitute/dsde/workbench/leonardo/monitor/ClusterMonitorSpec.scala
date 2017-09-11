@@ -5,8 +5,6 @@ import java.util.UUID
 
 import akka.actor.{ActorRef, ActorSystem, Props, Terminated}
 import akka.testkit.TestKit
-import com.google.api.services.compute.model.{AccessConfig, Instance, NetworkInterface}
-import com.google.api.services.dataproc.model.{Cluster => GoogleCluster, ClusterStatus => GoogleClusterStatus, _}
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.leonardo.config.MonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
@@ -18,7 +16,6 @@ import org.mockito.Mockito._
 import org.scalatest.mockito.MockitoSugar
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 
-import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -63,7 +60,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   /**
     * Extends ClusterMonitorSupervisor so the akka TestKit can watch the child ClusterMontitorActor's.
     */
-  class TestSupervisor(gdDAO: DataprocDAO, dbRef: DbReference) extends ClusterMonitorSupervisor(MonitorConfig(1 second), gdDAO, dbRef) {
+  class TestSupervisor(gdDAO: DataprocDAO, dbRef: DbReference) extends ClusterMonitorSupervisor(MonitorConfig(100 millis), gdDAO, dbRef) {
     override def createChildActor(cluster: Cluster): ActorRef = {
       val child = super.createChildActor(cluster)
       testKit watch child
@@ -95,7 +92,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
 
-    expectMsgClass(5 seconds, classOf[Terminated])
+    expectMsgClass(1 second, classOf[Terminated])
     val updatedCluster = dbFutureValue { _.clusterQuery.getByName(creatingCluster.googleProject, creatingCluster.clusterName) }
     updatedCluster shouldBe 'defined
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
@@ -119,12 +116,66 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
       createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
 
-      expectNoMsg(5 seconds)
+      expectNoMsg(1 second)
 
       val updatedCluster = dbFutureValue { _.clusterQuery.getByName(creatingCluster.googleProject, creatingCluster.clusterName) }
       updatedCluster shouldBe 'defined
       updatedCluster shouldBe Some(creatingCluster)
     }
+  }
+
+  // Pre:
+  // - cluster exists in the DB with status Creating
+  // - dataproc DAO returns status RUNNING, but no IP address
+  // Post:
+  // - cluster is not changed in the DB
+  // - monitor actor does not shut down
+  it should "keep monitoring in RUNNING state with no IP" in isolatedDbTest {
+    dbFutureValue { _.clusterQuery.save(creatingCluster) } shouldEqual creatingCluster
+
+    val dao = mock[DataprocDAO]
+    when {
+      dao.getClusterStatus(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
+    } thenReturn Future.successful(ClusterStatus.Running)
+
+    when {
+      dao.getClusterMasterInstanceIp(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
+    } thenReturn Future.successful(None)
+
+    createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
+
+    expectNoMsg(1 second)
+
+    val updatedCluster = dbFutureValue { _.clusterQuery.getByName(creatingCluster.googleProject, creatingCluster.clusterName) }
+    updatedCluster shouldBe 'defined
+    updatedCluster shouldBe Some(creatingCluster)
+  }
+
+  // Pre:
+  // - cluster exists in the DB with status Creating
+  // - dataproc DAO returns status ERROR, but no error code
+  // Post:
+  // - cluster is not changed in the DB
+  // - monitor actor does not shut down
+  it should "keep monitoring in ERROR state with no error code" in isolatedDbTest {
+    dbFutureValue { _.clusterQuery.save(creatingCluster) } shouldEqual creatingCluster
+
+    val dao = mock[DataprocDAO]
+    when {
+      dao.getClusterStatus(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
+    } thenReturn Future.successful(ClusterStatus.Error)
+
+    when {
+      dao.getClusterErrorDetails(eqq("op1"))(any[ExecutionContext])
+    } thenReturn Future.successful(None)
+
+    createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
+
+    expectNoMsg(1 second)
+
+    val updatedCluster = dbFutureValue { _.clusterQuery.getByName(creatingCluster.googleProject, creatingCluster.clusterName) }
+    updatedCluster shouldBe 'defined
+    updatedCluster shouldBe Some(creatingCluster)
   }
 
   // Pre:
@@ -145,9 +196,13 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       dao.getClusterErrorDetails(eqq("op1"))(any[ExecutionContext])
     } thenReturn Future.successful(Some(ClusterErrorDetails(Code.CANCELLED.value, Some("test message"))))
 
+    when {
+      dao.deleteCluster(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
+    } thenReturn Future.successful(())
+
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
 
-    expectMsgClass(5 seconds, classOf[Terminated])
+    expectMsgClass(1 second, classOf[Terminated])
     val updatedCluster = dbFutureValue { _.clusterQuery.getByName(creatingCluster.googleProject, creatingCluster.clusterName) }
     updatedCluster shouldBe 'defined
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Error)
@@ -170,7 +225,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     createClusterSupervisor(dao) ! ClusterDeleted(deletingCluster)
 
-    expectMsgClass(5 seconds, classOf[Terminated])
+    expectMsgClass(1 second, classOf[Terminated])
     val updatedCluster = dbFutureValue { _.clusterQuery.getByGoogleId(deletingCluster.googleId) }
     updatedCluster shouldBe 'defined
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Deleted)
@@ -226,9 +281,9 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     // 1. original cluster monitor, terminates at Error status
     // 2. deletion monitor, terminates at Deleted status
     // 3. new Cluster creating monitor, terminates at Running status
-    expectMsgClass(5 seconds, classOf[Terminated])
-    expectMsgClass(5 seconds, classOf[Terminated])
-    expectMsgClass(5 seconds, classOf[Terminated])
+    expectMsgClass(1 second, classOf[Terminated])
+    expectMsgClass(1 second, classOf[Terminated])
+    expectMsgClass(1 second, classOf[Terminated])
 
     val oldCluster = dbFutureValue { _.clusterQuery.getByGoogleId(creatingCluster.googleId) }
     oldCluster shouldBe 'defined
