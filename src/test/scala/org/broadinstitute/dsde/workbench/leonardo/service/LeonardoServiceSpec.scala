@@ -119,6 +119,18 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     initFiles.map(initFile => assert(gdDAO.bucketObjects.exists(_ == (bucketName, initFile))))
   }
 
+  "LeonardoService" should "add bucket objects" in isolatedDbTest {
+    val clusterName = s"cluster-${UUID.randomUUID.toString}"
+    val bucketName = s"bucket-${UUID.randomUUID.toString}"
+    val googleProject = s"project-${UUID.randomUUID.toString}"
+
+    leo.initializeBucketObjects(googleProject, clusterName, bucketName)
+
+    assert(gdDAO.buckets.contains(bucketName))
+
+    initFiles.map(initFile => assert(gdDAO.bucketObjects.exists(_ == (bucketName, initFile))))
+  }
+
   "LeonardoService" should "create a firewall rule in a project only once when the first cluster is added" in isolatedDbTest {
     // set unique names for the google project and the two clusters we'll be creating
     val cluster1 = s"cluster-${UUID.randomUUID.toString}"
