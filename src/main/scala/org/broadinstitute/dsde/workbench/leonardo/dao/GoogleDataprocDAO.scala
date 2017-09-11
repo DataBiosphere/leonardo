@@ -231,6 +231,12 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   override def getClusterMasterInstanceIp(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[Option[String]] = {
     // OptionT is handy when you potentially want to deal with Future[A], Option[A],
     // Future[Option[A]], and A all in the same flatMap!
+    //
+    // Legend:
+    // - OptionT.pure turns an A into an OptionT[F, A]
+    // - OptionT.liftF turns an F[A] into an OptionT[F, A]
+    // - OptionT.fromOption turns an Option[A] into an OptionT[F, A]
+
     val ipOpt: OptionT[Future, String] = for {
       cluster <- OptionT.liftF[Future, Cluster] { getCluster(googleProject, clusterName) }
       masterInstanceName <- OptionT.fromOption { getMasterInstanceName(cluster) }
