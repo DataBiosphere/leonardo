@@ -44,17 +44,18 @@ class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference, clusterDnsCache
         // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
         // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
         // The presence of this header distinguishes WebSocket from http requests.
-        request.header[UpgradeToWebSocket] match {
+        val responseFuture = request.header[UpgradeToWebSocket] match {
           case Some(upgrade) => handleWebSocketRequest(targetHost, request, upgrade)
           case None => handleHttpRequest(targetHost, request)
+        }
+        responseFuture recover { case e =>
+          logger.error("Error occurred in Jupyter proxy", e)
+          throw ProxyException(googleProject, clusterName)
         }
       case ClusterNotReady =>
         throw ClusterNotReadyException(googleProject, clusterName)
       case ClusterNotFound =>
         throw ClusterNotFoundException(googleProject, clusterName)
-    } recover { case e =>
-      logger.error("Error occurred in Jupyter proxy", e)
-      throw ProxyException(googleProject, clusterName)
     }
   }
 
