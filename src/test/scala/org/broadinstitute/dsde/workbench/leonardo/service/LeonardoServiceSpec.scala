@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterInitValues, ClusterRequest}
+import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import spray.json._
