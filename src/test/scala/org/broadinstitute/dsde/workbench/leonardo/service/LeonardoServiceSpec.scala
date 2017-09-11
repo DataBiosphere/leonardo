@@ -107,7 +107,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // set unique names for our cluster name and bucket name
     val clusterName = s"cluster-${UUID.randomUUID.toString}"
     val bucketName = s"bucket-${clusterName}"
-
+    val googleProject = s"project-${UUID.randomUUID.toString}"
+    
     // assert that our bucket does not exist
     assert(!gdDAO.buckets.contains(bucketName))
 
@@ -165,7 +166,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val replacements = ClusterInitValues(googleProject, clusterName, bucketName, dataprocConfig).toJson.asJsObject.fields
 
     val result = leo.template(filePath, replacements).futureValue
-    val expected = "#!/usr/bin/env bash\n\n\"" + clusterName + "\n\"" + googleProject + "\n\"" + dataprocConfig.jupyterProxyDockerImage + "\""
+    val expected = "#!/usr/bin/env bash\n\n\"" + clusterName + "\"\n\"" + googleProject + "\"\n\"" + dataprocConfig.jupyterProxyDockerImage + "\""
 
     assert(result == expected)
 
