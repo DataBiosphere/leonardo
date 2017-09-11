@@ -50,11 +50,13 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // check the firewall rule was created for the project
     assert(gdDAO.firewallRules.exists(_  == (googleProject, dataprocConfig.clusterFirewallRuleName)))
 
-    // check the bucket was created for the cluster
-    assert(gdDAO.buckets.contains(clusterCreateResponse.googleBucket))
+    val bucketArray = gdDAO.buckets.filter(str => str.startsWith(clusterName))
+
+    // check the bucket was created for the cluster - the bucket's name should start with the cluster name
+    assert(bucketArray.size == 1)
 
     // check the init files were added to the bucket
-    initFiles.map(initFile => assert(gdDAO.bucketObjects.exists(_ == (clusterCreateResponse.googleBucket, initFile))))
+    initFiles.map(initFile => assert(gdDAO.bucketObjects.exists(_ == (bucketArray(0), initFile))))
   }
 
   "LeonardoService" should "create and get a cluster" in isolatedDbTest {
@@ -158,12 +160,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   "LeonardoService" should "template a script using config values" in isolatedDbTest {
     val clusterName = s"cluster-${UUID.randomUUID.toString}"
     val bucketName = s"bucket-${UUID.randomUUID.toString}"
-    val googleProject = s"projet-${UUID.randomUUID.toString}"
+    val googleProject = s"project-${UUID.randomUUID.toString}"
     val filePath = dataprocConfig.configFolderPath + dataprocConfig.initActionsScriptName
     val replacements = ClusterInitValues(googleProject, clusterName, bucketName, dataprocConfig).toJson.asJsObject.fields
 
     val result = leo.template(filePath, replacements).futureValue
-    val expected = s"${clusterName}\n${googleProject}\n${dataprocConfig.jupyterProxyDockerImage}"
+    val expected = s"#!/usr/bin/env bash\n\n${clusterName}\n${googleProject}\n${dataprocConfig.jupyterProxyDockerImage}"
     assert(result == expected)
 
   }

@@ -74,24 +74,19 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
   /* Process the templated cluster init script and put all initialization files in the init bucket */
   def initializeBucketObjects(googleProject: GoogleProject, clusterName: String, bucketName: String): Future[Unit] = {
     val initScriptPath = dataprocConfig.configFolderPath + dataprocConfig.initActionsScriptName
-    logger.info(s"INITSCRIPTPATH:   ${initScriptPath}")
     val replacements = ClusterInitValues(googleProject, clusterName, bucketName, dataprocConfig).toJson.asJsObject.fields
-    logger.info(s"REPLACEMENTS:   ${replacements}")
+
     template(initScriptPath, replacements).map { content =>
-      logger.info(s"CONTENT:   ${content}")
       val initScriptStorageObject = gdDAO.uploadToBucket(googleProject, bucketName, dataprocConfig.initActionsScriptName, content)
-      logger.info(s"initScriptStorageObject:   ${initScriptStorageObject}")
       // Create an array of all the certs, cluster docker compose file, and the site.conf for the apache proxy
       val certs = List(dataprocConfig.jupyterServerCrtName, dataprocConfig.jupyterServerKeyName, dataprocConfig.jupyterRootCaPemName,
         dataprocConfig.clusterDockerComposeName, dataprocConfig.jupyterProxySiteConfName)
-      logger.info(s"certs:   ${certs}")
       // Put the rest of the initialization files in the init bucket concurrently
      val storageObjects = certs.map { certName => gdDAO.uploadToBucket(googleProject, bucketName, certName, new File(dataprocConfig.configFolderPath, certName)) }
       // Return an array of all the Storage Objects
-    // Future.sequence((storageObjects :+ initScriptStorageObject))
     }.recoverWith {
       case e: IOException => throw InitializationFileException(googleProject, clusterName)
-    }//.mapTo[Unit]
+    }
   }
 
   def template(filePath: String, replacementMap: Map[String, JsValue]): Future[String] = {
