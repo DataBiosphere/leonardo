@@ -17,7 +17,7 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extend
   val clusters: mutable.Map[String, Cluster] = new TrieMap()  // Cluster Name and Cluster
   val firewallRules: mutable.Map[GoogleProject, String] = new TrieMap()  // Google Project and Rule Name
   val buckets: mutable.ArrayBuffer[String] = new ArrayBuffer() // Array of bucket names - not keeping track of google projects since it's all in leo's project
-  val bucketObjects: mutable.Map[String, String] = new TrieMap()   // Bucket Name and File Name
+  val bucketObjects: mutable.ArrayBuffer[(String, String)] = new ArrayBuffer()  // Bucket Name and File Name
 
 
   private def googleID = UUID.randomUUID().toString
@@ -65,7 +65,7 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extend
 
   private def addToBucket(googleProject: GoogleProject, bucketName: String, fileName: String): Future[Unit] = {
     Future.successful(if (buckets.contains(bucketName)) {
-      bucketObjects += bucketName -> fileName
+      bucketObjects += ((bucketName, fileName))
     })
   }
 
