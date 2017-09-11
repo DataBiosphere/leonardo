@@ -60,4 +60,22 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extend
     Future.successful(())
   }
 
+  override def getClusterStatus(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[ClusterStatus] = {
+    Future.successful {
+      if (clusters.contains(clusterName)) ClusterStatus.Running
+      else ClusterStatus.Unknown
+    }
+  }
+
+  def getClusterMasterInstanceIp(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[Option[String]] = {
+    Future.successful {
+      if (clusters.contains(clusterName)) Some("1.2.3.4")
+      else None
+    }
+  }
+
+  def getClusterErrorDetails(operationName: String)(implicit executionContext: ExecutionContext): Future[Option[ClusterErrorDetails]] = {
+    Future.successful(None)
+  }
+
 }

@@ -222,40 +222,120 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     }
   }
 
-  override def getCluster(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[Cluster] = {
-    Future {
-      val request = dataproc.projects().regions().clusters().get(googleProject, dataprocConfig.dataprocDefaultZone, clusterName)
-      try {
-        executeGoogleRequest(request)
-      } catch {
-        case e: GoogleJsonResponseException =>
-          throw CallToGoogleApiFailedException(googleProject, clusterName, e.getStatusCode, e.getDetails.getMessage)
-      }
+override def getClusterStatus(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[ClusterStatus] = {
+    getCluster(googleProject, clusterName).map { cluster =>
+      ClusterStatus.withNameIgnoreCase(cluster.getStatus.getState)
     }
   }
 
-  override def getOperation(operationName: String): Future[Operation] = {
+  override def getClusterMasterInstanceIp(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[Option[String]] = {
+    val ipOpt = for {
+      cluster <- OptionT.liftF[Future, Cluster] { getCluster(googleProject, clusterName) }
+      masterInstanceName <- OptionT.fromOption { getMasterInstanceName(cluster) }
+      masterInstanceZone <- OptionT.fromOption { getZone(cluster) }
+      masterInstance <- OptionT.liftF[Future, Instance] { getInstance(googleProject, masterInstanceZone, masterInstanceName) }
+      masterInstanceIp <- OptionT.fromOption { getInstanceIP(masterInstance) }
+    } yield masterInstanceIp
+
+    ipOpt.value
+  }
+
+  override def getClusterErrorDetails(operationName: String)(implicit executionContext: ExecutionContext): Future[Option[ClusterErrorDetails]] = {
+    val errorOpt = for {
+      operation <- OptionT.liftF[Future, Operation] { getOperation(operationName) }
+      done <- OptionT.pure { operation.getDone } if done == true
+      error <- OptionT.pure { operation.getError }
+      code <- OptionT.pure { error.getCode }
+    } yield ClusterErrorDetails(code, Option(error.getMessage))
+
+    errorOpt.value
+  }
+
+  /**
+    * Gets a dataproc Cluster from the API.
+    */
+  private def getCluster(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[Cluster] = {
+    val request = dataproc.projects().regions().clusters().get(googleProject, dataprocConfig.dataprocDefaultRegion, clusterName)
     Future {
-      val request = dataproc.projects().regions().operations().get(operationName)
-      try {
-        executeGoogleRequest(request)
-      } catch {
-        case e: GoogleJsonResponseException =>
-          throw CallToGoogleApiFailedException("operation", operationName, e.getStatusCode, e.getDetails.getMessage)
-      }
+      executeGoogleRequest(request)
+    } recover {
+      case e: GoogleJsonResponseException =>
+        throw CallToGoogleApiFailedException(googleProject, clusterName, e.getStatusCode, e.getDetails.getMessage)
     }
   }
 
-  override def getInstance(googleProject: GoogleProject, instanceName: String): Future[Instance] = {
+  /**
+    * Gets a compute Instance from the API.
+    */
+  private def getInstance(googleProject: GoogleProject, zone: String, name: String)(implicit executionContext: ExecutionContext): Future[Instance] = {
+    val request = compute.instances().get(googleProject, zone, name)
     Future {
-      val request = compute.instances().get(googleProject, dataprocConfig.dataprocDefaultZone, instanceName)
-      try {
-        executeGoogleRequest(request)
-      } catch {
-        case e: GoogleJsonResponseException =>
-          throw CallToGoogleApiFailedException(googleProject, instanceName, e.getStatusCode, e.getDetails.getMessage)
+      executeGoogleRequest(request)
+    } recover {
+      case e: GoogleJsonResponseException =>
+        throw CallToGoogleApiFailedException(googleProject, name, e.getStatusCode, e.getDetails.getMessage)
+    }
+  }
+
+  /**
+    * Gets an Operation from the API.
+    */
+  private def getOperation(operationName: String)(implicit executionContext: ExecutionContext): Future[Operation] = {
+    val request = dataproc.projects().regions().operations().get(operationName)
+    Future {
+      executeGoogleRequest(request)
+    } recover {
+      case e: GoogleJsonResponseException =>
+        throw CallToGoogleApiFailedException("operation", operationName, e.getStatusCode, e.getDetails.getMessage)
+    }
+  }
+
+  /**
+    * Gets the master instance name from a dataproc cluster, with error handling.
+    * @param cluster the Google dataproc cluster
+    * @return error or master instance name
+    */
+  private def getMasterInstanceName(cluster: Cluster): Option[String] = {
+    for {
+      config <- Option(cluster.getConfig)
+      masterConfig <- Option(config.getMasterConfig)
+      instanceNames <- Option(masterConfig.getInstanceNames)
+      masterInstance <- instanceNames.asScala.headOption
+    } yield masterInstance
+  }
+
+  /**
+    * Gets the zone (not to be confused with region) of a dataproc cluster, with error handling.
+    * @param cluster the Google dataproc cluster
+    * @return error or the master instance zone
+    */
+  private def getZone(cluster: Cluster): Option[String] = {
+    def parseZone(zoneUri: String): String = {
+      zoneUri.lastIndexOf('/') match {
+        case -1 => zoneUri
+        case n => zoneUri.substring(n + 1)
       }
     }
+
+    for {
+      config <- Option(cluster.getConfig)
+      gceConfig <- Option(config.getGceClusterConfig)
+      zoneUri <- Option(gceConfig.getZoneUri)
+    } yield parseZone(zoneUri)
+  }
+
+  /**
+    * Gets the public IP from a google Instance, with error handling.
+    * @param instance the Google instance
+    * @return error or public IP, as a String
+    */
+  private def getInstanceIP(instance: Instance): Option[String] = {
+    for {
+      interfaces <- Option(instance.getNetworkInterfaces)
+      interface <- interfaces.asScala.headOption
+      accessConfigs <- Option(interface.getAccessConfigs)
+      accessConfig <- accessConfigs.asScala.headOption
+    } yield accessConfig.getNatIP
   }
 
 }

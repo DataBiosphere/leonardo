@@ -85,17 +85,10 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    def deleteCluster(googleId: UUID, newOperation: Option[String]): DBIO[Int] = {
-      val query = clusterQuery.filter(_.googleId === googleId)
-      // Update the operation name if we have one
-      newOperation match {
-        case Some(op) =>
-          query.map(c => (c.destroyedDate, c.status, c.operationName))
-            .update((Option(Timestamp.from(java.time.Instant.now())), ClusterStatus.Deleting.toString, op))
-        case None =>
-          query.map(c => (c.destroyedDate, c.status))
-            .update((Option(Timestamp.from(java.time.Instant.now())), ClusterStatus.Deleting.toString))
-      }
+    def deleteCluster(googleId: UUID): DBIO[Int] = {
+      clusterQuery.filter(_.googleId === googleId)
+        .map(c => (c.destroyedDate, c.status))
+        .update((Option(Timestamp.from(java.time.Instant.now())), ClusterStatus.Deleting.toString))
     }
 
     def completeDeletion(googleId: UUID, clusterName: String): DBIO[Int] = {

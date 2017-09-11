@@ -11,7 +11,7 @@ import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.leonardo.config.MonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, DbSingleton, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, ClusterResponse, ClusterStatus}
+import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted}
 import org.mockito.ArgumentMatchers.{eq => eqq, _}
 import org.mockito.Mockito._
@@ -86,18 +86,12 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val dao = mock[DataprocDAO]
     when {
-      dao.getCluster(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
-    } thenReturn Future.successful {
-      new GoogleCluster().setStatus(new GoogleClusterStatus().setState("RUNNING")).setProjectId(creatingCluster.googleProject)
-        .setConfig(new ClusterConfig()
-          .setMasterConfig(new InstanceGroupConfig().setInstanceNames(List("masterInstance").asJava))
-          .setGceClusterConfig(new GceClusterConfig().setZoneUri("us-central1-c")))
-    }
+      dao.getClusterStatus(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
+    } thenReturn Future.successful(ClusterStatus.Running)
+
     when {
-      dao.getInstance(eqq(creatingCluster.googleProject), anyString, eqq("masterInstance"))(any[ExecutionContext])
-    } thenReturn Future.successful {
-      new Instance().setNetworkInterfaces(List(new NetworkInterface().setAccessConfigs(List(new AccessConfig().setNatIP("1.2.3.4")).asJava)).asJava)
-    }
+      dao.getClusterMasterInstanceIp(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
+    } thenReturn Future.successful(Some("1.2.3.4"))
 
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
 
@@ -114,16 +108,14 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // Post:
   // - cluster is not changed in the DB
   // - monitor actor does not shut down
-  Seq("CREATING", "UNKNOWN", "UPDATING").map { state =>
-    it should s"monitor $state state" in isolatedDbTest {
+  Seq(ClusterStatus.Creating, ClusterStatus.Updating, ClusterStatus.Unknown).map { status =>
+    it should s"monitor $status status" in isolatedDbTest {
       dbFutureValue { _.clusterQuery.save(creatingCluster) } shouldEqual creatingCluster
 
       val dao = mock[DataprocDAO]
       when {
-        dao.getCluster(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
-      } thenReturn Future.successful {
-        new GoogleCluster().setStatus(new GoogleClusterStatus().setState(state))
-      }
+        dao.getClusterStatus(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
+      } thenReturn Future.successful(status)
 
       createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
 
@@ -146,15 +138,12 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val dao = mock[DataprocDAO]
     when {
-      dao.getCluster(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
-    } thenReturn Future.successful {
-      new GoogleCluster().setStatus(new GoogleClusterStatus().setState("ERROR"))
-    }
+      dao.getClusterStatus(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
+    } thenReturn Future.successful(ClusterStatus.Error)
+
     when {
-      dao.getOperation(eqq("op1"))(any[ExecutionContext])
-    } thenReturn Future.successful {
-      new Operation().setDone(true).setError(new Status().setCode(Code.CANCELLED.value()).setMessage("test message"))
-    }
+      dao.getClusterErrorDetails(eqq("op1"))(any[ExecutionContext])
+    } thenReturn Future.successful(Some(ClusterErrorDetails(Code.CANCELLED.value, Some("test message"))))
 
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
 
@@ -176,10 +165,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val dao = mock[DataprocDAO]
     when {
-      dao.getCluster(eqq(deletingCluster.googleProject), eqq(deletingCluster.clusterName))(any[ExecutionContext])
-    } thenReturn Future.successful {
-      new GoogleCluster().setStatus(new GoogleClusterStatus().setState("DELETED"))
-    }
+      dao.getClusterStatus(eqq(deletingCluster.googleProject), eqq(deletingCluster.clusterName))(any[ExecutionContext])
+    } thenReturn Future.successful(ClusterStatus.Deleted)
 
     createClusterSupervisor(dao) ! ClusterDeleted(deletingCluster)
 
@@ -203,28 +190,24 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val dao = mock[DataprocDAO]
     when {
-      dao.getCluster(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
-    } thenReturn Future.successful {
-      new GoogleCluster().setStatus(new GoogleClusterStatus().setState("ERROR"))
-    } thenReturn Future.successful {
-      new GoogleCluster().setStatus(new GoogleClusterStatus().setState("DELETED"))
-    } thenReturn Future.successful {
-      new GoogleCluster().setStatus(new GoogleClusterStatus().setState("CREATING"))
-    } thenReturn Future.successful {
-      new GoogleCluster().setStatus(new GoogleClusterStatus().setState("RUNNING")).setProjectId(creatingCluster.googleProject)
-        .setConfig(new ClusterConfig().setMasterConfig(new InstanceGroupConfig().setInstanceNames(List("masterInstance").asJava))
-        .setGceClusterConfig(new GceClusterConfig().setZoneUri("us-central1-c")))
+      dao.getClusterStatus(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
+    } thenReturn {
+      Future.successful(ClusterStatus.Error)
+    } thenReturn {
+      Future.successful(ClusterStatus.Deleted)
+    } thenReturn {
+      Future.successful(ClusterStatus.Creating)
+    } thenReturn {
+      Future.successful(ClusterStatus.Running)
     }
 
     when {
-      dao.getOperation(eqq("op1"))(any[ExecutionContext])
-    } thenReturn Future.successful {
-      new Operation().setDone(true).setError(new Status().setCode(Code.UNKNOWN.value()).setMessage("test message"))
-    }
+      dao.getClusterErrorDetails(eqq("op1"))(any[ExecutionContext])
+    } thenReturn Future.successful(Some(ClusterErrorDetails(Code.UNKNOWN.value, Some("Test message"))))
 
     when {
       dao.deleteCluster(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
-    } thenReturn Future.successful(Some(new Operation().setName("new op")))
+    } thenReturn Future.successful(())
 
     val newClusterId = UUID.randomUUID()
     when {
@@ -234,10 +217,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     }
 
     when {
-      dao.getInstance(eqq(creatingCluster.googleProject), anyString, eqq("masterInstance"))(any[ExecutionContext])
-    } thenReturn Future.successful {
-      new Instance().setNetworkInterfaces(List(new NetworkInterface().setAccessConfigs(List(new AccessConfig().setNatIP("1.2.3.4")).asJava)).asJava)
-    }
+      dao.getClusterMasterInstanceIp(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
+    } thenReturn Future.successful(Some("1.2.3.4"))
 
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
 

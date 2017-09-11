@@ -40,8 +40,8 @@ object ClusterStatus extends Enumeration {
 
   def withNameOpt(s: String): Option[ClusterStatus] = values.find(_.toString == s)
 
-  def withNameIgnoreCase(str: String): Option[ClusterStatus] = {
-    values.find(_.toString.equalsIgnoreCase(str))
+  def withNameIgnoreCase(str: String): ClusterStatus = {
+    values.find(_.toString.equalsIgnoreCase(str)).getOrElse(throw new IllegalArgumentException(s"Unknown cluster status: $str"))
   }
 }
 
