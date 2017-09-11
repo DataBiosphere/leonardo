@@ -165,7 +165,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val replacements = ClusterInitValues(googleProject, clusterName, bucketName, dataprocConfig).toJson.asJsObject.fields
 
     val result = leo.template(filePath, replacements).futureValue
-    val expected = s"#!/usr/bin/env bash\n\n\"${clusterName}\"\n\"${googleProject}\"\n\"${dataprocConfig.jupyterProxyDockerImage}\""
+    val expected = "#!/usr/bin/env bash\n\n\"" + clusterName + "\n\"" + googleProject + "\n\"" + dataprocConfig.jupyterProxyDockerImage + "\""
 
     assert(result == expected)
 
