@@ -10,14 +10,16 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.Set
 import scala.concurrent.{ExecutionContext, Future}
 
 class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extends DataprocDAO {
 
   val clusters: mutable.Map[String, Cluster] = new TrieMap()  // Cluster Name and Cluster
   val firewallRules: mutable.Map[GoogleProject, String] = new TrieMap()  // Google Project and Rule Name
-  val buckets: mutable.ArrayBuffer[String] = new ArrayBuffer() // Array of bucket names - not keeping track of google projects since it's all in leo's project
-  val bucketObjects: mutable.ArrayBuffer[(String, String)] = new ArrayBuffer()  // Bucket Name and File Name
+//  val buckets: mutable.ArrayBuffer[String] = new ArrayBuffer() // Array of bucket names - not keeping track of google projects since it's all in leo's project
+  val buckets: Set[String] = Set()
+  val bucketObjects: Set[(String, String)] = Set()  // Bucket Name and File Name
 
 
   private def googleID = UUID.randomUUID().toString
@@ -31,24 +33,22 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extend
   }
 
   override def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    if(clusters.contains(clusterName))
-      clusters.remove(clusterName)
-    Future(())
+    clusters.remove(clusterName)
+    Future.successful(())
   }
 
   override def updateFirewallRule(googleProject: GoogleProject): Future[Unit] = {
-    Future.successful(
-      if (!firewallRules.contains(googleProject)) {
-        firewallRules += googleProject -> dataprocConfig.clusterFirewallRuleName
-      })
+    if (!firewallRules.contains(googleProject)) {
+      firewallRules += googleProject -> dataprocConfig.clusterFirewallRuleName
+    }
+    Future.successful(())
   }
 
   override def createBucket(googleProject: GoogleProject, bucketName: String): Future[Unit] = {
-    Future.successful{
-      if (!buckets.contains(bucketName)) {
-        buckets += bucketName
-      }
+    if (!buckets.contains(bucketName)) {
+      buckets += bucketName
     }
+    Future.successful(())
   }
 
   override def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: File): Future[Unit] = {
@@ -60,9 +60,10 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extend
   }
 
   private def addToBucket(googleProject: GoogleProject, bucketName: String, fileName: String): Future[Unit] = {
-    Future.successful(if (buckets.contains(bucketName)) {
+    if (buckets.contains(bucketName)) {
       bucketObjects += ((bucketName, fileName))
-    })
+    }
+    Future.successful(())
   }
 
 }

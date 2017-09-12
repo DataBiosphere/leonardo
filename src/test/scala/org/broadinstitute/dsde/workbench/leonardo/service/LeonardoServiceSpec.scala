@@ -56,7 +56,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     bucketArray.size shouldEqual 1
 
     // check the init files were added to the bucket
-    initFiles.map(initFile => gdDAO.bucketObjects should contain (bucketArray(0), initFile))
+    initFiles.map(initFile => gdDAO.bucketObjects should contain (bucketArray.head, initFile))
   }
 
   "LeonardoService" should "create and get a cluster" in isolatedDbTest {
@@ -170,9 +170,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       s"""
          |!/usr/bin/env bash
          |
-         |$clusterName
-         |$googleProject
-         |${dataprocConfig.jupyterProxyDockerImage}
+         |\"$clusterName\"
+         |\"$googleProject\"
+         |\"${dataprocConfig.jupyterProxyDockerImage}\"
       """.stripMargin
 
     result shouldEqual expected
