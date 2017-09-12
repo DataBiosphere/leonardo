@@ -8,7 +8,6 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.{GoogleBucket, GoogleBucketUri, GoogleProject, GoogleServiceAccount}
-
 import scala.language.implicitConversions
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat}
 
@@ -142,9 +141,6 @@ case class StorageObjectResponse(name: String,
                                  timeCreated: String)
 
 
-case class Bucket(bucketName: String)
-
-
 object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   // needed for Cluster
   implicit object UUIDFormat extends JsonFormat[UUID] {
@@ -179,5 +175,9 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val clusterFormat = jsonFormat12(Cluster.apply)
   implicit val clusterRequestFormat = jsonFormat3(ClusterRequest)
   implicit val clusterResponseFormat = jsonFormat6(ClusterResponse)
-  implicit val ClusterInitValuesFormat = jsonFormat11(ClusterInitValues.apply)
+  implicit val clusterInitValuesFormat = jsonFormat11(ClusterInitValues.apply)
+  implicit val firewallRuleRequestFormat = jsonFormat5(FirewallRuleRequest.apply)
+  implicit val bucketResponseFormat = jsonFormat2(BucketResponse)
+  implicit val storageObjectResponseFormat = jsonFormat3(StorageObjectResponse)
+
 }

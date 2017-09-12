@@ -42,6 +42,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
       }
     }
 
+    // Check if the google project has a cluster with the same name. If not, we can create it
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getByName(googleProject, clusterName)
     } flatMap {
@@ -71,6 +72,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     }
   }
 
+  /* Create a google bucket and populate it with init files */
   def initializeBucket(googleProject: GoogleProject, clusterName: String, bucketName: String): Future[Unit] = {
     for {
       bucketResponse <- gdDAO.createBucket(googleProject, bucketName)
@@ -98,6 +100,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     }
   }
 
+  /* Process a file using map of replacement values. Each value in the replacement map replaces it's key in the file*/
   def template(filePath: String, replacementMap: Map[String, JsValue]): Future[String] = {
     Future {
       val raw = scala.io.Source.fromFile(filePath).mkString

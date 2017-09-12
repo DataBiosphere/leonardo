@@ -35,7 +35,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     dataprocConfig.jupyterServerKeyName, dataprocConfig.jupyterRootCaPemName, dataprocConfig.jupyterProxySiteConfName)
 
   "LeonardoService" should "create a cluster" in isolatedDbTest {
-    // set unique names for our cluster
+    // set unique names for our cluster and google project
     val clusterName = s"cluster-${UUID.randomUUID.toString}"
     val googleProject = s"project-${UUID.randomUUID.toString}"
 
@@ -51,7 +51,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     val bucketArray = gdDAO.buckets.filter(str => str.startsWith(clusterName))
 
-    // check the bucket was created for the cluster - the bucket's name should start with the cluster name
+    // check the bucket was created for the cluster
     bucketArray.size shouldEqual 1
 
     // check the init files were added to the bucket
@@ -59,7 +59,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   "LeonardoService" should "create and get a cluster" in isolatedDbTest {
-    // set unique names for our cluster
+    // set unique names for our cluster and google project
     val clusterName = s"cluster-${UUID.randomUUID.toString}"
     val googleProject = s"project-${UUID.randomUUID.toString}"
 
@@ -81,31 +81,53 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   "LeonardoService" should "throw ClusterAlreadyExistsException when creating a cluster with same name and project as an existing cluster" in isolatedDbTest {
-    val clusterCreateResponse = leo.createCluster("googleProject1", "clusterName1", testClusterRequest).futureValue
+    // set unique names for our cluster and google project
+    val clusterName = s"cluster-${UUID.randomUUID.toString}"
+    val googleProject = s"project-${UUID.randomUUID.toString}"
 
-    whenReady( leo.createCluster("googleProject1", "clusterName1", testClusterRequest).failed ) { exc =>
+    // create the first cluster
+    val clusterCreateResponse = leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
+
+    // creating the same cluster again should throw a ClusterAlreadyExistsException
+    whenReady( leo.createCluster(googleProject, clusterName, testClusterRequest).failed ) { exc =>
       exc shouldBe a [ClusterAlreadyExistsException]
     }
   }
 
   "LeonardoService" should "delete a cluster" in isolatedDbTest {
+    // set unique names for our cluster and google project
+    val clusterName = s"cluster-${UUID.randomUUID.toString}"
+    val googleProject = s"project-${UUID.randomUUID.toString}"
 
-    val clusterCreateResponse = leo.createCluster("googleProject", "clusterName", testClusterRequest).futureValue
-    val clusterGetResponse = leo.deleteCluster("googleProject", "clusterName").futureValue
-    clusterGetResponse shouldEqual 1
+    // check that the cluster does not exist
+    gdDAO.clusters should not contain key (clusterName)
+
+    // create the cluster
+    val clusterCreateResponse = leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
+
+    // check that the cluster was created
+    gdDAO.clusters should contain key (clusterName)
+
+    // delete the cluster
+    val clusterDeleteResponse = leo.deleteCluster(googleProject, clusterName).futureValue
+
+    // the delete response should indicate 1 cluster was deleted
+    clusterDeleteResponse shouldEqual 1
+
+    // check that the cluster no longer exists
+    gdDAO.clusters should not contain key (clusterName)
   }
 
   "LeonardoService" should "throw ClusterNotFoundException when deleting non existent clusters" in isolatedDbTest {
-
     whenReady( leo.deleteCluster("nonexistent", "cluster").failed ) { exc =>
       exc shouldBe a [ClusterNotFoundException]
     }
   }
 
   "LeonardoService" should "initialize bucket with correct files" in isolatedDbTest {
-    // set unique names for our cluster name and bucket name
+    // set unique names for our cluster name, bucket name and google project
     val clusterName = s"cluster-${UUID.randomUUID.toString}"
-    val bucketName = s"bucket-${clusterName}"
+    val bucketName = s"bucket-${UUID.randomUUID.toString}"
     val googleProject = s"project-${UUID.randomUUID.toString}"
 
     // Our bucket should not exist
@@ -117,21 +139,26 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // our bucket should now exist
     gdDAO.buckets should contain (bucketName)
 
-    // the init files should be in the bucket
+    // check the init files were added to the bucket
     initFiles.map(initFile => gdDAO.bucketObjects should contain (bucketName, initFile))
   }
 
   "LeonardoService" should "add bucket objects" in isolatedDbTest {
+    // set unique names for our cluster name, bucket name and google project
     val clusterName = s"cluster-${UUID.randomUUID.toString}"
     val bucketName = s"bucket-${UUID.randomUUID.toString}"
     val googleProject = s"project-${UUID.randomUUID.toString}"
 
+    // since we're only testing adding the objects, we're directly creating the bucket in the mock DAO
     gdDAO.buckets += bucketName
 
+    // add all the bucket objects
     leo.initializeBucketObjects(googleProject, clusterName, bucketName).futureValue
 
+    // check that the bucket exists
     gdDAO.buckets should contain (bucketName)
 
+    // check the init files were added to the bucket
     initFiles.map(initFile => gdDAO.bucketObjects should contain (bucketName, initFile))
   }
 
@@ -158,13 +185,21 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   "LeonardoService" should "template a script using config values" in isolatedDbTest {
+    // set unique names for our cluster name, bucket name and google project
     val clusterName = s"cluster-${UUID.randomUUID.toString}"
     val bucketName = s"bucket-${UUID.randomUUID.toString}"
     val googleProject = s"project-${UUID.randomUUID.toString}"
+
+    // create the file path for our init actions script
     val filePath = dataprocConfig.configFolderPath + dataprocConfig.initActionsScriptName
+
+    // Create replacements map
     val replacements = ClusterInitValues(googleProject, clusterName, bucketName, dataprocConfig).toJson.asJsObject.fields
 
+    // Each value in the replacement map will replace it's key in the file being processed
     val result = leo.template(filePath, replacements).futureValue
+
+    // Check that the values in the bash script file were correctly replaced
     val expected =
       s"""|#!/usr/bin/env bash
           |

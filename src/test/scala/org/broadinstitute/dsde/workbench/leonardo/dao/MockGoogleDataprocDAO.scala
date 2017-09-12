@@ -2,23 +2,19 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import java.io.File
 import java.util.UUID
-
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model._
-
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
-import scala.collection.mutable.Set
 import scala.concurrent.{ExecutionContext, Future}
 
 class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extends DataprocDAO {
 
   val clusters: mutable.Map[String, Cluster] = new TrieMap()  // Cluster Name and Cluster
   val firewallRules: mutable.Map[GoogleProject, String] = new TrieMap()  // Google Project and Rule Name
-  val buckets: Set[String] = Set() // Set of bucket names - not keeping track of google projects since it's all in leo's project
-  val bucketObjects: Set[(String, String)] = Set()  // Set of Bucket Name and File Name
+  val buckets: mutable.Set[String] = mutable.Set() // Set of bucket names - not keeping track of google projects since it's all in leo's project
+  val bucketObjects: mutable.Set[(String, String)] = mutable.Set()  // Set of Bucket Name and File Name
 
 
   private def googleID = UUID.randomUUID().toString

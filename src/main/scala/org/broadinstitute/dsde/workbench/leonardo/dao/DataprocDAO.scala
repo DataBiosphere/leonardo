@@ -1,8 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import java.io.File
-
-import com.google.api.client.http.AbstractInputStreamContent
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model._
 
