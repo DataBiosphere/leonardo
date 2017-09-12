@@ -14,8 +14,17 @@ import scala.concurrent.{ExecutionContext, Future}
 import slick.dbio.DBIO
 import spray.json._
 
-case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Cluster $googleProject/$clusterName not found", StatusCodes.NotFound)
-case class ClusterAlreadyExistsException(googleProject: GoogleProject, clusterName: String) extends LeoException(s"Cluster $googleProject/$clusterName already exists", StatusCodes.Conflict)
+case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: String)
+  extends LeoException(s"Cluster $googleProject/$clusterName not found", StatusCodes.NotFound)
+
+case class ClusterAlreadyExistsException(googleProject: GoogleProject, clusterName: String)
+  extends LeoException(s"Cluster $googleProject/$clusterName already exists", StatusCodes.Conflict)
+
+case class InitializationFileException(googleProject: GoogleProject, clusterName: String, errorMessage: String)
+  extends LeoException(s"Unable to process initialization files for $googleProject/$clusterName. Returned message: $errorMessage", StatusCodes.Conflict)
+
+case class TemplatingException(filePath: String, errorMessage: String)
+  extends LeoException(s"Unable to template file: $filePath. Returned message: $errorMessage", StatusCodes.Conflict)
 
 class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: DataprocDAO, dbRef: DbReference)(implicit val executionContext: ExecutionContext) extends LazyLogging {
 
@@ -82,10 +91,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
       val certs = List(dataprocConfig.jupyterServerCrtName, dataprocConfig.jupyterServerKeyName, dataprocConfig.jupyterRootCaPemName,
         dataprocConfig.clusterDockerComposeName, dataprocConfig.jupyterProxySiteConfName)
       // Put the rest of the initialization files in the init bucket concurrently
-     val storageObjects = certs.map { certName => gdDAO.uploadToBucket(googleProject, bucketName, certName, new File(dataprocConfig.configFolderPath, certName)) }
+      val storageObjects = certs.map { certName => gdDAO.uploadToBucket(googleProject, bucketName, certName, new File(dataprocConfig.configFolderPath, certName)) }
       // Return an array of all the Storage Objects
     }.recoverWith {
-      case e: IOException => throw InitializationFileException(googleProject, clusterName)
+      case ioError: IOException => throw InitializationFileException(googleProject, clusterName, ioError.getMessage)
     }
   }
 
@@ -94,7 +103,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
       val raw = scala.io.Source.fromFile(filePath).mkString
       replacementMap.foldLeft(raw)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", b._2.toString()))
     }.recoverWith {
-      case _ => throw TemplatingException(filePath)
+      case t: Throwable => throw TemplatingException(filePath, t.getMessage)
     }
   }
 

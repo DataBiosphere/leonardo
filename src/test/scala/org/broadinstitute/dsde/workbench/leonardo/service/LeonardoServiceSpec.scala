@@ -1,10 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
-import java.util.UUID
-
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import com.typesafe.config.ConfigFactory
+import java.util.UUID
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockGoogleDataprocDAO
@@ -167,17 +166,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     val result = leo.template(filePath, replacements).futureValue
     val expected =
-      s"""
-         |!/usr/bin/env bash
-         |
-         |\"$clusterName\"
-         |\"$googleProject\"
-         |\"${dataprocConfig.jupyterProxyDockerImage}\"
-      """.stripMargin
+      s"""|#!/usr/bin/env bash
+          |
+          |\"$clusterName\"
+          |\"$googleProject\"
+          |\"${dataprocConfig.jupyterProxyDockerImage}\"""".stripMargin
 
     result shouldEqual expected
-
   }
-
-
 }

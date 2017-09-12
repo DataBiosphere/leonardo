@@ -17,16 +17,14 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extend
 
   val clusters: mutable.Map[String, Cluster] = new TrieMap()  // Cluster Name and Cluster
   val firewallRules: mutable.Map[GoogleProject, String] = new TrieMap()  // Google Project and Rule Name
-//  val buckets: mutable.ArrayBuffer[String] = new ArrayBuffer() // Array of bucket names - not keeping track of google projects since it's all in leo's project
-  val buckets: Set[String] = Set()
-  val bucketObjects: Set[(String, String)] = Set()  // Bucket Name and File Name
+  val buckets: Set[String] = Set() // Set of bucket names - not keeping track of google projects since it's all in leo's project
+  val bucketObjects: Set[(String, String)] = Set()  // Set of Bucket Name and File Name
 
 
   private def googleID = UUID.randomUUID().toString
 
   override def createCluster(googleProject: String, clusterName: String, clusterRequest: ClusterRequest, bucketName: String)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
     val clusterResponse = ClusterResponse(clusterName, googleProject, googleID, "status", "desc", "op-name")
-
     clusters += clusterName -> Cluster(clusterRequest, clusterResponse)
 
     Future.successful(clusterResponse)

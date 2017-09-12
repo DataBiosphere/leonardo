@@ -9,45 +9,27 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.{AbstractInputStreamContent, FileContent, InputStreamContent}
 import com.google.api.client.json.jackson2.JacksonFactory
 import com.google.api.services.compute.{Compute, ComputeScopes}
-import com.google.api.services.compute.model.{Operation => ComputeOperation}
-import com.google.api.services.compute.model.{Firewall => GoogleFirewall}
-import com.google.api.services.compute.model.Firewall.{Allowed => GoogleAllowed}
-import com.google.api.services.dataproc.model.{Cluster => GoogleCluster, Operation => DataprocOperation, _}
+import com.google.api.services.compute.model.{Operation => ComputeOperation, Firewall}
+import com.google.api.services.compute.model.Firewall.Allowed
 import com.google.api.services.dataproc.Dataproc
+import com.google.api.services.dataproc.model.{Cluster => GoogleCluster, Operation => DataprocOperation, _}
 import com.google.api.services.plus.PlusScopes
 import com.google.api.services.storage.{Storage, StorageScopes}
 import com.google.api.services.storage.model.{Bucket, StorageObject}
-import java.io.{ByteArrayInputStream, File, IOException}
+import java.io.{ByteArrayInputStream, File}
 import java.nio.charset.StandardCharsets
-import java.util.UUID
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, ClusterResponse, LeoException, _}
-import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
-import spray.json._
 
-case class BucketNotCreatedException(googleProject: GoogleProject, clusterName: String)
-  extends LeoException(s"Cluster $googleProject/$clusterName failed to create required resource.", StatusCodes.InternalServerError)
-case class BucketInsertionException(googleProject: GoogleProject, clusterName: String)
-  extends LeoException(s"Cluster $googleProject/$clusterName failed to upload Jupyter certificates", StatusCodes.InternalServerError)
-case class ClusterNotCreatedException(googleProject: GoogleProject, clusterName: String)
-  extends LeoException(s"Failed to create cluster $googleProject/$clusterName", StatusCodes.InternalServerError)
-case class FirewallRuleInaccessibleException(googleProject: GoogleProject, firewallRule: String)
-  extends LeoException(s"Unable to access firewall rule $googleProject/$firewallRule", StatusCodes.InternalServerError)
-case class FirewallRuleInsertionException(googleProject: GoogleProject, firewallRule: String)
-  extends LeoException(s"Unable to insert new firewall rule $googleProject/$firewallRule", StatusCodes.InternalServerError)
 case class CallToGoogleApiFailedException(googleProject: GoogleProject, clusterName:String, exceptionStatusCode: Int, errorMessage: String)
   extends LeoException(s"Call to Google API failed for $googleProject/$clusterName. Message: $errorMessage",exceptionStatusCode)
-case class InitializationFileException(googleProject: GoogleProject, clusterName: String)
-  extends LeoException(s"Unable to process initialization files for $googleProject/$clusterName.", StatusCodes.Conflict)
-case class TemplatingException(filePath: String)
-  extends LeoException(s"Unable to template file: $filePath.", StatusCodes.Conflict)
-case class FirewallRuleNotFoundException(googleProjet: GoogleProject, firewallRuleName: String)
-  extends LeoException(s"Firewall rule $firewallRuleName not found in project $googleProjet", StatusCodes.NotFound)
 
+case class FirewallRuleNotFoundException(googleProject: GoogleProject, firewallRuleName: String)
+  extends LeoException(s"Firewall rule $firewallRuleName not found in project $googleProject", StatusCodes.NotFound)
 
 class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected val proxyConfig: ProxyConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
   extends DataprocDAO with GoogleUtilities {
@@ -91,7 +73,6 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       val metadata = operation.getMetadata()
       ClusterResponse(clusterName, googleProject, metadata.get("clusterUuid").toString, metadata.get("status").toString, metadata.get("description").toString, operation.getName)
     }
-    // ??? need error handling here
   }
 
   /* Kicks off building the cluster. This will return before the cluster finishes creating. */
@@ -127,7 +108,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       try {
         executeGoogleRequest(request) // returns a DataprocOperation
       } catch {
-        case e: GoogleJsonResponseException => throw ClusterNotCreatedException(googleProject, clusterName)
+        case e: GoogleJsonResponseException => throw CallToGoogleApiFailedException(googleProject, clusterName, e.getStatusCode, e.getDetails.getMessage)
       }
     }
   }
@@ -135,18 +116,20 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
 
   def updateFirewallRule(googleProject: GoogleProject): Future[Unit] = {
     getFirewallRule(googleProject, dataprocConfig.clusterFirewallRuleName).recoverWith {
-      case e: FirewallRuleNotFoundException => addFirewallRule(googleProject)
-      case _: Throwable => throw FirewallRuleInaccessibleException(googleProject, dataprocConfig.clusterFirewallRuleName)
+      case _: FirewallRuleNotFoundException => addFirewallRule(googleProject)
     }.mapTo[Unit]
   }
 
 
-  private def getFirewallRule(googleProject: String, firewallRuleName: String): Future[GoogleFirewall] = {
+  private def getFirewallRule(googleProject: String, firewallRuleName: String): Future[Firewall] = {
     Future {
       val request = compute.firewalls().get(googleProject, firewallRuleName)
       executeGoogleRequest(request) // returns a Firewall
     } recoverWith {
-      case e: GoogleJsonResponseException if e.getStatusCode == 404 => throw FirewallRuleNotFoundException(googleProject, firewallRuleName)
+      case e: GoogleJsonResponseException =>
+        if (e.getStatusCode == 404)
+          throw FirewallRuleNotFoundException(googleProject, firewallRuleName)
+        throw CallToGoogleApiFailedException(googleProject, firewallRuleName, e.getStatusCode, e.getDetails.getMessage)
     }
   }
 
@@ -158,9 +141,9 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     Future {
       // Create an Allowed object that specifies the port and protocol of rule
      //val allowedList = firewallRule.allowed.map(allowedPair => new GoogleAllowed().setIPProtocol(allowedPair.protocol).setPorts(allowedPair.port.asJava))
-      val allowed = new GoogleAllowed().setIPProtocol(proxyConfig.jupyterProtocol).setPorts(List(proxyConfig.jupyterPort.toString).asJava)
+      val allowed = new Allowed().setIPProtocol(proxyConfig.jupyterProtocol).setPorts(List(proxyConfig.jupyterPort.toString).asJava)
       // Create a firewall rule that takes an Allowed object, a name, and the network tag a cluster must have to be accessed through the rule
-      val googleFirewallRule = new GoogleFirewall()
+      val googleFirewallRule = new Firewall()
         .setName(dataprocConfig.clusterFirewallRuleName)
         .setTargetTags(List(dataprocConfig.clusterNetworkTag).asJava)
         .setAllowed(List(allowed).asJava)
@@ -169,7 +152,8 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
 
       executeGoogleRequest(request) // returns a ComputeOperation
     } recoverWith {
-      case e: GoogleJsonResponseException => throw FirewallRuleInsertionException(googleProject, dataprocConfig.clusterFirewallRuleName)
+      case e: GoogleJsonResponseException =>
+        throw CallToGoogleApiFailedException(googleProject, dataprocConfig.clusterFirewallRuleName, e.getStatusCode, e.getDetails.getMessage)
     }
   }
   // ??? Should the configs be in gdDAO? Should we just pass stuff to the functions?
@@ -182,7 +166,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       val bucketInserter = storage.buckets().insert(googleProject, bucket)
       executeGoogleRequest(bucketInserter) // returns a Bucket
     } recoverWith {
-      case e: GoogleJsonResponseException => throw BucketNotCreatedException(googleProject, bucketName)
+      case e: GoogleJsonResponseException => throw CallToGoogleApiFailedException(googleProject, bucketName, e.getStatusCode, e.getDetails.getMessage)
     } map { bucket =>
       BucketResponse(bucket.getName, bucket.getTimeCreated.toString)
     }
@@ -209,10 +193,9 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       fileInserter.getMediaHttpUploader().setDirectUploadEnabled(true)
       executeGoogleRequest(fileInserter) //returns a StorageObject
     }.recoverWith {
-      case e: GoogleJsonResponseException => throw BucketInsertionException(googleProject, bucketName)
+      case e: GoogleJsonResponseException =>  throw CallToGoogleApiFailedException(googleProject, bucketName, e.getStatusCode, e.getDetails.getMessage)
     } map { storageObject =>
       StorageObjectResponse(storageObject.getName, storageObject.getBucket, storageObject.getTimeCreated.toString)
-
     }
   }
 
