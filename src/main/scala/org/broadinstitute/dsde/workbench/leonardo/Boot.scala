@@ -7,10 +7,10 @@ import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.LazyLogging
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.api.LeoRoutes
-import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.GoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService}
 
 object Boot extends App with LazyLogging {
@@ -43,8 +43,8 @@ object Boot extends App with LazyLogging {
       dbRef.database.close()
     }
 
-    val gdDAO = new GoogleDataprocDAO(dataprocConfig)
-    val leonardoService = new LeonardoService(gdDAO, dbRef)
+    val gdDAO = new GoogleDataprocDAO(dataprocConfig, proxyConfig)
+    val leonardoService = new LeonardoService(dataprocConfig, gdDAO, dbRef)
     val clusterDnsCache = system.actorOf(ClusterDnsCache.props(proxyConfig, dbRef))
     val proxyService = new ProxyService(proxyConfig, dbRef, clusterDnsCache)
 

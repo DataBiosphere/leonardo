@@ -1,8 +1,23 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
-case class DataprocConfig(serviceAccount: String,
-                          dataprocInitScriptURI: String,
+case class DataprocConfig(applicationName: String,
+                          serviceAccount: String,
                           dataprocDefaultZone: String,
+                          leoGoogleBucket: String,
                           dataprocDockerImage: String,
-                          serviceAccountPemPath: String,
-                          clusterUrlBase: String)
+                          jupyterProxyDockerImage: String,
+                          clusterFirewallRuleName: String,
+                          clusterFirewallVPCNetwork: String,
+                          clusterNetworkTag: String,
+                          configFolderPath: String,
+                          initActionsScriptName: String,
+                          clusterDockerComposeName: String,
+                          serviceAccountPemName: String,
+                          jupyterServerCrtName: String,
+                          jupyterServerKeyName: String,
+                          jupyterRootCaPemName: String,
+                          jupyterRootCaKeyName: String,
+                          jupyterProxySiteConfName: String,
+                          clusterUrlBase: String,
+                          jupyterServerName: String,
+                          proxyServerName: String)
