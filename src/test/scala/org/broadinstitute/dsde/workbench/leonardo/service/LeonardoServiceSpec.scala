@@ -48,15 +48,15 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterCreateResponse.googleServiceAccount shouldEqual serviceAccount
 
     // check the firewall rule was created for the project
-    assert(gdDAO.firewallRules.exists(_  == (googleProject, dataprocConfig.clusterFirewallRuleName)))
+    gdDAO.firewallRules should contain (googleProject, dataprocConfig.clusterFirewallRuleName)
 
     val bucketArray = gdDAO.buckets.filter(str => str.startsWith(clusterName))
 
     // check the bucket was created for the cluster - the bucket's name should start with the cluster name
-    assert(bucketArray.size == 1)
+    bucketArray.size shouldEqual 1
 
     // check the init files were added to the bucket
-    initFiles.map(initFile => assert(gdDAO.bucketObjects.exists(_ == (bucketArray(0), initFile))))
+    initFiles.map(initFile => gdDAO.bucketObjects should contain (bucketArray(0), initFile))
   }
 
   "LeonardoService" should "create and get a cluster" in isolatedDbTest {
@@ -108,18 +108,18 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName = s"cluster-${UUID.randomUUID.toString}"
     val bucketName = s"bucket-${clusterName}"
     val googleProject = s"project-${UUID.randomUUID.toString}"
-    
-    // assert that our bucket does not exist
-    assert(!gdDAO.buckets.contains(bucketName))
+
+    // Our bucket should not exist
+    gdDAO.buckets should not contain (bucketName)
 
     // create the bucket and add files
-    leo.initializeBucket(googleProject, clusterName, bucketName)
+    leo.initializeBucket(googleProject, clusterName, bucketName).futureValue
 
-    // assert that our bucket now exists
-    assert(gdDAO.buckets.contains(bucketName))
+    // our bucket should now exist
+    gdDAO.buckets should contain (bucketName)
 
-    // assert that the init files are in the bucket
-    initFiles.map(initFile => assert(gdDAO.bucketObjects.exists(_ == (bucketName, initFile))))
+    // the init files should be in the bucket
+    initFiles.map(initFile => gdDAO.bucketObjects should contain (bucketName, initFile))
   }
 
   "LeonardoService" should "add bucket objects" in isolatedDbTest {
@@ -129,11 +129,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     gdDAO.buckets += bucketName
 
-    leo.initializeBucketObjects(googleProject, clusterName, bucketName)
+    leo.initializeBucketObjects(googleProject, clusterName, bucketName).futureValue
 
-    assert(gdDAO.buckets.contains(bucketName))
+    gdDAO.buckets should contain (bucketName)
 
-    initFiles.map(initFile => assert(gdDAO.bucketObjects.exists(_ == (bucketName, initFile))))
+    initFiles.map(initFile => gdDAO.bucketObjects should contain (bucketName, initFile))
   }
 
   "LeonardoService" should "create a firewall rule in a project only once when the first cluster is added" in isolatedDbTest {
@@ -142,20 +142,20 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val cluster2 = s"cluster-${UUID.randomUUID.toString}"
     val googleProject = s"project-${UUID.randomUUID.toString}"
 
-    // assert that our google project has no firewall rules
-    assert(!gdDAO.firewallRules.exists(_ == (googleProject, dataprocConfig.clusterFirewallRuleName)))
+    // Our google project should have no firewall rules
+    gdDAO.firewallRules should not contain (googleProject, dataprocConfig.clusterFirewallRuleName)
 
     // create the first cluster, this should create a firewall rule in our project
     leo.createCluster(googleProject, cluster1, testClusterRequest).futureValue
 
     // check that there is exactly 1 firewall rule for our project
-    assert(gdDAO.firewallRules.filterKeys(_ == googleProject).size == 1)
+    gdDAO.firewallRules.filterKeys(_ == googleProject) should have size 1
 
     // create the second cluster. This should check that our project has a firewall rule and not try to add it again
     leo.createCluster(googleProject, cluster2, testClusterRequest).futureValue
 
     // check that there is still exactly 1 firewall rule in our project
-    assert(gdDAO.firewallRules.filterKeys(_ == googleProject).size == 1)
+    gdDAO.firewallRules.filterKeys(_ == googleProject) should have size 1
   }
 
   "LeonardoService" should "template a script using config values" in isolatedDbTest {
@@ -166,9 +166,16 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val replacements = ClusterInitValues(googleProject, clusterName, bucketName, dataprocConfig).toJson.asJsObject.fields
 
     val result = leo.template(filePath, replacements).futureValue
-    val expected = "#!/usr/bin/env bash\n\n\"" + clusterName + "\"\n\"" + googleProject + "\"\n\"" + dataprocConfig.jupyterProxyDockerImage + "\""
+    val expected =
+      s"""
+         |!/usr/bin/env bash
+         |
+         |$clusterName
+         |$googleProject
+         |${dataprocConfig.jupyterProxyDockerImage}
+      """.stripMargin
 
-    assert(result == expected)
+    result shouldEqual expected
 
   }
 
