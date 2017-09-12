@@ -56,6 +56,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // check the init files were added to the bucket
     initFiles.map(initFile => gdDAO.bucketObjects should contain (bucketArray.head, initFile))
+    gdDAO.bucketObjects should contain theSameElementsAs (initFiles.map(bucketArray.head -> _))
+
   }
 
   "LeonardoService" should "create and get a cluster" in isolatedDbTest {
@@ -86,7 +88,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val googleProject = s"project-${UUID.randomUUID.toString}"
 
     // create the first cluster
-    val clusterCreateResponse = leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
+    leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
 
     // creating the same cluster again should throw a ClusterAlreadyExistsException
     whenReady( leo.createCluster(googleProject, clusterName, testClusterRequest).failed ) { exc =>
@@ -203,9 +205,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val expected =
       s"""|#!/usr/bin/env bash
           |
-          |\"$clusterName\"
-          |\"$googleProject\"
-          |\"${dataprocConfig.jupyterProxyDockerImage}\"""".stripMargin
+          |"$clusterName"
+          |"$googleProject"
+          |"${dataprocConfig.jupyterProxyDockerImage}"""".stripMargin
 
     result shouldEqual expected
   }

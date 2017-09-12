@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 
 import akka.http.scaladsl.model.StatusCodes
 import com.typesafe.scalalogging.LazyLogging
-import java.io.{File, IOException}
+import java.io.File
 import java.util.UUID
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -75,11 +75,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
   /* Create a google bucket and populate it with init files */
   def initializeBucket(googleProject: GoogleProject, clusterName: String, bucketName: String): Future[Unit] = {
     for {
-      bucketResponse <- gdDAO.createBucket(googleProject, bucketName)
-      storageObjectsResponse <- initializeBucketObjects(googleProject, clusterName, bucketName)
-    } yield {
-      storageObjectsResponse
-    }
+      _ <- gdDAO.createBucket(googleProject, bucketName)
+      _ <- initializeBucketObjects(googleProject, clusterName, bucketName)
+    } yield { }
   }
 
   /* Process the templated cluster init script and put all initialization files in the init bucket */
@@ -95,8 +93,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
       // Put the rest of the initialization files in the init bucket concurrently
       val storageObjects = certs.map { certName => gdDAO.uploadToBucket(googleProject, bucketName, certName, new File(dataprocConfig.configFolderPath, certName)) }
       // Return an array of all the Storage Objects
-    }.recoverWith {
-      case ioError: IOException => throw InitializationFileException(googleProject, clusterName, ioError.getMessage)
     }
   }
 
@@ -105,8 +101,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     Future {
       val raw = scala.io.Source.fromFile(filePath).mkString
       replacementMap.foldLeft(raw)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", b._2.toString()))
-    }.recoverWith {
-      case t: Throwable => throw TemplatingException(filePath, t.getMessage)
     }
   }
 
