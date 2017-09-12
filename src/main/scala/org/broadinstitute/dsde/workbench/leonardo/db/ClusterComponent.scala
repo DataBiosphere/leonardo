@@ -6,7 +6,6 @@ import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterStatus}
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
 
 case class ClusterRecord(id: Long,
                          clusterName: String,
