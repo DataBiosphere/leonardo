@@ -4,7 +4,6 @@ import akka.actor.{Actor, Props}
 import akka.pattern.pipe
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
-import org.broadinstitute.dsde.workbench.util.addJitter
 import org.broadinstitute.dsde.workbench.leonardo.config.MonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, DataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -12,6 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterErrorDetails, ClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterDeleted
+import org.broadinstitute.dsde.workbench.util.addJitter
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -125,6 +125,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ShutdownActor
     */
   private def handleFailedCluster(errorDetails: ClusterErrorDetails): Future[ClusterMonitorMessage] = {
+    // Delete the cluster in Google
     gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName).flatMap { _ =>
       if (shouldRecreateCluster(errorDetails.code, errorDetails.message)) {
         // Update the database record to Deleting, shutdown this actor, and register a callback message

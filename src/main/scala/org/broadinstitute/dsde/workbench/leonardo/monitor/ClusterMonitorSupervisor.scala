@@ -15,15 +15,20 @@ object ClusterMonitorSupervisor {
     Props(new ClusterMonitorSupervisor(monitorConfig, gdDAO, dbRef))
 
   sealed trait ClusterSupervisorMessage
+  case class RegisterLeoService(service: LeonardoService) extends ClusterSupervisorMessage
   case class ClusterCreated(cluster: Cluster) extends ClusterSupervisorMessage
   case class ClusterDeleted(cluster: Cluster, recreate: Boolean = false) extends ClusterSupervisorMessage
   case class RecreateCluster(cluster: Cluster) extends ClusterSupervisorMessage
 }
 
 class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, gdDAO: DataprocDAO, dbRef: DbReference) extends Actor with LazyLogging {
-  import context.dispatcher
+
+  var leoService: LeonardoService = _
 
   override def receive: Receive = {
+    case RegisterLeoService(service) =>
+      leoService = service
+
     case ClusterCreated(cluster) =>
       logger.info(s"Monitoring cluster ${cluster.googleProject}/${cluster.clusterName} for initialization.")
       startClusterMonitorActor(cluster)
@@ -36,7 +41,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, gdDAO: DataprocDAO,
       if (monitorConfig.recreateCluster) {
         logger.info(s"Recreating cluster ${cluster.googleProject}/${cluster.clusterName}...")
         val clusterRequest = ClusterRequest(cluster.googleBucket, cluster.googleServiceAccount, cluster.labels)
-        LeonardoService.createCluster(gdDAO, dbRef, self, cluster.googleProject, cluster.clusterName, clusterRequest)
+        leoService.createCluster(cluster.googleProject, cluster.clusterName, clusterRequest)
       } else {
         logger.warn(s"Received RecreateCluster message for cluster ${cluster} but cluster recreation is disabled.")
       }

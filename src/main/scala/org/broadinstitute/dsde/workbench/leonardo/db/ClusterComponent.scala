@@ -93,7 +93,7 @@ trait ClusterComponent extends LeoComponent {
       updateClusterStatus(googleId, ClusterStatus.Deleted) andThen
         // Append a random suffix to the cluster name to prevent unique key conflicts in case a cluster
         // with the same name is recreated.
-        // TODO: This is a bit ugly; a better solution would be to have a unique key on (googleId, clusterName, deletedAt)
+        // TODO: This is a bit ugly; a better solution would be to have a unique key on (googleId, clusterName, destroyedDate)
         updateClusterName(googleId, appendRandomSuffix(clusterName))
     }
 

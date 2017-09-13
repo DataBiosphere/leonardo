@@ -1,16 +1,20 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
+import java.io.File
 import java.time.Instant
 import java.util.UUID
 
-import akka.actor.{ActorRef, ActorSystem, Props, Terminated}
+import akka.actor.{ActorRef, ActorSystem, Terminated}
 import akka.testkit.TestKit
+import com.typesafe.config.ConfigFactory
 import io.grpc.Status.Code
-import org.broadinstitute.dsde.workbench.leonardo.config.MonitorConfig
+import net.ceedubs.ficus.Ficus._
+import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted}
+import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.mockito.ArgumentMatchers.{eq => eqq, _}
 import org.mockito.Mockito._
 import org.scalatest.mockito.MockitoSugar
@@ -24,10 +28,8 @@ import scala.concurrent.{ExecutionContext, Future}
   */
 class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll with TestComponent { testKit =>
 
-  override def afterAll(): Unit = {
-    TestKit.shutdownActorSystem(system)
-    super.afterAll()
-  }
+  val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
+  val dataprocConfig = config.as[DataprocConfig]("dataproc")
 
   val creatingCluster = Cluster(
     clusterName = "name1",
@@ -57,19 +59,15 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"))
 
-  /**
-    * Extends ClusterMonitorSupervisor so the akka TestKit can watch the child ClusterMontitorActor's.
-    */
-  class TestSupervisor(gdDAO: DataprocDAO, dbRef: DbReference) extends ClusterMonitorSupervisor(MonitorConfig(100 millis), gdDAO, dbRef) {
-    override def createChildActor(cluster: Cluster): ActorRef = {
-      val child = super.createChildActor(cluster)
-      testKit watch child
-      child
-    }
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system)
+    super.afterAll()
   }
 
   def createClusterSupervisor(dao: DataprocDAO): ActorRef = {
-    system.actorOf(Props(new TestSupervisor(dao, DbSingleton.ref)))
+    val actor = system.actorOf(TestClusterSupervisorActor.props(dao, DbSingleton.ref, testKit))
+    new LeonardoService(dataprocConfig, dao, DbSingleton.ref, actor)
+    actor
   }
 
   // Pre:
@@ -266,10 +264,26 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val newClusterId = UUID.randomUUID()
     when {
-      dao.createCluster(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName), any[ClusterRequest])(any[ExecutionContext])
+      dao.createCluster(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName), any[ClusterRequest], anyString)(any[ExecutionContext])
     } thenReturn Future.successful {
       ClusterResponse(creatingCluster.clusterName, creatingCluster.googleProject, newClusterId.toString, "CREATING", "description", "create op")
     }
+
+    when {
+      dao.updateFirewallRule(eqq(creatingCluster.googleProject))
+    } thenReturn Future.successful(())
+
+    when {
+      dao.createBucket(anyString, anyString)
+    } thenReturn Future.successful(())
+
+    when {
+      dao.uploadToBucket(anyString, anyString, anyString, any[File])
+    } thenReturn Future.successful(())
+
+    when {
+      dao.uploadToBucket(anyString, anyString, anyString, anyString)
+    } thenReturn Future.successful(())
 
     when {
       dao.getClusterMasterInstanceIp(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])

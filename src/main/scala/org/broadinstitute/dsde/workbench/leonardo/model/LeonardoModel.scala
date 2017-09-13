@@ -1,16 +1,17 @@
 package org.broadinstitute.dsde.workbench.leonardo.model
 
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
-import com.typesafe.config.ConfigFactory
 import java.time.Instant
 import java.util.UUID
+
+import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
+import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
-import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.{GoogleBucket, GoogleProject, GoogleServiceAccount}
+import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.{GoogleBucket, GoogleBucketUri, GoogleProject, GoogleServiceAccount}
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat}
+
 import scala.language.implicitConversions
-import spray.json.{DefaultJsonProtocol, DeserializationException, JsonFormat, JsString, JsValue}
 
 // maybe we want to get fancy later
 object ModelTypes {
@@ -34,7 +35,7 @@ object ClusterStatus extends Enumeration {
 
   class StatusValue(status: ClusterStatus) {
     def isActive: Boolean = activeStatuses contains status
-    def isMonitored: Boolean = pendingStatuses contains status
+    def isMonitored: Boolean = monitoredStatuses contains status
   }
   implicit def enumConvert(status: ClusterStatus): StatusValue = new StatusValue(status)
 

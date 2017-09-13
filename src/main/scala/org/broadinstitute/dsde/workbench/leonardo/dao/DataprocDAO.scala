@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import java.io.File
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterRequest, ClusterResponse}
 
@@ -10,7 +10,7 @@ import scala.concurrent.{ExecutionContext, Future}
 trait DataprocDAO {
   def createCluster(googleProject: GoogleProject, clusterName: String, clusterRequest: ClusterRequest, bucketName: String)(implicit executionContext: ExecutionContext): Future[ClusterResponse]
 
-  def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Option[Operation]]
+  def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit]
 
   def updateFirewallRule(googleProject: GoogleProject): Future[Unit]
 
