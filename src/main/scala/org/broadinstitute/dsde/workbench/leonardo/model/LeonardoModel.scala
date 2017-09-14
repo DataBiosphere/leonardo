@@ -1,15 +1,17 @@
 package org.broadinstitute.dsde.workbench.leonardo.model
 
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
-import com.typesafe.config.ConfigFactory
 import java.time.Instant
 import java.util.UUID
+
+import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
+import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.{GoogleBucket, GoogleBucketUri, GoogleProject, GoogleServiceAccount}
+import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat}
+
 import scala.language.implicitConversions
-import spray.json.{DefaultJsonProtocol, DeserializationException, JsonFormat, JsString, JsValue}
 
 // maybe we want to get fancy later
 object ModelTypes {
@@ -27,15 +29,21 @@ object GoogleBucketUri {
 
 object ClusterStatus extends Enumeration {
   type ClusterStatus = Value
-  val Unknown, Creating, Deleting, Deleted = Value
-  val activeStatuses = Seq(Unknown, Creating)
+  val Unknown, Creating, Running, Updating, Error, Deleting, Deleted = Value
+  val activeStatuses = Set(Unknown, Creating, Running, Updating)
+  val monitoredStatuses = Set(Unknown, Creating, Updating, Deleting)
 
-  class StatusValue(status: Value) {
-    def isActive:Boolean = activeStatuses contains status
+  class StatusValue(status: ClusterStatus) {
+    def isActive: Boolean = activeStatuses contains status
+    def isMonitored: Boolean = monitoredStatuses contains status
   }
-  implicit def enumConvert(status: Value): StatusValue = new StatusValue(status)
+  implicit def enumConvert(status: ClusterStatus): StatusValue = new StatusValue(status)
 
-  def withNameOpt(s: String): Option[Value] = values.find(_.toString == s)
+  def withNameOpt(s: String): Option[ClusterStatus] = values.find(_.toString == s)
+
+  def withNameIgnoreCase(str: String): ClusterStatus = {
+    values.find(_.toString.equalsIgnoreCase(str)).getOrElse(throw new IllegalArgumentException(s"Unknown cluster status: $str"))
+  }
 }
 
 
@@ -84,6 +92,8 @@ case class ClusterResponse(clusterName: String,
                            status: String,
                            description: String,
                            operationName: String)
+
+case class ClusterErrorDetails(code: Int, message: Option[String])
 
 object ClusterInitValues {
   def apply(googleProject: GoogleProject, clusterName: String, bucketName: String, dataprocConfig: DataprocConfig): ClusterInitValues =

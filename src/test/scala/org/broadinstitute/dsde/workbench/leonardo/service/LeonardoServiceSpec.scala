@@ -4,12 +4,14 @@ import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import com.typesafe.config.ConfigFactory
 import java.util.UUID
+
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterInitValues, ClusterRequest}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import spray.json._
@@ -24,7 +26,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   private val dataprocConfig = ConfigFactory.load().as[DataprocConfig]("dataproc")
 
   private val gdDAO = new MockGoogleDataprocDAO(dataprocConfig)
-  private val leo = new LeonardoService(dataprocConfig, gdDAO, DbSingleton.ref)
+  private val leo = new LeonardoService(dataprocConfig, gdDAO, DbSingleton.ref, system.actorOf(NoopActor.props))
 
   private val bucketPath = "bucket-path"
   private val serviceAccount = "service-account"
