@@ -60,7 +60,8 @@ object Cluster {
     hostIp = None,
     createdDate = Instant.now(),
     destroyedDate = None,
-    labels = clusterRequest.labels)
+    labels = clusterRequest.labels,
+    extensionUri = clusterRequest.extensionUri)
 
   def getClusterUrl(googleProject: String, clusterName: String): String = {
     val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
@@ -80,11 +81,13 @@ case class Cluster(clusterName: String,
                    hostIp: Option[String],
                    createdDate: Instant,
                    destroyedDate: Option[Instant],
-                   labels: Map[String, String])
+                   labels: Map[String, String],
+                   extensionUri: Option[GoogleBucketUri])
 
 case class ClusterRequest(bucketPath: GoogleBucket,
                           serviceAccount: String,
-                          labels: Map[String, String])
+                          labels: Map[String, String],
+                          extensionUri: Option[GoogleBucketUri])
 
 case class ClusterResponse(clusterName: String,
                            googleProject: GoogleProject,
@@ -96,7 +99,7 @@ case class ClusterResponse(clusterName: String,
 case class ClusterErrorDetails(code: Int, message: Option[String])
 
 object ClusterInitValues {
-  def apply(googleProject: GoogleProject, clusterName: String, bucketName: String, dataprocConfig: DataprocConfig): ClusterInitValues =
+  def apply(googleProject: GoogleProject, clusterName: String, bucketName: String, dataprocConfig: DataprocConfig, clusterRequest: ClusterRequest): ClusterInitValues =
     ClusterInitValues(
       googleProject,
       clusterName,
@@ -108,7 +111,8 @@ object ClusterInitValues {
       GoogleBucketUri(bucketName, dataprocConfig.clusterDockerComposeName),
       GoogleBucketUri(bucketName, dataprocConfig.jupyterProxySiteConfName),
       dataprocConfig.jupyterServerName,
-      dataprocConfig.proxyServerName
+      dataprocConfig.proxyServerName,
+      clusterRequest.extensionUri
     )
 
 }
@@ -123,7 +127,8 @@ case class ClusterInitValues(googleProject: GoogleProject,
                              jupyterDockerCompose: GoogleBucketUri,
                              jupyterProxySiteConf: GoogleBucketUri,
                              jupyterServerName: String,
-                             proxyServerName: String)
+                             proxyServerName: String,
+                             extensionUri: Option[GoogleBucketUri])
 
 
 object FirewallRuleRequest {
@@ -180,10 +185,10 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     }
   }
 
-  implicit val clusterFormat = jsonFormat12(Cluster.apply)
-  implicit val clusterRequestFormat = jsonFormat3(ClusterRequest)
+  implicit val clusterFormat = jsonFormat13(Cluster.apply)
+  implicit val clusterRequestFormat = jsonFormat4(ClusterRequest)
   implicit val clusterResponseFormat = jsonFormat6(ClusterResponse)
-  implicit val clusterInitValuesFormat = jsonFormat11(ClusterInitValues.apply)
+  implicit val clusterInitValuesFormat = jsonFormat12(ClusterInitValues.apply)
   implicit val firewallRuleRequestFormat = jsonFormat5(FirewallRuleRequest.apply)
   implicit val storageObjectResponseFormat = jsonFormat3(StorageObjectResponse)
 

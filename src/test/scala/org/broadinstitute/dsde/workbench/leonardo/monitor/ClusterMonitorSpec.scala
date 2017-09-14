@@ -43,7 +43,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     hostIp = None,
     createdDate = Instant.now(),
     destroyedDate = None,
-    labels = Map("bam" -> "yes", "vcf" -> "no"))
+    labels = Map("bam" -> "yes", "vcf" -> "no"),
+    None)
 
   val deletingCluster = Cluster(
     clusterName = "name2",
@@ -57,7 +58,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     hostIp = None,
     createdDate = Instant.now(),
     destroyedDate = None,
-    labels = Map("bam" -> "yes", "vcf" -> "no"))
+    labels = Map("bam" -> "yes", "vcf" -> "no"),
+    Some("clsuter_uri"))
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)

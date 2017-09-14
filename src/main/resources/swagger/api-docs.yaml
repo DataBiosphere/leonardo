@@ -286,13 +286,13 @@ definitions:
         description: The IP address of the cluster master node
       createdDate:
         type: string
-        description: 'The date and time the cluster was created, in ISO-8601 format'
+        description: The date and time the cluster was created, in ISO-8601 format
       destroyedDate:
         type: string
-        description: 'The date and time the cluster was destroyed, in ISO-8601 format'
+        description: The date and time the cluster was destroyed, in ISO-8601 format
       labels:
         type: object
-        description: 'The labels to be placed on the cluster. Of type Map[String,String]'
+        description: The labels to be placed on the cluster. Of type Map[String,String]
   ClusterRequest:
     description: ''
     required:
@@ -308,4 +308,11 @@ definitions:
         description: The service account of the user
       labels:
         type: object
-        description: 'The labels to be placed on the cluster. Of type Map[String,String]'
+        description: The labels to be placed on the cluster. Of type Map[String,String]
+      extensionUri:
+        type: string
+        description: |
+          Optional bucket URI to an archive containing Jupyter notebook extension files.
+          The archive must be in tar.gz format, must not include a parent directory, and
+          must have an entry point named 'main'.
+

@@ -18,7 +18,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "200 when creating and getting cluster" in isolatedDbTest {
-    val newCluster = ClusterRequest("test-bucket-path", "test-service-account", Map[String,String]())
+    val newCluster = ClusterRequest("test-bucket-path", "test-service-account", Map.empty, Some("extension_uri"))
     val googleProject = "test-project"
     val clusterName = "test-cluster"
 
@@ -31,6 +31,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       val responseCluster = responseAs[Cluster]
       responseCluster.googleBucket shouldEqual "test-bucket-path"
       responseCluster.googleServiceAccount shouldEqual "test-service-account"
+      responseCluster.extensionUri shouldEqual Some("extension_uri")
     }
   }
 
@@ -41,7 +42,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "202 when deleting a cluster" in isolatedDbTest{
-    val newCluster = ClusterRequest("test-bucket-path", "test-service-account", Map.empty)
+    val newCluster = ClusterRequest("test-bucket-path", "test-service-account", Map.empty, None)
     val googleProject = "test-project"
     val clusterName = "test-cluster"
 

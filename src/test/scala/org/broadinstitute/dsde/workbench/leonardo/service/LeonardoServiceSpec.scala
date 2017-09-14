@@ -31,7 +31,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   private val bucketPath = "bucket-path"
   private val serviceAccount = "service-account"
   private val googleProject = "test-google-project"
-  private val testClusterRequest = ClusterRequest(bucketPath, serviceAccount, Map.empty)
+  private val extensionUri = "extension_uri"
+  private val testClusterRequest = ClusterRequest(bucketPath, serviceAccount, Map.empty, Some(extensionUri))
 
   val initFiles = Array( dataprocConfig.clusterDockerComposeName, dataprocConfig.initActionsScriptName, dataprocConfig.jupyterServerCrtName,
     dataprocConfig.jupyterServerKeyName, dataprocConfig.jupyterRootCaPemName, dataprocConfig.jupyterProxySiteConfName)
@@ -138,7 +139,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.buckets should not contain (bucketName)
 
     // create the bucket and add files
-    leo.initializeBucket(googleProject, clusterName, bucketName).futureValue
+    leo.initializeBucket(googleProject, clusterName, bucketName, testClusterRequest).futureValue
 
     // our bucket should now exist
     gdDAO.buckets should contain (bucketName)
@@ -157,7 +158,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.buckets += bucketName
 
     // add all the bucket objects
-    leo.initializeBucketObjects(googleProject, clusterName, bucketName).futureValue
+    leo.initializeBucketObjects(googleProject, clusterName, bucketName, testClusterRequest).futureValue
 
     // check that the bucket exists
     gdDAO.buckets should contain (bucketName)
@@ -198,7 +199,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val filePath = dataprocConfig.configFolderPath + dataprocConfig.initActionsScriptName
 
     // Create replacements map
-    val replacements = ClusterInitValues(googleProject, clusterName, bucketName, dataprocConfig).toJson.asJsObject.fields
+    val replacements = ClusterInitValues(googleProject, clusterName, bucketName, dataprocConfig, testClusterRequest).toJson.asJsObject.fields
 
     // Each value in the replacement map will replace it's key in the file being processed
     val result = leo.template(filePath, replacements).futureValue
@@ -209,7 +210,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
           |
           |"$clusterName"
           |"$googleProject"
-          |"${dataprocConfig.jupyterProxyDockerImage}"""".stripMargin
+          |"${dataprocConfig.jupyterProxyDockerImage}"
+          |"$extensionUri"""".stripMargin
 
     result shouldEqual expected
   }

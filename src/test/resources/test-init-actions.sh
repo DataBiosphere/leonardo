@@ -3,3 +3,4 @@
 $(clusterName)
 $(googleProject)
 $(jupyterDockerImage)
+$(extensionUri)
