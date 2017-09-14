@@ -81,7 +81,7 @@ class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxySer
     RejectionHandler.newBuilder()
       .handle {
         case MissingCookieRejection(name) if name == tokenCookieName =>
-          complete(StatusCodes.Forbidden,
+          complete(StatusCodes.Unauthorized,
             ErrorReport(s"$tokenCookieName cookie not present", Some(StatusCodes.Unauthorized), Seq.empty, Seq.empty, Some(this.getClass)))
       }
       .result()
