@@ -14,5 +14,5 @@ c.NotebookApp.token = ''
 c.NotebookApp.allow_origin = '*'
 
 fragment = os.environ['GOOGLE_PROJECT'] + '/' + os.environ['CLUSTER_NAME']
-c.NotebookApp.base_url = '/api/notebooks/' + fragment + '/'
+c.NotebookApp.base_url = '/notebooks/' + fragment + '/'
 c.NotebookApp.webapp_settings = {'static_url_prefix':'/api/notebooks/' + fragment + '/static/'}
