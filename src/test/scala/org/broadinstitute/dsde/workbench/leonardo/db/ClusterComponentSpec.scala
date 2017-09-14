@@ -87,11 +87,13 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike {
     val c1status = dbFutureValue { _.clusterQuery.getByGoogleId(c1.googleId) }.get
     c1status.status shouldEqual ClusterStatus.Deleting
     assert(c1status.destroyedDate.nonEmpty)
+    c1status.hostIp shouldBe None
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(c2.googleId) } shouldEqual 1
     dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq()
     val c2status = dbFutureValue { _.clusterQuery.getByGoogleId(c2.googleId) }.get
     c2status.status shouldEqual ClusterStatus.Deleting
     assert(c2status.destroyedDate.nonEmpty)
+    c2status.hostIp shouldBe None
   }
 }

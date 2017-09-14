@@ -11,11 +11,13 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, Monito
 import org.broadinstitute.dsde.workbench.leonardo.dao.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService}
+
 import scala.concurrent.ExecutionContext
+import scala.util.{Failure, Success}
 
 object Boot extends App with LazyLogging {
   private def startup(): Unit = {
@@ -67,16 +69,15 @@ object Boot extends App with LazyLogging {
 
   private def startClusterMonitors(dbRef: DbReference, clusterMonitor: ActorRef)(implicit executionContext: ExecutionContext) = {
     dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.listMonitored.map { clusters =>
-        clusters.foreach { cluster =>
-          cluster.status match {
-            case Deleting => clusterMonitor ! ClusterDeleted(cluster)
-            case _ => clusterMonitor ! ClusterCreated(cluster)
-          }
+      dataAccess.clusterQuery.listMonitored
+    } onComplete {
+      case Success(clusters) =>
+        clusters.foreach {
+          case c if c.status == ClusterStatus.Deleting => clusterMonitor ! ClusterDeleted(c)
+          case c => clusterMonitor ! ClusterCreated(c)
         }
-      }
-    }.failed.foreach { case t: Throwable =>
-      logger.error("Error starting cluster monitor", t)
+      case Failure(e) =>
+        logger.error("Error starting cluster monitor", e)
     }
   }
 

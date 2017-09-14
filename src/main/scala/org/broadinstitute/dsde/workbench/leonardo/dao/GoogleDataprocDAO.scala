@@ -75,6 +75,16 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       .build()
   }
 
+  private lazy val googleFirewallRule = {
+    // Create an Allowed object that specifies the port and protocol of rule
+    val allowed = new Allowed().setIPProtocol(proxyConfig.jupyterProtocol).setPorts(List(proxyConfig.jupyterPort.toString).asJava)
+    // Create a firewall rule that takes an Allowed object, a name, and the network tag a cluster must have to be accessed through the rule
+    new Firewall()
+      .setName(dataprocConfig.clusterFirewallRuleName)
+      .setTargetTags(List(dataprocConfig.clusterNetworkTag).asJava)
+      .setAllowed(List(allowed).asJava)
+  }
+
   def createCluster(googleProject: GoogleProject, clusterName: String, clusterRequest: ClusterRequest, bucketName: String)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
     buildCluster(googleProject, clusterName, clusterRequest, bucketName).map { operation =>
       // Once the cluster creation request is sent to Google, it returns a DataprocOperation, which we transform into a ClusterResponse
@@ -112,17 +122,17 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     // Create a dataproc create request and give it the google project, a zone, and the Cluster
     val request = dataproc.projects().regions().clusters().create(googleProject, dataprocConfig.dataprocDefaultRegion, cluster)
 
-    executeGoogleRequestAsync(googleProject, clusterName, request)  // returns a DataprocOperation
+    executeGoogleRequestAsync(googleProject, clusterName, request)  // returns a Future[DataprocOperation]
   }
 
   /* Check if the given google project has a cluster firewall rule. If not, add the rule to the project*/
   def updateFirewallRule(googleProject: GoogleProject): Future[Unit] = {
-    getFirewallRule(googleProject, dataprocConfig.clusterFirewallRuleName).recoverWith {
+    checkFirewallRule(googleProject, dataprocConfig.clusterFirewallRuleName).recoverWith {
       case _: FirewallRuleNotFoundException => addFirewallRule(googleProject)
     }
   }
 
-  private def getFirewallRule(googleProject: GoogleProject, firewallRuleName: String): Future[Unit] = {
+  private def checkFirewallRule(googleProject: GoogleProject, firewallRuleName: String): Future[Unit] = {
     val request = compute.firewalls().get(googleProject, firewallRuleName)
     executeGoogleRequestAsync(googleProject, firewallRuleName, request).recover {
       case CallToGoogleApiFailedException(_, _, 404, _) =>
@@ -135,13 +145,6 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
      VMs with the network tag "leonardo". This rule should only be added once per project.
     To think about: do we want to remove this rule if a google project no longer has any clusters? */
   private def addFirewallRule(googleProject: GoogleProject): Future[Unit] = {
-    // Create an Allowed object that specifies the port and protocol of rule
-    val allowed = new Allowed().setIPProtocol(proxyConfig.jupyterProtocol).setPorts(List(proxyConfig.jupyterPort.toString).asJava)
-    // Create a firewall rule that takes an Allowed object, a name, and the network tag a cluster must have to be accessed through the rule
-    val googleFirewallRule = new Firewall()
-      .setName(dataprocConfig.clusterFirewallRuleName)
-      .setTargetTags(List(dataprocConfig.clusterNetworkTag).asJava)
-      .setAllowed(List(allowed).asJava)
     val request = compute.firewalls().insert(googleProject, googleFirewallRule)
     executeGoogleRequestAsync(googleProject, dataprocConfig.clusterFirewallRuleName, request).void
   }
@@ -177,8 +180,6 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     val inputStreamContent = new InputStreamContent(null, new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8)))
     uploadToBucket(googleProject, bucketName, fileName, inputStreamContent).void
   }
-
-
 
   /* Upload the given content into the given bucket */
   private def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: AbstractInputStreamContent): Future[StorageObjectResponse] = {
@@ -232,8 +233,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
 
   override def getClusterErrorDetails(operationName: String)(implicit executionContext: ExecutionContext): Future[Option[ClusterErrorDetails]] = {
     val errorOpt: OptionT[Future, ClusterErrorDetails] = for {
-      operation <- OptionT.liftF[Future, DataprocOperation] { getOperation(operationName) }
-      _ <- OptionT.pure { operation.getDone }.filter(_ == true)
+      operation <- OptionT.liftF[Future, DataprocOperation] { getOperation(operationName) } if operation.getDone
       error <- OptionT.pure { operation.getError }
       code <- OptionT.pure { error.getCode }
     } yield ClusterErrorDetails(code, Option(error.getMessage))

@@ -171,10 +171,11 @@ class ClusterMonitorActor(val cluster: Cluster,
     */
   private def checkCluster: Future[ClusterMonitorMessage] = {
     val result = for {
-      status <- gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName)
-      result <- status match {
-        case Unknown | Creating | Updating => Future.successful(NotReadyCluster(status))
-        case Running =>
+      googleStatus <- gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName)
+      result <- googleStatus match {
+        case Unknown | Creating | Updating => Future.successful(NotReadyCluster(googleStatus))
+        // Take care we don't restart a Deleting cluster if google hasn't updated their status yet
+        case Running if cluster.status != Deleting =>
           gdDAO.getClusterMasterInstanceIp(cluster.googleProject, cluster.clusterName).map {
             case Some(ip) => ReadyCluster(ip)
             case None => NotReadyCluster(ClusterStatus.Running)
@@ -185,6 +186,7 @@ class ClusterMonitorActor(val cluster: Cluster,
             case None => NotReadyCluster(ClusterStatus.Error)
           }
         case Deleted => Future.successful(DeletedCluster)
+        case _ => Future.successful(NotReadyCluster(googleStatus))
       }
     } yield result
 

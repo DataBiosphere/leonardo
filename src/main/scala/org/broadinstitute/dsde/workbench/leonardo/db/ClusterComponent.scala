@@ -85,8 +85,8 @@ trait ClusterComponent extends LeoComponent {
 
     def markPendingDeletion(googleId: UUID): DBIO[Int] = {
       clusterQuery.filter(_.googleId === googleId)
-        .map(c => (c.destroyedDate, c.status))
-        .update((Option(Timestamp.from(java.time.Instant.now())), ClusterStatus.Deleting.toString))
+        .map(c => (c.destroyedDate, c.status, c.hostIp))
+        .update((Option(Timestamp.from(java.time.Instant.now())), ClusterStatus.Deleting.toString, None))
     }
 
     def completeDeletion(googleId: UUID, clusterName: String): DBIO[Int] = {

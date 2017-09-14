@@ -51,10 +51,10 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     googleProject = "dsp-leo-test",
     googleServiceAccount = "not-a-service-acct@google.com",
     googleBucket = "bucket1",
-    clusterUrl = Cluster.getClusterUrl("dsp-leo-test", "name1"),
+    clusterUrl = Cluster.getClusterUrl("dsp-leo-test", "name2"),
     operationName = "op1",
     status = ClusterStatus.Deleting,
-    hostIp = Some("numbers.and.dots"),
+    hostIp = None,
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"))
@@ -227,7 +227,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val updatedCluster = dbFutureValue { _.clusterQuery.getByGoogleId(deletingCluster.googleId) }
     updatedCluster shouldBe 'defined
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Deleted)
-    updatedCluster.flatMap(_.hostIp) shouldBe deletingCluster.hostIp
+    updatedCluster.flatMap(_.hostIp) shouldBe None
   }
 
   // Pre:
@@ -309,6 +309,29 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     newCluster.map(_.googleId) shouldBe Some(newClusterId)
     newCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
     newCluster.flatMap(_.hostIp) shouldBe Some("1.2.3.4")
+  }
+
+  // Pre:
+  // - cluster exists in the DB with status Deleting
+  // - dataproc DAO returns status RUNNING
+  // Post:
+  // - cluster is not changed in the DB
+  // - monitor actor does not shut down
+  it should "not restart a deleting cluster" in isolatedDbTest {
+    dbFutureValue { _.clusterQuery.save(deletingCluster) } shouldEqual deletingCluster
+
+    val dao = mock[DataprocDAO]
+    when {
+      dao.getClusterStatus(eqq(deletingCluster.googleProject), eqq(deletingCluster.clusterName))(any[ExecutionContext])
+    } thenReturn Future.successful(ClusterStatus.Running)
+
+    createClusterSupervisor(dao) ! ClusterCreated(deletingCluster)
+
+    expectNoMsg(1 second)
+
+    val updatedCluster = dbFutureValue { _.clusterQuery.getByName(deletingCluster.googleProject, deletingCluster.clusterName) }
+    updatedCluster shouldBe 'defined
+    updatedCluster shouldBe Some(deletingCluster)
   }
 
 }

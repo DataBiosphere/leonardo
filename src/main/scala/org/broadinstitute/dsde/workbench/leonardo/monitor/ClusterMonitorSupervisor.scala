@@ -22,6 +22,7 @@ object ClusterMonitorSupervisor {
 }
 
 class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, gdDAO: DataprocDAO, dbRef: DbReference) extends Actor with LazyLogging {
+  import context.dispatcher
 
   var leoService: LeonardoService = _
 
@@ -41,7 +42,9 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, gdDAO: DataprocDAO,
       if (monitorConfig.recreateCluster) {
         logger.info(s"Recreating cluster ${cluster.googleProject}/${cluster.clusterName}...")
         val clusterRequest = ClusterRequest(cluster.googleBucket, cluster.googleServiceAccount, cluster.labels)
-        leoService.createCluster(cluster.googleProject, cluster.clusterName, clusterRequest)
+        leoService.createCluster(cluster.googleProject, cluster.clusterName, clusterRequest).failed.foreach { e =>
+          logger.error("Error occurred recreating cluster", e)
+        }
       } else {
         logger.warn(s"Received RecreateCluster message for cluster ${cluster} but cluster recreation is disabled.")
       }
