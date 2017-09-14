@@ -1,31 +1,38 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
+import java.io.{ByteArrayInputStream, File}
+import java.nio.charset.StandardCharsets
+
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
+import cats.data.OptionT
+import cats.instances.future._
+import cats.syntax.functor._
 import com.google.api.client.auth.oauth2.Credential
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
+import com.google.api.client.googleapis.services.AbstractGoogleClientRequest
 import com.google.api.client.http.{AbstractInputStreamContent, FileContent, InputStreamContent}
 import com.google.api.client.json.jackson2.JacksonFactory
-import com.google.api.services.compute.{Compute, ComputeScopes}
-import com.google.api.services.compute.model.{Firewall, Operation => ComputeOperation}
 import com.google.api.services.compute.model.Firewall.Allowed
+import com.google.api.services.compute.model.{Firewall, Instance, Operation => ComputeOperation}
+import com.google.api.services.compute.{Compute, ComputeScopes}
 import com.google.api.services.dataproc.Dataproc
 import com.google.api.services.dataproc.model.{Cluster => GoogleCluster, Operation => DataprocOperation, _}
 import com.google.api.services.plus.PlusScopes
-import com.google.api.services.storage.{Storage, StorageScopes}
-import com.google.api.services.storage.model.{Bucket, StorageObject}
 import com.google.api.services.storage.model.Bucket.Lifecycle
 import com.google.api.services.storage.model.Bucket.Lifecycle.Rule.{Action, Condition}
-import java.io.{ByteArrayInputStream, File}
-import java.nio.charset.StandardCharsets
+import com.google.api.services.storage.model.{Bucket, StorageObject}
+import com.google.api.services.storage.{Storage, StorageScopes}
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig}
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, ClusterResponse, LeoException, _}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterRequest, ClusterResponse, GoogleBucketUri, LeoException, StorageObjectResponse, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
+
 import scala.collection.JavaConverters._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future, blocking}
 
 case class CallToGoogleApiFailedException(googleProject: GoogleProject, clusterName:String, exceptionStatusCode: Int, errorMessage: String)
   extends LeoException(s"Call to Google API failed for $googleProject/$clusterName. Message: $errorMessage",exceptionStatusCode)
@@ -58,7 +65,6 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       .setApplicationName(dataprocConfig.applicationName).build()
   }
 
-
   private def getServiceAccountCredential(scopes: List[String]): Credential = {
     new GoogleCredential.Builder()
       .setTransport(httpTransport)
@@ -67,6 +73,16 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       .setServiceAccountScopes(scopes.asJava)
       .setServiceAccountPrivateKeyFromPemFile(serviceAccountPemFile)
       .build()
+  }
+
+  private lazy val googleFirewallRule = {
+    // Create an Allowed object that specifies the port and protocol of rule
+    val allowed = new Allowed().setIPProtocol(proxyConfig.jupyterProtocol).setPorts(List(proxyConfig.jupyterPort.toString).asJava)
+    // Create a firewall rule that takes an Allowed object, a name, and the network tag a cluster must have to be accessed through the rule
+    new Firewall()
+      .setName(dataprocConfig.clusterFirewallRuleName)
+      .setTargetTags(List(dataprocConfig.clusterNetworkTag).asJava)
+      .setAllowed(List(allowed).asJava)
   }
 
   def createCluster(googleProject: GoogleProject, clusterName: String, clusterRequest: ClusterRequest, bucketName: String)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
@@ -104,55 +120,33 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       .setConfig(clusterConfig)
 
     // Create a dataproc create request and give it the google project, a zone, and the Cluster
-    val request = dataproc.projects().regions().clusters().create(googleProject, dataprocConfig.dataprocDefaultZone, cluster)
+    val request = dataproc.projects().regions().clusters().create(googleProject, dataprocConfig.dataprocDefaultRegion, cluster)
 
-    Future {
-      executeGoogleRequest(request) // returns a DataprocOperation
-    } recoverWith {
-      case e: GoogleJsonResponseException => throw CallToGoogleApiFailedException(googleProject, clusterName, e.getStatusCode, e.getDetails.getMessage)
-    }
+    executeGoogleRequestAsync(googleProject, clusterName, request)  // returns a Future[DataprocOperation]
   }
 
   /* Check if the given google project has a cluster firewall rule. If not, add the rule to the project*/
   def updateFirewallRule(googleProject: GoogleProject): Future[Unit] = {
-    getFirewallRule(googleProject, dataprocConfig.clusterFirewallRuleName).recoverWith {
+    checkFirewallRule(googleProject, dataprocConfig.clusterFirewallRuleName).recoverWith {
       case _: FirewallRuleNotFoundException => addFirewallRule(googleProject)
     }
   }
 
-  private def getFirewallRule(googleProject: String, firewallRuleName: String): Future[Unit] = {
-    Future {
-      val request = compute.firewalls().get(googleProject, firewallRuleName)
-      executeGoogleRequest(request) // returns a Firewall
-      ()
-    }.recoverWith {
-      case e: GoogleJsonResponseException =>
-        if (e.getStatusCode == 404)
-          throw FirewallRuleNotFoundException(googleProject, firewallRuleName)
-        throw CallToGoogleApiFailedException(googleProject, firewallRuleName, e.getStatusCode, e.getDetails.getMessage)
-    }
+  private def checkFirewallRule(googleProject: GoogleProject, firewallRuleName: String): Future[Unit] = {
+    val request = compute.firewalls().get(googleProject, firewallRuleName)
+    executeGoogleRequestAsync(googleProject, firewallRuleName, request).recover {
+      case CallToGoogleApiFailedException(_, _, 404, _) =>
+        // throw FirewallRuleNotFoundException in case of 404 errors
+        throw FirewallRuleNotFoundException(googleProject, firewallRuleName)
+    }.void
   }
-
 
   /* Adds a firewall rule in the given google project. This firewall rule allows ingress traffic through a specified port for all
      VMs with the network tag "leonardo". This rule should only be added once per project.
     To think about: do we want to remove this rule if a google project no longer has any clusters? */
   private def addFirewallRule(googleProject: GoogleProject): Future[Unit] = {
-      // Create an Allowed object that specifies the port and protocol of rule
-      val allowed = new Allowed().setIPProtocol(proxyConfig.jupyterProtocol).setPorts(List(proxyConfig.jupyterPort.toString).asJava)
-      // Create a firewall rule that takes an Allowed object, a name, and the network tag a cluster must have to be accessed through the rule
-      val googleFirewallRule = new Firewall()
-        .setName(dataprocConfig.clusterFirewallRuleName)
-        .setTargetTags(List(dataprocConfig.clusterNetworkTag).asJava)
-        .setAllowed(List(allowed).asJava)
-      val request = compute.firewalls().insert(googleProject, googleFirewallRule)
-    Future {
-      executeGoogleRequest(request) // returns a ComputeOperation
-      ()
-    }.recoverWith {
-      case e: GoogleJsonResponseException =>
-        throw CallToGoogleApiFailedException(googleProject, dataprocConfig.clusterFirewallRuleName, e.getStatusCode, e.getDetails.getMessage)
-    }.mapTo[Unit]
+    val request = compute.firewalls().insert(googleProject, googleFirewallRule)
+    executeGoogleRequestAsync(googleProject, dataprocConfig.clusterFirewallRuleName, request).void
   }
 
   /* Create a bucket in the given google project for the initialization files when creating a cluster */
@@ -171,24 +165,20 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
 
     val bucketInserter = storage.buckets().insert(googleProject, bucket)
 
-    Future {
-      executeGoogleRequest(bucketInserter) // returns a Bucket
-      ()
-    }.recoverWith {
-      case e: GoogleJsonResponseException => throw CallToGoogleApiFailedException(googleProject, bucketName, e.getStatusCode, e.getDetails.getMessage)
-    }
+    executeGoogleRequestAsync(googleProject, bucketName, bucketInserter).void
   }
 
   /* Upload a file to a bucket as FileContent */
   def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: File): Future[Unit] = {
     val fileContent = new FileContent(null, content)
-    uploadToBucket(googleProject, bucketName, fileName, fileContent).mapTo[Unit]
+    uploadToBucket(googleProject, bucketName, fileName, fileContent).void
   }
+
 
   /* Upload a string to a bucket as InputStreamContent */
   def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: String): Future[Unit] = {
     val inputStreamContent = new InputStreamContent(null, new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8)))
-    uploadToBucket(googleProject, bucketName, fileName, inputStreamContent).mapTo[Unit]
+    uploadToBucket(googleProject, bucketName, fileName, inputStreamContent).void
   }
 
   /* Upload the given content into the given bucket */
@@ -199,27 +189,136 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     val fileInserter = storage.objects().insert(bucketName, storageObject, content)
     // Enable direct media upload
     fileInserter.getMediaHttpUploader().setDirectUploadEnabled(true)
-    Future {
-      executeGoogleRequest(fileInserter) //returns a StorageObject
-    }.recoverWith {
-      case e: GoogleJsonResponseException => throw CallToGoogleApiFailedException(googleProject, bucketName, e.getStatusCode, e.getDetails.getMessage)
-    } map { storageObject =>
+    executeGoogleRequestAsync(googleProject, bucketName, fileInserter) map { storageObject =>
       StorageObjectResponse(storageObject.getName, storageObject.getBucket, storageObject.getTimeCreated.toString)
     }
   }
 
   /* Delete a cluster within the google project */
   def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    Future {
-      val request = dataproc.projects().regions().clusters().delete(googleProject, dataprocConfig.dataprocDefaultZone, clusterName)
-      try {
-        executeGoogleRequest(request)
-      } catch {
-        case e:GoogleJsonResponseException =>
-          if(e.getStatusCode!=404)
-            throw CallToGoogleApiFailedException(googleProject, clusterName, e.getStatusCode, e.getDetails.getMessage)
-      }
+    val request = dataproc.projects().regions().clusters().delete(googleProject, dataprocConfig.dataprocDefaultRegion, clusterName)
+    executeGoogleRequestAsync(googleProject, clusterName, request).recover {
+      // treat a 404 error as a successful deletion
+      case CallToGoogleApiFailedException(_, _, 404, _) => ()
+    }.void
+  }
+
+  override def getClusterStatus(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[LeoClusterStatus] = {
+    getCluster(googleProject, clusterName).map { cluster =>
+      LeoClusterStatus.withNameIgnoreCase(cluster.getStatus.getState)
     }
   }
 
+  override def getClusterMasterInstanceIp(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[Option[String]] = {
+    // OptionT is handy when you potentially want to deal with Future[A], Option[A],
+    // Future[Option[A]], and A all in the same flatMap!
+    //
+    // Legend:
+    // - OptionT.pure turns an A into an OptionT[F, A]
+    // - OptionT.liftF turns an F[A] into an OptionT[F, A]
+    // - OptionT.fromOption turns an Option[A] into an OptionT[F, A]
+
+    val ipOpt: OptionT[Future, String] = for {
+      cluster <- OptionT.liftF[Future, GoogleCluster] { getCluster(googleProject, clusterName) }
+      masterInstanceName <- OptionT.fromOption { getMasterInstanceName(cluster) }
+      masterInstanceZone <- OptionT.fromOption { getZone(cluster) }
+      masterInstance <- OptionT.liftF[Future, Instance] { getInstance(googleProject, masterInstanceZone, masterInstanceName) }
+      masterInstanceIp <- OptionT.fromOption { getInstanceIP(masterInstance) }
+    } yield masterInstanceIp
+
+    // OptionT[Future, String] is simply a case class wrapper for Future[Option[String]].
+    // So this just grabs the inner value and returns it.
+    ipOpt.value
+  }
+
+  override def getClusterErrorDetails(operationName: String)(implicit executionContext: ExecutionContext): Future[Option[ClusterErrorDetails]] = {
+    val errorOpt: OptionT[Future, ClusterErrorDetails] = for {
+      operation <- OptionT.liftF[Future, DataprocOperation] { getOperation(operationName) } if operation.getDone
+      error <- OptionT.pure { operation.getError }
+      code <- OptionT.pure { error.getCode }
+    } yield ClusterErrorDetails(code, Option(error.getMessage))
+
+    errorOpt.value
+  }
+
+  /**
+    * Gets a dataproc Cluster from the API.
+    */
+  private def getCluster(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[GoogleCluster] = {
+    val request = dataproc.projects().regions().clusters().get(googleProject, dataprocConfig.dataprocDefaultRegion, clusterName)
+    executeGoogleRequestAsync(googleProject, clusterName, request)
+  }
+
+  /**
+    * Gets a compute Instance from the API.
+    */
+  private def getInstance(googleProject: GoogleProject, zone: String, name: String)(implicit executionContext: ExecutionContext): Future[Instance] = {
+    val request = compute.instances().get(googleProject, zone, name)
+    executeGoogleRequestAsync(googleProject, name, request)
+  }
+
+  /**
+    * Gets an Operation from the API.
+    */
+  private def getOperation(operationName: String)(implicit executionContext: ExecutionContext): Future[DataprocOperation] = {
+    val request = dataproc.projects().regions().operations().get(operationName)
+    executeGoogleRequestAsync("operation", operationName, request)
+  }
+
+  /**
+    * Gets the master instance name from a dataproc cluster, with error handling.
+    * @param cluster the Google dataproc cluster
+    * @return error or master instance name
+    */
+  private def getMasterInstanceName(cluster: GoogleCluster): Option[String] = {
+    for {
+      config <- Option(cluster.getConfig)
+      masterConfig <- Option(config.getMasterConfig)
+      instanceNames <- Option(masterConfig.getInstanceNames)
+      masterInstance <- instanceNames.asScala.headOption
+    } yield masterInstance
+  }
+
+  /**
+    * Gets the zone (not to be confused with region) of a dataproc cluster, with error handling.
+    * @param cluster the Google dataproc cluster
+    * @return error or the master instance zone
+    */
+  private def getZone(cluster: GoogleCluster): Option[String] = {
+    def parseZone(zoneUri: String): String = {
+      zoneUri.lastIndexOf('/') match {
+        case -1 => zoneUri
+        case n => zoneUri.substring(n + 1)
+      }
+    }
+
+    for {
+      config <- Option(cluster.getConfig)
+      gceConfig <- Option(config.getGceClusterConfig)
+      zoneUri <- Option(gceConfig.getZoneUri)
+    } yield parseZone(zoneUri)
+  }
+
+  /**
+    * Gets the public IP from a google Instance, with error handling.
+    * @param instance the Google instance
+    * @return error or public IP, as a String
+    */
+  private def getInstanceIP(instance: Instance): Option[String] = {
+    for {
+      interfaces <- Option(instance.getNetworkInterfaces)
+      interface <- interfaces.asScala.headOption
+      accessConfigs <- Option(interface.getAccessConfigs)
+      accessConfig <- accessConfigs.asScala.headOption
+    } yield accessConfig.getNatIP
+  }
+
+  private def executeGoogleRequestAsync[A](googleProject: GoogleProject, clusterName: String, request: AbstractGoogleClientRequest[A])(implicit executionContext: ExecutionContext): Future[A] = {
+    Future {
+      blocking(executeGoogleRequest(request))
+    } recover {
+      case e: GoogleJsonResponseException =>
+        throw CallToGoogleApiFailedException(googleProject, clusterName, e.getStatusCode, e.getDetails.getMessage)
+    }
+  }
 }

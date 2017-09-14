@@ -16,7 +16,7 @@ package object config {
   implicit val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
     DataprocConfig(config.getString("applicationName"),
       config.getString("serviceAccount"),
-      config.getString("dataprocDefaultZone"),
+      config.getString("dataprocDefaultRegion"),
       config.getString("leoGoogleBucket"),
       config.getString("dataprocDockerImage"),
       config.getString("jupyterProxyDockerImage"),
@@ -46,5 +46,9 @@ package object config {
       config.getString("jupyterProtocol"),
       config.getString("jupyterDomain"),
       toScalaDuration(config.getDuration("dnsPollPeriod")))
+  }
+
+  implicit val monitorConfigReader: ValueReader[MonitorConfig] = ValueReader.relative { config =>
+    MonitorConfig(toScalaDuration(config.getDuration("pollPeriod")), config.getInt("maxRetries"), config.getBoolean("recreateCluster"))
   }
 }

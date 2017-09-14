@@ -39,8 +39,10 @@ object Dependencies {
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka"   %%  "akka-http-testkit"    % akkaHttpV % "test"
 
   val googleDataproc: ModuleID =    "com.google.apis"     % "google-api-services-dataproc" % s"v1-rev53-$googleV" excludeAll(excludeGuavaJDK5)
+  val googleRpc: ModuleID = "io.grpc" % "grpc-core" % "1.5.0"
 
-  val scalaTest: ModuleID = "org.scalatest" %% "scalatest" % scalaTestV % "test"
+  val scalaTest: ModuleID = "org.scalatest" %% "scalatest"    % scalaTestV % "test"
+  val mockito: ModuleID =   "org.mockito"    % "mockito-core" % "2.7.22"   % "test"
 
   // All of workbench-libs pull in Akka; exclude it since we provide our own Akka dependency.
   // workbench-google pulls in workbench-{util, model, metrics}; exclude them so we can control the library versions individually.
@@ -76,8 +78,10 @@ object Dependencies {
     akkaHttpTestKit,
 
     googleDataproc,
+    googleRpc,
 
     scalaTest,
+    mockito,
 
     slick,
     hikariCP,
