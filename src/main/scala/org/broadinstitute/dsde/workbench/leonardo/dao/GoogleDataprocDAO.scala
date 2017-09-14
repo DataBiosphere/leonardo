@@ -318,6 +318,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       blocking(executeGoogleRequest(request))
     } recover {
       case e: GoogleJsonResponseException =>
+        logger.error(s"Error occurred executing Google request for $googleProject/$clusterName", e)
         throw CallToGoogleApiFailedException(googleProject, clusterName, e.getStatusCode, e.getDetails.getMessage)
     }
   }
