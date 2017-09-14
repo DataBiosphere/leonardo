@@ -7,7 +7,7 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.RouteResult.Complete
 import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
-import akka.http.scaladsl.server.{Directive0, ExceptionHandler, Route}
+import akka.http.scaladsl.server._
 import akka.stream.Materializer
 import akka.stream.scaladsl._
 import com.typesafe.scalalogging.LazyLogging
@@ -60,9 +60,9 @@ class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxySer
         }
       }
   }
-  def route: Route = (logRequestResult & handleExceptions(myExceptionHandler)) {
-    swaggerRoutes ~ unauthedRoutes ~
-    pathPrefix("api") { leoRoutes ~ proxyRoutes }
+  def route: Route = (logRequestResult & handleExceptions(myExceptionHandler) & handleRejections(rejectionHandler)) {
+    swaggerRoutes ~ unauthedRoutes ~ proxyRoutes ~
+    pathPrefix("api") { leoRoutes }
   }
 
   private val myExceptionHandler = {
@@ -75,6 +75,16 @@ class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxySer
         //NOTE: this needs SprayJsonSupport._, ErrorReportJsonSupport._, and errorReportSource all imported to work
         complete(StatusCodes.InternalServerError, ErrorReport(e))
     }
+  }
+
+  private val rejectionHandler: RejectionHandler = {
+    RejectionHandler.newBuilder()
+      .handle {
+        case MissingCookieRejection(name) if name == tokenCookieName =>
+          complete(StatusCodes.Forbidden,
+            ErrorReport(s"$tokenCookieName cookie not present", Some(StatusCodes.Unauthorized), Seq.empty, Seq.empty, Some(this.getClass)))
+      }
+      .result()
   }
 
   // basis for logRequestResult lifted from http://stackoverflow.com/questions/32475471/how-does-one-log-akka-http-client-requests

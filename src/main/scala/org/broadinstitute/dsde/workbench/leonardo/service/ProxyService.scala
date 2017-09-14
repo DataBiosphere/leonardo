@@ -35,10 +35,14 @@ class ProxyService(proxyConfig: ProxyConfig, dbRef: DbReference, clusterDnsCache
     * @param googleProject the Google project
     * @param clusterName the cluster name
     * @param request the HTTP request to proxy
+    * @param token the user access token
     * @return HttpResponse future representing the proxied response, or NotFound if a notebook
     *         server IP could not be found.
     */
-  def proxy(googleProject: GoogleProject, clusterName: String, request: HttpRequest): Future[HttpResponse] = {
+  def proxy(googleProject: GoogleProject, clusterName: String, request: HttpRequest, token: String): Future[HttpResponse] = {
+    // TODO: in the future we will call sam to do authorization based on the token
+    logger.debug(s"Recevied proxy request with user token $token")
+
     getTargetHost(googleProject, clusterName) flatMap {
       case ClusterReady(targetHost) =>
         // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a

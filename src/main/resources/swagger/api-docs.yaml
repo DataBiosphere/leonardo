@@ -155,7 +155,7 @@ paths:
           schema:
             $ref: '#/definitions/ErrorReport'
 
-  '/api/notebooks/{googleProject}/{clusterName}':
+  '/notebooks/{googleProject}/{clusterName}':
     get:
       summary: Access Jupyter notebooks on a dataproc cluster
       description: Serves as a proxy for the Jupyer notebook server running the given dataproc cluster managed by Leo.
@@ -176,6 +176,10 @@ paths:
       responses:
         '200':
           description: Proxy connection successful
+        '401':
+          description: Proxy connection unauthorized
+          schema:
+            $ref: '#/definitions/ErrorReport'
         '404':
           description: Cluster not found
           schema:
@@ -188,11 +192,7 @@ paths:
           description: Internal Error
           schema:
             $ref: '#/definitions/ErrorReport'
-      security:
-        - googleoauth:
-            - openid
-            - email
-            - profile
+            
 ##########################################################################################
 ## DEFINITIONS
 ##########################################################################################
