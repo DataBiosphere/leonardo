@@ -35,7 +35,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   private val testClusterRequest = ClusterRequest(bucketPath, serviceAccount, Map.empty, Some(extensionUri))
 
   val initFiles = Array( dataprocConfig.clusterDockerComposeName, dataprocConfig.initActionsScriptName, dataprocConfig.jupyterServerCrtName,
-    dataprocConfig.jupyterServerKeyName, dataprocConfig.jupyterRootCaPemName, dataprocConfig.jupyterProxySiteConfName)
+    dataprocConfig.jupyterServerKeyName, dataprocConfig.jupyterRootCaPemName, dataprocConfig.jupyterProxySiteConfName, dataprocConfig.jupyterInstallExtensionScript)
 
   "LeonardoService" should "create a cluster" in isolatedDbTest {
     // set unique names for our cluster and google project
