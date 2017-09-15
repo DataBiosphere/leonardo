@@ -61,7 +61,7 @@ object Cluster {
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = clusterRequest.labels,
-    extensionUri = clusterRequest.extensionUri)
+    jupyterExtensionUri = clusterRequest.jupyterExtensionUri)
 
   def getClusterUrl(googleProject: String, clusterName: String): String = {
     val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
@@ -82,12 +82,12 @@ case class Cluster(clusterName: String,
                    createdDate: Instant,
                    destroyedDate: Option[Instant],
                    labels: Map[String, String],
-                   extensionUri: Option[GoogleBucketUri])
+                   jupyterExtensionUri: Option[GoogleBucketUri])
 
 case class ClusterRequest(bucketPath: GoogleBucket,
                           serviceAccount: String,
                           labels: Map[String, String],
-                          extensionUri: Option[GoogleBucketUri])
+                          jupyterExtensionUri: Option[GoogleBucketUri])
 
 case class ClusterResponse(clusterName: String,
                            googleProject: GoogleProject,
@@ -112,7 +112,8 @@ object ClusterInitValues {
       GoogleBucketUri(bucketName, dataprocConfig.jupyterProxySiteConfName),
       dataprocConfig.jupyterServerName,
       dataprocConfig.proxyServerName,
-      clusterRequest.extensionUri
+      GoogleBucketUri(bucketName, dataprocConfig.jupyterInstallExtensionScript),
+      clusterRequest.jupyterExtensionUri.getOrElse("")
     )
 
 }
@@ -128,7 +129,8 @@ case class ClusterInitValues(googleProject: GoogleProject,
                              jupyterProxySiteConf: GoogleBucketUri,
                              jupyterServerName: String,
                              proxyServerName: String,
-                             extensionUri: Option[GoogleBucketUri])
+                             jupyterInstallExtensionScript: String,
+                             jupyterExtensionUri: GoogleBucketUri)
 
 
 object FirewallRuleRequest {
@@ -188,7 +190,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val clusterFormat = jsonFormat13(Cluster.apply)
   implicit val clusterRequestFormat = jsonFormat4(ClusterRequest)
   implicit val clusterResponseFormat = jsonFormat6(ClusterResponse)
-  implicit val clusterInitValuesFormat = jsonFormat12(ClusterInitValues.apply)
+  implicit val clusterInitValuesFormat = jsonFormat13(ClusterInitValues.apply)
   implicit val firewallRuleRequestFormat = jsonFormat5(FirewallRuleRequest.apply)
   implicit val storageObjectResponseFormat = jsonFormat3(StorageObjectResponse)
 

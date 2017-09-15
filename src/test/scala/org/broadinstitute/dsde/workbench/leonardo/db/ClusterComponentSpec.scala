@@ -25,7 +25,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike {
       createdDate = Instant.now(),
       destroyedDate = None,
       labels = Map("bam" -> "yes", "vcf" -> "no"),
-      extensionUri = None)
+      jupyterExtensionUri = None)
 
     val c2 = Cluster(
       clusterName = "name2",
@@ -40,7 +40,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike {
       createdDate = Instant.now(),
       destroyedDate = None,
       labels = Map.empty,
-      extensionUri = Some("extension_uri"))
+      jupyterExtensionUri = Some("extension_uri"))
 
     dbFutureValue { _.clusterQuery.save(c1) } shouldEqual c1
     dbFutureValue { _.clusterQuery.save(c2) } shouldEqual c2
@@ -65,7 +65,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike {
       createdDate = Instant.now(),
       destroyedDate = None,
       labels = Map.empty,
-      extensionUri = Some("extension_uri"))
+      jupyterExtensionUri = Some("extension_uri"))
     dbFailure { _.clusterQuery.save(c3) } shouldBe a[SQLException]
 
     // googleId unique key test
@@ -83,7 +83,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike {
       createdDate = Instant.now(),
       destroyedDate = None,
       labels = Map.empty,
-      extensionUri = Some("extension_uri"))
+      jupyterExtensionUri = Some("extension_uri"))
     dbFailure { _.clusterQuery.save(c4) } shouldBe a[SQLException]
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(c1.googleId) } shouldEqual 1

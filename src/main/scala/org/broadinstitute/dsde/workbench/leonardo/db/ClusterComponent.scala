@@ -21,7 +21,7 @@ case class ClusterRecord(id: Long,
                          hostIp: Option[String],
                          createdDate: Timestamp,
                          destroyedDate: Option[Timestamp],
-                         extensionUri: Option[String])
+                         jupyterExtensionUri: Option[String])
 
 trait ClusterComponent extends LeoComponent {
   this: LabelComponent =>
@@ -40,11 +40,11 @@ trait ClusterComponent extends LeoComponent {
     def hostIp =                column[Option[String]]    ("hostIp",                O.Length(254))
     def createdDate =           column[Timestamp]         ("createdDate",           O.SqlType("TIMESTAMP(6)"))
     def destroyedDate =         column[Option[Timestamp]] ("destroyedDate",         O.SqlType("TIMESTAMP(6)"))
-    def extensionUri =          column[Option[String]]    ("extensionUri",          O.Length(254))
+    def jupyterExtensionUri =   column[Option[String]]    ("jupyterExtensionUri",   O.Length(254))
 
     def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName), unique = true)
 
-    def * = (id, clusterName, googleId, googleProject, googleServiceAccount, googleBucket, operationName, status, hostIp, createdDate, destroyedDate, extensionUri) <> (ClusterRecord.tupled, ClusterRecord.unapply)
+    def * = (id, clusterName, googleId, googleProject, googleServiceAccount, googleBucket, operationName, status, hostIp, createdDate, destroyedDate, jupyterExtensionUri) <> (ClusterRecord.tupled, ClusterRecord.unapply)
   }
 
   object clusterQuery extends TableQuery(new ClusterTable(_)) {
@@ -128,7 +128,7 @@ trait ClusterComponent extends LeoComponent {
         cluster.hostIp,
         Timestamp.from(cluster.createdDate),
         cluster.destroyedDate map Timestamp.from,
-        cluster.extensionUri
+        cluster.jupyterExtensionUri
       )
     }
 
@@ -159,7 +159,7 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.createdDate.toInstant,
         clusterRecord.destroyedDate map { _.toInstant },
         labels,
-        clusterRecord.extensionUri
+        clusterRecord.jupyterExtensionUri
       )
     }
 

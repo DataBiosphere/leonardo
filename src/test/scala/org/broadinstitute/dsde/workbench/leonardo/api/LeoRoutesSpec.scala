@@ -31,7 +31,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       val responseCluster = responseAs[Cluster]
       responseCluster.googleBucket shouldEqual "test-bucket-path"
       responseCluster.googleServiceAccount shouldEqual "test-service-account"
-      responseCluster.extensionUri shouldEqual Some("extension_uri")
+      responseCluster.jupyterExtensionUri shouldEqual Some("extension_uri")
     }
   }
 
