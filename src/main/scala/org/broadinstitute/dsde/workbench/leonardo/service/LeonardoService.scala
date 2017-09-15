@@ -97,16 +97,17 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
   private[service] def initializeBucketObjects(googleProject: GoogleProject, clusterName: String, bucketName: String, clusterRequest: ClusterRequest): Future[Unit] = {
     val initScriptPath = dataprocConfig.configFolderPath + dataprocConfig.initActionsScriptName
     val replacements = ClusterInitValues(googleProject, clusterName, bucketName, dataprocConfig, clusterRequest).toJson.asJsObject.fields
+    val filesToUpload = List(dataprocConfig.jupyterServerCrtName, dataprocConfig.jupyterServerKeyName, dataprocConfig.jupyterRootCaPemName,
+      dataprocConfig.clusterDockerComposeName, dataprocConfig.jupyterProxySiteConfName, dataprocConfig.jupyterInstallExtensionScript)
 
-    template(initScriptPath, replacements).map { content =>
-      val initScriptStorageObject = gdDAO.uploadToBucket(googleProject, bucketName, dataprocConfig.initActionsScriptName, content)
-      // Create an array of all the certs, cluster docker compose file, and the site.conf for the apache proxy
-      val certs = List(dataprocConfig.jupyterServerCrtName, dataprocConfig.jupyterServerKeyName, dataprocConfig.jupyterRootCaPemName,
-        dataprocConfig.clusterDockerComposeName, dataprocConfig.jupyterProxySiteConfName)
-      // Put the rest of the initialization files in the init bucket concurrently
-      val storageObjects = certs.map { certName => gdDAO.uploadToBucket(googleProject, bucketName, certName, new File(dataprocConfig.configFolderPath, certName)) }
-      // Return an array of all the Storage Objects
-    }
+    for {
+      // Fill in templated fields in the init script with the given replacements
+      content <- template(initScriptPath, replacements)
+      // Upload the init script itself to the bucket
+      _ <- gdDAO.uploadToBucket(googleProject, bucketName, dataprocConfig.initActionsScriptName, content)
+      // Upload ancillary files like the certs, cluster docker compose file, site.conf, etc to the init bucket
+      _ <- Future.traverse(filesToUpload)(name => gdDAO.uploadToBucket(googleProject, bucketName, name, new File(dataprocConfig.configFolderPath, name)))
+    } yield ()
   }
 
   /* Process a file using map of replacement values. Each value in the replacement map replaces it's key in the file*/
