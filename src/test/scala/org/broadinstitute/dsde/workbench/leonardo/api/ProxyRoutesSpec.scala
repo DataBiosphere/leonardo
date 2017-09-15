@@ -7,7 +7,7 @@ import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
 import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.RawHeader
+import akka.http.scaladsl.model.headers.{Cookie, RawHeader}
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage, WebSocketRequest}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
@@ -21,6 +21,7 @@ import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import spray.json.DefaultJsonProtocol._
 import spray.json.RootJsonFormat
 
+import scala.collection.immutable
 import scala.concurrent.Future
 
 /**
@@ -31,6 +32,7 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
 
   val ClusterName = "test"
   val GoogleProject = "dsp-leo-test"
+  val TokenCookie = Cookie("FCToken", "me")
 
   // The backend server behind the proxy
   var bindingFuture: Future[ServerBinding] = _
@@ -63,57 +65,64 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
     super.afterAll()
   }
 
-  "ProxyRoutes" should "listen on /api/notebooks/{project}/{name}/..." in {
-    Get(s"/api/notebooks/$GoogleProject/$ClusterName") ~> leoRoutes.route ~> check {
+  "ProxyRoutes" should "listen on /notebooks/{project}/{name}/..." in {
+    Get(s"/notebooks/$GoogleProject/$ClusterName").addHeader(TokenCookie) ~> leoRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
     }
-    Get(s"/api/notebooks/$GoogleProject/$ClusterName/foo") ~> leoRoutes.route ~> check {
+    Get(s"/notebooks/$GoogleProject/$ClusterName/foo").addHeader(TokenCookie) ~> leoRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
     }
-    Get(s"/api/notebooks/$GoogleProject/aDifferentClusterName") ~> leoRoutes.route ~> check {
+    Get(s"/notebooks/$GoogleProject/aDifferentClusterName").addHeader(TokenCookie) ~> leoRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.NotFound
     }
-    Get("/api/notebooks/") ~> leoRoutes.route ~> check {
+    Get("/notebooks/").addHeader(TokenCookie) ~> leoRoutes.route ~> check {
       handled shouldBe false
     }
-    Get("/notebooks") ~> leoRoutes.route ~> check {
+    Get("/api/notebooks").addHeader(TokenCookie) ~> leoRoutes.route ~> check {
       handled shouldBe false
+    }
+  }
+
+  it should "reject non-cookied requests" in {
+    Get(s"/notebooks/$GoogleProject/$ClusterName") ~> leoRoutes.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.Unauthorized
     }
   }
 
   it should "pass through paths" in {
-    Get(s"/api/notebooks/$GoogleProject/$ClusterName") ~> leoRoutes.route ~> check {
+    Get(s"/notebooks/$GoogleProject/$ClusterName").addHeader(TokenCookie) ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
-      responseAs[Data].path shouldEqual s"/api/notebooks/$GoogleProject/$ClusterName"
+      responseAs[Data].path shouldEqual s"/notebooks/$GoogleProject/$ClusterName"
     }
   }
 
   it should "pass through query string params" in {
-    Get(s"/api/notebooks/$GoogleProject/$ClusterName") ~> leoRoutes.route ~> check {
+    Get(s"/notebooks/$GoogleProject/$ClusterName").addHeader(TokenCookie) ~> leoRoutes.route ~> check {
       responseAs[Data].qs shouldBe None
     }
-    Get(s"/api/notebooks/$GoogleProject/$ClusterName?foo=bar&baz=biz") ~> leoRoutes.route ~> check {
+    Get(s"/notebooks/$GoogleProject/$ClusterName?foo=bar&baz=biz").addHeader(TokenCookie) ~> leoRoutes.route ~> check {
       responseAs[Data].qs shouldEqual Some("foo=bar&baz=biz")
     }
   }
 
   it should "pass through http methods" in {
-    Get(s"/api/notebooks/$GoogleProject/$ClusterName") ~> leoRoutes.route ~> check {
+    Get(s"/notebooks/$GoogleProject/$ClusterName").addHeader(TokenCookie) ~> leoRoutes.route ~> check {
       responseAs[Data].method shouldBe "GET"
     }
-    Post(s"/api/notebooks/$GoogleProject/$ClusterName") ~> leoRoutes.route ~> check {
+    Post(s"/notebooks/$GoogleProject/$ClusterName").addHeader(TokenCookie) ~> leoRoutes.route ~> check {
       responseAs[Data].method shouldBe "POST"
     }
-    Put(s"/api/notebooks/$GoogleProject/$ClusterName") ~> leoRoutes.route ~> check {
+    Put(s"/notebooks/$GoogleProject/$ClusterName").addHeader(TokenCookie) ~> leoRoutes.route ~> check {
       responseAs[Data].method shouldBe "PUT"
     }
   }
 
   it should "pass through headers" in {
-    Get(s"/api/notebooks/$GoogleProject/$ClusterName")
+    Get(s"/notebooks/$GoogleProject/$ClusterName").addHeader(TokenCookie)
       .addHeader(RawHeader("foo", "bar"))
       .addHeader(RawHeader("baz", "biz")) ~> leoRoutes.route ~> check {
       responseAs[Data].headers should contain allElementsOf Map("foo" -> "bar", "baz" -> "biz")
@@ -130,7 +139,7 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
     val outgoing = Source.single(TextMessage("Leonardo"))
 
     // Flow to hit the proxy server
-    val webSocketFlow = Http().webSocketClientFlow(WebSocketRequest(Uri(s"ws://localhost:9000/api/notebooks/$GoogleProject/$ClusterName/websocket"))).map {
+    val webSocketFlow = Http().webSocketClientFlow(WebSocketRequest(Uri(s"ws://localhost:9000/notebooks/$GoogleProject/$ClusterName/websocket"), immutable.Seq(TokenCookie))).map {
       case m: TextMessage.Strict => m.text
       case _ => throw new IllegalArgumentException("ProxyRoutesSpec only supports strict messages")
     }
@@ -153,7 +162,7 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
 
   // The backend route (i.e. the route behind the proxy)
   val backendRoute: Route =
-    pathPrefix("api" / "notebooks" / GoogleProject / ClusterName) {
+    pathPrefix("notebooks" / GoogleProject / ClusterName) {
       extractRequest { request =>
         path("websocket") {
           handleWebSocketMessages(greeter)
