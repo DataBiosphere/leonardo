@@ -82,7 +82,8 @@ class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxySer
       .handle {
         case MissingCookieRejection(name) if name == tokenCookieName =>
           complete(StatusCodes.Unauthorized,
-            ErrorReport("Unauthorized: Access is denied due to invalid credentials.", Some(StatusCodes.Unauthorized), Seq.empty, Seq.empty, Some(this.getClass)))
+            ErrorReport("Unauthorized: Access is denied due to invalid credentials.",
+              Some(StatusCodes.Unauthorized), Seq.empty, Seq.empty, Some(classOf[LeoRoutes])))
       }
       .result()
   }
