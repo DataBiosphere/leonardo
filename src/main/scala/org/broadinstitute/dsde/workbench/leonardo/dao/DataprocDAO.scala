@@ -20,6 +20,8 @@ trait DataprocDAO {
 
   def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: String): Future[Unit]
 
+  def bucketObjectExists(googleProject: GoogleProject, bucketName: String, bucketObject: String): Future[Boolean]
+
   def getClusterStatus(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[LeoClusterStatus]
 
   def getClusterMasterInstanceIp(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[Option[String]]

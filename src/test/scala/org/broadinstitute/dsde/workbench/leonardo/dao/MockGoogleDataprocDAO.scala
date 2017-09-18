@@ -16,6 +16,7 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extend
   val firewallRules: mutable.Map[GoogleProject, String] = new TrieMap()  // Google Project and Rule Name
   val buckets: mutable.Set[String] = mutable.Set() // Set of bucket names - not keeping track of google projects since it's all in leo's project
   val bucketObjects: mutable.Set[(String, String)] = mutable.Set()  // Set of Bucket Name and File Name
+  val extensionUri = "gs://aBucket/my_extension.tar.gz"
 
 
   private def googleID = UUID.randomUUID().toString
@@ -79,4 +80,7 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extend
     Future.successful(None)
   }
 
+  override def bucketObjectExists(googleProject: GoogleProject, bucketName: String, bucketObject: String): Future[Boolean] = {
+    Future.successful(bucketName == "aBucket" && bucketObject == "my_extension.tar.gz")
+  }
 }

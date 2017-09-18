@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
 import java.io.File
+import java.net.URI
 import java.util.UUID
 
 import akka.actor.ActorRef
@@ -10,10 +11,9 @@ import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.{GoogleBucketUri, GoogleProject}
+import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted, RegisterLeoService}
-import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService.bucketPathMaxLength
 import slick.dbio.DBIO
 import spray.json._
 
@@ -32,14 +32,11 @@ case class InitializationFileException(googleProject: GoogleProject, clusterName
 case class TemplatingException(filePath: String, errorMessage: String)
   extends LeoException(s"Unable to template file: $filePath. Returned message: $errorMessage", StatusCodes.Conflict)
 
-case class BucketPathTooLongException(path: String)
-  extends LeoException(s"Provided bucket path exceeds max length of $bucketPathMaxLength: $path", StatusCodes.BadRequest)
-
-object LeonardoService {
-  val bucketPathMaxLength = 1024
-}
+case class JupyterExtensionException(gcsUri: String)
+  extends LeoException(s"Jupyter extension URI is invalid or unparseable: $gcsUri", StatusCodes.BadRequest)
 
 class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: DataprocDAO, dbRef: DbReference, val clusterMonitorSupervisor: ActorRef)(implicit val executionContext: ExecutionContext) extends LazyLogging {
+  val bucketPathMaxLength = 1024
 
   // Register this instance with the cluster monitor supervisor so our cluster monitor can potentially delete and recreate clusters
   clusterMonitorSupervisor ! RegisterLeoService(this)
@@ -60,13 +57,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
       }
     }
 
-    // Validate that the jupyterExtensionUri doesn't exceed the max length
-    clusterRequest.jupyterExtensionUri.foreach { uri =>
-      if (uri.length > bucketPathMaxLength) {
-        throw BucketPathTooLongException(uri)
-      }
-    }
-
     // Check if the google project has a cluster with the same name. If not, we can create it
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getByName(googleProject, clusterName)
@@ -79,7 +69,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     }
   }
 
-
   /* Creates a cluster in the given google project:
      - Add a firewall rule to the user's google project if it doesn't exist, so we can access the cluster
      - Create the initialization bucket for the cluster in the leo google project
@@ -89,6 +78,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
   private[service] def createGoogleCluster(googleProject: GoogleProject, clusterName: String, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
     val bucketName = s"${clusterName}-${UUID.randomUUID.toString}"
     for {
+      // Validate that the Jupyter extension URI is a valid URI and references a real GCS object
+      _ <- validateJupyterExtensionUri(googleProject, clusterRequest.jupyterExtensionUri)
       // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
       _ <- gdDAO.updateFirewallRule(googleProject)
       // Create the bucket in leo's google bucket and populate with initialization files
@@ -97,6 +88,27 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
       clusterResponse <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, bucketName)
     } yield {
       clusterResponse
+    }
+  }
+
+  private[service] def validateJupyterExtensionUri(googleProject: GoogleProject, gcsUriOpt: Option[String])(implicit executionContext: ExecutionContext): Future[Unit] = {
+    gcsUriOpt match {
+      case None => Future.successful(())
+      case Some(gcsUri) =>
+        if (gcsUri.length > bucketPathMaxLength) {
+          throw JupyterExtensionException(gcsUri)
+        }
+
+        val parsedUri = try {
+          new URI(gcsUri)
+        } catch {
+          case _: Throwable => throw JupyterExtensionException(gcsUri)
+        }
+
+        gdDAO.bucketObjectExists(googleProject, parsedUri.getHost, parsedUri.getPath.drop(1)).map {
+          case true => ()
+          case false => throw JupyterExtensionException(gcsUri)
+        }
     }
   }
 
