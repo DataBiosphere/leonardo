@@ -6,6 +6,8 @@ import java.util.UUID
 
 import akka.actor.ActorRef
 import akka.http.scaladsl.model.StatusCodes
+import cats.syntax.cartesian._
+import cats.instances.option._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -99,13 +101,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
           throw JupyterExtensionException(gcsUri)
         }
 
-        val parsedUri = try {
-          new URI(gcsUri)
-        } catch {
-          case _: Throwable => throw JupyterExtensionException(gcsUri)
-        }
+        val parsedUri = try { new URI(gcsUri) } catch { case _: Throwable => throw JupyterExtensionException(gcsUri) }
 
-        gdDAO.bucketObjectExists(googleProject, parsedUri.getHost, parsedUri.getPath.drop(1)).map {
+        // URI returns null for host/path if they can't be parsed
+        val (bucket, path) = (Option(parsedUri.getHost) |@| Option(parsedUri.getPath)).tupled.getOrElse(throw JupyterExtensionException(gcsUri))
+
+        gdDAO.bucketObjectExists(googleProject, bucket, path.drop(1)).map {
           case true => ()
           case false => throw JupyterExtensionException(gcsUri)
         }
