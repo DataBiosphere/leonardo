@@ -215,4 +215,17 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     result shouldEqual expected
   }
+
+  it should "throw a BucketPathTooLongException when the extensionUri is too long" in isolatedDbTest {
+    val jupyterExtensionUri = Stream.continually('a').take(1025).mkString
+
+    // set unique names for our cluster and google project
+    val clusterName = s"cluster-${UUID.randomUUID.toString}"
+    val googleProject = s"project-${UUID.randomUUID.toString}"
+
+    // create the cluster
+    intercept[BucketPathTooLongException] {
+      leo.createCluster(googleProject, clusterName, testClusterRequest.copy(jupyterExtensionUri = Some(jupyterExtensionUri))).futureValue
+    }
+  }
 }

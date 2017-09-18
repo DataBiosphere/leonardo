@@ -314,5 +314,6 @@ definitions:
         description: |
           Optional bucket URI to an archive containing Jupyter notebook extension files.
           The archive must be in tar.gz format, must not include a parent directory, and
-          must have an entry point named 'main'.
+          must have an entry point named 'main'. For more information on notebook extensions,
+          see: http://jupyter-notebook.readthedocs.io/en/latest/extending/frontend_extensions.html.
 

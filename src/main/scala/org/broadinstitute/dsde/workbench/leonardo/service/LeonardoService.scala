@@ -13,6 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.{GoogleBucketUri, GoogleProject}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted, RegisterLeoService}
+import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService.bucketPathMaxLength
 import slick.dbio.DBIO
 import spray.json._
 
@@ -30,6 +31,13 @@ case class InitializationFileException(googleProject: GoogleProject, clusterName
 
 case class TemplatingException(filePath: String, errorMessage: String)
   extends LeoException(s"Unable to template file: $filePath. Returned message: $errorMessage", StatusCodes.Conflict)
+
+case class BucketPathTooLongException(path: String)
+  extends LeoException(s"Provided bucket path exceeds max length of $bucketPathMaxLength: $path", StatusCodes.BadRequest)
+
+object LeonardoService {
+  val bucketPathMaxLength = 1024
+}
 
 class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: DataprocDAO, dbRef: DbReference, val clusterMonitorSupervisor: ActorRef)(implicit val executionContext: ExecutionContext) extends LazyLogging {
 
@@ -49,6 +57,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
         dbRef.inTransaction { dataAccess =>
           dataAccess.clusterQuery.save(Cluster(clusterRequest, clusterResponse))
         }
+      }
+    }
+
+    // Validate that the jupyterExtensionUri doesn't exceed the max length
+    clusterRequest.jupyterExtensionUri.foreach { uri =>
+      if (uri.length > bucketPathMaxLength) {
+        throw BucketPathTooLongException(uri)
       }
     }
 

@@ -40,7 +40,7 @@ trait ClusterComponent extends LeoComponent {
     def hostIp =                column[Option[String]]    ("hostIp",                O.Length(254))
     def createdDate =           column[Timestamp]         ("createdDate",           O.SqlType("TIMESTAMP(6)"))
     def destroyedDate =         column[Option[Timestamp]] ("destroyedDate",         O.SqlType("TIMESTAMP(6)"))
-    def jupyterExtensionUri =   column[Option[String]]    ("jupyterExtensionUri",   O.Length(254))
+    def jupyterExtensionUri =   column[Option[String]]    ("jupyterExtensionUri",   O.Length(1024))
 
     def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName), unique = true)
 

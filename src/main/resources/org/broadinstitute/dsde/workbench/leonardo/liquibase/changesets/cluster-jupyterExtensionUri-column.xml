@@ -3,7 +3,7 @@
 
     <changeSet logicalFilePath="leonardo" author="rtitle" id="cluster-jupyterExtensionUri-column">
         <addColumn tableName="CLUSTER">
-            <column name="jupyterExtensionUri" type="varchar(254)"/>
+            <column name="jupyterExtensionUri" type="varchar(1024)"/>
         </addColumn>
     </changeSet>
 
