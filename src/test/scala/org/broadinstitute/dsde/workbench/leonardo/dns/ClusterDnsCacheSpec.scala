@@ -41,7 +41,8 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     hostIp = Some("numbers.and.dots"),
     createdDate = Instant.now(),
     destroyedDate = None,
-    labels = Map("bam" -> "yes", "vcf" -> "no"))
+    labels = Map("bam" -> "yes", "vcf" -> "no"),
+    Some("extension_uri"))
 
   val c2 = Cluster(
     clusterName = "name2",
@@ -55,7 +56,8 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     hostIp = None,
     createdDate = Instant.now(),
     destroyedDate = None,
-    labels = Map.empty)
+    labels = Map.empty,
+    None)
 
   it should "update maps and return clusters" in isolatedDbTest {
     val actorRef = TestActorRef[ClusterDnsCache](ClusterDnsCache.props(proxyConfig, DbSingleton.ref))
