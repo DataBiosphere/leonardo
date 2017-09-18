@@ -20,4 +20,5 @@ case class DataprocConfig(applicationName: String,
                           jupyterProxySiteConfName: String,
                           clusterUrlBase: String,
                           jupyterServerName: String,
-                          proxyServerName: String)
+                          proxyServerName: String,
+                          jupyterInstallExtensionScript: String)
