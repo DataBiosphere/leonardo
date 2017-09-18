@@ -184,7 +184,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   override def bucketObjectExists(googleProject: GoogleProject, bucketName: String, bucketObject: String): Future[Boolean] = {
     val request = storage.objects().get(bucketName, bucketObject)
     executeGoogleRequestAsync(googleProject, bucketName, request).map(_ => true).recover {
-      case e: GoogleJsonResponseException if e.getStatusCode == 404 => false
+      case CallToGoogleApiFailedException(_, _, 404, _) => false
     }
   }
 
