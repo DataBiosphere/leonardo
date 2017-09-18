@@ -85,7 +85,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       .setAllowed(List(allowed).asJava)
   }
 
-  def createCluster(googleProject: GoogleProject, clusterName: String, clusterRequest: ClusterRequest, bucketName: String)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
+  override def createCluster(googleProject: GoogleProject, clusterName: String, clusterRequest: ClusterRequest, bucketName: String)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
     buildCluster(googleProject, clusterName, clusterRequest, bucketName).map { operation =>
       // Once the cluster creation request is sent to Google, it returns a DataprocOperation, which we transform into a ClusterResponse
       val metadata = operation.getMetadata()
@@ -126,7 +126,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   }
 
   /* Check if the given google project has a cluster firewall rule. If not, add the rule to the project*/
-  def updateFirewallRule(googleProject: GoogleProject): Future[Unit] = {
+  override def updateFirewallRule(googleProject: GoogleProject): Future[Unit] = {
     checkFirewallRule(googleProject, dataprocConfig.clusterFirewallRuleName).recoverWith {
       case _: FirewallRuleNotFoundException => addFirewallRule(googleProject)
     }
@@ -150,7 +150,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   }
 
   /* Create a bucket in the given google project for the initialization files when creating a cluster */
-  def createBucket(googleProject: GoogleProject, bucketName: String): Future[Unit] = {
+  override def createBucket(googleProject: GoogleProject, bucketName: String): Future[Unit] = {
     // Create lifecycle rule for the bucket that will delete the bucket after 1 day - for now, init buckets will be
     // deleted this way, but eventually we will likely want to delete them after the cluster has been initialized
     val lifecycleRule = new Lifecycle.Rule()
@@ -169,16 +169,23 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   }
 
   /* Upload a file to a bucket as FileContent */
-  def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: File): Future[Unit] = {
+  override def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: File): Future[Unit] = {
     val fileContent = new FileContent(null, content)
     uploadToBucket(googleProject, bucketName, fileName, fileContent).void
   }
 
 
   /* Upload a string to a bucket as InputStreamContent */
-  def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: String): Future[Unit] = {
+  override def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: String): Future[Unit] = {
     val inputStreamContent = new InputStreamContent(null, new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8)))
     uploadToBucket(googleProject, bucketName, fileName, inputStreamContent).void
+  }
+
+  override def bucketObjectExists(googleProject: GoogleProject, bucketName: String, bucketObject: String): Future[Boolean] = {
+    val request = storage.objects().get(bucketName, bucketObject)
+    executeGoogleRequestAsync(googleProject, bucketName, request).map(_ => true).recover {
+      case CallToGoogleApiFailedException(_, _, 404, _) => false
+    }
   }
 
   /* Upload the given content into the given bucket */
@@ -195,7 +202,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   }
 
   /* Delete a cluster within the google project */
-  def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  override def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
     val request = dataproc.projects().regions().clusters().delete(googleProject, dataprocConfig.dataprocDefaultRegion, clusterName)
     executeGoogleRequestAsync(googleProject, clusterName, request).recover {
       // treat a 404 error as a successful deletion

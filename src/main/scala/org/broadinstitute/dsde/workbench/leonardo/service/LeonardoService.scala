@@ -1,10 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
 import java.io.File
+import java.net.URI
 import java.util.UUID
 
 import akka.actor.ActorRef
 import akka.http.scaladsl.model.StatusCodes
+import cats.syntax.cartesian._
+import cats.instances.option._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
@@ -31,7 +34,11 @@ case class InitializationFileException(googleProject: GoogleProject, clusterName
 case class TemplatingException(filePath: String, errorMessage: String)
   extends LeoException(s"Unable to template file: $filePath. Returned message: $errorMessage", StatusCodes.Conflict)
 
+case class JupyterExtensionException(gcsUri: String)
+  extends LeoException(s"Jupyter extension URI is invalid or unparseable: $gcsUri", StatusCodes.BadRequest)
+
 class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: DataprocDAO, dbRef: DbReference, val clusterMonitorSupervisor: ActorRef)(implicit val executionContext: ExecutionContext) extends LazyLogging {
+  val bucketPathMaxLength = 1024
 
   // Register this instance with the cluster monitor supervisor so our cluster monitor can potentially delete and recreate clusters
   clusterMonitorSupervisor ! RegisterLeoService(this)
@@ -64,7 +71,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     }
   }
 
-
   /* Creates a cluster in the given google project:
      - Add a firewall rule to the user's google project if it doesn't exist, so we can access the cluster
      - Create the initialization bucket for the cluster in the leo google project
@@ -74,10 +80,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
   private[service] def createGoogleCluster(googleProject: GoogleProject, clusterName: String, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
     val bucketName = s"${clusterName}-${UUID.randomUUID.toString}"
     for {
+      // Validate that the Jupyter extension URI is a valid URI and references a real GCS object
+      _ <- validateJupyterExtensionUri(googleProject, clusterRequest.jupyterExtensionUri)
       // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
       _ <- gdDAO.updateFirewallRule(googleProject)
       // Create the bucket in leo's google bucket and populate with initialization files
-      _ <- initializeBucket(dataprocConfig.leoGoogleBucket, clusterName, bucketName)
+      _ <- initializeBucket(dataprocConfig.leoGoogleBucket, clusterName, bucketName, clusterRequest)
       // Once the bucket is ready, build the cluster
       clusterResponse <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, bucketName)
     } yield {
@@ -85,28 +93,49 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     }
   }
 
+  private[service] def validateJupyterExtensionUri(googleProject: GoogleProject, gcsUriOpt: Option[String])(implicit executionContext: ExecutionContext): Future[Unit] = {
+    gcsUriOpt match {
+      case None => Future.successful(())
+      case Some(gcsUri) =>
+        if (gcsUri.length > bucketPathMaxLength) {
+          throw JupyterExtensionException(gcsUri)
+        }
+
+        val parsedUri = try { new URI(gcsUri) } catch { case _: Throwable => throw JupyterExtensionException(gcsUri) }
+
+        // URI returns null for host/path if they can't be parsed
+        val (bucket, path) = (Option(parsedUri.getHost) |@| Option(parsedUri.getPath)).tupled.getOrElse(throw JupyterExtensionException(gcsUri))
+
+        gdDAO.bucketObjectExists(googleProject, bucket, path.drop(1)).map {
+          case true => ()
+          case false => throw JupyterExtensionException(gcsUri)
+        }
+    }
+  }
+
   /* Create a google bucket and populate it with init files */
-  private[service] def initializeBucket(googleProject: GoogleProject, clusterName: String, bucketName: String): Future[Unit] = {
+  private[service] def initializeBucket(googleProject: GoogleProject, clusterName: String, bucketName: String, clusterRequest: ClusterRequest): Future[Unit] = {
     for {
       _ <- gdDAO.createBucket(googleProject, bucketName)
-      _ <- initializeBucketObjects(googleProject, clusterName, bucketName)
+      _ <- initializeBucketObjects(googleProject, clusterName, bucketName, clusterRequest)
     } yield { }
   }
 
   /* Process the templated cluster init script and put all initialization files in the init bucket */
-  private[service] def initializeBucketObjects(googleProject: GoogleProject, clusterName: String, bucketName: String): Future[Unit] = {
+  private[service] def initializeBucketObjects(googleProject: GoogleProject, clusterName: String, bucketName: String, clusterRequest: ClusterRequest): Future[Unit] = {
     val initScriptPath = dataprocConfig.configFolderPath + dataprocConfig.initActionsScriptName
-    val replacements = ClusterInitValues(googleProject, clusterName, bucketName, dataprocConfig).toJson.asJsObject.fields
+    val replacements = ClusterInitValues(googleProject, clusterName, bucketName, dataprocConfig, clusterRequest).toJson.asJsObject.fields
+    val filesToUpload = List(dataprocConfig.jupyterServerCrtName, dataprocConfig.jupyterServerKeyName, dataprocConfig.jupyterRootCaPemName,
+      dataprocConfig.clusterDockerComposeName, dataprocConfig.jupyterProxySiteConfName, dataprocConfig.jupyterInstallExtensionScript)
 
-    template(initScriptPath, replacements).map { content =>
-      val initScriptStorageObject = gdDAO.uploadToBucket(googleProject, bucketName, dataprocConfig.initActionsScriptName, content)
-      // Create an array of all the certs, cluster docker compose file, and the site.conf for the apache proxy
-      val certs = List(dataprocConfig.jupyterServerCrtName, dataprocConfig.jupyterServerKeyName, dataprocConfig.jupyterRootCaPemName,
-        dataprocConfig.clusterDockerComposeName, dataprocConfig.jupyterProxySiteConfName)
-      // Put the rest of the initialization files in the init bucket concurrently
-      val storageObjects = certs.map { certName => gdDAO.uploadToBucket(googleProject, bucketName, certName, new File(dataprocConfig.configFolderPath, certName)) }
-      // Return an array of all the Storage Objects
-    }
+    for {
+      // Fill in templated fields in the init script with the given replacements
+      content <- template(initScriptPath, replacements)
+      // Upload the init script itself to the bucket
+      _ <- gdDAO.uploadToBucket(googleProject, bucketName, dataprocConfig.initActionsScriptName, content)
+      // Upload ancillary files like the certs, cluster docker compose file, site.conf, etc to the init bucket
+      _ <- Future.traverse(filesToUpload)(name => gdDAO.uploadToBucket(googleProject, bucketName, name, new File(dataprocConfig.configFolderPath, name)))
+    } yield ()
   }
 
   /* Process a file using map of replacement values. Each value in the replacement map replaces it's key in the file*/

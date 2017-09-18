@@ -34,7 +34,8 @@ package object config {
       config.getString("proxySiteConf"),
       config.getString("clusterUrlBase"),
       config.getString("jupyterServerName"),
-      config.getString("proxyServerName"))
+      config.getString("proxyServerName"),
+      config.getString("jupyterInstallExtensionScript"))
   }
 
   implicit val liquibaseReader: ValueReader[LiquibaseConfig] = ValueReader.relative { config =>

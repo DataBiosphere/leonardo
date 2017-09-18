@@ -25,7 +25,8 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike {
       hostIp = None,
       createdDate = Instant.now(),
       destroyedDate = Option(Instant.now()),
-      labels = Map.empty)
+      labels = Map.empty,
+      Some("extension_uri"))
 
     val c2 = Cluster(
       clusterName = "name2",
@@ -39,7 +40,8 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike {
       hostIp = Some("sure, this is an IP address"),
       createdDate = Instant.now(),
       destroyedDate = None,
-      labels = Map.empty)
+      labels = Map.empty,
+      None)
 
     val c2Map = Map("bam" -> "true", "sample" -> "NA12878")
 
