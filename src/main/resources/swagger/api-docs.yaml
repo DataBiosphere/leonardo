@@ -63,7 +63,7 @@ paths:
       parameters:
         - in: query
           name: _labels
-          description: 'Optional label key-value pairs to filter results by. Ex: key1=val1,key2=val2'
+          description: 'Optional label key-value pairs to filter results by. Example: key1=val1,key2=val2'
           required: false
           type: string
       responses:
