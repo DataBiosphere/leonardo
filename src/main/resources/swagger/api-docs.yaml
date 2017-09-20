@@ -53,6 +53,35 @@ paths:
       operationId: ping
       tags:
         - test
+  '/api/clusters':
+    get:
+      summary: List all clusters
+      description: List all clusters, optionally filtering on a set of labels
+      operationId: listClusters
+      tags:
+        - cluster
+      parameters:
+        - in: query
+          name: label
+          description: label key-value pair. May be repeated.
+          request: false
+          type: string
+      responses:
+        '200':
+          description: List of clusters
+            schema:
+              type: array
+              items:
+                $ref: '#/definitions/Cluster'
+        '500':
+          description: Internal Error
+            schema:
+              $ref: '#/definitions/ErrorReport'
+      security:
+        - googleoauth:
+            - openid
+            - email
+            - profile
   '/api/cluster/{googleProject}/{clusterName}':
     get:
       summary: Get details of a dataproc cluster

@@ -115,13 +115,13 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    def getByLabels(labelMap: Map[String, String]): DBIO[Seq[Cluster]] = {
+    def listByLabels(labelMap: Map[String, String]): DBIO[Seq[Cluster]] = {
       val query = if (labelMap.isEmpty) {
         clusterQueryWithLabels
       } else {
         // The trick is to find all clusters that have _at least_ all the labels in labelMap.
         // In other words, for a given cluster, the labels provided in the query string must be
-        // a subset of the labels in the DB. The following SQL achieves this:
+        // a subset of its labels in the DB. The following SQL achieves this:
         //
         // select c.*, l.*
         // from cluster c
@@ -133,7 +133,7 @@ trait ClusterComponent extends LeoComponent {
         //
         clusterQueryWithLabels.filter { case (cluster, _) =>
           labelQuery.filter { _.clusterId === cluster.id }
-            // The following is equivalent to:
+            // The following line is equivalent to:
             // .filter { lbl => (lbl.key, lbl.value) inSetBind labelMap.toSet }
             // Unfortunately slick doesn't support inSet/inSetBind for tuples.
             // https://github.com/slick/slick/issues/517
