@@ -125,7 +125,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike {
       googleBucket = "bucket2",
       clusterUrl = Cluster.getClusterUrl("dsp-leo-test", "name2"),
       operationName = "op2",
-      status = ClusterStatus.Creating,
+      status = ClusterStatus.Running,
       hostIp = None,
       createdDate = Instant.now(),
       destroyedDate = None,
@@ -140,7 +140,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike {
       googleBucket = "bucket3",
       clusterUrl = Cluster.getClusterUrl("dsp-leo-test", "name3"),
       operationName = "op3",
-      status = ClusterStatus.Creating,
+      status = ClusterStatus.Deleted,
       hostIp = None,
       createdDate = Instant.now(),
       destroyedDate = None,
@@ -158,5 +158,6 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike {
     dbFutureValue { _.clusterQuery.getByLabels(Map("bam" -> "yes", "foo" -> "no")) }.toSet shouldEqual Set.empty
     dbFutureValue { _.clusterQuery.getByLabels(Map("bogus" -> "value")) }.toSet shouldEqual Set.empty
     dbFutureValue { _.clusterQuery.getByLabels(Map("foo" -> "bar")) }.toSet shouldEqual Set(c1, c3)
+    dbFutureValue { _.clusterQuery.getByLabels(Map("foo" -> "bar", "vcf" -> "no")) }.toSet shouldEqual Set(c1)
   }
 }

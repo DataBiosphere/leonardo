@@ -60,4 +60,85 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
     }
   }
 
+  it should "200 when listing no clusters" in isolatedDbTest {
+    Get("/api/clusters") ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      responseAs[List[Cluster]] shouldBe 'empty
+    }
+  }
+
+  it should "list clusters" in isolatedDbTest {
+    val googleProject = "test-project"
+    val clusterName = "test-cluster"
+    val newCluster = ClusterRequest("test-bucket-path", "test-service-account", Map.empty, None)
+    for (i <- 1 to 10) {
+      Put(s"/api/cluster/$googleProject/$clusterName-$i", newCluster.toJson) ~> leoRoutes.route ~> check {
+        status shouldEqual StatusCodes.OK
+      }
+    }
+
+    Get("/api/clusters") ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      responseAs[List[Cluster]] should have size 10
+      responseAs[List[Cluster]] foreach { cluster =>
+        cluster.googleProject shouldEqual "test-project"
+        cluster.googleBucket shouldEqual "test-bucket-path"
+        cluster.googleServiceAccount shouldEqual "test-service-account"
+      }
+    }
+  }
+
+  it should "list clusters with labels" in isolatedDbTest {
+    val googleProject = "test-project"
+    val clusterName1 = "test-cluster-1"
+    val newCluster1 = ClusterRequest("test-bucket-path", "test-service-account", Map("foo" -> "bar", "baz" -> "biz"), None)
+    Put(s"/api/cluster/$googleProject/$clusterName1", newCluster1.toJson) ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+    }
+
+    val clusterName2 = "test-cluster-2"
+    val newCluster2 = ClusterRequest("test-bucket-path", "test-service-account", Map("a" -> "b"), None)
+    Put(s"/api/cluster/$googleProject/$clusterName2", newCluster2.toJson) ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+    }
+
+    Get("/api/clusters?foo=bar") ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      responseAs[List[Cluster]] should have size 1
+      val cluster = responseAs[List[Cluster]].head
+      cluster.googleProject shouldEqual "test-project"
+      cluster.clusterName shouldEqual "test-cluster-1"
+      cluster.googleBucket shouldEqual "test-bucket-path"
+      cluster.googleServiceAccount shouldEqual "test-service-account"
+      cluster.labels shouldEqual Map("foo" -> "bar", "baz" -> "biz")
+    }
+
+    Get("/api/clusters?foo=bar&baz=biz") ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      responseAs[List[Cluster]] should have size 1
+      val cluster = responseAs[List[Cluster]].head
+      cluster.googleProject shouldEqual "test-project"
+      cluster.clusterName shouldEqual "test-cluster-1"
+      cluster.googleBucket shouldEqual "test-bucket-path"
+      cluster.googleServiceAccount shouldEqual "test-service-account"
+      cluster.labels shouldEqual Map("foo" -> "bar", "baz" -> "biz")
+    }
+
+    Get("/api/clusters?a=b") ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      responseAs[List[Cluster]] should have size 1
+      val cluster = responseAs[List[Cluster]].head
+      cluster.googleProject shouldEqual "test-project"
+      cluster.clusterName shouldEqual "test-cluster-2"
+      cluster.googleBucket shouldEqual "test-bucket-path"
+      cluster.googleServiceAccount shouldEqual "test-service-account"
+      cluster.labels shouldEqual Map("a" -> "b")
+    }
+
+    Get("/api/clusters?foo=bar&baz=biz&a=b&extra=bogus") ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      responseAs[List[Cluster]] should have size 0
+    }
+  }
+
 }
