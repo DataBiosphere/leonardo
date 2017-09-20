@@ -100,4 +100,66 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike {
     assert(c2status.destroyedDate.nonEmpty)
     c2status.hostIp shouldBe None
   }
+
+  it should "get by labels" in isolatedDbTest {
+    val c1 = Cluster(
+      clusterName = "name1",
+      googleId = UUID.randomUUID(),
+      googleProject = "dsp-leo-test",
+      googleServiceAccount = "not-a-service-acct@google.com",
+      googleBucket = "bucket1",
+      clusterUrl = Cluster.getClusterUrl("dsp-leo-test", "name1"),
+      operationName = "op1",
+      status = ClusterStatus.Unknown,
+      hostIp = Some("numbers.and.dots"),
+      createdDate = Instant.now(),
+      destroyedDate = None,
+      labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
+      jupyterExtensionUri = None)
+
+    val c2 = Cluster(
+      clusterName = "name2",
+      googleId = UUID.randomUUID(),
+      googleProject = "dsp-leo-test",
+      googleServiceAccount = "not-a-service-acct@google.com",
+      googleBucket = "bucket2",
+      clusterUrl = Cluster.getClusterUrl("dsp-leo-test", "name2"),
+      operationName = "op2",
+      status = ClusterStatus.Running,
+      hostIp = None,
+      createdDate = Instant.now(),
+      destroyedDate = None,
+      labels = Map.empty,
+      jupyterExtensionUri = Some("extension_uri"))
+
+    val c3 = Cluster(
+      clusterName = "name3",
+      googleId = UUID.randomUUID(),
+      googleProject = "dsp-leo-test",
+      googleServiceAccount = "not-a-service-acct@google.com",
+      googleBucket = "bucket3",
+      clusterUrl = Cluster.getClusterUrl("dsp-leo-test", "name3"),
+      operationName = "op3",
+      status = ClusterStatus.Deleted,
+      hostIp = None,
+      createdDate = Instant.now(),
+      destroyedDate = None,
+      labels = Map("a" -> "b", "bam" -> "yes"),
+      jupyterExtensionUri = Some("extension_uri"))
+
+    dbFutureValue { _.clusterQuery.save(c1) } shouldEqual c1
+    dbFutureValue { _.clusterQuery.save(c2) } shouldEqual c2
+    dbFutureValue { _.clusterQuery.save(c3) } shouldEqual c3
+
+    dbFutureValue { _.clusterQuery.listByLabels(Map.empty) }.toSet shouldEqual Set(c1, c2, c3)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes")) }.toSet shouldEqual Set(c1, c3)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "no")) }.toSet shouldEqual Set.empty
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no")) }.toSet shouldEqual Set(c1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("foo" -> "bar", "vcf" -> "no")) }.toSet shouldEqual Set(c1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar")) }.toSet shouldEqual Set(c1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("a" -> "b")) }.toSet shouldEqual Set(c3)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "b")) }.toSet shouldEqual Set(c3)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "c")) }.toSet shouldEqual Set.empty
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bogus" -> "value")) }.toSet shouldEqual Set.empty
+  }
 }

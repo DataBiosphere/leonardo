@@ -37,18 +37,14 @@ case class TemplatingException(filePath: String, errorMessage: String)
 case class JupyterExtensionException(gcsUri: String)
   extends LeoException(s"Jupyter extension URI is invalid or unparseable: $gcsUri", StatusCodes.BadRequest)
 
+case class ParseLabelsException(labelString: String)
+  extends LeoException(s"Could not parse label string: $labelString. Expected format [key1=value1,key2=value2,...]", StatusCodes.BadRequest)
+
 class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: DataprocDAO, dbRef: DbReference, val clusterMonitorSupervisor: ActorRef)(implicit val executionContext: ExecutionContext) extends LazyLogging {
   val bucketPathMaxLength = 1024
 
   // Register this instance with the cluster monitor supervisor so our cluster monitor can potentially delete and recreate clusters
   clusterMonitorSupervisor ! RegisterLeoService(this)
-
-  private[service] def getCluster(googleProject: GoogleProject, clusterName: String, dataAccess: DataAccess): DBIO[Cluster] = {
-    dataAccess.clusterQuery.getByName(googleProject, clusterName) flatMap {
-      case None => throw ClusterNotFoundException(googleProject, clusterName)
-      case Some(cluster) => DBIO.successful(cluster)
-    }
-  }
 
   def createCluster(googleProject: String, clusterName: String, clusterRequest: ClusterRequest): Future[Cluster] = {
     def create() = {
@@ -68,6 +64,41 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
         create andThen { case Success(cluster) =>
           clusterMonitorSupervisor ! ClusterCreated(cluster)
         }
+    }
+  }
+
+  def getClusterDetails(googleProject: GoogleProject, clusterName: String): Future[Cluster] = {
+    dbRef.inTransaction { dataAccess =>
+      getCluster(googleProject, clusterName, dataAccess)
+    }
+  }
+
+  def deleteCluster(googleProject: GoogleProject, clusterName: String): Future[Int] = {
+    getClusterDetails(googleProject, clusterName) flatMap { cluster =>
+      if(cluster.status.isActive) {
+        for {
+          _ <- gdDAO.deleteCluster(googleProject, clusterName)
+          recordCount <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.googleId))
+        } yield {
+          clusterMonitorSupervisor ! ClusterDeleted(cluster)
+          recordCount
+        }
+      } else Future.successful(0)
+    }
+  }
+
+  def listClusters(labelMap: Map[String, String]): Future[Seq[Cluster]] = {
+    Future(processLabelMap(labelMap)).flatMap { processedLabelMap =>
+      dbRef.inTransaction { dataAccess =>
+        dataAccess.clusterQuery.listByLabels(processedLabelMap)
+      }
+    }
+  }
+
+  private[service] def getCluster(googleProject: GoogleProject, clusterName: String, dataAccess: DataAccess): DBIO[Cluster] = {
+    dataAccess.clusterQuery.getByName(googleProject, clusterName) flatMap {
+      case None => throw ClusterNotFoundException(googleProject, clusterName)
+      case Some(cluster) => DBIO.successful(cluster)
     }
   }
 
@@ -146,23 +177,31 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     }
   }
 
-  def getClusterDetails(googleProject: GoogleProject, clusterName: String): Future[Cluster] = {
-    dbRef.inTransaction { dataAccess =>
-      getCluster(googleProject, clusterName, dataAccess)
-    }
-  }
-
-  def deleteCluster(googleProject: GoogleProject, clusterName: String): Future[Int] = {
-    getClusterDetails(googleProject, clusterName) flatMap { cluster =>
-      if(cluster.status.isActive) {
-        for {
-          _ <- gdDAO.deleteCluster(googleProject, clusterName)
-          recordCount <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.googleId))
-        } yield {
-          clusterMonitorSupervisor ! ClusterDeleted(cluster)
-          recordCount
+  /**
+    * There are 2 styles of passing labels to the list clusters endpoint:
+    *
+    * 1. As top-level query string parameters: GET /api/clusters?foo=bar&baz=biz
+    * 2. Using the _labels query string parameter: GET /api/clusters?_labels=foo%3Dbar,baz%3Dbiz
+    *
+    * The latter style exists because Swagger doesn't provide a way to specify free-form query string
+    * params. This method handles both styles, and returns a Map[String, String] representing the labels.
+    *
+    * Note that style 2 takes precendence: if _labels is present on the query string, any additional
+    * parameters are ignored.
+    *
+    * @param params raw query string params
+    * @return a Map[String, String] representing the labels
+    */
+  private[service] def processLabelMap(params: Map[String, String]): Map[String, String] = {
+    params.get("_labels") match {
+      case Some(extraLabels) =>
+        extraLabels.split(',').foldLeft(Map.empty[String, String]) { (r, c) =>
+          c.split('=') match {
+            case Array(key, value) => r + (key -> value)
+            case _ => throw ParseLabelsException(extraLabels)
+          }
         }
-      } else Future.successful(0)
+      case None => params
     }
   }
 }
