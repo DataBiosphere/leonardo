@@ -31,7 +31,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   private val bucketPath = "bucket-path"
   private val serviceAccount = "service-account"
   private val googleProject = "test-google-project"
-  private val testClusterRequest = ClusterRequest(bucketPath, serviceAccount, Map.empty, Some(gdDAO.extensionUri))
+  private val testClusterRequest = ClusterRequest(bucketPath, serviceAccount, Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(gdDAO.extensionUri))
 
   val initFiles = Array( dataprocConfig.clusterDockerComposeName, dataprocConfig.initActionsScriptName, dataprocConfig.jupyterServerCrtName,
     dataprocConfig.jupyterServerKeyName, dataprocConfig.jupyterRootCaPemName, dataprocConfig.jupyterProxySiteConfName, dataprocConfig.jupyterInstallExtensionScript)
@@ -252,5 +252,65 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val response = leo.createCluster(googleProject, clusterName, testClusterRequest.copy(jupyterExtensionUri = Some(jupyterExtensionUri))).failed.futureValue
 
     response shouldBe a [JupyterExtensionException]
+  }
+
+  it should "list no clusters" in isolatedDbTest {
+    leo.listClusters(Map.empty).futureValue shouldBe 'empty
+    leo.listClusters(Map("foo" -> "bar", "baz" -> "biz")).futureValue shouldBe 'empty
+  }
+
+  it should "list clusters" in isolatedDbTest {
+    val googleProject = s"project-${UUID.randomUUID.toString}"
+
+    // create a couple clusters
+    val clusterName1 = s"cluster-${UUID.randomUUID.toString}"
+    val cluster1 = leo.createCluster(googleProject, clusterName1, testClusterRequest).futureValue
+
+    val clusterName2 = s"cluster-${UUID.randomUUID.toString}"
+    val cluster2 = leo.createCluster(googleProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
+
+    leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
+  }
+
+  it should "list clusters with labels" in isolatedDbTest {
+    val googleProject = s"project-${UUID.randomUUID.toString}"
+
+    // create a couple clusters
+    val clusterName1 = s"cluster-${UUID.randomUUID.toString}"
+    val cluster1 = leo.createCluster(googleProject, clusterName1, testClusterRequest).futureValue
+
+    val clusterName2 = s"cluster-${UUID.randomUUID.toString}"
+    val cluster2 = leo.createCluster(googleProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
+
+    leo.listClusters(Map("foo" -> "bar")).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(Map("foo" -> "bar", "bam" -> "yes")).futureValue.toSet shouldBe Set(cluster1)
+    leo.listClusters(Map("foo" -> "bar", "bam" -> "yes", "vcf" -> "no")).futureValue.toSet shouldBe Set(cluster1)
+    leo.listClusters(Map("a" -> "b")).futureValue.toSet shouldBe Set(cluster2)
+    leo.listClusters(Map("foo" -> "bar", "baz" -> "biz")).futureValue.toSet shouldBe Set.empty
+    leo.listClusters(Map("A" -> "B")).futureValue.toSet shouldBe Set(cluster2)  // labels are not case sensitive because MySQL
+  }
+
+  it should "list clusters with swagger-style labels" in isolatedDbTest {
+    val googleProject = s"project-${UUID.randomUUID.toString}"
+
+    // create a couple clusters
+    val clusterName1 = s"cluster-${UUID.randomUUID.toString}"
+    val cluster1 = leo.createCluster(googleProject, clusterName1, testClusterRequest).futureValue
+
+    val clusterName2 = s"cluster-${UUID.randomUUID.toString}"
+    val cluster2 = leo.createCluster(googleProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
+
+    leo.listClusters(Map("_labels" -> "foo=bar")).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(Map("_labels" -> "foo=bar,bam=yes")).futureValue.toSet shouldBe Set(cluster1)
+    leo.listClusters(Map("_labels" -> "foo=bar,bam=yes,vcf=no")).futureValue.toSet shouldBe Set(cluster1)
+    leo.listClusters(Map("foo" -> "bar", "_labels" -> "bam=yes,vcf=no")).futureValue.toSet shouldBe Set(cluster1)
+    leo.listClusters(Map("_labels" -> "a=b")).futureValue.toSet shouldBe Set(cluster2)
+    leo.listClusters(Map("foo" -> "bar", "_labels" -> "baz=biz")).futureValue.toSet shouldBe Set.empty
+    leo.listClusters(Map("_labels" -> "A=B")).futureValue.toSet shouldBe Set(cluster2)   // labels are not case sensitive because MySQL
+    leo.listClusters(Map("_labels" -> "foo%3Dbar")).failed.futureValue shouldBe a [ParseLabelsException]
+    leo.listClusters(Map("_labels" -> "foo=bar;bam=yes")).failed.futureValue shouldBe a [ParseLabelsException]
+    leo.listClusters(Map("_labels" -> "foo=bar,bam")).failed.futureValue shouldBe a [ParseLabelsException]
+    leo.listClusters(Map("_labels" -> "bogus")).failed.futureValue shouldBe a [ParseLabelsException]
+    leo.listClusters(Map("_labels" -> "a,b")).failed.futureValue shouldBe a [ParseLabelsException]
   }
 }

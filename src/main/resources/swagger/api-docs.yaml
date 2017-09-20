@@ -73,6 +73,10 @@ paths:
             type: array
             items:
               $ref: '#/definitions/Cluster'
+        '400':
+          description: Bad Request
+            schema:
+              $ref: '#/definitions/ErrorReport'
         '500':
           description: Internal Error
           schema:
@@ -146,6 +150,10 @@ paths:
           description: Cluster creation successful
           schema:
             $ref: '#/definitions/Cluster'
+        '400':
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorReport'
         '500':
           description: Internal Error
           schema:

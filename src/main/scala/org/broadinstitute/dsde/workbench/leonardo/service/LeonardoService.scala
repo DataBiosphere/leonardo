@@ -37,6 +37,9 @@ case class TemplatingException(filePath: String, errorMessage: String)
 case class JupyterExtensionException(gcsUri: String)
   extends LeoException(s"Jupyter extension URI is invalid or unparseable: $gcsUri", StatusCodes.BadRequest)
 
+case class ParseLabelsException(labelString: String)
+  extends LeoException(s"Could not parse label string: $labelString. Expected format [key1=value1,key2=value2,...]", StatusCodes.BadRequest)
+
 class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: DataprocDAO, dbRef: DbReference, val clusterMonitorSupervisor: ActorRef)(implicit val executionContext: ExecutionContext) extends LazyLogging {
   val bucketPathMaxLength = 1024
 
@@ -85,8 +88,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
   }
 
   def listClusters(labelMap: Map[String, String]): Future[Seq[Cluster]] = {
-    dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.listByLabels(labelMap)
+    Future(processLabelMap(labelMap)).flatMap { processedLabelMap =>
+      dbRef.inTransaction { dataAccess =>
+        dataAccess.clusterQuery.listByLabels(processedLabelMap)
+      }
     }
   }
 
@@ -169,6 +174,22 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     Future {
       val raw = scala.io.Source.fromFile(filePath).mkString
       replacementMap.foldLeft(raw)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", b._2.toString()))
+    }
+  }
+
+  private[service] def processLabelMap(params: Map[String, String]): Map[String, String] = {
+    // Explode the parameter '_labels=key1=value1,key2=value2' into a Map of keys to values.
+    // This is to support swagger which doesn't allow free-form query string parameters.
+    params.get("_labels") match {
+      case Some(extraLabels) =>
+        val extraLabelMap = extraLabels.split(',').foldLeft(Map.empty[String, String]) { (r, c) =>
+          c.split('=') match {
+            case Array(key, value) => r + (key -> value)
+            case _ => throw ParseLabelsException(extraLabels)
+          }
+        }
+        (params - "_labels") ++ extraLabelMap
+      case None => params
     }
   }
 }

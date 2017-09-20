@@ -63,26 +63,10 @@ class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxySer
   path("clusters") {
     parameterMap { params =>
       complete {
-        leonardoService.listClusters(processLabelParams(params)).map { clusters =>
+        leonardoService.listClusters(params).map { clusters =>
           StatusCodes.OK -> clusters
         }
       }
-    }
-  }
-
-  private def processLabelParams(params: Map[String, String]): Map[String, String] = {
-    // Explode the parameter '_labels=key1=value1,key2=value2' into a Map of keys to values.
-    // This is to support swagger which doesn't allow free-form query string parameters.
-    params.get("_labels") match {
-      case Some(extraLabels) =>
-        val extraLabelMap = extraLabels.split(',').foldLeft(Map.empty[String, String]) { (r, c) =>
-          c.split('=') match {
-            case Array(key, value) => r + (key -> value)
-            case _ => r
-          }
-        }
-        (params - "_labels") ++ extraLabelMap
-      case None => params
     }
   }
 
