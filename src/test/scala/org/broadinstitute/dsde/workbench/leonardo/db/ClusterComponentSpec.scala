@@ -144,7 +144,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike {
       hostIp = None,
       createdDate = Instant.now(),
       destroyedDate = None,
-      labels = Map("foo" -> "bar"),
+      labels = Map("a" -> "b", "bam" -> "yes"),
       jupyterExtensionUri = Some("extension_uri"))
 
     dbFutureValue { _.clusterQuery.save(c1) } shouldEqual c1
@@ -152,12 +152,14 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike {
     dbFutureValue { _.clusterQuery.save(c3) } shouldEqual c3
 
     dbFutureValue { _.clusterQuery.listByLabels(Map.empty) }.toSet shouldEqual Set(c1, c2, c3)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes")) }.toSet shouldEqual Set(c1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes")) }.toSet shouldEqual Set(c1, c3)
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "no")) }.toSet shouldEqual Set.empty
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no")) }.toSet shouldEqual Set(c1)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "foo" -> "no")) }.toSet shouldEqual Set.empty
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bogus" -> "value")) }.toSet shouldEqual Set.empty
-    dbFutureValue { _.clusterQuery.listByLabels(Map("foo" -> "bar")) }.toSet shouldEqual Set(c1, c3)
     dbFutureValue { _.clusterQuery.listByLabels(Map("foo" -> "bar", "vcf" -> "no")) }.toSet shouldEqual Set(c1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar")) }.toSet shouldEqual Set(c1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("a" -> "b")) }.toSet shouldEqual Set(c3)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "b")) }.toSet shouldEqual Set(c3)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "c")) }.toSet shouldEqual Set.empty
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bogus" -> "value")) }.toSet shouldEqual Set.empty
   }
 }

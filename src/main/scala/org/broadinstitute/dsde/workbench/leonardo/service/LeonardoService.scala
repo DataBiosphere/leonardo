@@ -177,19 +177,31 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     }
   }
 
-  private[service] def processLabelMap(labelMap: Map[String, String]): Map[String, String] = {
-    // Explode the parameter '_labels=key1=value1,key2=value2' into a Map of keys to values.
-    // This is to support swagger which doesn't allow free-form query string parameters.
-    val extraLabelMap = labelMap.get("_labels") match {
-      case Some(extraLabels) if extraLabels.nonEmpty =>
+  /**
+    * There are 2 styles of passing labels to the list clusters endpoint:
+    *
+    * 1. As top-level query string parameters: https://leo/api/clusters?foo=bar&baz=biz
+    * 2. Using the _labels query string parameter: https://leo/api/clusters?_labels=foo%3Dbar,baz%3Dbiz
+    *
+    * The latter style exists because Swagger doesn't provide a way to specify free-form query string
+    * params. This method handles both styles, and returns a Map[String, String] representing the labels.
+    *
+    * Note that style 2 takes precendence: if _labels is present on the query string, any additional
+    * parameters are ignored.
+    *
+    * @param params raw query string params
+    * @return a Map[String, String] representing the labels
+    */
+  private[service] def processLabelMap(params: Map[String, String]): Map[String, String] = {
+    params.get("_labels") match {
+      case Some(extraLabels) =>
         extraLabels.split(',').foldLeft(Map.empty[String, String]) { (r, c) =>
           c.split('=') match {
             case Array(key, value) => r + (key -> value)
             case _ => throw ParseLabelsException(extraLabels)
           }
         }
-      case _ => Map.empty
+      case None => params
     }
-    (labelMap - "_labels") ++ extraLabelMap
   }
 }

@@ -300,13 +300,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName2 = s"cluster-${UUID.randomUUID.toString}"
     val cluster2 = leo.createCluster(googleProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
-    leo.listClusters(Map("_labels" -> "")).futureValue.toSet shouldBe Set(cluster1, cluster2)
     leo.listClusters(Map("_labels" -> "foo=bar")).futureValue.toSet shouldBe Set(cluster1, cluster2)
     leo.listClusters(Map("_labels" -> "foo=bar,bam=yes")).futureValue.toSet shouldBe Set(cluster1)
     leo.listClusters(Map("_labels" -> "foo=bar,bam=yes,vcf=no")).futureValue.toSet shouldBe Set(cluster1)
-    leo.listClusters(Map("foo" -> "bar", "_labels" -> "bam=yes,vcf=no")).futureValue.toSet shouldBe Set(cluster1)
     leo.listClusters(Map("_labels" -> "a=b")).futureValue.toSet shouldBe Set(cluster2)
-    leo.listClusters(Map("foo" -> "bar", "_labels" -> "baz=biz")).futureValue.toSet shouldBe Set.empty
+    leo.listClusters(Map("_labels" -> "baz=biz")).futureValue.toSet shouldBe Set.empty
     leo.listClusters(Map("_labels" -> "A=B")).futureValue.toSet shouldBe Set(cluster2)   // labels are not case sensitive because MySQL
     leo.listClusters(Map("_labels" -> "foo%3Dbar")).failed.futureValue shouldBe a [ParseLabelsException]
     leo.listClusters(Map("_labels" -> "foo=bar;bam=yes")).failed.futureValue shouldBe a [ParseLabelsException]
