@@ -180,8 +180,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
   /**
     * There are 2 styles of passing labels to the list clusters endpoint:
     *
-    * 1. As top-level query string parameters: https://leo/api/clusters?foo=bar&baz=biz
-    * 2. Using the _labels query string parameter: https://leo/api/clusters?_labels=foo%3Dbar,baz%3Dbiz
+    * 1. As top-level query string parameters: GET /api/clusters?foo=bar&baz=biz
+    * 2. Using the _labels query string parameter: GET /api/clusters?_labels=foo%3Dbar,baz%3Dbiz
     *
     * The latter style exists because Swagger doesn't provide a way to specify free-form query string
     * params. This method handles both styles, and returns a Map[String, String] representing the labels.

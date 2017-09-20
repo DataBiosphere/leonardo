@@ -63,7 +63,12 @@ paths:
       parameters:
         - in: query
           name: _labels
-          description: 'Optional label key-value pairs to filter results by. Example: key1=val1,key2=val2'
+          description: |
+            Optional label key-value pairs to filter results by. Example: key1=val1,key2=val2.
+
+            Note: this string format is a workaround because Swagger doesn't support free-form
+            query string parameters. The recommended way to use this endpoint is to specify the
+            labels as top-level query string parameters. For instance: GET /api/clusters?key1=val1&key2=val2.
           required: false
           type: string
       responses:
