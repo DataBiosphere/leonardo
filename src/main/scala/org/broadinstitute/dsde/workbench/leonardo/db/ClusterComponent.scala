@@ -128,16 +128,16 @@ trait ClusterComponent extends LeoComponent {
         // left join label l on l.clusterId = c.id
         // where (
         //   select count(*) from label
-        //   where clusterId = c.id and (kev, value) in ${labelMap}
+        //   where clusterId = c.id and (key, value) in ${labelMap}
         // ) = ${labelMap.size}
         //
         clusterQueryWithLabels.filter { case (cluster, _) =>
           labelQuery.filter { _.clusterId === cluster.id }
-            // The following line is equivalent to:
+            // The following confusing line is equivalent to the much simpler:
             // .filter { lbl => (lbl.key, lbl.value) inSetBind labelMap.toSet }
             // Unfortunately slick doesn't support inSet/inSetBind for tuples.
             // https://github.com/slick/slick/issues/517
-            .filter { lbl => labelMap.map(l => lbl.key === l._1 && lbl.value === l._2).reduce(_ || _) }
+            .filter { lbl => labelMap.map { case (k, v) => lbl.key === k && lbl.value === v }.reduce(_ || _) }
             .length === labelMap.size
         }
       }
