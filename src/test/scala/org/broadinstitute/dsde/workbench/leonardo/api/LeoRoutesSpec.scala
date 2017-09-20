@@ -135,9 +135,31 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       cluster.labels shouldEqual Map("a" -> "b")
     }
 
+    Get("/api/clusters?_labels=a%3Db") ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      responseAs[List[Cluster]] should have size 1
+      val cluster = responseAs[List[Cluster]].head
+      cluster.googleProject shouldEqual "test-project"
+      cluster.clusterName shouldEqual "test-cluster-2"
+      cluster.googleBucket shouldEqual "test-bucket-path"
+      cluster.googleServiceAccount shouldEqual "test-service-account"
+      cluster.labels shouldEqual Map("a" -> "b")
+    }
+
     Get("/api/clusters?foo=bar&baz=biz&a=b&extra=bogus") ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[List[Cluster]] should have size 0
+    }
+
+    Get("/api/clusters?_labels=foo%3Dbar,baz%3Dbiz") ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      responseAs[List[Cluster]] should have size 1
+      val cluster = responseAs[List[Cluster]].head
+      cluster.googleProject shouldEqual "test-project"
+      cluster.clusterName shouldEqual "test-cluster-1"
+      cluster.googleBucket shouldEqual "test-bucket-path"
+      cluster.googleServiceAccount shouldEqual "test-service-account"
+      cluster.labels shouldEqual Map("foo" -> "bar", "baz" -> "biz")
     }
   }
 

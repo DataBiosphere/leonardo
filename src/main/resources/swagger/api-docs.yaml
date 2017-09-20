@@ -62,21 +62,21 @@ paths:
         - cluster
       parameters:
         - in: query
-          name: label
-          description: label key-value pair. May be repeated.
-          request: false
+          name: _labels
+          description: 'Optional label key-value pairs to filter results by. Ex: key1=val1,key2=val2'
+          required: false
           type: string
       responses:
         '200':
           description: List of clusters
-            schema:
-              type: array
-              items:
-                $ref: '#/definitions/Cluster'
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Cluster'
         '500':
           description: Internal Error
-            schema:
-              $ref: '#/definitions/ErrorReport'
+          schema:
+            $ref: '#/definitions/ErrorReport'
       security:
         - googleoauth:
             - openid

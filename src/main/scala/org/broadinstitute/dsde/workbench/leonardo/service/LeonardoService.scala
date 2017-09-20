@@ -86,7 +86,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
 
   def listClusters(labelMap: Map[String, String]): Future[Seq[Cluster]] = {
     dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.getByLabels(labelMap)
+      dataAccess.clusterQuery.listByLabels(labelMap)
     }
   }
 
