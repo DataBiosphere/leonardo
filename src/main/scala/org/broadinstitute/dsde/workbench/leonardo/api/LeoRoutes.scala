@@ -59,7 +59,17 @@ class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxySer
           }
         }
       }
+  } ~
+  path("clusters") {
+    parameterMap { params =>
+      complete {
+        leonardoService.listClusters(params).map { clusters =>
+          StatusCodes.OK -> clusters
+        }
+      }
+    }
   }
+
   def route: Route = (logRequestResult & handleExceptions(myExceptionHandler) & handleRejections(rejectionHandler)) {
     swaggerRoutes ~ unauthedRoutes ~ proxyRoutes ~
     pathPrefix("api") { leoRoutes }

@@ -43,13 +43,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
   // Register this instance with the cluster monitor supervisor so our cluster monitor can potentially delete and recreate clusters
   clusterMonitorSupervisor ! RegisterLeoService(this)
 
-  private[service] def getCluster(googleProject: GoogleProject, clusterName: String, dataAccess: DataAccess): DBIO[Cluster] = {
-    dataAccess.clusterQuery.getByName(googleProject, clusterName) flatMap {
-      case None => throw ClusterNotFoundException(googleProject, clusterName)
-      case Some(cluster) => DBIO.successful(cluster)
-    }
-  }
-
   def createCluster(googleProject: String, clusterName: String, clusterRequest: ClusterRequest): Future[Cluster] = {
     def create() = {
       createGoogleCluster(googleProject, clusterName, clusterRequest) flatMap { clusterResponse: ClusterResponse =>
@@ -68,6 +61,39 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
         create andThen { case Success(cluster) =>
           clusterMonitorSupervisor ! ClusterCreated(cluster)
         }
+    }
+  }
+
+  def getClusterDetails(googleProject: GoogleProject, clusterName: String): Future[Cluster] = {
+    dbRef.inTransaction { dataAccess =>
+      getCluster(googleProject, clusterName, dataAccess)
+    }
+  }
+
+  def deleteCluster(googleProject: GoogleProject, clusterName: String): Future[Int] = {
+    getClusterDetails(googleProject, clusterName) flatMap { cluster =>
+      if(cluster.status.isActive) {
+        for {
+          _ <- gdDAO.deleteCluster(googleProject, clusterName)
+          recordCount <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.googleId))
+        } yield {
+          clusterMonitorSupervisor ! ClusterDeleted(cluster)
+          recordCount
+        }
+      } else Future.successful(0)
+    }
+  }
+
+  def listClusters(labelMap: Map[String, String]): Future[Seq[Cluster]] = {
+    dbRef.inTransaction { dataAccess =>
+      dataAccess.clusterQuery.getByLabels(labelMap)
+    }
+  }
+
+  private[service] def getCluster(googleProject: GoogleProject, clusterName: String, dataAccess: DataAccess): DBIO[Cluster] = {
+    dataAccess.clusterQuery.getByName(googleProject, clusterName) flatMap {
+      case None => throw ClusterNotFoundException(googleProject, clusterName)
+      case Some(cluster) => DBIO.successful(cluster)
     }
   }
 
@@ -143,26 +169,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     Future {
       val raw = scala.io.Source.fromFile(filePath).mkString
       replacementMap.foldLeft(raw)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", b._2.toString()))
-    }
-  }
-
-  def getClusterDetails(googleProject: GoogleProject, clusterName: String): Future[Cluster] = {
-    dbRef.inTransaction { dataAccess =>
-      getCluster(googleProject, clusterName, dataAccess)
-    }
-  }
-
-  def deleteCluster(googleProject: GoogleProject, clusterName: String): Future[Int] = {
-    getClusterDetails(googleProject, clusterName) flatMap { cluster =>
-      if(cluster.status.isActive) {
-        for {
-          _ <- gdDAO.deleteCluster(googleProject, clusterName)
-          recordCount <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.googleId))
-        } yield {
-          clusterMonitorSupervisor ! ClusterDeleted(cluster)
-          recordCount
-        }
-      } else Future.successful(0)
     }
   }
 }
