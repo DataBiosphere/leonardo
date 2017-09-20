@@ -71,6 +71,8 @@ class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxySer
   }
 
   private def processLabelParams(params: Map[String, String]): Map[String, String] = {
+    // Explode the parameter '_labels=key1=value1,key2=value2' into a Map of keys to values.
+    // This is to support swagger which doesn't allow free-form query string parameters.
     params.get("_labels") match {
       case Some(extraLabels) =>
         val extraLabelMap = extraLabels.split(',').foldLeft(Map.empty[String, String]) { (r, c) =>
