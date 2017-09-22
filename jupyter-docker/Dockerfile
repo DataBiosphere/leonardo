@@ -19,10 +19,10 @@ ENV SPARK_TGZ spark-$SPARK_VER.tgz
 ENV SPARK_URL http://d3kbcqa49mib13.cloudfront.net/$SPARK_TGZ
 ENV SPARK_HOME /spark/spark-$SPARK_VER
 
-# result of `gsutil cat gs://hail-common/latest-hash.txt` on 6 June 2017
-ENV HAILHASH 53e9d33
-ENV HAILJAR hail-hail-is-master-all-spark$SPARK_VER-$HAILHASH.jar
-ENV HAILZIP pyhail-hail-is-master-$HAILHASH.zip
+# result of `gsutil cat gs://hail-common/builds/0.1/latest-hash-spark-2.0.2.txt` on 22 September 2017
+ENV HAILHASH 6f8598516c88
+ENV HAILJAR hail-0.1-$HAILHASH-Spark-$SPARK_VER.jar
+ENV HAILZIP Hail-0.1-$HAILHASH-Spark-$SPARK_VER.zip
 ENV HAIL_HOME /hail
 
 # YARN configuration required by DataProc Spark
@@ -79,10 +79,9 @@ RUN echo "deb $DEBIAN_REPO/debian jessie main\ndeb $DEBIAN_REPO/debian-security 
  && wget -q https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-latest-hadoop2.jar -O $SPARK_HOME/gcs-connector.jar \
 
  # Hail
- && mkdir $HAIL_HOME && git clone https://github.com/broadinstitute/hail.git $HAIL_HOME \
- && cd $HAIL_HOME && git checkout $HAILHASH \
- && wget http://storage.googleapis.com/hail-common/$HAILJAR \
- && wget http://storage.googleapis.com/hail-common/$HAILZIP \
+ && mkdir $HAIL_HOME && cd $HAIL_HOME \
+ && wget http://storage.googleapis.com/hail-common/builds/0.1/jars/$HAILJAR \
+ && wget http://storage.googleapis.com/hail-common/distributions/0.1/$HAILZIP \
  && cd - \
 
  # NOTE! not sure why, but this must run before pip installation
