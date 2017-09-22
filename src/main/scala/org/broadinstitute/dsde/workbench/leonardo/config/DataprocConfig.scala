@@ -21,4 +21,5 @@ case class DataprocConfig(applicationName: String,
                           clusterUrlBase: String,
                           jupyterServerName: String,
                           proxyServerName: String,
-                          jupyterInstallExtensionScript: String)
+                          jupyterInstallExtensionScript: String,
+                          firecloudServiceAccountCredentials: String)

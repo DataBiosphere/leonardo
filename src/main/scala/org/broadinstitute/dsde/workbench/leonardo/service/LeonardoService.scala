@@ -157,7 +157,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     val initScriptPath = dataprocConfig.configFolderPath + dataprocConfig.initActionsScriptName
     val replacements = ClusterInitValues(googleProject, clusterName, bucketName, dataprocConfig, clusterRequest).toJson.asJsObject.fields
     val filesToUpload = List(dataprocConfig.jupyterServerCrtName, dataprocConfig.jupyterServerKeyName, dataprocConfig.jupyterRootCaPemName,
-      dataprocConfig.clusterDockerComposeName, dataprocConfig.jupyterProxySiteConfName, dataprocConfig.jupyterInstallExtensionScript)
+      dataprocConfig.clusterDockerComposeName, dataprocConfig.jupyterProxySiteConfName, dataprocConfig.jupyterInstallExtensionScript,
+      dataprocConfig.firecloudServiceAccountCredentials)
 
     for {
       // Fill in templated fields in the init script with the given replacements

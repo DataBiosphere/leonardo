@@ -35,7 +35,8 @@ package object config {
       config.getString("clusterUrlBase"),
       config.getString("jupyterServerName"),
       config.getString("proxyServerName"),
-      config.getString("jupyterInstallExtensionScript"))
+      config.getString("jupyterInstallExtensionScript"),
+      config.getString("firecloudServiceAccountCredentials"))
   }
 
   implicit val liquibaseReader: ValueReader[LiquibaseConfig] = ValueReader.relative { config =>
