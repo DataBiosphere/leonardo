@@ -14,7 +14,7 @@ spark.submit.deployMode client
 # Distributes from master node to the working directories of executors
 
 spark.jars /spark/spark-2.0.2/gcs-connector.jar,/hail/hail-0.1-[HAILHASH]-Spark-2.0.2.jar
-spark.submit.pyFiles /hail/Hail-0.1-[HAILHASH]-Spark-2.0.2.zip
+spark.submit.pyFiles /hail/Hail-0.1-[HAILHASH]-Spark-2.0.2.zip,/hail/hail-0.1-[HAILHASH].zip
 
 # Add JARs to Classpaths: driver can use absolute paths
 spark.driver.extraClassPath /spark/spark-2.0.2/gcs-connector.jar:/hail/hail-0.1-[HAILHASH]-Spark-2.0.2.jar
