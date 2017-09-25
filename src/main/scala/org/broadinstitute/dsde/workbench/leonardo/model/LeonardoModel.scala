@@ -114,7 +114,7 @@ object ClusterInitValues {
       dataprocConfig.proxyServerName,
       GoogleBucketUri(bucketName, dataprocConfig.jupyterInstallExtensionScript),
       clusterRequest.jupyterExtensionUri.getOrElse(""),
-      GoogleBucketUri(bucketName, dataprocConfig.firecloudServiceAccountCredentials)
+      GoogleBucketUri(bucketName, dataprocConfig.userServiceAccountCredentials)
     )
 
 }
@@ -132,7 +132,7 @@ case class ClusterInitValues(googleProject: GoogleProject,
                              proxyServerName: String,
                              jupyterInstallExtensionScript: String,
                              jupyterExtensionUri: GoogleBucketUri,
-                             firecloudServiceAccountCredentials: String)
+                             userServiceAccountCredentials: String)
 
 
 object FirewallRuleRequest {
