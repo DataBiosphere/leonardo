@@ -78,7 +78,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // Post:
   // - cluster is updated in the DB with status Running and the host IP
   // - monitor actor shuts down
-  "ClusterMonitorActor" should "monitor until RUNNING state" in isolatedDbTest {
+  "ClusterMonitorActor" should "foo monitor until RUNNING state" in isolatedDbTest {
     dbFutureValue { _.clusterQuery.save(creatingCluster) } shouldEqual creatingCluster
 
     val dao = mock[DataprocDAO]
@@ -90,6 +90,10 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       dao.getClusterMasterInstanceIp(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(Some("1.2.3.4"))
 
+    when {
+      dao.deleteBucket(eqq(creatingCluster.googleProject), anyString)
+    } thenReturn Future.successful(())
+
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
 
     expectMsgClass(1 second, classOf[Terminated])
@@ -97,6 +101,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster shouldBe 'defined
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
     updatedCluster.flatMap(_.hostIp) shouldBe Some("1.2.3.4")
+
+    verify(dao).deleteBucket(eqq(creatingCluster.googleProject), eqq(LeonardoService.generateBucketName(creatingCluster.clusterName)))
   }
 
   // Pre:
@@ -121,6 +127,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       val updatedCluster = dbFutureValue { _.clusterQuery.getByName(creatingCluster.googleProject, creatingCluster.clusterName) }
       updatedCluster shouldBe 'defined
       updatedCluster shouldBe Some(creatingCluster)
+
+      verify(dao, never).deleteBucket(anyString, anyString)
     }
   }
 
@@ -149,6 +157,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val updatedCluster = dbFutureValue { _.clusterQuery.getByName(creatingCluster.googleProject, creatingCluster.clusterName) }
     updatedCluster shouldBe 'defined
     updatedCluster shouldBe Some(creatingCluster)
+
+    verify(dao, never).deleteBucket(anyString, anyString)
   }
 
   // Pre:
@@ -176,6 +186,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val updatedCluster = dbFutureValue { _.clusterQuery.getByName(creatingCluster.googleProject, creatingCluster.clusterName) }
     updatedCluster shouldBe 'defined
     updatedCluster shouldBe Some(creatingCluster)
+
+    verify(dao, never).deleteBucket(anyString, anyString)
   }
 
   // Pre:
@@ -207,6 +219,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster shouldBe 'defined
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Error)
     updatedCluster.flatMap(_.hostIp) shouldBe None
+
+    verify(dao, never).deleteBucket(anyString, anyString)
   }
 
   // Pre:
@@ -230,6 +244,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster shouldBe 'defined
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Deleted)
     updatedCluster.flatMap(_.hostIp) shouldBe None
+
+    verify(dao, never).deleteBucket(anyString, anyString)
   }
 
   // Pre:
@@ -291,6 +307,10 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       dao.getClusterMasterInstanceIp(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(Some("1.2.3.4"))
 
+    when {
+      dao.deleteBucket(eqq(creatingCluster.googleProject), eqq(LeonardoService.generateBucketName(creatingCluster.clusterName)))
+    } thenReturn Future.successful(())
+
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
 
     // Expect 3 Terminated messages:
@@ -311,6 +331,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     newCluster.map(_.googleId) shouldBe Some(newClusterId)
     newCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
     newCluster.flatMap(_.hostIp) shouldBe Some("1.2.3.4")
+
+    verify(dao).deleteBucket(eqq(newCluster.get.googleProject), eqq(LeonardoService.generateBucketName(newCluster.get.clusterName)))
   }
 
   // Pre:
@@ -334,6 +356,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val updatedCluster = dbFutureValue { _.clusterQuery.getByName(deletingCluster.googleProject, deletingCluster.clusterName) }
     updatedCluster shouldBe 'defined
     updatedCluster shouldBe Some(deletingCluster)
+
+    verify(dao, never).deleteBucket(anyString, anyString)
   }
 
 }

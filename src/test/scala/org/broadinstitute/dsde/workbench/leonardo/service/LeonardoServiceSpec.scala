@@ -313,4 +313,17 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.listClusters(Map("_labels" -> "bogus")).failed.futureValue shouldBe a [ParseLabelsException]
     leo.listClusters(Map("_labels" -> "a,b")).failed.futureValue shouldBe a [ParseLabelsException]
   }
+
+  it should "generate valid bucket names" in {
+    LeonardoService.generateBucketName("myCluster") should startWith ("mycluster-")
+    LeonardoService.generateBucketName("MyCluster") should startWith ("mycluster-")
+    LeonardoService.generateBucketName("My_Cluster") should startWith ("my_cluster-")
+    LeonardoService.generateBucketName("MY_CLUSTER") should startWith ("my_cluster-")
+    LeonardoService.generateBucketName("MYCLUSTER") should startWith ("mycluster-")
+    LeonardoService.generateBucketName("_myCluster_") should startWith ("0mycluster0-")
+    LeonardoService.generateBucketName("googMyCluster") should startWith ("g00gmycluster-")
+    LeonardoService.generateBucketName("my_Google_clUsTer") should startWith("my_g00gle_cluster-")
+    LeonardoService.generateBucketName("myClusterWhichHasAVeryLongNameBecauseIAmExtremelyVerboseInMyDescriptions") should startWith ("myclusterwhichhasaverylong-")
+    LeonardoService.generateBucketName("myClusterWhichHasAVeryLongNameBecauseIAmExtremelyVerboseInMyDescriptions").length shouldBe 63
+  }
 }

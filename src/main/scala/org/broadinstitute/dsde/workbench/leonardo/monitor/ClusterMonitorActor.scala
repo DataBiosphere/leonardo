@@ -11,11 +11,13 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterErrorDetails, ClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterDeleted
+import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.util.addJitter
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Failure
+import scala.util.control.NonFatal
 
 object ClusterMonitorActor {
   /**
@@ -111,10 +113,21 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ShutdownActor
     */
   private def handleReadyCluster(publicIp: String): Future[ClusterMonitorMessage] = {
-    logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is ready for use!")
-    dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.setToRunning(cluster.googleId, publicIp)
-    }.map(_ => ShutdownActor())
+    gdDAO.deleteInitBucket(cluster.googleProject, cluster.clusterName) map {
+      case None =>
+        logger.warn(s"Could not delete init bucket for cluster ${cluster.googleProject}/${cluster.clusterName}: bucket was not found")
+      case Some(bucket) =>
+        logger.debug(s"Deleted init bucket $bucket for cluster ${cluster.googleProject}/${cluster.clusterName}")
+    } recover { case NonFatal(e) =>
+      logger.warn(s"Could not delete init bucket for cluster ${cluster.googleProject}/${cluster.clusterName}", e)
+    } flatMap { _ =>
+      dbRef.inTransaction { dataAccess =>
+        dataAccess.clusterQuery.setToRunning(cluster.googleId, publicIp)
+      }
+    } map { _ =>
+      logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is ready for use!")
+      ShutdownActor()
+    }
   }
 
   /**

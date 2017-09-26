@@ -16,6 +16,8 @@ trait DataprocDAO {
 
   def createBucket(googleProject: GoogleProject, bucketName: String): Future[Unit]
 
+  def deleteInitBucket(googleProject: GoogleProject, clusterName: String): Future[Option[String]]
+
   def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: File): Future[Unit]
 
   def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: String): Future[Unit]

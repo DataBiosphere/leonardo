@@ -47,6 +47,11 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extend
     Future.successful(())
   }
 
+  override def deleteBucket(googleProject: GoogleProject, bucketName: String): Future[Unit] = {
+    buckets -= bucketName
+    Future.successful(())
+  }
+
   override def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: File): Future[Unit] = {
     addToBucket(googleProject, bucketName, fileName)
   }

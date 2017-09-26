@@ -168,6 +168,16 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     executeGoogleRequestAsync(googleProject, bucketName, bucketInserter).void
   }
 
+  override def deleteInitBucket(googleProject: GoogleProject, clusterName: String): Future[Option[String]] = {
+    val result: OptionT[Future, String] = for {
+      cluster <- OptionT.liftF(getCluster(googleProject, clusterName))
+      bucketName <- OptionT.fromOption(getInitBucketName(cluster))
+      _ <- OptionT.liftF(deleteBucket(googleProject, bucketName))
+    } yield bucketName
+
+    result.value
+  }
+
   /* Upload a file to a bucket as FileContent */
   override def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: File): Future[Unit] = {
     val fileContent = new FileContent(null, content)
@@ -318,6 +328,23 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       accessConfigs <- Option(interface.getAccessConfigs)
       accessConfig <- accessConfigs.asScala.headOption
     } yield accessConfig.getNatIP
+  }
+
+  private def getInitBucketName(cluster: GoogleCluster): Option[String] = {
+    def parseBucketName(bucketPath: String): String = {
+      bucketPath
+    }
+
+    for {
+      config <- Option(cluster.getConfig)
+      initAction <- config.getInitializationActions.asScala.headOption
+      bucketPath <- Option(initAction.getExecutableFile)
+    } yield parseBucketName(bucketPath)
+  }
+
+  private def deleteBucket(googleProject: GoogleProject, bucketName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
+    val request = storage.buckets().delete(bucketName)
+    executeGoogleRequestAsync(googleProject, bucketName, request).void
   }
 
   private def executeGoogleRequestAsync[A](googleProject: GoogleProject, clusterName: String, request: AbstractGoogleClientRequest[A])(implicit executionContext: ExecutionContext): Future[A] = {

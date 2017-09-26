@@ -109,7 +109,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
      - Create the cluster in the google project
    Currently, the bucketPath of the clusterRequest is not used - it will be used later as a place to store notebook results */
   private[service] def createGoogleCluster(googleProject: GoogleProject, clusterName: String, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
-    val bucketName = s"${clusterName}-${UUID.randomUUID.toString}"
+    val bucketName = generateBucketName(clusterName)
     for {
       // Validate that the Jupyter extension URI is a valid URI and references a real GCS object
       _ <- validateJupyterExtensionUri(googleProject, clusterRequest.jupyterExtensionUri)
@@ -122,6 +122,27 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     } yield {
       clusterResponse
     }
+  }
+
+  private[service] def generateBucketName(clusterName: String): String = {
+    // Adhere to bucket naming rules: https://cloud.google.com/storage/docs/naming
+
+    // no uppercase letters allowed
+    val lowerName = clusterName.toLowerCase
+
+    // must start and end with a letter or number
+    val sb = new StringBuilder(lowerName)
+    if (!Character.isLetterOrDigit(sb(0))) sb.setCharAt(0, '0')
+    if (!Character.isLetterOrDigit(sb(sb.length - 1))) sb.setCharAt(sb.length - 1, '0')
+
+    // max length of 63 chars
+    val uuid = UUID.randomUUID.toString
+    val trimmedName = sb.substring(0, Math.min(sb.length, 63 - uuid.length - 1))
+
+    // must not start with "goog" or contain the string "google"
+    val trimmedNoGoog = trimmedName.replace("goog", "g00g")
+
+    s"$trimmedNoGoog-$uuid"
   }
 
   private[service] def validateJupyterExtensionUri(googleProject: GoogleProject, gcsUriOpt: Option[String])(implicit executionContext: ExecutionContext): Future[Unit] = {
