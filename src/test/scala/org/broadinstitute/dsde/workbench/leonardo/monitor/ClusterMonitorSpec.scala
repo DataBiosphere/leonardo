@@ -78,7 +78,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // Post:
   // - cluster is updated in the DB with status Running and the host IP
   // - monitor actor shuts down
-  "ClusterMonitorActor" should "foo monitor until RUNNING state" in isolatedDbTest {
+  "ClusterMonitorActor" should "monitor until RUNNING state" in isolatedDbTest {
     dbFutureValue { _.clusterQuery.save(creatingCluster) } shouldEqual creatingCluster
 
     val dao = mock[DataprocDAO]

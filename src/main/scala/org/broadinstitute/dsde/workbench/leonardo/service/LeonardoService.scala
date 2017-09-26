@@ -127,17 +127,19 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
   private[service] def generateBucketName(clusterName: String): String = {
     // Adhere to bucket naming rules: https://cloud.google.com/storage/docs/naming
 
-    // no uppercase letters allowed
-    val lowerName = clusterName.toLowerCase
+    // may only contain lowercase letters, numbers, underscores, dashes, or dots
+    val lowerCaseName = clusterName.toLowerCase.filter { c =>
+      Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == '.'
+    }
 
     // must start and end with a letter or number
-    val sb = new StringBuilder(lowerName)
-    if (!Character.isLetterOrDigit(sb(0))) sb.setCharAt(0, '0')
-    if (!Character.isLetterOrDigit(sb(sb.length - 1))) sb.setCharAt(sb.length - 1, '0')
+    val sb = new StringBuilder(lowerCaseName)
+    if (!Character.isLetterOrDigit(sb.head)) sb.setCharAt(0, '0')
 
-    // max length of 63 chars
+    // max length of 63 chars, including the uuid
     val uuid = UUID.randomUUID.toString
-    val trimmedName = sb.substring(0, Math.min(sb.length, 63 - uuid.length - 1))
+    val maxNameLength = 63 - uuid.length - 1
+    val trimmedName = sb.dropRight(Math.max(0, sb.length - maxNameLength)).toString
 
     // must not start with "goog" or contain the string "google"
     val trimmedNoGoog = trimmedName.replace("goog", "g00g")

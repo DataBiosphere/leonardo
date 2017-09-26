@@ -124,11 +124,14 @@ class ClusterMonitorActor(val cluster: Cluster,
     }
 
     // Then update the database
-    deleteBucketFuture flatMap { _ =>
+    val dbFuture = deleteBucketFuture flatMap { _ =>
       dbRef.inTransaction { dataAccess =>
         dataAccess.clusterQuery.setToRunning(cluster.googleId, publicIp)
       }
-    } map { _ =>
+    }
+
+    // Then pipe a shutdown message to this actor
+    dbFuture map { _ =>
       logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is ready for use!")
       ShutdownActor()
     }
