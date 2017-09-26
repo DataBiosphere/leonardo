@@ -132,7 +132,7 @@ case class ClusterInitValues(googleProject: GoogleProject,
                              proxyServerName: String,
                              jupyterInstallExtensionScript: String,
                              jupyterExtensionUri: GoogleBucketUri,
-                             userServiceAccountCredentials: String)
+                             userServiceAccountCredentialsUri: GoogleBucketUri)
 
 
 object FirewallRuleRequest {
