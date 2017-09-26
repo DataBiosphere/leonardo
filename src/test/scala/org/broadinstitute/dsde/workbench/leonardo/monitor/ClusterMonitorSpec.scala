@@ -91,8 +91,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(Some("1.2.3.4"))
 
     when {
-      dao.deleteBucket(eqq(creatingCluster.googleProject), anyString)
-    } thenReturn Future.successful(())
+      dao.deleteInitBucket(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))
+    } thenReturn Future.successful(Some("init-bucket"))
 
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
 
@@ -102,7 +102,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
     updatedCluster.flatMap(_.hostIp) shouldBe Some("1.2.3.4")
 
-    verify(dao).deleteBucket(eqq(creatingCluster.googleProject), eqq(LeonardoService.generateBucketName(creatingCluster.clusterName)))
+    verify(dao).deleteInitBucket(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))
   }
 
   // Pre:
@@ -128,7 +128,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       updatedCluster shouldBe 'defined
       updatedCluster shouldBe Some(creatingCluster)
 
-      verify(dao, never).deleteBucket(anyString, anyString)
+      verify(dao, never).deleteInitBucket(anyString, anyString)
     }
   }
 
@@ -158,7 +158,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster shouldBe 'defined
     updatedCluster shouldBe Some(creatingCluster)
 
-    verify(dao, never).deleteBucket(anyString, anyString)
+    verify(dao, never).deleteInitBucket(anyString, anyString)
   }
 
   // Pre:
@@ -187,7 +187,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster shouldBe 'defined
     updatedCluster shouldBe Some(creatingCluster)
 
-    verify(dao, never).deleteBucket(anyString, anyString)
+    verify(dao, never).deleteInitBucket(anyString, anyString)
   }
 
   // Pre:
@@ -220,7 +220,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Error)
     updatedCluster.flatMap(_.hostIp) shouldBe None
 
-    verify(dao, never).deleteBucket(anyString, anyString)
+    verify(dao, never).deleteInitBucket(anyString, anyString)
   }
 
   // Pre:
@@ -245,7 +245,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Deleted)
     updatedCluster.flatMap(_.hostIp) shouldBe None
 
-    verify(dao, never).deleteBucket(anyString, anyString)
+    verify(dao, never).deleteInitBucket(anyString, anyString)
   }
 
   // Pre:
@@ -308,8 +308,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(Some("1.2.3.4"))
 
     when {
-      dao.deleteBucket(eqq(creatingCluster.googleProject), eqq(LeonardoService.generateBucketName(creatingCluster.clusterName)))
-    } thenReturn Future.successful(())
+      dao.deleteInitBucket(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))
+    } thenReturn Future.successful(Some("init-bucket"))
 
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
 
@@ -332,7 +332,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     newCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
     newCluster.flatMap(_.hostIp) shouldBe Some("1.2.3.4")
 
-    verify(dao).deleteBucket(eqq(newCluster.get.googleProject), eqq(LeonardoService.generateBucketName(newCluster.get.clusterName)))
+    verify(dao).deleteInitBucket(eqq(newCluster.get.googleProject), eqq(newCluster.get.clusterName))
   }
 
   // Pre:
@@ -357,7 +357,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster shouldBe 'defined
     updatedCluster shouldBe Some(deletingCluster)
 
-    verify(dao, never).deleteBucket(anyString, anyString)
+    verify(dao, never).deleteInitBucket(anyString, anyString)
   }
 
 }

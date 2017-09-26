@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import com.typesafe.config.ConfigFactory
-import java.util.UUID
 
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
@@ -16,32 +15,33 @@ import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import spray.json._
 
-class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfterAll with TestComponent with ScalaFutures with OptionValues {
+class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures with OptionValues {
+  private val dataprocConfig = ConfigFactory.load().as[DataprocConfig]("dataproc")
+  private val bucketPath = "bucket-path"
+  private val serviceAccount = "service-account"
+  private val googleProject = "test-google-project"
+  private val clusterName = "test-cluster"
+  private val bucketName = "bucket-name"
+  private lazy val testClusterRequest = ClusterRequest(bucketPath, serviceAccount, Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(gdDAO.extensionUri))
+
+  private var gdDAO: MockGoogleDataprocDAO = _
+  private var leo: LeonardoService = _
+
+  before {
+    gdDAO = new MockGoogleDataprocDAO(dataprocConfig)
+    leo = new LeonardoService(dataprocConfig, gdDAO, DbSingleton.ref, system.actorOf(NoopActor.props))
+  }
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
     super.afterAll()
   }
 
-  private val dataprocConfig = ConfigFactory.load().as[DataprocConfig]("dataproc")
-
-  private val gdDAO = new MockGoogleDataprocDAO(dataprocConfig)
-  private val leo = new LeonardoService(dataprocConfig, gdDAO, DbSingleton.ref, system.actorOf(NoopActor.props))
-
-  private val bucketPath = "bucket-path"
-  private val serviceAccount = "service-account"
-  private val googleProject = "test-google-project"
-  private val testClusterRequest = ClusterRequest(bucketPath, serviceAccount, Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(gdDAO.extensionUri))
-
   val initFiles = Array( dataprocConfig.clusterDockerComposeName, dataprocConfig.initActionsScriptName, dataprocConfig.jupyterServerCrtName,
     dataprocConfig.jupyterServerKeyName, dataprocConfig.jupyterRootCaPemName, dataprocConfig.jupyterProxySiteConfName, dataprocConfig.jupyterInstallExtensionScript,
     dataprocConfig.userServiceAccountCredentials)
 
   "LeonardoService" should "create a cluster" in isolatedDbTest {
-    // set unique names for our cluster and google project
-    val clusterName = s"cluster-${UUID.randomUUID.toString}"
-    val googleProject = s"project-${UUID.randomUUID.toString}"
-
     // create the cluster
     val clusterCreateResponse = leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
 
@@ -64,10 +64,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "create and get a cluster" in isolatedDbTest {
-    // set unique names for our cluster and google project
-    val clusterName = s"cluster-${UUID.randomUUID.toString}"
-    val googleProject = s"project-${UUID.randomUUID.toString}"
-
     // create the cluster
     val clusterCreateResponse = leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
 
@@ -86,10 +82,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "throw ClusterAlreadyExistsException when creating a cluster with same name and project as an existing cluster" in isolatedDbTest {
-    // set unique names for our cluster and google project
-    val clusterName = s"cluster-${UUID.randomUUID.toString}"
-    val googleProject = s"project-${UUID.randomUUID.toString}"
-
     // create the first cluster
     leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
 
@@ -100,10 +92,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "delete a cluster" in isolatedDbTest {
-    // set unique names for our cluster and google project
-    val clusterName = s"cluster-${UUID.randomUUID.toString}"
-    val googleProject = s"project-${UUID.randomUUID.toString}"
-
     // check that the cluster does not exist
     gdDAO.clusters should not contain key (clusterName)
 
@@ -130,11 +118,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "initialize bucket with correct files" in isolatedDbTest {
-    // set unique names for our cluster name, bucket name and google project
-    val clusterName = s"cluster-${UUID.randomUUID.toString}"
-    val bucketName = s"bucket-${UUID.randomUUID.toString}"
-    val googleProject = s"project-${UUID.randomUUID.toString}"
-
     // Our bucket should not exist
     gdDAO.buckets should not contain (bucketName)
 
@@ -149,11 +132,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "add bucket objects" in isolatedDbTest {
-    // set unique names for our cluster name, bucket name and google project
-    val clusterName = s"cluster-${UUID.randomUUID.toString}"
-    val bucketName = s"bucket-${UUID.randomUUID.toString}"
-    val googleProject = s"project-${UUID.randomUUID.toString}"
-
     // since we're only testing adding the objects, we're directly creating the bucket in the mock DAO
     gdDAO.buckets += bucketName
 
@@ -168,33 +146,25 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "create a firewall rule in a project only once when the first cluster is added" in isolatedDbTest {
-    // set unique names for the google project and the two clusters we'll be creating
-    val cluster1 = s"cluster-${UUID.randomUUID.toString}"
-    val cluster2 = s"cluster-${UUID.randomUUID.toString}"
-    val googleProject = s"project-${UUID.randomUUID.toString}"
+    val clusterName2 = "test-cluster-2"
 
     // Our google project should have no firewall rules
     gdDAO.firewallRules should not contain (googleProject, dataprocConfig.clusterFirewallRuleName)
 
     // create the first cluster, this should create a firewall rule in our project
-    leo.createCluster(googleProject, cluster1, testClusterRequest).futureValue
+    leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
 
     // check that there is exactly 1 firewall rule for our project
     gdDAO.firewallRules.filterKeys(_ == googleProject) should have size 1
 
     // create the second cluster. This should check that our project has a firewall rule and not try to add it again
-    leo.createCluster(googleProject, cluster2, testClusterRequest).futureValue
+    leo.createCluster(googleProject, clusterName2, testClusterRequest).futureValue
 
     // check that there is still exactly 1 firewall rule in our project
     gdDAO.firewallRules.filterKeys(_ == googleProject) should have size 1
   }
 
   it should "template a script using config values" in isolatedDbTest {
-    // set unique names for our cluster name, bucket name and google project
-    val clusterName = s"cluster-${UUID.randomUUID.toString}"
-    val bucketName = s"bucket-${UUID.randomUUID.toString}"
-    val googleProject = s"project-${UUID.randomUUID.toString}"
-
     // create the file path for our init actions script
     val filePath = dataprocConfig.configFolderPath + dataprocConfig.initActionsScriptName
 
@@ -219,10 +189,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   it should "throw a JupyterExtensionException when the extensionUri is too long" in isolatedDbTest {
     val jupyterExtensionUri = "gs://aBucket/" + Stream.continually('a').take(1025).mkString
 
-    // set unique names for our cluster and google project
-    val clusterName = s"cluster-${UUID.randomUUID.toString}"
-    val googleProject = s"project-${UUID.randomUUID.toString}"
-
     // create the cluster
     val response = leo.createCluster(googleProject, clusterName, testClusterRequest.copy(jupyterExtensionUri = Some(jupyterExtensionUri))).failed.futureValue
 
@@ -232,10 +198,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   it should "throw a JupyterExtensionException when the jupyterExtensionUri is not a valid URI" in isolatedDbTest {
     val jupyterExtensionUri = Stream.continually('a').take(100).mkString
 
-    // set unique names for our cluster and google project
-    val clusterName = s"cluster-${UUID.randomUUID.toString}"
-    val googleProject = s"project-${UUID.randomUUID.toString}"
-
     // create the cluster
     val response = leo.createCluster(googleProject, clusterName, testClusterRequest.copy(jupyterExtensionUri = Some(jupyterExtensionUri))).failed.futureValue
 
@@ -244,10 +206,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "throw a JupyterExtensionException when the jupyterExtensionUri does not point to a GCS object" in isolatedDbTest {
     val jupyterExtensionUri = "gs://bogus/object.tar.gz"
-
-    // set unique names for our cluster and google project
-    val clusterName = s"cluster-${UUID.randomUUID.toString}"
-    val googleProject = s"project-${UUID.randomUUID.toString}"
 
     // create the cluster
     val response = leo.createCluster(googleProject, clusterName, testClusterRequest.copy(jupyterExtensionUri = Some(jupyterExtensionUri))).failed.futureValue
@@ -261,26 +219,20 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "list clusters" in isolatedDbTest {
-    val googleProject = s"project-${UUID.randomUUID.toString}"
-
     // create a couple clusters
-    val clusterName1 = s"cluster-${UUID.randomUUID.toString}"
-    val cluster1 = leo.createCluster(googleProject, clusterName1, testClusterRequest).futureValue
+    val cluster1 = leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
 
-    val clusterName2 = s"cluster-${UUID.randomUUID.toString}"
+    val clusterName2 = "test-cluster-2"
     val cluster2 = leo.createCluster(googleProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
     leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
   }
 
   it should "list clusters with labels" in isolatedDbTest {
-    val googleProject = s"project-${UUID.randomUUID.toString}"
-
     // create a couple clusters
-    val clusterName1 = s"cluster-${UUID.randomUUID.toString}"
-    val cluster1 = leo.createCluster(googleProject, clusterName1, testClusterRequest).futureValue
+    val cluster1 = leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
 
-    val clusterName2 = s"cluster-${UUID.randomUUID.toString}"
+    val clusterName2 = s"test-cluster-2"
     val cluster2 = leo.createCluster(googleProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
     leo.listClusters(Map("foo" -> "bar")).futureValue.toSet shouldBe Set(cluster1, cluster2)
@@ -292,13 +244,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "list clusters with swagger-style labels" in isolatedDbTest {
-    val googleProject = s"project-${UUID.randomUUID.toString}"
-
     // create a couple clusters
-    val clusterName1 = s"cluster-${UUID.randomUUID.toString}"
-    val cluster1 = leo.createCluster(googleProject, clusterName1, testClusterRequest).futureValue
+    val cluster1 = leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
 
-    val clusterName2 = s"cluster-${UUID.randomUUID.toString}"
+    val clusterName2 = "test-cluster-2"
     val cluster2 = leo.createCluster(googleProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
     leo.listClusters(Map("_labels" -> "foo=bar")).futureValue.toSet shouldBe Set(cluster1, cluster2)
@@ -315,15 +264,15 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "generate valid bucket names" in {
-    LeonardoService.generateBucketName("myCluster") should startWith ("mycluster-")
-    LeonardoService.generateBucketName("MyCluster") should startWith ("mycluster-")
-    LeonardoService.generateBucketName("My_Cluster") should startWith ("my_cluster-")
-    LeonardoService.generateBucketName("MY_CLUSTER") should startWith ("my_cluster-")
-    LeonardoService.generateBucketName("MYCLUSTER") should startWith ("mycluster-")
-    LeonardoService.generateBucketName("_myCluster_") should startWith ("0mycluster0-")
-    LeonardoService.generateBucketName("googMyCluster") should startWith ("g00gmycluster-")
-    LeonardoService.generateBucketName("my_Google_clUsTer") should startWith("my_g00gle_cluster-")
-    LeonardoService.generateBucketName("myClusterWhichHasAVeryLongNameBecauseIAmExtremelyVerboseInMyDescriptions") should startWith ("myclusterwhichhasaverylong-")
-    LeonardoService.generateBucketName("myClusterWhichHasAVeryLongNameBecauseIAmExtremelyVerboseInMyDescriptions").length shouldBe 63
+    leo.generateBucketName("myCluster") should startWith ("mycluster-")
+    leo.generateBucketName("MyCluster") should startWith ("mycluster-")
+    leo.generateBucketName("My_Cluster") should startWith ("my_cluster-")
+    leo.generateBucketName("MY_CLUSTER") should startWith ("my_cluster-")
+    leo.generateBucketName("MYCLUSTER") should startWith ("mycluster-")
+    leo.generateBucketName("_myCluster_") should startWith ("0mycluster0-")
+    leo.generateBucketName("googMyCluster") should startWith ("g00gmycluster-")
+    leo.generateBucketName("my_Google_clUsTer") should startWith("my_g00gle_cluster-")
+    leo.generateBucketName("myClusterWhichHasAVeryLongNameBecauseIAmExtremelyVerboseInMyDescriptions") should startWith ("myclusterwhichhasaverylong-")
+    leo.generateBucketName("myClusterWhichHasAVeryLongNameBecauseIAmExtremelyVerboseInMyDescriptions").length shouldBe 63
   }
 }

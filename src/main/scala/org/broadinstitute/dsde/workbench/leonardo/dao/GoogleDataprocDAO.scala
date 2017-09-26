@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import java.io.{ByteArrayInputStream, File}
+import java.net.URI
 import java.nio.charset.StandardCharsets
 
 import akka.actor.ActorSystem
@@ -21,8 +22,6 @@ import com.google.api.services.compute.{Compute, ComputeScopes}
 import com.google.api.services.dataproc.Dataproc
 import com.google.api.services.dataproc.model.{Cluster => GoogleCluster, Operation => DataprocOperation, _}
 import com.google.api.services.plus.PlusScopes
-import com.google.api.services.storage.model.Bucket.Lifecycle
-import com.google.api.services.storage.model.Bucket.Lifecycle.Rule.{Action, Condition}
 import com.google.api.services.storage.model.{Bucket, StorageObject}
 import com.google.api.services.storage.{Storage, StorageScopes}
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities
@@ -33,6 +32,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, Cl
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future, blocking}
+import scala.util.Try
 
 case class CallToGoogleApiFailedException(googleProject: GoogleProject, clusterName:String, exceptionStatusCode: Int, errorMessage: String)
   extends LeoException(s"Call to Google API failed for $googleProject/$clusterName. Message: $errorMessage",exceptionStatusCode)
@@ -151,17 +151,8 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
 
   /* Create a bucket in the given google project for the initialization files when creating a cluster */
   override def createBucket(googleProject: GoogleProject, bucketName: String): Future[Unit] = {
-    // Create lifecycle rule for the bucket that will delete the bucket after 1 day - for now, init buckets will be
-    // deleted this way, but eventually we will likely want to delete them after the cluster has been initialized
-    val lifecycleRule = new Lifecycle.Rule()
-      .setAction(new Action().setType("Delete"))
-      .setCondition(new Condition().setAge(1))
-
-    // Create lifecycle for the bucket with a list of rules
-    val lifecycle = new Lifecycle().setRule(List(lifecycleRule).asJava)
-
-    // Create a bucket object and set it's name and lifecycle
-    val bucket = new Bucket().setName(bucketName).setLifecycle(lifecycle)
+    // Create a bucket object and set its name
+    val bucket = new Bucket().setName(bucketName)
 
     val bucketInserter = storage.buckets().insert(googleProject, bucket)
 
@@ -331,15 +322,16 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   }
 
   private def getInitBucketName(cluster: GoogleCluster): Option[String] = {
-    def parseBucketName(bucketPath: String): String = {
-      bucketPath
+    def parseBucketName(bucketPath: String): Option[String] = {
+      Try(Option(new URI(bucketPath).getHost)).toOption.flatten
     }
 
     for {
       config <- Option(cluster.getConfig)
       initAction <- config.getInitializationActions.asScala.headOption
       bucketPath <- Option(initAction.getExecutableFile)
-    } yield parseBucketName(bucketPath)
+      bucketName <- parseBucketName(bucketPath)
+    } yield bucketName
   }
 
   private def deleteBucket(googleProject: GoogleProject, bucketName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
