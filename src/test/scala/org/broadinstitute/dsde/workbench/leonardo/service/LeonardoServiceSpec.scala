@@ -3,10 +3,9 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import com.typesafe.config.ConfigFactory
-
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.MockGoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, MockGoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterInitValues, ClusterRequest}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
@@ -73,7 +72,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // check the create response and get response are the same
     clusterCreateResponse shouldEqual clusterGetResponse
   }
-
 
   it should "throw ClusterNotFoundException for nonexistent clusters" in isolatedDbTest {
     whenReady( leo.getClusterDetails("nonexistent", "cluster").failed ) { exc =>
@@ -263,19 +261,15 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.listClusters(Map("_labels" -> "a,b")).failed.futureValue shouldBe a [ParseLabelsException]
   }
 
-  it should "generate valid bucket names" in {
-    leo.generateBucketName("myCluster") should startWith ("mycluster-")
-    leo.generateBucketName("MyCluster") should startWith ("mycluster-")
-    leo.generateBucketName("My_Cluster") should startWith ("my_cluster-")
-    leo.generateBucketName("MY_CLUSTER") should startWith ("my_cluster-")
-    leo.generateBucketName("MYCLUSTER") should startWith ("mycluster-")
-    leo.generateBucketName("_myCluster_") should startWith ("0mycluster_-")
-    leo.generateBucketName("my.cluster") should startWith ("my.cluster-")
-    leo.generateBucketName("my+cluster") should startWith ("mycluster-")
-    leo.generateBucketName("mY-?^&@%#@&^#cLuStEr.foo_bar") should startWith ("my-cluster.foo_bar-")
-    leo.generateBucketName("googMyCluster") should startWith ("g00gmycluster-")
-    leo.generateBucketName("my_Google_clUsTer") should startWith("my_g00gle_cluster-")
-    leo.generateBucketName("myClusterWhichHasAVeryLongNameBecauseIAmExtremelyVerboseInMyDescriptions") should startWith ("myclusterwhichhasaverylong-")
-    leo.generateBucketName("myClusterWhichHasAVeryLongNameBecauseIAmExtremelyVerboseInMyDescriptions").length shouldBe 63
+  it should "delete the init bucket if cluster creation fails" in isolatedDbTest {
+    // create the cluster
+    val clusterCreateResponse = leo.createCluster(googleProject, gdDAO.badClusterName, testClusterRequest).failed.futureValue
+
+    clusterCreateResponse shouldBe a [CallToGoogleApiFailedException]
+
+    // check the firewall rule was created for the project
+    gdDAO.firewallRules should contain (googleProject, dataprocConfig.clusterFirewallRuleName)
+
+    gdDAO.buckets shouldBe 'empty
   }
 }

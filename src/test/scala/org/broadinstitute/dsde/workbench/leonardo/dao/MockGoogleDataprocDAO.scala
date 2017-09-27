@@ -17,15 +17,18 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extend
   val buckets: mutable.Set[String] = mutable.Set() // Set of bucket names - not keeping track of google projects since it's all in leo's project
   val bucketObjects: mutable.Set[(String, String)] = mutable.Set()  // Set of Bucket Name and File Name
   val extensionUri = "gs://aBucket/my_extension.tar.gz"
-
+  val badClusterName = "badCluster"
 
   private def googleID = UUID.randomUUID().toString
 
   override def createCluster(googleProject: String, clusterName: String, clusterRequest: ClusterRequest, bucketName: String)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
-    val clusterResponse = ClusterResponse(clusterName, googleProject, googleID, "status", "desc", "op-name")
-    clusters += clusterName -> Cluster(clusterRequest, clusterResponse)
-
-    Future.successful(clusterResponse)
+    if (clusterName == badClusterName) {
+      Future.failed(new CallToGoogleApiFailedException(googleProject, clusterName, 500, "Bad Cluster!"))
+    } else {
+      val clusterResponse = ClusterResponse(clusterName, googleProject, googleID, "status", "desc", "op-name")
+      clusters += clusterName -> Cluster(clusterRequest, clusterResponse)
+      Future.successful(clusterResponse)
+    }
   }
 
   override def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
@@ -47,8 +50,13 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extend
     Future.successful(())
   }
 
-  override def deleteInitBucket(googleProject: GoogleProject, clusterName: String): Future[Option[String]] = {
+  override def deleteClusterInitBucket(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[Option[String]] = {
     Future.successful(None)
+  }
+
+  override def deleteBucket(googleProject: GoogleProject, bucketName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
+    buckets -= bucketName
+    Future.successful(())
   }
 
   override def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: File): Future[Unit] = {

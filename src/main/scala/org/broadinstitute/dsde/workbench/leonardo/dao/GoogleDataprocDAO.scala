@@ -22,6 +22,8 @@ import com.google.api.services.compute.{Compute, ComputeScopes}
 import com.google.api.services.dataproc.Dataproc
 import com.google.api.services.dataproc.model.{Cluster => GoogleCluster, Operation => DataprocOperation, _}
 import com.google.api.services.plus.PlusScopes
+import com.google.api.services.storage.model.Bucket.Lifecycle
+import com.google.api.services.storage.model.Bucket.Lifecycle.Rule.{Action, Condition}
 import com.google.api.services.storage.model.{Bucket, StorageObject}
 import com.google.api.services.storage.{Storage, StorageScopes}
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities
@@ -151,15 +153,27 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
 
   /* Create a bucket in the given google project for the initialization files when creating a cluster */
   override def createBucket(googleProject: GoogleProject, bucketName: String): Future[Unit] = {
-    // Create a bucket object and set its name
-    val bucket = new Bucket().setName(bucketName)
+    // Create lifecycle rule for the bucket that will delete the bucket after 1 day.
+    //
+    // Note that the init buckets are explicitly deleted by the ClusterMonitor once the cluster
+    // initializes; the lifecycle rule is a defensive check to ensure we don't leak buckets in
+    // case something goes wrong.
+    val lifecycleRule = new Lifecycle.Rule()
+      .setAction(new Action().setType("Delete"))
+      .setCondition(new Condition().setAge(1))
+
+    // Create lifecycle for the bucket with a list of rules
+    val lifecycle = new Lifecycle().setRule(List(lifecycleRule).asJava)
+
+    // Create a bucket object and set it's name and lifecycle
+    val bucket = new Bucket().setName(bucketName).setLifecycle(lifecycle)
 
     val bucketInserter = storage.buckets().insert(googleProject, bucket)
 
     executeGoogleRequestAsync(googleProject, bucketName, bucketInserter).void
   }
 
-  override def deleteInitBucket(googleProject: GoogleProject, clusterName: String): Future[Option[String]] = {
+  override def deleteClusterInitBucket(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[Option[String]] = {
     val result: OptionT[Future, String] = for {
       cluster <- OptionT.liftF(getCluster(googleProject, clusterName))
       bucketName <- OptionT.fromOption(getInitBucketName(cluster))
@@ -167,6 +181,11 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     } yield bucketName
 
     result.value
+  }
+
+  override def deleteBucket(googleProject: GoogleProject, bucketName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
+    val request = storage.buckets().delete(bucketName)
+    executeGoogleRequestAsync(googleProject, bucketName, request).void
   }
 
   /* Upload a file to a bucket as FileContent */
@@ -332,11 +351,6 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       bucketPath <- Option(initAction.getExecutableFile)
       bucketName <- parseBucketName(bucketPath)
     } yield bucketName
-  }
-
-  private def deleteBucket(googleProject: GoogleProject, bucketName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    val request = storage.buckets().delete(bucketName)
-    executeGoogleRequestAsync(googleProject, bucketName, request).void
   }
 
   private def executeGoogleRequestAsync[A](googleProject: GoogleProject, clusterName: String, request: AbstractGoogleClientRequest[A])(implicit executionContext: ExecutionContext): Future[A] = {

@@ -20,7 +20,7 @@ import slick.dbio.DBIO
 import spray.json._
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Success
+import scala.util.{Failure, Success}
 
 case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: String)
   extends LeoException(s"Cluster $googleProject/$clusterName not found", StatusCodes.NotFound)
@@ -118,12 +118,16 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
       // Create the bucket in leo's google bucket and populate with initialization files
       _ <- initializeBucket(dataprocConfig.leoGoogleBucket, clusterName, bucketName, clusterRequest)
       // Once the bucket is ready, build the cluster
-      clusterResponse <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, bucketName)
+      clusterResponse <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, bucketName).andThen { case Failure(e) =>
+        // If cluster creation fails, delete the init bucket asynchronously
+        gdDAO.deleteBucket(googleProject, bucketName)
+      }
     } yield {
       clusterResponse
     }
   }
 
+  // TODO: in workbench-libs
   private[service] def generateBucketName(clusterName: String): String = {
     // Adhere to bucket naming rules: https://cloud.google.com/storage/docs/naming
 

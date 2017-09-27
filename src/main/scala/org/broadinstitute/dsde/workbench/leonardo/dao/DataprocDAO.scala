@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import java.io.File
+
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterRequest, ClusterResponse}
@@ -28,5 +29,7 @@ trait DataprocDAO {
 
   def getClusterErrorDetails(operationName: String)(implicit executionContext: ExecutionContext): Future[Option[ClusterErrorDetails]]
 
-  def deleteInitBucket(googleProject: GoogleProject, clusterName: String): Future[Option[String]]
+  def deleteClusterInitBucket(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[Option[String]]
+
+  def deleteBucket(googleProject: GoogleProject, bucketName: String)(implicit executionContext: ExecutionContext): Future[Unit]
 }

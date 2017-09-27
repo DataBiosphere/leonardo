@@ -91,7 +91,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(Some("1.2.3.4"))
 
     when {
-      dao.deleteInitBucket(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))
+      dao.deleteClusterInitBucket(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(Some("init-bucket"))
 
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
@@ -102,7 +102,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
     updatedCluster.flatMap(_.hostIp) shouldBe Some("1.2.3.4")
 
-    verify(dao).deleteInitBucket(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))
+    verify(dao).deleteClusterInitBucket(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
   }
 
   // Pre:
@@ -128,7 +128,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       updatedCluster shouldBe 'defined
       updatedCluster shouldBe Some(creatingCluster)
 
-      verify(dao, never).deleteInitBucket(anyString, anyString)
+      verify(dao, never).deleteClusterInitBucket(anyString, anyString)(any[ExecutionContext])
     }
   }
 
@@ -158,7 +158,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster shouldBe 'defined
     updatedCluster shouldBe Some(creatingCluster)
 
-    verify(dao, never).deleteInitBucket(anyString, anyString)
+    verify(dao, never).deleteClusterInitBucket(anyString, anyString)(any[ExecutionContext])
   }
 
   // Pre:
@@ -187,7 +187,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster shouldBe 'defined
     updatedCluster shouldBe Some(creatingCluster)
 
-    verify(dao, never).deleteInitBucket(anyString, anyString)
+    verify(dao, never).deleteClusterInitBucket(anyString, anyString)(any[ExecutionContext])
   }
 
   // Pre:
@@ -220,7 +220,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Error)
     updatedCluster.flatMap(_.hostIp) shouldBe None
 
-    verify(dao, never).deleteInitBucket(anyString, anyString)
+    verify(dao, never).deleteClusterInitBucket(anyString, anyString)(any[ExecutionContext])
   }
 
   // Pre:
@@ -245,7 +245,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Deleted)
     updatedCluster.flatMap(_.hostIp) shouldBe None
 
-    verify(dao, never).deleteInitBucket(anyString, anyString)
+    verify(dao, never).deleteClusterInitBucket(anyString, anyString)(any[ExecutionContext])
   }
 
   // Pre:
@@ -308,7 +308,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(Some("1.2.3.4"))
 
     when {
-      dao.deleteInitBucket(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))
+      dao.deleteClusterInitBucket(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(Some("init-bucket"))
 
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
@@ -332,7 +332,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     newCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
     newCluster.flatMap(_.hostIp) shouldBe Some("1.2.3.4")
 
-    verify(dao).deleteInitBucket(eqq(newCluster.get.googleProject), eqq(newCluster.get.clusterName))
+    verify(dao).deleteClusterInitBucket(eqq(newCluster.get.googleProject), eqq(newCluster.get.clusterName))(any[ExecutionContext])
   }
 
   // Pre:
@@ -357,7 +357,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster shouldBe 'defined
     updatedCluster shouldBe Some(deletingCluster)
 
-    verify(dao, never).deleteInitBucket(anyString, anyString)
+    verify(dao, never).deleteClusterInitBucket(anyString, anyString)(any[ExecutionContext])
   }
 
 }

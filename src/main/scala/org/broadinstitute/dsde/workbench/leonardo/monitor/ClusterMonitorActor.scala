@@ -114,7 +114,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     */
   private def handleReadyCluster(publicIp: String): Future[ClusterMonitorMessage] = {
     // First delete the init bucket
-    val deleteBucketFuture = gdDAO.deleteInitBucket(cluster.googleProject, cluster.clusterName) map {
+    val deleteBucketFuture = gdDAO.deleteClusterInitBucket(cluster.googleProject, cluster.clusterName) map {
       case None =>
         logger.warn(s"Could not delete init bucket for cluster ${cluster.googleProject}/${cluster.clusterName}: bucket was not found")
       case Some(bucket) =>
