@@ -87,10 +87,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     }
   }
 
-  def listClusters(labelMap: Map[String, String]): Future[Seq[Cluster]] = {
+  def listClusters(labelMap: Map[String, String], includeDeleted: Boolean = false): Future[Seq[Cluster]] = {
     Future(processLabelMap(labelMap)).flatMap { processedLabelMap =>
       dbRef.inTransaction { dataAccess =>
-        dataAccess.clusterQuery.listByLabels(processedLabelMap)
+        dataAccess.clusterQuery.listByLabels(processedLabelMap, includeDeleted)
       }
     }
   }

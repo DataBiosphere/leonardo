@@ -151,15 +151,15 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike {
     dbFutureValue { _.clusterQuery.save(c2) } shouldEqual c2
     dbFutureValue { _.clusterQuery.save(c3) } shouldEqual c3
 
-    dbFutureValue { _.clusterQuery.listByLabels(Map.empty) }.toSet shouldEqual Set(c1, c2, c3)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes")) }.toSet shouldEqual Set(c1, c3)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "no")) }.toSet shouldEqual Set.empty
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no")) }.toSet shouldEqual Set(c1)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("foo" -> "bar", "vcf" -> "no")) }.toSet shouldEqual Set(c1)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar")) }.toSet shouldEqual Set(c1)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("a" -> "b")) }.toSet shouldEqual Set(c3)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "b")) }.toSet shouldEqual Set(c3)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "c")) }.toSet shouldEqual Set.empty
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bogus" -> "value")) }.toSet shouldEqual Set.empty
+    dbFutureValue { _.clusterQuery.listByLabels(Map.empty, false) }.toSet shouldEqual Set(c1, c2, c3)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes"), false) }.toSet shouldEqual Set(c1, c3)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "no"), false) }.toSet shouldEqual Set.empty
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no"), false) }.toSet shouldEqual Set(c1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("foo" -> "bar", "vcf" -> "no"), false) }.toSet shouldEqual Set(c1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), false) }.toSet shouldEqual Set(c1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("a" -> "b"), false) }.toSet shouldEqual Set(c3)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "b"), false) }.toSet shouldEqual Set(c3)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "c"), false) }.toSet shouldEqual Set.empty
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bogus" -> "value"), false) }.toSet shouldEqual Set.empty
   }
 }
