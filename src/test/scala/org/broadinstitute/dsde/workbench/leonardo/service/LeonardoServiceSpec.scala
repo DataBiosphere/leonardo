@@ -239,6 +239,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val cluster3 = leo.createCluster(googleProject, clusterName3, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
     leo.deleteCluster(googleProject, clusterName3)
 
+    dbFutureValue(dataAccess =>
+      dataAccess.clusterQuery.completeDeletion(cluster3.googleId, clusterName3)
+    )
+
     leo.listClusters(Map.empty, false).futureValue.toSet shouldBe Set.empty
   }
 
