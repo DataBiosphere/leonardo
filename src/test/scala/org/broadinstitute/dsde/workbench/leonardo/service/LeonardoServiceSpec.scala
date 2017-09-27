@@ -7,7 +7,7 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, MockGoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterInitValues, ClusterRequest}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterInitValues, ClusterRequest, ClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
 import org.scalatest._
