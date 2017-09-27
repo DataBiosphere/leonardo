@@ -117,9 +117,9 @@ trait ClusterComponent extends LeoComponent {
 
     def listByLabels(labelMap: Map[String, String], includeDeleted: Boolean): DBIO[Seq[Cluster]] = {
       val clusterStatusQuery = if (includeDeleted)
-        clusterQueryWithLabels.filter { _._1.status inSetBind ClusterStatus.activeStatuses.map(_.toString) }
-      else
         clusterQueryWithLabels
+      else
+        clusterQueryWithLabels.filter { _._1.status inSetBind ClusterStatus.existingStatuses.map(_.toString) }
 
 
       val query = if (labelMap.isEmpty) {

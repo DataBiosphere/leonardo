@@ -60,20 +60,22 @@ class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxySer
         }
       }
   } ~
-  path("clusters") {
-    path("&includeDeleted") {
+  pathPrefix("clusters") {
+    pathEnd {
       parameterMap { params =>
         complete {
-          leonardoService.listClusters(params, true).map { clusters =>
+          leonardoService.listClusters(params).map { clusters =>
             StatusCodes.OK -> clusters
           }
         }
       }
     } ~
-    parameterMap { params =>
-      complete {
-        leonardoService.listClusters(params).map { clusters =>
-          StatusCodes.OK -> clusters
+    path("includeDeleted") { //all
+      parameterMap { params =>
+        complete {
+          leonardoService.listClusters(params, true).map { clusters =>
+            StatusCodes.OK -> clusters
+          }
         }
       }
     }
