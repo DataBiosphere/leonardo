@@ -184,8 +184,17 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   }
 
   override def deleteBucket(googleProject: GoogleProject, bucketName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    val request = storage.buckets().delete(bucketName)
-    executeGoogleRequestAsync(googleProject, bucketName, request).void
+    // Delete all objects in the bucket then delete the bucket itself
+    val listObjectsRequest = storage.objects().list(bucketName)
+    executeGoogleRequestAsync(googleProject, bucketName, listObjectsRequest).flatMap { objects =>
+      Future.traverse(objects.getItems.asScala) { item =>
+        val deleteObjectRequest = storage.objects().delete(bucketName, item.getName)
+        executeGoogleRequestAsync(googleProject, bucketName, deleteObjectRequest)
+      }
+    } flatMap { _ =>
+      val deleteBucketRequest = storage.buckets().delete(bucketName)
+      executeGoogleRequestAsync(googleProject, bucketName, deleteBucketRequest).void
+    }
   }
 
   /* Upload a file to a bucket as FileContent */
