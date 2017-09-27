@@ -209,7 +209,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     }
   }
 
-  // TODO: remove once workbench-libs is merged
+  // TODO: remove once workbench-libs #26 is merged
   def generateBucketName(prefix: String): String = {
     // may only contain lowercase letters, numbers, underscores, dashes, or dots
     val lowerCaseName = prefix.toLowerCase.filter { c =>

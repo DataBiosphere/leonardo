@@ -156,8 +156,8 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     // Create lifecycle rule for the bucket that will delete the bucket after 1 day.
     //
     // Note that the init buckets are explicitly deleted by the ClusterMonitor once the cluster
-    // initializes; the lifecycle rule is a defensive check to ensure we don't leak buckets in
-    // case something goes wrong.
+    // initializes. However we still keep the lifecycle rule as a defensive check to ensure we
+    // don't leak buckets in case something goes wrong.
     val lifecycleRule = new Lifecycle.Rule()
       .setAction(new Action().setType("Delete"))
       .setCondition(new Condition().setAge(1))
