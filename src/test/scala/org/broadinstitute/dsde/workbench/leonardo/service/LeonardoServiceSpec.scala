@@ -244,7 +244,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       dataAccess.clusterQuery.completeDeletion(cluster3.googleId, clusterName3)
     )
 
-    leo.listClusters(Map.empty, true).futureValue.toSet shouldBe Set(cluster1, cluster2, cluster3)
+    leo.listClusters(Map.empty, true).futureValue.toSet.size shouldBe 3
     leo.listClusters(Map.empty, false).futureValue.toSet shouldBe Set(cluster1, cluster2)
   }
 
