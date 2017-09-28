@@ -100,7 +100,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       }
     }
 
-    Get("/api/clusters?_labels=label6=value6") ~> leoRoutes.route ~> check {
+    Get("/api/clusters?label6=value6") ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
       val responseClusters = responseAs[List[Cluster]]
       responseClusters should have size 1
