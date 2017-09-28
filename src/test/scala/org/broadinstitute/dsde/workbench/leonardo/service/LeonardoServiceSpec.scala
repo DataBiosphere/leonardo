@@ -238,7 +238,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     val clusterName3 = "test-cluster-3"
     val cluster3 = leo.createCluster(googleProject, clusterName3, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
-    leo.deleteCluster(googleProject, clusterName3)
 
     dbFutureValue(dataAccess =>
       dataAccess.clusterQuery.completeDeletion(cluster3.googleId, clusterName3)
@@ -257,7 +256,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName2 = s"test-cluster-2"
     val cluster2 = leo.createCluster(googleProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
-    leo.listClusters(Map("foo" -> "bar")).futureValue.toSet shouldBe Set(cluster1)
+    leo.listClusters(Map("foo" -> "bar")).futureValue.toSet shouldBe Set(cluster1, cluster2)
     leo.listClusters(Map("foo" -> "bar", "bam" -> "yes")).futureValue.toSet shouldBe Set(cluster1)
     leo.listClusters(Map("foo" -> "bar", "bam" -> "yes", "vcf" -> "no")).futureValue.toSet shouldBe Set(cluster1)
     leo.listClusters(Map("a" -> "b")).futureValue.toSet shouldBe Set(cluster2)
