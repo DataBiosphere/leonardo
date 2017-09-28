@@ -88,12 +88,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
   }
 
   def listClusters(params: Map[String, String]): Future[Seq[Cluster]] = {
-    for {
-      processedLabelMap <- processLabelMap(params)
-      includeDeleted <- processIncludeDelete(params)
-      clusters <-dbRef.inTransaction { dataAccess =>
-                   dataAccess.clusterQuery.listByLabels(processedLabelMap, includeDeleted) }
-    } yield clusters
+   processListClustersParameters(params).flatMap { paramMap =>
+     dbRef.inTransaction { dataAccess =>
+       dataAccess.clusterQuery.listByLabels(paramMap._1, paramMap._2)
+     }
+   }
   }
 
   private[service] def getCluster(googleProject: GoogleProject, clusterName: String, dataAccess: DataAccess): DBIO[Cluster] = {
@@ -182,12 +181,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     }
   }
 
-
-  private[service] def processIncludeDelete(params: Map[String, String]): Future[Boolean] = {
+  private[service] def processListClustersParameters(params: Map[String, String]): Future[(Map[String, String],Boolean)] = {
+    val includeDeletedKey = "includeDeleted"
     Future {
-      params.get("includeDeleted") match {
-        case Some(includeDelete) => includeDelete.toBoolean
-        case None => false
+      params.get(includeDeletedKey) match {
+        case Some(includeDeleted) => (processLabelMap(params - includeDeletedKey), includeDeleted.toBoolean)
+        case None => (processLabelMap(params), false)
       }
     }
   }
@@ -207,18 +206,16 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     * @param params raw query string params
     * @return a Map[String, String] representing the labels
     */
-  private[service] def processLabelMap(params: Map[String, String]): Future[Map[String, String]] = {
-    Future {
-      params.get("_labels") match {
-        case Some(extraLabels) =>
-          extraLabels.split(',').foldLeft(Map.empty[String, String]) { (r, c) =>
-            c.split('=') match {
-              case Array(key, value) => r + (key -> value)
-              case _ => throw ParseLabelsException(extraLabels)
-            }
+  private[service] def processLabelMap(params: Map[String, String]): Map[String, String] = {
+    params.get("_labels") match {
+      case Some(extraLabels) =>
+        extraLabels.split(',').foldLeft(Map.empty[String, String]) { (r, c) =>
+          c.split('=') match {
+            case Array(key, value) => r + (key -> value)
+            case _ => throw ParseLabelsException(extraLabels)
           }
-        case None => Map.empty
-      }
+        }
+      case None => params
     }
   }
 }

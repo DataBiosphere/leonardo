@@ -244,7 +244,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       dataAccess.clusterQuery.completeDeletion(cluster3.googleId, clusterName3)
     )
 
-    leo.listClusters(Map.empty).futureValue.toSet.size shouldBe 3
+    leo.listClusters(Map("includeDeleted" -> "true")).futureValue.toSet.size shouldBe 3
+    leo.listClusters(Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
     leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
   }
 
@@ -256,7 +257,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName2 = s"test-cluster-2"
     val cluster2 = leo.createCluster(googleProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
-    leo.listClusters(Map("foo" -> "bar")).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(Map("foo" -> "bar")).futureValue.toSet shouldBe Set(cluster1)
     leo.listClusters(Map("foo" -> "bar", "bam" -> "yes")).futureValue.toSet shouldBe Set(cluster1)
     leo.listClusters(Map("foo" -> "bar", "bam" -> "yes", "vcf" -> "no")).futureValue.toSet shouldBe Set(cluster1)
     leo.listClusters(Map("a" -> "b")).futureValue.toSet shouldBe Set(cluster2)
