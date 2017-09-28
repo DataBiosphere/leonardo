@@ -45,12 +45,12 @@ object Dependencies {
   val scalaTest: ModuleID = "org.scalatest" %% "scalatest"    % scalaTestV % "test"
   val mockito: ModuleID =   "org.mockito"    % "mockito-core" % "2.7.22"   % "test"
 
-  // All of workbench-libs pull in Akka; exclude it since we provide our own Akka dependency.
-  // workbench-google pulls in workbench-{util, model, metrics}; exclude them so we can control the library versions individually.
+  // Exclude workbench-libs transitive dependencies so we can control the library versions individually.
+  // workbench-google pulls in workbench-{util, model, metrics} and workbench-metrics pulls in workbench-util.
   val workbenchUtil: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-util"    % workbenchUtilV
   val workbenchModel: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-model"   % workbenchModelV
-  val workbenchGoogle: ModuleID =    "org.broadinstitute.dsde.workbench" %% "workbench-google"  % workbenchGoogleV // excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics)
-  val workbenchMetrics: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-metrics" % workbenchMetricsV
+  val workbenchGoogle: ModuleID =    "org.broadinstitute.dsde.workbench" %% "workbench-google"  % workbenchGoogleV excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics)
+  val workbenchMetrics: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-metrics" % workbenchMetricsV excludeAll(excludeWorkbenchUtil)
 
   val slick: ModuleID =     "com.typesafe.slick" %% "slick"                 % slickV
   val hikariCP: ModuleID =  "com.typesafe.slick" %% "slick-hikaricp"        % slickV
@@ -92,6 +92,7 @@ object Dependencies {
 
     workbenchUtil,
     workbenchModel,
-    workbenchGoogle
+    workbenchGoogle,
+    workbenchMetrics
   )
 }
