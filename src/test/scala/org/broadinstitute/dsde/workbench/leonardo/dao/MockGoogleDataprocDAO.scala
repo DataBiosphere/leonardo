@@ -2,10 +2,13 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import java.io.File
 import java.util.UUID
+
+import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
+
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
@@ -54,8 +57,8 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extend
     Future.successful(None)
   }
 
-  override def deleteBucket(googleProject: GoogleProject, bucketName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    buckets -= bucketName
+  override def deleteBucket(googleProject: GoogleProject, bucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[Unit] = {
+    buckets -= bucketName.name
     Future.successful(())
   }
 

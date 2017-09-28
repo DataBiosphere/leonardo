@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 
 import java.io.File
 import java.net.URI
-import java.util.UUID
 
 import akka.actor.ActorRef
 import akka.http.scaladsl.model.StatusCodes
@@ -16,6 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted, RegisterLeoService}
+import org.broadinstitute.dsde.workbench.google.gcs._
 import slick.dbio.DBIO
 import spray.json._
 
@@ -109,16 +109,16 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
      - Create the cluster in the google project
    Currently, the bucketPath of the clusterRequest is not used - it will be used later as a place to store notebook results */
   private[service] def createGoogleCluster(googleProject: GoogleProject, clusterName: String, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
-    val bucketName = generateBucketName(clusterName)
+    val bucketName = generateUniqueBucketName(clusterName)
     for {
       // Validate that the Jupyter extension URI is a valid URI and references a real GCS object
       _ <- validateJupyterExtensionUri(googleProject, clusterRequest.jupyterExtensionUri)
       // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
       _ <- gdDAO.updateFirewallRule(googleProject)
       // Create the bucket in leo's google bucket and populate with initialization files
-      _ <- initializeBucket(dataprocConfig.leoGoogleBucket, clusterName, bucketName, clusterRequest)
+      _ <- initializeBucket(dataprocConfig.leoGoogleBucket, clusterName, bucketName.name, clusterRequest)
       // Once the bucket is ready, build the cluster
-      clusterResponse <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, bucketName).andThen { case Failure(e) =>
+      clusterResponse <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, bucketName.name).andThen { case Failure(e) =>
         // If cluster creation fails, delete the init bucket asynchronously
         gdDAO.deleteBucket(googleProject, bucketName)
       }
@@ -207,27 +207,5 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
         }
       case None => params
     }
-  }
-
-  // TODO: remove once workbench-libs #26 is merged
-  def generateBucketName(prefix: String): String = {
-    // may only contain lowercase letters, numbers, underscores, dashes, or dots
-    val lowerCaseName = prefix.toLowerCase.filter { c =>
-      Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == '.'
-    }
-
-    // must start with a letter or number
-    val sb = new StringBuilder(lowerCaseName)
-    if (!Character.isLetterOrDigit(sb.head)) sb.setCharAt(0, '0')
-
-    // max length of 63 chars, including the uuid
-    val uuid = UUID.randomUUID.toString
-    val maxNameLength = 63 - uuid.length - 1
-    if (sb.length > maxNameLength) sb.setLength(maxNameLength)
-
-    // must not start with "goog" or contain the string "google"
-    val processedName = sb.replaceAllLiterally("goog", "g00g")
-
-    s"$processedName-$uuid"
   }
 }

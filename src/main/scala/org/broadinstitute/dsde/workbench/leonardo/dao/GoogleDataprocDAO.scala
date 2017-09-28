@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import java.io.{ByteArrayInputStream, File}
-import java.net.URI
 import java.nio.charset.StandardCharsets
 
 import akka.actor.ActorSystem
@@ -27,23 +26,28 @@ import com.google.api.services.storage.model.Bucket.Lifecycle.Rule.{Action, Cond
 import com.google.api.services.storage.model.{Bucket, StorageObject}
 import com.google.api.services.storage.{Storage, StorageScopes}
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities
+import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath}
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterRequest, ClusterResponse, GoogleBucketUri, LeoException, StorageObjectResponse, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
+import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future, blocking}
-import scala.util.Try
 
-case class CallToGoogleApiFailedException(googleProject: GoogleProject, clusterName:String, exceptionStatusCode: Int, errorMessage: String)
-  extends LeoException(s"Call to Google API failed for $googleProject/$clusterName. Message: $errorMessage",exceptionStatusCode)
+case class CallToGoogleApiFailedException(googleProject: GoogleProject, objectName: String, exceptionStatusCode: Int, errorMessage: String)
+  extends LeoException(s"Call to Google API failed for $googleProject/$objectName. Message: $errorMessage", exceptionStatusCode)
 
 case class FirewallRuleNotFoundException(googleProject: GoogleProject, firewallRuleName: String)
   extends LeoException(s"Firewall rule $firewallRuleName not found in project $googleProject", StatusCodes.NotFound)
 
 class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected val proxyConfig: ProxyConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
   extends DataprocDAO with GoogleUtilities {
+
+  // TODO pass as constructor arg when we add metrics
+  override protected val workbenchMetricBaseName: String = ""
+  implicit val service = GoogleInstrumentedService.Groups
 
   private val httpTransport = GoogleNetHttpTransport.newTrustedTransport
   private val jsonFactory = JacksonFactory.getDefaultInstance
@@ -178,22 +182,22 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       cluster <- OptionT.liftF(getCluster(googleProject, clusterName))
       bucketName <- OptionT.fromOption(getInitBucketName(cluster))
       _ <- OptionT.liftF(deleteBucket(googleProject, bucketName))
-    } yield bucketName
+    } yield bucketName.name
 
     result.value
   }
 
-  override def deleteBucket(googleProject: GoogleProject, bucketName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  override def deleteBucket(googleProject: GoogleProject, bucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[Unit] = {
     // Delete all objects in the bucket then delete the bucket itself
-    val listObjectsRequest = storage.objects().list(bucketName)
-    executeGoogleRequestAsync(googleProject, bucketName, listObjectsRequest).flatMap { objects =>
+    val listObjectsRequest = storage.objects().list(bucketName.name)
+    executeGoogleRequestAsync(googleProject, bucketName.name, listObjectsRequest).flatMap { objects =>
       Future.traverse(objects.getItems.asScala) { item =>
-        val deleteObjectRequest = storage.objects().delete(bucketName, item.getName)
-        executeGoogleRequestAsync(googleProject, bucketName, deleteObjectRequest)
+        val deleteObjectRequest = storage.objects().delete(bucketName.name, item.getName)
+        executeGoogleRequestAsync(googleProject, bucketName.name, deleteObjectRequest)
       }
     } flatMap { _ =>
-      val deleteBucketRequest = storage.buckets().delete(bucketName)
-      executeGoogleRequestAsync(googleProject, bucketName, deleteBucketRequest).void
+      val deleteBucketRequest = storage.buckets().delete(bucketName.name)
+      executeGoogleRequestAsync(googleProject, bucketName.name, deleteBucketRequest).void
     }
   }
 
@@ -349,26 +353,22 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     } yield accessConfig.getNatIP
   }
 
-  private def getInitBucketName(cluster: GoogleCluster): Option[String] = {
-    def parseBucketName(bucketPath: String): Option[String] = {
-      Try(Option(new URI(bucketPath).getHost)).toOption.flatten
-    }
-
+  private def getInitBucketName(cluster: GoogleCluster): Option[GcsBucketName] = {
     for {
       config <- Option(cluster.getConfig)
       initAction <- config.getInitializationActions.asScala.headOption
       bucketPath <- Option(initAction.getExecutableFile)
-      bucketName <- parseBucketName(bucketPath)
-    } yield bucketName
+      parsedBucketPath <- GcsPath.parse(bucketPath).toOption
+    } yield parsedBucketPath.bucketName
   }
 
-  private def executeGoogleRequestAsync[A](googleProject: GoogleProject, clusterName: String, request: AbstractGoogleClientRequest[A])(implicit executionContext: ExecutionContext): Future[A] = {
+  private def executeGoogleRequestAsync[A](googleProject: GoogleProject, objectName: String, request: AbstractGoogleClientRequest[A])(implicit executionContext: ExecutionContext): Future[A] = {
     Future {
       blocking(executeGoogleRequest(request))
     } recover {
       case e: GoogleJsonResponseException =>
-        logger.error(s"Error occurred executing Google request for $googleProject/$clusterName", e)
-        throw CallToGoogleApiFailedException(googleProject, clusterName, e.getStatusCode, e.getDetails.getMessage)
+        logger.error(s"Error occurred executing Google request for $googleProject/$objectName", e)
+        throw CallToGoogleApiFailedException(googleProject, objectName, e.getStatusCode, e.getDetails.getMessage)
     }
   }
 }
