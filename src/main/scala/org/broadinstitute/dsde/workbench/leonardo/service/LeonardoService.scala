@@ -87,12 +87,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     }
   }
 
-  def listClusters(labelMap: Map[String, String], includeDeleted: Boolean = false): Future[Seq[Cluster]] = {
-    Future(processLabelMap(labelMap)).flatMap { processedLabelMap =>
-      dbRef.inTransaction { dataAccess =>
-        dataAccess.clusterQuery.listByLabels(processedLabelMap, includeDeleted)
-      }
-    }
+  def listClusters(params: Map[String, String]): Future[Seq[Cluster]] = {
+    for {
+      processedLabelMap <- processLabelMap(params)
+      includeDeleted <- processIncludeDelete(params)
+      clusters <-dbRef.inTransaction { dataAccess =>
+                   dataAccess.clusterQuery.listByLabels(processedLabelMap, includeDeleted) }
+    } yield clusters
   }
 
   private[service] def getCluster(googleProject: GoogleProject, clusterName: String, dataAccess: DataAccess): DBIO[Cluster] = {
@@ -181,6 +182,16 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     }
   }
 
+
+  private[service] def processIncludeDelete(params: Map[String, String]): Future[Boolean] = {
+    Future {
+      params.get("includeDeleted") match {
+        case Some(includeDelete) => includeDelete.toBoolean
+        case None => false
+      }
+    }
+  }
+
   /**
     * There are 2 styles of passing labels to the list clusters endpoint:
     *
@@ -190,22 +201,24 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     * The latter style exists because Swagger doesn't provide a way to specify free-form query string
     * params. This method handles both styles, and returns a Map[String, String] representing the labels.
     *
-    * Note that style 2 takes precendence: if _labels is present on the query string, any additional
+    * Note that style 2 takes precedence: if _labels is present on the query string, any additional
     * parameters are ignored.
     *
     * @param params raw query string params
     * @return a Map[String, String] representing the labels
     */
-  private[service] def processLabelMap(params: Map[String, String]): Map[String, String] = {
-    params.get("_labels") match {
-      case Some(extraLabels) =>
-        extraLabels.split(',').foldLeft(Map.empty[String, String]) { (r, c) =>
-          c.split('=') match {
-            case Array(key, value) => r + (key -> value)
-            case _ => throw ParseLabelsException(extraLabels)
+  private[service] def processLabelMap(params: Map[String, String]): Future[Map[String, String]] = {
+    Future {
+      params.get("_labels") match {
+        case Some(extraLabels) =>
+          extraLabels.split(',').foldLeft(Map.empty[String, String]) { (r, c) =>
+            c.split('=') match {
+              case Array(key, value) => r + (key -> value)
+              case _ => throw ParseLabelsException(extraLabels)
+            }
           }
-        }
-      case None => params
+        case None => Map.empty
+      }
     }
   }
 }

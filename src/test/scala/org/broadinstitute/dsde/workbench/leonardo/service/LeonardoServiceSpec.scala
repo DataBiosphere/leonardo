@@ -223,7 +223,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName2 = "test-cluster-2"
     val cluster2 = leo.createCluster(googleProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
-    leo.listClusters(Map.empty, true).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
   }
 
   it should "list all active clusters" in isolatedDbTest {
@@ -233,8 +233,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName2 = "test-cluster-2"
     val cluster2 = leo.createCluster(googleProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
-    leo.listClusters(Map.empty, true).futureValue.toSet shouldBe Set(cluster1, cluster2)
-    leo.listClusters(Map.empty, false).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
 
     val clusterName3 = "test-cluster-3"
     val cluster3 = leo.createCluster(googleProject, clusterName3, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
@@ -244,8 +244,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       dataAccess.clusterQuery.completeDeletion(cluster3.googleId, clusterName3)
     )
 
-    leo.listClusters(Map.empty, true).futureValue.toSet.size shouldBe 3
-    leo.listClusters(Map.empty, false).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(Map.empty).futureValue.toSet.size shouldBe 3
+    leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
   }
 
 

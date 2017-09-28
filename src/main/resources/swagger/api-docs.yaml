@@ -71,44 +71,12 @@ paths:
             labels as top-level query string parameters. For instance: GET /api/clusters?key1=val1&key2=val2.
           required: false
           type: string
-      responses:
-        '200':
-          description: List of clusters
-          schema:
-            type: array
-            items:
-              $ref: '#/definitions/Cluster'
-        '400':
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '500':
-          description: Internal Error
-          schema:
-            $ref: '#/definitions/ErrorReport'
-      security:
-        - googleoauth:
-            - openid
-            - email
-            - profile
-  '/api/clusters/includeDeleted':
-    get:
-      summary: List all clusters
-      description: List all clusters, optionally filtering on a set of labels
-      operationId: listClusters
-      tags:
-        - cluster
-      parameters:
         - in: query
-          name: _labels
-          description: |
-            Optional label key-value pairs to filter results by. Example: key1=val1,key2=val2.
-
-            Note: this string format is a workaround because Swagger doesn't support free-form
-            query string parameters. The recommended way to use this endpoint is to specify the
-            labels as top-level query string parameters. For instance: GET /api/clusters?key1=val1&key2=val2.
+          name: includeDeleted
+          description: ugh
           required: false
-          type: string
+          type: boolean
+          default: false
       responses:
         '200':
           description: List of clusters
