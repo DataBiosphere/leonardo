@@ -9,6 +9,7 @@ import akka.testkit.TestKit
 import com.typesafe.config.ConfigFactory
 import io.grpc.Status.Code
 import net.ceedubs.ficus.Ficus._
+import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
@@ -92,7 +93,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     when {
       dao.deleteClusterInitBucket(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
-    } thenReturn Future.successful(Some("init-bucket"))
+    } thenReturn Future.successful(Some(GcsBucketName("init-bucket")))
 
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
 
@@ -309,7 +310,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     when {
       dao.deleteClusterInitBucket(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
-    } thenReturn Future.successful(Some("init-bucket"))
+    } thenReturn Future.successful(Some(GcsBucketName("init-bucket")))
 
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
 

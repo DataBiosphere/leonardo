@@ -47,7 +47,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
 
   // TODO pass as constructor arg when we add metrics
   override protected val workbenchMetricBaseName: String = ""
-  implicit val service = GoogleInstrumentedService.Groups
+  implicit val service = GoogleInstrumentedService.Dataproc
 
   private val httpTransport = GoogleNetHttpTransport.newTrustedTransport
   private val jsonFactory = JacksonFactory.getDefaultInstance
@@ -177,12 +177,12 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     executeGoogleRequestAsync(googleProject, bucketName, bucketInserter).void
   }
 
-  override def deleteClusterInitBucket(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[Option[String]] = {
-    val result: OptionT[Future, String] = for {
+  override def deleteClusterInitBucket(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[Option[GcsBucketName]] = {
+    val result: OptionT[Future, GcsBucketName] = for {
       cluster <- OptionT.liftF(getCluster(googleProject, clusterName))
       bucketName <- OptionT.fromOption(getInitBucketName(cluster))
       _ <- OptionT.liftF(deleteBucket(googleProject, bucketName))
-    } yield bucketName.name
+    } yield bucketName
 
     result.value
   }
