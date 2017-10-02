@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 
 import java.io.File
 import java.net.URI
-import java.util.UUID
 
 import akka.actor.ActorRef
 import akka.http.scaladsl.model.StatusCodes
@@ -16,11 +15,12 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted, RegisterLeoService}
+import org.broadinstitute.dsde.workbench.google.gcs._
 import slick.dbio.DBIO
 import spray.json._
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Success
+import scala.util.{Failure, Success}
 
 case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: String)
   extends LeoException(s"Cluster $googleProject/$clusterName not found", StatusCodes.NotFound)
@@ -109,16 +109,19 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
      - Create the cluster in the google project
    Currently, the bucketPath of the clusterRequest is not used - it will be used later as a place to store notebook results */
   private[service] def createGoogleCluster(googleProject: GoogleProject, clusterName: String, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
-    val bucketName = s"${clusterName}-${UUID.randomUUID.toString}"
+    val bucketName = generateUniqueBucketName(clusterName)
     for {
       // Validate that the Jupyter extension URI is a valid URI and references a real GCS object
       _ <- validateJupyterExtensionUri(googleProject, clusterRequest.jupyterExtensionUri)
       // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
       _ <- gdDAO.updateFirewallRule(googleProject)
       // Create the bucket in leo's google bucket and populate with initialization files
-      _ <- initializeBucket(dataprocConfig.leoGoogleBucket, clusterName, bucketName, clusterRequest)
+      _ <- initializeBucket(dataprocConfig.leoGoogleBucket, clusterName, bucketName.name, clusterRequest)
       // Once the bucket is ready, build the cluster
-      clusterResponse <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, bucketName)
+      clusterResponse <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, bucketName.name).andThen { case Failure(e) =>
+        // If cluster creation fails, delete the init bucket asynchronously
+        gdDAO.deleteBucket(googleProject, bucketName)
+      }
     } yield {
       clusterResponse
     }

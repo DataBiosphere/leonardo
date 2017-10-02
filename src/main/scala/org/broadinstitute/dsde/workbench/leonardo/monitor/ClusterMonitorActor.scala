@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.util.addJitter
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Failure
+import scala.util.control.NonFatal
 
 object ClusterMonitorActor {
   /**
@@ -111,10 +112,28 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ShutdownActor
     */
   private def handleReadyCluster(publicIp: String): Future[ClusterMonitorMessage] = {
-    logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is ready for use!")
-    dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.setToRunning(cluster.googleId, publicIp)
-    }.map(_ => ShutdownActor())
+    // First delete the init bucket
+    val deleteBucketFuture = gdDAO.deleteClusterInitBucket(cluster.googleProject, cluster.clusterName) map {
+      case None =>
+        logger.warn(s"Could not delete init bucket for cluster ${cluster.googleProject}/${cluster.clusterName}: bucket was not found")
+      case Some(bucket) =>
+        logger.debug(s"Deleted init bucket $bucket for cluster ${cluster.googleProject}/${cluster.clusterName}")
+    } recover { case NonFatal(e) =>
+      logger.warn(s"Could not delete init bucket for cluster ${cluster.googleProject}/${cluster.clusterName}", e)
+    }
+
+    // Then update the database
+    val dbFuture = deleteBucketFuture flatMap { _ =>
+      dbRef.inTransaction { dataAccess =>
+        dataAccess.clusterQuery.setToRunning(cluster.googleId, publicIp)
+      }
+    }
+
+    // Then pipe a shutdown message to this actor
+    dbFuture map { _ =>
+      logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is ready for use!")
+      ShutdownActor()
+    }
   }
 
   /**
