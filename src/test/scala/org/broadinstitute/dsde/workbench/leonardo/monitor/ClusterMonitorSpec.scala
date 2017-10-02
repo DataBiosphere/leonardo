@@ -9,6 +9,7 @@ import akka.testkit.TestKit
 import com.typesafe.config.ConfigFactory
 import io.grpc.Status.Code
 import net.ceedubs.ficus.Ficus._
+import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
@@ -90,6 +91,10 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       dao.getClusterMasterInstanceIp(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(Some("1.2.3.4"))
 
+    when {
+      dao.deleteClusterInitBucket(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
+    } thenReturn Future.successful(Some(GcsBucketName("init-bucket")))
+
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
 
     expectMsgClass(1 second, classOf[Terminated])
@@ -97,6 +102,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster shouldBe 'defined
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
     updatedCluster.flatMap(_.hostIp) shouldBe Some("1.2.3.4")
+
+    verify(dao).deleteClusterInitBucket(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
   }
 
   // Pre:
@@ -121,6 +128,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       val updatedCluster = dbFutureValue { _.clusterQuery.getByName(creatingCluster.googleProject, creatingCluster.clusterName) }
       updatedCluster shouldBe 'defined
       updatedCluster shouldBe Some(creatingCluster)
+
+      verify(dao, never).deleteClusterInitBucket(anyString, anyString)(any[ExecutionContext])
     }
   }
 
@@ -149,6 +158,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val updatedCluster = dbFutureValue { _.clusterQuery.getByName(creatingCluster.googleProject, creatingCluster.clusterName) }
     updatedCluster shouldBe 'defined
     updatedCluster shouldBe Some(creatingCluster)
+
+    verify(dao, never).deleteClusterInitBucket(anyString, anyString)(any[ExecutionContext])
   }
 
   // Pre:
@@ -176,6 +187,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val updatedCluster = dbFutureValue { _.clusterQuery.getByName(creatingCluster.googleProject, creatingCluster.clusterName) }
     updatedCluster shouldBe 'defined
     updatedCluster shouldBe Some(creatingCluster)
+
+    verify(dao, never).deleteClusterInitBucket(anyString, anyString)(any[ExecutionContext])
   }
 
   // Pre:
@@ -207,6 +220,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster shouldBe 'defined
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Error)
     updatedCluster.flatMap(_.hostIp) shouldBe None
+
+    verify(dao, never).deleteClusterInitBucket(anyString, anyString)(any[ExecutionContext])
   }
 
   // Pre:
@@ -230,6 +245,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster shouldBe 'defined
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Deleted)
     updatedCluster.flatMap(_.hostIp) shouldBe None
+
+    verify(dao, never).deleteClusterInitBucket(anyString, anyString)(any[ExecutionContext])
   }
 
   // Pre:
@@ -291,6 +308,10 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       dao.getClusterMasterInstanceIp(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(Some("1.2.3.4"))
 
+    when {
+      dao.deleteClusterInitBucket(eqq(creatingCluster.googleProject), eqq(creatingCluster.clusterName))(any[ExecutionContext])
+    } thenReturn Future.successful(Some(GcsBucketName("init-bucket")))
+
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
 
     // Expect 3 Terminated messages:
@@ -311,6 +332,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     newCluster.map(_.googleId) shouldBe Some(newClusterId)
     newCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
     newCluster.flatMap(_.hostIp) shouldBe Some("1.2.3.4")
+
+    verify(dao).deleteClusterInitBucket(eqq(newCluster.get.googleProject), eqq(newCluster.get.clusterName))(any[ExecutionContext])
   }
 
   // Pre:
@@ -334,6 +357,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val updatedCluster = dbFutureValue { _.clusterQuery.getByName(deletingCluster.googleProject, deletingCluster.clusterName) }
     updatedCluster shouldBe 'defined
     updatedCluster shouldBe Some(deletingCluster)
+
+    verify(dao, never).deleteClusterInitBucket(anyString, anyString)(any[ExecutionContext])
   }
 
 }
