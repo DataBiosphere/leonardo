@@ -73,7 +73,7 @@ paths:
           type: string
         - in: query
           name: includeDeleted
-          description: ugh
+          description: Optional filter that includes any clusters with a Deleted status.
           required: false
           type: boolean
           default: false

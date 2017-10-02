@@ -32,12 +32,10 @@ object ClusterStatus extends Enumeration {
   val Unknown, Creating, Running, Updating, Error, Deleting, Deleted = Value
   val activeStatuses = Set(Unknown, Creating, Running, Updating)
   val monitoredStatuses = Set(Unknown, Creating, Updating, Deleting)
-  val existingStatuses = Set(Unknown, Creating, Running, Updating, Error, Deleting)
 
   class StatusValue(status: ClusterStatus) {
     def isActive: Boolean = activeStatuses contains status
     def isMonitored: Boolean = monitoredStatuses contains status
-    def exists: Boolean = existingStatuses contains status
   }
   implicit def enumConvert(status: ClusterStatus): StatusValue = new StatusValue(status)
 
