@@ -246,6 +246,16 @@ paths:
 ## DEFINITIONS
 ##########################################################################################
 definitions:
+  ClusterStatus:
+    type: string
+    enum: &CLUSTERSTATUS
+      - Creating
+      - Running
+      - Updating
+      - Error
+      - Deleting
+      - Deleted
+      - Unknown
   ErrorReport:
     description: ''
     required:
@@ -329,6 +339,7 @@ definitions:
         description: Google's operation ID for the cluster
       status:
         type: string
+        enum: *CLUSTERSTATUS
         description: The current state of the cluster
       hostIp:
         type: string
