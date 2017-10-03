@@ -87,12 +87,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     }
   }
 
-  def listClusters(labelMap: Map[String, String]): Future[Seq[Cluster]] = {
-    Future(processLabelMap(labelMap)).flatMap { processedLabelMap =>
-      dbRef.inTransaction { dataAccess =>
-        dataAccess.clusterQuery.listByLabels(processedLabelMap)
-      }
-    }
+  def listClusters(params: Map[String, String]): Future[Seq[Cluster]] = {
+   processListClustersParameters(params).flatMap { paramMap =>
+     dbRef.inTransaction { dataAccess =>
+       dataAccess.clusterQuery.listByLabels(paramMap._1, paramMap._2)
+     }
+   }
   }
 
   private[service] def getCluster(googleProject: GoogleProject, clusterName: String, dataAccess: DataAccess): DBIO[Cluster] = {
@@ -181,6 +181,16 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     }
   }
 
+  private[service] def processListClustersParameters(params: Map[String, String]): Future[(Map[String, String],Boolean)] = {
+    val includeDeletedKey = "includeDeleted"
+    Future {
+      params.get(includeDeletedKey) match {
+        case Some(includeDeleted) => (processLabelMap(params - includeDeletedKey), includeDeleted.toBoolean)
+        case None => (processLabelMap(params), false)
+      }
+    }
+  }
+
   /**
     * There are 2 styles of passing labels to the list clusters endpoint:
     *
@@ -190,7 +200,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     * The latter style exists because Swagger doesn't provide a way to specify free-form query string
     * params. This method handles both styles, and returns a Map[String, String] representing the labels.
     *
-    * Note that style 2 takes precendence: if _labels is present on the query string, any additional
+    * Note that style 2 takes precedence: if _labels is present on the query string, any additional
     * parameters are ignored.
     *
     * @param params raw query string params

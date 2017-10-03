@@ -7,7 +7,7 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, MockGoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterInitValues, ClusterRequest}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterInitValues, ClusterRequest, ClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
 import org.scalatest._
@@ -216,7 +216,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.listClusters(Map("foo" -> "bar", "baz" -> "biz")).futureValue shouldBe 'empty
   }
 
-  it should "list clusters" in isolatedDbTest {
+  it should "list all clusters" in isolatedDbTest {
     // create a couple clusters
     val cluster1 = leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
 
@@ -225,6 +225,29 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
   }
+
+  it should "list all active clusters" in isolatedDbTest {
+    // create a couple clusters
+    val cluster1 = leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
+
+    val clusterName2 = "test-cluster-2"
+    val cluster2 = leo.createCluster(googleProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
+
+    leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
+
+    val clusterName3 = "test-cluster-3"
+    val cluster3 = leo.createCluster(googleProject, clusterName3, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
+
+    dbFutureValue(dataAccess =>
+      dataAccess.clusterQuery.completeDeletion(cluster3.googleId, clusterName3)
+    )
+
+    leo.listClusters(Map("includeDeleted" -> "true")).futureValue.toSet.size shouldBe 3
+    leo.listClusters(Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
+  }
+
 
   it should "list clusters with labels" in isolatedDbTest {
     // create a couple clusters
