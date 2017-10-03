@@ -13,7 +13,7 @@ import akka.stream.scaladsl._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, LeoException}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, ClusterRequest, GoogleProject, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService}
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
@@ -39,22 +39,22 @@ class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxySer
       put {
         entity(as[ClusterRequest]) { cluster =>
           complete {
-            leonardoService.createCluster(googleProject, clusterName, cluster).map { clusterResponse =>
-              StatusCodes.OK -> clusterResponse
+            leonardoService.createCluster(GoogleProject(googleProject), ClusterName(clusterName), cluster).map { cluster =>
+              StatusCodes.OK -> cluster
             }
           }
         }
       } ~
       get {
         complete {
-          leonardoService.getClusterDetails(googleProject, clusterName). map { clusterDetails =>
+          leonardoService.getClusterDetails(GoogleProject(googleProject), ClusterName(clusterName)). map { clusterDetails =>
             StatusCodes.OK -> clusterDetails
           }
         }
       } ~
       delete {
         complete {
-          leonardoService.deleteCluster(googleProject, clusterName).map { _ =>
+          leonardoService.deleteCluster(GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
             StatusCodes.Accepted
           }
         }

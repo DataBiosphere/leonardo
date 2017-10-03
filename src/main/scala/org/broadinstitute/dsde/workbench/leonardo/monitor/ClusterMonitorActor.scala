@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.MonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, DataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterErrorDetails, ClusterStatus}
+import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterErrorDetails, ClusterStatus, IP}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterDeleted
 import org.broadinstitute.dsde.workbench.util.addJitter
@@ -30,7 +30,7 @@ object ClusterMonitorActor {
   private[monitor] sealed trait ClusterMonitorMessage extends Product with Serializable
   private[monitor] case object ScheduleMonitorPass extends ClusterMonitorMessage
   private[monitor] case object QueryForCluster extends ClusterMonitorMessage
-  private[monitor] case class ReadyCluster(publicIP: String) extends ClusterMonitorMessage
+  private[monitor] case class ReadyCluster(publicIP: IP) extends ClusterMonitorMessage
   private[monitor] case class NotReadyCluster(status: ClusterStatus) extends ClusterMonitorMessage
   private[monitor] case class FailedCluster(errorDetails: ClusterErrorDetails) extends ClusterMonitorMessage
   private[monitor] case object DeletedCluster extends ClusterMonitorMessage
@@ -81,7 +81,7 @@ class ClusterMonitorActor(val cluster: Cluster,
 
     case Failure(e) =>
       // An error occurred, let the supervisor handle it
-      logger.error(s"Error occurred monitoring cluster ${cluster.googleProject}/${cluster.clusterName}", e)
+      logger.error(s"Error occurred monitoring cluster ${cluster.projectNameString}", e)
       throw e
   }
 
@@ -101,7 +101,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ScheduleMonitorPass
     */
   private def handleNotReadyCluster(status: ClusterStatus): Future[ClusterMonitorMessage] = {
-    logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is not ready yet ($status). Checking again in ${monitorConfig.pollPeriod.toString}.")
+    logger.info(s"Cluster ${cluster.projectNameString} is not ready yet ($status). Checking again in ${monitorConfig.pollPeriod.toString}.")
     Future.successful(ScheduleMonitorPass)
   }
 
@@ -111,11 +111,11 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @param publicIp the cluster public IP, according to Google
     * @return ShutdownActor
     */
-  private def handleReadyCluster(publicIp: String): Future[ClusterMonitorMessage] = {
+  private def handleReadyCluster(publicIp: IP): Future[ClusterMonitorMessage] = {
     // First delete the init bucket
     val deleteBucketFuture = gdDAO.deleteClusterInitBucket(cluster.googleProject, cluster.clusterName) map {
       case None =>
-        logger.warn(s"Could not delete init bucket for cluster ${cluster.googleProject}/${cluster.clusterName}: bucket was not found")
+        logger.warn(s"Could not delete init bucket for cluster ${cluster.projectNameString}: bucket was not found")
       case Some(bucket) =>
         logger.debug(s"Deleted init bucket $bucket for cluster ${cluster.googleProject}/${cluster.clusterName}")
     } recover { case NonFatal(e) =>
@@ -149,7 +149,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       if (shouldRecreateCluster(errorDetails.code, errorDetails.message)) {
         // Update the database record to Deleting, shutdown this actor, and register a callback message
         // to the supervisor telling it to recreate the cluster.
-        logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is in an error state with $errorDetails. Attempting to recreate...")
+        logger.info(s"Cluster ${cluster.projectNameString} is in an error state with $errorDetails. Attempting to recreate...")
         dbRef.inTransaction { dataAccess =>
           dataAccess.clusterQuery.markPendingDeletion(cluster.googleId)
         } map { _ =>
@@ -157,7 +157,7 @@ class ClusterMonitorActor(val cluster: Cluster,
         }
       } else {
         // Update the database record to Error and shutdown this actor.
-        logger.warn(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is in an error state with $errorDetails'. Unable to recreate cluster.")
+        logger.warn(s"Cluster ${cluster.projectNameString} is in an error state with $errorDetails'. Unable to recreate cluster.")
         dbRef.inTransaction { dataAccess =>
           dataAccess.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Error)
         } map { _ =>
@@ -178,7 +178,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return error or ShutdownActor
     */
   private def handleDeletedCluster(): Future[ClusterMonitorMessage] = {
-    logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} has been deleted.")
+    logger.info(s"Cluster ${cluster.projectNameString} has been deleted.")
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.completeDeletion(cluster.googleId, cluster.clusterName)
     }.map(_ => ShutdownActor())

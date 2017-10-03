@@ -1,30 +1,48 @@
 package org.broadinstitute.dsde.workbench.leonardo.model
 
+import java.net.URL
 import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
+import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
-import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.{GoogleBucket, GoogleBucketUri, GoogleProject, GoogleServiceAccount}
-import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat}
+import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
+import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat, SerializationException}
 
 import scala.language.implicitConversions
 
-// maybe we want to get fancy later
-object ModelTypes {
-  type GoogleProject = String
-  type GoogleServiceAccount = String
-  type GoogleBucket = String
-  type GoogleBucketUri = String
+// this needs to be a Universal Trait to enable mixin with Value Classes
+// it only serves as a marker for StringValueClassFormat
+sealed trait StringValueClass extends Any
+case class GoogleProject(string: String) extends AnyVal with StringValueClass
+case class GoogleServiceAccount(string: String) extends AnyVal with StringValueClass
+case class IP(string: String) extends AnyVal with StringValueClass
+case class ZoneUri(string: String) extends AnyVal with StringValueClass
+
+// productPrefix makes toString = e.g. "Cluster (clustername)"
+
+case class ClusterName(string: String) extends AnyVal with StringValueClass {
+  override def productPrefix: String = "Cluster "
 }
 
-object GoogleBucketUri {
-  def apply (bucketName: String, fileName: String): GoogleBucketUri = {
-    s"gs://${bucketName}/${fileName}"
-  }
+case class OperationName(string: String) extends AnyVal with StringValueClass {
+  override def productPrefix: String = "Operation "
+}
+
+case class FirewallRuleName(string: String) extends AnyVal with StringValueClass {
+  override def productPrefix: String = "Firewall Rule "
+}
+
+case class InstanceName(string: String) extends AnyVal with StringValueClass {
+  override def productPrefix: String = "Instance "
+}
+
+object StringValueClass {
+  type LabelMap = Map[String, String]
 }
 
 object ClusterStatus extends Enumeration {
@@ -48,118 +66,110 @@ object ClusterStatus extends Enumeration {
 
 
 object Cluster {
-  def apply(clusterRequest: ClusterRequest, clusterResponse: ClusterResponse): Cluster = Cluster(
-    clusterName = clusterResponse.clusterName,
-    googleId = UUID.fromString(clusterResponse.googleId),
-    googleProject = clusterResponse.googleProject,
-    googleServiceAccount = clusterRequest.serviceAccount,
-    googleBucket = clusterRequest.bucketPath,
-    clusterUrl = getClusterUrl(clusterResponse.googleProject, clusterResponse.clusterName),
-    operationName = clusterResponse.operationName,
-    status = ClusterStatus.Creating,
-    hostIp = None,
-    createdDate = Instant.now(),
-    destroyedDate = None,
-    labels = clusterRequest.labels,
-    jupyterExtensionUri = clusterRequest.jupyterExtensionUri)
+   def create(googleProject: GoogleProject, clusterName: ClusterName, labels: LabelMap, googleServiceAccount: GoogleServiceAccount, gcsBucketName: GcsBucketName, jupyterExtensionUri: Option[GcsPath], googleId: UUID, operationName: OperationName): Cluster = {
+     Cluster(
+       clusterName = clusterName,
+       googleId = googleId,
+       googleProject = googleProject,
+       googleServiceAccount = googleServiceAccount,
+       googleBucket = gcsBucketName,
+       clusterUrl = getClusterUrl(googleProject, clusterName),
+       operationName = operationName,
+       status = ClusterStatus.Creating,
+       hostIp = None,
+       createdDate = Instant.now(),
+       destroyedDate = None,
+       labels = labels,
+       jupyterExtensionUri = jupyterExtensionUri)
+   }
 
-  def getClusterUrl(googleProject: String, clusterName: String): String = {
+  def getClusterUrl(googleProject: GoogleProject, clusterName: ClusterName): URL = {
     val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
     val dataprocConfig = config.as[DataprocConfig]("dataproc")
-    dataprocConfig.clusterUrlBase + googleProject + "/" + clusterName
+    new URL(dataprocConfig.clusterUrlBase + googleProject.string + "/" + clusterName.string)
   }
 }
 
-case class Cluster(clusterName: String,
+case class Cluster(clusterName: ClusterName,
                    googleId: UUID,
                    googleProject: GoogleProject,
                    googleServiceAccount: GoogleServiceAccount,
-                   googleBucket: GoogleBucket,
-                   clusterUrl: String,
-                   operationName: String,
+                   googleBucket: GcsBucketName,
+                   clusterUrl: URL,
+                   operationName: OperationName,
                    status: ClusterStatus,
-                   hostIp: Option[String],
+                   hostIp: Option[IP],
                    createdDate: Instant,
                    destroyedDate: Option[Instant],
-                   labels: Map[String, String],
-                   jupyterExtensionUri: Option[GoogleBucketUri])
+                   labels: LabelMap,
+                   jupyterExtensionUri: Option[GcsPath]) {
+  def projectNameString: String = s"${googleProject.string}/${clusterName.string}"
+}
 
-case class ClusterRequest(bucketPath: GoogleBucket,
-                          serviceAccount: String,
-                          labels: Map[String, String],
-                          jupyterExtensionUri: Option[GoogleBucketUri])
-
-case class ClusterResponse(clusterName: String,
-                           googleProject: GoogleProject,
-                           googleId: String,
-                           status: String,
-                           description: String,
-                           operationName: String)
+case class ClusterRequest(bucketPath: GcsBucketName,
+                          serviceAccount: GoogleServiceAccount,
+                          labels: LabelMap,
+                          jupyterExtensionUri: Option[GcsPath])
 
 case class ClusterErrorDetails(code: Int, message: Option[String])
 
 object ClusterInitValues {
-  def apply(googleProject: GoogleProject, clusterName: String, bucketName: String, dataprocConfig: DataprocConfig, clusterRequest: ClusterRequest): ClusterInitValues =
+  def apply(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, dataprocConfig: DataprocConfig, clusterRequest: ClusterRequest): ClusterInitValues =
     ClusterInitValues(
-      googleProject,
-      clusterName,
+      googleProject.string,
+      clusterName.string,
       dataprocConfig.dataprocDockerImage,
       dataprocConfig.jupyterProxyDockerImage,
-      GoogleBucketUri(bucketName, dataprocConfig.jupyterServerCrtName),
-      GoogleBucketUri(bucketName, dataprocConfig.jupyterServerKeyName),
-      GoogleBucketUri(bucketName, dataprocConfig.jupyterRootCaPemName),
-      GoogleBucketUri(bucketName, dataprocConfig.clusterDockerComposeName),
-      GoogleBucketUri(bucketName, dataprocConfig.jupyterProxySiteConfName),
+      GcsPath(bucketName, GcsRelativePath(dataprocConfig.jupyterServerCrtName)).toUri,
+      GcsPath(bucketName, GcsRelativePath(dataprocConfig.jupyterServerKeyName)).toUri,
+      GcsPath(bucketName, GcsRelativePath(dataprocConfig.jupyterRootCaPemName)).toUri,
+      GcsPath(bucketName, GcsRelativePath(dataprocConfig.clusterDockerComposeName)).toUri,
+      GcsPath(bucketName, GcsRelativePath(dataprocConfig.jupyterProxySiteConfName)).toUri,
       dataprocConfig.jupyterServerName,
       dataprocConfig.proxyServerName,
-      GoogleBucketUri(bucketName, dataprocConfig.jupyterInstallExtensionScript),
-      clusterRequest.jupyterExtensionUri.getOrElse(""),
-      GoogleBucketUri(bucketName, dataprocConfig.userServiceAccountCredentials)
+      GcsPath(bucketName, GcsRelativePath(dataprocConfig.jupyterInstallExtensionScript)).toUri,
+      clusterRequest.jupyterExtensionUri.map(_.toUri).getOrElse(""),
+      GcsPath(bucketName, GcsRelativePath(dataprocConfig.userServiceAccountCredentials)).toUri
     )
-
 }
 
-case class ClusterInitValues(googleProject: GoogleProject,
+// see https://broadinstitute.atlassian.net/browse/GAWB-2619 for why these are Strings rather than value classes
+
+case class ClusterInitValues(googleProject: String,
                              clusterName: String,
                              jupyterDockerImage: String,
                              proxyDockerImage: String,
-                             jupyterServerCrt: GoogleBucketUri,
-                             jupyterServerKey: GoogleBucketUri,
-                             rootCaPem: GoogleBucketUri,
-                             jupyterDockerCompose: GoogleBucketUri,
-                             jupyterProxySiteConf: GoogleBucketUri,
+                             jupyterServerCrt: String,
+                             jupyterServerKey: String,
+                             rootCaPem: String,
+                             jupyterDockerCompose: String,
+                             jupyterProxySiteConf: String,
                              jupyterServerName: String,
                              proxyServerName: String,
                              jupyterInstallExtensionScript: String,
-                             jupyterExtensionUri: GoogleBucketUri,
-                             userServiceAccountCredentialsUri: GoogleBucketUri)
+                             jupyterExtensionUri: String,
+                             userServiceAccountCredentialsUri: String)
 
 
 object FirewallRuleRequest {
   def apply(googleProject: GoogleProject, dataprocConfig: DataprocConfig, proxyConfig: ProxyConfig): FirewallRuleRequest =
-    FirewallRuleRequest(name = dataprocConfig.clusterFirewallRuleName,
+    FirewallRuleRequest(
+      name = FirewallRuleName(dataprocConfig.clusterFirewallRuleName),
       googleProject = googleProject,
       targetTags = List(dataprocConfig.clusterNetworkTag),
-      port = proxyConfig.jupyterPort.toString,
+      port = proxyConfig.jupyterPort,
       protocol = proxyConfig.jupyterProtocol
     )
 }
 
-case class FirewallRuleRequest(name: String,
+case class FirewallRuleRequest(name: FirewallRuleName,
                                googleProject: GoogleProject,
                                targetTags: List[String] = List.empty,
-                               port: String, // could be a number "80" or range "5000-6000"
+                               port: Int,
                                protocol: String
                               )
 
-
-case class StorageObjectResponse(name: String,
-                                 bucketName: String,
-                                 timeCreated: String)
-
-
 object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
-  // needed for Cluster
   implicit object UUIDFormat extends JsonFormat[UUID] {
     def write(obj: UUID) = JsString(obj.toString)
 
@@ -169,7 +179,6 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     }
   }
 
-  // needed for Cluster
   implicit object InstantFormat extends JsonFormat[Instant] {
     def write(obj: Instant) = JsString(obj.toString)
 
@@ -179,7 +188,6 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     }
   }
 
-  // needed for Cluster
   implicit object ClusterStatusFormat extends JsonFormat[ClusterStatus] {
     def write(obj: ClusterStatus) = JsString(obj.toString)
 
@@ -189,11 +197,56 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     }
   }
 
+  implicit object URLFormat extends JsonFormat[URL] {
+    def write(obj: URL) = JsString(obj.toString)
+
+    def read(json: JsValue): URL = json match {
+      case JsString(url) => new URL(url)
+      case other => throw DeserializationException("Expected URL, got: " + other)
+    }
+  }
+
+  implicit object GcsBucketNameFormat extends JsonFormat[GcsBucketName] {
+    def write(obj: GcsBucketName) = JsString(obj.name)
+
+    def read(json: JsValue): GcsBucketName = json match {
+      case JsString(bucketName) => GcsBucketName(bucketName)
+      case other => throw DeserializationException("Expected GcsBucketName, got: " + other)
+    }
+  }
+
+  implicit object GcsPathFormat extends JsonFormat[GcsPath] {
+    def write(obj: GcsPath) = JsString(obj.toUri)
+
+    def read(json: JsValue): GcsPath = json match {
+      case JsString(path) => GcsPath.parse(path) match {
+        case Right(gcsPath) => gcsPath
+        case Left(gcsParseError) => throw DeserializationException(gcsParseError.message)
+      }
+      case other => throw DeserializationException("Expected GcsPath, got: " + other)
+    }
+  }
+
+  case class StringValueClassFormat[T <: StringValueClass](apply: String => T, unapply: T => Option[String]) extends JsonFormat[T] {
+    def write(obj: T): JsValue = unapply(obj) match {
+      case Some(s) => JsString(s)
+      case other => throw new SerializationException("Expected String, got: " + other)
+    }
+
+    def read(json: JsValue): T = json match {
+      case JsString(value) => apply(value)
+      case other => throw DeserializationException("Expected StringValueClass, got: " + other)
+    }
+  }
+
+  implicit val googleProjectFormat = StringValueClassFormat(GoogleProject.apply, GoogleProject.unapply)
+  implicit val googleServiceAccountFormat = StringValueClassFormat(GoogleServiceAccount, GoogleServiceAccount.unapply)
+  implicit val clusterNameFormat = StringValueClassFormat(ClusterName, ClusterName.unapply)
+  implicit val operationNameFormat = StringValueClassFormat(OperationName, OperationName.unapply)
+  implicit val ipFormat = StringValueClassFormat(IP, IP.unapply)
+  implicit val firewallRuleNameFormat = StringValueClassFormat(FirewallRuleName, FirewallRuleName.unapply)
+
   implicit val clusterFormat = jsonFormat13(Cluster.apply)
   implicit val clusterRequestFormat = jsonFormat4(ClusterRequest)
-  implicit val clusterResponseFormat = jsonFormat6(ClusterResponse)
   implicit val clusterInitValuesFormat = jsonFormat14(ClusterInitValues.apply)
-  implicit val firewallRuleRequestFormat = jsonFormat5(FirewallRuleRequest.apply)
-  implicit val storageObjectResponseFormat = jsonFormat3(StorageObjectResponse)
-
 }

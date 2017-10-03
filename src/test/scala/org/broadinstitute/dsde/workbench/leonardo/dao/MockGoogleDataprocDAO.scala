@@ -3,11 +3,10 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 import java.io.File
 import java.util.UUID
 
-import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
+import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
-import org.broadinstitute.dsde.workbench.leonardo.model.ModelTypes.GoogleProject
-import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
+import org.broadinstitute.dsde.workbench.leonardo.model._
 
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
@@ -15,26 +14,35 @@ import scala.concurrent.{ExecutionContext, Future}
 
 class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extends DataprocDAO {
 
-  val clusters: mutable.Map[String, Cluster] = new TrieMap()  // Cluster Name and Cluster
+  val clusters: mutable.Map[ClusterName, Cluster] = new TrieMap()  // Cluster Name and Cluster
   val firewallRules: mutable.Map[GoogleProject, String] = new TrieMap()  // Google Project and Rule Name
-  val buckets: mutable.Set[String] = mutable.Set() // Set of bucket names - not keeping track of google projects since it's all in leo's project
-  val bucketObjects: mutable.Set[(String, String)] = mutable.Set()  // Set of Bucket Name and File Name
-  val extensionUri = "gs://aBucket/my_extension.tar.gz"
-  val badClusterName = "badCluster"
+  val buckets: mutable.Set[GcsBucketName] = mutable.Set() // Set of bucket names - not keeping track of google projects since it's all in leo's project
+  val bucketObjects: mutable.Set[GcsPath] = mutable.Set()  // Set of Bucket Name and Object
+  val extensionPath = GcsPath(GcsBucketName("bucket"), GcsRelativePath("my_extension.tar.gz"))
+  val badClusterName = ClusterName("badCluster")
 
-  private def googleID = UUID.randomUUID().toString
+  private def googleID = UUID.randomUUID()
 
-  override def createCluster(googleProject: String, clusterName: String, clusterRequest: ClusterRequest, bucketName: String)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
+  override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[Cluster] = {
     if (clusterName == badClusterName) {
-      Future.failed(new CallToGoogleApiFailedException(googleProject, clusterName, 500, "Bad Cluster!"))
+      Future.failed(CallToGoogleApiFailedException(googleProject, clusterName.string, 500, "Bad Cluster!"))
     } else {
-      val clusterResponse = ClusterResponse(clusterName, googleProject, googleID, "status", "desc", "op-name")
-      clusters += clusterName -> Cluster(clusterRequest, clusterResponse)
-      Future.successful(clusterResponse)
+      val cluster = Cluster.create(
+        googleProject = googleProject,
+        clusterName = clusterName,
+        labels = clusterRequest.labels,
+        googleServiceAccount = clusterRequest.serviceAccount,
+        gcsBucketName = clusterRequest.bucketPath,
+        jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
+        googleId = googleID,
+        operationName = OperationName("op-name"))
+
+      clusters += clusterName -> cluster
+      Future.successful(cluster)
     }
   }
 
-  override def deleteCluster(googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  override def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
     clusters.remove(clusterName)
     Future.successful(())
   }
@@ -46,56 +54,56 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extend
     Future.successful(())
   }
 
-  override def createBucket(googleProject: GoogleProject, bucketName: String): Future[Unit] = {
+  override def createBucket(googleProject: GoogleProject, bucketName: GcsBucketName): Future[Unit] = {
     if (!buckets.contains(bucketName)) {
       buckets += bucketName
     }
     Future.successful(())
   }
 
-  override def deleteClusterInitBucket(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[Option[GcsBucketName]] = {
+  override def deleteClusterInitBucket(googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Option[GcsBucketName]] = {
     Future.successful(None)
   }
 
   override def deleteBucket(googleProject: GoogleProject, bucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    buckets -= bucketName.name
+    buckets -= bucketName
     Future.successful(())
   }
 
-  override def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: File): Future[Unit] = {
-    addToBucket(googleProject, bucketName, fileName)
+  override def uploadToBucket(googleProject: GoogleProject, bucketPath: GcsPath, content: File): Future[Unit] = {
+    addToBucket(googleProject, bucketPath)
   }
 
-  override def uploadToBucket(googleProject: GoogleProject, bucketName: String, fileName: String, content: String): Future[Unit] = {
-    addToBucket(googleProject, bucketName, fileName)
+  override def uploadToBucket(googleProject: GoogleProject, bucketPath: GcsPath, content: String): Future[Unit] = {
+    addToBucket(googleProject, bucketPath)
   }
 
-  private def addToBucket(googleProject: GoogleProject, bucketName: String, fileName: String): Future[Unit] = {
-    if (buckets.contains(bucketName)) {
-      bucketObjects += ((bucketName, fileName))
+  private def addToBucket(googleProject: GoogleProject, bucketPath: GcsPath): Future[Unit] = {
+    if (buckets.contains(bucketPath.bucketName)) {
+      bucketObjects += bucketPath
     }
     Future.successful(())
   }
 
-  override def getClusterStatus(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[ClusterStatus] = {
+  override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[ClusterStatus] = {
     Future.successful {
       if (clusters.contains(clusterName)) ClusterStatus.Running
       else ClusterStatus.Unknown
     }
   }
 
-  def getClusterMasterInstanceIp(googleProject: GoogleProject, clusterName: String)(implicit executionContext: ExecutionContext): Future[Option[String]] = {
+  override def getClusterMasterInstanceIp(googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Option[IP]] = {
     Future.successful {
-      if (clusters.contains(clusterName)) Some("1.2.3.4")
+      if (clusters.contains(clusterName)) Some(IP("1.2.3.4"))
       else None
     }
   }
 
-  def getClusterErrorDetails(operationName: String)(implicit executionContext: ExecutionContext): Future[Option[ClusterErrorDetails]] = {
+  override def getClusterErrorDetails(operationName: OperationName)(implicit executionContext: ExecutionContext): Future[Option[ClusterErrorDetails]] = {
     Future.successful(None)
   }
 
-  override def bucketObjectExists(googleProject: GoogleProject, bucketName: String, bucketObject: String): Future[Boolean] = {
-    Future.successful(bucketName == "aBucket" && bucketObject == "my_extension.tar.gz")
+  override def bucketObjectExists(googleProject: GoogleProject, bucketPath: GcsPath): Future[Boolean] = {
+    Future.successful(bucketPath.bucketName == GcsBucketName("bucket") && bucketPath.relativePath == GcsRelativePath("my_extension.tar.gz"))
   }
 }
