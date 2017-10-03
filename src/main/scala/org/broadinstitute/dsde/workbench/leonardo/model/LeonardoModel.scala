@@ -67,6 +67,22 @@ object ClusterStatus extends Enumeration {
 
 
 object Cluster {
+//FIXME merge
+  def apply(clusterRequest: ClusterRequest, clusterName: String, googleProject: String, googleId: UUID, operationName: String): Cluster = Cluster(
+    clusterName = clusterName,
+    googleId = googleId,
+    googleProject = googleProject,
+    googleServiceAccount = clusterRequest.serviceAccount,
+    googleBucket = clusterRequest.bucketPath,
+    clusterUrl = getClusterUrl(googleProject, clusterName),
+    operationName = operationName,
+    status = ClusterStatus.Creating,
+    hostIp = None,
+    createdDate = Instant.now(),
+    destroyedDate = None,
+    labels = clusterRequest.labels,
+    jupyterExtensionUri = clusterRequest.jupyterExtensionUri)
+
    def create(googleProject: GoogleProject, clusterName: ClusterName, labels: LabelMap, googleServiceAccount: GoogleServiceAccount, gcsBucketName: GcsBucketName, jupyterExtensionUri: Option[GcsPath], googleId: UUID, operationName: OperationName): Cluster = {
      Cluster(
        clusterName = clusterName,

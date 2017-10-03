@@ -27,6 +27,7 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extend
     if (clusterName == badClusterName) {
       Future.failed(CallToGoogleApiFailedException(googleProject, clusterName.string, 500, "Bad Cluster!"))
     } else {
+
       val cluster = Cluster.create(
         googleProject = googleProject,
         clusterName = clusterName,
@@ -39,6 +40,12 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extend
 
       clusters += clusterName -> cluster
       Future.successful(cluster)
+
+//FIXME merge
+
+      val clusterResponse = ClusterResponse(clusterName, googleProject, googleID, "status", "desc", "op-name")
+      clusters += clusterName -> Cluster(clusterRequest, clusterResponse)
+      Future.successful(clusterResponse)
     }
   }
 
@@ -54,15 +61,11 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig) extend
     Future.successful(())
   }
 
-  override def createBucket(googleProject: GoogleProject, bucketName: GcsBucketName): Future[Unit] = {
+  override def createBucket(googleProject: GoogleProject, bucketName: GcsBucketName): Future[GcsBucketName] = {
     if (!buckets.contains(bucketName)) {
       buckets += bucketName
     }
-    Future.successful(())
-  }
-
-  override def deleteClusterInitBucket(googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Option[GcsBucketName]] = {
-    Future.successful(None)
+    Future.successful(bucketName)
   }
 
   override def deleteBucket(googleProject: GoogleProject, bucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[Unit] = {

@@ -70,8 +70,8 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     ClusterDnsCache.HostToIp shouldBe 'empty
 
     // save the clusters to the db
-    dbFutureValue { _.clusterQuery.save(c1) } shouldEqual c1
-    dbFutureValue { _.clusterQuery.save(c2) } shouldEqual c2
+    dbFutureValue { _.clusterQuery.save(c1, "gs://bucket") } shouldEqual c1
+    dbFutureValue { _.clusterQuery.save(c2, "gs://bucket") } shouldEqual c2
 
     // maps should be populated
     eventually {

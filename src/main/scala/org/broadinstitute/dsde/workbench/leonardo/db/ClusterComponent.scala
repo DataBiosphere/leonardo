@@ -22,7 +22,8 @@ case class ClusterRecord(id: Long,
                          hostIp: Option[String],
                          createdDate: Timestamp,
                          destroyedDate: Option[Timestamp],
-                         jupyterExtensionUri: Option[String])
+                         jupyterExtensionUri: Option[String],
+                         initBucket: String)
 
 trait ClusterComponent extends LeoComponent {
   this: LabelComponent =>
@@ -35,23 +36,24 @@ trait ClusterComponent extends LeoComponent {
     def googleId =              column[UUID]              ("googleId",              O.Unique)
     def googleProject =         column[String]            ("googleProject",         O.Length(254))
     def googleServiceAccount =  column[String]            ("googleServiceAccount",  O.Length(254))
-    def googleBucket =          column[String]            ("googleBucket",          O.Length(254))
+    def googleBucket =          column[String]            ("googleBucket",          O.Length(1024))
     def operationName =         column[String]            ("operationName",         O.Length(254))
     def status =                column[String]            ("status",                O.Length(254))
     def hostIp =                column[Option[String]]    ("hostIp",                O.Length(254))
     def createdDate =           column[Timestamp]         ("createdDate",           O.SqlType("TIMESTAMP(6)"))
     def destroyedDate =         column[Option[Timestamp]] ("destroyedDate",         O.SqlType("TIMESTAMP(6)"))
     def jupyterExtensionUri =   column[Option[String]]    ("jupyterExtensionUri",   O.Length(1024))
+    def initBucket =            column[String]            ("initBucket",            O.Length(1024))
 
     def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName), unique = true)
 
-    def * = (id, clusterName, googleId, googleProject, googleServiceAccount, googleBucket, operationName, status, hostIp, createdDate, destroyedDate, jupyterExtensionUri) <> (ClusterRecord.tupled, ClusterRecord.unapply)
+    def * = (id, clusterName, googleId, googleProject, googleServiceAccount, googleBucket, operationName, status, hostIp, createdDate, destroyedDate, jupyterExtensionUri, initBucket) <> (ClusterRecord.tupled, ClusterRecord.unapply)
   }
 
   object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
-    def save(cluster: Cluster): DBIO[Cluster] = {
-      (clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster)) flatMap { clusterId =>
+    def save(cluster: Cluster, initBucket: String): DBIO[Cluster] = {
+      (clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster, initBucket)) flatMap { clusterId =>
         labelQuery.saveAllForCluster(clusterId, cluster.labels)
       } map { _ => cluster }
     }
@@ -81,6 +83,12 @@ trait ClusterComponent extends LeoComponent {
     def getByGoogleId(googleId: UUID): DBIO[Option[Cluster]] = {
       clusterQueryWithLabels.filter { _._1.googleId === googleId }.result map { recs =>
         unmarshalClustersWithLabels(recs).headOption
+      }
+    }
+
+    def getInitBucket(project: GoogleProject, name: String): DBIO[Option[GcsPath]] = {
+      clusterQuery.map(_.initBucket).result map { recs =>
+        recs.headOption.flatMap(GcsPath.parse(_).toOption)
       }
     }
 
@@ -145,7 +153,10 @@ trait ClusterComponent extends LeoComponent {
       query.result.map(unmarshalClustersWithLabels)
     }
 
-    private def marshalCluster(cluster: Cluster): ClusterRecord = {
+    /* WARNING: The init bucket is secret to Leo, which means we don't marshal/unmarshal it.
+     * This function should only be called at cluster creation time, when the init bucket doesn't exist.
+     */
+    private def marshalCluster(cluster: Cluster, initBucket: String): ClusterRecord = {
       ClusterRecord(
         id = 0,    // DB AutoInc
         cluster.clusterName.string,
@@ -158,7 +169,8 @@ trait ClusterComponent extends LeoComponent {
         cluster.hostIp map(_.string),
         Timestamp.from(cluster.createdDate),
         cluster.destroyedDate map Timestamp.from,
-        cluster.jupyterExtensionUri map(_.toUri)
+        cluster.jupyterExtensionUri map(_.toUri),
+        initBucket
       )
     }
 

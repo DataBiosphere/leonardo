@@ -91,8 +91,10 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       .setAllowed(List(allowed).asJava)
   }
 
-  override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[Cluster] = {
+  override def createCluster(googleProject: GoogleProject, clusterName: String, clusterRequest: ClusterRequest, bucketName: String)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
     buildCluster(googleProject, clusterName, clusterRequest, bucketName).map { operation =>
+
+//FIXME merge
       Cluster.create(
         googleProject = googleProject,
         clusterName = clusterName,
@@ -102,6 +104,9 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
         jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
         googleId = UUID.fromString(operation.getMetadata.get("clusterUuid").toString),
         operationName = OperationName(operation.getName))
+      // Once the cluster creation request is sent to Google, it returns a DataprocOperation, which we transform into a ClusterResponse
+      val metadata = operation.getMetadata()
+      LeoCluster(clusterRequest, clusterName, googleProject, UUID.fromString(metadata.get("clusterUuid").toString), operation.getName)
     }
   }
 
@@ -162,7 +167,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   }
 
   /* Create a bucket in the given google project for the initialization files when creating a cluster */
-  override def createBucket(googleProject: GoogleProject, bucketName: GcsBucketName): Future[Unit] = {
+  override def createBucket(googleProject: GoogleProject, bucketName: GcsBucketName): Future[GcsBucketName] = {
     // Create lifecycle rule for the bucket that will delete the bucket after 1 day.
     //
     // Note that the init buckets are explicitly deleted by the ClusterMonitor once the cluster
@@ -180,17 +185,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
 
     val bucketInserter = storage.buckets().insert(googleProject.string, bucket)
 
-    executeGoogleRequestAsync(googleProject, "Bucket " + bucketName.toString, bucketInserter).void
-  }
-
-  override def deleteClusterInitBucket(googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Option[GcsBucketName]] = {
-    val result: OptionT[Future, GcsBucketName] = for {
-      cluster <- OptionT.liftF(getCluster(googleProject, clusterName))
-      bucketName <- OptionT.fromOption(getInitBucketName(cluster))
-      _ <- OptionT.liftF(deleteBucket(googleProject, bucketName))
-    } yield bucketName
-
-    result.value
+    executeGoogleRequestAsync(googleProject, "Bucket " + bucketName.toString, bucketInserter) map { _ => bucketName }
   }
 
   override def deleteBucket(googleProject: GoogleProject, bucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[Unit] = {
