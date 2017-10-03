@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.api
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import com.typesafe.scalalogging.LazyLogging
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, GoogleProject}
 import org.broadinstitute.dsde.workbench.leonardo.service.ProxyService
 
 /**
@@ -18,7 +19,7 @@ trait ProxyRoutes { self: LazyLogging =>
         cookie(tokenCookieName) { tokenCookie => // rejected with MissingCookieRejection if the cookie is not present
           complete {
             // Proxy logic handled by the ProxyService class
-            proxyService.proxy(googleProject, clusterName, request, tokenCookie.value)
+            proxyService.proxy(GoogleProject(googleProject), ClusterName(clusterName), request, tokenCookie)
           }
         }
       }

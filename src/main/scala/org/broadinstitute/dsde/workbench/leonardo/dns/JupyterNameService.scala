@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.dns
 
 import java.net.{InetAddress, UnknownHostException}
 
+import akka.http.scaladsl.model.Uri.Host
 import sun.net.spi.nameservice.{NameService, NameServiceDescriptor}
 
 /**
@@ -15,7 +16,7 @@ class JupyterNameService extends NameService {
   }
 
   override def lookupAllHostAddr(host: String): Array[InetAddress] = {
-    ClusterDnsCache.HostToIp.get(host).map(ip => Array(InetAddress.getByName(ip))).getOrElse {
+    ClusterDnsCache.HostToIp.get(Host(host)).map(ip => Array(InetAddress.getByName(ip.string))).getOrElse {
       throw new UnknownHostException(s"Unknown address: $host")
     }
   }
