@@ -216,15 +216,32 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.listClusters(Map("foo" -> "bar", "baz" -> "biz")).futureValue shouldBe 'empty
   }
 
-  it should "list clusters" in isolatedDbTest {
+  it should "list all clusters" in isolatedDbTest {
     // create a couple clusters
     val cluster1 = leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
 
     val clusterName2 = "test-cluster-2"
     val cluster2 = leo.createCluster(googleProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
-    leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(Map.empty, true).futureValue.toSet shouldBe Set(cluster1, cluster2)
   }
+
+  it should "list all active clusters" in isolatedDbTest {
+    // create a couple clusters
+    val cluster1 = leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
+
+    val clusterName2 = "test-cluster-2"
+    val cluster2 = leo.createCluster(googleProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
+
+    leo.listClusters(Map.empty, false).futureValue.toSet shouldBe Set(cluster1, cluster2)
+
+    val clusterName3 = "test-cluster-3"
+    val cluster3 = leo.createCluster(googleProject, clusterName3, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
+    leo.deleteCluster(googleProject, clusterName3)
+
+    leo.listClusters(Map.empty, false).futureValue.toSet shouldBe Set.empty
+  }
+
 
   it should "list clusters with labels" in isolatedDbTest {
     // create a couple clusters
