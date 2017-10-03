@@ -115,9 +115,11 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    def listByLabels(labelMap: Map[String, String]): DBIO[Seq[Cluster]] = {
+    def listByLabels(labelMap: Map[String, String], includeDeleted: Boolean): DBIO[Seq[Cluster]] = {
+      val clusterStatusQuery = if (includeDeleted) clusterQueryWithLabels else clusterQueryWithLabels.filterNot { _._1.status === "Deleted" }
+
       val query = if (labelMap.isEmpty) {
-        clusterQueryWithLabels
+        clusterStatusQuery
       } else {
         // The trick is to find all clusters that have _at least_ all the labels in labelMap.
         // In other words, for a given cluster, the labels provided in the query string must be
@@ -131,7 +133,7 @@ trait ClusterComponent extends LeoComponent {
         //   where clusterId = c.id and (key, value) in ${labelMap}
         // ) = ${labelMap.size}
         //
-        clusterQueryWithLabels.filter { case (cluster, _) =>
+        clusterStatusQuery.filter { case (cluster, _) =>
           labelQuery.filter { _.clusterId === cluster.id }
             // The following confusing line is equivalent to the much simpler:
             // .filter { lbl => (lbl.key, lbl.value) inSetBind labelMap.toSet }

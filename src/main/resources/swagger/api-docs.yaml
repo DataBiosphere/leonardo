@@ -55,8 +55,8 @@ paths:
         - test
   '/api/clusters':
     get:
-      summary: List all clusters
-      description: List all clusters, optionally filtering on a set of labels
+      summary: List all active clusters
+      description: List all active clusters, optionally filtering on a set of labels
       operationId: listClusters
       tags:
         - cluster
@@ -71,6 +71,12 @@ paths:
             labels as top-level query string parameters. For instance: GET /api/clusters?key1=val1&key2=val2.
           required: false
           type: string
+        - in: query
+          name: includeDeleted
+          description: Optional filter that includes any clusters with a Deleted status.
+          required: false
+          type: boolean
+          default: false
       responses:
         '200':
           description: List of clusters
@@ -91,6 +97,7 @@ paths:
             - openid
             - email
             - profile
+
   '/api/cluster/{googleProject}/{clusterName}':
     get:
       summary: Get details of a dataproc cluster
