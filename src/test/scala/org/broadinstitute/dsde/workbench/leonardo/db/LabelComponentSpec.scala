@@ -4,40 +4,41 @@ import java.sql.SQLException
 import java.time.Instant
 import java.util.UUID
 
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterStatus}
+import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
+import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.scalatest.FlatSpecLike
 
 import scala.util.Random
 
-class LabelComponentSpec extends TestComponent with FlatSpecLike {
+class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTestData {
 
   "LabelComponent" should "save, get,and delete" in isolatedDbTest {
-
     val c1 = Cluster(
-      clusterName = "name1",
+      clusterName = name1,
       googleId = UUID.randomUUID(),
-      googleProject = "dsp-leo-test",
-      googleServiceAccount = "not-a-service-acct@google.com",
-      googleBucket = "bucket1",
-      clusterUrl = Cluster.getClusterUrl("dsp-leo-test", "name1"),
-      operationName = "op1",
+      googleProject = project,
+      googleServiceAccount = googleServiceAccount,
+      googleBucket = GcsBucketName("bucket1"),
+      clusterUrl = Cluster.getClusterUrl(project, name1),
+      operationName = OperationName("op1"),
       status = ClusterStatus.Creating,
       hostIp = None,
       createdDate = Instant.now(),
       destroyedDate = Option(Instant.now()),
       labels = Map.empty,
-      Some("extension_uri"))
+      jupyterExtensionUri = jupyterExtensionUri)
 
     val c2 = Cluster(
-      clusterName = "name2",
+      clusterName = name2,
       googleId = UUID.randomUUID(),
-      googleProject = "dsp-leo-test",
-      googleServiceAccount = "not-a-service-acct@google.com",
-      googleBucket = "bucket2",
-      clusterUrl = Cluster.getClusterUrl("dsp-leo-test", "name2"),
-      operationName = "op2",
+      googleProject = project,
+      googleServiceAccount = googleServiceAccount,
+      googleBucket = GcsBucketName("bucket2"),
+      clusterUrl = Cluster.getClusterUrl(project, name2),
+      operationName = OperationName("op2"),
       status = ClusterStatus.Unknown,
-      hostIp = Some("sure, this is an IP address"),
+      hostIp = Some(IP("sure, this is an IP address")),
       createdDate = Instant.now(),
       destroyedDate = None,
       labels = Map.empty,
