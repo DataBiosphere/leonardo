@@ -31,22 +31,22 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, gdDAO: DataprocDAO,
       leoService = service
 
     case ClusterCreated(cluster) =>
-      logger.info(s"Monitoring cluster ${cluster.googleProject}/${cluster.clusterName} for initialization.")
+      logger.info(s"Monitoring cluster ${cluster.projectNameString} for initialization.")
       startClusterMonitorActor(cluster)
 
     case ClusterDeleted(cluster, recreate) =>
-      logger.info(s"Monitoring cluster ${cluster.googleProject}/${cluster.clusterName} for deletion.")
+      logger.info(s"Monitoring cluster ${cluster.projectNameString} for deletion.")
       startClusterMonitorActor(cluster, recreate)
 
     case RecreateCluster(cluster) =>
       if (monitorConfig.recreateCluster) {
-        logger.info(s"Recreating cluster ${cluster.googleProject}/${cluster.clusterName}...")
+        logger.info(s"Recreating cluster ${cluster.projectNameString}...")
         val clusterRequest = ClusterRequest(cluster.googleBucket, cluster.googleServiceAccount, cluster.labels, cluster.jupyterExtensionUri)
         leoService.createCluster(cluster.googleProject, cluster.clusterName, clusterRequest).failed.foreach { e =>
           logger.error("Error occurred recreating cluster", e)
         }
       } else {
-        logger.warn(s"Received RecreateCluster message for cluster ${cluster} but cluster recreation is disabled.")
+        logger.warn(s"Received RecreateCluster message for cluster ${cluster.projectNameString} but cluster recreation is disabled.")
       }
   }
 
