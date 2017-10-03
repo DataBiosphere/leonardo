@@ -62,6 +62,7 @@ class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxySer
   } ~
   path("clusters") {
     parameterMap { params =>
+      logger.info(params.toString)
       complete {
         leonardoService.listClusters(params).map { clusters =>
           StatusCodes.OK -> clusters
