@@ -2,7 +2,8 @@ package org.broadinstitute.dsde.firecloud.page.workspaces.methodconfigs
 
 import org.broadinstitute.dsde.firecloud.config.FireCloudConfig
 import org.broadinstitute.dsde.firecloud.page.workspaces.WorkspacePage
-import org.broadinstitute.dsde.firecloud.page.{FireCloudView, PageUtil, Table}
+import org.broadinstitute.dsde.firecloud.page.{FireCloudView, Table}
+import org.broadinstitute.dsde.workbench.page.PageUtil
 import org.openqa.selenium.WebDriver
 import org.scalatest.selenium.Page
 
