@@ -43,14 +43,14 @@ function docker_cmd()
         docker build -t $REPO:${GIT_SHA:0:12} .
 
         # builds the juptyer notebooks docker image that goes on dataproc clusters
-        bash ./jupyter-docker/build.sh build $JUPYTER_REPO:${GIT_SHA:0:12}
+        bash ./jupyter-docker/build.sh build ${GIT_SHA:0:12}
 
         if [ $DOCKER_CMD = "push" ]; then
             echo "pushing leonardo docker image..."
             docker push $REPO:${GIT_SHA:0:12}
 
             # pushes the juptyer notebooks docker image that goes on dataproc clusters
-            bash ./jupyter-docker/build.sh push $JUPYTER_REPO:${GIT_SHA:0:12}
+            bash ./jupyter-docker/build.sh push ${GIT_SHA:0:12}
         fi
     else
         echo "Not a valid docker option!  Choose either build or push (which includes build)"
@@ -61,7 +61,6 @@ function docker_cmd()
 DOCKER_CMD=
 GIT_BRANCH=${GIT_BRANCH:-$(git rev-parse --abbrev-ref HEAD)}  # default to current branch
 REPO=${REPO:-broadinstitute/$PROJECT}  # default to leonardo docker repo
-JUPYTER_REPO=${JUPYTER_REPO:-broadinstitute/$PROJECT-notebooks}
 
 if [ -z "$1" ]; then
     echo "No argument supplied!  Available choices are jar to build the jar and -d followed by a docker option (build or push)"
