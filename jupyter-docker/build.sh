@@ -2,17 +2,17 @@
 
 build() {
     echo "building jupyter docker image..."
-    docker build -t broadinstitute/leonardo-notebooks:gawb2624_2 .
+    docker build -t broadinstitute/leonardo-notebooks:$JUPYTER_TAG .
 }
 
 push() {
     echo "pushing jupyter docker image..."
-    docker push broadinstitute/leonardo-notebooks:gawb2624_2
+    docker push broadinstitute/leonardo-notebooks:$JUPYTER_TAG
 }
 
 JUPYTER_COMMAND=$1
 
-JUPYTER_REPO=$2
+JUPYTER_TAG=$2
 
 if [ $JUPYTER_COMMAND = "build" ]; then
     build

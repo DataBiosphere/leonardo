@@ -29,11 +29,11 @@ tagged with git hash
 
 To build the leonardo-notebooks docker image 
 ````
-./jupyter-docker/build.sh build <TAG>
+./jupyter-docker/build.sh build <TAG NAME>
 ````
 
 To push the leonardo-notebooks docker image to repo `broadinstitute/leonardo-notebooks`
 tagged with git hash
 ````
-./jupyter-docker/build.sh push <TAG>
+./jupyter-docker/build.sh push <TAG NAME>
 ````
