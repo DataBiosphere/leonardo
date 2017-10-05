@@ -27,13 +27,14 @@ tagged with git hash
 ./docker/build.sh jar -d push
 ```
 
-To build the leonardo-notebooks docker image 
+To build the leonardo-notebooks docker image with a given tag
 ````
-./jupyter-docker/build.sh build <TAG NAME>
+bash ./jupyter-docker/build.sh build <TAG NAME>
 ````
 
-To push the leonardo-notebooks docker image to repo `broadinstitute/leonardo-notebooks`
-tagged with git hash
+To push the leonardo-notebooks docker image you built
+to repo `broadinstitute/leonardo-notebooks`
+
 ````
-./jupyter-docker/build.sh push <TAG NAME>
+bash ./jupyter-docker/build.sh push <TAG NAME>
 ````
