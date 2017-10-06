@@ -7,7 +7,7 @@ import akka.testkit.TestKit
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
-import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, MockGoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -19,6 +19,8 @@ import spray.json._
 
 class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures with OptionValues {
   private val dataprocConfig = ConfigFactory.load().as[DataprocConfig]("dataproc")
+  private val clusterResourcesConfig = ConfigFactory.load().as[ClusterResourcesConfig]("clusterResources")
+  private val proxyConfig = ConfigFactory.load().as[ProxyConfig]("proxy")
   private val bucketPath = GcsBucketName("bucket-path")
   private val serviceAccount = GoogleServiceAccount("service-account")
   private val googleProject = GoogleProject("test-google-project")
@@ -29,8 +31,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   private var leo: LeonardoService = _
 
   before {
-    gdDAO = new MockGoogleDataprocDAO(dataprocConfig)
-    leo = new LeonardoService(dataprocConfig, gdDAO, DbSingleton.ref, system.actorOf(NoopActor.props))
+    gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig)
+    leo = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, gdDAO, DbSingleton.ref, system.actorOf(NoopActor.props))
   }
 
   override def afterAll(): Unit = {
@@ -38,9 +40,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     super.afterAll()
   }
 
-  val initFiles = Array( dataprocConfig.clusterDockerComposeName, dataprocConfig.initActionsScriptName, dataprocConfig.jupyterServerCrtName,
-    dataprocConfig.jupyterServerKeyName, dataprocConfig.jupyterRootCaPemName, dataprocConfig.jupyterProxySiteConfName, dataprocConfig.jupyterInstallExtensionScript,
-    dataprocConfig.userServiceAccountCredentials) map GcsRelativePath
+  val initFiles = Array(clusterResourcesConfig.clusterDockerCompose, clusterResourcesConfig.initActionsScript, clusterResourcesConfig.jupyterServerCrt,
+    clusterResourcesConfig.jupyterServerKey, clusterResourcesConfig.jupyterRootCaPem, clusterResourcesConfig.jupyterProxySiteConf, clusterResourcesConfig.jupyterInstallExtensionScript,
+    clusterResourcesConfig.userServiceAccountCredentials) map GcsRelativePath
 
   "LeonardoService" should "create a cluster" in isolatedDbTest {
     // create the cluster
@@ -51,7 +53,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterCreateResponse.googleServiceAccount shouldEqual serviceAccount
 
     // check the firewall rule was created for the project
-    gdDAO.firewallRules should contain (googleProject, dataprocConfig.clusterFirewallRuleName)
+    gdDAO.firewallRules should contain (googleProject, proxyConfig.firewallRuleName)
 
     val bucketArray = gdDAO.buckets.filter(bucket => bucket.name.startsWith(clusterName.string))
 
@@ -173,7 +175,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName2 = ClusterName("test-cluster-2")
 
     // Our google project should have no firewall rules
-    gdDAO.firewallRules should not contain (googleProject, dataprocConfig.clusterFirewallRuleName)
+    gdDAO.firewallRules should not contain (googleProject, proxyConfig.firewallRuleName)
 
     // create the first cluster, this should create a firewall rule in our project
     leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
@@ -189,14 +191,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "template a script using config values" in isolatedDbTest {
-    // create the file path for our init actions script
-    val filePath = dataprocConfig.configFolderPath + dataprocConfig.initActionsScriptName
-
     // Create replacements map
-    val replacements = ClusterInitValues(googleProject, clusterName, bucketPath, dataprocConfig, testClusterRequest).toJson.asJsObject.fields
+    val replacements = ClusterInitValues(googleProject, clusterName, bucketPath, testClusterRequest, dataprocConfig, clusterResourcesConfig, proxyConfig).toJson.asJsObject.fields
 
     // Each value in the replacement map will replace it's key in the file being processed
-    val result = leo.template(filePath, replacements).futureValue
+    val result = leo.template(clusterResourcesConfig.configFolderPath + clusterResourcesConfig.initActionsScript, replacements).futureValue
 
     // Check that the values in the bash script file were correctly replaced
     val expected =
@@ -204,7 +203,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
           |
           |"${clusterName.string}"
           |"${googleProject.string}"
-          |"${dataprocConfig.jupyterProxyDockerImage}"
+          |"${proxyConfig.jupyterProxyDockerImage}"
           |"${gdDAO.extensionPath.toUri}"""".stripMargin
 
     result shouldEqual expected
@@ -251,6 +250,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName2 = ClusterName("test-cluster-2")
     val cluster2 = leo.createCluster(googleProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
+    leo.listClusters(Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
     leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
     leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
 
@@ -261,9 +261,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       dataAccess.clusterQuery.completeDeletion(cluster3.googleId, clusterName3)
     )
 
-    leo.listClusters(Map("includeDeleted" -> "true")).futureValue.toSet.size shouldBe 3
-    leo.listClusters(Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
     leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(Map("includeDeleted" -> "true")).futureValue.toSet.size shouldBe 3
   }
 
 
@@ -281,6 +281,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.listClusters(Map("a" -> "b")).futureValue.toSet shouldBe Set(cluster2)
     leo.listClusters(Map("foo" -> "bar", "baz" -> "biz")).futureValue.toSet shouldBe Set.empty
     leo.listClusters(Map("A" -> "B")).futureValue.toSet shouldBe Set(cluster2)  // labels are not case sensitive because MySQL
+  }
+
+  it should "throw IllegalLabelKeyException when using a forbidden label" in isolatedDbTest {
+    // cluster should not be allowed to have a label with key of "includeDeleted"
+    val includeDeletedResponse = leo.createCluster(googleProject, clusterName, testClusterRequest.copy(labels = Map("includeDeleted" -> "val"))).failed.futureValue
+    includeDeletedResponse shouldBe a [IllegalLabelKeyException]
   }
 
   it should "list clusters with swagger-style labels" in isolatedDbTest {
@@ -311,7 +317,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterCreateResponse shouldBe a [CallToGoogleApiFailedException]
 
     // check the firewall rule was created for the project
-    gdDAO.firewallRules should contain (googleProject, dataprocConfig.clusterFirewallRuleName)
+    gdDAO.firewallRules should contain (googleProject, proxyConfig.firewallRuleName)
 
     gdDAO.buckets shouldBe 'empty
   }

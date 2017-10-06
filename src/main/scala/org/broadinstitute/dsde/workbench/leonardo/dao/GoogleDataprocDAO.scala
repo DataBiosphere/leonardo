@@ -28,7 +28,7 @@ import com.google.api.services.storage.model.{Bucket, StorageObject}
 import com.google.api.services.storage.{Storage, StorageScopes}
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
-import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster => LeoCluster, ClusterErrorDetails, ClusterName, ClusterRequest, FirewallRuleName, GoogleProject, IP, InstanceName, LeoException, OperationName, ZoneUri, ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
@@ -36,13 +36,14 @@ import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future, blocking}
 
+
 case class CallToGoogleApiFailedException(googleProject: GoogleProject, context: String, exceptionStatusCode: Int, errorMessage: String)
   extends LeoException(s"Call to Google API failed for ${googleProject.string} / $context. Message: $errorMessage", exceptionStatusCode)
 
 case class FirewallRuleNotFoundException(googleProject: GoogleProject, firewallRuleName: FirewallRuleName)
   extends LeoException(s"Firewall rule ${firewallRuleName.string} not found in project ${googleProject.string}", StatusCodes.NotFound)
 
-class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected val proxyConfig: ProxyConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
+class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected val proxyConfig: ProxyConfig, protected val clusterResourcesConfig: ClusterResourcesConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
   extends DataprocDAO with GoogleUtilities {
 
   // TODO pass as constructor arg when we add metrics
@@ -54,7 +55,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   private lazy val cloudPlatformScopes = List(ComputeScopes.CLOUD_PLATFORM)
   private lazy val storageScopes = List(StorageScopes.DEVSTORAGE_FULL_CONTROL, ComputeScopes.COMPUTE, PlusScopes.USERINFO_EMAIL, PlusScopes.USERINFO_PROFILE)
   private lazy val vmScopes = List(ComputeScopes.COMPUTE, ComputeScopes.CLOUD_PLATFORM)
-  private lazy val serviceAccountPemFile = new File(dataprocConfig.configFolderPath, dataprocConfig.serviceAccountPemName)
+  private lazy val serviceAccountPemFile = new File(clusterResourcesConfig.configFolderPath, clusterResourcesConfig.leonardoServicePem)
 
   private lazy val dataproc = {
     new Dataproc.Builder(httpTransport, jsonFactory, getServiceAccountCredential(cloudPlatformScopes))
@@ -75,7 +76,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     new GoogleCredential.Builder()
       .setTransport(httpTransport)
       .setJsonFactory(jsonFactory)
-      .setServiceAccountId(dataprocConfig.serviceAccount)
+      .setServiceAccountId(dataprocConfig.serviceAccount.string)
       .setServiceAccountScopes(scopes.asJava)
       .setServiceAccountPrivateKeyFromPemFile(serviceAccountPemFile)
       .build()
@@ -90,8 +91,8 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     val allowed = new Allowed().setIPProtocol(proxyConfig.jupyterProtocol).setPorts(List(proxyConfig.jupyterPort.toString).asJava)
     // Create a firewall rule that takes an Allowed object, a name, and the network tag a cluster must have to be accessed through the rule
     new Firewall()
-      .setName(dataprocConfig.clusterFirewallRuleName)
-      .setTargetTags(List(dataprocConfig.clusterNetworkTag).asJava)
+      .setName(proxyConfig.firewallRuleName)
+      .setTargetTags(List(proxyConfig.networkTag).asJava)
       .setAllowed(List(allowed).asJava)
   }
 
@@ -102,6 +103,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     }
   }
 
+
   /* Kicks off building the cluster. This will return before the cluster finishes creating. */
   private def buildCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[DataprocOperation] = {
     // Create a GceClusterConfig, which has the common config settings for resources of Google Compute Engine cluster instances,
@@ -109,11 +111,11 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     //   Set the network tag, which is needed by the firewall rule that allows leo to talk to the cluster
     val gce = new GceClusterConfig()
       .setServiceAccount(clusterRequest.serviceAccount.string)
-      .setTags(List(dataprocConfig.clusterNetworkTag).asJava)
+      .setTags(List(proxyConfig.networkTag).asJava)
 
     // Create a NodeInitializationAction, which specifies the executable to run on a node.
     //    This executable is our init-actions.sh, which will stand up our jupyter server and proxy.
-    val initActions = Seq(new NodeInitializationAction().setExecutableFile(GcsPath(bucketName, GcsRelativePath(dataprocConfig.initActionsScriptName)).toUri))
+    val initActions = Seq(new NodeInitializationAction().setExecutableFile(GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.initActionsScript)).toUri))
 
     // Create a SoftwareConfig and set a property that makes the cluster have only one node
     val softwareConfig = new SoftwareConfig().setProperties(Map("dataproc:dataproc.allow.zero.workers" -> "true").asJava)
@@ -136,7 +138,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
 
   /* Check if the given google project has a cluster firewall rule. If not, add the rule to the project*/
   override def updateFirewallRule(googleProject: GoogleProject): Future[Unit] = {
-    checkFirewallRule(googleProject, FirewallRuleName(dataprocConfig.clusterFirewallRuleName)).recoverWith {
+    checkFirewallRule(googleProject, FirewallRuleName(proxyConfig.firewallRuleName)).recoverWith {
       case _: FirewallRuleNotFoundException => addFirewallRule(googleProject)
     }
   }
@@ -155,7 +157,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     To think about: do we want to remove this rule if a google project no longer has any clusters? */
   private def addFirewallRule(googleProject: GoogleProject): Future[Unit] = {
     val request = compute.firewalls().insert(googleProject.string, googleFirewallRule)
-    executeGoogleRequestAsync(googleProject, dataprocConfig.clusterFirewallRuleName, request).void
+    executeGoogleRequestAsync(googleProject, proxyConfig.firewallRuleName, request).void
   }
 
   /* Create a bucket in the given google project for the initialization files when creating a cluster */
