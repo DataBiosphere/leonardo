@@ -73,14 +73,14 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterCreateResponse = leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
 
     // get the cluster detail
-    val clusterGetResponse = leo.getClusterDetails(googleProject, clusterName).futureValue
+    val clusterGetResponse = leo.getActiveClusterDetails(googleProject, clusterName).futureValue
 
     // check the create response and get response are the same
     clusterCreateResponse shouldEqual clusterGetResponse
   }
 
   it should "throw ClusterNotFoundException for nonexistent clusters" in isolatedDbTest {
-    whenReady( leo.getClusterDetails(GoogleProject("nonexistent"), ClusterName("cluster")).failed ) { exc =>
+    whenReady( leo.getActiveClusterDetails(GoogleProject("nonexistent"), ClusterName("cluster")).failed ) { exc =>
       exc shouldBe a [ClusterNotFoundException]
     }
   }

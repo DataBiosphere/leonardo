@@ -47,7 +47,7 @@ class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxySer
       } ~
       get {
         complete {
-          leonardoService.getClusterDetails(GoogleProject(googleProject), ClusterName(clusterName)). map { clusterDetails =>
+          leonardoService.getActiveClusterDetails(GoogleProject(googleProject), ClusterName(clusterName)). map { clusterDetails =>
             StatusCodes.OK -> clusterDetails
           }
         }
