@@ -2,7 +2,10 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
+import org.broadinstitute.dsde.workbench.leonardo.model.{GoogleProject, GoogleServiceAccount}
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
+
+import java.io.File
 
 
 package object config {
@@ -14,27 +17,28 @@ package object config {
   }
 
   implicit val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
-    DataprocConfig(config.getString("applicationName"),
-      config.getString("serviceAccount"),
+    DataprocConfig(
+      config.getString("applicationName"),
+      GoogleServiceAccount(config.getString("serviceAccount")),
       config.getString("dataprocDefaultRegion"),
-      config.getString("leoGoogleProject"),
+      GoogleProject(config.getString("leoGoogleProject")),
       config.getString("dataprocDockerImage"),
-      config.getString("jupyterProxyDockerImage"),
-      config.getString("clusterFirewallRuleName"),
-      config.getString("clusterFirewallVPCNetwork"),
-      config.getString("clusterNetworkTag"),
-      config.getString("configFolderPath"),
-      config.getString("initActionsFileName"),
-      config.getString("clusterDockerComposeName"),
-      config.getString("leonardoServicePemName"),
-      config.getString("jupyterServerCrtName"),
-      config.getString("jupyterServerKeyName"),
-      config.getString("jupyterRootCaPemName"),
-      config.getString("jupyterRootCaKeyName"),
-      config.getString("proxySiteConf"),
       config.getString("clusterUrlBase"),
-      config.getString("jupyterServerName"),
-      config.getString("proxyServerName"),
+      config.getString("jupyterServerName"))
+  }
+
+  implicit val clusterResourcesConfigReader: ValueReader[ClusterResourcesConfig] = ValueReader.relative { config =>
+
+    ClusterResourcesConfig(
+      config.getString("configFolderPath"),
+      config.getString("initActionsScript"),
+      config.getString("clusterDockerCompose"),
+      config.getString("leonardoServicePem"),
+      config.getString("jupyterServerCrt"),
+      config.getString("jupyterServerKey"),
+      config.getString("jupyterRootCaPem"),
+      config.getString("jupyterRootCaKey"),
+      config.getString("proxySiteConf"),
       config.getString("jupyterInstallExtensionScript"),
       config.getString("userServiceAccountCredentials"))
   }
@@ -44,7 +48,13 @@ package object config {
   }
 
   implicit val proxyConfigReader: ValueReader[ProxyConfig] = ValueReader.relative { config =>
-    ProxyConfig(config.getInt("jupyterPort"),
+    ProxyConfig(
+      config.getString("jupyterProxyDockerImage"),
+      config.getString("proxyServerName"),
+      config.getString("firewallRuleName"),
+      config.getString("firewallVPCNetwork"),
+      config.getString("networkTag"),
+      config.getInt("jupyterPort"),
       config.getString("jupyterProtocol"),
       config.getString("jupyterDomain"),
       toScalaDuration(config.getDuration("dnsPollPeriod")))

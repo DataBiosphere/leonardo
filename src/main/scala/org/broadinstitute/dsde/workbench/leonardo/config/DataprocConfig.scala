@@ -1,25 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
-case class DataprocConfig(applicationName: String,
-                          serviceAccount: String,
-                          dataprocDefaultRegion: String,
-                          leoGoogleProject: String,
-                          dataprocDockerImage: String,
-                          jupyterProxyDockerImage: String,
-                          clusterFirewallRuleName: String,
-                          clusterFirewallVPCNetwork: String,
-                          clusterNetworkTag: String,
-                          configFolderPath: String,
-                          initActionsScriptName: String,
-                          clusterDockerComposeName: String,
-                          serviceAccountPemName: String,
-                          jupyterServerCrtName: String,
-                          jupyterServerKeyName: String,
-                          jupyterRootCaPemName: String,
-                          jupyterRootCaKeyName: String,
-                          jupyterProxySiteConfName: String,
-                          clusterUrlBase: String,
-                          jupyterServerName: String,
-                          proxyServerName: String,
-                          jupyterInstallExtensionScript: String,
-                          userServiceAccountCredentials: String)
+import org.broadinstitute.dsde.workbench.leonardo.model.{GoogleProject, GoogleServiceAccount}
+
+case class DataprocConfig(
+                           applicationName: String,
+                           serviceAccount: GoogleServiceAccount,
+                           dataprocDefaultRegion: String,
+                           leoGoogleProject: GoogleProject,
+                           dataprocDockerImage: String,
+                           clusterUrlBase: String,
+                           jupyterServerName: String
+                           )

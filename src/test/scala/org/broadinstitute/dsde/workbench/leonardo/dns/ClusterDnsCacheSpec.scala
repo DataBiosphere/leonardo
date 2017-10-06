@@ -8,6 +8,8 @@ import akka.http.scaladsl.model.Uri.Host
 import akka.pattern.ask
 import akka.testkit.{TestActorRef, TestKit}
 import akka.util.Timeout
+import com.typesafe.config.ConfigFactory
+import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
@@ -24,7 +26,8 @@ import scala.concurrent.duration._
   */
 class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfterAll with TestComponent with ScalaFutures with Eventually with CommonTestData with GcsPathUtils {
 
-  val proxyConfig = ProxyConfig(jupyterPort = 8001, jupyterProtocol = "tcp", jupyterDomain = ".jupyter.firecloud.org", dnsPollPeriod = 1 second)
+  val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
+  val proxyConfig = config.as[ProxyConfig]("proxy")
   implicit val timeout = Timeout(5 seconds)
 
   override def afterAll(): Unit = {

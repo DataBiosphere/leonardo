@@ -11,7 +11,7 @@ import io.grpc.Status.Code
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils, VCMockitoMatchers}
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath}
-import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -31,6 +31,8 @@ import scala.concurrent.{ExecutionContext, Future}
 class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll with TestComponent with VCMockitoMatchers with CommonTestData with GcsPathUtils { testKit =>
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
+  val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
+  val proxyConfig = config.as[ProxyConfig]("proxy")
 
   val creatingCluster = Cluster(
     clusterName = name1,
@@ -69,7 +71,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
   def createClusterSupervisor(dao: DataprocDAO): ActorRef = {
     val actor = system.actorOf(TestClusterSupervisorActor.props(dao, DbSingleton.ref, testKit))
-    new LeonardoService(dataprocConfig, dao, DbSingleton.ref, actor)
+    new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, dao, DbSingleton.ref, actor)
     actor
   }
 
