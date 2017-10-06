@@ -86,6 +86,12 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
+    def getDeletingClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
+      clusterQueryWithLabels.filter { _._1.googleProject === project.string }.filter { _._1.clusterName === name.string }.filter{_._1.status === ClusterStatus.Deleting.toString}.result map { recs =>
+        unmarshalClustersWithLabels(recs).headOption
+      }
+    }
+
     def getByGoogleId(googleId: UUID): DBIO[Option[Cluster]] = {
       clusterQueryWithLabels.filter { _._1.googleId === googleId }.result map { recs =>
         unmarshalClustersWithLabels(recs).headOption

@@ -95,6 +95,26 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
   }
 
+  it should "create two clusters with same name with only one active" in isolatedDbTest {
+    //create first cluster
+    leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
+
+    // check that the cluster was created
+    gdDAO.clusters should contain key (clusterName)
+
+    // delete the cluster
+    val clusterDeleteResponse = leo.deleteCluster(googleProject, clusterName).futureValue
+
+    // the delete response should indicate 1 cluster was deleted
+    clusterDeleteResponse shouldEqual 1
+
+    //recreate cluster with same project and cluster name
+    leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
+
+    //confirm cluster was created
+    gdDAO.clusters should contain key (clusterName)
+  }
+
   it should "delete a cluster" in isolatedDbTest {
     // check that the cluster does not exist
     gdDAO.clusters should not contain key (clusterName)
