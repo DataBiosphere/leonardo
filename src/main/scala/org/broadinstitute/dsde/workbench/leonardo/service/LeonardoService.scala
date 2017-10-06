@@ -5,7 +5,7 @@ import java.io.File
 import akka.actor.ActorRef
 import akka.http.scaladsl.model.StatusCodes
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
@@ -34,7 +34,7 @@ case class JupyterExtensionException(gcsUri: GcsPath)
 case class ParseLabelsException(labelString: String)
   extends LeoException(s"Could not parse label string: $labelString. Expected format [key1=value1,key2=value2,...]", StatusCodes.BadRequest)
 
-class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: DataprocDAO, dbRef: DbReference, val clusterMonitorSupervisor: ActorRef)(implicit val executionContext: ExecutionContext) extends LazyLogging {
+class LeonardoService(protected val dataprocConfig: DataprocConfig, protected val clusterResourcesConfig: ClusterResourcesConfig, gdDAO: DataprocDAO, dbRef: DbReference, val clusterMonitorSupervisor: ActorRef)(implicit val executionContext: ExecutionContext) extends LazyLogging {
   val bucketPathMaxLength = 1024
 
   // Register this instance with the cluster monitor supervisor so our cluster monitor can potentially delete and recreate clusters
@@ -148,19 +148,19 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
 
   /* Process the templated cluster init script and put all initialization files in the init bucket */
   private[service] def initializeBucketObjects(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest): Future[Unit] = {
-    val initScriptPath = dataprocConfig.configFolderPath + dataprocConfig.initActionsScriptName
-    val replacements = ClusterInitValues(googleProject, clusterName, bucketName, dataprocConfig, clusterRequest).toJson.asJsObject.fields
-    val filesToUpload = List(dataprocConfig.jupyterServerCrtName, dataprocConfig.jupyterServerKeyName, dataprocConfig.jupyterRootCaPemName,
-      dataprocConfig.clusterDockerComposeName, dataprocConfig.jupyterProxySiteConfName, dataprocConfig.jupyterInstallExtensionScript,
-      dataprocConfig.userServiceAccountCredentials)
+    val initScriptPath = clusterResourcesConfig.configFolderPath + clusterResourcesConfig.initActionsFileName
+    val replacements = ClusterInitValues(googleProject, clusterName, bucketName, dataprocConfig, clusterResourcesConfig, clusterRequest).toJson.asJsObject.fields
+    val filesToUpload = List(clusterResourcesConfig.jupyterServerCrtName, clusterResourcesConfig.jupyterServerKeyName, clusterResourcesConfig.jupyterRootCaPemName,
+      clusterResourcesConfig.clusterDockerComposeName, clusterResourcesConfig.jupyterProxySiteConfName, clusterResourcesConfig.jupyterInstallExtensionScript,
+      clusterResourcesConfig.userServiceAccountCredentials)
 
     for {
       // Fill in templated fields in the init script with the given replacements
       content <- template(initScriptPath, replacements)
       // Upload the init script itself to the bucket
-      _ <- gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(dataprocConfig.initActionsScriptName)), content)
+      _ <- gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.initActionsFileName)), content)
       // Upload ancillary files like the certs, cluster docker compose file, site.conf, etc to the init bucket
-      _ <- Future.traverse(filesToUpload)(name => gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(name)), new File(dataprocConfig.configFolderPath, name)))
+      _ <- Future.traverse(filesToUpload)(name => gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(name)), new File(clusterResourcesConfig.configFolderPath, name)))
     } yield ()
   }
 
@@ -173,10 +173,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
   }
 
   private[service] def processListClustersParameters(params: LabelMap): Future[(LabelMap, Boolean)] = {
-    val includeDeletedKey = "includeDeleted"
     Future {
-      params.get(includeDeletedKey) match {
-        case Some(includeDeleted) => (processLabelMap(params - includeDeletedKey), includeDeleted.toBoolean)
+      params.get(dataprocConfig.includeDeletedKey) match {
+        case Some(includeDeletedValue) => (processLabelMap(params - dataprocConfig.includeDeletedKey), includeDeletedValue.toBoolean)
         case None => (processLabelMap(params), false)
       }
     }

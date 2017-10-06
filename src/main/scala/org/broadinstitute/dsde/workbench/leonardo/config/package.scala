@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
+import scala.collection.JavaConverters._
 
 
 package object config {
@@ -14,15 +15,21 @@ package object config {
   }
 
   implicit val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
-    DataprocConfig(config.getString("applicationName"),
+    DataprocConfig(
+      config.getString("applicationName"),
       config.getString("serviceAccount"),
       config.getString("dataprocDefaultRegion"),
       config.getString("leoGoogleProject"),
       config.getString("dataprocDockerImage"),
       config.getString("jupyterProxyDockerImage"),
-      config.getString("clusterFirewallRuleName"),
-      config.getString("clusterFirewallVPCNetwork"),
-      config.getString("clusterNetworkTag"),
+      config.getString("includeDeletedKey"),
+      config.getString("clusterUrlBase"),
+      config.getString("jupyterServerName"),
+      config.getString("proxyServerName"))
+  }
+
+  implicit val clusterResourcesConfigReader: ValueReader[ClusterResourcesConfig] = ValueReader.relative { config =>
+    ClusterResourcesConfig(
       config.getString("configFolderPath"),
       config.getString("initActionsFileName"),
       config.getString("clusterDockerComposeName"),
@@ -32,9 +39,6 @@ package object config {
       config.getString("jupyterRootCaPemName"),
       config.getString("jupyterRootCaKeyName"),
       config.getString("proxySiteConf"),
-      config.getString("clusterUrlBase"),
-      config.getString("jupyterServerName"),
-      config.getString("proxyServerName"),
       config.getString("jupyterInstallExtensionScript"),
       config.getString("userServiceAccountCredentials"))
   }
@@ -44,7 +48,10 @@ package object config {
   }
 
   implicit val proxyConfigReader: ValueReader[ProxyConfig] = ValueReader.relative { config =>
-    ProxyConfig(config.getInt("jupyterPort"),
+    ProxyConfig(config.getString("firewallRuleName"),
+      config.getString("firewallVPCNetwork"),
+      config.getString("networkTag"),
+      config.getInt("jupyterPort"),
       config.getString("jupyterProtocol"),
       config.getString("jupyterDomain"),
       toScalaDuration(config.getDuration("dnsPollPeriod")))

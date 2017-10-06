@@ -7,7 +7,7 @@ import akka.testkit.TestKit
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
-import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, MockGoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -19,6 +19,8 @@ import spray.json._
 
 class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures with OptionValues {
   private val dataprocConfig = ConfigFactory.load().as[DataprocConfig]("dataproc")
+  private val clusterResourcesConfig = ConfigFactory.load().as[ClusterResourcesConfig]("clusterResources")
+  private val proxyConfig = ConfigFactory.load().as[ProxyConfig]("proxy")
   private val bucketPath = GcsBucketName("bucket-path")
   private val serviceAccount = GoogleServiceAccount("service-account")
   private val googleProject = GoogleProject("test-google-project")
@@ -29,8 +31,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   private var leo: LeonardoService = _
 
   before {
-    gdDAO = new MockGoogleDataprocDAO(dataprocConfig)
-    leo = new LeonardoService(dataprocConfig, gdDAO, DbSingleton.ref, system.actorOf(NoopActor.props))
+    gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig)
+    leo = new LeonardoService(dataprocConfig, clusterResourcesConfig, gdDAO, DbSingleton.ref, system.actorOf(NoopActor.props))
   }
 
   override def afterAll(): Unit = {
@@ -38,9 +40,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     super.afterAll()
   }
 
-  val initFiles = Array( dataprocConfig.clusterDockerComposeName, dataprocConfig.initActionsScriptName, dataprocConfig.jupyterServerCrtName,
-    dataprocConfig.jupyterServerKeyName, dataprocConfig.jupyterRootCaPemName, dataprocConfig.jupyterProxySiteConfName, dataprocConfig.jupyterInstallExtensionScript,
-    dataprocConfig.userServiceAccountCredentials) map GcsRelativePath
+  val initFiles = Array(clusterResourcesConfig.clusterDockerComposeName, clusterResourcesConfig.initActionsFileName, clusterResourcesConfig.jupyterServerCrtName,
+    clusterResourcesConfig.jupyterServerKeyName, clusterResourcesConfig.jupyterRootCaPemName, clusterResourcesConfig.jupyterProxySiteConfName, clusterResourcesConfig.jupyterInstallExtensionScript,
+    clusterResourcesConfig.userServiceAccountCredentials) map GcsRelativePath
 
   "LeonardoService" should "create a cluster" in isolatedDbTest {
     // create the cluster
@@ -51,7 +53,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterCreateResponse.googleServiceAccount shouldEqual serviceAccount
 
     // check the firewall rule was created for the project
-    gdDAO.firewallRules should contain (googleProject, dataprocConfig.clusterFirewallRuleName)
+    gdDAO.firewallRules should contain (googleProject, proxyConfig.firewallRuleName)
 
     val bucketArray = gdDAO.buckets.filter(bucket => bucket.name.startsWith(clusterName.string))
 
@@ -173,7 +175,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName2 = ClusterName("test-cluster-2")
 
     // Our google project should have no firewall rules
-    gdDAO.firewallRules should not contain (googleProject, dataprocConfig.clusterFirewallRuleName)
+    gdDAO.firewallRules should not contain (googleProject, proxyConfig.firewallRuleName)
 
     // create the first cluster, this should create a firewall rule in our project
     leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
@@ -190,10 +192,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "template a script using config values" in isolatedDbTest {
     // create the file path for our init actions script
-    val filePath = dataprocConfig.configFolderPath + dataprocConfig.initActionsScriptName
+    val filePath = clusterResourcesConfig.configFolderPath + clusterResourcesConfig.initActionsFileName
 
     // Create replacements map
-    val replacements = ClusterInitValues(googleProject, clusterName, bucketPath, dataprocConfig, testClusterRequest).toJson.asJsObject.fields
+    val replacements = ClusterInitValues(googleProject, clusterName, bucketPath, dataprocConfig, clusterResourcesConfig, testClusterRequest).toJson.asJsObject.fields
 
     // Each value in the replacement map will replace it's key in the file being processed
     val result = leo.template(filePath, replacements).futureValue
@@ -311,7 +313,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterCreateResponse shouldBe a [CallToGoogleApiFailedException]
 
     // check the firewall rule was created for the project
-    gdDAO.firewallRules should contain (googleProject, dataprocConfig.clusterFirewallRuleName)
+    gdDAO.firewallRules should contain (googleProject, proxyConfig.firewallRuleName)
 
     gdDAO.buckets shouldBe 'empty
   }

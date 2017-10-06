@@ -8,7 +8,7 @@ import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
-import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat, SerializationException}
@@ -89,6 +89,12 @@ object Cluster {
   }
 }
 
+case class DefaultLabels(clusterName: ClusterName,
+                         googleProject: GoogleProject,
+                         googleBucket: GcsBucketName,
+                         serviceAccount: GoogleServiceAccount,
+                         notebookExtension: Option[GcsPath])
+
 case class Cluster(clusterName: ClusterName,
                    googleId: UUID,
                    googleProject: GoogleProject,
@@ -113,22 +119,22 @@ case class ClusterRequest(bucketPath: GcsBucketName,
 case class ClusterErrorDetails(code: Int, message: Option[String])
 
 object ClusterInitValues {
-  def apply(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, dataprocConfig: DataprocConfig, clusterRequest: ClusterRequest): ClusterInitValues =
+  def apply(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, dataprocConfig: DataprocConfig, clusterResourcesConfig: ClusterResourcesConfig, clusterRequest: ClusterRequest): ClusterInitValues =
     ClusterInitValues(
       googleProject.string,
       clusterName.string,
       dataprocConfig.dataprocDockerImage,
       dataprocConfig.jupyterProxyDockerImage,
-      GcsPath(bucketName, GcsRelativePath(dataprocConfig.jupyterServerCrtName)).toUri,
-      GcsPath(bucketName, GcsRelativePath(dataprocConfig.jupyterServerKeyName)).toUri,
-      GcsPath(bucketName, GcsRelativePath(dataprocConfig.jupyterRootCaPemName)).toUri,
-      GcsPath(bucketName, GcsRelativePath(dataprocConfig.clusterDockerComposeName)).toUri,
-      GcsPath(bucketName, GcsRelativePath(dataprocConfig.jupyterProxySiteConfName)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterServerCrtName)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterServerKeyName)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterRootCaPemName)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.clusterDockerComposeName)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterProxySiteConfName)).toUri,
       dataprocConfig.jupyterServerName,
       dataprocConfig.proxyServerName,
-      GcsPath(bucketName, GcsRelativePath(dataprocConfig.jupyterInstallExtensionScript)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterInstallExtensionScript)).toUri,
       clusterRequest.jupyterExtensionUri.map(_.toUri).getOrElse(""),
-      GcsPath(bucketName, GcsRelativePath(dataprocConfig.userServiceAccountCredentials)).toUri
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.userServiceAccountCredentials)).toUri
     )
 }
 
@@ -151,11 +157,11 @@ case class ClusterInitValues(googleProject: String,
 
 
 object FirewallRuleRequest {
-  def apply(googleProject: GoogleProject, dataprocConfig: DataprocConfig, proxyConfig: ProxyConfig): FirewallRuleRequest =
+  def apply(googleProject: GoogleProject, proxyConfig: ProxyConfig): FirewallRuleRequest =
     FirewallRuleRequest(
-      name = FirewallRuleName(dataprocConfig.clusterFirewallRuleName),
+      name = FirewallRuleName(proxyConfig.firewallRuleName),
       googleProject = googleProject,
-      targetTags = List(dataprocConfig.clusterNetworkTag),
+      targetTags = List(proxyConfig.networkTag),
       port = proxyConfig.jupyterPort,
       protocol = proxyConfig.jupyterProtocol
     )
@@ -248,4 +254,5 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val clusterFormat = jsonFormat13(Cluster.apply)
   implicit val clusterRequestFormat = jsonFormat4(ClusterRequest)
   implicit val clusterInitValuesFormat = jsonFormat14(ClusterInitValues.apply)
+  implicit val defaultLabelsFormat = jsonFormat5(DefaultLabels.apply)
 }
