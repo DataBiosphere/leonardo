@@ -8,7 +8,7 @@ import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, MockGoogleDataprocDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, IllegalLabelKeyException, MockGoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
@@ -263,9 +263,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       dataAccess.clusterQuery.completeDeletion(cluster3.googleId, clusterName3)
     )
 
-    leo.listClusters(Map("includeDeleted" -> "true")).futureValue.toSet.size shouldBe 3
     leo.listClusters(Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
     leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(Map("includeDeleted" -> "true")).futureValue.toSet.size shouldBe 3
   }
 
 
@@ -283,6 +283,14 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.listClusters(Map("a" -> "b")).futureValue.toSet shouldBe Set(cluster2)
     leo.listClusters(Map("foo" -> "bar", "baz" -> "biz")).futureValue.toSet shouldBe Set.empty
     leo.listClusters(Map("A" -> "B")).futureValue.toSet shouldBe Set(cluster2)  // labels are not case sensitive because MySQL
+  }
+
+  it should "throw IllegalLabelKeyException when using a forbidden label" in isolatedDbTest {
+    val includeDeletedResponse = leo.createCluster(googleProject, clusterName, testClusterRequest.copy(labels = Map("includeDeleted" -> "val"))).failed.futureValue
+    includeDeletedResponse shouldBe a [IllegalLabelKeyException]
+
+    val emptyKeyResponse = leo.createCluster(googleProject, clusterName, testClusterRequest.copy(labels = Map("" -> "val"))).failed.futureValue
+    emptyKeyResponse shouldBe a [IllegalLabelKeyException]
   }
 
   it should "list clusters with swagger-style labels" in isolatedDbTest {
