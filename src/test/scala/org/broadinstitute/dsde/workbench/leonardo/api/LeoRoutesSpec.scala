@@ -91,7 +91,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
         cluster.googleServiceAccount shouldEqual GoogleServiceAccount("test-service-account")
         cluster.labels shouldEqual Map(
           "googleBucket" -> bucketPath,
-          "clusterName" -> cluster.clusterName,
+          "clusterName" -> cluster.clusterName.string,
           "googleProject" -> googleProject,
           "serviceAccount" -> googleServiceAccount)
       }
@@ -136,7 +136,8 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       cluster.clusterName shouldEqual ClusterName("test-cluster-4")
       cluster.googleBucket shouldEqual GcsBucketName("test-bucket-path")
       cluster.googleServiceAccount shouldEqual GoogleServiceAccount("test-service-account")
-      cluster.labels shouldEqual Map(cluster.googleBucket -> bucketPath,
+      cluster.labels shouldEqual Map(
+        "googleBucket" -> bucketPath,
         "clusterName" -> "test-cluster-4",
         "googleProject" -> googleProject,
         "serviceAccount" -> googleServiceAccount,
