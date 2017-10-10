@@ -3,7 +3,6 @@
 cd jupyter-docker
 
 build() {
-
     echo "building jupyter docker image..."
     docker build -t broadinstitute/leonardo-notebooks:$JUPYTER_TAG .
 }
