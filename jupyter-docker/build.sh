@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 
+cd jupyter-docker
+
 build() {
+
     echo "building jupyter docker image..."
-    docker build -f ./jupyter-docker/Dockerfile -t broadinstitute/leonardo-notebooks:$JUPYTER_TAG .
+    docker build --no-cache -t broadinstitute/leonardo-notebooks:$JUPYTER_TAG .
 }
 
 push() {
