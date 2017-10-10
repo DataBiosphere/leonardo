@@ -8,7 +8,7 @@ import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, IllegalLabelKeyException, MockGoogleDataprocDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, MockGoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
