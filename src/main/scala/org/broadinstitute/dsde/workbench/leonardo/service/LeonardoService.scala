@@ -42,9 +42,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
 
   def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
     def create() = {
-      createGoogleCluster(googleProject, clusterName, clusterRequest) flatMap { case (cluster: Cluster, initBucket: String) =>
+      createGoogleCluster(googleProject, clusterName, clusterRequest) flatMap { case (cluster: Cluster, initBucket: GcsBucketName) =>
         dbRef.inTransaction { dataAccess =>
-          dataAccess.clusterQuery.save(cluster, initBucket)
+          dataAccess.clusterQuery.save(cluster, initBucket.name)
         }
       }
     }
@@ -102,7 +102,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
      - Upload all the necessary initialization files to the bucket
      - Create the cluster in the google project
    Currently, the bucketPath of the clusterRequest is not used - it will be used later as a place to store notebook results */
-  private[service] def createGoogleCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[(Cluster, String)] = {
+  private[service] def createGoogleCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName)] = {
     val bucketName = generateUniqueBucketName(clusterName.string)
     for {
       // Validate that the Jupyter extension URI is a valid URI and references a real GCS object
@@ -110,8 +110,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
       // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
       _ <- gdDAO.updateFirewallRule(googleProject)
       // Create the bucket in leo's google bucket and populate with initialization files
-//FIXME merge: google project of bucket??
-      initBucketPath <- initializeBucket(GoogleProject(dataprocConfig.leoGoogleBucket), clusterName, bucketName, clusterRequest)
+      initBucketPath <- initializeBucket(GoogleProject(dataprocConfig.leoGoogleProject), clusterName, bucketName, clusterRequest)
       // Once the bucket is ready, build the cluster
       cluster <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, bucketName).andThen { case Failure(e) =>
         // If cluster creation fails, delete the init bucket asynchronously
@@ -137,12 +136,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
   }
 
   /* Create a google bucket and populate it with init files */
-//FIXME merge
-  private[service] def initializeBucket(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest): Future[GoogleBucket] = {
+  private[service] def initializeBucket(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest): Future[GcsBucketName] = {
     for {
-      initBucketPath <- gdDAO.createBucket(googleProject, bucketName)
+      _ <- gdDAO.createBucket(googleProject, bucketName)
       _ <- initializeBucketObjects(googleProject, clusterName, bucketName, clusterRequest)
-    } yield { initBucketPath }
+    } yield { bucketName }
   }
 
   /* Process the templated cluster init script and put all initialization files in the init bucket */

@@ -112,9 +112,8 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ShutdownActor
     */
   private def handleReadyCluster(publicIp: IP): Future[ClusterMonitorMessage] = {
-//FIXME merge
     val bucketPathFuture = dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.getInitBucket(cluster.googleProject, cluster.clusterName)
+      dataAccess.clusterQuery.getInitBucket(cluster.googleProject, cluster.clusterName.string)
     }
 
     // First get the init bucket name and delete it

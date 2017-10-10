@@ -20,7 +20,7 @@ import com.google.api.services.compute.model.Firewall.Allowed
 import com.google.api.services.compute.model.{Firewall, Instance}
 import com.google.api.services.compute.{Compute, ComputeScopes}
 import com.google.api.services.dataproc.Dataproc
-import com.google.api.services.dataproc.model.{Cluster => GoogleCluster, Operation => DataprocOperation, _}
+import com.google.api.services.dataproc.model.{Cluster => DataprocCluster, Operation => DataprocOperation, _}
 import com.google.api.services.plus.PlusScopes
 import com.google.api.services.storage.model.Bucket.Lifecycle
 import com.google.api.services.storage.model.Bucket.Lifecycle.Rule.{Action, Condition}
@@ -30,7 +30,7 @@ import org.broadinstitute.dsde.workbench.google.GoogleUtilities
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterErrorDetails, ClusterName, ClusterRequest, FirewallRuleName, GoogleProject, IP, InstanceName, LeoException, OperationName, ZoneUri, ClusterStatus => LeoClusterStatus}
+import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster => LeoCluster, ClusterErrorDetails, ClusterName, ClusterRequest, FirewallRuleName, GoogleProject, IP, InstanceName, LeoException, OperationName, ZoneUri, ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 
 import scala.collection.JavaConverters._
@@ -81,6 +81,10 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       .build()
   }
 
+  private def getOperationUUID(dop: DataprocOperation): UUID = {
+    UUID.fromString(dop.getMetadata.get("clusterUuid").toString)
+  }
+
   private lazy val googleFirewallRule = {
     // Create an Allowed object that specifies the port and protocol of rule
     val allowed = new Allowed().setIPProtocol(proxyConfig.jupyterProtocol).setPorts(List(proxyConfig.jupyterPort.toString).asJava)
@@ -91,22 +95,11 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       .setAllowed(List(allowed).asJava)
   }
 
-  override def createCluster(googleProject: GoogleProject, clusterName: String, clusterRequest: ClusterRequest, bucketName: String)(implicit executionContext: ExecutionContext): Future[ClusterResponse] = {
+  override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[LeoCluster] = {
     buildCluster(googleProject, clusterName, clusterRequest, bucketName).map { operation =>
 
-//FIXME merge
-      Cluster.create(
-        googleProject = googleProject,
-        clusterName = clusterName,
-        labels = clusterRequest.labels,
-        googleServiceAccount = clusterRequest.serviceAccount,
-        gcsBucketName = clusterRequest.bucketPath,
-        jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
-        googleId = UUID.fromString(operation.getMetadata.get("clusterUuid").toString),
-        operationName = OperationName(operation.getName))
       // Once the cluster creation request is sent to Google, it returns a DataprocOperation, which we transform into a ClusterResponse
-      val metadata = operation.getMetadata()
-      LeoCluster(clusterRequest, clusterName, googleProject, UUID.fromString(metadata.get("clusterUuid").toString), operation.getName)
+      LeoCluster.create(clusterRequest, clusterName, googleProject, getOperationUUID(operation), OperationName(operation.getName))
     }
   }
 
@@ -132,7 +125,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       .setInitializationActions(initActions.asJava).setSoftwareConfig(softwareConfig)
 
     // Create a Cluster and give it a name and a Cluster Config
-    val cluster = new GoogleCluster()
+    val cluster = new DataprocCluster()
       .setClusterName(clusterName.string)
       .setConfig(clusterConfig)
 
@@ -258,7 +251,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     // - OptionT.fromOption turns an Option[A] into an OptionT[F, A]
 
     val ipOpt: OptionT[Future, IP] = for {
-      cluster <- OptionT.liftF[Future, GoogleCluster] { getCluster(googleProject, clusterName) }
+      cluster <- OptionT.liftF[Future, DataprocCluster] { getCluster(googleProject, clusterName) }
       masterInstanceName <- OptionT.fromOption { getMasterInstanceName(cluster) }
       masterInstanceZone <- OptionT.fromOption { getZone(cluster) }
       masterInstance <- OptionT.liftF[Future, Instance] { getInstance(googleProject, masterInstanceZone, masterInstanceName) }
@@ -283,7 +276,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   /**
     * Gets a dataproc Cluster from the API.
     */
-  private def getCluster(googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[GoogleCluster] = {
+  private def getCluster(googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[DataprocCluster] = {
     val request = dataproc.projects().regions().clusters().get(googleProject.string, dataprocConfig.dataprocDefaultRegion, clusterName.string)
     executeGoogleRequestAsync(googleProject, clusterName.toString, request)
   }
@@ -309,7 +302,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     * @param cluster the Google dataproc cluster
     * @return error or master instance name
     */
-  private def getMasterInstanceName(cluster: GoogleCluster): Option[InstanceName] = {
+  private def getMasterInstanceName(cluster: DataprocCluster): Option[InstanceName] = {
     for {
       config <- Option(cluster.getConfig)
       masterConfig <- Option(config.getMasterConfig)
@@ -323,7 +316,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     * @param cluster the Google dataproc cluster
     * @return error or the master instance zone
     */
-  private def getZone(cluster: GoogleCluster): Option[ZoneUri] = {
+  private def getZone(cluster: DataprocCluster): Option[ZoneUri] = {
     def parseZone(zoneUri: String): ZoneUri = {
       zoneUri.lastIndexOf('/') match {
         case -1 => ZoneUri(zoneUri)
@@ -352,7 +345,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     } yield IP(accessConfig.getNatIP)
   }
 
-  private def getInitBucketName(cluster: GoogleCluster): Option[GcsBucketName] = {
+  private def getInitBucketName(cluster: DataprocCluster): Option[GcsBucketName] = {
     for {
       config <- Option(cluster.getConfig)
       initAction <- config.getInitializationActions.asScala.headOption

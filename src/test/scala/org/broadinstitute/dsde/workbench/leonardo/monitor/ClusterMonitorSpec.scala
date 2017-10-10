@@ -92,7 +92,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(Some(IP("1.2.3.4")))
 
     when {
-      dao.deleteBucket(vcEq(creatingCluster.googleProject), vcEq(GcsBucketName(anyString)))(any[ExecutionContext])
+      dao.deleteBucket(vcEq(creatingCluster.googleProject), vcAny(GcsBucketName))(any[ExecutionContext])
     } thenReturn Future.successful(())
 
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
@@ -103,7 +103,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
     updatedCluster.flatMap(_.hostIp) shouldBe Some(IP("1.2.3.4"))
 
-    verify(dao).deleteBucket(vcEq(creatingCluster.googleProject), vcEq(GcsBucketName(anyString)))(any[ExecutionContext])
+    verify(dao).deleteBucket(vcEq(creatingCluster.googleProject), vcAny(GcsBucketName))(any[ExecutionContext])
   }
 
   // Pre:
@@ -285,18 +285,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     when {
       dao.createCluster(vcEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName), any[ClusterRequest], vcAny[GcsBucketName])(any[ExecutionContext])
     } thenReturn Future.successful {
-creatingCluster.copy(googleId=newClusterId)
-
-//FIXME merge
-
-      Cluster.create(
-        googleProject = creatingCluster.googleProject,
-        clusterName = creatingCluster.clusterName,
-        labels = creatingCluster.labels,
-        googleServiceAccount = creatingCluster.googleServiceAccount,
-        gcsBucketName = creatingCluster.googleBucket,
-        jupyterExtensionUri = creatingCluster.jupyterExtensionUri,
-        googleId = newClusterId, operationName = OperationName("create op"))
+      creatingCluster.copy(googleId=newClusterId)
     }
 
     when {
@@ -305,7 +294,7 @@ creatingCluster.copy(googleId=newClusterId)
 
     when {
       dao.createBucket(vcAny[GoogleProject], vcAny[GcsBucketName])
-    } thenReturn Future.successful(GcsBucketName("init-bucket"))
+    } thenReturn Future.successful(GcsBucketName("my-bucket"))
 
     when {
       dao.uploadToBucket(vcAny[GoogleProject], any[GcsPath], any[File])
@@ -320,7 +309,7 @@ creatingCluster.copy(googleId=newClusterId)
     } thenReturn Future.successful(Some(IP("1.2.3.4")))
 
     when {
-      dao.deleteBucket(vcEq(creatingCluster.googleProject), vcEq(GcsBucketName(anyString)))(any[ExecutionContext])
+      dao.deleteBucket(vcEq(creatingCluster.googleProject), vcAny(GcsBucketName))(any[ExecutionContext])
     } thenReturn Future.successful(())
 
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
@@ -339,7 +328,7 @@ creatingCluster.copy(googleId=newClusterId)
     oldCluster.flatMap(_.hostIp) shouldBe None
 
     val newCluster = dbFutureValue { _.clusterQuery.getByName(creatingCluster.googleProject, creatingCluster.clusterName) }
-    val newClusterBucket = dbFutureValue { _.clusterQuery.getInitBucket(creatingCluster.googleProject, creatingCluster.clusterName) }
+    val newClusterBucket = dbFutureValue { _.clusterQuery.getInitBucket(creatingCluster.googleProject, creatingCluster.clusterName.string) }
 
     newCluster shouldBe 'defined
     newClusterBucket shouldBe 'defined

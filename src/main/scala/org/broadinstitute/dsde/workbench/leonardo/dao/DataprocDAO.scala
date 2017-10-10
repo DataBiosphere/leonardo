@@ -15,7 +15,7 @@ trait DataprocDAO {
 
   def updateFirewallRule(googleProject: GoogleProject): Future[Unit]
 
-  def createBucket(googleProject: GoogleProject, bucketName: GcsBucketName): Future[Unit]
+  def createBucket(googleProject: GoogleProject, bucketName: GcsBucketName): Future[GcsBucketName]
 
   def uploadToBucket(googleProject: GoogleProject, bucketPath: GcsPath, content: File): Future[Unit]
 
@@ -28,8 +28,6 @@ trait DataprocDAO {
   def getClusterMasterInstanceIp(googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Option[IP]]
 
   def getClusterErrorDetails(operationName: OperationName)(implicit executionContext: ExecutionContext): Future[Option[ClusterErrorDetails]]
-
-  def deleteClusterInitBucket(googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Option[GcsBucketName]]
 
   def deleteBucket(googleProject: GoogleProject, gcsBucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[Unit]
 }

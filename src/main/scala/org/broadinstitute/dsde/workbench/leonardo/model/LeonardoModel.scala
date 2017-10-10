@@ -67,8 +67,7 @@ object ClusterStatus extends Enumeration {
 
 
 object Cluster {
-//FIXME merge
-  def apply(clusterRequest: ClusterRequest, clusterName: String, googleProject: String, googleId: UUID, operationName: String): Cluster = Cluster(
+  def create(clusterRequest: ClusterRequest, clusterName: ClusterName, googleProject: GoogleProject, googleId: UUID, operationName: OperationName): Cluster = new Cluster(
     clusterName = clusterName,
     googleId = googleId,
     googleProject = googleProject,
@@ -83,6 +82,7 @@ object Cluster {
     labels = clusterRequest.labels,
     jupyterExtensionUri = clusterRequest.jupyterExtensionUri)
 
+  /*
    def create(googleProject: GoogleProject, clusterName: ClusterName, labels: LabelMap, googleServiceAccount: GoogleServiceAccount, gcsBucketName: GcsBucketName, jupyterExtensionUri: Option[GcsPath], googleId: UUID, operationName: OperationName): Cluster = {
      Cluster(
        clusterName = clusterName,
@@ -99,6 +99,7 @@ object Cluster {
        labels = labels,
        jupyterExtensionUri = jupyterExtensionUri)
    }
+   */
 
   def getClusterUrl(googleProject: GoogleProject, clusterName: ClusterName): URL = {
     val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())

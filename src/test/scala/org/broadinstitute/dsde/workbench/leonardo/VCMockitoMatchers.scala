@@ -19,6 +19,7 @@ trait VCMockitoMatchers {
   // and also unapply for vcEq
 
   implicit def gcsbnApply: String => GcsBucketName = GcsBucketName.apply
+  implicit def gcsbnUnapply: GcsBucketName => Option[String] = GcsBucketName.unapply
 
   implicit def gpApply: String => GoogleProject = GoogleProject.apply
   implicit def gpUnapply: GoogleProject => Option[String] = GoogleProject.unapply
