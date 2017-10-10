@@ -2,7 +2,7 @@
 
 build() {
     echo "building jupyter docker image..."
-    docker build -t broadinstitute/leonardo-notebooks:$JUPYTER_TAG .
+    docker build -f ./jupyter-docker/Dockerfile -t broadinstitute/leonardo-notebooks:$JUPYTER_TAG .
 }
 
 push() {
