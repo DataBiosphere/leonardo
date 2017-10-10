@@ -72,7 +72,9 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   it should "list clusters" in isolatedDbTest {
     val googleProject = "test-project"
     val clusterName = "test-cluster"
-    val newCluster = ClusterRequest(GcsBucketName("test-bucket-path"), GoogleServiceAccount("test-service-account"), Map.empty, None)
+    val bucketPath = "test-bucket-path"
+    val googleServiceAccount = "test-service-account"
+    val newCluster = ClusterRequest(GcsBucketName(bucketPath), GoogleServiceAccount(googleServiceAccount), Map.empty, None)
     for (i <- 1 to 10) {
       Put(s"/api/cluster/$googleProject/$clusterName-$i", newCluster.toJson) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.OK
@@ -87,7 +89,11 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
         cluster.googleProject shouldEqual GoogleProject("test-project")
         cluster.googleBucket shouldEqual GcsBucketName("test-bucket-path")
         cluster.googleServiceAccount shouldEqual GoogleServiceAccount("test-service-account")
-        cluster.labels shouldEqual Map.empty
+        cluster.labels shouldEqual Map(
+          "googleBucket" -> bucketPath,
+          "clusterName" -> cluster.clusterName,
+          "googleProject" -> googleProject,
+          "serviceAccount" -> googleServiceAccount)
       }
     }
   }
@@ -95,7 +101,9 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   it should "list clusters with labels" in isolatedDbTest {
     val googleProject = "test-project"
     val clusterName = "test-cluster"
-    val newCluster = ClusterRequest(GcsBucketName("test-bucket-path"), GoogleServiceAccount("test-service-account"), Map.empty, None)
+    val bucketPath = "test-bucket-path"
+    val googleServiceAccount = "test-service-account"
+    val newCluster = ClusterRequest(GcsBucketName(bucketPath), GoogleServiceAccount(googleServiceAccount), Map.empty, None)
     for (i <- 1 to 10) {
       Put(s"/api/cluster/$googleProject/$clusterName-$i", newCluster.copy(labels = Map(s"label$i" -> s"value$i")).toJson) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.OK
@@ -107,11 +115,16 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       val responseClusters = responseAs[List[Cluster]]
       responseClusters should have size 1
       val cluster = responseClusters.head
-      cluster.googleProject shouldEqual GoogleProject("test-project")
+      cluster.googleProject shouldEqual GoogleProject(googleProject)
       cluster.clusterName shouldEqual ClusterName("test-cluster-6")
-      cluster.googleBucket shouldEqual GcsBucketName("test-bucket-path")
-      cluster.googleServiceAccount shouldEqual GoogleServiceAccount("test-service-account")
-      cluster.labels shouldEqual Map("label6" -> "value6")
+      cluster.googleBucket shouldEqual GcsBucketName(bucketPath)
+      cluster.googleServiceAccount shouldEqual GoogleServiceAccount(googleServiceAccount)
+      cluster.labels shouldEqual Map(
+        "googleBucket" -> bucketPath,
+        "clusterName" -> "test-cluster-6",
+        "googleProject" -> googleProject,
+        "serviceAccount" -> googleServiceAccount,
+        "label6" -> "value6")
     }
 
     Get("/api/clusters?_labels=label4%3Dvalue4") ~> leoRoutes.route ~> check {
@@ -119,11 +132,15 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       val responseClusters = responseAs[List[Cluster]]
       responseClusters should have size 1
       val cluster = responseClusters.head
-      cluster.googleProject shouldEqual GoogleProject("test-project")
+      cluster.googleProject shouldEqual GoogleProject(googleProject)
       cluster.clusterName shouldEqual ClusterName("test-cluster-4")
       cluster.googleBucket shouldEqual GcsBucketName("test-bucket-path")
       cluster.googleServiceAccount shouldEqual GoogleServiceAccount("test-service-account")
-      cluster.labels shouldEqual Map("label4" -> "value4")
+      cluster.labels shouldEqual Map(cluster.googleBucket -> bucketPath,
+        "clusterName" -> "test-cluster-4",
+        "googleProject" -> googleProject,
+        "serviceAccount" -> googleServiceAccount,
+        "label4" -> "value4")
     }
 
     Get("/api/clusters?_labels=bad") ~> leoRoutes.route ~> check {
