@@ -253,6 +253,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName2 = ClusterName("test-cluster-2")
     val cluster2 = leo.createCluster(googleProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
+    leo.listClusters(Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
     leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
     leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
 
