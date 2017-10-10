@@ -12,7 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat, SerializationException}
-
+import spray.json._
 import scala.language.implicitConversions
 
 // this needs to be a Universal Trait to enable mixin with Value Classes

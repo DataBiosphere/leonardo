@@ -34,6 +34,10 @@ case class JupyterExtensionException(gcsUri: GcsPath)
 case class ParseLabelsException(labelString: String)
   extends LeoException(s"Could not parse label string: $labelString. Expected format [key1=value1,key2=value2,...]", StatusCodes.BadRequest)
 
+case class IllegalLabelKeyException(labelKey: String)
+  extends LeoException(s"Labels cannot have a key of '$labelKey'", StatusCodes.NotAcceptable)
+
+
 class LeonardoService(protected val dataprocConfig: DataprocConfig, protected val clusterResourcesConfig: ClusterResourcesConfig, gdDAO: DataprocDAO, dbRef: DbReference, val clusterMonitorSupervisor: ActorRef)(implicit val executionContext: ExecutionContext) extends LazyLogging {
   val bucketPathMaxLength = 1024
 
@@ -42,7 +46,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, protected va
 
   def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
     def create() = {
-      createGoogleCluster(googleProject, clusterName, clusterRequest) flatMap { case (cluster: Cluster, initBucket: GcsBucketName) =>
+      val clusterRequestWithDefaults = processClusterRequest(googleProject, clusterName, clusterRequest)
+      createGoogleCluster(googleProject, clusterName, clusterRequestWithDefaults) flatMap { case (cluster: Cluster, initBucket: GcsBucketName) =>
         dbRef.inTransaction { dataAccess =>
           dataAccess.clusterQuery.save(cluster, GcsPath(initBucket, GcsRelativePath("")))
         }
@@ -60,6 +65,31 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, protected va
         }
     }
   }
+
+
+  def processClusterRequest(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): ClusterRequest = {
+    // make sure user-provided labels do not have illegal keys
+    // create a LabelMap of default labels
+    val defaultLabels = DefaultLabels(clusterName, googleProject, clusterRequest.bucketPath, clusterRequest.serviceAccount, clusterRequest.jupyterExtensionUri)
+      .toJson.asJsObject.fields.mapValues(labelValue => labelValue.toString.replaceAll("\"", ""))
+
+    val allLabels = clusterRequest.labels ++ defaultLabels
+    checkLabels(allLabels)
+    clusterRequest.copy(labels = allLabels)
+  }
+
+  def checkLabels(labels: LabelMap) = {
+    labels.keys map { key => if (List("", dataprocConfig.includeDeletedKey).contains(key)) throw IllegalLabelKeyException(key)}
+  }
+
+//  def addDefaultLabels(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): ClusterRequest = {
+//    // create a LabelMap of default labels
+//    val defaultLabels = DefaultLabels(clusterName, googleProject, clusterRequest.bucketPath, clusterRequest.serviceAccount, clusterRequest.jupyterExtensionUri)
+//      .toMap.mapValues(labelValue => labelValue.toString.replaceAll("\"", ""))
+//    // create a new cluster request with the added default labels
+//    ClusterRequest(clusterRequest.bucketPath, clusterRequest.serviceAccount, clusterRequest.labels ++ defaultLabels, clusterRequest.jupyterExtensionUri)
+//
+//  }
 
   def getActiveClusterDetails(googleProject: GoogleProject, clusterName: ClusterName): Future[Cluster] = {
     dbRef.inTransaction { dataAccess =>

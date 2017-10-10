@@ -263,8 +263,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       dataAccess.clusterQuery.completeDeletion(cluster3.googleId, clusterName3)
     )
 
-    leo.listClusters(Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
     leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
     leo.listClusters(Map("includeDeleted" -> "true")).futureValue.toSet.size shouldBe 3
   }
 
@@ -286,9 +286,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "throw IllegalLabelKeyException when using a forbidden label" in isolatedDbTest {
+    // cluster should not be allowed to have a label with key of "includeDeleted"
     val includeDeletedResponse = leo.createCluster(googleProject, clusterName, testClusterRequest.copy(labels = Map("includeDeleted" -> "val"))).failed.futureValue
     includeDeletedResponse shouldBe a [IllegalLabelKeyException]
 
+    // cluster should not be allowed to have a label with a key that is an empty string
     val emptyKeyResponse = leo.createCluster(googleProject, clusterName, testClusterRequest.copy(labels = Map("" -> "val"))).failed.futureValue
     emptyKeyResponse shouldBe a [IllegalLabelKeyException]
   }

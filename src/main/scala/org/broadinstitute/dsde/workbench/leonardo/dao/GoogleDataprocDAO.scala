@@ -46,9 +46,6 @@ case class CallToGoogleApiFailedException(googleProject: GoogleProject, context:
 case class FirewallRuleNotFoundException(googleProject: GoogleProject, firewallRuleName: FirewallRuleName)
   extends LeoException(s"Firewall rule ${firewallRuleName.string} not found in project ${googleProject.string}", StatusCodes.NotFound)
 
-case class IllegalLabelKeyException(labelKey: String)
-  extends LeoException(s"Labels cannot have a key of '$labelKey'", StatusCodes.NotAcceptable)
-
 class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected val proxyConfig: ProxyConfig, protected val clusterResourcesConfig: ClusterResourcesConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
   extends DataprocDAO with GoogleUtilities {
 
@@ -109,13 +106,6 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     }
   }
 
-  def getLabels(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): LabelMap = {
-    val defaultLabels = DefaultLabels(clusterName, googleProject, clusterRequest.bucketPath, clusterRequest.serviceAccount, clusterRequest.jupyterExtensionUri)
-      .toJson.asJsObject.fields.mapValues(labelValue => labelValue.toString.replaceAll("\"", ""))
-
-    clusterRequest.labels.keys map {key => if (List("", dataprocConfig.includeDeletedKey).contains(key)) throw IllegalLabelKeyException(key)}
-    clusterRequest.labels ++ defaultLabels
-  }
 
   /* Kicks off building the cluster. This will return before the cluster finishes creating. */
   private def buildCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[DataprocOperation] = {
