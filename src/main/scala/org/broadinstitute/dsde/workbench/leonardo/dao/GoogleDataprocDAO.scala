@@ -97,8 +97,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
 
   override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[LeoCluster] = {
     buildCluster(googleProject, clusterName, clusterRequest, bucketName).map { operation =>
-
-      // Once the cluster creation request is sent to Google, it returns a DataprocOperation, which we transform into a ClusterResponse
+      //Make a Leo cluster from the Google operation details
       LeoCluster.create(clusterRequest, clusterName, googleProject, getOperationUUID(operation), OperationName(operation.getName))
     }
   }

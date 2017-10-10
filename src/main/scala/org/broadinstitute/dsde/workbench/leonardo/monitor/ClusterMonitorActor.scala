@@ -112,11 +112,12 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ShutdownActor
     */
   private def handleReadyCluster(publicIp: IP): Future[ClusterMonitorMessage] = {
+    // Get the init bucket path for this cluster
     val bucketPathFuture = dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getInitBucket(cluster.googleProject, cluster.clusterName.string)
     }
 
-    // First get the init bucket name and delete it
+    // Then delete it
     val deleteBucketFuture = bucketPathFuture flatMap {
       case None => Future.successful( logger.warn(s"Could not lookup bucket for cluster ${cluster.googleProject}/${cluster.clusterName}: cluster not in db") )
       case Some(bucketPath) =>
