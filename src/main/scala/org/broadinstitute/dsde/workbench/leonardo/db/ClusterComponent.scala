@@ -52,8 +52,8 @@ trait ClusterComponent extends LeoComponent {
 
   object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
-    def save(cluster: Cluster, initBucket: String): DBIO[Cluster] = {
-      (clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster, initBucket)) flatMap { clusterId =>
+    def save(cluster: Cluster, initBucket: GcsPath): DBIO[Cluster] = {
+      (clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster, initBucket.toUri)) flatMap { clusterId =>
         labelQuery.saveAllForCluster(clusterId, cluster.labels)
       } map { _ => cluster }
     }
@@ -74,8 +74,12 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
+    def findByName(project: GoogleProject, name: ClusterName) = {
+      clusterQueryWithLabels.filter { _._1.googleProject === project.string }.filter { _._1.clusterName === name.string }
+    }
+
     def getByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
-      clusterQueryWithLabels.filter { _._1.googleProject === project.string }.filter { _._1.clusterName === name.string }.result map { recs =>
+      findByName(project, name).result map { recs =>
         unmarshalClustersWithLabels(recs).headOption
       }
     }
@@ -86,8 +90,12 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    def getInitBucket(project: GoogleProject, name: String): DBIO[Option[GcsPath]] = {
-      clusterQuery.map(_.initBucket).result map { recs =>
+    def getInitBucket(project: GoogleProject, name: ClusterName): DBIO[Option[GcsPath]] = {
+      clusterQuery
+        .filter { _.googleProject === project.string }
+        .filter { _.clusterName === name.string }
+        .map(_.initBucket)
+        .result map { recs =>
         recs.headOption.flatMap(GcsPath.parse(_).toOption)
       }
     }
@@ -153,7 +161,7 @@ trait ClusterComponent extends LeoComponent {
       query.result.map(unmarshalClustersWithLabels)
     }
 
-    /* WARNING: The init bucket is secret to Leo, which means we don't marshal/unmarshal it.
+    /* WARNING: The init bucket is secret to Leo, which means we don't unmarshal it.
      * This function should only be called at cluster creation time, when the init bucket doesn't exist.
      */
     private def marshalCluster(cluster: Cluster, initBucket: String): ClusterRecord = {

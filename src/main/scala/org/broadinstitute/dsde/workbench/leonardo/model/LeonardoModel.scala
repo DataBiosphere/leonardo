@@ -67,7 +67,7 @@ object ClusterStatus extends Enumeration {
 
 
 object Cluster {
-  def create(clusterRequest: ClusterRequest, clusterName: ClusterName, googleProject: GoogleProject, googleId: UUID, operationName: OperationName): Cluster = new Cluster(
+  def create(clusterRequest: ClusterRequest, clusterName: ClusterName, googleProject: GoogleProject, googleId: UUID, operationName: OperationName): Cluster = Cluster(
     clusterName = clusterName,
     googleId = googleId,
     googleProject = googleProject,

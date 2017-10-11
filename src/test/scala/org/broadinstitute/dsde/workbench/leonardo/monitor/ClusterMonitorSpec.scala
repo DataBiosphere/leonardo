@@ -9,7 +9,7 @@ import akka.testkit.TestKit
 import com.typesafe.config.ConfigFactory
 import io.grpc.Status.Code
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, VCMockitoMatchers}
+import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils, VCMockitoMatchers}
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath}
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
@@ -28,7 +28,7 @@ import scala.concurrent.{ExecutionContext, Future}
 /**
   * Created by rtitle on 9/6/17.
   */
-class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll with TestComponent with VCMockitoMatchers with CommonTestData { testKit =>
+class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll with TestComponent with VCMockitoMatchers with CommonTestData with GcsPathUtils { testKit =>
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
 
@@ -80,7 +80,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - cluster is updated in the DB with status Running and the host IP
   // - monitor actor shuts down
   "ClusterMonitorActor" should "monitor until RUNNING state" in isolatedDbTest {
-    dbFutureValue { _.clusterQuery.save(creatingCluster, "gs://bucket") } shouldEqual creatingCluster
+    dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket")) } shouldEqual creatingCluster
 
     val dao = mock[DataprocDAO]
     when {
@@ -114,7 +114,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - monitor actor does not shut down
   Seq(ClusterStatus.Creating, ClusterStatus.Updating, ClusterStatus.Unknown).map { status =>
     it should s"monitor $status status" in isolatedDbTest {
-      dbFutureValue { _.clusterQuery.save(creatingCluster, "gs://bucket") } shouldEqual creatingCluster
+      dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket")) } shouldEqual creatingCluster
 
       val dao = mock[DataprocDAO]
       when {
@@ -140,7 +140,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - cluster is not changed in the DB
   // - monitor actor does not shut down
   it should "keep monitoring in RUNNING state with no IP" in isolatedDbTest {
-    dbFutureValue { _.clusterQuery.save(creatingCluster, "gs://bucket") } shouldEqual creatingCluster
+    dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket")) } shouldEqual creatingCluster
 
     val dao = mock[DataprocDAO]
     when {
@@ -169,7 +169,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - cluster is not changed in the DB
   // - monitor actor does not shut down
   it should "keep monitoring in ERROR state with no error code" in isolatedDbTest {
-    dbFutureValue { _.clusterQuery.save(creatingCluster, "gs://bucket") } shouldEqual creatingCluster
+    dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket")) } shouldEqual creatingCluster
 
     val dao = mock[DataprocDAO]
     when {
@@ -198,7 +198,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - cluster status is set to Error in the DB
   // - monitor actor shuts down
   it should "monitor until ERROR state with no restart" in isolatedDbTest {
-    dbFutureValue { _.clusterQuery.save(creatingCluster, "gs://bucket") } shouldEqual creatingCluster
+    dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket")) } shouldEqual creatingCluster
 
     val dao = mock[DataprocDAO]
     when {
@@ -231,7 +231,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - cluster status is set to Deleted in the DB
   // - monitor actor shuts down
   it should "monitor until DELETED state" in isolatedDbTest {
-    dbFutureValue { _.clusterQuery.save(deletingCluster, "gs://bucket") } shouldEqual deletingCluster
+    dbFutureValue { _.clusterQuery.save(deletingCluster, gcsPath("gs://bucket")) } shouldEqual deletingCluster
 
     val dao = mock[DataprocDAO]
     when {
@@ -258,7 +258,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - new cluster has status Running and the host IP
   // - monitor actor shuts down
   it should "monitor until ERROR state with restart" in isolatedDbTest {
-    dbFutureValue { _.clusterQuery.save(creatingCluster, "gs://bucket") } shouldEqual creatingCluster
+    dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket")) } shouldEqual creatingCluster
 
     val dao = mock[DataprocDAO]
     when {
@@ -347,7 +347,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - cluster is not changed in the DB
   // - monitor actor does not shut down
   it should "not restart a deleting cluster" in isolatedDbTest {
-    dbFutureValue { _.clusterQuery.save(deletingCluster, "gs://bucket") } shouldEqual deletingCluster
+    dbFutureValue { _.clusterQuery.save(deletingCluster, gcsPath("gs://bucket")) } shouldEqual deletingCluster
 
     val dao = mock[DataprocDAO]
     when {

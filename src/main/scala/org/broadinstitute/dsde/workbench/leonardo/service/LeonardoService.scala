@@ -44,7 +44,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     def create() = {
       createGoogleCluster(googleProject, clusterName, clusterRequest) flatMap { case (cluster: Cluster, initBucket: GcsBucketName) =>
         dbRef.inTransaction { dataAccess =>
-          dataAccess.clusterQuery.save(cluster, initBucket.name)
+          dataAccess.clusterQuery.save(cluster, GcsPath(initBucket, GcsRelativePath("")))
         }
       }
     }

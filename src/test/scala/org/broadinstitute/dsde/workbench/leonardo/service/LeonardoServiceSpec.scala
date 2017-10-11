@@ -9,7 +9,7 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, MockGoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
@@ -62,6 +62,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     initFiles.foreach(initFile => gdDAO.bucketObjects should contain (GcsPath(bucketArray.head, initFile)))
     gdDAO.bucketObjects should contain theSameElementsAs (initFiles.map(GcsPath(bucketArray.head, _)))
 
+    val initBucket = dbFutureValue { dataAccess =>
+      dataAccess.clusterQuery.getInitBucket(googleProject, clusterName)
+    }
+    initBucket shouldBe 'defined
   }
 
   it should "create and get a cluster" in isolatedDbTest {
