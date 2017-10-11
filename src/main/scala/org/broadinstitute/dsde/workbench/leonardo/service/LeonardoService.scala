@@ -68,28 +68,16 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, protected va
 
 
   def processClusterRequest(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): ClusterRequest = {
-    // make sure user-provided labels do not have illegal keys
     // create a LabelMap of default labels
     val defaultLabels = DefaultLabels(clusterName, googleProject, clusterRequest.bucketPath, clusterRequest.serviceAccount, clusterRequest.jupyterExtensionUri)
       .toJson.asJsObject.fields.mapValues(labelValue => labelValue.toString.replaceAll("\"", ""))
-
+    // combine default and given labels
     val allLabels = clusterRequest.labels ++ defaultLabels
-    checkLabels(allLabels)
-    clusterRequest.copy(labels = allLabels)
+    // check the labels do not contain forbidden keys
+    if (allLabels.contains(dataprocConfig.includeDeletedKey))
+      throw IllegalLabelKeyException(dataprocConfig.includeDeletedKey)
+    else clusterRequest.copy(labels = allLabels)
   }
-
-  def checkLabels(labels: LabelMap) = {
-    labels.keys map { key => if (List("", dataprocConfig.includeDeletedKey).contains(key)) throw IllegalLabelKeyException(key)}
-  }
-
-//  def addDefaultLabels(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): ClusterRequest = {
-//    // create a LabelMap of default labels
-//    val defaultLabels = DefaultLabels(clusterName, googleProject, clusterRequest.bucketPath, clusterRequest.serviceAccount, clusterRequest.jupyterExtensionUri)
-//      .toMap.mapValues(labelValue => labelValue.toString.replaceAll("\"", ""))
-//    // create a new cluster request with the added default labels
-//    ClusterRequest(clusterRequest.bucketPath, clusterRequest.serviceAccount, clusterRequest.labels ++ defaultLabels, clusterRequest.jupyterExtensionUri)
-//
-//  }
 
   def getActiveClusterDetails(googleProject: GoogleProject, clusterName: ClusterName): Future[Cluster] = {
     dbRef.inTransaction { dataAccess =>

@@ -290,10 +290,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // cluster should not be allowed to have a label with key of "includeDeleted"
     val includeDeletedResponse = leo.createCluster(googleProject, clusterName, testClusterRequest.copy(labels = Map("includeDeleted" -> "val"))).failed.futureValue
     includeDeletedResponse shouldBe a [IllegalLabelKeyException]
-
-    // cluster should not be allowed to have a label with a key that is an empty string
-    val emptyKeyResponse = leo.createCluster(googleProject, clusterName, testClusterRequest.copy(labels = Map("" -> "val"))).failed.futureValue
-    emptyKeyResponse shouldBe a [IllegalLabelKeyException]
   }
 
   it should "list clusters with swagger-style labels" in isolatedDbTest {
