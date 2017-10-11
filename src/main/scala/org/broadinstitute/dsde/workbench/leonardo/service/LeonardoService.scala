@@ -39,7 +39,8 @@ case class IllegalLabelKeyException(labelKey: String)
 
 
 class LeonardoService(protected val dataprocConfig: DataprocConfig, protected val clusterResourcesConfig: ClusterResourcesConfig, gdDAO: DataprocDAO, dbRef: DbReference, val clusterMonitorSupervisor: ActorRef)(implicit val executionContext: ExecutionContext) extends LazyLogging {
-  val bucketPathMaxLength = 1024
+  private val bucketPathMaxLength = 1024
+  private val includeDeletedKey = "includeDeleted"
 
   // Register this instance with the cluster monitor supervisor so our cluster monitor can potentially delete and recreate clusters
   clusterMonitorSupervisor ! RegisterLeoService(this)
@@ -75,8 +76,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, protected va
     // combine default and given labels
     val allLabels = clusterRequest.labels ++ defLabels2
     // check the labels do not contain forbidden keys
-    if (allLabels.contains(dataprocConfig.includeDeletedKey))
-      throw IllegalLabelKeyException(dataprocConfig.includeDeletedKey)
+    if (allLabels.contains(includeDeletedKey))
+      throw IllegalLabelKeyException(includeDeletedKey)
     else clusterRequest.copy(labels = allLabels)
   }
 
@@ -193,8 +194,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, protected va
 
   private[service] def processListClustersParameters(params: LabelMap): Future[(LabelMap, Boolean)] = {
     Future {
-      params.get(dataprocConfig.includeDeletedKey) match {
-        case Some(includeDeletedValue) => (processLabelMap(params - dataprocConfig.includeDeletedKey), includeDeletedValue.toBoolean)
+      params.get(includeDeletedKey) match {
+        case Some(includeDeletedValue) => (processLabelMap(params - includeDeletedKey), includeDeletedValue.toBoolean)
         case None => (processLabelMap(params), false)
       }
     }

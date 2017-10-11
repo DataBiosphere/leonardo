@@ -22,7 +22,6 @@ package object config {
       config.getString("leoGoogleProject"),
       config.getString("dataprocDockerImage"),
       config.getString("jupyterProxyDockerImage"),
-      config.getString("includeDeletedKey"),
       config.getString("clusterUrlBase"),
       config.getString("jupyterServerName"),
       config.getString("proxyServerName"))
