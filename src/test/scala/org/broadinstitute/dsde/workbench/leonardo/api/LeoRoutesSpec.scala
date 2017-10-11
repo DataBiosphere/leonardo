@@ -11,14 +11,10 @@ import spray.json._
 
 class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with TestLeoRoutes with TestComponent {
 
-  private val googleProject = "test-project"
-  private val googleProjectObject = GoogleProject(googleProject)
-  private val clusterName = "test-cluster"
-  private val clusterNameObject = ClusterName(clusterName)
-  private val bucketPath = "test-bucket-path"
-  private val bucketPathObject = GcsBucketName(bucketPath)
-  private val googleServiceAccount = "test-service-account"
-  private val googleServiceAccountObject = GoogleServiceAccount(googleServiceAccount)
+  private val googleProject = GoogleProject("test-project")
+  private val clusterName = ClusterName("test-cluster")
+  private val bucketPath = GcsBucketName("test-bucket-path")
+  private val googleServiceAccount = GoogleServiceAccount("test-service-account")
 
 
   "LeoRoutes" should "200 on ping" in {
@@ -28,17 +24,17 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "200 when creating and getting cluster" in isolatedDbTest {
-    val newCluster = ClusterRequest(bucketPathObject, googleServiceAccountObject, Map.empty, Some(mockGoogleDataprocDAO.extensionPath))
+    val newCluster = ClusterRequest(bucketPath, googleServiceAccount, Map.empty, Some(mockGoogleDataprocDAO.extensionPath))
 
-    Put(s"/api/cluster/$googleProject/$clusterName", newCluster.toJson) ~> leoRoutes.route ~> check {
+    Put(s"/api/cluster/${googleProject.string}/${clusterName.string}", newCluster.toJson) ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
     }
 
-    Get(s"/api/cluster/$googleProject/$clusterName") ~> leoRoutes.route ~> check {
+    Get(s"/api/cluster/${googleProject.string}/${clusterName.string}") ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
       val responseCluster = responseAs[Cluster]
-      responseCluster.googleBucket shouldEqual bucketPathObject
-      responseCluster.googleServiceAccount shouldEqual googleServiceAccountObject
+      responseCluster.googleBucket shouldEqual bucketPath
+      responseCluster.googleServiceAccount shouldEqual googleServiceAccount
       responseCluster.jupyterExtensionUri shouldEqual Some(mockGoogleDataprocDAO.extensionPath)
     }
   }
@@ -50,12 +46,12 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "202 when deleting a cluster" in isolatedDbTest{
-    val newCluster = ClusterRequest(bucketPathObject, googleServiceAccountObject, Map.empty, None)
+    val newCluster = ClusterRequest(bucketPath, googleServiceAccount, Map.empty, None)
 
-    Put(s"/api/cluster/$googleProject/$clusterName", newCluster.toJson) ~> leoRoutes.route ~> check {
+    Put(s"/api/cluster/${googleProject.string}/${clusterName.string}", newCluster.toJson) ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
     }
-    Delete(s"/api/cluster/$googleProject/$clusterName") ~> leoRoutes.route ~> check {
+    Delete(s"/api/cluster/${googleProject.string}/${clusterName.string}") ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
     }
   }
@@ -74,9 +70,9 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "list clusters" in isolatedDbTest {
-    val newCluster = ClusterRequest(bucketPathObject, googleServiceAccountObject, Map.empty, None)
+    val newCluster = ClusterRequest(bucketPath, googleServiceAccount, Map.empty, None)
     for (i <- 1 to 10) {
-      Put(s"/api/cluster/$googleProject/$clusterName-$i", newCluster.toJson) ~> leoRoutes.route ~> check {
+      Put(s"/api/cluster/${googleProject.string}/${clusterName.string}-$i", newCluster.toJson) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.OK
       }
     }
@@ -86,22 +82,22 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       val responseClusters = responseAs[List[Cluster]]
       responseClusters should have size 10
       responseClusters foreach { cluster =>
-        cluster.googleProject shouldEqual googleProjectObject
-        cluster.googleBucket shouldEqual bucketPathObject
-        cluster.googleServiceAccount shouldEqual googleServiceAccountObject
+        cluster.googleProject shouldEqual googleProject
+        cluster.googleBucket shouldEqual bucketPath
+        cluster.googleServiceAccount shouldEqual googleServiceAccount
         cluster.labels shouldEqual Map(
-          "googleBucket" -> bucketPath,
+          "googleBucket" -> bucketPath.name,
           "clusterName" -> cluster.clusterName.string,
-          "googleProject" -> googleProject,
-          "serviceAccount" -> googleServiceAccount)
+          "googleProject" -> googleProject.string,
+          "serviceAccount" -> googleServiceAccount.string)
       }
     }
   }
 
   it should "list clusters with labels" in isolatedDbTest {
-    val newCluster = ClusterRequest(GcsBucketName(bucketPath), GoogleServiceAccount(googleServiceAccount), Map.empty, None)
+    val newCluster = ClusterRequest(bucketPath, googleServiceAccount, Map.empty, None)
     for (i <- 1 to 10) {
-      Put(s"/api/cluster/$googleProject/$clusterName-$i", newCluster.copy(labels = Map(s"label$i" -> s"value$i")).toJson) ~> leoRoutes.route ~> check {
+      Put(s"/api/cluster/${googleProject.string}/${clusterName.string}-$i", newCluster.copy(labels = Map(s"label$i" -> s"value$i")).toJson) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.OK
       }
     }
@@ -111,15 +107,15 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       val responseClusters = responseAs[List[Cluster]]
       responseClusters should have size 1
       val cluster = responseClusters.head
-      cluster.googleProject shouldEqual googleProjectObject
+      cluster.googleProject shouldEqual googleProject
       cluster.clusterName shouldEqual ClusterName("test-cluster-6")
-      cluster.googleBucket shouldEqual GcsBucketName(bucketPath)
-      cluster.googleServiceAccount shouldEqual GoogleServiceAccount(googleServiceAccount)
+      cluster.googleBucket shouldEqual bucketPath
+      cluster.googleServiceAccount shouldEqual googleServiceAccount
       cluster.labels shouldEqual Map(
-        "googleBucket" -> bucketPath,
+        "googleBucket" -> bucketPath.name,
         "clusterName" -> "test-cluster-6",
-        "googleProject" -> googleProject,
-        "serviceAccount" -> googleServiceAccount,
+        "googleProject" -> googleProject.string,
+        "serviceAccount" -> googleServiceAccount.string,
         "label6" -> "value6")
     }
 
@@ -128,15 +124,15 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       val responseClusters = responseAs[List[Cluster]]
       responseClusters should have size 1
       val cluster = responseClusters.head
-      cluster.googleProject shouldEqual googleProjectObject
+      cluster.googleProject shouldEqual googleProject
       cluster.clusterName shouldEqual ClusterName("test-cluster-4")
-      cluster.googleBucket shouldEqual bucketPathObject
-      cluster.googleServiceAccount shouldEqual googleServiceAccountObject
+      cluster.googleBucket shouldEqual bucketPath
+      cluster.googleServiceAccount shouldEqual googleServiceAccount
       cluster.labels shouldEqual Map(
-        "googleBucket" -> bucketPath,
+        "googleBucket" -> bucketPath.name,
         "clusterName" -> "test-cluster-4",
-        "googleProject" -> googleProject,
-        "serviceAccount" -> googleServiceAccount,
+        "googleProject" -> googleProject.string,
+        "serviceAccount" -> googleServiceAccount.string,
         "label4" -> "value4")
     }
 
