@@ -30,14 +30,11 @@ import org.broadinstitute.dsde.workbench.google.GoogleUtilities
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
-import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster => LeoCluster, ClusterErrorDetails, ClusterName, ClusterRequest, DefaultLabels, FirewallRuleName, GoogleProject, GoogleServiceAccount, IP, InstanceName, LeoException, OperationName, ZoneUri, ClusterStatus => LeoClusterStatus}
+import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster => LeoCluster, ClusterErrorDetails, ClusterName, ClusterRequest, FirewallRuleName, GoogleProject, IP, InstanceName, LeoException, OperationName, ZoneUri, ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future, blocking}
-import spray.json._
 
 
 case class CallToGoogleApiFailedException(googleProject: GoogleProject, context: String, exceptionStatusCode: Int, errorMessage: String)
@@ -58,7 +55,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   private lazy val cloudPlatformScopes = List(ComputeScopes.CLOUD_PLATFORM)
   private lazy val storageScopes = List(StorageScopes.DEVSTORAGE_FULL_CONTROL, ComputeScopes.COMPUTE, PlusScopes.USERINFO_EMAIL, PlusScopes.USERINFO_PROFILE)
   private lazy val vmScopes = List(ComputeScopes.COMPUTE, ComputeScopes.CLOUD_PLATFORM)
-  private lazy val serviceAccountPemFile = new File(clusterResourcesConfig.configFolderPath, clusterResourcesConfig.leonardoServicePemName)
+  private lazy val serviceAccountPemFile = clusterResourcesConfig.leonardoServicePem
 
   private lazy val dataproc = {
     new Dataproc.Builder(httpTransport, jsonFactory, getServiceAccountCredential(cloudPlatformScopes))
@@ -79,7 +76,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     new GoogleCredential.Builder()
       .setTransport(httpTransport)
       .setJsonFactory(jsonFactory)
-      .setServiceAccountId(dataprocConfig.serviceAccount)
+      .setServiceAccountId(dataprocConfig.serviceAccount.string)
       .setServiceAccountScopes(scopes.asJava)
       .setServiceAccountPrivateKeyFromPemFile(serviceAccountPemFile)
       .build()
@@ -118,7 +115,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
 
     // Create a NodeInitializationAction, which specifies the executable to run on a node.
     //    This executable is our init-actions.sh, which will stand up our jupyter server and proxy.
-    val initActions = Seq(new NodeInitializationAction().setExecutableFile(GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.initActionsFileName)).toUri))
+    val initActions = Seq(new NodeInitializationAction().setExecutableFile(GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.initActionsFile.getName)).toUri))
 
     // Create a SoftwareConfig and set a property that makes the cluster have only one node
     val softwareConfig = new SoftwareConfig().setProperties(Map("dataproc:dataproc.allow.zero.workers" -> "true").asJava)

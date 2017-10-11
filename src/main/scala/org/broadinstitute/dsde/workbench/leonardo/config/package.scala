@@ -2,8 +2,10 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
+import org.broadinstitute.dsde.workbench.leonardo.model.{GoogleProject, GoogleServiceAccount}
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
-import scala.collection.JavaConverters._
+
+import java.io.File
 
 
 package object config {
@@ -17,9 +19,9 @@ package object config {
   implicit val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
     DataprocConfig(
       config.getString("applicationName"),
-      config.getString("serviceAccount"),
+      GoogleServiceAccount(config.getString("serviceAccount")),
       config.getString("dataprocDefaultRegion"),
-      config.getString("leoGoogleProject"),
+      GoogleProject(config.getString("leoGoogleProject")),
       config.getString("dataprocDockerImage"),
       config.getString("jupyterProxyDockerImage"),
       config.getString("clusterUrlBase"),
@@ -28,18 +30,19 @@ package object config {
   }
 
   implicit val clusterResourcesConfigReader: ValueReader[ClusterResourcesConfig] = ValueReader.relative { config =>
+    val filePrefix = config.getString("configFolderPath")
+
     ClusterResourcesConfig(
-      config.getString("configFolderPath"),
-      config.getString("initActionsFileName"),
-      config.getString("clusterDockerComposeName"),
-      config.getString("leonardoServicePemName"),
-      config.getString("jupyterServerCrtName"),
-      config.getString("jupyterServerKeyName"),
-      config.getString("jupyterRootCaPemName"),
-      config.getString("jupyterRootCaKeyName"),
-      config.getString("proxySiteConf"),
-      config.getString("jupyterInstallExtensionScript"),
-      config.getString("userServiceAccountCredentials"))
+      new File(filePrefix, config.getString("initActionsFileName")),
+      new File(filePrefix, config.getString("clusterDockerComposeName")),
+      new File(filePrefix, config.getString("leonardoServicePemName")),
+      new File(filePrefix, config.getString("jupyterServerCrtName")),
+      new File(filePrefix, config.getString("jupyterServerKeyName")),
+      new File(filePrefix, config.getString("jupyterRootCaPemName")),
+      new File(filePrefix, config.getString("jupyterRootCaKeyName")),
+      new File(filePrefix, config.getString("proxySiteConf")),
+      new File(filePrefix, config.getString("jupyterInstallExtensionScript")),
+      new File(filePrefix, config.getString("userServiceAccountCredentials")))
   }
 
   implicit val liquibaseReader: ValueReader[LiquibaseConfig] = ValueReader.relative { config =>

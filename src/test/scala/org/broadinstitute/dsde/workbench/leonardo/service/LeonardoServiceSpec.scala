@@ -40,9 +40,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     super.afterAll()
   }
 
-  val initFiles = Array(clusterResourcesConfig.clusterDockerComposeName, clusterResourcesConfig.initActionsFileName, clusterResourcesConfig.jupyterServerCrtName,
-    clusterResourcesConfig.jupyterServerKeyName, clusterResourcesConfig.jupyterRootCaPemName, clusterResourcesConfig.jupyterProxySiteConfName, clusterResourcesConfig.jupyterInstallExtensionScript,
-    clusterResourcesConfig.userServiceAccountCredentials) map GcsRelativePath
+  val initFiles = Array(clusterResourcesConfig.clusterDockerCompose, clusterResourcesConfig.initActionsFile, clusterResourcesConfig.jupyterServerCrt,
+    clusterResourcesConfig.jupyterServerKey, clusterResourcesConfig.jupyterRootCaPem, clusterResourcesConfig.jupyterProxySiteConf, clusterResourcesConfig.jupyterInstallExtensionScript,
+    clusterResourcesConfig.userServiceAccountCredentials) map {file => GcsRelativePath(file.getName)}
 
   "LeonardoService" should "create a cluster" in isolatedDbTest {
     // create the cluster
@@ -191,14 +191,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "template a script using config values" in isolatedDbTest {
-    // create the file path for our init actions script
-    val filePath = clusterResourcesConfig.configFolderPath + clusterResourcesConfig.initActionsFileName
-
     // Create replacements map
     val replacements = ClusterInitValues(googleProject, clusterName, bucketPath, dataprocConfig, clusterResourcesConfig, testClusterRequest).toJson.asJsObject.fields
 
     // Each value in the replacement map will replace it's key in the file being processed
-    val result = leo.template(filePath, replacements).futureValue
+    val result = leo.template(clusterResourcesConfig.initActionsFile.getPath, replacements).futureValue
 
     // Check that the values in the bash script file were correctly replaced
     val expected =

@@ -125,16 +125,16 @@ object ClusterInitValues {
       clusterName.string,
       dataprocConfig.dataprocDockerImage,
       dataprocConfig.jupyterProxyDockerImage,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterServerCrtName)).toUri,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterServerKeyName)).toUri,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterRootCaPemName)).toUri,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.clusterDockerComposeName)).toUri,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterProxySiteConfName)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterServerCrt.getName)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterServerKey.getName)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterRootCaPem.getName)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.clusterDockerCompose.getName)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterProxySiteConf.getName)).toUri,
       dataprocConfig.jupyterServerName,
       dataprocConfig.proxyServerName,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterInstallExtensionScript)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterInstallExtensionScript.getName)).toUri,
       clusterRequest.jupyterExtensionUri.map(_.toUri).getOrElse(""),
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.userServiceAccountCredentials)).toUri
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.userServiceAccountCredentials.getName)).toUri
     )
 }
 

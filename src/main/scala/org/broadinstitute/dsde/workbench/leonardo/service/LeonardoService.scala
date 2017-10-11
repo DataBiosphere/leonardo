@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
-import java.io.File
 
 import akka.actor.ActorRef
 import akka.http.scaladsl.model.StatusCodes
@@ -133,7 +132,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, protected va
       // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
       _ <- gdDAO.updateFirewallRule(googleProject)
       // Create the bucket in leo's google bucket and populate with initialization files
-      initBucketPath <- initializeBucket(GoogleProject(dataprocConfig.leoGoogleProject), clusterName, bucketName, clusterRequest)
+      initBucketPath <- initializeBucket(dataprocConfig.leoGoogleProject, clusterName, bucketName, clusterRequest)
       // Once the bucket is ready, build the cluster
       cluster <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, bucketName).andThen { case Failure(e) =>
         // If cluster creation fails, delete the init bucket asynchronously
@@ -168,19 +167,20 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, protected va
 
   /* Process the templated cluster init script and put all initialization files in the init bucket */
   private[service] def initializeBucketObjects(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest): Future[Unit] = {
-    val initScriptPath = clusterResourcesConfig.configFolderPath + clusterResourcesConfig.initActionsFileName
+    val initScript = clusterResourcesConfig.initActionsFile
+
     val replacements = ClusterInitValues(googleProject, clusterName, bucketName, dataprocConfig, clusterResourcesConfig, clusterRequest).toJson.asJsObject.fields
-    val filesToUpload = List(clusterResourcesConfig.jupyterServerCrtName, clusterResourcesConfig.jupyterServerKeyName, clusterResourcesConfig.jupyterRootCaPemName,
-      clusterResourcesConfig.clusterDockerComposeName, clusterResourcesConfig.jupyterProxySiteConfName, clusterResourcesConfig.jupyterInstallExtensionScript,
+    val filesToUpload = List(clusterResourcesConfig.jupyterServerCrt, clusterResourcesConfig.jupyterServerKey, clusterResourcesConfig.jupyterRootCaPem,
+      clusterResourcesConfig.clusterDockerCompose, clusterResourcesConfig.jupyterProxySiteConf, clusterResourcesConfig.jupyterInstallExtensionScript,
       clusterResourcesConfig.userServiceAccountCredentials)
 
     for {
       // Fill in templated fields in the init script with the given replacements
-      content <- template(initScriptPath, replacements)
+      content <- template(clusterResourcesConfig.initActionsFile.getPath, replacements)
       // Upload the init script itself to the bucket
-      _ <- gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.initActionsFileName)), content)
+      _ <- gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.initActionsFile.getName)), content)
       // Upload ancillary files like the certs, cluster docker compose file, site.conf, etc to the init bucket
-      _ <- Future.traverse(filesToUpload)(name => gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(name)), new File(clusterResourcesConfig.configFolderPath, name)))
+      _ <- Future.traverse(filesToUpload)(file => gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(file.getName)), file))
     } yield ()
   }
 

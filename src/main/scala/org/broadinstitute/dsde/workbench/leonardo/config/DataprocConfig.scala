@@ -1,10 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
+import org.broadinstitute.dsde.workbench.leonardo.model.{GoogleProject, GoogleServiceAccount}
+
 case class DataprocConfig(
   applicationName: String,
-  serviceAccount: String,
+  serviceAccount: GoogleServiceAccount,
   dataprocDefaultRegion: String,
-  leoGoogleProject: String,
+  leoGoogleProject: GoogleProject,
   dataprocDockerImage: String,
   jupyterProxyDockerImage: String,
   clusterUrlBase: String,
