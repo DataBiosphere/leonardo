@@ -73,14 +73,14 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterCreateResponse = leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
 
     // get the cluster detail
-    val clusterGetResponse = leo.getClusterDetails(googleProject, clusterName).futureValue
+    val clusterGetResponse = leo.getActiveClusterDetails(googleProject, clusterName).futureValue
 
     // check the create response and get response are the same
     clusterCreateResponse shouldEqual clusterGetResponse
   }
 
   it should "throw ClusterNotFoundException for nonexistent clusters" in isolatedDbTest {
-    whenReady( leo.getClusterDetails(GoogleProject("nonexistent"), ClusterName("cluster")).failed ) { exc =>
+    whenReady( leo.getActiveClusterDetails(GoogleProject("nonexistent"), ClusterName("cluster")).failed ) { exc =>
       exc shouldBe a [ClusterNotFoundException]
     }
   }
@@ -93,6 +93,26 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     whenReady( leo.createCluster(googleProject, clusterName, testClusterRequest).failed ) { exc =>
       exc shouldBe a [ClusterAlreadyExistsException]
     }
+  }
+
+  it should "create two clusters with same name with only one active" in isolatedDbTest {
+    //create first cluster
+    leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
+
+    // check that the cluster was created
+    gdDAO.clusters should contain key (clusterName)
+
+    // delete the cluster
+    val clusterDeleteResponse = leo.deleteCluster(googleProject, clusterName).futureValue
+
+    // the delete response should indicate 1 cluster was deleted
+    clusterDeleteResponse shouldEqual 1
+
+    //recreate cluster with same project and cluster name
+    leo.createCluster(googleProject, clusterName, testClusterRequest).futureValue
+
+    //confirm cluster was created
+    gdDAO.clusters should contain key (clusterName)
   }
 
   it should "delete a cluster" in isolatedDbTest {
