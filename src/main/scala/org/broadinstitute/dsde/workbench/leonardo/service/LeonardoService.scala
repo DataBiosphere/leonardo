@@ -4,7 +4,9 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 import akka.actor.ActorRef
 import akka.http.scaladsl.model.StatusCodes
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig}
+import java.io.File
+
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
@@ -37,7 +39,7 @@ case class IllegalLabelKeyException(labelKey: String)
   extends LeoException(s"Labels cannot have a key of '$labelKey'", StatusCodes.NotAcceptable)
 
 
-class LeonardoService(protected val dataprocConfig: DataprocConfig, protected val clusterResourcesConfig: ClusterResourcesConfig, gdDAO: DataprocDAO, dbRef: DbReference, val clusterMonitorSupervisor: ActorRef)(implicit val executionContext: ExecutionContext) extends LazyLogging {
+class LeonardoService(protected val dataprocConfig: DataprocConfig, protected val clusterResourcesConfig: ClusterResourcesConfig, protected val proxyConfig: ProxyConfig, gdDAO: DataprocDAO, dbRef: DbReference, val clusterMonitorSupervisor: ActorRef)(implicit val executionContext: ExecutionContext) extends LazyLogging {
   private val bucketPathMaxLength = 1024
   private val includeDeletedKey = "includeDeleted"
 
@@ -167,20 +169,18 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, protected va
 
   /* Process the templated cluster init script and put all initialization files in the init bucket */
   private[service] def initializeBucketObjects(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest): Future[Unit] = {
-    val initScript = clusterResourcesConfig.initActionsFile
-
-    val replacements = ClusterInitValues(googleProject, clusterName, bucketName, dataprocConfig, clusterResourcesConfig, clusterRequest).toJson.asJsObject.fields
+    val replacements = ClusterInitValues(googleProject, clusterName, bucketName, clusterRequest, dataprocConfig, clusterResourcesConfig, proxyConfig).toJson.asJsObject.fields
     val filesToUpload = List(clusterResourcesConfig.jupyterServerCrt, clusterResourcesConfig.jupyterServerKey, clusterResourcesConfig.jupyterRootCaPem,
       clusterResourcesConfig.clusterDockerCompose, clusterResourcesConfig.jupyterProxySiteConf, clusterResourcesConfig.jupyterInstallExtensionScript,
       clusterResourcesConfig.userServiceAccountCredentials)
 
     for {
       // Fill in templated fields in the init script with the given replacements
-      content <- template(clusterResourcesConfig.initActionsFile.getPath, replacements)
+      content <- template(clusterResourcesConfig.configFolderPath + clusterResourcesConfig.initActionsScript, replacements)
       // Upload the init script itself to the bucket
-      _ <- gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.initActionsFile.getName)), content)
+      _ <- gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.initActionsScript)), content)
       // Upload ancillary files like the certs, cluster docker compose file, site.conf, etc to the init bucket
-      _ <- Future.traverse(filesToUpload)(file => gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(file.getName)), file))
+      _ <- Future.traverse(filesToUpload)(fileName => gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(fileName)), new File(clusterResourcesConfig.configFolderPath, fileName)))
     } yield ()
   }
 

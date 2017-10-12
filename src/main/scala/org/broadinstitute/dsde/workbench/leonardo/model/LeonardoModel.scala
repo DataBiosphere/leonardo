@@ -12,7 +12,6 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat, SerializationException}
-import spray.json._
 import scala.language.implicitConversions
 
 // this needs to be a Universal Trait to enable mixin with Value Classes
@@ -119,22 +118,23 @@ case class ClusterRequest(bucketPath: GcsBucketName,
 case class ClusterErrorDetails(code: Int, message: Option[String])
 
 object ClusterInitValues {
-  def apply(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, dataprocConfig: DataprocConfig, clusterResourcesConfig: ClusterResourcesConfig, clusterRequest: ClusterRequest): ClusterInitValues =
+  def apply(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest, dataprocConfig: DataprocConfig,
+            clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig): ClusterInitValues =
     ClusterInitValues(
       googleProject.string,
       clusterName.string,
       dataprocConfig.dataprocDockerImage,
-      dataprocConfig.jupyterProxyDockerImage,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterServerCrt.getName)).toUri,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterServerKey.getName)).toUri,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterRootCaPem.getName)).toUri,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.clusterDockerCompose.getName)).toUri,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterProxySiteConf.getName)).toUri,
+      proxyConfig.jupyterProxyDockerImage,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterServerCrt)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterServerKey)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterRootCaPem)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.clusterDockerCompose)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterProxySiteConf)).toUri,
       dataprocConfig.jupyterServerName,
-      dataprocConfig.proxyServerName,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterInstallExtensionScript.getName)).toUri,
+      proxyConfig.proxyServerName,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterInstallExtensionScript)).toUri,
       clusterRequest.jupyterExtensionUri.map(_.toUri).getOrElse(""),
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.userServiceAccountCredentials.getName)).toUri
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.userServiceAccountCredentials)).toUri
     )
 }
 

@@ -23,7 +23,7 @@ trait TestLeoRoutes { this: ScalatestRouteTest =>
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig)
   // Route tests don't currently do cluster monitoring, so use NoopActor
   val clusterMonitorSupervisor = system.actorOf(NoopActor.props)
-  val leonardoService = new LeonardoService(dataprocConfig, clusterResourcesConfig, mockGoogleDataprocDAO, DbSingleton.ref, clusterMonitorSupervisor)
+  val leonardoService = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, mockGoogleDataprocDAO, DbSingleton.ref, clusterMonitorSupervisor)
   val proxyService = new MockProxyService(proxyConfig, DbSingleton.ref)
   val swaggerConfig = SwaggerConfig("", "")
   val leoRoutes = new LeoRoutes(leonardoService, proxyService, swaggerConfig)

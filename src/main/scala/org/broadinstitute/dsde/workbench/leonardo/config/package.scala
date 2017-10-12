@@ -23,26 +23,24 @@ package object config {
       config.getString("dataprocDefaultRegion"),
       GoogleProject(config.getString("leoGoogleProject")),
       config.getString("dataprocDockerImage"),
-      config.getString("jupyterProxyDockerImage"),
       config.getString("clusterUrlBase"),
-      config.getString("jupyterServerName"),
-      config.getString("proxyServerName"))
+      config.getString("jupyterServerName"))
   }
 
   implicit val clusterResourcesConfigReader: ValueReader[ClusterResourcesConfig] = ValueReader.relative { config =>
-    val filePrefix = config.getString("configFolderPath")
 
     ClusterResourcesConfig(
-      new File(filePrefix, config.getString("initActionsFileName")),
-      new File(filePrefix, config.getString("clusterDockerComposeName")),
-      new File(filePrefix, config.getString("leonardoServicePemName")),
-      new File(filePrefix, config.getString("jupyterServerCrtName")),
-      new File(filePrefix, config.getString("jupyterServerKeyName")),
-      new File(filePrefix, config.getString("jupyterRootCaPemName")),
-      new File(filePrefix, config.getString("jupyterRootCaKeyName")),
-      new File(filePrefix, config.getString("proxySiteConf")),
-      new File(filePrefix, config.getString("jupyterInstallExtensionScript")),
-      new File(filePrefix, config.getString("userServiceAccountCredentials")))
+      config.getString("configFolderPath"),
+      config.getString("initActionsScript"),
+      config.getString("clusterDockerCompose"),
+      config.getString("leonardoServicePem"),
+      config.getString("jupyterServerCrt"),
+      config.getString("jupyterServerKey"),
+      config.getString("jupyterRootCaPem"),
+      config.getString("jupyterRootCaKey"),
+      config.getString("proxySiteConf"),
+      config.getString("jupyterInstallExtensionScript"),
+      config.getString("userServiceAccountCredentials"))
   }
 
   implicit val liquibaseReader: ValueReader[LiquibaseConfig] = ValueReader.relative { config =>
@@ -50,7 +48,10 @@ package object config {
   }
 
   implicit val proxyConfigReader: ValueReader[ProxyConfig] = ValueReader.relative { config =>
-    ProxyConfig(config.getString("firewallRuleName"),
+    ProxyConfig(
+      config.getString("jupyterProxyDockerImage"),
+      config.getString("proxyServerName"),
+      config.getString("firewallRuleName"),
       config.getString("firewallVPCNetwork"),
       config.getString("networkTag"),
       config.getInt("jupyterPort"),

@@ -32,7 +32,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   before {
     gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig)
-    leo = new LeonardoService(dataprocConfig, clusterResourcesConfig, gdDAO, DbSingleton.ref, system.actorOf(NoopActor.props))
+    leo = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, gdDAO, DbSingleton.ref, system.actorOf(NoopActor.props))
   }
 
   override def afterAll(): Unit = {
@@ -40,9 +40,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     super.afterAll()
   }
 
-  val initFiles = Array(clusterResourcesConfig.clusterDockerCompose, clusterResourcesConfig.initActionsFile, clusterResourcesConfig.jupyterServerCrt,
+  val initFiles = Array(clusterResourcesConfig.clusterDockerCompose, clusterResourcesConfig.initActionsScript, clusterResourcesConfig.jupyterServerCrt,
     clusterResourcesConfig.jupyterServerKey, clusterResourcesConfig.jupyterRootCaPem, clusterResourcesConfig.jupyterProxySiteConf, clusterResourcesConfig.jupyterInstallExtensionScript,
-    clusterResourcesConfig.userServiceAccountCredentials) map {file => GcsRelativePath(file.getName)}
+    clusterResourcesConfig.userServiceAccountCredentials) map GcsRelativePath
 
   "LeonardoService" should "create a cluster" in isolatedDbTest {
     // create the cluster
@@ -192,10 +192,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "template a script using config values" in isolatedDbTest {
     // Create replacements map
-    val replacements = ClusterInitValues(googleProject, clusterName, bucketPath, dataprocConfig, clusterResourcesConfig, testClusterRequest).toJson.asJsObject.fields
+    val replacements = ClusterInitValues(googleProject, clusterName, bucketPath, testClusterRequest, dataprocConfig, clusterResourcesConfig, proxyConfig).toJson.asJsObject.fields
 
     // Each value in the replacement map will replace it's key in the file being processed
-    val result = leo.template(clusterResourcesConfig.initActionsFile.getPath, replacements).futureValue
+    val result = leo.template(clusterResourcesConfig.configFolderPath + clusterResourcesConfig.initActionsScript, replacements).futureValue
 
     // Check that the values in the bash script file were correctly replaced
     val expected =
@@ -203,7 +203,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
           |
           |"${clusterName.string}"
           |"${googleProject.string}"
-          |"${dataprocConfig.jupyterProxyDockerImage}"
+          |"${proxyConfig.jupyterProxyDockerImage}"
           |"${gdDAO.extensionPath.toUri}"""".stripMargin
 
     result shouldEqual expected
