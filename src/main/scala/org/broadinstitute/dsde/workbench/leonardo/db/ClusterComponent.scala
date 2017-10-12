@@ -53,7 +53,8 @@ trait ClusterComponent extends LeoComponent {
 
   object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
-    private lazy val dummyDate:String = "1970-01-01T00:00:01.000Z"
+    private final val dummyDate:Instant = Instant.ofEpochMilli(1000)
+
     def save(cluster: Cluster, initBucket: GcsPath): DBIO[Cluster] = {
       (clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster, initBucket.toUri)) flatMap { clusterId =>
         labelQuery.saveAllForCluster(clusterId, cluster.labels)
@@ -81,13 +82,21 @@ trait ClusterComponent extends LeoComponent {
     }
 
     def getActiveClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
-      clusterQueryWithLabels.filter { _._1.googleProject === project.string }.filter { _._1.clusterName === name.string }.filter{_._1.destroyedDate === Timestamp.from(Instant.parse(dummyDate))}.result map { recs =>
-        unmarshalClustersWithLabels(recs).headOption
+      clusterQueryWithLabels
+        .filter { _._1.googleProject === project.string }
+        .filter { _._1.clusterName === name.string }
+        .filter{_._1.destroyedDate === Timestamp.from(dummyDate)}
+        .result map { recs =>
+          unmarshalClustersWithLabels(recs).headOption
       }
     }
 
     def getDeletingClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
-      clusterQueryWithLabels.filter { _._1.googleProject === project.string }.filter { _._1.clusterName === name.string }.filter{_._1.status === ClusterStatus.Deleting.toString}.result map { recs =>
+      clusterQueryWithLabels
+        .filter { _._1.googleProject === project.string }
+        .filter { _._1.clusterName === name.string }
+        .filter{_._1.status === ClusterStatus.Deleting.toString}
+        .result map { recs =>
         unmarshalClustersWithLabels(recs).headOption
       }
     }
@@ -111,7 +120,7 @@ trait ClusterComponent extends LeoComponent {
     def markPendingDeletion(googleId: UUID): DBIO[Int] = {
       clusterQuery.filter(_.googleId === googleId)
         .map(c => (c.destroyedDate, c.status, c.hostIp))
-        .update(Timestamp.from(java.time.Instant.now()), ClusterStatus.Deleting.toString, None)
+        .update(Timestamp.from(Instant.now()), ClusterStatus.Deleting.toString, None)
     }
 
     def completeDeletion(googleId: UUID, clusterName: ClusterName): DBIO[Int] = {
@@ -180,7 +189,7 @@ trait ClusterComponent extends LeoComponent {
         cluster.status.toString,
         cluster.hostIp map(_.string),
         Timestamp.from(cluster.createdDate),
-        Timestamp.from(cluster.destroyedDate.getOrElse(Instant.parse(dummyDate))),
+        Timestamp.from(cluster.destroyedDate.getOrElse(dummyDate)),
         cluster.jupyterExtensionUri map(_.toUri),
         initBucket
       )
@@ -220,7 +229,7 @@ trait ClusterComponent extends LeoComponent {
     }
 
     private def getDestroyedDate(destroyedDate:Timestamp): Option[Instant] = {
-      if(destroyedDate.toInstant != Instant.parse((dummyDate)))
+      if(destroyedDate.toInstant != dummyDate)
         Some(destroyedDate.toInstant)
       else
         None

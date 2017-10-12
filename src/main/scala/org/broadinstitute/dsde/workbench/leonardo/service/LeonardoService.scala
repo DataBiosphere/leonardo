@@ -61,12 +61,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     }
   }
 
-  /*def getClusterDetails(googleProject: GoogleProject, clusterName: ClusterName): Future[Cluster] = {
-    dbRef.inTransaction { dataAccess =>
-      getCluster(googleProject, clusterName, dataAccess)
-    }
-  }*/
-
   def getActiveClusterDetails(googleProject: GoogleProject, clusterName: ClusterName): Future[Cluster] = {
     dbRef.inTransaction { dataAccess =>
       getActiveCluster(googleProject, clusterName, dataAccess)
