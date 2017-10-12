@@ -1,4 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
+import java.time.Instant
 
 import java.sql.Timestamp
 import java.util.UUID
@@ -21,7 +22,7 @@ case class ClusterRecord(id: Long,
                          status: String,
                          hostIp: Option[String],
                          createdDate: Timestamp,
-                         destroyedDate: Option[Timestamp],
+                         destroyedDate: Timestamp,
                          jupyterExtensionUri: Option[String],
                          initBucket: String)
 
@@ -41,7 +42,7 @@ trait ClusterComponent extends LeoComponent {
     def status =                column[String]            ("status",                O.Length(254))
     def hostIp =                column[Option[String]]    ("hostIp",                O.Length(254))
     def createdDate =           column[Timestamp]         ("createdDate",           O.SqlType("TIMESTAMP(6)"))
-    def destroyedDate =         column[Option[Timestamp]] ("destroyedDate",         O.SqlType("TIMESTAMP(6)"))
+    def destroyedDate =         column[Timestamp]         ("destroyedDate",         O.SqlType("TIMESTAMP(6)"))
     def jupyterExtensionUri =   column[Option[String]]    ("jupyterExtensionUri",   O.Length(1024))
     def initBucket =            column[String]            ("initBucket",            O.Length(1024))
 
@@ -51,6 +52,8 @@ trait ClusterComponent extends LeoComponent {
   }
 
   object clusterQuery extends TableQuery(new ClusterTable(_)) {
+
+    private final val dummyDate:Instant = Instant.ofEpochMilli(1000)
 
     def save(cluster: Cluster, initBucket: GcsPath): DBIO[Cluster] = {
       (clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster, initBucket.toUri)) flatMap { clusterId =>
@@ -78,8 +81,22 @@ trait ClusterComponent extends LeoComponent {
       clusterQueryWithLabels.filter { _._1.googleProject === project.string }.filter { _._1.clusterName === name.string }
     }
 
-    def getByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
-      findByName(project, name).result map { recs =>
+    def getActiveClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
+      clusterQueryWithLabels
+        .filter { _._1.googleProject === project.string }
+        .filter { _._1.clusterName === name.string }
+        .filter{_._1.destroyedDate === Timestamp.from(dummyDate)}
+        .result map { recs =>
+          unmarshalClustersWithLabels(recs).headOption
+      }
+    }
+
+    def getDeletingClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
+      clusterQueryWithLabels
+        .filter { _._1.googleProject === project.string }
+        .filter { _._1.clusterName === name.string }
+        .filter{_._1.status === ClusterStatus.Deleting.toString}
+        .result map { recs =>
         unmarshalClustersWithLabels(recs).headOption
       }
     }
@@ -103,15 +120,11 @@ trait ClusterComponent extends LeoComponent {
     def markPendingDeletion(googleId: UUID): DBIO[Int] = {
       clusterQuery.filter(_.googleId === googleId)
         .map(c => (c.destroyedDate, c.status, c.hostIp))
-        .update((Option(Timestamp.from(java.time.Instant.now())), ClusterStatus.Deleting.toString, None))
+        .update(Timestamp.from(Instant.now()), ClusterStatus.Deleting.toString, None)
     }
 
     def completeDeletion(googleId: UUID, clusterName: ClusterName): DBIO[Int] = {
-      updateClusterStatus(googleId, ClusterStatus.Deleted) andThen
-        // Append a random suffix to the cluster name to prevent unique key conflicts in case a cluster
-        // with the same name is recreated.
-        // TODO: This is a bit ugly; a better solution would be to have a unique key on (googleId, clusterName, destroyedDate)
-        updateClusterName(googleId, appendRandomSuffix(clusterName.string))
+      updateClusterStatus(googleId, ClusterStatus.Deleted)
     }
 
     def setToRunning(googleId: UUID, hostIp: IP): DBIO[Int] = {
@@ -176,7 +189,7 @@ trait ClusterComponent extends LeoComponent {
         cluster.status.toString,
         cluster.hostIp map(_.string),
         Timestamp.from(cluster.createdDate),
-        cluster.destroyedDate map Timestamp.from,
+        Timestamp.from(cluster.destroyedDate.getOrElse(dummyDate)),
         cluster.jupyterExtensionUri map(_.toUri),
         initBucket
       )
@@ -209,12 +222,18 @@ trait ClusterComponent extends LeoComponent {
         ClusterStatus.withName(clusterRecord.status),
         clusterRecord.hostIp map IP,
         clusterRecord.createdDate.toInstant,
-        clusterRecord.destroyedDate map { _.toInstant },
+        getDestroyedDate(clusterRecord.destroyedDate),
         labels,
         clusterRecord.jupyterExtensionUri flatMap { GcsPath.parse(_).toOption }
       )
     }
 
+    private def getDestroyedDate(destroyedDate:Timestamp): Option[Instant] = {
+      if(destroyedDate.toInstant != dummyDate)
+        Some(destroyedDate.toInstant)
+      else
+        None
+    }
     private def updateClusterName(googleId: UUID, newName: String): DBIO[Int] = {
       clusterQuery.filter { _.googleId === googleId }.map(_.clusterName).update(newName)
     }
