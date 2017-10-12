@@ -3,7 +3,7 @@
     <changeSet logicalFilePath="leonardo" author="hussein" id="cluster-init-bucket">
         <addColumn tableName="CLUSTER">
             <column name="initBucket" type="varchar(1024)">
-                <constraints nullable="false" unique="true"/>
+                <constraints nullable="false"/>
             </column>
         </addColumn>
     </changeSet>
