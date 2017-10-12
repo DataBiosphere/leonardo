@@ -13,3 +13,9 @@ trait CommonTestData {
   val googleServiceAccount = GoogleServiceAccount("not-a-service-acct@google.com")
   val jupyterExtensionUri = Some(GcsPath(GcsBucketName("extension_bucket"), GcsRelativePath("extension_path")))
 }
+
+trait GcsPathUtils {
+  def gcsPath(str: String): GcsPath = {
+    GcsPath.parse(str).right.get
+  }
+}

@@ -5,11 +5,11 @@ import java.time.Instant
 import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
+import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.scalatest.FlatSpecLike
 
-class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTestData {
+class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils {
 
   "ClusterComponent" should "list, save, get, and delete" in isolatedDbTest {
     dbFutureValue { _.clusterQuery.list() } shouldEqual Seq()
@@ -44,8 +44,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       labels = Map.empty,
       jupyterExtensionUri = jupyterExtensionUri)
 
-    dbFutureValue { _.clusterQuery.save(c1) } shouldEqual c1
-    dbFutureValue { _.clusterQuery.save(c2) } shouldEqual c2
+    dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1")) } shouldEqual c1
+    dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2")) } shouldEqual c2
     dbFutureValue { _.clusterQuery.list() } should contain theSameElementsAs Seq(c1, c2)
     dbFutureValue { _.clusterQuery.getByName(c1.googleProject, c1.clusterName) } shouldEqual Some(c1)
     dbFutureValue { _.clusterQuery.getByName(c1.googleProject, c2.clusterName) } shouldEqual Some(c2)
@@ -68,7 +68,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       destroyedDate = None,
       labels = Map.empty,
       jupyterExtensionUri = jupyterExtensionUri)
-    dbFailure { _.clusterQuery.save(c3) } shouldBe a[SQLException]
+    dbFailure { _.clusterQuery.save(c3, gcsPath("gs://bucket3")) } shouldBe a[SQLException]
 
     // googleId unique key test
 
@@ -87,7 +87,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       destroyedDate = None,
       labels = Map.empty,
       jupyterExtensionUri = jupyterExtensionUri)
-    dbFailure { _.clusterQuery.save(c4) } shouldBe a[SQLException]
+    dbFailure { _.clusterQuery.save(c4, gcsPath("gs://bucket4")) } shouldBe a[SQLException]
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(c1.googleId) } shouldEqual 1
     dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq(c2)
@@ -150,9 +150,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       labels = Map("a" -> "b", "bam" -> "yes"),
       jupyterExtensionUri = jupyterExtensionUri)
 
-    dbFutureValue { _.clusterQuery.save(c1) } shouldEqual c1
-    dbFutureValue { _.clusterQuery.save(c2) } shouldEqual c2
-    dbFutureValue { _.clusterQuery.save(c3) } shouldEqual c3
+    dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1")) } shouldEqual c1
+    dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2")) } shouldEqual c2
+    dbFutureValue { _.clusterQuery.save(c3, gcsPath("gs://bucket3")) } shouldEqual c3
 
     dbFutureValue { _.clusterQuery.listByLabels(Map.empty, false) }.toSet shouldEqual Set(c1, c2)
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes"), false) }.toSet shouldEqual Set(c1)
