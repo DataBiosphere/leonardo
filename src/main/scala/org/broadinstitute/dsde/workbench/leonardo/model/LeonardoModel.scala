@@ -67,22 +67,20 @@ object ClusterStatus extends Enumeration {
 
 
 object Cluster {
-   def create(googleProject: GoogleProject, clusterName: ClusterName, labels: LabelMap, googleServiceAccount: GoogleServiceAccount, gcsBucketName: GcsBucketName, jupyterExtensionUri: Option[GcsPath], googleId: UUID, operationName: OperationName): Cluster = {
-     Cluster(
-       clusterName = clusterName,
-       googleId = googleId,
-       googleProject = googleProject,
-       googleServiceAccount = googleServiceAccount,
-       googleBucket = gcsBucketName,
-       clusterUrl = getClusterUrl(googleProject, clusterName),
-       operationName = operationName,
-       status = ClusterStatus.Creating,
-       hostIp = None,
-       createdDate = Instant.now(),
-       destroyedDate = None,
-       labels = labels,
-       jupyterExtensionUri = jupyterExtensionUri)
-   }
+  def create(clusterRequest: ClusterRequest, clusterName: ClusterName, googleProject: GoogleProject, googleId: UUID, operationName: OperationName): Cluster = Cluster(
+    clusterName = clusterName,
+    googleId = googleId,
+    googleProject = googleProject,
+    googleServiceAccount = clusterRequest.serviceAccount,
+    googleBucket = clusterRequest.bucketPath,
+    clusterUrl = getClusterUrl(googleProject, clusterName),
+    operationName = operationName,
+    status = ClusterStatus.Creating,
+    hostIp = None,
+    createdDate = Instant.now(),
+    destroyedDate = None,
+    labels = clusterRequest.labels,
+    jupyterExtensionUri = clusterRequest.jupyterExtensionUri)
 
   def getClusterUrl(googleProject: GoogleProject, clusterName: ClusterName): URL = {
     val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
