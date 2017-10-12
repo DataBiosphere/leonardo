@@ -51,7 +51,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
 
     // Check if the google project has a cluster with the same name. If not, we can create it
     dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.getByName(googleProject, clusterName)
+      dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName)
     } flatMap {
       case Some(_) => throw ClusterAlreadyExistsException(googleProject, clusterName)
       case None =>
@@ -61,14 +61,14 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
     }
   }
 
-  def getClusterDetails(googleProject: GoogleProject, clusterName: ClusterName): Future[Cluster] = {
+  def getActiveClusterDetails(googleProject: GoogleProject, clusterName: ClusterName): Future[Cluster] = {
     dbRef.inTransaction { dataAccess =>
-      getCluster(googleProject, clusterName, dataAccess)
+      getActiveCluster(googleProject, clusterName, dataAccess)
     }
   }
 
   def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName): Future[Int] = {
-    getClusterDetails(googleProject, clusterName) flatMap { cluster =>
+    getActiveClusterDetails(googleProject, clusterName) flatMap { cluster =>
       if(cluster.status.isActive) {
         for {
           _ <- gdDAO.deleteCluster(googleProject, clusterName)
@@ -89,12 +89,15 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, gdDAO: Datap
    }
   }
 
-  private[service] def getCluster(googleProject: GoogleProject, clusterName: ClusterName, dataAccess: DataAccess): DBIO[Cluster] = {
-    dataAccess.clusterQuery.getByName(googleProject, clusterName) flatMap {
+
+  private[service] def getActiveCluster(googleProject: GoogleProject, clusterName: ClusterName, dataAccess: DataAccess): DBIO[Cluster] = {
+    dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName) flatMap {
       case None => throw ClusterNotFoundException(googleProject, clusterName)
       case Some(cluster) => DBIO.successful(cluster)
     }
   }
+
+
 
   /* Creates a cluster in the given google project:
      - Add a firewall rule to the user's google project if it doesn't exist, so we can access the cluster

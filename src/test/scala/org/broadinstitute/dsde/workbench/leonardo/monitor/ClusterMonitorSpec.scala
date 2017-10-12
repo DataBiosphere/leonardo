@@ -98,7 +98,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
 
     expectMsgClass(1 second, classOf[Terminated])
-    val updatedCluster = dbFutureValue { _.clusterQuery.getByName(creatingCluster.googleProject, creatingCluster.clusterName) }
+    val updatedCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName) }
     updatedCluster shouldBe 'defined
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
     updatedCluster.flatMap(_.hostIp) shouldBe Some(IP("1.2.3.4"))
@@ -125,7 +125,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
       expectNoMsg(1 second)
 
-      val updatedCluster = dbFutureValue { _.clusterQuery.getByName(creatingCluster.googleProject, creatingCluster.clusterName) }
+      val updatedCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName) }
       updatedCluster shouldBe 'defined
       updatedCluster shouldBe Some(creatingCluster)
 
@@ -155,7 +155,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     expectNoMsg(1 second)
 
-    val updatedCluster = dbFutureValue { _.clusterQuery.getByName(creatingCluster.googleProject, creatingCluster.clusterName) }
+    val updatedCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName) }
     updatedCluster shouldBe 'defined
     updatedCluster shouldBe Some(creatingCluster)
 
@@ -184,7 +184,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     expectNoMsg(1 second)
 
-    val updatedCluster = dbFutureValue { _.clusterQuery.getByName(creatingCluster.googleProject, creatingCluster.clusterName) }
+    val updatedCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName) }
     updatedCluster shouldBe 'defined
     updatedCluster shouldBe Some(creatingCluster)
 
@@ -216,7 +216,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
 
     expectMsgClass(1 second, classOf[Terminated])
-    val updatedCluster = dbFutureValue { _.clusterQuery.getByName(creatingCluster.googleProject, creatingCluster.clusterName) }
+    val updatedCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName) }
     updatedCluster shouldBe 'defined
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Error)
     updatedCluster.flatMap(_.hostIp) shouldBe None
@@ -327,9 +327,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     oldCluster.map(_.status) shouldBe Some(ClusterStatus.Deleted)
     oldCluster.flatMap(_.hostIp) shouldBe None
 
-    val newCluster = dbFutureValue { _.clusterQuery.getByName(creatingCluster.googleProject, creatingCluster.clusterName) }
+    val newCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName) }
     val newClusterBucket = dbFutureValue { _.clusterQuery.getInitBucket(creatingCluster.googleProject, creatingCluster.clusterName.string) }
-
     newCluster shouldBe 'defined
     newClusterBucket shouldBe 'defined
 
@@ -358,7 +357,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     expectNoMsg(1 second)
 
-    val updatedCluster = dbFutureValue { _.clusterQuery.getByName(deletingCluster.googleProject, deletingCluster.clusterName) }
+    val updatedCluster = dbFutureValue { _.clusterQuery.getDeletingClusterByName(deletingCluster.googleProject, deletingCluster.clusterName) }
     updatedCluster shouldBe 'defined
     updatedCluster shouldBe Some(deletingCluster)
 
