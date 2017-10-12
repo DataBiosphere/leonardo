@@ -72,10 +72,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, protected va
     // create a LabelMap of default labels
     val defaultLabels = DefaultLabels(clusterName, googleProject, clusterRequest.bucketPath, clusterRequest.serviceAccount, clusterRequest.jupyterExtensionUri)
       .toJson.asJsObject.fields.mapValues(labelValue => labelValue.convertTo[String])
-    val defLabels2 = DefaultLabels(clusterName, googleProject, clusterRequest.bucketPath, clusterRequest.serviceAccount, clusterRequest.jupyterExtensionUri)
-      .toJson.asJsObject.fields.mapValues(labelValue => labelValue.convertTo[String])
     // combine default and given labels
-    val allLabels = clusterRequest.labels ++ defLabels2
+    val allLabels = clusterRequest.labels ++ defaultLabels
     // check the labels do not contain forbidden keys
     if (allLabels.contains(includeDeletedKey))
       throw IllegalLabelKeyException(includeDeletedKey)
