@@ -17,7 +17,7 @@ package object config {
     DataprocConfig(config.getString("applicationName"),
       config.getString("serviceAccount"),
       config.getString("dataprocDefaultRegion"),
-      config.getString("leoGoogleBucket"),
+      config.getString("leoGoogleProject"),
       config.getString("dataprocDockerImage"),
       config.getString("jupyterProxyDockerImage"),
       config.getString("clusterFirewallRuleName"),
