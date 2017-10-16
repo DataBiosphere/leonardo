@@ -7,7 +7,7 @@ import com.typesafe.scalalogging.LazyLogging
 import java.io.File
 
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.{DataprocDAO, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
@@ -39,19 +39,26 @@ case class IllegalLabelKeyException(labelKey: String)
   extends LeoException(s"Labels cannot have a key of '$labelKey'", StatusCodes.NotAcceptable)
 
 
-class LeonardoService(protected val dataprocConfig: DataprocConfig, protected val clusterResourcesConfig: ClusterResourcesConfig, protected val proxyConfig: ProxyConfig, gdDAO: DataprocDAO, dbRef: DbReference, val clusterMonitorSupervisor: ActorRef)(implicit val executionContext: ExecutionContext) extends LazyLogging {
+class LeonardoService(protected val dataprocConfig: DataprocConfig,
+                      protected val clusterResourcesConfig: ClusterResourcesConfig,
+                      protected val proxyConfig: ProxyConfig,
+                      protected val gdDAO: DataprocDAO,
+                      protected val dbRef: DbReference,
+                      protected val clusterMonitorSupervisor: ActorRef,
+                      protected val samDAO: SamDAO)
+                     (implicit val executionContext: ExecutionContext) extends LazyLogging {
   private val bucketPathMaxLength = 1024
   private val includeDeletedKey = "includeDeleted"
 
   // Register this instance with the cluster monitor supervisor so our cluster monitor can potentially delete and recreate clusters
   clusterMonitorSupervisor ! RegisterLeoService(this)
 
-  def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
+  def createCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
     def create() = {
-      val clusterRequestWithDefaults = processClusterRequest(googleProject, clusterName, clusterRequest)
-      createGoogleCluster(googleProject, clusterName, clusterRequestWithDefaults) flatMap { case (cluster: Cluster, initBucket: GcsBucketName) =>
+      createGoogleCluster(userInfo, googleProject, clusterName, clusterRequest) flatMap { case (cluster: Cluster, initBucket: GcsBucketName) =>
+        val augmentedCluster = addClusterDefaultLabels(cluster)
         dbRef.inTransaction { dataAccess =>
-          dataAccess.clusterQuery.save(cluster, GcsPath(initBucket, GcsRelativePath("")))
+          dataAccess.clusterQuery.save(augmentedCluster, GcsPath(initBucket, GcsRelativePath("")))
         }
       }
     }
@@ -66,18 +73,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, protected va
           clusterMonitorSupervisor ! ClusterCreated(cluster)
         }
     }
-  }
-
-  def processClusterRequest(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): ClusterRequest = {
-    // create a LabelMap of default labels
-    val defaultLabels = DefaultLabels(clusterName, googleProject, clusterRequest.bucketPath, clusterRequest.serviceAccount, clusterRequest.jupyterExtensionUri)
-      .toJson.asJsObject.fields.mapValues(labelValue => labelValue.convertTo[String])
-    // combine default and given labels
-    val allLabels = clusterRequest.labels ++ defaultLabels
-    // check the labels do not contain forbidden keys
-    if (allLabels.contains(includeDeletedKey))
-      throw IllegalLabelKeyException(includeDeletedKey)
-    else clusterRequest.copy(labels = allLabels)
   }
 
   def getActiveClusterDetails(googleProject: GoogleProject, clusterName: ClusterName): Future[Cluster] = {
@@ -108,7 +103,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, protected va
    }
   }
 
-
   private[service] def getActiveCluster(googleProject: GoogleProject, clusterName: ClusterName, dataAccess: DataAccess): DBIO[Cluster] = {
     dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName) flatMap {
       case None => throw ClusterNotFoundException(googleProject, clusterName)
@@ -116,15 +110,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, protected va
     }
   }
 
-
-
   /* Creates a cluster in the given google project:
      - Add a firewall rule to the user's google project if it doesn't exist, so we can access the cluster
      - Create the initialization bucket for the cluster in the leo google project
      - Upload all the necessary initialization files to the bucket
      - Create the cluster in the google project
    Currently, the bucketPath of the clusterRequest is not used - it will be used later as a place to store notebook results */
-  private[service] def createGoogleCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName)] = {
+  private[service] def createGoogleCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName)] = {
     val bucketName = generateUniqueBucketName(clusterName.string)
     for {
       // Validate that the Jupyter extension URI is a valid URI and references a real GCS object
@@ -133,8 +125,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, protected va
       _ <- gdDAO.updateFirewallRule(googleProject)
       // Create the bucket in leo's google bucket and populate with initialization files
       initBucketPath <- initializeBucket(dataprocConfig.leoGoogleProject, clusterName, bucketName, clusterRequest)
+      // Get the pet service account from sam
+      serviceAccount <- samDAO.getPetServiceAccount(userInfo)
       // Once the bucket is ready, build the cluster
-      cluster <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, bucketName).andThen { case Failure(e) =>
+      cluster <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, bucketName, serviceAccount).andThen { case Failure(_) =>
         // If cluster creation fails, delete the init bucket asynchronously
         gdDAO.deleteBucket(googleProject, bucketName)
       }
@@ -224,5 +218,17 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, protected va
         }
       case None => params
     }
+  }
+
+  private[service] def addClusterDefaultLabels(cluster: Cluster): Cluster = {
+    // create a LabelMap of default labels
+    val defaultLabels = DefaultLabels(cluster.clusterName, cluster.googleProject, cluster.googleBucket, cluster.googleServiceAccount, cluster.jupyterExtensionUri)
+      .toJson.asJsObject.fields.mapValues(labelValue => labelValue.convertTo[String])
+    // combine default and given labels
+    val allLabels = cluster.labels ++ defaultLabels
+    // check the labels do not contain forbidden keys
+    if (allLabels.contains(includeDeletedKey))
+      throw IllegalLabelKeyException(includeDeletedKey)
+    else cluster.copy(labels = allLabels)
   }
 }

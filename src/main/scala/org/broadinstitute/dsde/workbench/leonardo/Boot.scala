@@ -8,7 +8,7 @@ import com.typesafe.scalalogging.LazyLogging
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.api.{LeoRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SwaggerConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.GoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.{GoogleDataprocDAO, HttpSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus
@@ -54,8 +54,9 @@ object Boot extends App with LazyLogging {
     }
 
     val gdDAO = new GoogleDataprocDAO(dataprocConfig, proxyConfig, clusterResourcesConfig)
+    val samDAO = new HttpSamDAO("todo")
     val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, gdDAO, dbRef))
-    val leonardoService = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, gdDAO, dbRef, clusterMonitorSupervisor)
+    val leonardoService = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, gdDAO, dbRef, clusterMonitorSupervisor, samDAO)
     val clusterDnsCache = system.actorOf(ClusterDnsCache.props(proxyConfig, dbRef))
     val proxyService = new ProxyService(proxyConfig, gdDAO, dbRef, clusterDnsCache)
     val leoRoutes = new LeoRoutes(leonardoService, proxyService, config.as[SwaggerConfig]("swagger"), whitelistConfig) with StandardUserInfoDirectives

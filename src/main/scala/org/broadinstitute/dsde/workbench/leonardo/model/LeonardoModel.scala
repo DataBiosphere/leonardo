@@ -11,7 +11,10 @@ import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, Gcs
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
+import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail
+import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat, SerializationException}
+
 import scala.language.implicitConversions
 
 // this needs to be a Universal Trait to enable mixin with Value Classes
@@ -66,11 +69,11 @@ object ClusterStatus extends Enumeration {
 
 
 object Cluster {
-  def create(clusterRequest: ClusterRequest, clusterName: ClusterName, googleProject: GoogleProject, googleId: UUID, operationName: OperationName): Cluster = Cluster(
+  def create(clusterRequest: ClusterRequest, clusterName: ClusterName, googleProject: GoogleProject, googleId: UUID, operationName: OperationName, serviceAccount: WorkbenchUserServiceAccountEmail): Cluster = Cluster(
     clusterName = clusterName,
     googleId = googleId,
     googleProject = googleProject,
-    googleServiceAccount = clusterRequest.serviceAccount,
+    googleServiceAccount = serviceAccount,
     googleBucket = clusterRequest.bucketPath,
     clusterUrl = getClusterUrl(googleProject, clusterName),
     operationName = operationName,
@@ -91,13 +94,13 @@ object Cluster {
 case class DefaultLabels(clusterName: ClusterName,
                          googleProject: GoogleProject,
                          googleBucket: GcsBucketName,
-                         serviceAccount: GoogleServiceAccount,
+                         serviceAccount: WorkbenchUserServiceAccountEmail,
                          notebookExtension: Option[GcsPath])
 
 case class Cluster(clusterName: ClusterName,
                    googleId: UUID,
                    googleProject: GoogleProject,
-                   googleServiceAccount: GoogleServiceAccount,
+                   googleServiceAccount: WorkbenchUserServiceAccountEmail,
                    googleBucket: GcsBucketName,
                    clusterUrl: URL,
                    operationName: OperationName,
@@ -111,7 +114,6 @@ case class Cluster(clusterName: ClusterName,
 }
 
 case class ClusterRequest(bucketPath: GcsBucketName,
-                          serviceAccount: GoogleServiceAccount,
                           labels: LabelMap,
                           jupyterExtensionUri: Option[GcsPath])
 
@@ -243,14 +245,13 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   }
 
   implicit val googleProjectFormat = StringValueClassFormat(GoogleProject.apply, GoogleProject.unapply)
-  implicit val googleServiceAccountFormat = StringValueClassFormat(GoogleServiceAccount, GoogleServiceAccount.unapply)
   implicit val clusterNameFormat = StringValueClassFormat(ClusterName, ClusterName.unapply)
   implicit val operationNameFormat = StringValueClassFormat(OperationName, OperationName.unapply)
   implicit val ipFormat = StringValueClassFormat(IP, IP.unapply)
   implicit val firewallRuleNameFormat = StringValueClassFormat(FirewallRuleName, FirewallRuleName.unapply)
 
   implicit val clusterFormat = jsonFormat13(Cluster.apply)
-  implicit val clusterRequestFormat = jsonFormat4(ClusterRequest)
-  implicit val clusterInitValuesFormat = jsonFormat13(ClusterInitValues.apply)
+  implicit val clusterRequestFormat = jsonFormat3(ClusterRequest)
+  implicit val clusterInitValuesFormat = jsonFormat14(ClusterInitValues.apply)
   implicit val defaultLabelsFormat = jsonFormat5(DefaultLabels.apply)
 }
