@@ -5,8 +5,8 @@ import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.{Authorization, OAuth2BearerToken}
-import akka.http.scaladsl.server.Directives.{complete, path, _}
-import akka.http.scaladsl.server.{RejectionError, Route}
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.broadinstitute.dsde.workbench.leonardo.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserId, WorkbenchUserServiceAccountEmail}
@@ -72,5 +72,12 @@ class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll with 
     val exception = dao.getPetServiceAccount(otherUserInfo).failed.futureValue
     exception shouldBe a [CallToSamFailedException]
     exception.asInstanceOf[CallToSamFailedException].status shouldBe StatusCodes.BadRequest
+  }
+
+  it should "fail gracefully" in {
+    val badDao = new HttpSamDAO("http://localhost:9091")
+    val exception = badDao.getPetServiceAccount(defaultUserInfo).failed.futureValue
+    exception shouldBe a [CallToSamFailedException]
+    exception.asInstanceOf[CallToSamFailedException].status shouldBe StatusCodes.InternalServerError
   }
 }

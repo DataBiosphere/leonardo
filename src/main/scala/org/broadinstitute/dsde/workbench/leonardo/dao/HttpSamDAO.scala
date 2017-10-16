@@ -14,12 +14,10 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
 import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail
 import org.broadinstitute.dsde.workbench.util.health.StatusJsonSupport._
 import org.broadinstitute.dsde.workbench.util.health.SubsystemStatus
-
-import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 
-case class CallToSamFailedException(responseEntity: String, status: StatusCode)
-  extends LeoException(s"Call to sam failed. Response entity: $responseEntity", status)
+case class CallToSamFailedException(uri: Uri, status: StatusCode, msg: String)
+  extends LeoException(s"Call to Sam endpoint [${uri.path}] failed with status $status. Message: $msg", status)
 
 /**
   * Created by rtitle on 10/16/17.
@@ -31,7 +29,7 @@ class HttpSamDAO(val baseSamServiceURL: String)(implicit system: ActorSystem, ma
 
   override def getStatus(): Future[SubsystemStatus] = {
     val uri = Uri(samServiceURL + "/status")
-    http.singleRequest(HttpRequest(GET, uri = uri)).flatMap {
+    executeSamRequest(HttpRequest(GET, uri)).flatMap {
       case HttpResponse(OK, _, entity, _) =>
         Unmarshal(entity).to[SubsystemStatus]
       case HttpResponse(status, _, entity, _) =>
@@ -42,15 +40,25 @@ class HttpSamDAO(val baseSamServiceURL: String)(implicit system: ActorSystem, ma
 
   override def getPetServiceAccount(userInfo: UserInfo): Future[WorkbenchUserServiceAccountEmail] = {
     val uri = Uri(samServiceURL + "/api/user/petServiceAccount")
-    http.singleRequest(HttpRequest(GET, uri = uri, headers = immutable.Seq(authHeader(userInfo)))).flatMap {
+    executeSamRequestAsUser(HttpRequest(GET, uri), userInfo).flatMap {
       case HttpResponse(OK, _, entity, _) =>
         Unmarshal(entity).to[WorkbenchUserServiceAccountEmail]
       case HttpResponse(status, _, entity, _) =>
         Unmarshal(entity).to[String].flatMap { entityAsString =>
-          Future.failed(CallToSamFailedException(entityAsString, status))
+          Future.failed(CallToSamFailedException(uri, status, entityAsString))
         }
     }
   }
 
   private def authHeader(userInfo: UserInfo): HttpHeader = Authorization(userInfo.accessToken)
+
+  private def executeSamRequest(httpRequest: HttpRequest): Future[HttpResponse] = {
+    http.singleRequest(httpRequest) recover { case t: Throwable =>
+      throw CallToSamFailedException(httpRequest.uri, StatusCodes.InternalServerError, t.getMessage)
+    }
+  }
+
+  private def executeSamRequestAsUser(httpRequest: HttpRequest, userInfo: UserInfo): Future[HttpResponse] = {
+    executeSamRequest(httpRequest.copy(headers = httpRequest.headers :+ authHeader(userInfo)))
+  }
 }
