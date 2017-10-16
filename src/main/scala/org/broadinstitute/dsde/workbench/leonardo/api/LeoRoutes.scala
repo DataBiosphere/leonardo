@@ -21,7 +21,7 @@ import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionW
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxyService, val swaggerConfig: SwaggerConfig)(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext) extends LazyLogging with ProxyRoutes with SwaggerRoutes {
+abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxyService, val swaggerConfig: SwaggerConfig)(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext) extends LazyLogging with ProxyRoutes with SwaggerRoutes with UserInfoDirectives {
 
   def unauthedRoutes: Route =
     path("ping") {
@@ -36,11 +36,13 @@ class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxySer
 
   def leoRoutes: Route =
     path("cluster" / Segment / Segment) { (googleProject, clusterName) =>
-      put {
-        entity(as[ClusterRequest]) { cluster =>
-          complete {
-            leonardoService.createCluster(GoogleProject(googleProject), ClusterName(clusterName), cluster).map { cluster =>
-              StatusCodes.OK -> cluster
+      requireUserInfo { userInfo =>
+        put {
+          entity(as[ClusterRequest]) { cluster =>
+            complete {
+              leonardoService.createCluster(GoogleProject(googleProject), ClusterName(clusterName), cluster).map { cluster =>
+                StatusCodes.OK -> cluster
+              }
             }
           }
         }
@@ -61,10 +63,12 @@ class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxySer
       }
   } ~
   path("clusters") {
-    parameterMap { params =>
-      complete {
-        leonardoService.listClusters(params).map { clusters =>
-          StatusCodes.OK -> clusters
+    requireUserInfo { userInfo =>
+      parameterMap { params =>
+        complete {
+          leonardoService.listClusters(params).map { clusters =>
+            StatusCodes.OK -> clusters
+          }
         }
       }
     }
