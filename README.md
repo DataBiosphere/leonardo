@@ -1,9 +1,29 @@
 [![Build Status](https://travis-ci.org/broadinstitute/leonardo.svg?branch=develop)](https://travis-ci.org/broadinstitute/leonardo) [![Coverage Status](https://coveralls.io/repos/github/broadinstitute/leonardo/badge.svg?branch=develop)](https://coveralls.io/github/broadinstitute/leonardo?branch=develop)
 
 # leonardo
-Notebook service
+Notebook service for Workbench
 
-## Building service
+## Getting started
+Clone the repo.
+```
+$ git clone https://github.com/broadinstitute/leonardo.git
+$ cd leonardo
+```
+Ensure docker is running. Spin up MySQL locally:
+```
+$ ./docker/run-mysql.sh start leonardo
+```
+Build Leonardo and run tests.
+```
+export SBT_OPTS="-Xmx2G -Xms1G -Dmysql.host=localhost -Dmysql.port=3311"
+sbt clean compile test
+```
+Once you're done, tear down MySQL.
+```
+./docker/run-mysql.sh stop leonardo
+```
+
+## Building Leonardo docker image
 
 To install git-secrets
 ```$xslt
