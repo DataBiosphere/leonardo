@@ -42,6 +42,7 @@ object Boot extends App with LazyLogging {
     val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
     val monitorConfig = config.as[MonitorConfig]("monitor")
     val whitelistConfig = config.as[(Set[String])]("whitelist").map(WorkbenchUserEmail(_))
+    val samConfig = config.as[SamConfig]("sam")
 
     // we need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")
@@ -54,7 +55,7 @@ object Boot extends App with LazyLogging {
     }
 
     val gdDAO = new GoogleDataprocDAO(dataprocConfig, proxyConfig, clusterResourcesConfig)
-    val samDAO = new HttpSamDAO("todo")
+    val samDAO = new HttpSamDAO(samConfig.server)
     val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, gdDAO, dbRef))
     val leonardoService = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, gdDAO, dbRef, clusterMonitorSupervisor, samDAO)
     val clusterDnsCache = system.actorOf(ClusterDnsCache.props(proxyConfig, dbRef))
