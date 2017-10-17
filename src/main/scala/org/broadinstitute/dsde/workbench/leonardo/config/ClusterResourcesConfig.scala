@@ -10,6 +10,5 @@ case class ClusterResourcesConfig(
                                    jupyterRootCaPem: String,
                                    jupyterRootCaKey: String,
                                    jupyterProxySiteConf: String,
-                                   jupyterInstallExtensionScript: String,
-                                   userServiceAccountCredentials: String
+                                   jupyterInstallExtensionScript: String
                                  )

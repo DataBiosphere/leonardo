@@ -45,19 +45,19 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
               }
             }
           }
-        }
-      } ~
-      get {
-        complete {
-          leonardoService.getActiveClusterDetails(GoogleProject(googleProject), ClusterName(clusterName)). map { clusterDetails =>
-            StatusCodes.OK -> clusterDetails
+        } ~
+        get {
+          complete {
+            leonardoService.getActiveClusterDetails(GoogleProject(googleProject), ClusterName(clusterName)).map { clusterDetails =>
+              StatusCodes.OK -> clusterDetails
+            }
           }
-        }
-      } ~
-      delete {
-        complete {
-          leonardoService.deleteCluster(GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
-            StatusCodes.Accepted
+        } ~
+        delete {
+          complete {
+            leonardoService.deleteCluster(GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
+              StatusCodes.Accepted
+            }
           }
         }
       }
