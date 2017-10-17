@@ -169,8 +169,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig, protected va
   private[service] def initializeBucketObjects(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest): Future[Unit] = {
     val replacements = ClusterInitValues(googleProject, clusterName, bucketName, clusterRequest, dataprocConfig, clusterResourcesConfig, proxyConfig).toJson.asJsObject.fields
     val filesToUpload = List(clusterResourcesConfig.jupyterServerCrt, clusterResourcesConfig.jupyterServerKey, clusterResourcesConfig.jupyterRootCaPem,
-      clusterResourcesConfig.clusterDockerCompose, clusterResourcesConfig.jupyterProxySiteConf, clusterResourcesConfig.jupyterInstallExtensionScript,
-      clusterResourcesConfig.userServiceAccountCredentials)
+      clusterResourcesConfig.clusterDockerCompose, clusterResourcesConfig.jupyterProxySiteConf, clusterResourcesConfig.jupyterInstallExtensionScript)
 
     for {
       // Fill in templated fields in the init script with the given replacements

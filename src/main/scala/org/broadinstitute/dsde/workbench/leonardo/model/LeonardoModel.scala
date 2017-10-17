@@ -133,8 +133,7 @@ object ClusterInitValues {
       dataprocConfig.jupyterServerName,
       proxyConfig.proxyServerName,
       GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterInstallExtensionScript)).toUri,
-      clusterRequest.jupyterExtensionUri.map(_.toUri).getOrElse(""),
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.userServiceAccountCredentials)).toUri
+      clusterRequest.jupyterExtensionUri.map(_.toUri).getOrElse("")
     )
 }
 
@@ -152,8 +151,7 @@ case class ClusterInitValues(googleProject: String,
                              jupyterServerName: String,
                              proxyServerName: String,
                              jupyterInstallExtensionScript: String,
-                             jupyterExtensionUri: String,
-                             userServiceAccountCredentialsUri: String)
+                             jupyterExtensionUri: String)
 
 
 object FirewallRuleRequest {
@@ -253,6 +251,6 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val clusterFormat = jsonFormat13(Cluster.apply)
   implicit val clusterRequestFormat = jsonFormat4(ClusterRequest)
-  implicit val clusterInitValuesFormat = jsonFormat14(ClusterInitValues.apply)
+  implicit val clusterInitValuesFormat = jsonFormat13(ClusterInitValues.apply)
   implicit val defaultLabelsFormat = jsonFormat5(DefaultLabels.apply)
 }
