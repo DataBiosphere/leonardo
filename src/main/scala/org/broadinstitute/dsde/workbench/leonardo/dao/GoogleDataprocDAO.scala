@@ -23,7 +23,6 @@ import com.google.api.services.dataproc.Dataproc
 import com.google.api.services.dataproc.model.{Cluster => DataprocCluster, Operation => DataprocOperation, _}
 import com.google.api.services.oauth2.Oauth2Scopes
 import com.google.api.services.oauth2.Oauth2.Builder
-import com.google.api.services.oauth2.model.Userinfoplus
 import com.google.api.services.plus.PlusScopes
 import com.google.api.services.storage.model.Bucket.Lifecycle
 import com.google.api.services.storage.model.Bucket.Lifecycle.Rule.{Action, Condition}
@@ -92,9 +91,8 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
 
   def getEmailFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[String] = {
     val oauth2 = new Builder(httpTransport, jsonFactory, null).setApplicationName(dataprocConfig.applicationName).build()
-    //val request = oauth2.userinfo().get().setOauthToken(accessToken)
     val request = oauth2.tokeninfo().setAccessToken(accessToken)
-    for { userInfo <- executeGoogleRequestAsync(GoogleProject(""), "", request) } yield userInfo.getEmail
+    for { userInfo <- executeGoogleRequestAsync(GoogleProject(""), "cookie auth", request) } yield userInfo.getEmail
   }
 
   private lazy val googleFirewallRule = {
@@ -136,7 +134,6 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     val clusterConfig = new ClusterConfig()
       .setGceClusterConfig(gce)
       .setInitializationActions(initActions.asJava).setSoftwareConfig(softwareConfig)
-      //.setWorkerConfig(new InstanceGroupConfig().setNumInstances(3)) ~~~ configurable clusters
 
     // Create a Cluster and give it a name and a Cluster Config
     val cluster = new DataprocCluster()

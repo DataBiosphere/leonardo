@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 import java.io.File
 import java.util.UUID
 
-import com.google.api.services.oauth2.model.Userinfoplus
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
@@ -25,7 +24,7 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
   private def googleID = UUID.randomUUID()
 
   def getEmailFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[String] = {
-    Future{"email@email.com"}
+    Future{"test@email.com"}
   }
 
   override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[Cluster] = {

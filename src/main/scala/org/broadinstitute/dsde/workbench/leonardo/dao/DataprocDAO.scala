@@ -1,8 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import java.io.File
-
-import com.google.api.services.oauth2.model.Userinfoplus
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model._

@@ -19,7 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, ClusterReq
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService}
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchEmail, WorkbenchExceptionWithErrorReport}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -42,7 +42,6 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
     }
 
   def leoRoutes: Route =
-    //getUserEmail() { (userEmail, whitelisted) =>
     requireUserInfo { userInfo =>
       if (whitelist.contains(userInfo.userEmail.value)) {
         path("cluster" / Segment / Segment) { (googleProject, clusterName) =>
