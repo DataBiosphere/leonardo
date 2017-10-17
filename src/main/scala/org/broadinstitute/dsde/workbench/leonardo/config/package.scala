@@ -5,9 +5,6 @@ import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.leonardo.model.{GoogleProject, GoogleServiceAccount}
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 
-import java.io.File
-
-
 package object config {
   implicit val swaggerReader: ValueReader[SwaggerConfig] = ValueReader.relative { config =>
     SwaggerConfig(
@@ -39,8 +36,7 @@ package object config {
       config.getString("jupyterRootCaPem"),
       config.getString("jupyterRootCaKey"),
       config.getString("proxySiteConf"),
-      config.getString("jupyterInstallExtensionScript"),
-      config.getString("userServiceAccountCredentials"))
+      config.getString("jupyterInstallExtensionScript"))
   }
 
   implicit val liquibaseReader: ValueReader[LiquibaseConfig] = ValueReader.relative { config =>

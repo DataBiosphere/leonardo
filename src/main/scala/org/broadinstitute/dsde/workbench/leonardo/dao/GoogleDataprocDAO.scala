@@ -21,6 +21,7 @@ import com.google.api.services.compute.model.{Firewall, Instance}
 import com.google.api.services.compute.{Compute, ComputeScopes}
 import com.google.api.services.dataproc.Dataproc
 import com.google.api.services.dataproc.model.{Cluster => DataprocCluster, Operation => DataprocOperation, _}
+import com.google.api.services.oauth2.Oauth2Scopes
 import com.google.api.services.plus.PlusScopes
 import com.google.api.services.storage.model.Bucket.Lifecycle
 import com.google.api.services.storage.model.Bucket.Lifecycle.Rule.{Action, Condition}
@@ -30,7 +31,7 @@ import org.broadinstitute.dsde.workbench.google.GoogleUtilities
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster => LeoCluster, ClusterErrorDetails, ClusterName, ClusterRequest, FirewallRuleName, GoogleProject, IP, InstanceName, LeoException, OperationName, ZoneUri, ClusterStatus => LeoClusterStatus}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterName, ClusterRequest, FirewallRuleName, GoogleProject, IP, InstanceName, LeoException, OperationName, ZoneUri, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 
 import scala.collection.JavaConverters._
@@ -55,6 +56,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   private lazy val cloudPlatformScopes = List(ComputeScopes.CLOUD_PLATFORM)
   private lazy val storageScopes = List(StorageScopes.DEVSTORAGE_FULL_CONTROL, ComputeScopes.COMPUTE, PlusScopes.USERINFO_EMAIL, PlusScopes.USERINFO_PROFILE)
   private lazy val vmScopes = List(ComputeScopes.COMPUTE, ComputeScopes.CLOUD_PLATFORM)
+  private lazy val oauth2Scopes = List(Oauth2Scopes.USERINFO_EMAIL, Oauth2Scopes.USERINFO_PROFILE)
   private lazy val serviceAccountPemFile = new File(clusterResourcesConfig.configFolderPath, clusterResourcesConfig.leonardoServicePem)
 
   private lazy val dataproc = {
@@ -111,6 +113,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     //   Set the network tag, which is needed by the firewall rule that allows leo to talk to the cluster
     val gce = new GceClusterConfig()
       .setServiceAccount(clusterRequest.serviceAccount.string)
+      .setServiceAccountScopes(oauth2Scopes.asJava)
       .setTags(List(proxyConfig.networkTag).asJava)
 
     // Create a NodeInitializationAction, which specifies the executable to run on a node.
