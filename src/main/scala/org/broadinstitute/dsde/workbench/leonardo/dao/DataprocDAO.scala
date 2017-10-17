@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import java.io.File
 
+import com.google.api.services.oauth2.model.Userinfoplus
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -30,4 +31,6 @@ trait DataprocDAO {
   def getClusterErrorDetails(operationName: OperationName)(implicit executionContext: ExecutionContext): Future[Option[ClusterErrorDetails]]
 
   def deleteBucket(googleProject: GoogleProject, gcsBucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[Unit]
+
+  def getEmailFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[String]
 }
