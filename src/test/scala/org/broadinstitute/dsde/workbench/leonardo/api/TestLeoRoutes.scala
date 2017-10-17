@@ -22,9 +22,11 @@ trait TestLeoRoutes { this: ScalatestRouteTest =>
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
   val whitelistConfig = config.as[(Set[String])]("whitelist").map(WorkbenchUserEmail(_))
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig)
+  val mockSamDAO = new MockSamDAO
+
   // Route tests don't currently do cluster monitoring, so use NoopActor
   val clusterMonitorSupervisor = system.actorOf(NoopActor.props)
-  val leonardoService = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, mockGoogleDataprocDAO, DbSingleton.ref, clusterMonitorSupervisor)
+  val leonardoService = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, mockGoogleDataprocDAO, DbSingleton.ref, clusterMonitorSupervisor, mockSamDAO)
   val proxyService = new MockProxyService(proxyConfig, mockGoogleDataprocDAO, DbSingleton.ref)
   val swaggerConfig = SwaggerConfig("", "")
   val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchUserEmail("user1@example.com"), 0)

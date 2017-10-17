@@ -14,6 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMa
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted, RegisterLeoService}
 import org.broadinstitute.dsde.workbench.google.gcs._
+import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail
 import slick.dbio.DBIO
 import spray.json._
 
@@ -54,22 +55,25 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   clusterMonitorSupervisor ! RegisterLeoService(this)
 
   def createCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
-    def create() = {
-      createGoogleCluster(userInfo, googleProject, clusterName, clusterRequest) flatMap { case (cluster: Cluster, initBucket: GcsBucketName) =>
-        val augmentedCluster = addClusterDefaultLabels(cluster)
-        dbRef.inTransaction { dataAccess =>
-          dataAccess.clusterQuery.save(augmentedCluster, GcsPath(initBucket, GcsRelativePath("")))
-        }
-      }
+    samDAO.getPetServiceAccount(userInfo).flatMap { serviceAccount =>
+      createCluster(serviceAccount, googleProject, clusterName, clusterRequest)
     }
+  }
 
+  def createCluster(serviceAccount: WorkbenchUserServiceAccountEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
     // Check if the google project has a cluster with the same name. If not, we can create it
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName)
     } flatMap {
       case Some(_) => throw ClusterAlreadyExistsException(googleProject, clusterName)
       case None =>
-        create andThen { case Success(cluster) =>
+        createGoogleCluster(serviceAccount, googleProject, clusterName, clusterRequest).flatMap { case (cluster, initBucket) =>
+          val augmentedCluster = addClusterDefaultLabels(cluster)
+          dbRef.inTransaction { dataAccess =>
+            dataAccess.clusterQuery.save(augmentedCluster, GcsPath(initBucket, GcsRelativePath("")))
+          }
+        } andThen { case Success(cluster) =>
+          // Notify the cluster monitor upon cluster creation
           clusterMonitorSupervisor ! ClusterCreated(cluster)
         }
     }
@@ -116,7 +120,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
      - Upload all the necessary initialization files to the bucket
      - Create the cluster in the google project
    Currently, the bucketPath of the clusterRequest is not used - it will be used later as a place to store notebook results */
-  private[service] def createGoogleCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName)] = {
+  private[service] def createGoogleCluster(serviceAccount: WorkbenchUserServiceAccountEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName)] = {
     val bucketName = generateUniqueBucketName(clusterName.string)
     for {
       // Validate that the Jupyter extension URI is a valid URI and references a real GCS object
@@ -125,8 +129,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       _ <- gdDAO.updateFirewallRule(googleProject)
       // Create the bucket in leo's google bucket and populate with initialization files
       initBucketPath <- initializeBucket(dataprocConfig.leoGoogleProject, clusterName, bucketName, clusterRequest)
-      // Get the pet service account from sam
-      serviceAccount <- samDAO.getPetServiceAccount(userInfo)
       // Once the bucket is ready, build the cluster
       cluster <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, bucketName, serviceAccount).andThen { case Failure(_) =>
         // If cluster creation fails, delete the init bucket asynchronously

@@ -42,8 +42,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, gdDAO: DataprocDAO,
       if (monitorConfig.recreateCluster) {
         logger.info(s"Recreating cluster ${cluster.projectNameString}...")
         val clusterRequest = ClusterRequest(cluster.googleBucket, cluster.labels, cluster.jupyterExtensionUri)
-        // TODO: provide a way to specify the sa explicitly and not call sam?
-        leoService.createCluster(???, cluster.googleProject, cluster.clusterName, clusterRequest).failed.foreach { e =>
+        leoService.createCluster(cluster.googleServiceAccount, cluster.googleProject, cluster.clusterName, clusterRequest).failed.foreach { e =>
           logger.error("Error occurred recreating cluster", e)
         }
       } else {
