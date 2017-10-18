@@ -24,11 +24,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually {
       val bucket = GcsBucketName("mah-bukkit")
 
       val requestLabels = Map("foo" -> Random.alphanumeric.take(10).mkString)
-      val responseLabels = requestLabels ++ Map(
-        "serviceAccount" -> sa.string,
-        "googleProject" -> project.string,
-        "googleBucket" -> bucket.name,
-        "clusterName" -> name.string)
+      val responseLabels = requestLabels ++ DefaultLabels(name, project, bucket, sa, None).toMap
 
       val request = ClusterRequest(bucket, sa, requestLabels, None)
 
