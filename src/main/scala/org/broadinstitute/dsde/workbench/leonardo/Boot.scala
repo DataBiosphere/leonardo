@@ -58,7 +58,7 @@ object Boot extends App with LazyLogging {
 
     val gdDAO = new GoogleDataprocDAO(dataprocConfig, proxyConfig, clusterResourcesConfig)
     // TODO create iam DAO in a nicer way
-    val googleIamDAO = new HttpGoogleIamDAO(new GoogleClientSecrets().setWeb(new GoogleClientSecrets.Details().setClientId(dataprocConfig.serviceAccount.string)), clusterResourcesConfig.configFolderPath + clusterResourcesConfig.leonardoServicePem, dataprocConfig.applicationName, "google")
+    val googleIamDAO = new HttpGoogleIamDAO(new GoogleClientSecrets().setWeb(new GoogleClientSecrets.Details().set("client_email", dataprocConfig.serviceAccount.string)), clusterResourcesConfig.configFolderPath + clusterResourcesConfig.leonardoServicePem, dataprocConfig.applicationName, "google")
     val samDAO = new HttpSamDAO(samConfig.server)
     val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, gdDAO, dbRef))
     val leonardoService = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, gdDAO, googleIamDAO, dbRef, clusterMonitorSupervisor, samDAO)
