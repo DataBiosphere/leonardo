@@ -6,6 +6,7 @@ import akka.http.scaladsl.model.StatusCodes
 import com.typesafe.scalalogging.LazyLogging
 import java.io.File
 
+import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{DataprocDAO, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
@@ -14,7 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMa
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted, RegisterLeoService}
 import org.broadinstitute.dsde.workbench.google.gcs._
-import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail
+import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserServiceAccountEmail}
 import slick.dbio.DBIO
 import spray.json._
 
@@ -44,6 +45,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val clusterResourcesConfig: ClusterResourcesConfig,
                       protected val proxyConfig: ProxyConfig,
                       protected val gdDAO: DataprocDAO,
+                      protected val googleIamDAO: GoogleIamDAO,
                       protected val dbRef: DbReference,
                       protected val clusterMonitorSupervisor: ActorRef,
                       protected val samDAO: SamDAO)
@@ -129,6 +131,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       _ <- gdDAO.updateFirewallRule(googleProject)
       // Create the bucket in leo's google bucket and populate with initialization files
       initBucketPath <- initializeBucket(dataprocConfig.leoGoogleProject, clusterName, bucketName, clusterRequest)
+      // TODO googleProject not really correct because the pet sa will live in a different project
+      // TODO make this accept a WorkbenchEmail not a WorkbenchUserEmail
+      // TODO add googleIamDAO.removeRolesForUser
+      _ <- googleIamDAO.addIamRolesForUser(googleProject.string, WorkbenchUserEmail(serviceAccount.value), Set("roles/dataproc.worker"))
       // Once the bucket is ready, build the cluster
       cluster <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, bucketName, serviceAccount).andThen { case Failure(_) =>
         // If cluster creation fails, delete the init bucket asynchronously
