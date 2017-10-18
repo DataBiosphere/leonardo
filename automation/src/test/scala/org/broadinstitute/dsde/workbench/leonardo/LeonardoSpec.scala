@@ -51,9 +51,6 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually {
       clusterCheck(Leonardo.cluster.get(project, name), Seq(ClusterStatus.Running))
 
       Leonardo.cluster.delete(project, name) shouldBe "The request has been accepted for processing, but the processing has not been completed."
-
-      // verify with get()
-      clusterCheck(Leonardo.cluster.get(project, name), Seq(ClusterStatus.Deleting))
     }
   }
 }
