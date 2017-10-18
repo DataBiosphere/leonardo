@@ -8,6 +8,7 @@ import akka.testkit.TestKit
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
+import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, MockGoogleDataprocDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbSingleton, TestComponent}
@@ -36,7 +37,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   before {
     gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig)
     samDAO = new MockSamDAO
-    leo = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, gdDAO, DbSingleton.ref, system.actorOf(NoopActor.props), samDAO)
+    leo = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, gdDAO, new MockGoogleIamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), samDAO)
   }
 
   override def afterAll(): Unit = {
