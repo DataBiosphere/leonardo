@@ -12,11 +12,7 @@ import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUse
   * Created by rtitle on 10/16/17.
   */
 trait MockUserInfoDirectives extends UserInfoDirectives {
-  val userInfo: UserInfo =
-    UserInfo(OAuth2BearerToken(""),
-      WorkbenchUserId(""),
-      WorkbenchUserEmail("test@test.com"),
-      10)
+  val userInfo: UserInfo
 
   override def requireUserInfo: Directive1[UserInfo] = provide(userInfo)
 }
