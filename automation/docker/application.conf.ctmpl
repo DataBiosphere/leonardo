@@ -4,14 +4,14 @@
 {{with $dir := env "ROOT_DIR"}}
 {{with $local_ui := env "LOCAL_UI"}}
 {{with $users := vault (printf "secret/dsde/firecloud/%s/common/users" $environment)}}
-{{with $notebooks_service_account := vault (printf "secret/dsde/firecloud/%s/leonardo/jupyter/leo-demo-sa.json" $environment)}}
+{{with $leoServiceAccount := vault (printf "secret/dsde/firecloud/%s/leonardo/leonardo-swagger-account.json" $environment)}}
 leonardo {
   {{if eq $environment "alpha"}}
   apiUrl = "https://leonardo.dsde-alpha.broadinstitute.org/"
   {{else}}
   apiUrl = "https://leonardo-fiab.dsde-{{$environment}}.broadinstitute.org:30443/"
   {{end}}
-  notebooksServiceAccountEmail = "{{$notebooks_service_account.Data.client_email}}"
+  notebooksServiceAccountEmail = "{{$leoServiceAccount.Data.web.client_email}}"
 }
 
 gcs {
