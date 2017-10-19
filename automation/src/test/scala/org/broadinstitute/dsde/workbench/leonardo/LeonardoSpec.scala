@@ -16,44 +16,41 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually {
       Leonardo.test.ping() shouldBe "OK"
     }
 
-    "should return an empty cluster list" in {
-      Leonardo.cluster.list() shouldBe "[]"
-    }
-
     val project = GoogleProject(LeonardoConfig.Projects.default)
     val sa = GoogleServiceAccount(LeonardoConfig.Leonardo.notebooksServiceAccountEmail)
 
     "should create, monitor, and delete a cluster" in {
       val name = ClusterName(s"automation-test-a${Random.alphanumeric.take(10).mkString.toLowerCase}z")
       val bucket = GcsBucketName("mah-bukkit")
-      val labels = Map("foo" -> Random.alphanumeric.take(10).mkString)
 
-      val request = ClusterRequest(bucket, sa, labels, None)
+      val requestLabels = Map("foo" -> Random.alphanumeric.take(10).mkString)
+      val responseLabels = requestLabels ++ DefaultLabels(name, project, bucket, sa, None).toMap
 
-      def clusterCheck(cluster: Cluster, status: ClusterStatus): Unit = {
+      val request = ClusterRequest(bucket, sa, requestLabels, None)
+
+      def clusterCheck(cluster: Cluster, statuses: Iterable[ClusterStatus]): Unit = {
         cluster.googleProject shouldBe project
         cluster.clusterName shouldBe name
         cluster.googleServiceAccount shouldBe sa
         cluster.googleBucket shouldBe bucket
-        cluster.labels shouldBe labels
-        cluster.status shouldBe status
+        cluster.labels shouldBe responseLabels
+        statuses should contain (cluster.status)
       }
 
       val cluster = Leonardo.cluster.create(project, name, request)
-      clusterCheck(cluster, ClusterStatus.Creating)
+      clusterCheck(cluster, Seq(ClusterStatus.Creating))
 
       // verify with get()
-      clusterCheck(Leonardo.cluster.get(project, name), ClusterStatus.Creating)
+      clusterCheck(Leonardo.cluster.get(project, name), Seq(ClusterStatus.Creating))
 
-      // wait for "Running"
+      // wait for "Running" or error (fail fast)
       eventually {
-        clusterCheck(Leonardo.cluster.get(project, name), ClusterStatus.Running)
+        clusterCheck(Leonardo.cluster.get(project, name), Seq(ClusterStatus.Running, ClusterStatus.Error))
       } (PatienceConfig(timeout = scaled(Span(6, Minutes)), interval = scaled(Span(20, Seconds))))
 
-      Leonardo.cluster.delete(project, name) shouldBe "The request has been accepted for processing, but the processing has not been completed."
+      clusterCheck(Leonardo.cluster.get(project, name), Seq(ClusterStatus.Running))
 
-      // verify with get()
-      clusterCheck(Leonardo.cluster.get(project, name), ClusterStatus.Deleting)
+      Leonardo.cluster.delete(project, name) shouldBe "The request has been accepted for processing, but the processing has not been completed."
     }
   }
 }
