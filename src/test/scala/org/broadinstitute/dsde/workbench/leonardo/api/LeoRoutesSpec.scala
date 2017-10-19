@@ -25,7 +25,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "200 when creating and getting cluster" in isolatedDbTest {
-    val newCluster = ClusterRequest(bucketPath, Map.empty, Some(mockGoogleDataprocDAO.extensionPath))
+    val newCluster = ClusterRequest(bucketPath, ClusterMode.SingleNode, None, Map.empty, Some(mockGoogleDataprocDAO.extensionPath))
 
     Put(s"/api/cluster/${googleProject.string}/${clusterName.string}", newCluster.toJson) ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
@@ -56,7 +56,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "202 when deleting a cluster" in isolatedDbTest{
-    val newCluster = ClusterRequest(bucketPath, Map.empty, None)
+    val newCluster = ClusterRequest(bucketPath, ClusterMode.SingleNode, None, Map.empty, None)
 
     Put(s"/api/cluster/${googleProject.string}/${clusterName.string}", newCluster.toJson) ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
@@ -80,7 +80,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "list clusters" in isolatedDbTest {
-    val newCluster = ClusterRequest(bucketPath, Map.empty, None)
+    val newCluster = ClusterRequest(bucketPath, ClusterMode.SingleNode, None, Map.empty, None)
     for (i <- 1 to 10) {
       Put(s"/api/cluster/${googleProject.string}/${clusterName.string}-$i", newCluster.toJson) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.OK
@@ -105,7 +105,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "list clusters with labels" in isolatedDbTest {
-    val newCluster = ClusterRequest(bucketPath, Map.empty, None)
+    val newCluster = ClusterRequest(bucketPath, ClusterMode.SingleNode, None, Map.empty, None)
     for (i <- 1 to 10) {
       Put(s"/api/cluster/${googleProject.string}/${clusterName.string}-$i", newCluster.copy(labels = Map(s"label$i" -> s"value$i")).toJson) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.OK

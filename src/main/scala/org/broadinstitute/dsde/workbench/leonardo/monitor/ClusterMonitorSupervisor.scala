@@ -42,7 +42,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, gdDAO: DataprocDAO,
     case RecreateCluster(cluster) =>
       if (monitorConfig.recreateCluster) {
         logger.info(s"Recreating cluster ${cluster.projectNameString}...")
-        val clusterRequest = ClusterRequest(cluster.googleBucket, cluster.labels, cluster.jupyterExtensionUri)
+        val clusterRequest = ClusterRequest(cluster.googleBucket, cluster.clusterMode, cluster.numberOfWorkers, cluster.labels, cluster.jupyterExtensionUri)
         leoService.createCluster(cluster.googleServiceAccount, cluster.googleProject, cluster.clusterName, clusterRequest).failed.foreach { e =>
           logger.error("Error occurred recreating cluster", e)
         }

@@ -18,6 +18,8 @@ case class ClusterRecord(id: Long,
                          googleProject: String,
                          googleServiceAccount: String,
                          googleBucket: String,
+                         clusterMode: String,
+                         numberOfWorkers: Int,
                          operationName: String,
                          status: String,
                          hostIp: Option[String],
@@ -38,6 +40,8 @@ trait ClusterComponent extends LeoComponent {
     def googleProject =         column[String]            ("googleProject",         O.Length(254))
     def googleServiceAccount =  column[String]            ("googleServiceAccount",  O.Length(254))
     def googleBucket =          column[String]            ("googleBucket",          O.Length(1024))
+    def clusterMode =           column[String]            ("clusterMode",           O.Length(254))
+    def numberOfWorkers =       column[Int]               ("numberOfWorkers")
     def operationName =         column[String]            ("operationName",         O.Length(254))
     def status =                column[String]            ("status",                O.Length(254))
     def hostIp =                column[Option[String]]    ("hostIp",                O.Length(254))
@@ -48,7 +52,7 @@ trait ClusterComponent extends LeoComponent {
 
     def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName), unique = true)
 
-    def * = (id, clusterName, googleId, googleProject, googleServiceAccount, googleBucket, operationName, status, hostIp, createdDate, destroyedDate, jupyterExtensionUri, initBucket) <> (ClusterRecord.tupled, ClusterRecord.unapply)
+    def * = (id, clusterName, googleId, googleProject, googleServiceAccount, googleBucket, clusterMode, numberOfWorkers, operationName, status, hostIp, createdDate, destroyedDate, jupyterExtensionUri, initBucket) <> (ClusterRecord.tupled, ClusterRecord.unapply)
   }
 
   object clusterQuery extends TableQuery(new ClusterTable(_)) {
@@ -185,6 +189,11 @@ trait ClusterComponent extends LeoComponent {
         cluster.googleProject.string,
         cluster.googleServiceAccount.value,
         cluster.googleBucket.name,
+        cluster.clusterMode.toString,
+        cluster.numberOfWorkers match {
+          case Some(num) => num
+          case None => 0
+        },
         cluster.operationName.string,
         cluster.status.toString,
         cluster.hostIp map(_.string),
@@ -217,6 +226,8 @@ trait ClusterComponent extends LeoComponent {
         project,
         WorkbenchUserServiceAccountEmail(clusterRecord.googleServiceAccount),
         GcsBucketName(clusterRecord.googleBucket),
+        ClusterMode.withName(clusterRecord.clusterMode),
+        Some(clusterRecord.numberOfWorkers),
         Cluster.getClusterUrl(project, name),
         OperationName(clusterRecord.operationName),
         ClusterStatus.withName(clusterRecord.status),

@@ -334,6 +334,8 @@ definitions:
       - googleProject
       - googleServiceAccount
       - googleBucket
+      - clusterMode
+      - numberOfWorkers
       - operationName
       - status
       - createdDate
@@ -354,6 +356,13 @@ definitions:
       googleBucket:
         type: string
         description: The Google Bucket associated with the cluster
+      clusterMode:
+        type: string
+        enum: *CLUSTERMODE
+        description: The mode of the cluster, set at creation
+      numberOfWorkers:
+        type: integer
+        description:
       operationName:
         type: string
         description: Google's operation ID for the cluster
@@ -382,6 +391,13 @@ definitions:
       bucketPath:
         type: string
         description: The bucket where user's notebooks will be saved
+      clusterMode:
+        type: string
+        description: The mode of the cluster, either "SingleNode" or "Standard"
+      workers:
+        type: integer
+        description: Optional, number of workers in the cluster. For a SingleNode, this field should not be defined, as the
+         SingleNode clusters have 0 workers by default. For a Standard cluster, workers should be 2 or more.
       labels:
         type: object
         description: The labels to be placed on the cluster. Of type Map[String,String]

@@ -30,7 +30,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   private val petServiceAccount = WorkbenchUserServiceAccountEmail("petSA@test-domain.iam.gserviceaccount.com")
   private val clusterName = ClusterName("test-cluster")
   private val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchUserEmail("user1@example.com"), 0)
-  private lazy val testClusterRequest = ClusterRequest(bucketPath, Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(gdDAO.extensionPath))
+  private lazy val testClusterRequest = ClusterRequest(bucketPath, ClusterMode.SingleNode, None, Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(gdDAO.extensionPath))
 
   private var gdDAO: MockGoogleDataprocDAO = _
   private var samDAO: MockSamDAO = _

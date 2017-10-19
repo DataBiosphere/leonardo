@@ -9,6 +9,7 @@ import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterMode.ClusterMode
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail
@@ -47,6 +48,11 @@ object StringValueClass {
   type LabelMap = Map[String, String]
 }
 
+object ClusterMode extends Enumeration {
+  type ClusterMode = Value
+  val SingleNode, Standard = Value
+}
+
 object ClusterStatus extends Enumeration {
   type ClusterStatus = Value
   //NOTE: Remember to update the definition of this enum in Swagger when you add new ones
@@ -75,6 +81,8 @@ object Cluster {
     googleProject = googleProject,
     googleServiceAccount = serviceAccount,
     googleBucket = clusterRequest.bucketPath,
+    clusterMode = clusterRequest.clusterMode,
+    numberOfWorkers = clusterRequest.numberOfWorkers,
     clusterUrl = getClusterUrl(googleProject, clusterName),
     operationName = operationName,
     status = ClusterStatus.Creating,
@@ -102,6 +110,8 @@ case class Cluster(clusterName: ClusterName,
                    googleProject: GoogleProject,
                    googleServiceAccount: WorkbenchUserServiceAccountEmail,
                    googleBucket: GcsBucketName,
+                   clusterMode: ClusterMode,
+                   numberOfWorkers: Option[Int],
                    clusterUrl: URL,
                    operationName: OperationName,
                    status: ClusterStatus,
@@ -114,6 +124,8 @@ case class Cluster(clusterName: ClusterName,
 }
 
 case class ClusterRequest(bucketPath: GcsBucketName,
+                          clusterMode: ClusterMode,
+                          numberOfWorkers: Option[Int],
                           labels: LabelMap,
                           jupyterExtensionUri: Option[GcsPath])
 
@@ -202,6 +214,15 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     }
   }
 
+  implicit object ClusterModeFormat extends JsonFormat[ClusterMode] {
+    def write(obj: ClusterMode) = JsString(obj.toString)
+
+    def read(json: JsValue): ClusterMode = json match {
+      case JsString(status) => ClusterMode.withName(status)
+      case other => throw DeserializationException("Expected ClusterMode, got: " + other)
+    }
+  }
+
   implicit object URLFormat extends JsonFormat[URL] {
     def write(obj: URL) = JsString(obj.toString)
 
@@ -250,8 +271,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val ipFormat = StringValueClassFormat(IP, IP.unapply)
   implicit val firewallRuleNameFormat = StringValueClassFormat(FirewallRuleName, FirewallRuleName.unapply)
 
-  implicit val clusterFormat = jsonFormat13(Cluster.apply)
-  implicit val clusterRequestFormat = jsonFormat3(ClusterRequest)
+  implicit val clusterFormat = jsonFormat15(Cluster.apply)
+  implicit val clusterRequestFormat = jsonFormat5(ClusterRequest)
   implicit val clusterInitValuesFormat = jsonFormat13(ClusterInitValues.apply)
   implicit val defaultLabelsFormat = jsonFormat5(DefaultLabels.apply)
 }
