@@ -45,6 +45,25 @@ case class ClusterRequest(bucketPath: GcsBucketName,
                           labels: LabelMap,
                           jupyterExtensionUri: Option[GcsPath])
 
+case class DefaultLabels(clusterName: ClusterName,
+                         googleProject: GoogleProject,
+                         googleBucket: GcsBucketName,
+                         serviceAccount: GoogleServiceAccount,
+                         notebookExtension: Option[GcsPath]) {
+
+  // TODO don't hardcode fields
+  def toMap: Map[String, String] = {
+    val ext: Map[String, String] = notebookExtension map { ext => Map("notebookExtension" -> ext.toUri) } getOrElse Map.empty
+
+    Map(
+      "clusterName" -> clusterName.string,
+      "googleProject" -> googleProject.string,
+      "googleBucket" -> googleBucket.name,
+      "serviceAccount" -> serviceAccount.string
+    ) ++ ext
+  }
+}
+
 object StringValueClass {
   type LabelMap = Map[String, String]
 }
