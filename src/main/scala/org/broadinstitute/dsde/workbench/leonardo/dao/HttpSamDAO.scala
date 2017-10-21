@@ -14,7 +14,6 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
 import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail
 import org.broadinstitute.dsde.workbench.util.health.StatusJsonSupport._
 import org.broadinstitute.dsde.workbench.util.health.SubsystemStatus
-import org.slf4j.LoggerFactory
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -26,7 +25,6 @@ case class CallToSamFailedException(uri: Uri, status: StatusCode, msg: String)
   */
 class HttpSamDAO(val baseSamServiceURL: String)(implicit system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext) extends SamDAO {
   private val samServiceURL = baseSamServiceURL
-  private val logger = LoggerFactory.getLogger(classOf[HttpSamDAO])
 
   val http = Http(system)
 
@@ -43,7 +41,6 @@ class HttpSamDAO(val baseSamServiceURL: String)(implicit system: ActorSystem, ma
 
   override def getPetServiceAccount(userInfo: UserInfo): Future[WorkbenchUserServiceAccountEmail] = {
     val uri = Uri(samServiceURL + "/api/user/petServiceAccount")
-    logger.info("Calling SAM at " + uri)
     executeSamRequestAsUser(HttpRequest(GET, uri), userInfo).flatMap {
       case HttpResponse(OK, _, entity, _) =>
         Unmarshal(entity).to[WorkbenchUserServiceAccountEmail]
