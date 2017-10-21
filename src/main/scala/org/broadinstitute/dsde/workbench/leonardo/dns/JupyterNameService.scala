@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo.dns
 import java.net.{InetAddress, UnknownHostException}
 
 import akka.http.scaladsl.model.Uri.Host
-import org.slf4j.LoggerFactory
 import sun.net.spi.nameservice.{NameService, NameServiceDescriptor}
 
 /**

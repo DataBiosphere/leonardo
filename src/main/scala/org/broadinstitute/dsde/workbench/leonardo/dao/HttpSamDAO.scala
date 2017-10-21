@@ -9,7 +9,6 @@ import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.ActorMaterializer
-import com.typesafe.sslconfig.ssl.SSLConfigFactory
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoException, UserInfo}
 import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
 import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail

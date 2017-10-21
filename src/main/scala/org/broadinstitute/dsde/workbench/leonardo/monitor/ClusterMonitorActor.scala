@@ -4,6 +4,7 @@ import akka.actor.{Actor, Props}
 import akka.pattern.pipe
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
+import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.MonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, DataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -16,14 +17,13 @@ import org.broadinstitute.dsde.workbench.util.addJitter
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Failure
-import scala.util.control.NonFatal
 
 object ClusterMonitorActor {
   /**
     * Creates a Props object used for creating a {{{ClusterMonitorActor}}}.
     */
-  def props(cluster: Cluster, monitorConfig: MonitorConfig, gdDAO: DataprocDAO, dbRef: DbReference): Props =
-    Props(new ClusterMonitorActor(cluster, monitorConfig, gdDAO, dbRef))
+  def props(cluster: Cluster, monitorConfig: MonitorConfig, gdDAO: DataprocDAO, googleIamDAO: GoogleIamDAO, dbRef: DbReference): Props =
+    Props(new ClusterMonitorActor(cluster, monitorConfig, gdDAO, googleIamDAO, dbRef))
 
   // ClusterMonitorActor messages:
 
@@ -48,6 +48,7 @@ object ClusterMonitorActor {
 class ClusterMonitorActor(val cluster: Cluster,
                           val monitorConfig: MonitorConfig,
                           val gdDAO: DataprocDAO,
+                          val googleIamDAO: GoogleIamDAO,
                           val dbRef: DbReference) extends Actor with LazyLogging {
   import context._
 
@@ -126,14 +127,19 @@ class ClusterMonitorActor(val cluster: Cluster,
         }
     }
 
+    // Then remove the Dataproc Worker IAM role for the pet service account
+    val iamFuture = deleteBucketFuture flatMap { _ =>
+      googleIamDAO.removeIamRolesForUser(cluster.googleProject.string, cluster.googleServiceAccount, Set("roles/dataproc.worker"))
+    }
+
     // Then update the database
-    val dbFuture = deleteBucketFuture flatMap { _ =>
+    val dbFuture = iamFuture flatMap { _ =>
       dbRef.inTransaction { dataAccess =>
         dataAccess.clusterQuery.setToRunning(cluster.googleId, publicIp)
       }
     }
 
-    // Then pipe a shutdown message to this actor
+    // Finally pipe a shutdown message to this actor
     dbFuture map { _ =>
       logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is ready for use!")
       ShutdownActor()
@@ -148,8 +154,15 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ShutdownActor
     */
   private def handleFailedCluster(errorDetails: ClusterErrorDetails): Future[ClusterMonitorMessage] = {
-    // Delete the cluster in Google
-    gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName).flatMap { _ =>
+    val deleteFuture = for {
+      // Delete the cluster in Google
+      _ <- gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)
+      // Remove the Dataproc Worker IAM role for the pet service account
+      _ <- googleIamDAO.removeIamRolesForUser(cluster.googleProject.string, cluster.googleServiceAccount, Set("roles/dataproc.worker"))
+    } yield ()
+
+    deleteFuture.flatMap { _ =>
+      // Decide if we should try recreating the cluster
       if (shouldRecreateCluster(errorDetails.code, errorDetails.message)) {
         // Update the database record to Deleting, shutdown this actor, and register a callback message
         // to the supervisor telling it to recreate the cluster.
