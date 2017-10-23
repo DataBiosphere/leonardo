@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, ClusterRequest, GoogleProject, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService}
+import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport, WorkbenchUserEmail}
 
 import scala.concurrent.{ExecutionContext, Future}
