@@ -25,8 +25,11 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
   private def googleID = UUID.randomUUID()
 
   def getEmailFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[WorkbenchUserEmail] = {
-    if (accessToken == "unauthorized") { throw AuthorizationError() }
-    else Future{WorkbenchUserEmail("user1@example.com")}
+    Future {
+      if (accessToken == "unauthorized")
+        throw AuthorizationError()
+      else WorkbenchUserEmail("user1@example.com")
+    }
   }
 
   override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[Cluster] = {
