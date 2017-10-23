@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import java.io.{ByteArrayInputStream, File}
+import java.lang.IllegalArgumentException
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 
@@ -12,7 +13,7 @@ import cats.syntax.functor._
 import com.google.api.client.auth.oauth2.Credential
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
-import com.google.api.client.googleapis.json.GoogleJsonResponseException
+import com.google.api.client.googleapis.json.{GoogleJsonError, GoogleJsonResponseException}
 import com.google.api.client.googleapis.services.AbstractGoogleClientRequest
 import com.google.api.client.http.{AbstractInputStreamContent, FileContent, InputStreamContent}
 import com.google.api.client.json.jackson2.JacksonFactory
@@ -46,7 +47,7 @@ case class CallToGoogleApiFailedException(googleProject: GoogleProject, context:
 case class FirewallRuleNotFoundException(googleProject: GoogleProject, firewallRuleName: FirewallRuleName)
   extends LeoException(s"Firewall rule ${firewallRuleName.string} not found in project ${googleProject.string}", StatusCodes.NotFound)
 
-case class AuthorizationError() extends LeoException(s"'Your account is unauthorized", StatusCodes.Unauthorized)
+case class AuthorizationError() extends LeoException(s"Your account is unauthorized", StatusCodes.Unauthorized)
 
 class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected val proxyConfig: ProxyConfig, protected val clusterResourcesConfig: ClusterResourcesConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
   extends DataprocDAO with GoogleUtilities {
@@ -99,7 +100,10 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   def getEmailFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[WorkbenchUserEmail] = {
     val request = oauth2.tokeninfo().setAccessToken(accessToken)
     executeGoogleRequestAsync(GoogleProject(""), "cookie auth", request).map{tokenInfo => WorkbenchUserEmail(tokenInfo.getEmail)}
-      .recover { case CallToGoogleApiFailedException(_, _, _, _) | IllegalArgumentException => throw AuthorizationError()}
+      .recover { case CallToGoogleApiFailedException(_, _, _, _) => {
+        logger.error(s"Unable to authorize token: $accessToken")
+        throw AuthorizationError()
+      }}
   }
 
   private lazy val googleFirewallRule = {
@@ -379,6 +383,9 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       case e: GoogleJsonResponseException =>
         logger.error(s"Error occurred executing Google request for ${googleProject.string} / $context", e)
         throw CallToGoogleApiFailedException(googleProject, context, e.getStatusCode, e.getDetails.getMessage)
+      case illegalArguementException: IllegalArgumentException =>
+        logger.error(s"Error occurred processing Google response for ${googleProject.string} / $context", illegalArguementException)
+        throw CallToGoogleApiFailedException(googleProject, context, StatusCodes.BadRequest.intValue, illegalArguementException.getMessage)
     }
   }
 }
