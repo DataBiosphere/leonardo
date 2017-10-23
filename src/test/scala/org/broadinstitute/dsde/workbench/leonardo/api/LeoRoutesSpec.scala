@@ -41,7 +41,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
     }
   }
 
-  it should "401 when using a non-whitelisted user" in isolatedDbTest {
+  it should "401 when using a non-white-listed user" in isolatedDbTest {
     val invalidUserLeoRoutes = new LeoRoutes(leonardoService, proxyService, swaggerConfig, whiteListConfig) with MockUserInfoDirectives {
       override val userInfo: UserInfo =  UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("badUser"), WorkbenchUserEmail("badUser@example.com"), 0)
     }
@@ -49,7 +49,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       status shouldEqual StatusCodes.Unauthorized
     }
   }
-
+  
   it should "404 when getting a nonexistent cluster" in isolatedDbTest {
     Get(s"/api/cluster/nonexistent/cluster") ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
