@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import java.io.{ByteArrayInputStream, File}
-import java.lang.IllegalArgumentException
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 
@@ -13,7 +12,7 @@ import cats.syntax.functor._
 import com.google.api.client.auth.oauth2.Credential
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
-import com.google.api.client.googleapis.json.{GoogleJsonError, GoogleJsonResponseException}
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.googleapis.services.AbstractGoogleClientRequest
 import com.google.api.client.http.{AbstractInputStreamContent, FileContent, InputStreamContent}
 import com.google.api.client.json.jackson2.JacksonFactory
@@ -383,9 +382,9 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       case e: GoogleJsonResponseException =>
         logger.error(s"Error occurred executing Google request for ${googleProject.string} / $context", e)
         throw CallToGoogleApiFailedException(googleProject, context, e.getStatusCode, e.getDetails.getMessage)
-      case illegalArguementException: IllegalArgumentException =>
-        logger.error(s"Error occurred processing Google response for ${googleProject.string} / $context", illegalArguementException)
-        throw CallToGoogleApiFailedException(googleProject, context, StatusCodes.BadRequest.intValue, illegalArguementException.getMessage)
+      case illegalArgumentException: IllegalArgumentException =>
+        logger.error(s"Illegal argument passed to Google request for ${googleProject.string} / $context", illegalArgumentException)
+        throw CallToGoogleApiFailedException(googleProject, context, StatusCodes.BadRequest.intValue, illegalArgumentException.getMessage)
     }
   }
 }

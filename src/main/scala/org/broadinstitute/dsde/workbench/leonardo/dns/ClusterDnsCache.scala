@@ -69,7 +69,6 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
   }
 
   def scheduleRefresh = {
-
     context.system.scheduler.scheduleOnce(proxyConfig.dnsPollPeriod, self, RefreshFromDatabase)
   }
 

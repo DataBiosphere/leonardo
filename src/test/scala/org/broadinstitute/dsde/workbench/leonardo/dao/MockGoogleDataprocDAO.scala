@@ -47,7 +47,7 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
     Future.successful(())
   }
 
-  override def updateFirewallRule(googleProject: GoogleProject):  Future[Unit] = {
+  override def updateFirewallRule(googleProject: GoogleProject): Future[Unit] = {
     if (!firewallRules.contains(googleProject)) {
       firewallRules += googleProject -> proxyConfig.firewallRuleName
     }

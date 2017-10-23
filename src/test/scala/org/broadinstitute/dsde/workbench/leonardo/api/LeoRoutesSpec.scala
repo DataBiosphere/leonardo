@@ -73,8 +73,6 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
     }
   }
 
-
-
   it should "200 when listing no clusters" in isolatedDbTest {
     Get("/api/clusters") ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
