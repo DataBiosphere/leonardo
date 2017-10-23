@@ -99,7 +99,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   def getEmailFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[WorkbenchUserEmail] = {
     val request = oauth2.tokeninfo().setAccessToken(accessToken)
     executeGoogleRequestAsync(GoogleProject(""), "cookie auth", request).map{tokenInfo => WorkbenchUserEmail(tokenInfo.getEmail)}
-      .recover { case CallToGoogleApiFailedException(_, _, _, _) => throw AuthorizationError()}
+      .recover { case CallToGoogleApiFailedException(_, _, _, _) | IllegalArgumentException => throw AuthorizationError()}
   }
 
   private lazy val googleFirewallRule = {
