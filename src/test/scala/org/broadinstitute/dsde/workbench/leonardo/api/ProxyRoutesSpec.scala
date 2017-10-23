@@ -33,6 +33,7 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
   val clusterName = "test"
   val googleProject = "dsp-leo-test"
   val TokenCookie = Cookie("FCToken", "me")
+  val unauthorizedTokenCookie = Cookie("FCToken", "unauthorized")
 
   // The backend server behind the proxy
   var bindingFuture: Future[ServerBinding] = _
@@ -89,6 +90,12 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
   it should "reject non-cookied requests" in {
     Get(s"/notebooks/$googleProject/$clusterName") ~> leoRoutes.route ~> check {
       handled shouldBe true
+      status shouldEqual StatusCodes.Unauthorized
+    }
+  }
+
+  it should "401 when using a non-white-listed user" in {
+    Get(s"/notebooks/$googleProject/$clusterName").addHeader(unauthorizedTokenCookie) ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.Unauthorized
     }
   }

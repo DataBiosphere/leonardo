@@ -49,7 +49,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       status shouldEqual StatusCodes.Unauthorized
     }
   }
-  
+
   it should "404 when getting a nonexistent cluster" in isolatedDbTest {
     Get(s"/api/cluster/nonexistent/cluster") ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
