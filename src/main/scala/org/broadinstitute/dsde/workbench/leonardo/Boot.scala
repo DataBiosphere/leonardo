@@ -15,6 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService}
+import org.broadinstitute.dsde.workbench.model.WorkbenchUserEmail
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
@@ -40,6 +41,7 @@ object Boot extends App with LazyLogging {
     val proxyConfig = config.as[ProxyConfig]("proxy")
     val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
     val monitorConfig = config.as[MonitorConfig]("monitor")
+    val whiteListConfig = config.as[(Set[String])]("whiteList").map(WorkbenchUserEmail(_))
 
     // we need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")
@@ -56,7 +58,7 @@ object Boot extends App with LazyLogging {
     val leonardoService = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, gdDAO, dbRef, clusterMonitorSupervisor)
     val clusterDnsCache = system.actorOf(ClusterDnsCache.props(proxyConfig, dbRef))
     val proxyService = new ProxyService(proxyConfig, gdDAO, dbRef, clusterDnsCache)
-    val leoRoutes = new LeoRoutes(leonardoService, proxyService, config.as[SwaggerConfig]("swagger")) with StandardUserInfoDirectives
+    val leoRoutes = new LeoRoutes(leonardoService, proxyService, config.as[SwaggerConfig]("swagger"), whiteListConfig) with StandardUserInfoDirectives
 
     startClusterMonitors(dbRef, clusterMonitorSupervisor)
 

@@ -19,16 +19,11 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, ClusterReq
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService}
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport, WorkbenchUserEmail}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-case class AuthorizationError(email: String) extends LeoException(s"'$email' is unauthorized", StatusCodes.Unauthorized)
-
-abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxyService, val swaggerConfig: SwaggerConfig)(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext) extends LazyLogging with ProxyRoutes with SwaggerRoutes with UserInfoDirectives {
-
-  private val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
-  private val whitelist = config.as[(List[String])]("whitelist")
+abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxyService, val swaggerConfig: SwaggerConfig, val whiteListConfig: Set[WorkbenchUserEmail])(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext) extends LazyLogging with ProxyRoutes with SwaggerRoutes with UserInfoDirectives {
 
   def unauthedRoutes: Route =
     path("ping") {
@@ -43,7 +38,7 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
 
   def leoRoutes: Route =
     requireUserInfo { userInfo =>
-      if (whitelist.contains(userInfo.userEmail.value)) {
+      checkWhiteList(userInfo.userEmail) {
         path("cluster" / Segment / Segment) { (googleProject, clusterName) =>
           put {
             entity(as[ClusterRequest]) { cluster =>
@@ -78,7 +73,7 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
               }
             }
           }
-      } else throw AuthorizationError(userInfo.userEmail.value)
+      }
     }
 
   def route: Route = (logRequestResult & handleExceptions(myExceptionHandler) & handleRejections(rejectionHandler)) {

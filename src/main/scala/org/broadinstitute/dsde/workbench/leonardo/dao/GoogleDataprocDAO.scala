@@ -34,6 +34,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterName, ClusterRequest, FirewallRuleName, GoogleProject, IP, InstanceName, LeoException, OperationName, ZoneUri, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
+import org.broadinstitute.dsde.workbench.model.WorkbenchUserEmail
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future, blocking}
@@ -44,6 +45,8 @@ case class CallToGoogleApiFailedException(googleProject: GoogleProject, context:
 
 case class FirewallRuleNotFoundException(googleProject: GoogleProject, firewallRuleName: FirewallRuleName)
   extends LeoException(s"Firewall rule ${firewallRuleName.string} not found in project ${googleProject.string}", StatusCodes.NotFound)
+
+case class AuthorizationError() extends LeoException(s"'Your account is unauthorized", StatusCodes.Unauthorized)
 
 class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected val proxyConfig: ProxyConfig, protected val clusterResourcesConfig: ClusterResourcesConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
   extends DataprocDAO with GoogleUtilities {
@@ -59,6 +62,10 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   private lazy val vmScopes = List(ComputeScopes.COMPUTE, ComputeScopes.CLOUD_PLATFORM)
   private lazy val oauth2Scopes = List(Oauth2Scopes.USERINFO_EMAIL, Oauth2Scopes.USERINFO_PROFILE)
   private lazy val serviceAccountPemFile = new File(clusterResourcesConfig.configFolderPath, clusterResourcesConfig.leonardoServicePem)
+
+  private lazy val oauth2 =
+    new Builder(httpTransport, jsonFactory, null)
+    .setApplicationName(dataprocConfig.applicationName).build()
 
   private lazy val dataproc = {
     new Dataproc.Builder(httpTransport, jsonFactory, getServiceAccountCredential(cloudPlatformScopes))
@@ -89,10 +96,10 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     UUID.fromString(dop.getMetadata.get("clusterUuid").toString)
   }
 
-  def getEmailFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[String] = {
-    val oauth2 = new Builder(httpTransport, jsonFactory, null).setApplicationName(dataprocConfig.applicationName).build()
+  def getEmailFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[WorkbenchUserEmail] = {
     val request = oauth2.tokeninfo().setAccessToken(accessToken)
-    for { userInfo <- executeGoogleRequestAsync(GoogleProject(""), "cookie auth", request) } yield userInfo.getEmail
+    executeGoogleRequestAsync(GoogleProject(""), "cookie auth", request).map{tokenInfo => WorkbenchUserEmail(tokenInfo.getEmail)}
+      .recover { case CallToGoogleApiFailedException(_, _, _, _) => throw AuthorizationError()}
   }
 
   private lazy val googleFirewallRule = {

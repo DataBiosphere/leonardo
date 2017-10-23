@@ -13,11 +13,13 @@ import akka.util.Timeout
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
 import java.util.concurrent.TimeUnit
+
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, GoogleProject, LeoException}
+import org.broadinstitute.dsde.workbench.model.WorkbenchUserEmail
 
 import scala.collection.immutable
 import scala.concurrent.duration._
@@ -25,18 +27,18 @@ import scala.concurrent.{ExecutionContext, Future}
 
 case class ClusterNotReadyException(googleProject: GoogleProject, clusterName: ClusterName) extends LeoException(s"Cluster ${googleProject.string}/${clusterName.string} is not ready yet, chill out and try again later", StatusCodes.EnhanceYourCalm)
 case class ProxyException(googleProject: GoogleProject, clusterName: ClusterName) extends LeoException(s"Unable to proxy connection to Jupyter notebook on ${googleProject.string}/${clusterName.string}", StatusCodes.InternalServerError)
-case class CacheException(token: String, googleMessage: String) extends LeoException(s"$token, $googleMessage")
+
 /**
   * Created by rtitle on 8/15/17.
   */
 class ProxyService(proxyConfig: ProxyConfig, gdDAO: DataprocDAO, dbRef: DbReference, clusterDnsCache: ActorRef)(implicit val system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext) extends LazyLogging {
 
   /* Cache for the bearer token and corresponding google user email */
-  private lazy val cachedAuth = CacheBuilder.newBuilder()
-    .expireAfterWrite(60, TimeUnit.MINUTES)
-    .maximumSize(100)
+  private val cachedAuth = CacheBuilder.newBuilder()
+    .expireAfterWrite(proxyConfig.cacheExpiryTime, TimeUnit.MINUTES)
+    .maximumSize(proxyConfig.cacheMaxSize)
     .build(
-      new CacheLoader[String, Future[String]] {
+      new CacheLoader[String, Future[WorkbenchUserEmail]] {
         def load(key: String) = {
           gdDAO.getEmailFromAccessToken(key)
         }
@@ -44,7 +46,7 @@ class ProxyService(proxyConfig: ProxyConfig, gdDAO: DataprocDAO, dbRef: DbRefere
     )
 
   /* Ask the cache for the corresponding google email given a token */
-  def getCachedEmailFromToken(token: String): Future[String] = {
+  def getCachedEmailFromToken(token: String): Future[WorkbenchUserEmail] = {
     cachedAuth.get(token)
   }
 

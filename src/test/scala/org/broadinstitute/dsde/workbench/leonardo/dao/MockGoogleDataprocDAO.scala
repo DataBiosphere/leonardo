@@ -7,6 +7,7 @@ import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, Gcs
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.model.WorkbenchUserEmail
 
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
@@ -23,8 +24,8 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
 
   private def googleID = UUID.randomUUID()
 
-  def getEmailFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[String] = {
-    Future{"user1@example.com"}
+  def getEmailFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[WorkbenchUserEmail] = {
+    Future{WorkbenchUserEmail("user1@example.com")}
   }
 
   override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[Cluster] = {
@@ -42,7 +43,7 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
     Future.successful(())
   }
 
-  override def updateFirewallRule(googleProject: GoogleProject): Future[Unit] = {
+  override def updateFirewallRule(googleProject: GoogleProject):  Future[Unit] = {
     if (!firewallRules.contains(googleProject)) {
       firewallRules += googleProject -> proxyConfig.firewallRuleName
     }

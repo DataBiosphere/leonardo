@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.leonardo.model.{GoogleProject, GoogleServiceAccount}
+import org.broadinstitute.dsde.workbench.model.WorkbenchUserEmail
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 
 package object config {
@@ -53,7 +54,9 @@ package object config {
       config.getInt("jupyterPort"),
       config.getString("jupyterProtocol"),
       config.getString("jupyterDomain"),
-      toScalaDuration(config.getDuration("dnsPollPeriod")))
+      toScalaDuration(config.getDuration("dnsPollPeriod")),
+      config.getLong("cacheExpiryTime"),
+      config.getInt("cacheMaxSize"))
   }
 
   implicit val monitorConfigReader: ValueReader[MonitorConfig] = ValueReader.relative { config =>
