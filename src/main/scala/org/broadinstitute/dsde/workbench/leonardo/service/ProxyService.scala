@@ -15,7 +15,7 @@ import com.typesafe.scalalogging.LazyLogging
 import java.util.concurrent.TimeUnit
 
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.{AuthorizationError, DataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, GoogleProject, LeoException}
@@ -27,7 +27,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 case class ClusterNotReadyException(googleProject: GoogleProject, clusterName: ClusterName) extends LeoException(s"Cluster ${googleProject.string}/${clusterName.string} is not ready yet, chill out and try again later", StatusCodes.EnhanceYourCalm)
 case class ProxyException(googleProject: GoogleProject, clusterName: ClusterName) extends LeoException(s"Unable to proxy connection to Jupyter notebook on ${googleProject.string}/${clusterName.string}", StatusCodes.InternalServerError)
-
+case class AccessTokenExpiredException() extends LeoException(s"Your access token is expired. Try logging in again", StatusCodes.Unauthorized)
 /**
   * Created by rtitle on 8/15/17.
   */
@@ -38,16 +38,16 @@ class ProxyService(proxyConfig: ProxyConfig, gdDAO: DataprocDAO, dbRef: DbRefere
     .expireAfterWrite(proxyConfig.cacheExpiryTime, TimeUnit.MINUTES)
     .maximumSize(proxyConfig.cacheMaxSize)
     .build(
-      new CacheLoader[String, Future[WorkbenchUserEmail]] {
+      new CacheLoader[String, Future[(WorkbenchUserEmail, DateTime)]] {
         def load(key: String) = {
-          gdDAO.getEmailFromAccessToken(key)
+          gdDAO.getEmailAndExpirationFromAccessToken(key)
         }
       }
     )
 
   /* Ask the cache for the corresponding google email given a token */
   def getCachedEmailFromToken(token: String): Future[WorkbenchUserEmail] = {
-    cachedAuth.get(token)
+    cachedAuth.get(token).map{ case (email, expireTime) => if (expireTime.compare(DateTime.now) > 0) email else throw AccessTokenExpiredException() }
   }
 
 

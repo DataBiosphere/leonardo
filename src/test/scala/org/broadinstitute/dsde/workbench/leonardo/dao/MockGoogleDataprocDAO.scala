@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 import java.io.File
 import java.util.UUID
 
+import akka.http.scaladsl.model.DateTime
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
@@ -24,11 +25,13 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
 
   private def googleID = UUID.randomUUID()
 
-  def getEmailFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[WorkbenchUserEmail] = {
+  def getEmailAndExpirationFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[(WorkbenchUserEmail, DateTime)] = {
     Future {
-      if (accessToken == "unauthorized")
-        throw AuthorizationError()
-      else WorkbenchUserEmail("user1@example.com")
+      accessToken match {
+        case "unauthorized" => throw AuthorizationError()
+        case "expired" =>  (WorkbenchUserEmail("expiredUser@example.com"), DateTime.now - 10)
+        case _ => (WorkbenchUserEmail("user1@example.com"), DateTime.MaxValue)
+      }
     }
   }
 

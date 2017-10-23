@@ -7,7 +7,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, GoogleProj
 import org.broadinstitute.dsde.workbench.leonardo.service.ProxyService
 import org.broadinstitute.dsde.workbench.model.WorkbenchUserEmail
 
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.ExecutionContext
 
 /**
   * Created by rtitle on 8/4/17.
@@ -15,6 +15,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 trait ProxyRoutes extends UserInfoDirectives{ self: LazyLogging =>
   val proxyService: ProxyService
   val whiteListConfig: Set[WorkbenchUserEmail]
+  implicit val executionContext: ExecutionContext
 
   protected val tokenCookieName = "FCToken"
 

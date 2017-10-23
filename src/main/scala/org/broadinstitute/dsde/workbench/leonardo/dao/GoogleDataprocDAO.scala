@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 import akka.actor.ActorSystem
-import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.model.{DateTime, StatusCodes}
 import cats.data.OptionT
 import cats.instances.future._
 import cats.syntax.functor._
@@ -96,10 +96,11 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     UUID.fromString(dop.getMetadata.get("clusterUuid").toString)
   }
 
-  def getEmailFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[WorkbenchUserEmail] = {
+  // Using the given access token, look up the corresponding email of the user and get how long, in seconds, the token will expire in
+  def getEmailAndExpirationFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[(WorkbenchUserEmail, DateTime)] = {
     val request = oauth2.tokeninfo().setAccessToken(accessToken)
-    executeGoogleRequestAsync(GoogleProject(""), "cookie auth", request).map{tokenInfo => WorkbenchUserEmail(tokenInfo.getEmail)}
-      .recover { case CallToGoogleApiFailedException(_, _, _, _) => {
+    executeGoogleRequestAsync(GoogleProject(""), "cookie auth", request).map{tokenInfo => (WorkbenchUserEmail(tokenInfo.getEmail), DateTime.now + tokenInfo.getExpiresIn.toInt)}
+        .recover { case CallToGoogleApiFailedException(_, _, _, _) => {
         logger.error(s"Unable to authorize token: $accessToken")
         throw AuthorizationError()
       }}
