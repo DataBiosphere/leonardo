@@ -42,7 +42,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "401 when using a non-white-listed user" in isolatedDbTest {
-    val invalidUserLeoRoutes = new LeoRoutes(leonardoService, proxyService, swaggerConfig, whiteListConfig) with MockUserInfoDirectives {
+    val invalidUserLeoRoutes = new LeoRoutes(leonardoService, proxyService, swaggerConfig, whitelistConfig) with MockUserInfoDirectives {
       override val userInfo: UserInfo =  UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("badUser"), WorkbenchUserEmail("badUser@example.com"), 0)
     }
     Get("/api/clusters") ~> invalidUserLeoRoutes.route ~> check {

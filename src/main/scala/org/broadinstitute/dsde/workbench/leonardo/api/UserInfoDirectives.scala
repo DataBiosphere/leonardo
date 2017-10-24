@@ -12,11 +12,11 @@ case class AuthorizationError(email: WorkbenchUserEmail) extends LeoException(s"
 
 trait UserInfoDirectives {
   def requireUserInfo: Directive1[UserInfo]
-  def whiteListConfig: Set[WorkbenchUserEmail]
+  def whitelistConfig: Set[WorkbenchUserEmail]
 
   def checkWhiteList(userEmail: WorkbenchUserEmail): Directive0 = {
     Directives.mapInnerRoute { r =>
-      if (!whiteListConfig.contains(userEmail)) throw AuthorizationError(userEmail)
+      if (!whitelistConfig.contains(userEmail)) throw AuthorizationError(userEmail)
       else r
     }
   }

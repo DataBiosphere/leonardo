@@ -380,12 +380,15 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     Future {
       blocking(executeGoogleRequest(request))
     } recover {
-      case e: GoogleJsonResponseException =>
-        logger.error(s"Error occurred executing Google request for ${googleProject.string} / $context", e)
-        throw CallToGoogleApiFailedException(googleProject, context, e.getStatusCode, e.getDetails.getMessage)
-      case illegalArgumentException: IllegalArgumentException =>
-        logger.error(s"Illegal argument passed to Google request for ${googleProject.string} / $context", illegalArgumentException)
-        throw CallToGoogleApiFailedException(googleProject, context, StatusCodes.BadRequest.intValue, illegalArgumentException.getMessage)
+      case e: Exception if e.getCause.isInstanceOf[GoogleJsonResponseException] =>
+        val googleEx = e.getCause.asInstanceOf[GoogleJsonResponseException]
+        throw CallToGoogleApiFailedException(googleProject, context, googleEx.getStatusCode, googleEx.getDetails.getMessage)
+//      case e: GoogleJsonResponseException =>
+//        logger.error(s"Error occurred executing Google request for ${googleProject.string} / $context", e)
+//        throw CallToGoogleApiFailedException(googleProject, context, e.getStatusCode, e.getDetails.getMessage)
+//      case illegalArgumentException: IllegalArgumentException =>
+//        logger.error(s"Illegal argument passed to Google request for ${googleProject.string} / $context", illegalArgumentException)
+//        throw CallToGoogleApiFailedException(googleProject, context, StatusCodes.BadRequest.intValue, illegalArgumentException.getMessage)
     }
   }
 }

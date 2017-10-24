@@ -21,7 +21,7 @@ import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionW
 
 import scala.concurrent.{ExecutionContext, Future}
 
-abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxyService, val swaggerConfig: SwaggerConfig, val whiteListConfig: Set[WorkbenchUserEmail])(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext) extends LazyLogging with ProxyRoutes with SwaggerRoutes with UserInfoDirectives {
+abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxyService, val swaggerConfig: SwaggerConfig, val whitelistConfig: Set[WorkbenchUserEmail])(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext) extends LazyLogging with ProxyRoutes with SwaggerRoutes with UserInfoDirectives {
 
   def unauthedRoutes: Route =
     path("ping") {
