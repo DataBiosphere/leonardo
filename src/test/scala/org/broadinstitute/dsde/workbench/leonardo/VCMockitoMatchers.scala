@@ -24,6 +24,9 @@ trait VCMockitoMatchers {
   implicit def gpApply: String => GoogleProject = GoogleProject.apply
   implicit def gpUnapply: GoogleProject => Option[String] = GoogleProject.unapply
 
+  implicit def gsaApply: String => GoogleServiceAccount = GoogleServiceAccount.apply
+  implicit def gsaUnapply: GoogleServiceAccount => Option[String] = GoogleServiceAccount.unapply
+
   implicit def cnApply: String => ClusterName = ClusterName.apply
   implicit def cnUnapply: ClusterName => Option[String] = ClusterName.unapply
 

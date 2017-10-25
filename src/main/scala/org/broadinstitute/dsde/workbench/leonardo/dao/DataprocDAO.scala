@@ -17,7 +17,7 @@ trait DataprocDAO {
 
   def updateFirewallRule(googleProject: GoogleProject): Future[Unit]
 
-  def createBucket(googleProject: GoogleProject, bucketName: GcsBucketName): Future[GcsBucketName]
+  def createBucket(googleProject: GoogleProject, bucketName: GcsBucketName, userServiceAccount: GoogleServiceAccount): Future[GcsBucketName]
 
   def uploadToBucket(googleProject: GoogleProject, bucketPath: GcsPath, content: File): Future[Unit]
 

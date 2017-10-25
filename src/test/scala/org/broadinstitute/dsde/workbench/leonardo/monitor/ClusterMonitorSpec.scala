@@ -295,7 +295,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(())
 
     when {
-      dao.createBucket(vcAny[GoogleProject], vcAny[GcsBucketName])
+      dao.createBucket(vcAny[GoogleProject], vcAny[GcsBucketName], vcAny[GoogleServiceAccount])
     } thenReturn Future.successful(GcsBucketName("my-bucket"))
 
     when {
