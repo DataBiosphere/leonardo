@@ -27,7 +27,7 @@ import com.google.api.services.oauth2.Oauth2.Builder
 import com.google.api.services.plus.PlusScopes
 import com.google.api.services.storage.model.Bucket.Lifecycle
 import com.google.api.services.storage.model.Bucket.Lifecycle.Rule.{Action, Condition}
-import com.google.api.services.storage.model.{Bucket, BucketAccessControl, StorageObject}
+import com.google.api.services.storage.model.{Bucket, BucketAccessControl, ObjectAccessControl, StorageObject}
 import com.google.api.services.storage.{Storage, StorageScopes}
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
@@ -202,11 +202,18 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       new BucketAccessControl().setEntity(userServiceAccount.string).setRole("READER"),
     )
 
+    //Bucket ACL != the ACL given to individual objects inside the bucket
+    val defObjectAcls = List(
+      new ObjectAccessControl().setEntity(dataprocConfig.serviceAccount.string).setRole("OWNER"),
+      new ObjectAccessControl().setEntity(userServiceAccount.string).setRole("READER")
+    )
+
     // Create the bucket object
     val bucket = new Bucket()
       .setName(bucketName.name)
       .setLifecycle(lifecycle)
       .setAcl(bucketAcls.asJava)
+      .setDefaultObjectAcl(defObjectAcls.asJava)
 
     val bucketInserter = storage.buckets().insert(googleProject.string, bucket)
 
