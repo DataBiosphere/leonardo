@@ -5,12 +5,18 @@ import akka.http.scaladsl.server.Route
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, GoogleProject}
 import org.broadinstitute.dsde.workbench.leonardo.service.ProxyService
+import org.broadinstitute.dsde.workbench.model.WorkbenchUserEmail
+
+import scala.concurrent.ExecutionContext
 
 /**
   * Created by rtitle on 8/4/17.
   */
-trait ProxyRoutes { self: LazyLogging =>
+trait ProxyRoutes extends UserInfoDirectives{ self: LazyLogging =>
   val proxyService: ProxyService
+  val whitelistConfig: Set[WorkbenchUserEmail]
+  implicit val executionContext: ExecutionContext
+
   protected val tokenCookieName = "FCToken"
 
   protected val proxyRoutes: Route =
@@ -18,10 +24,15 @@ trait ProxyRoutes { self: LazyLogging =>
       extractRequest { request =>
         cookie(tokenCookieName) { tokenCookie => // rejected with MissingCookieRejection if the cookie is not present
           complete {
-            // Proxy logic handled by the ProxyService class
-            proxyService.proxy(GoogleProject(googleProject), ClusterName(clusterName), request, tokenCookie)
+            proxyService.getCachedEmailFromToken(tokenCookie.value).flatMap { email =>
+              if (whitelistConfig.contains(email)) {
+                // Proxy logic handled by the ProxyService class
+                proxyService.proxy(GoogleProject(googleProject), ClusterName(clusterName), request, tokenCookie)
+              } else throw AuthorizationError(email)
+            }
           }
         }
       }
     }
+
 }

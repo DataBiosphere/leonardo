@@ -1,11 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
 import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserId}
 import org.scalatest.{FlatSpec, Matchers}
 import spray.json._
 
@@ -36,6 +38,15 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       responseCluster.googleBucket shouldEqual bucketPath
       responseCluster.googleServiceAccount shouldEqual googleServiceAccount
       responseCluster.jupyterExtensionUri shouldEqual Some(mockGoogleDataprocDAO.extensionPath)
+    }
+  }
+
+  it should "401 when using a non-white-listed user" in isolatedDbTest {
+    val invalidUserLeoRoutes = new LeoRoutes(leonardoService, proxyService, swaggerConfig, whitelistConfig) with MockUserInfoDirectives {
+      override val userInfo: UserInfo =  UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("badUser"), WorkbenchUserEmail("badUser@example.com"), 0)
+    }
+    Get("/api/clusters") ~> invalidUserLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.Unauthorized
     }
   }
 
