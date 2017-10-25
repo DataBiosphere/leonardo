@@ -7,7 +7,7 @@ import com.typesafe.scalalogging.LazyLogging
 import java.io.File
 
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, PetServiceAccountConfig, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{DataprocDAO, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
@@ -44,7 +44,6 @@ case class IllegalLabelKeyException(labelKey: String)
 class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val clusterResourcesConfig: ClusterResourcesConfig,
                       protected val proxyConfig: ProxyConfig,
-                      protected val petServiceAccountConfig: PetServiceAccountConfig,
                       protected val gdDAO: DataprocDAO,
                       protected val googleIamDAO: GoogleIamDAO,
                       protected val dbRef: DbReference,
@@ -133,7 +132,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Create the bucket in leo's google bucket and populate with initialization files
       initBucketPath <- initializeBucket(dataprocConfig.leoGoogleProject, clusterName, bucketName, clusterRequest)
       // Add Dataproc Worker role to the pet service account
-      _ <- googleIamDAO.addIamRolesForUser(petServiceAccountConfig.googleProject.string, serviceAccount, Set("roles/dataproc.worker"))
+      _ <- googleIamDAO.addIamRolesForUser(googleProject.string, serviceAccount, Set("roles/dataproc.worker"))
       // Once the bucket is ready, build the cluster
       cluster <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, bucketName, serviceAccount).andThen { case Failure(_) =>
         // If cluster creation fails, delete the init bucket asynchronously

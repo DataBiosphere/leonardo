@@ -65,8 +65,4 @@ package object config {
   implicit val samConfigReader: ValueReader[SamConfig] = ValueReader.relative { config =>
     SamConfig(config.getString("server"))
   }
-
-  implicit val petServiceAccountConfigReader: ValueReader[PetServiceAccountConfig] = ValueReader.relative { config =>
-    PetServiceAccountConfig(GoogleProject(config.getString("googleProject")))
-  }
 }

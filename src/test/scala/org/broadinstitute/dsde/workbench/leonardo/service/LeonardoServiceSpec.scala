@@ -9,7 +9,7 @@ import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, PetServiceAccountConfig, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, MockGoogleDataprocDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -25,7 +25,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   private val dataprocConfig = configFactory.as[DataprocConfig]("dataproc")
   private val clusterResourcesConfig = configFactory.as[ClusterResourcesConfig]("clusterResources")
   private val proxyConfig = configFactory.as[ProxyConfig]("proxy")
-  private val petServiceAccountConfig = configFactory.as[PetServiceAccountConfig]("petServiceAccount")
   private val bucketPath = GcsBucketName("bucket-path")
   private val googleProject = GoogleProject("test-google-project")
   private val clusterName = ClusterName("test-cluster")
@@ -39,7 +38,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   before {
     gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig)
     samDAO = new MockSamDAO
-    leo = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, petServiceAccountConfig, gdDAO, new MockGoogleIamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), samDAO)
+    leo = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, gdDAO, new MockGoogleIamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), samDAO)
   }
 
   override def afterAll(): Unit = {

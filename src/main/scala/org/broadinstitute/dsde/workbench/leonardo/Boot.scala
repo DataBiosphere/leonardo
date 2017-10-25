@@ -1,9 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import java.io.File
+
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
-import com.google.api.client.googleapis.auth.oauth2.GoogleClientSecrets
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.LazyLogging
 import net.ceedubs.ficus.Ficus._
@@ -45,7 +46,6 @@ object Boot extends App with LazyLogging {
     val monitorConfig = config.as[MonitorConfig]("monitor")
     val whitelistConfig = config.as[(Set[String])]("whitelist").map(WorkbenchUserEmail(_))
     val samConfig = config.as[SamConfig]("sam")
-    val petServiceAccountConfig = config.as[PetServiceAccountConfig]("petServiceAccount")
 
     // we need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")
@@ -60,7 +60,7 @@ object Boot extends App with LazyLogging {
     val gdDAO = new GoogleDataprocDAO(dataprocConfig, proxyConfig, clusterResourcesConfig)
     val googleIamDAO = new HttpGoogleIamDAO(dataprocConfig.serviceAccount.string, new File(clusterResourcesConfig.configFolderPath, clusterResourcesConfig.leonardoServicePem).getAbsolutePath, dataprocConfig.applicationName, "google")
     val samDAO = new HttpSamDAO(samConfig.server)
-    val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, gdDAO, dbRef))
+    val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, gdDAO, googleIamDAO, dbRef))
     val leonardoService = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, gdDAO, googleIamDAO, dbRef, clusterMonitorSupervisor, samDAO)
     val clusterDnsCache = system.actorOf(ClusterDnsCache.props(proxyConfig, dbRef))
     val proxyService = new ProxyService(proxyConfig, gdDAO, dbRef, clusterDnsCache)
