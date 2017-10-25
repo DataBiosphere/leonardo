@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
-
 import akka.actor.ActorRef
 import akka.http.scaladsl.model.StatusCodes
 import com.typesafe.scalalogging.LazyLogging
@@ -69,10 +68,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } flatMap {
       case Some(_) => throw ClusterAlreadyExistsException(googleProject, clusterName)
       case None =>
-        createGoogleCluster(serviceAccount, googleProject, clusterName, clusterRequest).flatMap { case (cluster, initBucket) =>
-          val augmentedCluster = addClusterDefaultLabels(cluster)
+        val augmentedClusterRequest = addClusterDefaultLabels(serviceAccount, googleProject, clusterName, clusterRequest)
+        createGoogleCluster(serviceAccount, googleProject, clusterName, augmentedClusterRequest).flatMap { case (cluster, initBucket) =>
           dbRef.inTransaction { dataAccess =>
-            dataAccess.clusterQuery.save(augmentedCluster, GcsPath(initBucket, GcsRelativePath("")))
+            dataAccess.clusterQuery.save(cluster, GcsPath(initBucket, GcsRelativePath("")))
           }
         } andThen { case Success(cluster) =>
           // Notify the cluster monitor upon cluster creation
@@ -226,15 +225,15 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
-  private[service] def addClusterDefaultLabels(cluster: Cluster): Cluster = {
+  private[service] def addClusterDefaultLabels(serviceAccount: WorkbenchUserServiceAccountEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): ClusterRequest = {
     // create a LabelMap of default labels
-    val defaultLabels = DefaultLabels(cluster.clusterName, cluster.googleProject, cluster.googleBucket, cluster.googleServiceAccount, cluster.jupyterExtensionUri)
+    val defaultLabels = DefaultLabels(clusterName, googleProject, clusterRequest.bucketPath, serviceAccount, clusterRequest.jupyterExtensionUri)
       .toJson.asJsObject.fields.mapValues(labelValue => labelValue.convertTo[String])
     // combine default and given labels
-    val allLabels = cluster.labels ++ defaultLabels
+    val allLabels = clusterRequest.labels ++ defaultLabels
     // check the labels do not contain forbidden keys
     if (allLabels.contains(includeDeletedKey))
       throw IllegalLabelKeyException(includeDeletedKey)
-    else cluster.copy(labels = allLabels)
+    else clusterRequest.copy(labels = allLabels)
   }
 }

@@ -154,12 +154,12 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ShutdownActor
     */
   private def handleFailedCluster(errorDetails: ClusterErrorDetails): Future[ClusterMonitorMessage] = {
-    val deleteFuture = for {
+    val deleteFuture = Future.sequence(Seq(
       // Delete the cluster in Google
-      _ <- gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)
+      gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName),
       // Remove the Dataproc Worker IAM role for the pet service account
-      _ <- googleIamDAO.removeIamRolesForUser(cluster.googleProject.string, cluster.googleServiceAccount, Set("roles/dataproc.worker"))
-    } yield ()
+      googleIamDAO.removeIamRolesForUser(cluster.googleProject.string, cluster.googleServiceAccount, Set("roles/dataproc.worker"))
+    ))
 
     deleteFuture.flatMap { _ =>
       // Decide if we should try recreating the cluster
