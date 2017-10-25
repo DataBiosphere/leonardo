@@ -20,14 +20,15 @@ trait TestLeoRoutes { this: ScalatestRouteTest =>
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
+  val whitelistConfig = config.as[(Set[String])]("whitelist").map(WorkbenchUserEmail(_))
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig)
   // Route tests don't currently do cluster monitoring, so use NoopActor
   val clusterMonitorSupervisor = system.actorOf(NoopActor.props)
   val leonardoService = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, mockGoogleDataprocDAO, DbSingleton.ref, clusterMonitorSupervisor)
-  val proxyService = new MockProxyService(proxyConfig, DbSingleton.ref)
+  val proxyService = new MockProxyService(proxyConfig, mockGoogleDataprocDAO, DbSingleton.ref)
   val swaggerConfig = SwaggerConfig("", "")
   val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchUserEmail("user1@example.com"), 0)
-  val leoRoutes = new LeoRoutes(leonardoService, proxyService, swaggerConfig) with MockUserInfoDirectives {
+  val leoRoutes = new LeoRoutes(leonardoService, proxyService, swaggerConfig, whitelistConfig) with MockUserInfoDirectives {
     override val userInfo: UserInfo = defaultUserInfo
   }
 }

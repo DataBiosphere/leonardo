@@ -17,11 +17,11 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, ClusterReq
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService}
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport, WorkbenchUserEmail}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxyService, val swaggerConfig: SwaggerConfig)(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext) extends LazyLogging with ProxyRoutes with SwaggerRoutes with UserInfoDirectives {
+abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxyService, val swaggerConfig: SwaggerConfig, val whitelistConfig: Set[WorkbenchUserEmail])(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext) extends LazyLogging with ProxyRoutes with SwaggerRoutes with UserInfoDirectives {
 
   def unauthedRoutes: Route =
     path("ping") {
@@ -35,44 +35,44 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
     }
 
   def leoRoutes: Route =
-    path("cluster" / Segment / Segment) { (googleProject, clusterName) =>
-      requireUserInfo { userInfo =>
-        put {
-          entity(as[ClusterRequest]) { cluster =>
-            complete {
-              leonardoService.createCluster(GoogleProject(googleProject), ClusterName(clusterName), cluster).map { cluster =>
-                StatusCodes.OK -> cluster
+    requireUserInfo { userInfo =>
+      checkWhiteList(userInfo.userEmail) {
+        path("cluster" / Segment / Segment) { (googleProject, clusterName) =>
+          put {
+            entity(as[ClusterRequest]) { cluster =>
+              complete {
+                leonardoService.createCluster(GoogleProject(googleProject), ClusterName(clusterName), cluster).map { cluster =>
+                  StatusCodes.OK -> cluster
+                }
+              }
+            }
+          } ~
+            get {
+              complete {
+                leonardoService.getActiveClusterDetails(GoogleProject(googleProject), ClusterName(clusterName)).map { clusterDetails =>
+                  StatusCodes.OK -> clusterDetails
+                }
+              }
+            } ~
+            delete {
+              complete {
+                leonardoService.deleteCluster(GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
+                  StatusCodes.Accepted
+                }
+              }
+            }
+        } ~
+          path("clusters") {
+            parameterMap { params =>
+              complete {
+                leonardoService.listClusters(params).map { clusters =>
+                  StatusCodes.OK -> clusters
+                }
               }
             }
           }
-        } ~
-        get {
-          complete {
-            leonardoService.getActiveClusterDetails(GoogleProject(googleProject), ClusterName(clusterName)).map { clusterDetails =>
-              StatusCodes.OK -> clusterDetails
-            }
-          }
-        } ~
-        delete {
-          complete {
-            leonardoService.deleteCluster(GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
-              StatusCodes.Accepted
-            }
-          }
-        }
-      }
-  } ~
-  path("clusters") {
-    requireUserInfo { userInfo =>
-      parameterMap { params =>
-        complete {
-          leonardoService.listClusters(params).map { clusters =>
-            StatusCodes.OK -> clusters
-          }
-        }
       }
     }
-  }
 
   def route: Route = (logRequestResult & handleExceptions(myExceptionHandler) & handleRejections(rejectionHandler)) {
     swaggerRoutes ~ unauthedRoutes ~ proxyRoutes ~
