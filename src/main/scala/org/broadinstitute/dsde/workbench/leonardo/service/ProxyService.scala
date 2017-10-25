@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
+import java.time.Instant
+
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri.Host
@@ -38,7 +40,7 @@ class ProxyService(proxyConfig: ProxyConfig, gdDAO: DataprocDAO, dbRef: DbRefere
     .expireAfterWrite(proxyConfig.cacheExpiryTime, TimeUnit.MINUTES)
     .maximumSize(proxyConfig.cacheMaxSize)
     .build(
-      new CacheLoader[String, Future[(WorkbenchUserEmail, DateTime)]] {
+      new CacheLoader[String, Future[(WorkbenchUserEmail, Instant)]] {
         def load(key: String) = {
           gdDAO.getEmailAndExpirationFromAccessToken(key)
         }
@@ -47,7 +49,7 @@ class ProxyService(proxyConfig: ProxyConfig, gdDAO: DataprocDAO, dbRef: DbRefere
 
   /* Ask the cache for the corresponding google email given a token */
   def getCachedEmailFromToken(token: String): Future[WorkbenchUserEmail] = {
-    cachedAuth.get(token).map{ case (email, expireTime) => if (expireTime.compare(DateTime.now) > 0) email else throw AccessTokenExpiredException() }
+    cachedAuth.get(token).map{ case (email, expireTime) => if (expireTime.isAfter(Instant.now)) email else throw AccessTokenExpiredException() }
   }
 
 
