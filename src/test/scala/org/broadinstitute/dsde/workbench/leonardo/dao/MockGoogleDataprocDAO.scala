@@ -3,10 +3,12 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 import java.io.File
 import java.util.UUID
 
+import akka.http.scaladsl.model.DateTime
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.model.WorkbenchUserEmail
 
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
@@ -22,6 +24,16 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
   val badClusterName = ClusterName("badCluster")
 
   private def googleID = UUID.randomUUID()
+
+  def getEmailAndExpirationFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[(WorkbenchUserEmail, DateTime)] = {
+    Future {
+      accessToken match {
+        case "unauthorized" => throw AuthorizationError()
+        case "expired" =>  (WorkbenchUserEmail("expiredUser@example.com"), DateTime.now - 10)
+        case _ => (WorkbenchUserEmail("user1@example.com"), DateTime.MaxValue)
+      }
+    }
+  }
 
   override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[Cluster] = {
     if (clusterName == badClusterName) {

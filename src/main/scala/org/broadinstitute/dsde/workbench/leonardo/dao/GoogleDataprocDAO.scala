@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 import akka.actor.ActorSystem
-import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.model.{DateTime, StatusCodes}
 import cats.data.OptionT
 import cats.instances.future._
 import cats.syntax.functor._
@@ -22,6 +22,7 @@ import com.google.api.services.compute.{Compute, ComputeScopes}
 import com.google.api.services.dataproc.Dataproc
 import com.google.api.services.dataproc.model.{Cluster => DataprocCluster, Operation => DataprocOperation, _}
 import com.google.api.services.oauth2.Oauth2Scopes
+import com.google.api.services.oauth2.Oauth2.Builder
 import com.google.api.services.plus.PlusScopes
 import com.google.api.services.storage.model.Bucket.Lifecycle
 import com.google.api.services.storage.model.Bucket.Lifecycle.Rule.{Action, Condition}
@@ -33,6 +34,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterName, ClusterRequest, FirewallRuleName, GoogleProject, IP, InstanceName, LeoException, OperationName, ZoneUri, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
+import org.broadinstitute.dsde.workbench.model.WorkbenchUserEmail
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future, blocking}
@@ -43,6 +45,8 @@ case class CallToGoogleApiFailedException(googleProject: GoogleProject, context:
 
 case class FirewallRuleNotFoundException(googleProject: GoogleProject, firewallRuleName: FirewallRuleName)
   extends LeoException(s"Firewall rule ${firewallRuleName.string} not found in project ${googleProject.string}", StatusCodes.NotFound)
+
+case class AuthorizationError() extends LeoException(s"Your account is unauthorized", StatusCodes.Unauthorized)
 
 class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected val proxyConfig: ProxyConfig, protected val clusterResourcesConfig: ClusterResourcesConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
   extends DataprocDAO with GoogleUtilities {
@@ -58,6 +62,10 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   private lazy val vmScopes = List(ComputeScopes.COMPUTE, ComputeScopes.CLOUD_PLATFORM)
   private lazy val oauth2Scopes = List(Oauth2Scopes.USERINFO_EMAIL, Oauth2Scopes.USERINFO_PROFILE)
   private lazy val serviceAccountPemFile = new File(clusterResourcesConfig.configFolderPath, clusterResourcesConfig.leonardoServicePem)
+
+  private lazy val oauth2 =
+    new Builder(httpTransport, jsonFactory, null)
+    .setApplicationName(dataprocConfig.applicationName).build()
 
   private lazy val dataproc = {
     new Dataproc.Builder(httpTransport, jsonFactory, getServiceAccountCredential(cloudPlatformScopes))
@@ -86,6 +94,16 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
 
   private def getOperationUUID(dop: DataprocOperation): UUID = {
     UUID.fromString(dop.getMetadata.get("clusterUuid").toString)
+  }
+
+  // Using the given access token, look up the corresponding email of the user and get how long, in seconds, the token will expire in
+  def getEmailAndExpirationFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[(WorkbenchUserEmail, DateTime)] = {
+    val request = oauth2.tokeninfo().setAccessToken(accessToken)
+    executeGoogleRequestAsync(GoogleProject(""), "cookie auth", request).map{tokenInfo => (WorkbenchUserEmail(tokenInfo.getEmail), DateTime.now + tokenInfo.getExpiresIn.toInt)}
+        .recover { case CallToGoogleApiFailedException(_, _, _, _) => {
+        logger.error(s"Unable to authorize token: $accessToken")
+        throw AuthorizationError()
+      }}
   }
 
   private lazy val googleFirewallRule = {
@@ -365,6 +383,9 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       case e: GoogleJsonResponseException =>
         logger.error(s"Error occurred executing Google request for ${googleProject.string} / $context", e)
         throw CallToGoogleApiFailedException(googleProject, context, e.getStatusCode, e.getDetails.getMessage)
+      case illegalArgumentException: IllegalArgumentException =>
+        logger.error(s"Illegal argument passed to Google request for ${googleProject.string} / $context", illegalArgumentException)
+        throw CallToGoogleApiFailedException(googleProject, context, StatusCodes.BadRequest.intValue, illegalArgumentException.getMessage)
     }
   }
 }

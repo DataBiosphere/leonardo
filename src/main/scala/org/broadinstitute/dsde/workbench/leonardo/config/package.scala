@@ -53,7 +53,9 @@ package object config {
       config.getInt("jupyterPort"),
       config.getString("jupyterProtocol"),
       config.getString("jupyterDomain"),
-      toScalaDuration(config.getDuration("dnsPollPeriod")))
+      toScalaDuration(config.getDuration("dnsPollPeriod")),
+      config.getLong("cacheExpiryTime"),
+      config.getInt("cacheMaxSize"))
   }
 
   implicit val monitorConfigReader: ValueReader[MonitorConfig] = ValueReader.relative { config =>
