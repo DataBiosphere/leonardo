@@ -160,7 +160,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   /* Create a google bucket and populate it with init files */
   private[service] def initializeBucket(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest): Future[GcsBucketName] = {
     for {
-      _ <- gdDAO.createBucket(googleProject, bucketName)
+      _ <- gdDAO.createBucket(googleProject, bucketName, clusterRequest.serviceAccount)
       _ <- initializeBucketObjects(googleProject, clusterName, bucketName, clusterRequest)
     } yield { bucketName }
   }

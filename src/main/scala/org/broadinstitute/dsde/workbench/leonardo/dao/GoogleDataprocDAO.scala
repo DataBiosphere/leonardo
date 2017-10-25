@@ -27,13 +27,13 @@ import com.google.api.services.oauth2.Oauth2.Builder
 import com.google.api.services.plus.PlusScopes
 import com.google.api.services.storage.model.Bucket.Lifecycle
 import com.google.api.services.storage.model.Bucket.Lifecycle.Rule.{Action, Condition}
-import com.google.api.services.storage.model.{Bucket, StorageObject}
+import com.google.api.services.storage.model.{Bucket, BucketAccessControl, StorageObject}
 import com.google.api.services.storage.{Storage, StorageScopes}
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterName, ClusterRequest, FirewallRuleName, GoogleProject, IP, InstanceName, LeoException, OperationName, ZoneUri, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterName, ClusterRequest, FirewallRuleName, GoogleProject, GoogleServiceAccount, IP, InstanceName, LeoException, OperationName, ZoneUri, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserServiceAccountEmail}
 
@@ -183,7 +183,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   }
 
   /* Create a bucket in the given google project for the initialization files when creating a cluster */
-  override def createBucket(googleProject: GoogleProject, bucketName: GcsBucketName): Future[GcsBucketName] = {
+  override def createBucket(googleProject: GoogleProject, bucketName: GcsBucketName, userServiceAccount: GoogleServiceAccount): Future[GcsBucketName] = {
     // Create lifecycle rule for the bucket that will delete the bucket after 1 day.
     //
     // Note that the init buckets are explicitly deleted by the ClusterMonitor once the cluster
@@ -196,8 +196,17 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     // Create lifecycle for the bucket with a list of rules
     val lifecycle = new Lifecycle().setRule(List(lifecycleRule).asJava)
 
-    // Create a bucket object and set it's name and lifecycle
-    val bucket = new Bucket().setName(bucketName.name).setLifecycle(lifecycle)
+    //Add the Leo SA and the user's pet SA to the ACL list for the bucket
+    val bucketAcls = List(
+      new BucketAccessControl().setEntity(dataprocConfig.serviceAccount.string).setRole("OWNER"),
+      new BucketAccessControl().setEntity(userServiceAccount.string).setRole("READER"),
+    )
+
+    // Create the bucket object
+    val bucket = new Bucket()
+      .setName(bucketName.name)
+      .setLifecycle(lifecycle)
+      .setAcl(bucketAcls.asJava)
 
     val bucketInserter = storage.buckets().insert(googleProject.string, bucket)
 
