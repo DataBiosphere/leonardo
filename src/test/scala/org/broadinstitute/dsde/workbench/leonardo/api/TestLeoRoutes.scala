@@ -5,7 +5,7 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockGoogleDataprocDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
 import org.broadinstitute.dsde.workbench.leonardo.model.UserInfo
@@ -23,10 +23,10 @@ trait TestLeoRoutes { this: ScalatestRouteTest =>
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
   val whitelistConfig = config.as[(Set[String])]("whitelist").map(WorkbenchUserEmail(_))
-  val mockGoogleDataprocDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig)
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockSamDAO = new MockSamDAO
-
+  val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
+  val mockGoogleDataprocDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
   // Route tests don't currently do cluster monitoring, so use NoopActor
   val clusterMonitorSupervisor = system.actorOf(NoopActor.props)
   val leonardoService = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, mockGoogleDataprocDAO, mockGoogleIamDAO, DbSingleton.ref, clusterMonitorSupervisor, mockSamDAO)

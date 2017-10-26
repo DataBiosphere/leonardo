@@ -31,9 +31,9 @@ import com.google.api.services.storage.model.{Bucket, BucketAccessControl, Objec
 import com.google.api.services.storage.{Storage, StorageScopes}
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterMode, ClusterName, ClusterRequest, FirewallRuleName, GoogleProject, GoogleServiceAccount, IP, InstanceName, LeoException, OperationName, ZoneUri, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterName, ClusterRequest, FirewallRuleName, GoogleProject, GoogleServiceAccount, IP, InstanceName, LeoException, OperationName, ZoneUri, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserServiceAccountEmail}
 
@@ -52,7 +52,7 @@ case class AuthorizationError() extends LeoException(s"Your account is unauthori
 case class TooFewWorkersRequestedException(numberofWorkers: Int)
   extends LeoException(s"$numberofWorkers workers requested. A Standard cluster must have 2 or more workers.", StatusCodes.NotFound)
 
-class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected val proxyConfig: ProxyConfig, protected val clusterResourcesConfig: ClusterResourcesConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
+class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected val proxyConfig: ProxyConfig, protected val clusterDefaultsConfig: ClusterDefaultsConfig, protected val clusterResourcesConfig: ClusterResourcesConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
   extends DataprocDAO with GoogleUtilities {
 
   // TODO pass as constructor arg when we add metrics
@@ -123,7 +123,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, serviceAccount: WorkbenchUserServiceAccountEmail)(implicit executionContext: ExecutionContext): Future[LeoCluster] = {
     buildCluster(googleProject, clusterName, clusterRequest, bucketName, serviceAccount).map { operation =>
       //Make a Leo cluster from the Google operation details
-      LeoCluster.create(clusterRequest, clusterName, googleProject, getOperationUUID(operation), OperationName(operation.getName), serviceAccount)
+      LeoCluster.create(clusterRequest, clusterName, googleProject, getOperationUUID(operation), OperationName(operation.getName), serviceAccount, clusterDefaultsConfig)
     }
   }
 
@@ -159,7 +159,13 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       .setGceClusterConfig(gceClusterConfig)
       .setInitializationActions(initActions.asJava)
 
-    if (clusterRequest.clusterMode == ClusterMode.SingleNode) {
+    val masterConfig = new InstanceGroupConfig()
+      .setMachineTypeUri(clusterRequest.masterMachineType.getOrElse(clusterDefaultsConfig.masterMachineType))
+      .setDiskConfig(new DiskConfig().setBootDiskSizeGb(clusterRequest.masterDiskSize.getOrElse(clusterDefaultsConfig.masterDiskSize).toInt))
+
+    clusterConfig.setMasterConfig(masterConfig)
+
+    if (clusterRequest.numberOfWorkers.getOrElse(clusterDefaultsConfig.numberOfWorkers) == 0) {
       // Create a SoftwareConfig and set a property that makes the cluster have only one node
       val softwareConfig = new SoftwareConfig().setProperties(Map("dataproc:dataproc.allow.zero.workers" -> "true").asJava)
       clusterConfig.setSoftwareConfig(softwareConfig)
@@ -169,7 +175,13 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
         case Some(workers) => workers
         case None => 2
       }
-      clusterConfig.setWorkerConfig(new InstanceGroupConfig().setNumInstances(numberOfWorkers))
+
+      val workerConfig = new InstanceGroupConfig()
+        .setNumInstances(numberOfWorkers)
+        .setMachineTypeUri(clusterRequest.workerMachineType.getOrElse(clusterDefaultsConfig.workerMachineType))
+        .setDiskConfig(new DiskConfig().setBootDiskSizeGb(clusterRequest.workerDiskSize.getOrElse(clusterDefaultsConfig.workerDiskSize).toInt).setNumLocalSsds(clusterRequest.numberOfWorkerLocalSsds.getOrElse(clusterDefaultsConfig.numberOfWorkerLocalSsds).toInt))
+
+      clusterConfig.setWorkerConfig(workerConfig)
     }
   }
 

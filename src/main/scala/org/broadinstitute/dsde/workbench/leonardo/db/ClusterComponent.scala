@@ -18,8 +18,12 @@ case class ClusterRecord(id: Long,
                          googleProject: String,
                          googleServiceAccount: String,
                          googleBucket: String,
-                         clusterMode: String,
                          numberOfWorkers: Int,
+                         masterMachineType: String,
+                         masterDiskSize: Int,
+                         workerMachineType: Option[String],
+                         workerDiskSize: Option[Int],
+                         numberOfWorkerLocalSsds: Option[Int],
                          operationName: String,
                          status: String,
                          hostIp: Option[String],
@@ -34,25 +38,29 @@ trait ClusterComponent extends LeoComponent {
   import profile.api._
 
   class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
-    def id =                    column[Long]              ("id",                    O.PrimaryKey, O.AutoInc)
-    def clusterName =           column[String]            ("clusterName",           O.Length(254))
-    def googleId =              column[UUID]              ("googleId",              O.Unique)
-    def googleProject =         column[String]            ("googleProject",         O.Length(254))
-    def googleServiceAccount =  column[String]            ("googleServiceAccount",  O.Length(254))
-    def googleBucket =          column[String]            ("googleBucket",          O.Length(1024))
-    def clusterMode =           column[String]            ("clusterMode",           O.Length(254))
-    def numberOfWorkers =       column[Int]               ("numberOfWorkers")
-    def operationName =         column[String]            ("operationName",         O.Length(254))
-    def status =                column[String]            ("status",                O.Length(254))
-    def hostIp =                column[Option[String]]    ("hostIp",                O.Length(254))
-    def createdDate =           column[Timestamp]         ("createdDate",           O.SqlType("TIMESTAMP(6)"))
-    def destroyedDate =         column[Timestamp]         ("destroyedDate",         O.SqlType("TIMESTAMP(6)"))
-    def jupyterExtensionUri =   column[Option[String]]    ("jupyterExtensionUri",   O.Length(1024))
-    def initBucket =            column[String]            ("initBucket",            O.Length(1024))
+    def id =                      column[Long]              ("id",                    O.PrimaryKey, O.AutoInc)
+    def clusterName =             column[String]            ("clusterName",           O.Length(254))
+    def googleId =                column[UUID]              ("googleId",              O.Unique)
+    def googleProject =           column[String]            ("googleProject",         O.Length(254))
+    def googleServiceAccount =    column[String]            ("googleServiceAccount",  O.Length(254))
+    def googleBucket =            column[String]            ("googleBucket",          O.Length(1024))
+    def numberOfWorkers =         column[Int]               ("numberOfWorkers")
+    def masterMachineType =       column[String]            ("masterMachineType",     O.Length(254))
+    def masterDiskSize =          column[Int]               ("masterDiskSize")
+    def workerMachineType =       column[Option[String]]    ("workerMachineType",     O.Length(254))
+    def workerDiskSize =          column[Option[Int]]       ("workerDiskSize")
+    def numberOfWorkerLocalSSDs = column[Option[Int]]       ("numberOfWorkerLocalSSDs")
+    def operationName =           column[String]            ("operationName",         O.Length(254))
+    def status =                  column[String]            ("status",                O.Length(254))
+    def hostIp =                  column[Option[String]]    ("hostIp",                O.Length(254))
+    def createdDate =             column[Timestamp]         ("createdDate",           O.SqlType("TIMESTAMP(6)"))
+    def destroyedDate =           column[Timestamp]         ("destroyedDate",         O.SqlType("TIMESTAMP(6)"))
+    def jupyterExtensionUri =     column[Option[String]]    ("jupyterExtensionUri",   O.Length(1024))
+    def initBucket =              column[String]            ("initBucket",            O.Length(1024))
 
     def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName), unique = true)
 
-    def * = (id, clusterName, googleId, googleProject, googleServiceAccount, googleBucket, clusterMode, numberOfWorkers, operationName, status, hostIp, createdDate, destroyedDate, jupyterExtensionUri, initBucket) <> (ClusterRecord.tupled, ClusterRecord.unapply)
+    def * = (id, clusterName, googleId, googleProject, googleServiceAccount, googleBucket, numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, operationName, status, hostIp, createdDate, destroyedDate, jupyterExtensionUri, initBucket) <> (ClusterRecord.tupled, ClusterRecord.unapply)
   }
 
   object clusterQuery extends TableQuery(new ClusterTable(_)) {
@@ -189,11 +197,12 @@ trait ClusterComponent extends LeoComponent {
         cluster.googleProject.string,
         cluster.googleServiceAccount.value,
         cluster.googleBucket.name,
-        cluster.clusterMode.toString,
-        cluster.numberOfWorkers match {
-          case Some(num) => num
-          case None => 0
-        },
+        cluster.numberOfWorkers,
+        cluster.masterMachineType,
+        cluster.masterDiskSize,
+        cluster.workerMachineType,
+        cluster.workerDiskSize,
+        cluster.numberOfWorkerLocalSsds,
         cluster.operationName.string,
         cluster.status.toString,
         cluster.hostIp map(_.string),
@@ -226,8 +235,12 @@ trait ClusterComponent extends LeoComponent {
         project,
         WorkbenchUserServiceAccountEmail(clusterRecord.googleServiceAccount),
         GcsBucketName(clusterRecord.googleBucket),
-        ClusterMode.withName(clusterRecord.clusterMode),
-        Some(clusterRecord.numberOfWorkers),
+        clusterRecord.numberOfWorkers,
+        clusterRecord.masterMachineType,
+        clusterRecord.masterDiskSize,
+        clusterRecord.workerMachineType,
+        clusterRecord.workerDiskSize,
+        clusterRecord.numberOfWorkerLocalSsds,
         Cluster.getClusterUrl(project, name),
         OperationName(clusterRecord.operationName),
         ClusterStatus.withName(clusterRecord.status),

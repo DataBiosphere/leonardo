@@ -9,7 +9,7 @@ import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, MockGoogleDataprocDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -24,20 +24,21 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   private val configFactory = ConfigFactory.load()
   private val dataprocConfig = configFactory.as[DataprocConfig]("dataproc")
   private val clusterResourcesConfig = configFactory.as[ClusterResourcesConfig]("clusterResources")
+  private val clusterDefaultsConfig = configFactory.as[ClusterDefaultsConfig]("clusterDefaults")
   private val proxyConfig = configFactory.as[ProxyConfig]("proxy")
   private val bucketPath = GcsBucketName("bucket-path")
   private val googleProject = GoogleProject("test-google-project")
   private val petServiceAccount = WorkbenchUserServiceAccountEmail("petSA@test-domain.iam.gserviceaccount.com")
   private val clusterName = ClusterName("test-cluster")
   private val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchUserEmail("user1@example.com"), 0)
-  private lazy val testClusterRequest = ClusterRequest(bucketPath, ClusterMode.SingleNode, None, Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(gdDAO.extensionPath))
+  private lazy val testClusterRequest = ClusterRequest(bucketPath, Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(gdDAO.extensionPath))
 
   private var gdDAO: MockGoogleDataprocDAO = _
   private var samDAO: MockSamDAO = _
   private var leo: LeonardoService = _
 
   before {
-    gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig)
+    gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
     samDAO = new MockSamDAO
     leo = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, gdDAO, new MockGoogleIamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), samDAO)
   }

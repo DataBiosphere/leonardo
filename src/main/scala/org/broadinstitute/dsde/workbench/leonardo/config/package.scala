@@ -39,6 +39,18 @@ package object config {
       config.getString("jupyterInstallExtensionScript"))
   }
 
+  implicit val clusterDefaultConfigReader: ValueReader[ClusterDefaultsConfig] = ValueReader.relative { config =>
+
+    ClusterDefaultsConfig(
+      config.getInt("numberOfWorkers"),
+      config.getString("masterMachineType"),
+      config.getInt("masterDiskSize"),
+      config.getString("workerMachineType"),
+      config.getInt("workerDiskSize"),
+      config.getInt("numberOfWorkerLocalSsds")
+    )
+  }
+
   implicit val liquibaseReader: ValueReader[LiquibaseConfig] = ValueReader.relative { config =>
     LiquibaseConfig(config.as[String]("changelog"), config.as[Boolean]("initWithLiquibase"))
   }

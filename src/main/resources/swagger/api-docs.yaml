@@ -334,8 +334,12 @@ definitions:
       - googleProject
       - googleServiceAccount
       - googleBucket
-      - clusterMode
       - numberOfWorkers
+      - masterMachineType
+      - masterDiskSize
+      - workerMachineType
+      - workerDiskSize
+      - numberOfWorkerLocalSsds
       - operationName
       - status
       - createdDate
@@ -356,13 +360,24 @@ definitions:
       googleBucket:
         type: string
         description: The Google Bucket associated with the cluster
-      clusterMode:
-        type: string
-        enum: *CLUSTERMODE
-        description: The mode of the cluster, set at creation
       numberOfWorkers:
         type: integer
-        description:
+        description: The number of worker nodes in a cluster. Cannot be 1.
+      masterMachineType:
+        type: string
+        description: The machine type determines the vCPU and memory for the master node.
+      masterDiskSize:
+        type: integer
+        description: The disk size, in GB. The disk contains the boot volume, system libraries, and HDFS NameNode metadata
+      workerMachineType:
+        type: string
+        description: The machine type determines the vCPU and memory for the worker nodes.
+      workerDiskSize:
+        type: integer
+        description: The disk size, in GB. The disk contains the boot volume, system libraries, and HDFS NameNode metadata.
+      numberOfWorkerLocalSsds:
+        type: integer
+        description: The number of local solid state disks for workers.
       operationName:
         type: string
         description: Google's operation ID for the cluster
@@ -391,13 +406,6 @@ definitions:
       bucketPath:
         type: string
         description: The bucket where user's notebooks will be saved
-      clusterMode:
-        type: string
-        description: The mode of the cluster, either "SingleNode" or "Standard"
-      workers:
-        type: integer
-        description: Optional, number of workers in the cluster. For a SingleNode, this field should not be defined, as the
-         SingleNode clusters have 0 workers by default. For a Standard cluster, workers should be 2 or more.
       labels:
         type: object
         description: The labels to be placed on the cluster. Of type Map[String,String]
@@ -408,6 +416,36 @@ definitions:
           The archive must be in tar.gz format, must not include a parent directory, and
           must have an entry point named 'main'. For more information on notebook extensions,
           see: http://jupyter-notebook.readthedocs.io/en/latest/extending/frontend_extensions.html.
+      numberOfWorkers:
+        type: integer
+        description: |
+          Optional, number of workers in the cluster. For a SingleNode, this field should not be defined, as the
+          SingleNode clusters have 0 workers by default. For a Standard cluster, workers should be 2 or more.
+      masterMachineType:
+        type: string
+        description: |
+          Optional, the machine type determines the vCPU and memory for the master node. For example "n1-standard-16"
+          or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine
+      masterDiskSize:
+        type: integer
+        description: |
+          Optional, the disk contains the boot volume, system libraries, and HDFS NameNode metadata. Minimum size is 10GB.
+          If unspecified,default size is 500GB.
+      workerMachineType:
+        type: string
+        description: |
+          Optional, the machine type determines the vCPU and memory for the worker nodes. For example "n1-standard-16"
+          or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine
+      workerDiskSize:
+        type: integer
+        description: |
+          Optional, the disk contains the boot volume, system libraries, and HDFS NameNode metadata. Minimum size is 10GB.
+          If unspecified,default size is 500GB.
+      numberOfWorkerLocalSsds:
+        type: integer
+        description: |
+          Optional, the number of local solid state disks for workers. Must be a minimum of 0. If unspecified,
+          the default number is 0
 
   SubsystemStatus:
     description: status of a subsystem Leonardo depends on

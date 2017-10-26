@@ -8,8 +8,7 @@ import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterMode.ClusterMode
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail
@@ -48,11 +47,6 @@ object StringValueClass {
   type LabelMap = Map[String, String]
 }
 
-object ClusterMode extends Enumeration {
-  type ClusterMode = Value
-  val SingleNode, Standard = Value
-}
-
 object ClusterStatus extends Enumeration {
   type ClusterStatus = Value
   //NOTE: Remember to update the definition of this enum in Swagger when you add new ones
@@ -75,22 +69,31 @@ object ClusterStatus extends Enumeration {
 
 
 object Cluster {
-  def create(clusterRequest: ClusterRequest, clusterName: ClusterName, googleProject: GoogleProject, googleId: UUID, operationName: OperationName, serviceAccount: WorkbenchUserServiceAccountEmail): Cluster = Cluster(
-    clusterName = clusterName,
-    googleId = googleId,
-    googleProject = googleProject,
-    googleServiceAccount = serviceAccount,
-    googleBucket = clusterRequest.bucketPath,
-    clusterMode = clusterRequest.clusterMode,
-    numberOfWorkers = clusterRequest.numberOfWorkers,
-    clusterUrl = getClusterUrl(googleProject, clusterName),
-    operationName = operationName,
-    status = ClusterStatus.Creating,
-    hostIp = None,
-    createdDate = Instant.now(),
-    destroyedDate = None,
-    labels = clusterRequest.labels,
-    jupyterExtensionUri = clusterRequest.jupyterExtensionUri)
+  def create(clusterRequest: ClusterRequest, clusterName: ClusterName, googleProject: GoogleProject, googleId: UUID, operationName: OperationName, serviceAccount: WorkbenchUserServiceAccountEmail, clusterDefaultsConfig: ClusterDefaultsConfig): Cluster = {
+    val numWorkers = clusterRequest.numberOfWorkers.getOrElse(clusterDefaultsConfig.numberOfWorkers)
+
+    Cluster(
+      clusterName = clusterName,
+      googleId = googleId,
+      googleProject = googleProject,
+      googleServiceAccount = serviceAccount,
+      googleBucket = clusterRequest.bucketPath,
+      numberOfWorkers = numWorkers,
+      masterMachineType = clusterRequest.masterMachineType.getOrElse(clusterDefaultsConfig.masterMachineType),
+      masterDiskSize = clusterRequest.masterDiskSize.getOrElse(clusterDefaultsConfig.masterDiskSize),
+      workerMachineType = if (numWorkers == 0) None else Some(clusterRequest.workerMachineType.getOrElse(clusterDefaultsConfig.workerMachineType)),
+      workerDiskSize = if (numWorkers == 0) None else Some(clusterRequest.workerDiskSize.getOrElse(clusterDefaultsConfig.workerDiskSize)),
+      numberOfWorkerLocalSsds = if (numWorkers == 0) None else Some(clusterRequest.numberOfWorkerLocalSsds.getOrElse(clusterDefaultsConfig.numberOfWorkerLocalSsds)),
+      clusterUrl = getClusterUrl(googleProject, clusterName),
+      operationName = operationName,
+      status = ClusterStatus.Creating,
+      hostIp = None,
+      createdDate = Instant.now(),
+      destroyedDate = None,
+      labels = clusterRequest.labels,
+      jupyterExtensionUri = clusterRequest.jupyterExtensionUri
+    )
+  }
 
   def getClusterUrl(googleProject: GoogleProject, clusterName: ClusterName): URL = {
     val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
@@ -110,8 +113,12 @@ case class Cluster(clusterName: ClusterName,
                    googleProject: GoogleProject,
                    googleServiceAccount: WorkbenchUserServiceAccountEmail,
                    googleBucket: GcsBucketName,
-                   clusterMode: ClusterMode,
-                   numberOfWorkers: Option[Int],
+                   numberOfWorkers: Int,
+                   masterMachineType: String,
+                   masterDiskSize: Int,  //min 10
+                   workerMachineType: Option[String],
+                   workerDiskSize: Option[Int],   //min 10
+                   numberOfWorkerLocalSsds: Option[Int], //min 0 max 8
                    clusterUrl: URL,
                    operationName: OperationName,
                    status: ClusterStatus,
@@ -123,11 +130,25 @@ case class Cluster(clusterName: ClusterName,
   def projectNameString: String = s"${googleProject.string}/${clusterName.string}"
 }
 
+//object ClusterRequest{
+//  def apply(bucketPath: GcsBucketName,
+//            serviceAccount: GoogleServiceAccount,
+//            labels: LabelMap,
+//            jupyterExtensionUri: Option[GcsPath]): ClusterRequest = {
+//    ClusterRequest(bucketPath, serviceAccount, labels, jupyterExtensionUri,)
+//  }
+//}
+
 case class ClusterRequest(bucketPath: GcsBucketName,
-                          clusterMode: ClusterMode,
-                          numberOfWorkers: Option[Int],
                           labels: LabelMap,
-                          jupyterExtensionUri: Option[GcsPath])
+                          jupyterExtensionUri: Option[GcsPath] = None,
+                          numberOfWorkers: Option[Int] = None,
+                          masterMachineType: Option[String] = None,
+                          masterDiskSize: Option[Int] = None,  //min 10
+                          workerMachineType: Option[String] = None,
+                          workerDiskSize: Option[Int] = None,   //min 10
+                          numberOfWorkerLocalSsds: Option[Int] = None, //min 0 max 8
+                         )
 
 case class ClusterErrorDetails(code: Int, message: Option[String])
 
@@ -214,15 +235,6 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     }
   }
 
-  implicit object ClusterModeFormat extends JsonFormat[ClusterMode] {
-    def write(obj: ClusterMode) = JsString(obj.toString)
-
-    def read(json: JsValue): ClusterMode = json match {
-      case JsString(status) => ClusterMode.withName(status)
-      case other => throw DeserializationException("Expected ClusterMode, got: " + other)
-    }
-  }
-
   implicit object URLFormat extends JsonFormat[URL] {
     def write(obj: URL) = JsString(obj.toString)
 
@@ -271,8 +283,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val ipFormat = StringValueClassFormat(IP, IP.unapply)
   implicit val firewallRuleNameFormat = StringValueClassFormat(FirewallRuleName, FirewallRuleName.unapply)
 
-  implicit val clusterFormat = jsonFormat15(Cluster.apply)
-  implicit val clusterRequestFormat = jsonFormat5(ClusterRequest)
+  implicit val clusterFormat = jsonFormat19(Cluster.apply)
+  implicit val clusterRequestFormat = jsonFormat9(ClusterRequest)
   implicit val clusterInitValuesFormat = jsonFormat13(ClusterInitValues.apply)
   implicit val defaultLabelsFormat = jsonFormat5(DefaultLabels.apply)
 }

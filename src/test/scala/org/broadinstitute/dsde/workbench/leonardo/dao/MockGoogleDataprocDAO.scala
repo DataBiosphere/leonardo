@@ -5,7 +5,7 @@ import java.time.Instant
 import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
-import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserServiceAccountEmail}
@@ -14,7 +14,7 @@ import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
 
-class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected val proxyConfig: ProxyConfig, ok: Boolean = true) extends DataprocDAO {
+class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected val proxyConfig: ProxyConfig, protected val clusterDefaultsConfig: ClusterDefaultsConfig, ok: Boolean = true) extends DataprocDAO {
 
   val clusters: mutable.Map[ClusterName, Cluster] = new TrieMap()  // Cluster Name and Cluster
   val firewallRules: mutable.Map[GoogleProject, String] = new TrieMap()  // Google Project and Rule Name
@@ -39,7 +39,7 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
     if (clusterName == badClusterName) {
       Future.failed(CallToGoogleApiFailedException(googleProject, clusterName.string, 500, "Bad Cluster!"))
     } else {
-      val cluster = Cluster.create(clusterRequest, clusterName, googleProject, googleID, OperationName("op-name"), serviceAccount)
+      val cluster = Cluster.create(clusterRequest, clusterName, googleProject, googleID, OperationName("op-name"), serviceAccount, clusterDefaultsConfig)
       clusters += clusterName -> cluster
       Future.successful(cluster)
     }

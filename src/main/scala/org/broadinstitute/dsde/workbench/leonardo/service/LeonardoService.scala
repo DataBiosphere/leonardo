@@ -40,6 +40,9 @@ case class ParseLabelsException(labelString: String)
 case class IllegalLabelKeyException(labelKey: String)
   extends LeoException(s"Labels cannot have a key of '$labelKey'", StatusCodes.NotAcceptable)
 
+case class WorkerConfigsSpecifiedForZeroWorkers()
+  extends LeoException("When number of workers is zero, worker machine type, worker disk size and number of worker local ssds should not be specified in the request.")
+
 
 class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val clusterResourcesConfig: ClusterResourcesConfig,
@@ -69,6 +72,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } flatMap {
       case Some(_) => throw ClusterAlreadyExistsException(googleProject, clusterName)
       case None =>
+        // place in processClusters w/ adding label op
+        if ((clusterRequest.numberOfWorkers == None || clusterRequest.numberOfWorkers.get == 0)
+          && (clusterRequest.workerMachineType != None || clusterRequest.workerDiskSize != None || clusterRequest.numberOfWorkerLocalSsds != None))
+          throw WorkerConfigsSpecifiedForZeroWorkers()
         val augmentedClusterRequest = addClusterDefaultLabels(serviceAccount, googleProject, clusterName, clusterRequest)
         createGoogleCluster(serviceAccount, googleProject, clusterName, augmentedClusterRequest).flatMap { case (cluster, initBucket) =>
           dbRef.inTransaction { dataAccess =>
