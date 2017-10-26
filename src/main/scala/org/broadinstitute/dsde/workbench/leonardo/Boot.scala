@@ -17,7 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
-import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService}
+import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.model.WorkbenchUserEmail
 
 import scala.concurrent.ExecutionContext
@@ -64,7 +64,8 @@ object Boot extends App with LazyLogging {
     val leonardoService = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, gdDAO, googleIamDAO, dbRef, clusterMonitorSupervisor, samDAO)
     val clusterDnsCache = system.actorOf(ClusterDnsCache.props(proxyConfig, dbRef))
     val proxyService = new ProxyService(proxyConfig, gdDAO, dbRef, clusterDnsCache)
-    val leoRoutes = new LeoRoutes(leonardoService, proxyService, config.as[SwaggerConfig]("swagger"), whitelistConfig) with StandardUserInfoDirectives
+    val statusService = new StatusService(gdDAO, samDAO, dbRef, dataprocConfig)
+    val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, config.as[SwaggerConfig]("swagger"), whitelistConfig) with StandardUserInfoDirectives
 
     startClusterMonitors(dbRef, clusterMonitorSupervisor)
 

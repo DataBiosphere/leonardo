@@ -75,4 +75,10 @@ class DataAccess(val profile: JdbcProfile)(implicit val executionContext: Execut
     // if table X has a Foreign Key to table Y, delete table X first
     TableQuery[LabelTable].delete andThen TableQuery[ClusterTable].delete
   }
+
+  def sqlDBStatus() = {
+    import profile.api._
+
+    sql"select version()".as[String]
+  }
 }

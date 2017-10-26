@@ -10,8 +10,9 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{MockGoogleDataprocDAO, Mo
 import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
 import org.broadinstitute.dsde.workbench.leonardo.model.UserInfo
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
-import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, MockProxyService}
+import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, MockProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserId}
+import scala.concurrent.duration._
 
 /**
   * Created by rtitle on 8/15/17.
@@ -30,9 +31,10 @@ trait TestLeoRoutes { this: ScalatestRouteTest =>
   val clusterMonitorSupervisor = system.actorOf(NoopActor.props)
   val leonardoService = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, mockGoogleDataprocDAO, mockGoogleIamDAO, DbSingleton.ref, clusterMonitorSupervisor, mockSamDAO)
   val proxyService = new MockProxyService(proxyConfig, mockGoogleDataprocDAO, DbSingleton.ref)
+  val statusService = new StatusService(mockGoogleDataprocDAO, mockSamDAO, DbSingleton.ref, dataprocConfig, pollInterval = 1.second)
   val swaggerConfig = SwaggerConfig("", "")
   val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchUserEmail("user1@example.com"), 0)
-  val leoRoutes = new LeoRoutes(leonardoService, proxyService, swaggerConfig, whitelistConfig) with MockUserInfoDirectives {
+  val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, whitelistConfig) with MockUserInfoDirectives {
     override val userInfo: UserInfo = defaultUserInfo
   }
 }
