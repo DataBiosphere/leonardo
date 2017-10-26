@@ -3,7 +3,8 @@ package org.broadinstitute.dsde.workbench.leonardo.api
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, GoogleProject}
+import org.broadinstitute.dsde.workbench.google.model.GoogleProject
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.service.ProxyService
 import org.broadinstitute.dsde.workbench.model.WorkbenchUserEmail
 

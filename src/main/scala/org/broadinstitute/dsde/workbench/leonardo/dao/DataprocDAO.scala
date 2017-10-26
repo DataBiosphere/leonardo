@@ -4,6 +4,7 @@ import java.io.File
 import java.time.Instant
 
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath}
+import org.broadinstitute.dsde.workbench.google.model.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserServiceAccountEmail}

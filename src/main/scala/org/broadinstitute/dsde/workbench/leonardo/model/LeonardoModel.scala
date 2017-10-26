@@ -8,9 +8,11 @@ import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
+import org.broadinstitute.dsde.workbench.google.model.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
+import org.broadinstitute.dsde.workbench.google.model.GoogleModelJsonSupport._
 import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail
 import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat, SerializationException}
@@ -20,8 +22,6 @@ import scala.language.implicitConversions
 // this needs to be a Universal Trait to enable mixin with Value Classes
 // it only serves as a marker for StringValueClassFormat
 sealed trait StringValueClass extends Any
-case class GoogleProject(string: String) extends AnyVal with StringValueClass
-case class GoogleServiceAccount(string: String) extends AnyVal with StringValueClass
 case class IP(string: String) extends AnyVal with StringValueClass
 case class ZoneUri(string: String) extends AnyVal with StringValueClass
 
@@ -87,7 +87,7 @@ object Cluster {
   def getClusterUrl(googleProject: GoogleProject, clusterName: ClusterName): URL = {
     val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
     val dataprocConfig = config.as[DataprocConfig]("dataproc")
-    new URL(dataprocConfig.clusterUrlBase + googleProject.string + "/" + clusterName.string)
+    new URL(dataprocConfig.clusterUrlBase + googleProject.value + "/" + clusterName.string)
   }
 }
 
@@ -110,7 +110,7 @@ case class Cluster(clusterName: ClusterName,
                    destroyedDate: Option[Instant],
                    labels: LabelMap,
                    jupyterExtensionUri: Option[GcsPath]) {
-  def projectNameString: String = s"${googleProject.string}/${clusterName.string}"
+  def projectNameString: String = s"${googleProject.value}/${clusterName.string}"
 }
 
 case class ClusterRequest(bucketPath: GcsBucketName,
@@ -123,7 +123,7 @@ object ClusterInitValues {
   def apply(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest, dataprocConfig: DataprocConfig,
             clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig): ClusterInitValues =
     ClusterInitValues(
-      googleProject.string,
+      googleProject.value,
       clusterName.string,
       dataprocConfig.dataprocDockerImage,
       proxyConfig.jupyterProxyDockerImage,
@@ -244,7 +244,6 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     }
   }
 
-  implicit val googleProjectFormat = StringValueClassFormat(GoogleProject.apply, GoogleProject.unapply)
   implicit val clusterNameFormat = StringValueClassFormat(ClusterName, ClusterName.unapply)
   implicit val operationNameFormat = StringValueClassFormat(OperationName, OperationName.unapply)
   implicit val ipFormat = StringValueClassFormat(IP, IP.unapply)

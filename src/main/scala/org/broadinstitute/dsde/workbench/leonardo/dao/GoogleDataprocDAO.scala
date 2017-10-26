@@ -31,9 +31,10 @@ import com.google.api.services.storage.model.{Bucket, StorageObject}
 import com.google.api.services.storage.{Storage, StorageScopes}
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
+import org.broadinstitute.dsde.workbench.google.model.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterName, ClusterRequest, FirewallRuleName, GoogleProject, IP, InstanceName, LeoException, OperationName, ZoneUri, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterName, ClusterRequest, FirewallRuleName, IP, InstanceName, LeoException, OperationName, ZoneUri, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserServiceAccountEmail}
 
@@ -42,10 +43,10 @@ import scala.concurrent.{ExecutionContext, Future, blocking}
 
 
 case class CallToGoogleApiFailedException(googleProject: GoogleProject, context: String, exceptionStatusCode: Int, errorMessage: String)
-  extends LeoException(s"Call to Google API failed for ${googleProject.string} / $context. Message: $errorMessage", exceptionStatusCode)
+  extends LeoException(s"Call to Google API failed for ${googleProject.value} / $context. Message: $errorMessage", exceptionStatusCode)
 
 case class FirewallRuleNotFoundException(googleProject: GoogleProject, firewallRuleName: FirewallRuleName)
-  extends LeoException(s"Firewall rule ${firewallRuleName.string} not found in project ${googleProject.string}", StatusCodes.NotFound)
+  extends LeoException(s"Firewall rule ${firewallRuleName.string} not found in project ${googleProject.value}", StatusCodes.NotFound)
 
 case class AuthorizationError() extends LeoException(s"Your account is unauthorized", StatusCodes.Unauthorized)
 
@@ -87,7 +88,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     new GoogleCredential.Builder()
       .setTransport(httpTransport)
       .setJsonFactory(jsonFactory)
-      .setServiceAccountId(dataprocConfig.serviceAccount.string)
+      .setServiceAccountId(dataprocConfig.serviceAccount)
       .setServiceAccountScopes(scopes.asJava)
       .setServiceAccountPrivateKeyFromPemFile(serviceAccountPemFile)
       .build()
@@ -153,7 +154,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       .setConfig(clusterConfig)
 
     // Create a dataproc create request and give it the google project, a zone, and the Cluster
-    val request = dataproc.projects().regions().clusters().create(googleProject.string, dataprocConfig.dataprocDefaultRegion, cluster)
+    val request = dataproc.projects().regions().clusters().create(googleProject.value, dataprocConfig.dataprocDefaultRegion, cluster)
 
     executeGoogleRequestAsync(googleProject, clusterName.toString, request)  // returns a Future[DataprocOperation]
   }
@@ -166,7 +167,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   }
 
   private def checkFirewallRule(googleProject: GoogleProject, firewallRuleName: FirewallRuleName): Future[Unit] = {
-    val request = compute.firewalls().get(googleProject.string, firewallRuleName.string)
+    val request = compute.firewalls().get(googleProject.value, firewallRuleName.string)
     executeGoogleRequestAsync(googleProject, firewallRuleName.toString, request).recover {
       case CallToGoogleApiFailedException(_, _, 404, _) =>
         // throw FirewallRuleNotFoundException in case of 404 errors
@@ -178,7 +179,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
      VMs with the network tag "leonardo". This rule should only be added once per project.
     To think about: do we want to remove this rule if a google project no longer has any clusters? */
   private def addFirewallRule(googleProject: GoogleProject): Future[Unit] = {
-    val request = compute.firewalls().insert(googleProject.string, googleFirewallRule)
+    val request = compute.firewalls().insert(googleProject.value, googleFirewallRule)
     executeGoogleRequestAsync(googleProject, proxyConfig.firewallRuleName, request).void
   }
 
@@ -199,7 +200,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     // Create a bucket object and set it's name and lifecycle
     val bucket = new Bucket().setName(bucketName.name).setLifecycle(lifecycle)
 
-    val bucketInserter = storage.buckets().insert(googleProject.string, bucket)
+    val bucketInserter = storage.buckets().insert(googleProject.value, bucket)
 
     executeGoogleRequestAsync(googleProject, "Bucket " + bucketName.toString, bucketInserter) map { _ => bucketName }
   }
@@ -251,7 +252,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
 
   /* Delete a cluster within the google project */
   override def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    val request = dataproc.projects().regions().clusters().delete(googleProject.string, dataprocConfig.dataprocDefaultRegion, clusterName.string)
+    val request = dataproc.projects().regions().clusters().delete(googleProject.value, dataprocConfig.dataprocDefaultRegion, clusterName.string)
     executeGoogleRequestAsync(googleProject, clusterName.toString, request).recover {
       // treat a 404 error as a successful deletion
       case CallToGoogleApiFailedException(_, _, 404, _) => ()
@@ -300,7 +301,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     * Gets a dataproc Cluster from the API.
     */
   private def getCluster(googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[DataprocCluster] = {
-    val request = dataproc.projects().regions().clusters().get(googleProject.string, dataprocConfig.dataprocDefaultRegion, clusterName.string)
+    val request = dataproc.projects().regions().clusters().get(googleProject.value, dataprocConfig.dataprocDefaultRegion, clusterName.string)
     executeGoogleRequestAsync(googleProject, clusterName.toString, request)
   }
 
@@ -308,7 +309,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     * Gets a compute Instance from the API.
     */
   private def getInstance(googleProject: GoogleProject, zone: ZoneUri, instanceName: InstanceName)(implicit executionContext: ExecutionContext): Future[Instance] = {
-    val request = compute.instances().get(googleProject.string, zone.string, instanceName.string)
+    val request = compute.instances().get(googleProject.value, zone.string, instanceName.string)
     executeGoogleRequestAsync(googleProject, instanceName.toString, request)
   }
 
@@ -382,10 +383,10 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       blocking(executeGoogleRequest(request))
     } recover {
       case e: GoogleJsonResponseException =>
-        logger.error(s"Error occurred executing Google request for ${googleProject.string} / $context", e)
+        logger.error(s"Error occurred executing Google request for ${googleProject.value} / $context", e)
         throw CallToGoogleApiFailedException(googleProject, context, e.getStatusCode, e.getDetails.getMessage)
       case illegalArgumentException: IllegalArgumentException =>
-        logger.error(s"Illegal argument passed to Google request for ${googleProject.string} / $context", illegalArgumentException)
+        logger.error(s"Illegal argument passed to Google request for ${googleProject.value} / $context", illegalArgumentException)
         throw CallToGoogleApiFailedException(googleProject, context, StatusCodes.BadRequest.intValue, illegalArgumentException.getMessage)
     }
   }

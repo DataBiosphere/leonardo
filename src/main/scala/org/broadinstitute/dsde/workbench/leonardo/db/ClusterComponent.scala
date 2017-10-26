@@ -5,6 +5,7 @@ import java.util.UUID
 
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath}
+import org.broadinstitute.dsde.workbench.google.model.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -78,12 +79,12 @@ trait ClusterComponent extends LeoComponent {
     }
 
     def findByName(project: GoogleProject, name: ClusterName) = {
-      clusterQueryWithLabels.filter { _._1.googleProject === project.string }.filter { _._1.clusterName === name.string }
+      clusterQueryWithLabels.filter { _._1.googleProject === project.value }.filter { _._1.clusterName === name.string }
     }
 
     def getActiveClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
       clusterQueryWithLabels
-        .filter { _._1.googleProject === project.string }
+        .filter { _._1.googleProject === project.value }
         .filter { _._1.clusterName === name.string }
         .filter{_._1.destroyedDate === Timestamp.from(dummyDate)}
         .result map { recs =>
@@ -93,7 +94,7 @@ trait ClusterComponent extends LeoComponent {
 
     def getDeletingClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
       clusterQueryWithLabels
-        .filter { _._1.googleProject === project.string }
+        .filter { _._1.googleProject === project.value }
         .filter { _._1.clusterName === name.string }
         .filter{_._1.status === ClusterStatus.Deleting.toString}
         .result map { recs =>
@@ -109,7 +110,7 @@ trait ClusterComponent extends LeoComponent {
 
     def getInitBucket(project: GoogleProject, name: ClusterName): DBIO[Option[GcsPath]] = {
       clusterQuery
-        .filter { _.googleProject === project.string }
+        .filter { _.googleProject === project.value }
         .filter { _.clusterName === name.string }
         .map(_.initBucket)
         .result map { recs =>
@@ -182,7 +183,7 @@ trait ClusterComponent extends LeoComponent {
         id = 0,    // DB AutoInc
         cluster.clusterName.string,
         cluster.googleId,
-        cluster.googleProject.string,
+        cluster.googleProject.value,
         cluster.googleServiceAccount.value,
         cluster.googleBucket.name,
         cluster.operationName.string,

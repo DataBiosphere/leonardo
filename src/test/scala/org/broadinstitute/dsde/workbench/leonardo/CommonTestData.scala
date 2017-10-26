@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
+import org.broadinstitute.dsde.workbench.google.model.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail
 

@@ -14,6 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMa
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted, RegisterLeoService}
 import org.broadinstitute.dsde.workbench.google.gcs._
+import org.broadinstitute.dsde.workbench.google.model.GoogleProject
 import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail
 import slick.dbio.DBIO
 import spray.json._
@@ -22,13 +23,13 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: ClusterName)
-  extends LeoException(s"Cluster ${googleProject.string}/${clusterName.string} not found", StatusCodes.NotFound)
+  extends LeoException(s"Cluster ${googleProject.value}/${clusterName.string} not found", StatusCodes.NotFound)
 
 case class ClusterAlreadyExistsException(googleProject: GoogleProject, clusterName: ClusterName)
-  extends LeoException(s"Cluster ${googleProject.string}/${clusterName.string} already exists", StatusCodes.Conflict)
+  extends LeoException(s"Cluster ${googleProject.value}/${clusterName.string} already exists", StatusCodes.Conflict)
 
 case class InitializationFileException(googleProject: GoogleProject, clusterName: ClusterName, errorMessage: String)
-  extends LeoException(s"Unable to process initialization files for ${googleProject.string}/${clusterName.string}. Returned message: $errorMessage", StatusCodes.Conflict)
+  extends LeoException(s"Unable to process initialization files for ${googleProject.value}/${clusterName.string}. Returned message: $errorMessage", StatusCodes.Conflict)
 
 case class JupyterExtensionException(gcsUri: GcsPath)
   extends LeoException(s"Jupyter extension URI is invalid or unparseable: ${gcsUri.toUri}", StatusCodes.BadRequest)
@@ -131,7 +132,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Create the bucket in leo's google bucket and populate with initialization files
       initBucketPath <- initializeBucket(dataprocConfig.leoGoogleProject, clusterName, bucketName, clusterRequest)
       // Add Dataproc Worker role to the pet service account
-      _ <- googleIamDAO.addIamRolesForUser(googleProject.string, serviceAccount, Set("roles/dataproc.worker"))
+      _ <- googleIamDAO.addIamRolesForUser(googleProject, serviceAccount, Set("roles/dataproc.worker"))
       // Once the bucket is ready, build the cluster
       cluster <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, bucketName, serviceAccount).andThen { case Failure(_) =>
         // If cluster creation fails, delete the init bucket asynchronously
