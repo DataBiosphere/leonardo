@@ -8,5 +8,5 @@
     <include file="changesets/20171002_cluster-init-bucket-column.xml" relativeToChangelogFile="true" />
     <include file="changesets/20171010_cluster_unique_index.xml" relativeToChangelogFile="true" />
     <include file="changesets/20171011_cluster_destroyedDate_not_null.xml" relativeToChangelogFile="true" />
-    <include file="changesets/20171024_configurable_clusters.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20171026_configurable_clusters.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

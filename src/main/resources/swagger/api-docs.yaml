@@ -340,6 +340,7 @@ definitions:
       - workerMachineType
       - workerDiskSize
       - numberOfWorkerLocalSsds
+      - numberOfPreemptibleWorkers
       - operationName
       - status
       - createdDate
@@ -378,6 +379,9 @@ definitions:
       numberOfWorkerLocalSsds:
         type: integer
         description: The number of local solid state disks for workers.
+      numberOfPreemptibleWorkers:
+        type: integer
+        description: The number of preemptible workers.
       operationName:
         type: string
         description: Google's operation ID for the cluster
@@ -446,6 +450,11 @@ definitions:
         description: |
           Optional, the number of local solid state disks for workers. Must be a minimum of 0. If unspecified,
           the default number is 0
+      numberOfPreemptibleWorkers:
+        type: integer
+        description: |
+          Optional, the number of preemptible workers. Must be a minimum of 0. If unspecified,
+          the default number is 0. Should not be specified is numberOfWorkers is 0.
 
   SubsystemStatus:
     description: status of a subsystem Leonardo depends on

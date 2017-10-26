@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+
+    <changeSet logicalFilePath="leonardo" author="anu" id="masterMachineType-as">
+        <addColumn tableName="CLUSTER">
+            <column name="masterMachineType" type="varchar(256)" defaultValue="n1-standard-4">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet logicalFilePath="leonardo" author="anu" id="masterDiskSize-as">
+        <addColumn tableName="CLUSTER">
+            <column name="masterDiskSize" type="INT" defaultValue="500">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet logicalFilePath="leonardo" author="anu" id="numberOfWorkers-as">
+        <addColumn tableName="CLUSTER">
+            <column name="numberOfWorkers" type="INT" defaultValue="0">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet logicalFilePath="leonardo" author="anu" id="workerMachineType-as">
+        <addColumn tableName="CLUSTER">
+            <column name="workerMachineType" type="varchar(256)" defaultValue="NULL" />
+        </addColumn>
+    </changeSet>
+
+    <changeSet logicalFilePath="leonardo" author="anu" id="workerDiskSize-as">
+        <addColumn tableName="CLUSTER">
+            <column name="workerDiskSize" type="INT" defaultValue="NULL" />
+        </addColumn>
+    </changeSet>
+
+    <changeSet logicalFilePath="leonardo" author="anu" id="numberOfWorkerLocalSSDs-as">
+        <addColumn tableName="CLUSTER">
+            <column name="numberOfWorkerLocalSSDs" type="INT" defaultValue="NULL" />
+        </addColumn>
+    </changeSet>
+
+    <changeSet logicalFilePath="leonardo" author="anu" id="numberOfPreemptibleWorkers-as">
+        <addColumn tableName="CLUSTER">
+            <column name="numberOfPreemptibleWorkers" type="INT" defaultValue="NULL"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>
