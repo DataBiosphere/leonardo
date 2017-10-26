@@ -195,16 +195,19 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     // Create lifecycle for the bucket with a list of rules
     val lifecycle = new Lifecycle().setRule(List(lifecycleRule).asJava)
 
+    val leoServiceAccountEntityString = s"user-${dataprocConfig.serviceAccount.string}"
+    val userServiceAccountEntityString = s"user-${userServiceAccount.string}"
+
     //Add the Leo SA and the user's pet SA to the ACL list for the bucket
     val bucketAcls = List(
-      new BucketAccessControl().setEntity(dataprocConfig.serviceAccount.string).setRole("OWNER"),
-      new BucketAccessControl().setEntity(userServiceAccount.string).setRole("READER"),
+      new BucketAccessControl().setEntity(leoServiceAccountEntityString).setRole("OWNER"),
+      new BucketAccessControl().setEntity(userServiceAccountEntityString).setRole("READER"),
     )
 
     //Bucket ACL != the ACL given to individual objects inside the bucket
     val defObjectAcls = List(
-      new ObjectAccessControl().setEntity(dataprocConfig.serviceAccount.string).setRole("OWNER"),
-      new ObjectAccessControl().setEntity(userServiceAccount.string).setRole("READER")
+      new ObjectAccessControl().setEntity(leoServiceAccountEntityString).setRole("OWNER"),
+      new ObjectAccessControl().setEntity(userServiceAccountEntityString).setRole("READER")
     )
 
     // Create the bucket object
