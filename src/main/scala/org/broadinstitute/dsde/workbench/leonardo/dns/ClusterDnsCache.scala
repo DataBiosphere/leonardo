@@ -4,6 +4,7 @@ import akka.actor.{Actor, Props}
 import akka.http.scaladsl.model.Uri.Host
 import akka.pattern.pipe
 import com.typesafe.scalalogging.LazyLogging
+import org.broadinstitute.dsde.workbench.google.model.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._

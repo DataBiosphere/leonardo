@@ -11,9 +11,10 @@ import akka.http.scaladsl.server._
 import akka.stream.Materializer
 import akka.stream.scaladsl._
 import com.typesafe.scalalogging.LazyLogging
+import org.broadinstitute.dsde.workbench.google.model.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, ClusterRequest, GoogleProject, LeoException}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, ClusterRequest, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService}
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._

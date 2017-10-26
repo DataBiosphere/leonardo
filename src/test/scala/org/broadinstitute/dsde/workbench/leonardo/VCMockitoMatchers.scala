@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
+import org.broadinstitute.dsde.workbench.google.model.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}

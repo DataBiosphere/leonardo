@@ -129,7 +129,7 @@ class ClusterMonitorActor(val cluster: Cluster,
 
     // Then remove the Dataproc Worker IAM role for the pet service account
     val iamFuture = deleteBucketFuture flatMap { _ =>
-      googleIamDAO.removeIamRolesForUser(cluster.googleProject.string, cluster.googleServiceAccount, Set("roles/dataproc.worker"))
+      googleIamDAO.removeIamRolesForUser(cluster.googleProject, cluster.googleServiceAccount, Set("roles/dataproc.worker"))
     }
 
     // Then update the database
@@ -158,7 +158,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       // Delete the cluster in Google
       gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName),
       // Remove the Dataproc Worker IAM role for the pet service account
-      googleIamDAO.removeIamRolesForUser(cluster.googleProject.string, cluster.googleServiceAccount, Set("roles/dataproc.worker"))
+      googleIamDAO.removeIamRolesForUser(cluster.googleProject, cluster.googleServiceAccount, Set("roles/dataproc.worker"))
     ))
 
     deleteFuture.flatMap { _ =>
