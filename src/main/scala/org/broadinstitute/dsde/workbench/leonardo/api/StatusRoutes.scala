@@ -18,7 +18,7 @@ trait StatusRoutes {
         get {
           complete(statusService.getStatus().map { statusResponse =>
             val httpStatus = if (statusResponse.ok) StatusCodes.OK else StatusCodes.InternalServerError
-            (httpStatus, statusResponse)
+            httpStatus -> statusResponse
           })
         }
       }
