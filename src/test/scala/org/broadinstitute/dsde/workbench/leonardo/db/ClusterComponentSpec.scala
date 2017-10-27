@@ -7,6 +7,7 @@ import java.util.UUID
 import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail
 import org.scalatest.FlatSpecLike
 
 class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils {
@@ -58,7 +59,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       clusterName = c1.clusterName,
       googleId = UUID.randomUUID(),
       googleProject = c1.googleProject,
-      googleServiceAccount = GoogleServiceAccount("something-new@google.com"),
+      googleServiceAccount = WorkbenchUserServiceAccountEmail("something-new@google.com"),
       googleBucket = GcsBucketName("bucket3"),
       clusterUrl = Cluster.getClusterUrl(c1.googleProject, c1.clusterName),
       operationName = OperationName("op3"),
@@ -77,7 +78,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       clusterName = name4,
       googleId = c1.googleId,
       googleProject = project,
-      googleServiceAccount = GoogleServiceAccount("something-new@google.com"),
+      googleServiceAccount = WorkbenchUserServiceAccountEmail("something-new@google.com"),
       googleBucket = GcsBucketName("bucket4"),
       clusterUrl = Cluster.getClusterUrl(project, name4),
       operationName = OperationName("op4"),

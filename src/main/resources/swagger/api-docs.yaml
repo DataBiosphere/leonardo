@@ -357,15 +357,11 @@ definitions:
     description: ''
     required:
       - bucketPath
-      - serviceAccount
       - labels
     properties:
       bucketPath:
         type: string
         description: The bucket where user's notebooks will be saved
-      serviceAccount:
-        type: string
-        description: The service account of the user
       labels:
         type: object
         description: The labels to be placed on the cluster. Of type Map[String,String]

@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 
 // Mockito Argument Matchers for Value Classes
@@ -29,4 +30,7 @@ trait VCMockitoMatchers {
 
   implicit def onApply: String => OperationName = OperationName.apply
   implicit def onUnapply: OperationName => Option[String] = OperationName.unapply
+
+  implicit def petApply: String => WorkbenchUserServiceAccountEmail = WorkbenchUserServiceAccountEmail.apply
+  implicit def petUnapply: WorkbenchUserServiceAccountEmail => Option[String] = WorkbenchUserServiceAccountEmail.unapply
 }
