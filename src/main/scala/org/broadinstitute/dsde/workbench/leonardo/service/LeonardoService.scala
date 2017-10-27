@@ -6,6 +6,7 @@ import com.typesafe.scalalogging.LazyLogging
 import java.io.File
 
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
+import org.broadinstitute.dsde.workbench.google.model.{GoogleProject => WorkbenchGoogleProject}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{DataprocDAO, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
@@ -131,7 +132,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Create the bucket in leo's google bucket and populate with initialization files
       initBucketPath <- initializeBucket(dataprocConfig.leoGoogleProject, clusterName, bucketName, clusterRequest)
       // Add Dataproc Worker role to the pet service account
-      _ <- googleIamDAO.addIamRolesForUser(googleProject.string, serviceAccount, Set("roles/dataproc.worker"))
+      _ <- googleIamDAO.addIamRolesForUser(WorkbenchGoogleProject(googleProject.string), serviceAccount, Set("roles/dataproc.worker"))
       // Once the bucket is ready, build the cluster
       cluster <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, bucketName, serviceAccount).andThen { case Failure(_) =>
         // If cluster creation fails, delete the init bucket asynchronously

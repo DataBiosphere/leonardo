@@ -5,6 +5,7 @@ import akka.pattern.pipe
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
+import org.broadinstitute.dsde.workbench.google.model.{GoogleProject => WorkbenchGoogleProject}
 import org.broadinstitute.dsde.workbench.leonardo.config.MonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, DataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -129,7 +130,7 @@ class ClusterMonitorActor(val cluster: Cluster,
 
     // Then remove the Dataproc Worker IAM role for the pet service account
     val iamFuture = deleteBucketFuture flatMap { _ =>
-      googleIamDAO.removeIamRolesForUser(cluster.googleProject.string, cluster.googleServiceAccount, Set("roles/dataproc.worker"))
+      googleIamDAO.removeIamRolesForUser(WorkbenchGoogleProject(cluster.googleProject.string), cluster.googleServiceAccount, Set("roles/dataproc.worker"))
     }
 
     // Then update the database
@@ -158,7 +159,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       // Delete the cluster in Google
       gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName),
       // Remove the Dataproc Worker IAM role for the pet service account
-      googleIamDAO.removeIamRolesForUser(cluster.googleProject.string, cluster.googleServiceAccount, Set("roles/dataproc.worker"))
+      googleIamDAO.removeIamRolesForUser(WorkbenchGoogleProject(cluster.googleProject.string), cluster.googleServiceAccount, Set("roles/dataproc.worker"))
     ))
 
     deleteFuture.flatMap { _ =>
