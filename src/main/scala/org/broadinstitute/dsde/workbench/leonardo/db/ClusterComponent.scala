@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 import java.time.Instant
-
 import java.sql.Timestamp
 import java.util.UUID
 
@@ -9,6 +8,7 @@ import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail
 
 import scala.util.Random
 
@@ -183,7 +183,7 @@ trait ClusterComponent extends LeoComponent {
         cluster.clusterName.string,
         cluster.googleId,
         cluster.googleProject.string,
-        cluster.googleServiceAccount.string,
+        cluster.googleServiceAccount.value,
         cluster.googleBucket.name,
         cluster.operationName.string,
         cluster.status.toString,
@@ -215,7 +215,7 @@ trait ClusterComponent extends LeoComponent {
         name,
         clusterRecord.googleId,
         project,
-        GoogleServiceAccount(clusterRecord.googleServiceAccount),
+        WorkbenchUserServiceAccountEmail(clusterRecord.googleServiceAccount),
         GcsBucketName(clusterRecord.googleBucket),
         Cluster.getClusterUrl(project, name),
         OperationName(clusterRecord.operationName),

@@ -41,7 +41,7 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
           put {
             entity(as[ClusterRequest]) { cluster =>
               complete {
-                leonardoService.createCluster(GoogleProject(googleProject), ClusterName(clusterName), cluster).map { cluster =>
+                leonardoService.createCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName), cluster).map { cluster =>
                   StatusCodes.OK -> cluster
                 }
               }
