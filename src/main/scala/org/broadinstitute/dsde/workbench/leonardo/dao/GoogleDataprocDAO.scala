@@ -35,7 +35,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterName, ClusterRequest, FirewallRuleName, GoogleProject, IP, InstanceName, LeoException, OperationName, ZoneUri, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
-import org.broadinstitute.dsde.workbench.model.WorkbenchUserEmail
+import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserServiceAccountEmail}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future, blocking}
@@ -117,21 +117,21 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       .setAllowed(List(allowed).asJava)
   }
 
-  override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[LeoCluster] = {
-    buildCluster(googleProject, clusterName, clusterRequest, bucketName).map { operation =>
+  override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, serviceAccount: WorkbenchUserServiceAccountEmail)(implicit executionContext: ExecutionContext): Future[LeoCluster] = {
+    buildCluster(googleProject, clusterName, bucketName, serviceAccount).map { operation =>
       //Make a Leo cluster from the Google operation details
-      LeoCluster.create(clusterRequest, clusterName, googleProject, getOperationUUID(operation), OperationName(operation.getName))
+      LeoCluster.create(clusterRequest, clusterName, googleProject, getOperationUUID(operation), OperationName(operation.getName), serviceAccount)
     }
   }
 
 
   /* Kicks off building the cluster. This will return before the cluster finishes creating. */
-  private def buildCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[DataprocOperation] = {
+  private def buildCluster(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, serviceAccount: WorkbenchUserServiceAccountEmail)(implicit executionContext: ExecutionContext): Future[DataprocOperation] = {
     // Create a GceClusterConfig, which has the common config settings for resources of Google Compute Engine cluster instances,
     //   applicable to all instances in the cluster. Give it the user's service account.
     //   Set the network tag, which is needed by the firewall rule that allows leo to talk to the cluster
     val gce = new GceClusterConfig()
-      .setServiceAccount(clusterRequest.serviceAccount.string)
+      .setServiceAccount(serviceAccount.value)
       .setServiceAccountScopes(oauth2Scopes.asJava)
       .setTags(List(proxyConfig.networkTag).asJava)
 

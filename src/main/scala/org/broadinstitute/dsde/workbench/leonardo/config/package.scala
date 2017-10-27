@@ -61,4 +61,8 @@ package object config {
   implicit val monitorConfigReader: ValueReader[MonitorConfig] = ValueReader.relative { config =>
     MonitorConfig(toScalaDuration(config.getDuration("pollPeriod")), config.getInt("maxRetries"), config.getBoolean("recreateCluster"))
   }
+
+  implicit val samConfigReader: ValueReader[SamConfig] = ValueReader.relative { config =>
+    SamConfig(config.getString("server"))
+  }
 }
