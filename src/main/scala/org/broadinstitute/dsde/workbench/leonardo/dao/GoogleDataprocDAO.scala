@@ -130,10 +130,22 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
 
   /* Kicks off building the cluster. This will return before the cluster finishes creating. */
   private def buildCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, serviceAccount: WorkbenchUserServiceAccountEmail)(implicit executionContext: ExecutionContext): Future[DataprocOperation] = {
+    // Create a Cluster and give it a name and a Cluster Config
+    val cluster = new DataprocCluster()
+      .setClusterName(clusterName.string)
+      .setConfig(getClusterConfig(googleProject, clusterName, clusterRequest, bucketName, serviceAccount))
+
+    // Create a dataproc create request and give it the google project, a zone, and the Cluster
+    val request = dataproc.projects().regions().clusters().create(googleProject.string, dataprocConfig.dataprocDefaultRegion, cluster)
+
+    executeGoogleRequestAsync(googleProject, clusterName.toString, request)  // returns a Future[DataprocOperation]
+  }
+
+  private def getClusterConfig(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, serviceAccount: WorkbenchUserServiceAccountEmail): ClusterConfig = {
     // Create a GceClusterConfig, which has the common config settings for resources of Google Compute Engine cluster instances,
     //   applicable to all instances in the cluster. Give it the user's service account.
     //   Set the network tag, which is needed by the firewall rule that allows leo to talk to the cluster
-    val gce = new GceClusterConfig()
+    val gceClusterConfig = new GceClusterConfig()
       .setServiceAccount(serviceAccount.value)
       .setServiceAccountScopes(oauth2Scopes.asJava)
       .setTags(List(proxyConfig.networkTag).asJava)
@@ -142,56 +154,64 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     //    This executable is our init-actions.sh, which will stand up our jupyter server and proxy.
     val initActions = Seq(new NodeInitializationAction().setExecutableFile(GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.initActionsScript)).toUri))
 
-    // Create a Cluster and give it a name and a Cluster Config
-    val cluster = new DataprocCluster()
-      .setClusterName(clusterName.string)
-      .setConfig(setClusterConfig(gce, initActions, clusterRequest))
-
-    // Create a dataproc create request and give it the google project, a zone, and the Cluster
-    val request = dataproc.projects().regions().clusters().create(googleProject.string, dataprocConfig.dataprocDefaultRegion, cluster)
-
-    executeGoogleRequestAsync(googleProject, clusterName.toString, request)  // returns a Future[DataprocOperation]
-  }
-
-  private def setClusterConfig(gceClusterConfig: GceClusterConfig, initActions: Seq[NodeInitializationAction], clusterRequest: ClusterRequest): ClusterConfig = {
-    // Create a Cluster Config and give it the GceClusterConfig, the NodeInitializationAction and the SoftwareConfig
-    val clusterConfig = new ClusterConfig()
-      .setGceClusterConfig(gceClusterConfig)
-      .setInitializationActions(initActions.asJava)
-
+    // Create a config for the master node, if properties are not specified in request, use defaults
     val masterConfig = new InstanceGroupConfig()
       .setMachineTypeUri(clusterRequest.masterMachineType.getOrElse(clusterDefaultsConfig.masterMachineType))
       .setDiskConfig(new DiskConfig().setBootDiskSizeGb(clusterRequest.masterDiskSize.getOrElse(clusterDefaultsConfig.masterDiskSize).toInt))
 
-    clusterConfig.setMasterConfig(masterConfig)
+    // Create a Cluster Config and give it the GceClusterConfig, the NodeInitializationAction and the SoftwareConfig
+    val clusterConfig = new ClusterConfig()
+      .setGceClusterConfig(gceClusterConfig)
+      .setInitializationActions(initActions.asJava)
+      .setMasterConfig(masterConfig)
 
+    addWorkerConfigs(clusterConfig, clusterRequest)
+  }
+
+  private def addWorkerConfigs(clusterConfig: ClusterConfig, clusterRequest: ClusterRequest): ClusterConfig = {
+    // If the number of workers is zero, make a Single Node cluster, else make a Standard one
     if (clusterRequest.numberOfWorkers.getOrElse(clusterDefaultsConfig.numberOfWorkers) == 0) {
       // Create a SoftwareConfig and set a property that makes the cluster have only one node
       val softwareConfig = new SoftwareConfig().setProperties(Map("dataproc:dataproc.allow.zero.workers" -> "true").asJava)
       clusterConfig.setSoftwareConfig(softwareConfig)
-    } else {
-      val numberOfWorkers = clusterRequest.numberOfWorkers match {
-        case Some(workers) if workers < 2 => throw TooFewWorkersRequestedException(workers)
-        case Some(workers) => workers
-        case None => 2
-      }
-
-      val workerConfig = new InstanceGroupConfig()
-        .setNumInstances(numberOfWorkers)
-        .setMachineTypeUri(clusterRequest.workerMachineType.getOrElse(clusterDefaultsConfig.workerMachineType))
-        .setDiskConfig(new DiskConfig().setBootDiskSizeGb(clusterRequest.workerDiskSize.getOrElse(clusterDefaultsConfig.workerDiskSize).toInt).setNumLocalSsds(clusterRequest.numberOfWorkerLocalSsds.getOrElse(clusterDefaultsConfig.numberOfWorkerLocalSsds).toInt))
-
-      val numberOfPreemptibleWorkers = clusterRequest.numberOfPreemptibleWorkers.getOrElse(clusterDefaultsConfig.numberOfPreemptibleWorkers)
-
-      if (numberOfPreemptibleWorkers > 0) {
-        val preemptibleWorkerConfig = new InstanceGroupConfig()
-          .setIsPreemptible(true)
-          .setNumInstances(numberOfPreemptibleWorkers)
-        clusterConfig.setSecondaryWorkerConfig(preemptibleWorkerConfig)
-      }
-
-      clusterConfig.setWorkerConfig(workerConfig)
     }
+    else // Standard, multi node cluster
+      getStandardConfig(clusterConfig, clusterRequest)
+  }
+
+  private def getStandardConfig(clusterConfig: ClusterConfig, clusterRequest: ClusterRequest): ClusterConfig = {
+    // Set the configs of the non-preemptible, primary worker nodes
+    val clusterConfigWithWorkerConfigs = clusterConfig.setWorkerConfig(getPrimaryWorkerConfig(clusterRequest))
+
+    // If the number of preemptible workers is greater than 0, set a secondary worker config
+    val numberOfPreemptibleWorkers = clusterRequest.numberOfPreemptibleWorkers.getOrElse(clusterDefaultsConfig.numberOfPreemptibleWorkers)
+
+    if (numberOfPreemptibleWorkers > 0) {
+      val preemptibleWorkerConfig = new InstanceGroupConfig()
+        .setIsPreemptible(true)
+        .setNumInstances(numberOfPreemptibleWorkers)
+
+      clusterConfigWithWorkerConfigs.setSecondaryWorkerConfig(preemptibleWorkerConfig)
+    }
+    clusterConfigWithWorkerConfigs
+  }
+
+  private def getPrimaryWorkerConfig(clusterRequest: ClusterRequest): InstanceGroupConfig = {
+     val numberOfWorkers = clusterRequest.numberOfWorkers match {
+      case Some(workers) if workers < 2 => throw TooFewWorkersRequestedException(workers)
+      case Some(workers) => workers
+      case None => clusterDefaultsConfig.numberOfWorkers
+    }
+
+    val workerDiskConfig = new DiskConfig()
+      .setBootDiskSizeGb(clusterRequest.workerDiskSize.getOrElse(clusterDefaultsConfig.workerDiskSize).toInt)
+      .setNumLocalSsds(clusterRequest.numberOfWorkerLocalSsds.getOrElse(clusterDefaultsConfig.numberOfWorkerLocalSsds).toInt)
+
+
+    new InstanceGroupConfig()
+      .setNumInstances(numberOfWorkers)
+      .setMachineTypeUri(clusterRequest.workerMachineType.getOrElse(clusterDefaultsConfig.workerMachineType))
+      .setDiskConfig(workerDiskConfig)
   }
 
   /* Check if the given google project has a cluster firewall rule. If not, add the rule to the project*/

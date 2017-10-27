@@ -363,7 +363,7 @@ definitions:
         description: The Google Bucket associated with the cluster
       numberOfWorkers:
         type: integer
-        description: The number of worker nodes in a cluster. Cannot be 1.
+        description: The number of worker nodes in a cluster.
       masterMachineType:
         type: string
         description: The machine type determines the vCPU and memory for the master node.
@@ -434,12 +434,12 @@ definitions:
         type: integer
         description: |
           Optional, the disk contains the boot volume, system libraries, and HDFS NameNode metadata. Minimum size is 10GB.
-          If unspecified,default size is 500GB.
+          If unspecified, default size is 500GB.
       workerMachineType:
         type: string
         description: |
           Optional, the machine type determines the vCPU and memory for the worker nodes. For example "n1-standard-16"
-          or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine
+          or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine.
       workerDiskSize:
         type: integer
         description: |

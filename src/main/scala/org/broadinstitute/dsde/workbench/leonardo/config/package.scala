@@ -40,7 +40,6 @@ package object config {
   }
 
   implicit val clusterDefaultConfigReader: ValueReader[ClusterDefaultsConfig] = ValueReader.relative { config =>
-
     ClusterDefaultsConfig(
       config.getInt("numberOfWorkers"),
       config.getString("masterMachineType"),
