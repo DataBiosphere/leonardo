@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbSingleton, T
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
-import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserId}
+import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserId, WorkbenchUserServiceAccountEmail}
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import spray.json._
@@ -27,6 +27,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   private val proxyConfig = configFactory.as[ProxyConfig]("proxy")
   private val bucketPath = GcsBucketName("bucket-path")
   private val googleProject = GoogleProject("test-google-project")
+  private val petServiceAccount = WorkbenchUserServiceAccountEmail("petSA@test-domain.iam.gserviceaccount.com")
   private val clusterName = ClusterName("test-cluster")
   private val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchUserEmail("user1@example.com"), 0)
   private lazy val testClusterRequest = ClusterRequest(bucketPath, Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(gdDAO.extensionPath))
@@ -154,7 +155,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.buckets should not contain (bucketPath)
 
     // create the bucket and add files
-    leo.initializeBucket(googleProject, clusterName, bucketPath, testClusterRequest).futureValue
+    leo.initializeBucket(googleProject, petServiceAccount, clusterName, bucketPath, testClusterRequest).futureValue
 
     // our bucket should now exist
     gdDAO.buckets should contain (bucketPath)

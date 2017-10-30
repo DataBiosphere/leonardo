@@ -130,7 +130,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
       _ <- gdDAO.updateFirewallRule(googleProject)
       // Create the bucket in leo's google bucket and populate with initialization files
-      initBucketPath <- initializeBucket(dataprocConfig.leoGoogleProject, clusterName, bucketName, clusterRequest)
+      initBucketPath <- initializeBucket(dataprocConfig.leoGoogleProject, serviceAccount, clusterName, bucketName, clusterRequest)
       // Add Dataproc Worker role to the pet service account
       _ <- googleIamDAO.addIamRolesForUser(WorkbenchGoogleProject(googleProject.string), serviceAccount, Set("roles/dataproc.worker"))
       // Once the bucket is ready, build the cluster
@@ -158,9 +158,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   /* Create a google bucket and populate it with init files */
-  private[service] def initializeBucket(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest): Future[GcsBucketName] = {
+  private[service] def initializeBucket(googleProject: GoogleProject, serviceAccount: WorkbenchUserServiceAccountEmail, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest): Future[GcsBucketName] = {
     for {
-      _ <- gdDAO.createBucket(googleProject, bucketName, clusterRequest.serviceAccount)
+      _ <- gdDAO.createBucket(googleProject, bucketName, serviceAccount)
       _ <- initializeBucketObjects(googleProject, clusterName, bucketName, clusterRequest)
     } yield { bucketName }
   }

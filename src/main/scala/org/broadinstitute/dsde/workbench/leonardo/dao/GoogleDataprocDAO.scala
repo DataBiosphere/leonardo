@@ -183,7 +183,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   }
 
   /* Create a bucket in the given google project for the initialization files when creating a cluster */
-  override def createBucket(googleProject: GoogleProject, bucketName: GcsBucketName, userServiceAccount: GoogleServiceAccount): Future[GcsBucketName] = {
+  override def createBucket(googleProject: GoogleProject, bucketName: GcsBucketName, userServiceAccount: WorkbenchUserServiceAccountEmail): Future[GcsBucketName] = {
     // Create lifecycle rule for the bucket that will delete the bucket after 1 day.
     //
     // Note that the init buckets are explicitly deleted by the ClusterMonitor once the cluster
@@ -197,7 +197,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     val lifecycle = new Lifecycle().setRule(List(lifecycleRule).asJava)
 
     val leoServiceAccountEntityString = s"user-${dataprocConfig.serviceAccount.string}"
-    val userServiceAccountEntityString = s"user-${userServiceAccount.string}"
+    val userServiceAccountEntityString = s"user-${userServiceAccount.value}"
 
     //Add the Leo SA and the user's pet SA to the ACL list for the bucket
     val bucketAcls = List(
