@@ -202,7 +202,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     //Add the Leo SA and the user's pet SA to the ACL list for the bucket
     val bucketAcls = List(
       new BucketAccessControl().setEntity(leoServiceAccountEntityString).setRole("OWNER"),
-      new BucketAccessControl().setEntity(userServiceAccountEntityString).setRole("READER"),
+      new BucketAccessControl().setEntity(userServiceAccountEntityString).setRole("READER")
     )
 
     //Bucket ACL != the ACL given to individual objects inside the bucket
