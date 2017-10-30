@@ -122,14 +122,14 @@ case class Cluster(clusterName: ClusterName,
 
 object MachineConfig {
   implicit val machineConfigSemigroup = new Semigroup[MachineConfig] {
-    def combine(config1: MachineConfig, config2: MachineConfig): MachineConfig = {
-      MachineConfig(config1.numberOfWorkers.orElse(config2.numberOfWorkers),
-        config1.masterMachineType.orElse(config2.masterMachineType),
-        config1.masterDiskSize.orElse(config2.masterDiskSize),
-        config1.workerMachineType.orElse(config2.workerMachineType),
-        config1.workerDiskSize.orElse(config2.workerDiskSize),
-        config1.numberOfWorkerLocalSSDs.orElse(config2.numberOfWorkerLocalSSDs),
-        config1.numberOfPreemptibleWorkers.orElse(config2.numberOfPreemptibleWorkers))
+    def combine(defined: MachineConfig, default: MachineConfig): MachineConfig = {
+      MachineConfig(default.numberOfWorkers.orElse(defined.numberOfWorkers),
+        defined.masterMachineType.orElse(default.masterMachineType),
+        defined.masterDiskSize.orElse(default.masterDiskSize),
+        defined.workerMachineType.orElse(default.workerMachineType),
+        defined.workerDiskSize.orElse(default.workerDiskSize),
+        defined.numberOfWorkerLocalSSDs.orElse(default.numberOfWorkerLocalSSDs),
+        defined.numberOfPreemptibleWorkers.orElse(default.numberOfPreemptibleWorkers))
     }
   }
 
