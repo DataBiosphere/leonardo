@@ -40,9 +40,6 @@ case class ParseLabelsException(labelString: String)
 case class IllegalLabelKeyException(labelKey: String)
   extends LeoException(s"Labels cannot have a key of '$labelKey'", StatusCodes.NotAcceptable)
 
-case class WorkerConfigsSpecifiedForZeroWorkers()
-  extends LeoException("When number of workers is zero, worker configs should not be specified in the request.")
-
 
 class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val clusterResourcesConfig: ClusterResourcesConfig,

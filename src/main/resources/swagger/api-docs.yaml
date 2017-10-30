@@ -359,7 +359,7 @@ definitions:
         type: string
         description: The Google Bucket associated with the cluster
       machineConfig:
-        description: rftvre
+        description: The configurations for the machine and worker nodes
         $ref: '#/definitions/MachineConfig'
       operationName:
         type: string
@@ -401,7 +401,7 @@ definitions:
           must have an entry point named 'main'. For more information on notebook extensions,
           see http://jupyter-notebook.readthedocs.io/en/latest/extending/frontend_extensions.html.
       machineConfig:
-        description: refe
+        description: The configurations for the machine and worker nodes
         $ref: '#/definitions/MachineConfig'
 
   MachineConfig:

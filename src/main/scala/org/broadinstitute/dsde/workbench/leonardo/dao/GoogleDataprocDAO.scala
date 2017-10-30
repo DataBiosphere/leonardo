@@ -206,7 +206,6 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       .setBootDiskSizeGb(machineConfig.workerDiskSize.get)
       .setNumLocalSsds(machineConfig.numberOfWorkerLocalSSDs.get)
 
-
     new InstanceGroupConfig()
       .setNumInstances(numberOfWorkers)
       .setMachineTypeUri(machineConfig.workerMachineType.get)
