@@ -199,13 +199,13 @@ trait ClusterComponent extends LeoComponent {
         cluster.googleProject.string,
         cluster.googleServiceAccount.value,
         cluster.googleBucket.name,
-        cluster.numberOfWorkers,
-        cluster.masterMachineType,
-        cluster.masterDiskSize,
-        cluster.workerMachineType,
-        cluster.workerDiskSize,
-        cluster.numberOfWorkerLocalSsds,
-        cluster.numberOfPreemptibleWorkers,
+        cluster.machineConfig.numberOfWorkers.get,   //a cluster should always have numberOfWorkers defined
+        cluster.machineConfig.masterMachineType.get, //a cluster should always have masterMachineType defined
+        cluster.machineConfig.masterDiskSize.get,    //a cluster should always have masterDiskSize defined
+        cluster.machineConfig.workerMachineType,
+        cluster.machineConfig.workerDiskSize,
+        cluster.machineConfig.numberOfWorkerLocalSSDs,
+        cluster.machineConfig.numberOfPreemptibleWorkers,
         cluster.operationName.string,
         cluster.status.toString,
         cluster.hostIp map(_.string),
@@ -232,19 +232,22 @@ trait ClusterComponent extends LeoComponent {
     private def unmarshalCluster(clusterRecord: ClusterRecord, labels: LabelMap): Cluster = {
       val name = ClusterName(clusterRecord.clusterName)
       val project = GoogleProject(clusterRecord.googleProject)
+      val machineConfig = MachineConfig(
+        Some(clusterRecord.numberOfWorkers),
+        Some(clusterRecord.masterMachineType),
+        Some(clusterRecord.masterDiskSize),
+        clusterRecord.workerMachineType,
+        clusterRecord.workerDiskSize,
+        clusterRecord.numberOfWorkerLocalSsds,
+        clusterRecord.numberOfPreemptibleWorkers)
+
       Cluster(
         name,
         clusterRecord.googleId,
         project,
         WorkbenchUserServiceAccountEmail(clusterRecord.googleServiceAccount),
         GcsBucketName(clusterRecord.googleBucket),
-        clusterRecord.numberOfWorkers,
-        clusterRecord.masterMachineType,
-        clusterRecord.masterDiskSize,
-        clusterRecord.workerMachineType,
-        clusterRecord.workerDiskSize,
-        clusterRecord.numberOfWorkerLocalSsds,
-        clusterRecord.numberOfPreemptibleWorkers,
+        machineConfig,
         Cluster.getClusterUrl(project, name),
         OperationName(clusterRecord.operationName),
         ClusterStatus.withName(clusterRecord.status),

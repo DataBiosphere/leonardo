@@ -46,12 +46,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, gdDAO: DataprocDAO,
           cluster.googleBucket,
           cluster.labels,
           cluster.jupyterExtensionUri,
-          Some(cluster.numberOfWorkers),
-          Some(cluster.masterMachineType),
-          Some(cluster.masterDiskSize),
-          cluster.workerMachineType,
-          cluster.workerDiskSize,
-          cluster.numberOfWorkerLocalSsds)
+          Some(cluster.machineConfig))
         leoService.createCluster(cluster.googleServiceAccount, cluster.googleProject, cluster.clusterName, clusterRequest).failed.foreach { e =>
           logger.error("Error occurred recreating cluster", e)
         }

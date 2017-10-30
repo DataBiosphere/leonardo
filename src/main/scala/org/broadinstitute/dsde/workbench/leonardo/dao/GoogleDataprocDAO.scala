@@ -33,7 +33,7 @@ import org.broadinstitute.dsde.workbench.google.GoogleUtilities
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterName, ClusterRequest, FirewallRuleName, GoogleProject, GoogleServiceAccount, IP, InstanceName, LeoException, OperationName, ZoneUri, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterName, ClusterRequest, FirewallRuleName, GoogleProject, GoogleServiceAccount, IP, InstanceName, LeoException, MachineConfig, OperationName, ZoneUri, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserServiceAccountEmail}
 
@@ -154,10 +154,12 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     //    This executable is our init-actions.sh, which will stand up our jupyter server and proxy.
     val initActions = Seq(new NodeInitializationAction().setExecutableFile(GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.initActionsScript)).toUri))
 
+    val machineConfig = MachineConfig(clusterRequest, clusterDefaultsConfig)
+
     // Create a config for the master node, if properties are not specified in request, use defaults
     val masterConfig = new InstanceGroupConfig()
-      .setMachineTypeUri(clusterRequest.masterMachineType.getOrElse(clusterDefaultsConfig.masterMachineType))
-      .setDiskConfig(new DiskConfig().setBootDiskSizeGb(clusterRequest.masterDiskSize.getOrElse(clusterDefaultsConfig.masterDiskSize).toInt))
+      .setMachineTypeUri(machineConfig.masterMachineType.get)
+      .setDiskConfig(new DiskConfig().setBootDiskSizeGb(machineConfig.masterDiskSize.get))
 
     // Create a Cluster Config and give it the GceClusterConfig, the NodeInitializationAction and the SoftwareConfig
     val clusterConfig = new ClusterConfig()
@@ -165,52 +167,49 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       .setInitializationActions(initActions.asJava)
       .setMasterConfig(masterConfig)
 
-    addWorkerConfigs(clusterConfig, clusterRequest)
+    addWorkerConfigs(clusterConfig, machineConfig)
   }
 
-  private def addWorkerConfigs(clusterConfig: ClusterConfig, clusterRequest: ClusterRequest): ClusterConfig = {
+  private def addWorkerConfigs(clusterConfig: ClusterConfig, machineConfig: MachineConfig): ClusterConfig = {
     // If the number of workers is zero, make a Single Node cluster, else make a Standard one
-    if (clusterRequest.numberOfWorkers.getOrElse(clusterDefaultsConfig.numberOfWorkers) == 0) {
+    if (machineConfig.numberOfWorkers.get == 0) {
       // Create a SoftwareConfig and set a property that makes the cluster have only one node
       val softwareConfig = new SoftwareConfig().setProperties(Map("dataproc:dataproc.allow.zero.workers" -> "true").asJava)
       clusterConfig.setSoftwareConfig(softwareConfig)
     }
     else // Standard, multi node cluster
-      getStandardConfig(clusterConfig, clusterRequest)
+      getStandardConfig(clusterConfig, machineConfig)
   }
 
-  private def getStandardConfig(clusterConfig: ClusterConfig, clusterRequest: ClusterRequest): ClusterConfig = {
+  private def getStandardConfig(clusterConfig: ClusterConfig, machineConfig: MachineConfig): ClusterConfig = {
     // Set the configs of the non-preemptible, primary worker nodes
-    val clusterConfigWithWorkerConfigs = clusterConfig.setWorkerConfig(getPrimaryWorkerConfig(clusterRequest))
+    val clusterConfigWithWorkerConfigs = clusterConfig.setWorkerConfig(getPrimaryWorkerConfig(machineConfig))
 
     // If the number of preemptible workers is greater than 0, set a secondary worker config
-    val numberOfPreemptibleWorkers = clusterRequest.numberOfPreemptibleWorkers.getOrElse(clusterDefaultsConfig.numberOfPreemptibleWorkers)
-
-    if (numberOfPreemptibleWorkers > 0) {
+    if (machineConfig.numberOfPreemptibleWorkers.get > 0) {
       val preemptibleWorkerConfig = new InstanceGroupConfig()
         .setIsPreemptible(true)
-        .setNumInstances(numberOfPreemptibleWorkers)
+        .setNumInstances(machineConfig.numberOfPreemptibleWorkers.get)
 
       clusterConfigWithWorkerConfigs.setSecondaryWorkerConfig(preemptibleWorkerConfig)
-    }
-    clusterConfigWithWorkerConfigs
+    } else clusterConfigWithWorkerConfigs
   }
 
-  private def getPrimaryWorkerConfig(clusterRequest: ClusterRequest): InstanceGroupConfig = {
-     val numberOfWorkers = clusterRequest.numberOfWorkers match {
+  private def getPrimaryWorkerConfig(machineConfig: MachineConfig): InstanceGroupConfig = {
+     val numberOfWorkers = machineConfig.numberOfWorkers match {
       case Some(workers) if workers < 2 => throw TooFewWorkersRequestedException(workers)
       case Some(workers) => workers
       case None => clusterDefaultsConfig.numberOfWorkers
     }
 
     val workerDiskConfig = new DiskConfig()
-      .setBootDiskSizeGb(clusterRequest.workerDiskSize.getOrElse(clusterDefaultsConfig.workerDiskSize).toInt)
-      .setNumLocalSsds(clusterRequest.numberOfWorkerLocalSsds.getOrElse(clusterDefaultsConfig.numberOfWorkerLocalSsds).toInt)
+      .setBootDiskSizeGb(machineConfig.workerDiskSize.get)
+      .setNumLocalSsds(machineConfig.numberOfWorkerLocalSSDs.get)
 
 
     new InstanceGroupConfig()
       .setNumInstances(numberOfWorkers)
-      .setMachineTypeUri(clusterRequest.workerMachineType.getOrElse(clusterDefaultsConfig.workerMachineType))
+      .setMachineTypeUri(machineConfig.workerMachineType.get)
       .setDiskConfig(workerDiskConfig)
   }
 

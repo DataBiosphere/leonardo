@@ -276,6 +276,7 @@ definitions:
       - Deleting
       - Deleted
       - Unknown
+
   ErrorReport:
     description: ''
     required:
@@ -306,6 +307,7 @@ definitions:
         description: stack trace
         items:
           $ref: '#/definitions/StackTraceElement'
+
   StackTraceElement:
     description: ''
     required:
@@ -326,6 +328,7 @@ definitions:
       lineNumber:
         type: integer
         description: line number
+
   Cluster:
     description: ''
     required:
@@ -334,13 +337,7 @@ definitions:
       - googleProject
       - googleServiceAccount
       - googleBucket
-      - numberOfWorkers
-      - masterMachineType
-      - masterDiskSize
-      - workerMachineType
-      - workerDiskSize
-      - numberOfWorkerLocalSsds
-      - numberOfPreemptibleWorkers
+      - machineConfig
       - operationName
       - status
       - createdDate
@@ -361,27 +358,9 @@ definitions:
       googleBucket:
         type: string
         description: The Google Bucket associated with the cluster
-      numberOfWorkers:
-        type: integer
-        description: The number of worker nodes in a cluster.
-      masterMachineType:
-        type: string
-        description: The machine type determines the vCPU and memory for the master node.
-      masterDiskSize:
-        type: integer
-        description: The disk size, in GB. The disk contains the boot volume, system libraries, and HDFS NameNode metadata
-      workerMachineType:
-        type: string
-        description: The machine type determines the vCPU and memory for the worker nodes.
-      workerDiskSize:
-        type: integer
-        description: The disk size, in GB. The disk contains the boot volume, system libraries, and HDFS NameNode metadata.
-      numberOfWorkerLocalSsds:
-        type: integer
-        description: The number of local solid state disks for workers.
-      numberOfPreemptibleWorkers:
-        type: integer
-        description: The number of preemptible workers.
+      machineConfig:
+        description: rftvre
+        $ref: '#/definitions/MachineConfig'
       operationName:
         type: string
         description: Google's operation ID for the cluster
@@ -401,6 +380,7 @@ definitions:
       labels:
         type: object
         description: The labels to be placed on the cluster. Of type Map[String,String]
+
   ClusterRequest:
     description: ''
     required:
@@ -419,7 +399,14 @@ definitions:
           Optional bucket URI to an archive containing Jupyter notebook extension files.
           The archive must be in tar.gz format, must not include a parent directory, and
           must have an entry point named 'main'. For more information on notebook extensions,
-          see: http://jupyter-notebook.readthedocs.io/en/latest/extending/frontend_extensions.html.
+          see http://jupyter-notebook.readthedocs.io/en/latest/extending/frontend_extensions.html.
+      machineConfig:
+        description: refe
+        $ref: '#/definitions/MachineConfig'
+
+  MachineConfig:
+    description: ''
+    properties:
       numberOfWorkers:
         type: integer
         description: |
@@ -428,24 +415,26 @@ definitions:
       masterMachineType:
         type: string
         description: |
-          Optional, the machine type determines the vCPU and memory for the master node. For example "n1-standard-16"
-          or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine
+          Optional, the machine type determines the number of CPUs and memory for the master node. For example "n1-standard-16"
+          or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
+          see https://cloud.google.com/compute/docs/machine-types
       masterDiskSize:
         type: integer
         description: |
-          Optional, the disk contains the boot volume, system libraries, and HDFS NameNode metadata. Minimum size is 10GB.
+          Optional, the size of the disk on the master node. Minimum size is 10GB.
           If unspecified, default size is 500GB.
       workerMachineType:
         type: string
         description: |
-          Optional, the machine type determines the vCPU and memory for the worker nodes. For example "n1-standard-16"
-          or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine.
+          Optional, the machine type determines the number of CPUs and memory for the worker nodes. For example "n1-standard-16"
+          or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
+          see https://cloud.google.com/compute/docs/machine-types
       workerDiskSize:
         type: integer
         description: |
-          Optional, the disk contains the boot volume, system libraries, and HDFS NameNode metadata. Minimum size is 10GB.
+          Optional, the size of the disk on the master node. Minimum size is 10GB.
           If unspecified,default size is 500GB.
-      numberOfWorkerLocalSsds:
+      numberOfWorkerLocalSSDs:
         type: integer
         description: |
           Optional, the number of local solid state disks for workers. Must be a minimum of 0. If unspecified,
@@ -454,6 +443,8 @@ definitions:
         type: integer
         description: |
           Optional, the number of preemptible workers. Must be a minimum of 0. If unspecified,
+          the default number is 0. Should not be specified if numberOfWorkers is 0. For more information,
+          see https://cloud.google.com/compute/docs/instances/preemptible
           the default number is 0. Should not be specified is numberOfWorkers is 0.
 
   SubsystemStatus:

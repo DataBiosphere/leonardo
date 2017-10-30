@@ -3,6 +3,8 @@ package org.broadinstitute.dsde.workbench.leonardo.model
 import java.net.URL
 import java.time.Instant
 import java.util.UUID
+import cats.Semigroup
+import cats.implicits._
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import com.typesafe.config.ConfigFactory
@@ -70,21 +72,14 @@ object ClusterStatus extends Enumeration {
 
 object Cluster {
   def create(clusterRequest: ClusterRequest, clusterName: ClusterName, googleProject: GoogleProject, googleId: UUID, operationName: OperationName, serviceAccount: WorkbenchUserServiceAccountEmail, clusterDefaultsConfig: ClusterDefaultsConfig): Cluster = {
-    val numWorkers = clusterRequest.numberOfWorkers.getOrElse(clusterDefaultsConfig.numberOfWorkers)
-
     Cluster(
         clusterName = clusterName,
         googleId = googleId,
         googleProject = googleProject,
         googleServiceAccount = serviceAccount,
         googleBucket = clusterRequest.bucketPath,
-        numberOfWorkers = numWorkers,
-        masterMachineType = clusterRequest.masterMachineType.getOrElse(clusterDefaultsConfig.masterMachineType),
-        masterDiskSize = clusterRequest.masterDiskSize.getOrElse(clusterDefaultsConfig.masterDiskSize),
-        workerMachineType = if (numWorkers == 0) None else Some(clusterRequest.workerMachineType.getOrElse(clusterDefaultsConfig.workerMachineType)),
-        workerDiskSize = if (numWorkers == 0) None else Some(clusterRequest.workerDiskSize.getOrElse(clusterDefaultsConfig.workerDiskSize)),
-        numberOfWorkerLocalSsds = if (numWorkers == 0) None else Some(clusterRequest.numberOfWorkerLocalSsds.getOrElse(clusterDefaultsConfig.numberOfWorkerLocalSsds)),
-        numberOfPreemptibleWorkers = if (numWorkers == 0) None else Some(clusterRequest.numberOfPreemptibleWorkers.getOrElse(clusterDefaultsConfig.numberOfPreemptibleWorkers)),clusterUrl = getClusterUrl(googleProject, clusterName),
+        machineConfig = MachineConfig(clusterRequest, clusterDefaultsConfig),
+        clusterUrl = getClusterUrl(googleProject, clusterName),
         operationName = operationName,
         status = ClusterStatus.Creating,
         hostIp = None,
@@ -113,13 +108,7 @@ case class Cluster(clusterName: ClusterName,
                    googleProject: GoogleProject,
                    googleServiceAccount: WorkbenchUserServiceAccountEmail,
                    googleBucket: GcsBucketName,
-                   numberOfWorkers: Int,
-                   masterMachineType: String,
-                   masterDiskSize: Int,  //min 10
-                   workerMachineType: Option[String],
-                   workerDiskSize: Option[Int],   //min 10
-                   numberOfWorkerLocalSsds: Option[Int], //min 0 max 8
-                   numberOfPreemptibleWorkers: Option[Int] = None,
+                   machineConfig: MachineConfig,
                    clusterUrl: URL,
                    operationName: OperationName,
                    status: ClusterStatus,
@@ -131,17 +120,56 @@ case class Cluster(clusterName: ClusterName,
   def projectNameString: String = s"${googleProject.string}/${clusterName.string}"
 }
 
+object MachineConfig {
+  implicit val machineConfigSemigroup = new Semigroup[MachineConfig] {
+    def combine(config1: MachineConfig, config2: MachineConfig): MachineConfig = {
+      MachineConfig(config1.numberOfWorkers.orElse(config2.numberOfWorkers),
+        config1.masterMachineType.orElse(config2.masterMachineType),
+        config1.masterDiskSize.orElse(config2.masterDiskSize),
+        config1.workerMachineType.orElse(config2.workerMachineType),
+        config1.workerDiskSize.orElse(config2.workerDiskSize),
+        config1.numberOfWorkerLocalSSDs.orElse(config2.numberOfWorkerLocalSSDs),
+        config1.numberOfPreemptibleWorkers.orElse(config2.numberOfPreemptibleWorkers))
+    }
+  }
+
+  def apply(clusterRequest: ClusterRequest, clusterDefaultsConfig: ClusterDefaultsConfig): MachineConfig = {
+    clusterRequest.machineConfig match {
+      case None | Some(MachineConfig(None | Some(0),_,_,_,_,_,_)) => MachineConfig.getSingleNodeClusterDefaults(clusterDefaultsConfig)
+      case Some(config) => config |+| MachineConfig.getStandardClusterDefaults(clusterDefaultsConfig)
+    }
+  }
+
+  def getSingleNodeClusterDefaults(clusterDefaultsConfig: ClusterDefaultsConfig): MachineConfig = MachineConfig(
+    Some(clusterDefaultsConfig.numberOfWorkers),
+    Some(clusterDefaultsConfig.masterMachineType),
+    Some(clusterDefaultsConfig.masterDiskSize)
+  )
+
+  def getStandardClusterDefaults(clusterDefaultsConfig: ClusterDefaultsConfig): MachineConfig = MachineConfig(
+    Some(clusterDefaultsConfig.numberOfWorkers),
+    Some(clusterDefaultsConfig.masterMachineType),
+    Some(clusterDefaultsConfig.masterDiskSize),
+    Some(clusterDefaultsConfig.workerMachineType),
+    Some(clusterDefaultsConfig.workerDiskSize),
+    Some(clusterDefaultsConfig.numberOfWorkerLocalSSDs),
+    Some(clusterDefaultsConfig.numberOfPreemptibleWorkers)
+  )
+}
+
+case class MachineConfig(numberOfWorkers: Option[Int],
+                         masterMachineType: Option[String],
+                         masterDiskSize: Option[Int],  //min 10
+                         workerMachineType: Option[String] = None,
+                         workerDiskSize: Option[Int] = None,   //min 10
+                         numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
+                         numberOfPreemptibleWorkers: Option[Int] = None
+                        )
 
 case class ClusterRequest(bucketPath: GcsBucketName,
                           labels: LabelMap,
                           jupyterExtensionUri: Option[GcsPath] = None,
-                          numberOfWorkers: Option[Int] = None,
-                          masterMachineType: Option[String] = None,
-                          masterDiskSize: Option[Int] = None,  //min 10
-                          workerMachineType: Option[String] = None,
-                          workerDiskSize: Option[Int] = None,   //min 10
-                          numberOfWorkerLocalSsds: Option[Int] = None, //min 0 max 8
-                          numberOfPreemptibleWorkers: Option[Int] = None
+                          machineConfig: Option[MachineConfig] = None
                          )
 
 case class ClusterErrorDetails(code: Int, message: Option[String])
@@ -276,9 +304,9 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val operationNameFormat = StringValueClassFormat(OperationName, OperationName.unapply)
   implicit val ipFormat = StringValueClassFormat(IP, IP.unapply)
   implicit val firewallRuleNameFormat = StringValueClassFormat(FirewallRuleName, FirewallRuleName.unapply)
-
-  implicit val clusterFormat = jsonFormat20(Cluster.apply)
-  implicit val clusterRequestFormat = jsonFormat10(ClusterRequest)
+  implicit val machineConfigFormat = jsonFormat7(MachineConfig.apply)
+  implicit val clusterFormat = jsonFormat14(Cluster.apply)
+  implicit val clusterRequestFormat = jsonFormat4(ClusterRequest)
   implicit val clusterInitValuesFormat = jsonFormat13(ClusterInitValues.apply)
   implicit val defaultLabelsFormat = jsonFormat5(DefaultLabels.apply)
 }

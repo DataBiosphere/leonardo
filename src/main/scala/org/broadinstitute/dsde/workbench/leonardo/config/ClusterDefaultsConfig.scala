@@ -6,6 +6,6 @@ case class ClusterDefaultsConfig(
                                    masterDiskSize: Int,
                                    workerMachineType: String,
                                    workerDiskSize: Int,
-                                   numberOfWorkerLocalSsds: Int,
+                                   numberOfWorkerLocalSSDs: Int,
                                    numberOfPreemptibleWorkers: Int
                                  )

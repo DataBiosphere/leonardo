@@ -7,46 +7,34 @@
                 <constraints nullable="false"/>
             </column>
         </addColumn>
-    </changeSet>
 
-    <changeSet logicalFilePath="leonardo" author="anu" id="masterDiskSize-as">
         <addColumn tableName="CLUSTER">
             <column name="masterDiskSize" type="INT" defaultValue="500">
                 <constraints nullable="false"/>
             </column>
         </addColumn>
-    </changeSet>
 
-    <changeSet logicalFilePath="leonardo" author="anu" id="numberOfWorkers-as">
         <addColumn tableName="CLUSTER">
             <column name="numberOfWorkers" type="INT" defaultValue="0">
                 <constraints nullable="false"/>
             </column>
         </addColumn>
-    </changeSet>
 
-    <changeSet logicalFilePath="leonardo" author="anu" id="workerMachineType-as">
         <addColumn tableName="CLUSTER">
             <column name="workerMachineType" type="varchar(256)" defaultValue="NULL" />
         </addColumn>
-    </changeSet>
 
-    <changeSet logicalFilePath="leonardo" author="anu" id="workerDiskSize-as">
         <addColumn tableName="CLUSTER">
             <column name="workerDiskSize" type="INT" defaultValue="NULL" />
         </addColumn>
-    </changeSet>
 
-    <changeSet logicalFilePath="leonardo" author="anu" id="numberOfWorkerLocalSSDs-as">
         <addColumn tableName="CLUSTER">
             <column name="numberOfWorkerLocalSSDs" type="INT" defaultValue="NULL" />
         </addColumn>
-    </changeSet>
 
-    <changeSet logicalFilePath="leonardo" author="anu" id="numberOfPreemptibleWorkers-as">
         <addColumn tableName="CLUSTER">
             <column name="numberOfPreemptibleWorkers" type="INT" defaultValue="NULL"/>
         </addColumn>
-    </changeSet>
 
+    </changeSet>
 </databaseChangeLog>
