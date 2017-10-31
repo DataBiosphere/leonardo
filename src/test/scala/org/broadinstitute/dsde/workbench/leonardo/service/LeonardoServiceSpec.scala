@@ -114,8 +114,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "create a single node cluster with master configs defined" in isolatedDbTest {
-    val machineConfig = Some(MachineConfig(Some(0), Some("test-master-machine-type2"), Some(50)))
-    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = machineConfig)
+    val machineConfig = MachineConfig(Some(0), Some("test-master-machine-type2"), Some(50))
+    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(machineConfig))
 
     val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).futureValue
     clusterCreateResponse.machineConfig shouldEqual machineConfig

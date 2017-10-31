@@ -154,7 +154,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     //    This executable is our init-actions.sh, which will stand up our jupyter server and proxy.
     val initActions = Seq(new NodeInitializationAction().setExecutableFile(GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.initActionsScript)).toUri))
 
-    val machineConfig = MachineConfig(clusterRequest, clusterDefaultsConfig)
+    val machineConfig = MachineConfig(clusterRequest.machineConfig, clusterDefaultsConfig)
 
     // Create a config for the master node, if properties are not specified in request, use defaults
     val masterConfig = new InstanceGroupConfig()

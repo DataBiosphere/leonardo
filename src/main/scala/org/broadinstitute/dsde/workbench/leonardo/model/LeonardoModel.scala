@@ -78,7 +78,7 @@ object Cluster {
         googleProject = googleProject,
         googleServiceAccount = serviceAccount,
         googleBucket = clusterRequest.bucketPath,
-        machineConfig = MachineConfig(clusterRequest, clusterDefaultsConfig),
+        machineConfig = MachineConfig(clusterRequest.machineConfig, clusterDefaultsConfig),
         clusterUrl = getClusterUrl(googleProject, clusterName),
         operationName = operationName,
         status = ClusterStatus.Creating,
@@ -123,31 +123,24 @@ case class Cluster(clusterName: ClusterName,
 object MachineConfig {
   implicit val machineConfigSemigroup = new Semigroup[MachineConfig] {
     def combine(defined: MachineConfig, default: MachineConfig): MachineConfig = {
-      MachineConfig(defined.numberOfWorkers.orElse(defined.numberOfWorkers),
-        defined.masterMachineType.orElse(default.masterMachineType),
-        defined.masterDiskSize.orElse(default.masterDiskSize),
-        defined.workerMachineType.orElse(default.workerMachineType),
-        defined.workerDiskSize.orElse(default.workerDiskSize),
-        defined.numberOfWorkerLocalSSDs.orElse(default.numberOfWorkerLocalSSDs),
-        defined.numberOfPreemptibleWorkers.orElse(default.numberOfPreemptibleWorkers))
+      defined.numberOfWorkers match {
+        case None | Some(0) => MachineConfig(Some(0), defined.masterMachineType.orElse(default.masterMachineType), defined.masterDiskSize.orElse(default.masterDiskSize))
+        case _ => MachineConfig(defined.numberOfWorkers.orElse(defined.numberOfWorkers),
+                                defined.masterMachineType.orElse(default.masterMachineType),
+                                defined.masterDiskSize.orElse(default.masterDiskSize),
+                                defined.workerMachineType.orElse(default.workerMachineType),
+                                defined.workerDiskSize.orElse(default.workerDiskSize),
+                                defined.numberOfWorkerLocalSSDs.orElse(default.numberOfWorkerLocalSSDs),
+                                defined.numberOfPreemptibleWorkers.orElse(default.numberOfPreemptibleWorkers))
+      }
     }
   }
 
-  def apply(clusterRequest: ClusterRequest, clusterDefaultsConfig: ClusterDefaultsConfig): MachineConfig = {
-    clusterRequest.machineConfig match {
-      case None => MachineConfig.getSingleNodeClusterDefaults(clusterDefaultsConfig)
-      case Some(config) if Set(None, Some(0)) contains config.numberOfWorkers => config |+| MachineConfig.getSingleNodeClusterDefaults(clusterDefaultsConfig)
-      case Some(config) => config |+| MachineConfig.getStandardClusterDefaults(clusterDefaultsConfig)
-    }
+  def apply(definedMachineConfig: Option[MachineConfig], defaultMachineConfig: ClusterDefaultsConfig): MachineConfig = {
+    definedMachineConfig.getOrElse(MachineConfig()) |+| MachineConfig(defaultMachineConfig)
   }
 
-  def getSingleNodeClusterDefaults(clusterDefaultsConfig: ClusterDefaultsConfig): MachineConfig = MachineConfig(
-    Some(clusterDefaultsConfig.numberOfWorkers),
-    Some(clusterDefaultsConfig.masterMachineType),
-    Some(clusterDefaultsConfig.masterDiskSize)
-  )
-
-  def getStandardClusterDefaults(clusterDefaultsConfig: ClusterDefaultsConfig): MachineConfig = MachineConfig(
+  def apply(clusterDefaultsConfig: ClusterDefaultsConfig): MachineConfig = MachineConfig(
     Some(clusterDefaultsConfig.numberOfWorkers),
     Some(clusterDefaultsConfig.masterMachineType),
     Some(clusterDefaultsConfig.masterDiskSize),
