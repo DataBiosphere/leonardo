@@ -135,7 +135,8 @@ object MachineConfig {
 
   def apply(clusterRequest: ClusterRequest, clusterDefaultsConfig: ClusterDefaultsConfig): MachineConfig = {
     clusterRequest.machineConfig match {
-      case None | Some(MachineConfig(None | Some(0),_,_,_,_,_,_)) => MachineConfig.getSingleNodeClusterDefaults(clusterDefaultsConfig)
+      case None => MachineConfig.getSingleNodeClusterDefaults(clusterDefaultsConfig)
+      case Some(config) if Set(None, Some(0)) contains config.numberOfWorkers => config |+| MachineConfig.getSingleNodeClusterDefaults(clusterDefaultsConfig)
       case Some(config) => config |+| MachineConfig.getStandardClusterDefaults(clusterDefaultsConfig)
     }
   }
