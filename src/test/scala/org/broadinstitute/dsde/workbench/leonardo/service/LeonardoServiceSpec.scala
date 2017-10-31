@@ -10,7 +10,7 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, MockGoogleDataprocDAO, MockSamDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, MockGoogleDataprocDAO, MockSamDAO, TooFewWorkersRequestedException}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
@@ -52,13 +52,20 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterResourcesConfig.jupyterServerKey, clusterResourcesConfig.jupyterRootCaPem, clusterResourcesConfig.jupyterProxySiteConf, clusterResourcesConfig.jupyterInstallExtensionScript
   ) map GcsRelativePath
 
-  "LeonardoService" should "create a cluster" in isolatedDbTest {
+  //  None
+  "LeonardoService" should "create a single node cluster with default machine configs" in isolatedDbTest {
     // create the cluster
     val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, testClusterRequest).futureValue
 
     // check the create response has the correct info
     clusterCreateResponse.googleBucket shouldEqual bucketPath
     clusterCreateResponse.googleServiceAccount shouldEqual samDAO.serviceAccount
+
+    // A single node cluster with
+    val machineConfig = MachineConfig(Some(clusterDefaultsConfig.numberOfWorkers),
+      Some(clusterDefaultsConfig.masterMachineType),
+      Some(clusterDefaultsConfig.masterDiskSize))
+    clusterCreateResponse.machineConfig shouldEqual machineConfig
 
     // check the firewall rule was created for the project
     gdDAO.firewallRules should contain (googleProject, proxyConfig.firewallRuleName)
@@ -87,6 +94,72 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // check the create response and get response are the same
     clusterCreateResponse shouldEqual clusterGetResponse
+  }
+
+  it should "create a single node cluster with an empty machine Config" in isolatedDbTest {
+    val machineConfig = Some(MachineConfig())
+    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = machineConfig)
+
+    val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).futureValue
+    clusterCreateResponse.machineConfig shouldEqual machineConfig
+  }
+
+  it should "create a single node cluster with zero workers explicitly defined in machine config" in isolatedDbTest {
+    val machineConfig = Some(MachineConfig(Some(0)))
+    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = machineConfig)
+
+    val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).futureValue
+    clusterCreateResponse.machineConfig shouldEqual machineConfig
+  }
+
+  it should "create a single node cluster with master configs defined" in isolatedDbTest {
+    val machineConfig = Some(MachineConfig(Some(0), Some("test-master-machine-type"), Some(50)))
+    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = machineConfig)
+
+    val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).futureValue
+    clusterCreateResponse.machineConfig shouldEqual machineConfig
+  }
+
+  it should "create a single node cluster and override worker configs" in isolatedDbTest {
+    // machine config is creating a single node cluster, but has worker configs defined
+    val machineConfig = Some(MachineConfig(Some(0), Some("test-master-machine-type"), Some(50), Some("test-worker-machine-type"), Some(10), Some(3), Some(4)))
+    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = machineConfig)
+
+    val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).futureValue
+    clusterCreateResponse.machineConfig shouldEqual MachineConfig(Some(0), Some("test-master-machine-type"), Some(50))
+  }
+
+  it should "create a standard cluster with 2 workers with default worker configs" in isolatedDbTest {
+    val machineConfig = Some(MachineConfig(Some(2)))
+    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = machineConfig)
+
+    val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).futureValue
+    val machineConfigResponse = MachineConfig(Some(2),
+      Some(clusterDefaultsConfig.masterMachineType),
+      Some(clusterDefaultsConfig.masterDiskSize),
+      Some(clusterDefaultsConfig.workerMachineType),
+      Some(clusterDefaultsConfig.workerDiskSize),
+      Some(clusterDefaultsConfig.numberOfWorkerLocalSSDs),
+      Some(clusterDefaultsConfig.numberOfPreemptibleWorkers)
+    )
+    clusterCreateResponse.machineConfig shouldEqual machineConfigResponse
+  }
+
+  it should "create a standard cluster with 2 workers" in isolatedDbTest {
+    val machineConfig = Some(MachineConfig(Some(2), Some("test-master-machine-type"), Some(50), Some("test-worker-machine-type"), Some(10), Some(3), Some(4)))
+    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = machineConfig)
+
+    val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).futureValue
+    clusterCreateResponse.machineConfig shouldEqual machineConfig
+
+  }
+
+  it should "throw TooFewWorkersRequestedException when create a 1 worker cluster" in isolatedDbTest {
+    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig(Some(1))))
+
+    whenReady(leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).failed) { exc =>
+      exc shouldBe a[TooFewWorkersRequestedException]
+    }
   }
 
   it should "throw ClusterNotFoundException for nonexistent clusters" in isolatedDbTest {

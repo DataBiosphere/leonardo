@@ -157,9 +157,9 @@ object MachineConfig {
   )
 }
 
-case class MachineConfig(numberOfWorkers: Option[Int],
-                         masterMachineType: Option[String],
-                         masterDiskSize: Option[Int],  //min 10
+case class MachineConfig(numberOfWorkers: Option[Int] = None,
+                         masterMachineType: Option[String] = None,
+                         masterDiskSize: Option[Int] = None,  //min 10
                          workerMachineType: Option[String] = None,
                          workerDiskSize: Option[Int] = None,   //min 10
                          numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
