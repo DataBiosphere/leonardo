@@ -135,7 +135,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = machineConfig)
 
     val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).futureValue
-    val machineConfigResponse = MachineConfig(Some(2),
+    val machineConfigResponse = MachineConfig(Some(1),
       Some(clusterDefaultsConfig.masterMachineType),
       Some(clusterDefaultsConfig.masterDiskSize),
       Some(clusterDefaultsConfig.workerMachineType),

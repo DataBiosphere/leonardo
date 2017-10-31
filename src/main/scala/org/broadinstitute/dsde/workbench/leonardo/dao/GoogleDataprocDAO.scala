@@ -196,18 +196,12 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   }
 
   private def getPrimaryWorkerConfig(machineConfig: MachineConfig): InstanceGroupConfig = {
-     val numberOfWorkers = machineConfig.numberOfWorkers match {
-      case Some(workers) if workers < 2 => throw TooFewWorkersRequestedException(workers)
-      case Some(workers) => workers
-      case None => clusterDefaultsConfig.numberOfWorkers
-    }
-
     val workerDiskConfig = new DiskConfig()
       .setBootDiskSizeGb(machineConfig.workerDiskSize.get)
       .setNumLocalSsds(machineConfig.numberOfWorkerLocalSSDs.get)
 
     new InstanceGroupConfig()
-      .setNumInstances(numberOfWorkers)
+      .setNumInstances(machineConfig.numberOfWorkers.get)
       .setMachineTypeUri(machineConfig.workerMachineType.get)
       .setDiskConfig(workerDiskConfig)
   }

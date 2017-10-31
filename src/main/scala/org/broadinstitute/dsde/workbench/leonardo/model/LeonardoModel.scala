@@ -3,14 +3,15 @@ package org.broadinstitute.dsde.workbench.leonardo.model
 import java.net.URL
 import java.time.Instant
 import java.util.UUID
+
 import cats.Semigroup
 import cats.implicits._
-
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.dao.TooFewWorkersRequestedException
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail
@@ -125,6 +126,7 @@ object MachineConfig {
     def combine(defined: MachineConfig, default: MachineConfig): MachineConfig = {
       defined.numberOfWorkers match {
         case None | Some(0) => MachineConfig(Some(0), defined.masterMachineType.orElse(default.masterMachineType), defined.masterDiskSize.orElse(default.masterDiskSize))
+        case Some(numWorkers) if numWorkers < 2 => throw TooFewWorkersRequestedException(numWorkers)
         case _ => MachineConfig(defined.numberOfWorkers.orElse(defined.numberOfWorkers),
                                 defined.masterMachineType.orElse(default.masterMachineType),
                                 defined.masterDiskSize.orElse(default.masterDiskSize),
