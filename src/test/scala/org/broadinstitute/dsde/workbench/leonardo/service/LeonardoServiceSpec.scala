@@ -131,7 +131,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "create a standard cluster with 2 workers with default worker configs" in isolatedDbTest {
-    val machineConfig = Some(MachineConfig(Some(2)))
+    val machineConfig = Some(MachineConfig(Some(1)))
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = machineConfig)
 
     val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).futureValue
