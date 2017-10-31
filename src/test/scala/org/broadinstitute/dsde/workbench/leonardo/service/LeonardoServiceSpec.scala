@@ -32,6 +32,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   private val clusterName = ClusterName("test-cluster")
   private val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchUserEmail("user1@example.com"), 0)
   private lazy val testClusterRequest = ClusterRequest(bucketPath, Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(gdDAO.extensionPath))
+  private lazy val singleNodeDefaultMachineConfig = MachineConfig(Some(clusterDefaultsConfig.numberOfWorkers), Some(clusterDefaultsConfig.masterMachineType), Some(clusterDefaultsConfig.masterDiskSize))
 
   private var gdDAO: MockGoogleDataprocDAO = _
   private var samDAO: MockSamDAO = _
@@ -101,7 +102,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = machineConfig)
 
     val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).futureValue
-    clusterCreateResponse.machineConfig shouldEqual machineConfig
+    clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig
   }
 
   it should "create a single node cluster with zero workers explicitly defined in machine config" in isolatedDbTest {
@@ -109,7 +110,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = machineConfig)
 
     val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).futureValue
-    clusterCreateResponse.machineConfig shouldEqual machineConfig
+    clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig
   }
 
   it should "create a single node cluster with master configs defined" in isolatedDbTest {
@@ -122,11 +123,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "create a single node cluster and override worker configs" in isolatedDbTest {
     // machine config is creating a single node cluster, but has worker configs defined
-    val machineConfig = Some(MachineConfig(Some(0), Some("test-master-machine-type"), Some(50), Some("test-worker-machine-type"), Some(10), Some(3), Some(4)))
+    val machineConfig = Some(MachineConfig(Some(0), Some("test-master-machine-type2"), Some(50), Some("test-worker-machine-type"), Some(10), Some(3), Some(4)))
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = machineConfig)
 
     val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).futureValue
-    clusterCreateResponse.machineConfig shouldEqual MachineConfig(Some(0), Some("test-master-machine-type"), Some(50))
+    clusterCreateResponse.machineConfig shouldEqual Some(MachineConfig(Some(0), Some("test-master-machine-type2"), Some(50)))
   }
 
   it should "create a standard cluster with 2 workers with default worker configs" in isolatedDbTest {

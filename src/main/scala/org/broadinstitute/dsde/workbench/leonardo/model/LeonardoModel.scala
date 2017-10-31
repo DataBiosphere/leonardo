@@ -123,7 +123,7 @@ case class Cluster(clusterName: ClusterName,
 object MachineConfig {
   implicit val machineConfigSemigroup = new Semigroup[MachineConfig] {
     def combine(defined: MachineConfig, default: MachineConfig): MachineConfig = {
-      MachineConfig(default.numberOfWorkers.orElse(defined.numberOfWorkers),
+      MachineConfig(defined.numberOfWorkers.orElse(defined.numberOfWorkers),
         defined.masterMachineType.orElse(default.masterMachineType),
         defined.masterDiskSize.orElse(default.masterDiskSize),
         defined.workerMachineType.orElse(default.workerMachineType),
