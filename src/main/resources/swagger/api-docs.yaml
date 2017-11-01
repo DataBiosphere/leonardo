@@ -359,7 +359,7 @@ definitions:
         type: string
         description: The Google Bucket associated with the cluster
       machineConfig:
-        description: The configurations for the machine and worker nodes
+        description: The machine configurations for the master and worker nodes
         $ref: '#/definitions/MachineConfig'
       operationName:
         type: string
@@ -401,7 +401,7 @@ definitions:
           must have an entry point named 'main'. For more information on notebook extensions,
           see http://jupyter-notebook.readthedocs.io/en/latest/extending/frontend_extensions.html.
       machineConfig:
-        description: The configurations for the machine and worker nodes
+        description: The machine configurations for the master and worker nodes
         $ref: '#/definitions/MachineConfig'
 
   MachineConfig:
@@ -410,7 +410,9 @@ definitions:
       numberOfWorkers:
         type: integer
         description: |
-          Optional, number of workers in the cluster. For a SingleNode, this field should not be defined, as the
+          Optional, number of workers in the cluster. Can be 0 (default), 2 or more. Cannot be 1.
+
+          For a SingleNode, this field should not be defined, as the
           SingleNode clusters have 0 workers by default. For a Standard cluster, workers should be 2 or more.
       masterMachineType:
         type: string

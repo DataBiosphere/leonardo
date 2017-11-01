@@ -44,6 +44,7 @@ package object config {
       config.getInt("numberOfWorkers"),
       config.getString("masterMachineType"),
       config.getInt("masterDiskSize"),
+      config.getInt("masterDiskSizeMinimum"),
       config.getString("workerMachineType"),
       config.getInt("workerDiskSize"),
       config.getInt("numberOfWorkerLocalSSDs"),
