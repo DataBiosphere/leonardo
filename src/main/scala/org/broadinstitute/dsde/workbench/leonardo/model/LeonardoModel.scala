@@ -185,7 +185,7 @@ case class ClusterRequest(bucketPath: GcsBucketName,
 case class ClusterErrorDetails(code: Int, message: Option[String])
 
 object ClusterInitValues {
-  val privateKeyFileName = "secrets.json"
+  val serviceAccountCredentialsFilename = "service-account-credentials.json"
 
   def apply(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest, dataprocConfig: DataprocConfig,
             clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig, serviceAccountKey: Option[WorkbenchUserServiceAccountKey]): ClusterInitValues =
@@ -203,7 +203,7 @@ object ClusterInitValues {
       proxyConfig.proxyServerName,
       GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterInstallExtensionScript)).toUri,
       clusterRequest.jupyterExtensionUri.map(_.toUri).getOrElse(""),
-      serviceAccountKey.map(_ => GcsPath(bucketName, GcsRelativePath(privateKeyFileName)).toUri).getOrElse("")
+      serviceAccountKey.map(_ => GcsPath(bucketName, GcsRelativePath(serviceAccountCredentialsFilename)).toUri).getOrElse("")
     )
 }
 
@@ -222,7 +222,7 @@ case class ClusterInitValues(googleProject: String,
                              proxyServerName: String,
                              jupyterInstallExtensionScript: String,
                              jupyterExtensionUri: String,
-                             serviceAccountPrivateKey: String)
+                             jupyterServiceAccountCredentials: String)
 
 
 object FirewallRuleRequest {

@@ -193,7 +193,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     val uploadPrivateKey: Future[Unit] = serviceAccountKey.flatMap(_.privateKeyData.decode).map { k =>
       gdDAO.uploadToBucket(googleProject,
-        GcsPath(bucketName, GcsRelativePath(ClusterInitValues.privateKeyFileName)), k)
+        GcsPath(bucketName, GcsRelativePath(ClusterInitValues.serviceAccountCredentialsFilename)), k)
     } getOrElse(Future.successful(()))
 
     for {

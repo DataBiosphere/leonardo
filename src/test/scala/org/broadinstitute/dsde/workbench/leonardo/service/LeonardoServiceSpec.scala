@@ -52,7 +52,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   val initFiles = Array(clusterResourcesConfig.clusterDockerCompose, clusterResourcesConfig.initActionsScript, clusterResourcesConfig.jupyterServerCrt,
     clusterResourcesConfig.jupyterServerKey, clusterResourcesConfig.jupyterRootCaPem, clusterResourcesConfig.jupyterProxySiteConf, clusterResourcesConfig.jupyterInstallExtensionScript,
-    ClusterInitValues.privateKeyFileName
+    ClusterInitValues.serviceAccountCredentialsFilename
   ) map GcsRelativePath
 
 
@@ -258,7 +258,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     initFiles.map(initFile => gdDAO.bucketObjects should contain (GcsPath(bucketPath, initFile)))
 
     // check that the service account key was added to the bucket
-    gdDAO.bucketObjects should contain (GcsPath(bucketPath, GcsRelativePath(ClusterInitValues.privateKeyFileName)))
+    gdDAO.bucketObjects should contain (GcsPath(bucketPath, GcsRelativePath(ClusterInitValues.serviceAccountCredentialsFilename)))
   }
 
   it should "add bucket objects" in isolatedDbTest {
@@ -275,7 +275,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     initFiles.map(initFile => gdDAO.bucketObjects should contain (GcsPath(bucketPath, initFile)))
 
     // check that the service account key was added to the bucket
-    gdDAO.bucketObjects should contain (GcsPath(bucketPath, GcsRelativePath(ClusterInitValues.privateKeyFileName)))
+    gdDAO.bucketObjects should contain (GcsPath(bucketPath, GcsRelativePath(ClusterInitValues.serviceAccountCredentialsFilename)))
   }
 
   it should "create a firewall rule in a project only once when the first cluster is added" in isolatedDbTest {
@@ -312,7 +312,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
           |"${googleProject.string}"
           |"${proxyConfig.jupyterProxyDockerImage}"
           |"${gdDAO.extensionPath.toUri}"
-          |"${GcsPath(bucketPath, GcsRelativePath(ClusterInitValues.privateKeyFileName)).toUri}"""".stripMargin
+          |"${GcsPath(bucketPath, GcsRelativePath(ClusterInitValues.serviceAccountCredentialsFilename)).toUri}"""".stripMargin
 
     result shouldEqual expected
   }
