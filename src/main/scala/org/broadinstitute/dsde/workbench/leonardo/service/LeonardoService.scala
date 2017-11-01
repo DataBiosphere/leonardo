@@ -96,6 +96,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName): Future[Int] = {
     getActiveClusterDetails(googleProject, clusterName) flatMap { cluster =>
       if(cluster.status.isActive) {
+        // Delete the service account key in Google, if present
         val deleteServiceAccountKey = dbRef.inTransaction { dataAccess =>
           dataAccess.clusterQuery.getServiceAccountKeyId(googleProject, clusterName)
         } flatMap {
@@ -158,6 +159,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   private[service] def generateServiceAccountKey(googleProject: GoogleProject, serviceAccountEmail: WorkbenchUserServiceAccountEmail): Future[Option[WorkbenchUserServiceAccountKey]] = {
+    // Only generate a key if NOT creating the cluster as the pet service account.
+    // If the pet service account is used to create a cluster, its credentials are on the metadata
+    // service and we don't need to propagate a key file.
     if (!dataprocConfig.createClusterAsPetServiceAccount) {
       googleIamDAO.createServiceAccountKey(WorkbenchGoogleProject(googleProject.string), serviceAccountEmail).map(Option(_))
     } else Future.successful(None)
