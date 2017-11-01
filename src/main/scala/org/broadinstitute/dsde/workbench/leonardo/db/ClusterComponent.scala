@@ -31,7 +31,8 @@ case class ClusterRecord(id: Long,
                          createdDate: Timestamp,
                          destroyedDate: Timestamp,
                          jupyterExtensionUri: Option[String],
-                         initBucket: String)
+                         initBucket: String,
+                         serviceAccountKeyId: Option[String])
 
 trait ClusterComponent extends LeoComponent {
   this: LabelComponent =>
@@ -59,6 +60,7 @@ trait ClusterComponent extends LeoComponent {
     def destroyedDate =               column[Timestamp]         ("destroyedDate",         O.SqlType("TIMESTAMP(6)"))
     def jupyterExtensionUri =         column[Option[String]]    ("jupyterExtensionUri",   O.Length(1024))
     def initBucket =                  column[String]            ("initBucket",            O.Length(1024))
+    def serviceAccountKeyId =         column[Option[String]]    ("serviceAccountKeyId",   O.Length(254))
 
     def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName), unique = true)
 
@@ -131,6 +133,15 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
+    def getServiceAccountKeyId(project: GoogleProject, name: ClusterName): DBIO[Option[WorkbenchUserServiceAccountKeyId]] = {
+      clusterQuery
+        .filter { _.googleProject === project.string }
+        .filter { _.clusterName === name.string }
+        .map(_.serviceAccountKeyId)
+        .result
+        .map { recs => recs.headOption.flatten.map(WorkbenchUserServiceAccountKeyId(_)) }
+    }
+
     def markPendingDeletion(googleId: UUID): DBIO[Int] = {
       clusterQuery.filter(_.googleId === googleId)
         .map(c => (c.destroyedDate, c.status, c.hostIp))
@@ -191,7 +202,7 @@ trait ClusterComponent extends LeoComponent {
     /* WARNING: The init bucket is secret to Leo, which means we don't unmarshal it.
      * This function should only be called at cluster creation time, when the init bucket doesn't exist.
      */
-    private def marshalCluster(cluster: Cluster, initBucket: String): ClusterRecord = {
+    private def marshalCluster(cluster: Cluster, initBucket: String, serviceAccountKeyId: Option[WorkbenchUserServiceAccountKeyId]): ClusterRecord = {
       ClusterRecord(
         id = 0,    // DB AutoInc
         cluster.clusterName.string,
@@ -212,7 +223,8 @@ trait ClusterComponent extends LeoComponent {
         Timestamp.from(cluster.createdDate),
         Timestamp.from(cluster.destroyedDate.getOrElse(dummyDate)),
         cluster.jupyterExtensionUri map(_.toUri),
-        initBucket
+        initBucket,
+        serviceAccountKeyId.map(_.value)
       )
     }
 

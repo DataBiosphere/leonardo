@@ -14,7 +14,7 @@ import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, Gcs
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
-import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail
+import org.broadinstitute.dsde.workbench.model.{WorkbenchUserServiceAccountEmail, WorkbenchUserServiceAccountKey, WorkbenchUserServiceAccountKeyId}
 import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat, SerializationException}
 
@@ -185,8 +185,10 @@ case class ClusterRequest(bucketPath: GcsBucketName,
 case class ClusterErrorDetails(code: Int, message: Option[String])
 
 object ClusterInitValues {
+  val privateKeyFileName = "secrets.json"
+
   def apply(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest, dataprocConfig: DataprocConfig,
-            clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig): ClusterInitValues =
+            clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig, serviceAccountKey: Option[WorkbenchUserServiceAccountKey]): ClusterInitValues =
     ClusterInitValues(
       googleProject.string,
       clusterName.string,
@@ -200,7 +202,8 @@ object ClusterInitValues {
       dataprocConfig.jupyterServerName,
       proxyConfig.proxyServerName,
       GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterInstallExtensionScript)).toUri,
-      clusterRequest.jupyterExtensionUri.map(_.toUri).getOrElse("")
+      clusterRequest.jupyterExtensionUri.map(_.toUri).getOrElse(""),
+      serviceAccountKey.map(_ => GcsPath(bucketName, GcsRelativePath(privateKeyFileName)).toUri).getOrElse("")
     )
 }
 
@@ -218,7 +221,8 @@ case class ClusterInitValues(googleProject: String,
                              jupyterServerName: String,
                              proxyServerName: String,
                              jupyterInstallExtensionScript: String,
-                             jupyterExtensionUri: String)
+                             jupyterExtensionUri: String,
+                             serviceAccountPrivateKey: String)
 
 
 object FirewallRuleRequest {

@@ -35,7 +35,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig,
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterName, ClusterRequest, FirewallRuleName, GoogleProject, GoogleServiceAccount, IP, InstanceName, LeoException, MachineConfig, OperationName, ZoneUri, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
-import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserServiceAccountEmail}
+import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserServiceAccountEmail, WorkbenchUserServiceAccountKey}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future, blocking}
@@ -142,8 +142,8 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     // Create a GceClusterConfig, which has the common config settings for resources of Google Compute Engine cluster instances,
     //   applicable to all instances in the cluster. Give it the user's service account.
     //   Set the network tag, which is needed by the firewall rule that allows leo to talk to the cluster
-    val gceClusterConfig = new GceClusterConfig()
-      .setServiceAccount(serviceAccount.value)
+    val gce = new GceClusterConfig()
+      .setServiceAccount(if (dataprocConfig.usePetServiceAccountToCreateCluster) serviceAccount.value else dataprocConfig.serviceAccount.string)
       .setServiceAccountScopes(oauth2Scopes.asJava)
       .setTags(List(proxyConfig.networkTag).asJava)
 

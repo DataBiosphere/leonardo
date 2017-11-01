@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted}
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
-import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail
+import org.broadinstitute.dsde.workbench.model.{WorkbenchUserServiceAccountEmail, WorkbenchUserServiceAccountKey, WorkbenchUserServiceAccountKeyId}
 import org.mockito.ArgumentMatchers._
 import org.mockito.Mockito._
 import org.scalatest.mockito.MockitoSugar
@@ -86,7 +86,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - cluster is updated in the DB with status Running and the host IP
   // - monitor actor shuts down
   "ClusterMonitorActor" should "monitor until RUNNING state" in isolatedDbTest {
-    dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket")) } shouldEqual creatingCluster
+    dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual creatingCluster
 
     val dao = mock[DataprocDAO]
     when {
@@ -120,7 +120,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - monitor actor does not shut down
   Seq(ClusterStatus.Creating, ClusterStatus.Updating, ClusterStatus.Unknown).map { status =>
     it should s"monitor $status status" in isolatedDbTest {
-      dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket")) } shouldEqual creatingCluster
+      dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual creatingCluster
 
       val dao = mock[DataprocDAO]
       when {
@@ -146,7 +146,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - cluster is not changed in the DB
   // - monitor actor does not shut down
   it should "keep monitoring in RUNNING state with no IP" in isolatedDbTest {
-    dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket")) } shouldEqual creatingCluster
+    dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual creatingCluster
 
     val dao = mock[DataprocDAO]
     when {
@@ -175,7 +175,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - cluster is not changed in the DB
   // - monitor actor does not shut down
   it should "keep monitoring in ERROR state with no error code" in isolatedDbTest {
-    dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket")) } shouldEqual creatingCluster
+    dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual creatingCluster
 
     val dao = mock[DataprocDAO]
     when {
@@ -204,7 +204,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - cluster status is set to Error in the DB
   // - monitor actor shuts down
   it should "monitor until ERROR state with no restart" in isolatedDbTest {
-    dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket")) } shouldEqual creatingCluster
+    dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual creatingCluster
 
     val dao = mock[DataprocDAO]
     when {
@@ -237,7 +237,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - cluster status is set to Deleted in the DB
   // - monitor actor shuts down
   it should "monitor until DELETED state" in isolatedDbTest {
-    dbFutureValue { _.clusterQuery.save(deletingCluster, gcsPath("gs://bucket")) } shouldEqual deletingCluster
+    dbFutureValue { _.clusterQuery.save(deletingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual deletingCluster
 
     val dao = mock[DataprocDAO]
     when {
@@ -264,7 +264,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - new cluster has status Running and the host IP
   // - monitor actor shuts down
   it should "monitor until ERROR state with restart" in isolatedDbTest {
-    dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket")) } shouldEqual creatingCluster
+    dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual creatingCluster
 
     val dao = mock[DataprocDAO]
     when {
@@ -352,7 +352,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - cluster is not changed in the DB
   // - monitor actor does not shut down
   it should "not restart a deleting cluster" in isolatedDbTest {
-    dbFutureValue { _.clusterQuery.save(deletingCluster, gcsPath("gs://bucket")) } shouldEqual deletingCluster
+    dbFutureValue { _.clusterQuery.save(deletingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual deletingCluster
 
     val dao = mock[DataprocDAO]
     when {
