@@ -97,42 +97,36 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterCreateResponse shouldEqual clusterGetResponse
   }
 
-  it should "create a single node cluster with an empty machine Config" in isolatedDbTest {
-    val machineConfig = Some(MachineConfig())
-    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = machineConfig)
-
+  it should "create a single node cluster with an empty machine config" in isolatedDbTest {
+    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig()))
     val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).futureValue
     clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig
   }
 
   it should "create a single node cluster with zero workers explicitly defined in machine config" in isolatedDbTest {
-    val machineConfig = Some(MachineConfig(Some(0)))
-    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = machineConfig)
-
+    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig(Some(0))))
     val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).futureValue
     clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig
   }
 
   it should "create a single node cluster with master configs defined" in isolatedDbTest {
-    val machineConfig = MachineConfig(Some(0), Some("test-master-machine-type2"), Some(50))
-    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(machineConfig))
-
+    val singleNodeDefinedMachineConfig = MachineConfig(Some(0), Some("test-master-machine-type2"), Some(50))
+    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(singleNodeDefinedMachineConfig))
     val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).futureValue
-    clusterCreateResponse.machineConfig shouldEqual machineConfig
+    clusterCreateResponse.machineConfig shouldEqual singleNodeDefinedMachineConfig
   }
 
   it should "create a single node cluster and override worker configs" in isolatedDbTest {
     // machine config is creating a single node cluster, but has worker configs defined
-    val machineConfig = Some(MachineConfig(Some(0), Some("test-master-machine-type2"), Some(50), Some("test-worker-machine-type"), Some(10), Some(3), Some(4)))
+    val machineConfig = Some(MachineConfig(Some(0), Some("test-master-machine-type3"), Some(50), Some("test-worker-machine-type"), Some(10), Some(3), Some(4)))
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = machineConfig)
 
     val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).futureValue
-    clusterCreateResponse.machineConfig shouldEqual MachineConfig(Some(0), Some("test-master-machine-type2"), Some(50))
+    clusterCreateResponse.machineConfig shouldEqual MachineConfig(Some(0), Some("test-master-machine-type3"), Some(50))
   }
 
   it should "create a standard cluster with 2 workers with default worker configs" in isolatedDbTest {
-    val machineConfig = Some(MachineConfig(Some(2)))
-    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = machineConfig)
+    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig(Some(2))))
 
     val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).futureValue
     val machineConfigResponse = MachineConfig(Some(2),
@@ -141,8 +135,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       Some(clusterDefaultsConfig.workerMachineType),
       Some(clusterDefaultsConfig.workerDiskSize),
       Some(clusterDefaultsConfig.numberOfWorkerLocalSSDs),
-      Some(clusterDefaultsConfig.numberOfPreemptibleWorkers)
-    )
+      Some(clusterDefaultsConfig.numberOfPreemptibleWorkers))
+
     clusterCreateResponse.machineConfig shouldEqual machineConfigResponse
   }
 

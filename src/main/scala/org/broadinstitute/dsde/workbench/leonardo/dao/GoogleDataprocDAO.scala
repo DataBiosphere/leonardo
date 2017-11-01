@@ -162,28 +162,25 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       .setDiskConfig(new DiskConfig().setBootDiskSizeGb(machineConfig.masterDiskSize.get))
 
     // Create a Cluster Config and give it the GceClusterConfig, the NodeInitializationAction and the SoftwareConfig
-    val clusterConfig = new ClusterConfig()
-      .setGceClusterConfig(gceClusterConfig)
+    createClusterConfig(machineConfig).setGceClusterConfig(gceClusterConfig)
       .setInitializationActions(initActions.asJava)
       .setMasterConfig(masterConfig)
-
-    addWorkerConfigs(clusterConfig, machineConfig)
   }
 
-  private def addWorkerConfigs(clusterConfig: ClusterConfig, machineConfig: MachineConfig): ClusterConfig = {
+  private def createClusterConfig(machineConfig: MachineConfig): ClusterConfig = {
     // If the number of workers is zero, make a Single Node cluster, else make a Standard one
     if (machineConfig.numberOfWorkers.get == 0) {
       // Create a SoftwareConfig and set a property that makes the cluster have only one node
       val softwareConfig = new SoftwareConfig().setProperties(Map("dataproc:dataproc.allow.zero.workers" -> "true").asJava)
-      clusterConfig.setSoftwareConfig(softwareConfig)
+      new ClusterConfig().setSoftwareConfig(softwareConfig)
     }
     else // Standard, multi node cluster
-      getStandardConfig(clusterConfig, machineConfig)
+      getStandardConfig(machineConfig)
   }
 
-  private def getStandardConfig(clusterConfig: ClusterConfig, machineConfig: MachineConfig): ClusterConfig = {
+  private def getStandardConfig(machineConfig: MachineConfig): ClusterConfig = {
     // Set the configs of the non-preemptible, primary worker nodes
-    val clusterConfigWithWorkerConfigs = clusterConfig.setWorkerConfig(getPrimaryWorkerConfig(machineConfig))
+    val clusterConfigWithWorkerConfigs = new ClusterConfig().setWorkerConfig(getPrimaryWorkerConfig(machineConfig))
 
     // If the number of preemptible workers is greater than 0, set a secondary worker config
     if (machineConfig.numberOfPreemptibleWorkers.get > 0) {
