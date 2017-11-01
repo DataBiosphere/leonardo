@@ -7,11 +7,11 @@ import java.util.UUID
 import cats.Semigroup
 import cats.implicits._
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
+import akka.http.scaladsl.model.StatusCodes
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.TooFewWorkersRequestedException
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail
@@ -19,6 +19,9 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat, SerializationException}
 
 import scala.language.implicitConversions
+
+case class TooFewWorkersRequestedException(numberofWorkers: Int)
+  extends LeoException(s"$numberofWorkers worker(s) requested. A Standard cluster must have 2 or more workers.", StatusCodes.NotFound)
 
 // this needs to be a Universal Trait to enable mixin with Value Classes
 // it only serves as a marker for StringValueClassFormat

@@ -53,7 +53,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterResourcesConfig.jupyterServerKey, clusterResourcesConfig.jupyterRootCaPem, clusterResourcesConfig.jupyterProxySiteConf, clusterResourcesConfig.jupyterInstallExtensionScript
   ) map GcsRelativePath
 
-  //  None
+
   "LeonardoService" should "create a single node cluster with default machine configs" in isolatedDbTest {
     // create the cluster
     val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, testClusterRequest).futureValue
@@ -62,11 +62,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterCreateResponse.googleBucket shouldEqual bucketPath
     clusterCreateResponse.googleServiceAccount shouldEqual samDAO.serviceAccount
 
-    // A single node cluster with
-    val machineConfig = MachineConfig(Some(clusterDefaultsConfig.numberOfWorkers),
-      Some(clusterDefaultsConfig.masterMachineType),
-      Some(clusterDefaultsConfig.masterDiskSize))
-    clusterCreateResponse.machineConfig shouldEqual machineConfig
+    // check the cluster has the correct machine configs
+    clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig
 
     // check the firewall rule was created for the project
     gdDAO.firewallRules should contain (googleProject, proxyConfig.firewallRuleName)

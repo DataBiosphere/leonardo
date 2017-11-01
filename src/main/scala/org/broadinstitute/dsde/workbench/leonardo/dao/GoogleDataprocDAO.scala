@@ -49,9 +49,6 @@ case class FirewallRuleNotFoundException(googleProject: GoogleProject, firewallR
 
 case class AuthorizationError() extends LeoException(s"Your account is unauthorized", StatusCodes.Unauthorized)
 
-case class TooFewWorkersRequestedException(numberofWorkers: Int)
-  extends LeoException(s"$numberofWorkers worker(s) requested. A Standard cluster must have 2 or more workers.", StatusCodes.NotFound)
-
 class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected val proxyConfig: ProxyConfig, protected val clusterDefaultsConfig: ClusterDefaultsConfig, protected val clusterResourcesConfig: ClusterResourcesConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
   extends DataprocDAO with GoogleUtilities {
 

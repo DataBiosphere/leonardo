@@ -69,7 +69,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } flatMap {
       case Some(_) => throw ClusterAlreadyExistsException(googleProject, clusterName)
       case None =>
-        // place in processClusters w/ adding label op
         val augmentedClusterRequest = addClusterDefaultLabels(serviceAccount, googleProject, clusterName, clusterRequest)
         createGoogleCluster(serviceAccount, googleProject, clusterName, augmentedClusterRequest).flatMap { case (cluster, initBucket) =>
           dbRef.inTransaction { dataAccess =>
