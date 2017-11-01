@@ -22,7 +22,7 @@ package object config {
       config.getString("dataprocDockerImage"),
       config.getString("clusterUrlBase"),
       config.getString("jupyterServerName"),
-      config.getBoolean("usePetServiceAccountToCreateCluster")
+      config.getBoolean("createClusterAsPetServiceAccount")
     )
   }
 

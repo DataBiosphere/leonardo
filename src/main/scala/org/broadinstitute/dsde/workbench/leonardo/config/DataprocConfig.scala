@@ -10,5 +10,5 @@ case class DataprocConfig(
                            dataprocDockerImage: String,
                            clusterUrlBase: String,
                            jupyterServerName: String,
-                           usePetServiceAccountToCreateCluster: Boolean
+                           createClusterAsPetServiceAccount: Boolean
                          )

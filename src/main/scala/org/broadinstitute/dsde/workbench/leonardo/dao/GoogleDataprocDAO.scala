@@ -143,7 +143,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     //   applicable to all instances in the cluster. Give it the user's service account.
     //   Set the network tag, which is needed by the firewall rule that allows leo to talk to the cluster
     val gce = new GceClusterConfig()
-      .setServiceAccount(if (dataprocConfig.usePetServiceAccountToCreateCluster) serviceAccount.value else dataprocConfig.serviceAccount.string)
+      .setServiceAccount(if (dataprocConfig.createClusterAsPetServiceAccount) serviceAccount.value else dataprocConfig.serviceAccount.string)
       .setServiceAccountScopes(oauth2Scopes.asJava)
       .setTags(List(proxyConfig.networkTag).asJava)
 

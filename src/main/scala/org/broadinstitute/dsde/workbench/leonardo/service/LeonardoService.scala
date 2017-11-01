@@ -158,7 +158,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   private[service] def generateServiceAccountKey(googleProject: GoogleProject, serviceAccountEmail: WorkbenchUserServiceAccountEmail): Future[Option[WorkbenchUserServiceAccountKey]] = {
-    if (dataprocConfig.usePetServiceAccountToCreateCluster) {
+    if (!dataprocConfig.createClusterAsPetServiceAccount) {
       googleIamDAO.createServiceAccountKey(WorkbenchGoogleProject(googleProject.string), serviceAccountEmail).map(Option(_))
     } else Future.successful(None)
   }
