@@ -1,0 +1,49 @@
+version: '2'
+services:
+  hub:
+    image: selenium/hub
+    ports:
+      - "4444:4444"
+    environment:
+      # Prevent nodes from giving up after 30 seconds of inactivity (yes, this is configured on the hub rather than the nodes)
+      SE_OPTS: -timeout 360
+    logging:
+      driver: syslog
+      options:
+        syslog-address: udp://localhost:515/
+        tag: hub
+
+
+  chrome:
+    image: selenium/node-chrome
+    depends_on:
+      - hub
+    links:
+      - hub
+    ports:
+      - 5555
+      # Port 5900 is for VNC
+      # Change image to selenium/node-chrome-debug
+      # Then connect to the result of running: `docker port docker_chrome_1 5900`
+      # On OS X you can use the Screen Sharing app
+      - 5900
+    environment:
+      HUB_PORT_4444_TCP_ADDR: hub
+      HUB_PORT_4444_TCP_PORT: 4444
+      # Workaround for chrome nodes stalling: https://github.com/SeleniumHQ/docker-selenium/issues/87
+      DBUS_SESSION_BUS_ADDRESS: /dev/null
+    logging:
+      driver: syslog
+      options:
+        syslog-address: udp://localhost:515/
+    volumes:
+      - $WORKING_DIR/target:/app/target
+      # Prevent page crash: https://github.com/elgalu/docker-selenium/issues/20
+      - /dev/shm:/dev/shm
+
+  logs:
+    image: bobrik/syslog-ng
+    volumes:
+      - $WORKING_DIR/logs:/var/log/syslog-ng:rw
+    ports:
+      - "515:514/udp"
