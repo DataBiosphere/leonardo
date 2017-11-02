@@ -161,13 +161,15 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private[service] def generateServiceAccountKey(googleProject: GoogleProject, serviceAccountEmail: WorkbenchUserServiceAccountEmail): Future[Option[WorkbenchUserServiceAccountKey]] = {
     // Only generate a key if NOT creating the cluster as the pet service account.
     // If the pet service account is used to create a cluster, its credentials are on the metadata
-    // service and we don't need to propagate a key file.
+    // server and we don't need to propagate a key file.
     if (!dataprocConfig.createClusterAsPetServiceAccount) {
       googleIamDAO.createServiceAccountKey(WorkbenchGoogleProject(dataprocConfig.leoGoogleProject.string), serviceAccountEmail).map(Option(_))
     } else Future.successful(None)
   }
 
   private[service] def addDataprocWorkerRoleToServiceAccount(googleProject: GoogleProject, serviceAccountEmail: WorkbenchUserServiceAccountEmail): Future[Unit] = {
+    // Only add Dataproc Worker if creating the cluster as the pet service account.
+    // Otherwise, the default Google Compute Engine service account is used, which already has the required permissions.
     if (dataprocConfig.createClusterAsPetServiceAccount) {
       googleIamDAO.addIamRolesForUser(WorkbenchGoogleProject(googleProject.string), serviceAccountEmail, Set("roles/dataproc.worker"))
     } else Future.successful(())

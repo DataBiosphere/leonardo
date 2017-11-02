@@ -17,7 +17,6 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.googleapis.services.AbstractGoogleClientRequest
 import com.google.api.client.http.{AbstractInputStreamContent, FileContent, InputStreamContent}
 import com.google.api.client.json.jackson2.JacksonFactory
-import com.google.api.services.cloudresourcemanager.model.Project
 import com.google.api.services.cloudresourcemanager.{CloudResourceManager, CloudResourceManagerScopes}
 import com.google.api.services.compute.model.Firewall.Allowed
 import com.google.api.services.compute.model.{Firewall, Instance}
@@ -37,7 +36,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig,
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterName, ClusterRequest, FirewallRuleName, GoogleProject, GoogleServiceAccount, IP, InstanceName, LeoException, MachineConfig, OperationName, ZoneUri, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
-import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserServiceAccountEmail, WorkbenchUserServiceAccountKey}
+import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserServiceAccountEmail}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future, blocking}
@@ -51,7 +50,10 @@ case class FirewallRuleNotFoundException(googleProject: GoogleProject, firewallR
 
 case class AuthorizationError() extends LeoException(s"Your account is unauthorized", StatusCodes.Unauthorized)
 
-class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected val proxyConfig: ProxyConfig, protected val clusterDefaultsConfig: ClusterDefaultsConfig, protected val clusterResourcesConfig: ClusterResourcesConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
+case class GoogleProjectNotFoundException(googleProject: GoogleProject)
+  extends LeoException(s"Google project ${googleProject.string} not found", StatusCodes.NotFound)
+
+class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected val proxyConfig: ProxyConfig, protected val clusterResourcesConfig: ClusterResourcesConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
   extends DataprocDAO with GoogleUtilities {
 
   // TODO pass as constructor arg when we add metrics
@@ -148,9 +150,12 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
 
   private def getClusterConfig(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, serviceAccount: WorkbenchUserServiceAccountEmail): ClusterConfig = {
     // Create a GceClusterConfig, which has the common config settings for resources of Google Compute Engine cluster instances,
-    //   applicable to all instances in the cluster. Give it the user's service account.
+    //   applicable to all instances in the cluster.
     //   Set the network tag, which is needed by the firewall rule that allows leo to talk to the cluster
     val gce = new GceClusterConfig().setTags(List(proxyConfig.networkTag).asJava)
+
+    // Create the cluster as the pet service account if configured to do so.
+    // Otherwise leave it blank, which defaults to the default Google Compute Engine service account.
     if (dataprocConfig.createClusterAsPetServiceAccount) {
       gce.setServiceAccount(serviceAccount.value).setServiceAccountScopes(oauth2Scopes.asJava)
     }
@@ -248,31 +253,44 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     // Create lifecycle for the bucket with a list of rules
     val lifecycle = new Lifecycle().setRule(List(lifecycleRule).asJava)
 
+    // The Leo service account
     val leoServiceAccountEntityString = s"user-${dataprocConfig.serviceAccount.string}"
-    val userServiceAccountEntityString = s"user-${userServiceAccount.value}"
 
-    //Add the Leo SA and the user's pet SA to the ACL list for the bucket
-    val bucketAcls = List(
-      new BucketAccessControl().setEntity(leoServiceAccountEntityString).setRole("OWNER"),
-      new BucketAccessControl().setEntity(userServiceAccountEntityString).setRole("READER")
-    )
+    // If creating the cluster as the pet service account, grant bucket access to the pet service account.
+    // Otherwise, grant access to the Google compute engine default service account.
+    val clusterServiceAccountEntityStringFuture: Future[String] = if (dataprocConfig.createClusterAsPetServiceAccount) {
+      Future.successful(s"user-${userServiceAccount.value}")
+    } else {
+      getComputeEngineDefaultServiceAccount(googleProject).map {
+        case Some(serviceAccount) => s"user-${serviceAccount.string}"
+        case None => throw GoogleProjectNotFoundException(googleProject)
+      }
+    }
 
-    //Bucket ACL != the ACL given to individual objects inside the bucket
-    val defObjectAcls = List(
-      new ObjectAccessControl().setEntity(leoServiceAccountEntityString).setRole("OWNER"),
-      new ObjectAccessControl().setEntity(userServiceAccountEntityString).setRole("READER")
-    )
+    clusterServiceAccountEntityStringFuture.flatMap { clusterServiceAccountEntityString =>
+      //Add the Leo SA and the cluster's SA to the ACL list for the bucket
+      val bucketAcls = List(
+        new BucketAccessControl().setEntity(leoServiceAccountEntityString).setRole("OWNER"),
+        new BucketAccessControl().setEntity(clusterServiceAccountEntityString).setRole("READER")
+      )
 
-    // Create the bucket object
-    val bucket = new Bucket()
-      .setName(bucketName.name)
-      .setLifecycle(lifecycle)
-      .setAcl(bucketAcls.asJava)
-      .setDefaultObjectAcl(defObjectAcls.asJava)
+      //Bucket ACL != the ACL given to individual objects inside the bucket
+      val defObjectAcls = List(
+        new ObjectAccessControl().setEntity(leoServiceAccountEntityString).setRole("OWNER"),
+        new ObjectAccessControl().setEntity(clusterServiceAccountEntityString).setRole("READER")
+      )
 
-    val bucketInserter = storage.buckets().insert(googleProject.string, bucket)
+      // Create the bucket object
+      val bucket = new Bucket()
+        .setName(bucketName.name)
+        .setLifecycle(lifecycle)
+        .setAcl(bucketAcls.asJava)
+        .setDefaultObjectAcl(defObjectAcls.asJava)
 
-    executeGoogleRequestAsync(googleProject, "Bucket " + bucketName.toString, bucketInserter) map { _ => bucketName }
+      val bucketInserter = storage.buckets().insert(googleProject.string, bucket)
+
+      executeGoogleRequestAsync(googleProject, s"Bucket ${bucketName.toString}", bucketInserter) map { _ => bucketName }
+    }
   }
 
   override def deleteBucket(googleProject: GoogleProject, bucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[Unit] = {
@@ -475,10 +493,11 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     }
   }
 
-  // see https://cloud.google.com/compute/docs/access/service-accounts#compute_engine_default_service_account
   private def getComputeEngineDefaultServiceAccount(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[GoogleServiceAccount]] = {
     getProjectNumber(googleProject).map { numberOpt =>
       numberOpt.map { number =>
+        // Service account email format documented in:
+        // https://cloud.google.com/compute/docs/access/service-accounts#compute_engine_default_service_account
         GoogleServiceAccount(s"$number-compute@developer.gserviceaccount.com")
       }
     }
