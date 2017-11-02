@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
+import java.time.Instant
 import java.util.UUID
 
 import akka.actor.ActorSystem
@@ -33,6 +34,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   private val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchUserEmail("user1@example.com"), 0)
   private lazy val testClusterRequest = ClusterRequest(bucketPath, Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(gdDAO.extensionPath))
   private lazy val singleNodeDefaultMachineConfig = MachineConfig(Some(clusterDefaultsConfig.numberOfWorkers), Some(clusterDefaultsConfig.masterMachineType), Some(clusterDefaultsConfig.masterDiskSize))
+  private val serviceAccountKey = WorkbenchUserServiceAccountKey(WorkbenchUserServiceAccountKeyId("123"), WorkbenchUserServiceAccountPrivateKeyData("abcdefg"), Some(Instant.now), Some(Instant.now.plusSeconds(300)))
 
   private var gdDAO: MockGoogleDataprocDAO = _
   private var iamDAO: MockGoogleIamDAO = _
@@ -41,6 +43,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   before {
     gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig)
+    iamDAO = new MockGoogleIamDAO
     samDAO = new MockSamDAO
     leo = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), samDAO)
   }
