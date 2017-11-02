@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import java.io.File
 import java.time.Instant
+import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
@@ -34,4 +35,6 @@ trait DataprocDAO {
   def deleteBucket(googleProject: GoogleProject, gcsBucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[Unit]
 
   def getEmailAndExpirationFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[(WorkbenchUserEmail, Instant)]
+
+  def listClusters(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[List[UUID]]
 }
