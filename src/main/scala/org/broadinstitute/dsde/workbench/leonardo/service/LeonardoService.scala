@@ -2,8 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 
 import akka.actor.ActorRef
 import akka.http.scaladsl.model.StatusCodes
-import cats.instances.future._
-import cats.syntax.functor._
 import com.typesafe.scalalogging.LazyLogging
 import java.io.File
 
@@ -168,8 +166,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   private[service] def addDataprocWorkerRoleToServiceAccount(googleProject: GoogleProject, serviceAccountEmail: WorkbenchUserServiceAccountEmail): Future[Unit] = {
-    if (!dataprocConfig.createClusterAsPetServiceAccount) {
-      googleIamDAO.addIamRolesForUser(WorkbenchGoogleProject(googleProject.string), serviceAccountEmail, Set("roles/dataproc.worker")).void
+    if (dataprocConfig.createClusterAsPetServiceAccount) {
+      googleIamDAO.addIamRolesForUser(WorkbenchGoogleProject(googleProject.string), serviceAccountEmail, Set("roles/dataproc.worker"))
     } else Future.successful(())
   }
 
