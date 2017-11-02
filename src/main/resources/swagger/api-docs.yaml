@@ -18,6 +18,8 @@ tags:
     description: Clusters API
   - name: notebooks
     description: Notebooks API
+  - name: status
+    description: Status API
 
 security:
   - googleoauth:
@@ -53,6 +55,24 @@ paths:
       operationId: ping
       tags:
         - test
+
+  '/status':
+    get:
+      summary: Gets system status
+      responses:
+        '200':
+          description: 'System ok'
+          schema:
+            $ref: '#/definitions/SystemStatus'
+        '500':
+          description: 'One or more subsystems down'
+          schema:
+            $ref: '#/definitions/SystemStatus'
+      operationId: getSystemStatus
+      tags:
+        - status
+      security: [] # no security
+
   '/api/clusters':
     get:
       summary: List all active clusters
@@ -372,4 +392,29 @@ definitions:
           The archive must be in tar.gz format, must not include a parent directory, and
           must have an entry point named 'main'. For more information on notebook extensions,
           see: http://jupyter-notebook.readthedocs.io/en/latest/extending/frontend_extensions.html.
+
+    SubsystemStatus:
+      description: status of a subsystem Leonardo depends on
+      properties:
+        ok:
+          type: boolean
+          description: whether this system is up or down from Leonardo's point of view
+        messages:
+          type: array
+          items:
+            type: string
+
+    SystemStatus:
+      description: status of each subsystem Leonardo depends on
+      type: object
+      required:
+        - ok
+        - systems
+      properties:
+        ok:
+          type: boolean
+          description: true if everything is ok, false if anything is amiss
+        systems:
+          type: object
+          description: Map[String, SubsystemStatus]
 

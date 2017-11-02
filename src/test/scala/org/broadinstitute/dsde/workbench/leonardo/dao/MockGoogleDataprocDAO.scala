@@ -14,7 +14,7 @@ import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
 
-class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected val proxyConfig: ProxyConfig) extends DataprocDAO {
+class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected val proxyConfig: ProxyConfig, ok: Boolean = true) extends DataprocDAO {
 
   val clusters: mutable.Map[ClusterName, Cluster] = new TrieMap()  // Cluster Name and Cluster
   val firewallRules: mutable.Map[GoogleProject, String] = new TrieMap()  // Google Project and Rule Name
@@ -104,5 +104,10 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
 
   override def bucketObjectExists(googleProject: GoogleProject, bucketPath: GcsPath): Future[Boolean] = {
     Future.successful(bucketPath.bucketName == GcsBucketName("bucket") && bucketPath.relativePath == GcsRelativePath("my_extension.tar.gz"))
+  }
+
+  override def listClusters(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[List[UUID]] = {
+    if (!ok) Future.failed(new Exception("bad project"))
+    else Future.successful(Stream.continually(UUID.randomUUID).take(5).toList)
   }
 }
