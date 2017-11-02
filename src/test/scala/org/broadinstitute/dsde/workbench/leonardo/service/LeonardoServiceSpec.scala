@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
-import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserId}
+import org.broadinstitute.dsde.workbench.model._
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import spray.json._
@@ -252,7 +252,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.buckets should not contain (bucketPath)
 
     // create the bucket and add files
-    leo.initializeBucket(googleProject, clusterName, bucketPath, testClusterRequest).futureValue
+    leo.initializeBucket(googleProject, clusterName, bucketPath, testClusterRequest, petServiceAccount, Some(serviceAccountKey)).futureValue
 
     // our bucket should now exist
     gdDAO.buckets should contain (bucketPath)
