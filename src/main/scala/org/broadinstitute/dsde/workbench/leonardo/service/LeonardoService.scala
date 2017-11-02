@@ -142,10 +142,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       _ <- validateJupyterExtensionUri(googleProject, clusterRequest.jupyterExtensionUri)
       // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
       _ <- gdDAO.updateFirewallRule(googleProject)
-      // Create the bucket in leo's google bucket and populate with initialization files
-      initBucketPath <- initializeBucket(dataprocConfig.leoGoogleProject, clusterName, bucketName, clusterRequest, serviceAccountKey)
-      // Add Dataproc Worker role to the pet service account
-      _ <- googleIamDAO.addIamRolesForUser(WorkbenchGoogleProject(googleProject.string), serviceAccount, Set("roles/dataproc.worker"))
+      // Generate a service account key if configured to do so
+      serviceAccountKeyOpt <- generateServiceAccountKey(googleProject, serviceAccount)
+      // Add Dataproc Worker role to the pet service account if configured to do so
+      _ <- addDataprocWorkerRoleToServiceAccount(googleProject, serviceAccount)
+      // Create the bucket in leo's google project and populate with initialization files
+      initBucketPath <- initializeBucket(dataprocConfig.leoGoogleProject, clusterName, bucketName, clusterRequest, serviceAccount, serviceAccountKeyOpt)
       // Once the bucket is ready, build the cluster
       cluster <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, bucketName, serviceAccount).andThen { case Failure(_) =>
         // If cluster creation fails, delete the init bucket asynchronously
@@ -186,10 +188,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   /* Create a google bucket and populate it with init files */
-  private[service] def initializeBucket(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest): Future[GcsBucketName] = {
+  private[service] def initializeBucket(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountEmail: WorkbenchUserServiceAccountEmail, serviceAccountKey: Option[WorkbenchUserServiceAccountKey]): Future[GcsBucketName] = {
     for {
-      _ <- gdDAO.createBucket(googleProject, bucketName)
-      _ <- initializeBucketObjects(googleProject, clusterName, bucketName, clusterRequest)
+      _ <- gdDAO.createBucket(googleProject, bucketName, serviceAccountEmail)
+      _ <- initializeBucketObjects(googleProject, clusterName, bucketName, clusterRequest, serviceAccountKey)
     } yield { bucketName }
   }
 

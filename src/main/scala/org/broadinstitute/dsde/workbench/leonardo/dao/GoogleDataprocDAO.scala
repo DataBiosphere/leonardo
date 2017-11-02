@@ -17,6 +17,8 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.googleapis.services.AbstractGoogleClientRequest
 import com.google.api.client.http.{AbstractInputStreamContent, FileContent, InputStreamContent}
 import com.google.api.client.json.jackson2.JacksonFactory
+import com.google.api.services.cloudresourcemanager.model.Project
+import com.google.api.services.cloudresourcemanager.{CloudResourceManager, CloudResourceManagerScopes}
 import com.google.api.services.compute.model.Firewall.Allowed
 import com.google.api.services.compute.model.{Firewall, Instance}
 import com.google.api.services.compute.{Compute, ComputeScopes}
@@ -62,6 +64,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   private lazy val storageScopes = List(StorageScopes.DEVSTORAGE_FULL_CONTROL, ComputeScopes.COMPUTE, PlusScopes.USERINFO_EMAIL, PlusScopes.USERINFO_PROFILE)
   private lazy val vmScopes = List(ComputeScopes.COMPUTE, ComputeScopes.CLOUD_PLATFORM)
   private lazy val oauth2Scopes = List(Oauth2Scopes.USERINFO_EMAIL, Oauth2Scopes.USERINFO_PROFILE)
+  private lazy val cloudResourceManagerScopes = List(CloudResourceManagerScopes.CLOUD_PLATFORM)
   private lazy val serviceAccountPemFile = new File(clusterResourcesConfig.configFolderPath, clusterResourcesConfig.leonardoServicePem)
 
   private lazy val oauth2 =
@@ -80,6 +83,11 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
 
   private lazy val compute = {
     new Compute.Builder(httpTransport,jsonFactory,getServiceAccountCredential(vmScopes))
+      .setApplicationName(dataprocConfig.applicationName).build()
+  }
+
+  private lazy val cloudResourceManager = {
+    new CloudResourceManager.Builder(httpTransport, jsonFactory, getServiceAccountCredential(cloudResourceManagerScopes))
       .setApplicationName(dataprocConfig.applicationName).build()
   }
 
@@ -455,6 +463,24 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       case illegalArgumentException: IllegalArgumentException =>
         logger.error(s"Illegal argument passed to Google request for ${googleProject.string} / $context", illegalArgumentException)
         throw CallToGoogleApiFailedException(googleProject, context, StatusCodes.BadRequest.intValue, illegalArgumentException.getMessage)
+    }
+  }
+
+  private def getProjectNumber(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[Long]] = {
+    val request = cloudResourceManager.projects().get(googleProject.string)
+    executeGoogleRequestAsync(googleProject, "", request).map { googleProject =>
+      Option(googleProject.getProjectNumber).map(_.toLong)
+    }.recover { case CallToGoogleApiFailedException(_, _, 404, _) =>
+      None
+    }
+  }
+
+  // see https://cloud.google.com/compute/docs/access/service-accounts#compute_engine_default_service_account
+  private def getComputeEngineDefaultServiceAccount(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[GoogleServiceAccount]] = {
+    getProjectNumber(googleProject).map { numberOpt =>
+      numberOpt.map { number =>
+        GoogleServiceAccount(s"$number-compute@developer.gserviceaccount.com")
+      }
     }
   }
 }
