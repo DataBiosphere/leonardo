@@ -107,7 +107,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "create a single node cluster with master configs defined" in isolatedDbTest {
-    val singleNodeDefinedMachineConfig = MachineConfig(Some(0), Some("test-master-machine-type2"), Some(50))
+    val singleNodeDefinedMachineConfig = MachineConfig(Some(0), Some("test-master-machine-type2"), Some(200))
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(singleNodeDefinedMachineConfig))
     val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).futureValue
     clusterCreateResponse.machineConfig shouldEqual singleNodeDefinedMachineConfig
@@ -115,11 +115,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "create a single node cluster and override worker configs" in isolatedDbTest {
     // machine config is creating a single node cluster, but has worker configs defined
-    val machineConfig = Some(MachineConfig(Some(0), Some("test-master-machine-type3"), Some(50), Some("test-worker-machine-type"), Some(10), Some(3), Some(4)))
+    val machineConfig = Some(MachineConfig(Some(0), Some("test-master-machine-type3"), Some(200), Some("test-worker-machine-type"), Some(10), Some(3), Some(4)))
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = machineConfig)
 
     val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).futureValue
-    clusterCreateResponse.machineConfig shouldEqual MachineConfig(Some(0), Some("test-master-machine-type3"), Some(50))
+    clusterCreateResponse.machineConfig shouldEqual MachineConfig(Some(0), Some("test-master-machine-type3"), Some(200))
   }
 
   it should "create a standard cluster with 2 workers with default worker configs" in isolatedDbTest {
@@ -138,12 +138,20 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "create a standard cluster with 10 workers with defined config" in isolatedDbTest {
-    val machineConfig = MachineConfig(Some(10), Some("test-master-machine-type"), Some(50), Some("test-worker-machine-type"), Some(10), Some(3), Some(4))
+    val machineConfig = MachineConfig(Some(10), Some("test-master-machine-type"), Some(200), Some("test-worker-machine-type"), Some(10), Some(3), Some(4))
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(machineConfig))
 
     val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).futureValue
     clusterCreateResponse.machineConfig shouldEqual machineConfig
 
+  }
+
+  it should "create a standard cluster with 2 workers and override too-small disk sizes with minimum disk size" in isolatedDbTest {
+    val machineConfig = MachineConfig(Some(2), Some("test-master-machine-type"), Some(50), Some("test-worker-machine-type"), Some(10), Some(3), Some(4))
+    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(machineConfig))
+
+    val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).futureValue
+    clusterCreateResponse.machineConfig shouldEqual MachineConfig(Some(2), Some("test-master-machine-type"), Some(100), Some("test-worker-machine-type"), Some(100), Some(3), Some(4))
   }
 
   it should "throw TooFewWorkersRequestedException when create a 1 worker cluster" in isolatedDbTest {
