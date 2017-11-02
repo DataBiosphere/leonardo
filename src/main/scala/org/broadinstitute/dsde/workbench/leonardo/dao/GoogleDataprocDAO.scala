@@ -315,6 +315,11 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     errorOpt.value
   }
 
+  override def listClusters(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[List[UUID]] = {
+    val request = dataproc.projects().regions().clusters().list(googleProject.string, dataprocConfig.dataprocDefaultRegion)
+    executeGoogleRequestAsync(googleProject, "", request).map(_.getClusters.asScala.toList.map(c => UUID.fromString(c.getClusterUuid)))
+  }
+
   /**
     * Gets a dataproc Cluster from the API.
     */

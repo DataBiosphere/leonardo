@@ -9,10 +9,10 @@ object Dependencies {
   val scalaTestV    = "3.0.1"
   val slickV        = "3.2.1"
 
-  val workbenchUtilV    = "0.2-72adc94"
-  val workbenchModelV   = "0.4-72adc94"
-  val workbenchGoogleV  = "0.5-72adc94"
-  val workbenchMetricsV = "0.3-72adc94"
+  val workbenchUtilV    = "0.2-7b50af1"
+  val workbenchModelV   = "0.5-7b50af1"
+  val workbenchGoogleV  = "0.7-7b50af1"
+  val workbenchMetricsV = "0.3-7b50af1"
 
   val excludeAkkaActor =        ExclusionRule(organization = "com.typesafe.akka", name = "akka-actor_2.12")
   val excludeGuavaJDK5 =        ExclusionRule(organization = "com.google.guava", name = "guava-jdk5")
@@ -51,6 +51,7 @@ object Dependencies {
   val workbenchUtil: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-util"    % workbenchUtilV
   val workbenchModel: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-model"   % workbenchModelV
   val workbenchGoogle: ModuleID =    "org.broadinstitute.dsde.workbench" %% "workbench-google"  % workbenchGoogleV excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics)
+  val workbenchGoogleTests: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-google" % workbenchGoogleV % "test" classifier "tests" excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel)
   val workbenchMetrics: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-metrics" % workbenchMetricsV excludeAll(excludeWorkbenchUtil)
 
   val slick: ModuleID =     "com.typesafe.slick" %% "slick"                 % slickV
@@ -95,6 +96,7 @@ object Dependencies {
     workbenchUtil,
     workbenchModel,
     workbenchGoogle,
+    workbenchGoogleTests,
     workbenchMetrics
   )
 }
