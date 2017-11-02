@@ -142,10 +142,10 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     // Create a GceClusterConfig, which has the common config settings for resources of Google Compute Engine cluster instances,
     //   applicable to all instances in the cluster. Give it the user's service account.
     //   Set the network tag, which is needed by the firewall rule that allows leo to talk to the cluster
-    val gce = new GceClusterConfig()
-      .setServiceAccount(if (dataprocConfig.createClusterAsPetServiceAccount) serviceAccount.value else dataprocConfig.serviceAccount.string)
-      .setServiceAccountScopes(oauth2Scopes.asJava)
-      .setTags(List(proxyConfig.networkTag).asJava)
+    val gce = new GceClusterConfig().setTags(List(proxyConfig.networkTag).asJava)
+    if (dataprocConfig.createClusterAsPetServiceAccount) {
+      gce.setServiceAccount(serviceAccount.value).setServiceAccountScopes(oauth2Scopes.asJava)
+    }
 
     // Create a NodeInitializationAction, which specifies the executable to run on a node.
     //    This executable is our init-actions.sh, which will stand up our jupyter server and proxy.

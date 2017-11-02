@@ -2,6 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 
 import akka.actor.ActorRef
 import akka.http.scaladsl.model.StatusCodes
+import cats.instances.future._
+import cats.syntax.functor._
 import com.typesafe.scalalogging.LazyLogging
 import java.io.File
 
@@ -71,10 +73,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       case None =>
         val augmentedClusterRequest = addClusterDefaultLabels(serviceAccount, googleProject, clusterName, clusterRequest)
         val createFuture = for {
-          // Generate a service account key if configured to do so
-          serviceAccountKeyOpt <- generateServiceAccountKey(googleProject, serviceAccount)
           // Create the cluster in Google
-          (cluster, initBucket) <- createGoogleCluster(serviceAccount, googleProject, clusterName, augmentedClusterRequest, serviceAccountKeyOpt)
+          (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(serviceAccount, googleProject, clusterName, augmentedClusterRequest)
           // Save the cluster in the database
           savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, GcsPath(initBucket, GcsRelativePath("")), serviceAccountKeyOpt.map(_.id)))
         } yield savedCluster
@@ -137,7 +137,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
      - Upload all the necessary initialization files to the bucket
      - Create the cluster in the google project
    Currently, the bucketPath of the clusterRequest is not used - it will be used later as a place to store notebook results */
-  private[service] def createGoogleCluster(serviceAccount: WorkbenchUserServiceAccountEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, serviceAccountKey: Option[WorkbenchUserServiceAccountKey])(implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName)] = {
+  private[service] def createGoogleCluster(serviceAccount: WorkbenchUserServiceAccountEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName, Option[WorkbenchUserServiceAccountKey])] = {
     val bucketName = generateUniqueBucketName(clusterName.string)
     for {
       // Validate that the Jupyter extension URI is a valid URI and references a real GCS object
@@ -145,7 +145,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
       _ <- gdDAO.updateFirewallRule(googleProject)
       // Create the bucket in leo's google bucket and populate with initialization files
-      initBucketPath <- initializeBucket(dataprocConfig.leoGoogleProject, clusterName, bucketName, clusterRequest)
+      initBucketPath <- initializeBucket(dataprocConfig.leoGoogleProject, clusterName, bucketName, clusterRequest, serviceAccountKey)
       // Add Dataproc Worker role to the pet service account
       _ <- googleIamDAO.addIamRolesForUser(WorkbenchGoogleProject(googleProject.string), serviceAccount, Set("roles/dataproc.worker"))
       // Once the bucket is ready, build the cluster
@@ -154,7 +154,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         gdDAO.deleteBucket(googleProject, bucketName)
       }
     } yield {
-      (cluster, initBucketPath)
+      (cluster, initBucketPath, serviceAccountKeyOpt)
     }
   }
 
@@ -165,6 +165,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     if (!dataprocConfig.createClusterAsPetServiceAccount) {
       googleIamDAO.createServiceAccountKey(WorkbenchGoogleProject(googleProject.string), serviceAccountEmail).map(Option(_))
     } else Future.successful(None)
+  }
+
+  private[service] def addDataprocWorkerRoleToServiceAccount(googleProject: GoogleProject, serviceAccountEmail: WorkbenchUserServiceAccountEmail): Future[Unit] = {
+    if (!dataprocConfig.createClusterAsPetServiceAccount) {
+      googleIamDAO.addIamRolesForUser(WorkbenchGoogleProject(googleProject.string), serviceAccountEmail, Set("roles/dataproc.worker")).void
+    } else Future.successful(())
   }
 
   private[service] def validateJupyterExtensionUri(googleProject: GoogleProject, gcsUriOpt: Option[GcsPath])(implicit executionContext: ExecutionContext): Future[Unit] = {

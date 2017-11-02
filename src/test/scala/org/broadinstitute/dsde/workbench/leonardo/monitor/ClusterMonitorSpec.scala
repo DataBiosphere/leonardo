@@ -74,7 +74,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   }
 
   def createClusterSupervisor(dao: DataprocDAO): ActorRef = {
-    val actor = system.actorOf(TestClusterSupervisorActor.props(dao, new MockGoogleIamDAO, DbSingleton.ref, testKit))
+    val actor = system.actorOf(TestClusterSupervisorActor.props(dataprocConfig, dao, new MockGoogleIamDAO, DbSingleton.ref, testKit))
     new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, dao, new MockGoogleIamDAO, DbSingleton.ref, actor, new MockSamDAO)
     actor
   }
@@ -98,7 +98,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(Some(IP("1.2.3.4")))
 
     when {
-      dao.deleteBucket(vcEq(creatingCluster.googleProject), vcAny(GcsBucketName))(any[ExecutionContext])
+      dao.deleteBucket(vcEq(dataprocConfig.leoGoogleProject), vcAny(GcsBucketName))(any[ExecutionContext])
     } thenReturn Future.successful(())
 
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
@@ -109,7 +109,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
     updatedCluster.flatMap(_.hostIp) shouldBe Some(IP("1.2.3.4"))
 
-    verify(dao).deleteBucket(vcEq(creatingCluster.googleProject), vcAny(GcsBucketName))(any[ExecutionContext])
+    verify(dao).deleteBucket(vcEq(dataprocConfig.leoGoogleProject), vcAny(GcsBucketName))(any[ExecutionContext])
   }
 
   // Pre:
@@ -315,7 +315,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(Some(IP("1.2.3.4")))
 
     when {
-      dao.deleteBucket(vcEq(creatingCluster.googleProject), vcAny(GcsBucketName))(any[ExecutionContext])
+      dao.deleteBucket(vcEq(dataprocConfig.leoGoogleProject), vcAny(GcsBucketName))(any[ExecutionContext])
     } thenReturn Future.successful(())
 
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
@@ -342,7 +342,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     newCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
     newCluster.flatMap(_.hostIp) shouldBe Some(IP("1.2.3.4"))
 
-    verify(dao).deleteBucket(vcEq(newCluster.get.googleProject), vcEq(newClusterBucket.get.bucketName))(any[ExecutionContext])
+    verify(dao).deleteBucket(vcEq(dataprocConfig.leoGoogleProject), vcEq(newClusterBucket.get.bucketName))(any[ExecutionContext])
   }
 
   // Pre:

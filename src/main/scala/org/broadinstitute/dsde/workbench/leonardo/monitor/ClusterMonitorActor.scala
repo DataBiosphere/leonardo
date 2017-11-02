@@ -6,7 +6,7 @@ import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
 import org.broadinstitute.dsde.workbench.google.model.{GoogleProject => WorkbenchGoogleProject}
-import org.broadinstitute.dsde.workbench.leonardo.config.MonitorConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, DataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
@@ -23,8 +23,8 @@ object ClusterMonitorActor {
   /**
     * Creates a Props object used for creating a {{{ClusterMonitorActor}}}.
     */
-  def props(cluster: Cluster, monitorConfig: MonitorConfig, gdDAO: DataprocDAO, googleIamDAO: GoogleIamDAO, dbRef: DbReference): Props =
-    Props(new ClusterMonitorActor(cluster, monitorConfig, gdDAO, googleIamDAO, dbRef))
+  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: DataprocDAO, googleIamDAO: GoogleIamDAO, dbRef: DbReference): Props =
+    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, gdDAO, googleIamDAO, dbRef))
 
   // ClusterMonitorActor messages:
 
@@ -48,6 +48,7 @@ object ClusterMonitorActor {
   */
 class ClusterMonitorActor(val cluster: Cluster,
                           val monitorConfig: MonitorConfig,
+                          val dataprocConfig: DataprocConfig,
                           val gdDAO: DataprocDAO,
                           val googleIamDAO: GoogleIamDAO,
                           val dbRef: DbReference) extends Actor with LazyLogging {
@@ -123,15 +124,17 @@ class ClusterMonitorActor(val cluster: Cluster,
     val deleteBucketFuture = bucketPathFuture flatMap {
       case None => Future.successful( logger.warn(s"Could not lookup bucket for cluster ${cluster.googleProject}/${cluster.clusterName}: cluster not in db") )
       case Some(bucketPath) =>
-        gdDAO.deleteBucket(cluster.googleProject, bucketPath.bucketName) map { _ =>
+        gdDAO.deleteBucket(dataprocConfig.leoGoogleProject, bucketPath.bucketName) map { _ =>
           logger.debug(s"Deleted init bucket $bucketPath for cluster ${cluster.googleProject}/${cluster.clusterName}")
         }
     }
 
     // Then remove the Dataproc Worker IAM role for the pet service account
-    val iamFuture = deleteBucketFuture flatMap { _ =>
-      googleIamDAO.removeIamRolesForUser(WorkbenchGoogleProject(cluster.googleProject.string), cluster.googleServiceAccount, Set("roles/dataproc.worker"))
-    }
+    val iamFuture = if (dataprocConfig.createClusterAsPetServiceAccount) {
+      deleteBucketFuture flatMap { _ =>
+        googleIamDAO.removeIamRolesForUser(WorkbenchGoogleProject(cluster.googleProject.string), cluster.googleServiceAccount, Set("roles/dataproc.worker"))
+      }
+    } else deleteBucketFuture
 
     // Then update the database
     val dbFuture = iamFuture flatMap { _ =>
@@ -159,7 +162,9 @@ class ClusterMonitorActor(val cluster: Cluster,
       // Delete the cluster in Google
       gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName),
       // Remove the Dataproc Worker IAM role for the pet service account
-      googleIamDAO.removeIamRolesForUser(WorkbenchGoogleProject(cluster.googleProject.string), cluster.googleServiceAccount, Set("roles/dataproc.worker"))
+      if (dataprocConfig.createClusterAsPetServiceAccount) {
+        googleIamDAO.removeIamRolesForUser(WorkbenchGoogleProject(cluster.googleProject.string), cluster.googleServiceAccount, Set("roles/dataproc.worker"))
+      } else Future.successful(())
     ))
 
     deleteFuture.flatMap { _ =>
