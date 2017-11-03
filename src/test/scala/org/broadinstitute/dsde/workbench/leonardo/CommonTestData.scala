@@ -10,7 +10,6 @@ trait CommonTestData {
   val name1 = ClusterName("name1")
   val name2 = ClusterName("name2")
   val name3 = ClusterName("name3")
-  val name4 = ClusterName("name4")
   val project = GoogleProject("dsp-leo-test")
   val googleServiceAccount = WorkbenchUserServiceAccountEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
   val jupyterExtensionUri = Some(GcsPath(GcsBucketName("extension_bucket"), GcsRelativePath("extension_path")))
