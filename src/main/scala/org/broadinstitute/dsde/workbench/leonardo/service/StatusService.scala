@@ -13,6 +13,7 @@ import org.broadinstitute.dsde.workbench.util.health.Subsystems._
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
+import scala.util.{Failure, Success}
 
 /**
   * Created by rtitle on 10/26/17.
@@ -36,22 +37,34 @@ class StatusService(gdDAO: DataprocDAO,
       GoogleDataproc -> checkGoogleDataproc,
       Sam -> checkSam,
       Database -> checkDatabase
-    )
+    ).map(logFailures.tupled)
   }
 
+  // Logs warnings if a subsystem status check fails
+  def logFailures: (Subsystem, Future[SubsystemStatus]) => (Subsystem, Future[SubsystemStatus]) = (subsystem, statusFuture) =>
+    subsystem -> statusFuture.andThen {
+      case Success(status) if !status.ok =>
+        logger.warn(s"Subsystem [$subsystem] reported error status: $status")
+      case Success(_) =>
+        logger.debug(s"Subsystem [$subsystem] is OK")
+      case Failure(e) =>
+        logger.warn(s"Failure checking status for subsystem [$subsystem]: ${e.getMessage}")
+    }
+  
   private def checkGoogleDataproc(): Future[SubsystemStatus] = {
-    logger.info("Checking Google Dataproc connection")
-    // Does a 'list clusters' in Leo's project
+    // Does a 'list clusters' in Leo's project.
+    // Doesn't look at results, just checks if the request was successful.
+    logger.debug("Checking Google Dataproc connection")
     gdDAO.listClusters(dataprocConfig.leoGoogleProject).map(_ => HealthMonitor.OkStatus)
   }
 
   private def checkDatabase: Future[SubsystemStatus] = {
-    logger.info("Checking database")
+    logger.debug("Checking database connection")
     dbRef.inTransaction(_.sqlDBStatus()).map(_ => HealthMonitor.OkStatus)
   }
 
   private def checkSam: Future[SubsystemStatus] = {
-    logger.info("Checking Sam")
+    logger.debug("Checking Sam status")
     samDAO.getStatus()
   }
 
