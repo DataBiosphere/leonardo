@@ -45,11 +45,12 @@ class StatusService(gdDAO: DataprocDAO,
     subsystem -> statusFuture.andThen {
       case Success(status) if !status.ok =>
         logger.warn(s"Subsystem [$subsystem] reported error status: $status")
+      case Success(_) =>
+        logger.debug(s"Subsystem [$subsystem] is OK")
       case Failure(e) =>
         logger.warn(s"Failure checking status for subsystem [$subsystem]: ${e.getMessage}")
     }
-
-
+  
   private def checkGoogleDataproc(): Future[SubsystemStatus] = {
     // Does a 'list clusters' in Leo's project.
     // Doesn't look at results, just checks if the request was successful.
