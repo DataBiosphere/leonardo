@@ -393,28 +393,31 @@ definitions:
           must have an entry point named 'main'. For more information on notebook extensions,
           see: http://jupyter-notebook.readthedocs.io/en/latest/extending/frontend_extensions.html.
 
-    SubsystemStatus:
-      description: status of a subsystem Leonardo depends on
-      properties:
-        ok:
-          type: boolean
-          description: whether this system is up or down from Leonardo's point of view
-        messages:
-          type: array
-          items:
-            type: string
+  SubsystemStatus:
+    description: status of a subsystem Leonardo depends on
+    type: object
+    required:
+      - ok
+    properties:
+      ok:
+        type: boolean
+        description: whether this system is up or down from Leonardo's point of view
+      messages:
+        type: array
+        items:
+          type: string
 
-    SystemStatus:
-      description: status of each subsystem Leonardo depends on
-      type: object
-      required:
-        - ok
-        - systems
-      properties:
-        ok:
-          type: boolean
-          description: true if everything is ok, false if anything is amiss
-        systems:
-          type: object
-          description: Map[String, SubsystemStatus]
+  SystemStatus:
+    description: status of each subsystem Leonardo depends on
+    type: object
+    required:
+      - ok
+      - systems
+    properties:
+      ok:
+        type: boolean
+        description: true if everything is ok, false if anything is amiss
+      systems:
+        type: object
+        description: Map[String, SubsystemStatus]
 
