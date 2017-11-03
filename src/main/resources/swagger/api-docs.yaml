@@ -415,8 +415,8 @@ definitions:
         type: string
         description: |
           Optional, the machine type determines the number of CPUs and memory for the master node. For example "n1-standard-16"
-          or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. Ignored if numberOfWorkers is 0.
-          To decide which is right for you, see https://cloud.google.com/compute/docs/machine-types
+          or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
+          see https://cloud.google.com/compute/docs/machine-types. Ignored if numberOfWorkers is 0.
       masterDiskSize:
         type: integer
         description: |
@@ -426,8 +426,8 @@ definitions:
         type: string
         description: |
           Optional, the machine type determines the number of CPUs and memory for the worker nodes. For example "n1-standard-16"
-          or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. Ignored if numberOfWorkers is 0.
-          To decide which is right for you, see https://cloud.google.com/compute/docs/machine-types
+          or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
+          see https://cloud.google.com/compute/docs/machine-types. Ignored if numberOfWorkers is 0.
       workerDiskSize:
         type: integer
         description: |

@@ -154,11 +154,28 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterCreateResponse.machineConfig shouldEqual MachineConfig(Some(2), Some("test-master-machine-type"), Some(100), Some("test-worker-machine-type"), Some(100), Some(3), Some(4))
   }
 
-  it should "throw TooFewWorkersRequestedException when create a 1 worker cluster" in isolatedDbTest {
+  it should "throw OneWorkerSpecifiedInClusterRequestException when create a 1 worker cluster" in isolatedDbTest {
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig(Some(1))))
 
     whenReady(leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).failed) { exc =>
-      exc shouldBe a[TooFewWorkersRequestedException]
+      exc shouldBe a[OneWorkerSpecifiedInClusterRequestException]
+    }
+  }
+
+  it should "throw NegativeIntegerArgumentInClusterRequestException when master disk size in single node cluster request is a negative integer" in isolatedDbTest {
+    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig(Some(0), Some("test-worker-machine-type"), Some(-30))))
+
+    whenReady(leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).failed) { exc =>
+      exc shouldBe a[NegativeIntegerArgumentInClusterRequestException]
+    }
+  }
+
+  it should "throw NegativeIntegerArgumentInClusterRequestException when number of preemptible workers in a 2 worker cluster request is a negative integer" in isolatedDbTest {
+    val machineConfig = MachineConfig(Some(10), Some("test-master-machine-type"), Some(200), Some("test-worker-machine-type"), Some(300), Some(3), Some(-1))
+    val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Option(machineConfig))
+
+    whenReady(leo.createCluster(defaultUserInfo, googleProject, clusterName, clusterRequestWithMachineConfig).failed) { exc =>
+      exc shouldBe a[NegativeIntegerArgumentInClusterRequestException]
     }
   }
 

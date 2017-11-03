@@ -158,11 +158,29 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       labels = Map("a" -> "b", "bam" -> "yes"),
       jupyterExtensionUri = jupyterExtensionUri)
 
+    val c4 = Cluster(
+      clusterName = name4,
+      googleId = UUID.randomUUID(),
+      googleProject = project,
+      googleServiceAccount = googleServiceAccount,
+      googleBucket = GcsBucketName("bucket2"),
+      machineConfig = MachineConfig(Some(3),Some("test-master-machine-type"), Some(500), Some("test-worker-machine-type"), Some(200), Some(2), Some(1)),
+      clusterUrl = Cluster.getClusterUrl(project, name2),
+      operationName = OperationName("op2"),
+      status = ClusterStatus.Running,
+      hostIp = None,
+      createdDate = Instant.now(),
+      destroyedDate = None,
+      labels = Map.empty,
+      jupyterExtensionUri = jupyterExtensionUri)
+
+
     dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1")) } shouldEqual c1
     dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2")) } shouldEqual c2
     dbFutureValue { _.clusterQuery.save(c3, gcsPath("gs://bucket3")) } shouldEqual c3
+    dbFutureValue { _.clusterQuery.save(c4, gcsPath("gs://bucket4")) } shouldEqual c4
 
-    dbFutureValue { _.clusterQuery.listByLabels(Map.empty, false) }.toSet shouldEqual Set(c1, c2)
+    dbFutureValue { _.clusterQuery.listByLabels(Map.empty, false) }.toSet shouldEqual Set(c1, c2, c4)
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes"), false) }.toSet shouldEqual Set(c1)
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "no"), false) }.toSet shouldEqual Set.empty
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no"), false) }.toSet shouldEqual Set(c1)
@@ -174,7 +192,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFutureValue { _.clusterQuery.listByLabels(Map("bogus" -> "value"), false) }.toSet shouldEqual Set.empty
 
 
-    dbFutureValue { _.clusterQuery.listByLabels(Map.empty, true) }.toSet shouldEqual Set(c1, c2, c3)
+    dbFutureValue { _.clusterQuery.listByLabels(Map.empty, true) }.toSet shouldEqual Set(c1, c2, c3, c4)
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes"), true) }.toSet shouldEqual Set(c1, c3)
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "no"), true) }.toSet shouldEqual Set.empty
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no"), true) }.toSet shouldEqual Set(c1)

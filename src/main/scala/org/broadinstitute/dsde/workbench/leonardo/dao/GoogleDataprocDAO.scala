@@ -164,6 +164,8 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       .setMasterConfig(masterConfig)
   }
 
+  // Expects a Machine Config with master configs defined for a 0 worker cluster and both master and worker
+  // configs defined for 2 or more workers.
   private def createClusterConfig(machineConfig: MachineConfig): ClusterConfig = {
     // If the number of workers is zero, make a Single Node cluster, else make a Standard one
     if (machineConfig.numberOfWorkers.get == 0) {
@@ -172,10 +174,10 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
       new ClusterConfig().setSoftwareConfig(softwareConfig)
     }
     else // Standard, multi node cluster
-      getStandardConfig(machineConfig)
+      getMultiNodeClusterConfig(machineConfig)
   }
 
-  private def getStandardConfig(machineConfig: MachineConfig): ClusterConfig = {
+  private def getMultiNodeClusterConfig(machineConfig: MachineConfig): ClusterConfig = {
     // Set the configs of the non-preemptible, primary worker nodes
     val clusterConfigWithWorkerConfigs = new ClusterConfig().setWorkerConfig(getPrimaryWorkerConfig(machineConfig))
 

@@ -13,7 +13,6 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
-import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfig.applyMinimumDiskSize
 import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail
 import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
@@ -21,8 +20,12 @@ import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsVa
 
 import scala.language.implicitConversions
 
-case class TooFewWorkersRequestedException(numberofWorkers: Int)
-  extends LeoException(s"$numberofWorkers worker(s) requested. Clusters may only have 0, 2 or more workers. Clusters with 1 workers are not supported by Google Dataproc.", StatusCodes.NotFound)
+case class NegativeIntegerArgumentInClusterRequestException()
+  extends LeoException(s"Your cluster request should not have negative integer values. Please revise your request and submit again.", StatusCodes.BadRequest)
+
+case class OneWorkerSpecifiedInClusterRequestException()
+  extends LeoException("Google Dataproc does not support clusters with 1 non-preemptible worker. Must be 0, 2 or more.")
+
 
 // this needs to be a Universal Trait to enable mixin with Value Classes
 // it only serves as a marker for StringValueClassFormat
@@ -126,29 +129,27 @@ case class Cluster(clusterName: ClusterName,
 }
 
 object MachineConfig {
+
   implicit val machineConfigSemigroup = new Semigroup[MachineConfig] {
     def combine(defined: MachineConfig, default: MachineConfig): MachineConfig = {
       val minimumDiskSize = 100
       defined.numberOfWorkers match {
         case None | Some(0) => MachineConfig(Some(0), defined.masterMachineType.orElse(default.masterMachineType),
-                                             applyMinimumDiskSize(defined.masterDiskSize, default.masterDiskSize, minimumDiskSize))
-        case Some(numWorkers) if numWorkers < 2 => throw TooFewWorkersRequestedException(numWorkers)
-        case numWorkers => MachineConfig(numWorkers, defined.masterMachineType.orElse(default.masterMachineType),
-                                applyMinimumDiskSize(defined.masterDiskSize, default.masterDiskSize, minimumDiskSize),
-                                defined.workerMachineType.orElse(default.workerMachineType),
-                                applyMinimumDiskSize(defined.workerDiskSize, default.workerDiskSize, minimumDiskSize),
-                                defined.numberOfWorkerLocalSSDs.orElse(default.numberOfWorkerLocalSSDs),
-                                defined.numberOfPreemptibleWorkers.orElse(default.numberOfPreemptibleWorkers))
+          checkNegativeValue(defined.masterDiskSize.orElse(default.masterDiskSize)).map(s => math.max(minimumDiskSize, s)))
+        case Some(numWorkers) if numWorkers == 1 => throw OneWorkerSpecifiedInClusterRequestException()
+        case numWorkers => MachineConfig(checkNegativeValue(numWorkers),
+          defined.masterMachineType.orElse(default.masterMachineType),
+          checkNegativeValue(defined.masterDiskSize.orElse(default.masterDiskSize)).map(s => math.max(minimumDiskSize, s)),
+          defined.workerMachineType.orElse(default.workerMachineType),
+          checkNegativeValue(defined.workerDiskSize.orElse(default.workerDiskSize)).map(s => math.max(minimumDiskSize, s)),
+          checkNegativeValue(defined.numberOfWorkerLocalSSDs.orElse(default.numberOfWorkerLocalSSDs)),
+          checkNegativeValue(defined.numberOfPreemptibleWorkers.orElse(default.numberOfPreemptibleWorkers)))
       }
     }
   }
 
-  def applyMinimumDiskSize(definedDiskSize: Option[Int], defaultDiskSize: Option[Int], minimumDiskSize: Int): Option[Int] = {
-    definedDiskSize match {
-      case None => defaultDiskSize
-      case Some(diskSize) if diskSize < minimumDiskSize => Option(minimumDiskSize)
-      case diskSize => diskSize
-    }
+  def checkNegativeValue(value: Option[Int]): Option[Int] = {
+    value.map(v => if (v < 0) throw NegativeIntegerArgumentInClusterRequestException() else v)
   }
 
   def apply(definedMachineConfig: Option[MachineConfig], defaultMachineConfig: ClusterDefaultsConfig): MachineConfig = {
