@@ -54,7 +54,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       googleServiceAccount = googleServiceAccount,
       googleBucket = GcsBucketName("bucket3"),
       machineConfig = MachineConfig(Some(3),Some("test-master-machine-type"), Some(500), Some("test-worker-machine-type"), Some(200), Some(2), Some(1)),
-      clusterUrl = Cluster.getClusterUrl(project, name2),
+      clusterUrl = Cluster.getClusterUrl(project, name3),
       operationName = OperationName("op3"),
       status = ClusterStatus.Running,
       hostIp = None,
