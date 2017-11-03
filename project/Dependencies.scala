@@ -9,10 +9,10 @@ object Dependencies {
   val scalaTestV    = "3.0.1"
   val slickV        = "3.2.1"
 
-  val workbenchUtilV    = "0.2-2b42e2a-SNAP"
-  val workbenchModelV   = "0.5-2b42e2a-SNAP"
-  val workbenchGoogleV  = "0.7-a713635-SNAP"
-  val workbenchMetricsV = "0.3-2b42e2a-SNAP"
+  val workbenchUtilV    = "0.2-235000c-SNAP"
+  val workbenchModelV   = "0.5-235000c-SNAP"
+  val workbenchGoogleV  = "0.7-235000c-SNAP"
+  val workbenchMetricsV = "0.3-235000c-SNAP"
 
   val excludeAkkaActor =        ExclusionRule(organization = "com.typesafe.akka", name = "akka-actor_2.12")
   val excludeGuavaJDK5 =        ExclusionRule(organization = "com.google.guava", name = "guava-jdk5")
