@@ -240,7 +240,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   }
 
   /* Create a bucket in the given google project for the initialization files when creating a cluster */
-  override def createBucket(googleProject: GoogleProject, bucketName: GcsBucketName, userServiceAccount: WorkbenchUserServiceAccountEmail): Future[GcsBucketName] = {
+  override def createBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, bucketName: GcsBucketName, userServiceAccount: WorkbenchUserServiceAccountEmail): Future[GcsBucketName] = {
     // Create lifecycle rule for the bucket that will delete the bucket after 1 day.
     //
     // Note that the init buckets are explicitly deleted by the ClusterMonitor once the cluster
@@ -261,9 +261,9 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     val clusterServiceAccountEntityStringFuture: Future[String] = if (dataprocConfig.createClusterAsPetServiceAccount) {
       Future.successful(s"user-${userServiceAccount.value}")
     } else {
-      getComputeEngineDefaultServiceAccount(googleProject).map {
+      getComputeEngineDefaultServiceAccount(clusterGoogleProject).map {
         case Some(serviceAccount) => s"user-${serviceAccount.string}"
-        case None => throw GoogleProjectNotFoundException(googleProject)
+        case None => throw GoogleProjectNotFoundException(clusterGoogleProject)
       }
     }
 
@@ -287,9 +287,9 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
         .setAcl(bucketAcls.asJava)
         .setDefaultObjectAcl(defObjectAcls.asJava)
 
-      val bucketInserter = storage.buckets().insert(googleProject.string, bucket)
+      val bucketInserter = storage.buckets().insert(bucketGoogleProject.string, bucket)
 
-      executeGoogleRequestAsync(googleProject, s"Bucket ${bucketName.toString}", bucketInserter) map { _ => bucketName }
+      executeGoogleRequestAsync(bucketGoogleProject, s"Bucket ${bucketName.toString}", bucketInserter) map { _ => bucketName }
     }
   }
 
