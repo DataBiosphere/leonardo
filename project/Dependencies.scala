@@ -11,7 +11,7 @@ object Dependencies {
 
   val workbenchUtilV    = "0.2-2b42e2a-SNAP"
   val workbenchModelV   = "0.5-2b42e2a-SNAP"
-  val workbenchGoogleV  = "0.7-2b42e2a-SNAP"
+  val workbenchGoogleV  = "0.7-a713635-SNAP"
   val workbenchMetricsV = "0.3-2b42e2a-SNAP"
 
   val excludeAkkaActor =        ExclusionRule(organization = "com.typesafe.akka", name = "akka-actor_2.12")
