@@ -115,18 +115,25 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFailure { _.clusterQuery.save(c5, gcsPath("gs://bucket5")) } shouldBe a[SQLException]
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(c1.googleId) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq(c2)
+    dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq(c2, c3)
     val c1status = dbFutureValue { _.clusterQuery.getByGoogleId(c1.googleId) }.get
     c1status.status shouldEqual ClusterStatus.Deleting
     assert(c1status.destroyedDate.nonEmpty)
     c1status.hostIp shouldBe None
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(c2.googleId) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq()
+    dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq(c3)
     val c2status = dbFutureValue { _.clusterQuery.getByGoogleId(c2.googleId) }.get
     c2status.status shouldEqual ClusterStatus.Deleting
     assert(c2status.destroyedDate.nonEmpty)
     c2status.hostIp shouldBe None
+
+    dbFutureValue { _.clusterQuery.markPendingDeletion(c3.googleId) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq()
+    val c3status = dbFutureValue { _.clusterQuery.getByGoogleId(c3.googleId) }.get
+    c3status.status shouldEqual ClusterStatus.Deleting
+    assert(c3status.destroyedDate.nonEmpty)
+    c3status.hostIp shouldBe None
   }
 
   it should "get by labels" in isolatedDbTest {
