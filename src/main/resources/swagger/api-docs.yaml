@@ -410,21 +410,18 @@ definitions:
       numberOfWorkers:
         type: integer
         description: |
-          Optional, number of workers in the cluster. Can be 0 (default), 2 or more. Cannot be 1.
-
-          For a SingleNode, this field should not be defined, as the
-          SingleNode clusters have 0 workers by default. For a Standard cluster, workers should be 2 or more.
+          Optional, number of workers in the cluster. Can be 0 (default), 2 or more. Google Dataproc does not allow 1 worker.
       masterMachineType:
         type: string
         description: |
           Optional, the machine type determines the number of CPUs and memory for the master node. For example "n1-standard-16"
-          or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
-          see https://cloud.google.com/compute/docs/machine-types
+          or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. Ignored if numberOfWorkers is 0.
+          To decide which is right for you, see https://cloud.google.com/compute/docs/machine-types
       masterDiskSize:
         type: integer
         description: |
-          Optional, the size of the disk on the master node. Minimum size is 10GB.
-          If unspecified, default size is 500GB.
+          Optional, the size of the disk on the master node. Minimum size is 100GB. If unspecified, default size is 500GB.
+          Ignored if numberOfWorkers is 0.
       workerMachineType:
         type: string
         description: |
@@ -434,13 +431,13 @@ definitions:
       workerDiskSize:
         type: integer
         description: |
-          Optional, the size of the disk on the master node. Minimum size is 10GB.
-          If unspecified, default size is 500GB. Ignored if numberOfWorkers is 0.
+          Optional, the size of the disk on the master node. Minimum size is 100GB. If unspecified, default size is 500GB.
+          Ignored if numberOfWorkers is 0.
       numberOfWorkerLocalSSDs:
         type: integer
         description: |
-          Optional, the number of local solid state disks for workers. If unspecified,
-          the default number is 0. Ignored if numberOfWorkers is 0.
+          Optional, the number of local solid state disks for workers. If unspecified, the default number is 0.
+          Ignored if numberOfWorkers is 0.
       numberOfPreemptibleWorkers:
         type: integer
         description: |
