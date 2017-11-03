@@ -486,8 +486,9 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
 
   private def getProjectNumber(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[Long]] = {
     val request = cloudResourceManager.projects().get(googleProject.string)
-    executeGoogleRequestAsync(googleProject, "", request).map { googleProject =>
-      Option(googleProject.getProjectNumber).map(_.toLong)
+    executeGoogleRequestAsync(googleProject, "", request).map { project =>
+      logger.info(s"$googleProject = $project")
+      Option(project.getProjectNumber).map(_.toLong)
     }.recover { case CallToGoogleApiFailedException(_, _, 404, _) =>
       None
     }
