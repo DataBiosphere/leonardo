@@ -115,7 +115,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFailure { _.clusterQuery.save(c5, gcsPath("gs://bucket5")) } shouldBe a[SQLException]
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(c1.googleId) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq(c2, c3)
+    dbFutureValue { _.clusterQuery.listActive() } should contain theSameElementsAs Seq(c2, c3)
     val c1status = dbFutureValue { _.clusterQuery.getByGoogleId(c1.googleId) }.get
     c1status.status shouldEqual ClusterStatus.Deleting
     assert(c1status.destroyedDate.nonEmpty)
