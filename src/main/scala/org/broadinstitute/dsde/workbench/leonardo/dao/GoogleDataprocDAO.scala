@@ -155,7 +155,8 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     val gce = new GceClusterConfig().setTags(List(proxyConfig.networkTag).asJava)
 
     // Create the cluster as the pet service account if configured to do so.
-    // Otherwise leave it blank, which defaults to the default Google Compute Engine service account.
+    // Otherwise leave it blank, which causes it to use to the default Compute Engine service account
+    // in the cluster's project.
     if (dataprocConfig.createClusterAsPetServiceAccount) {
       gce.setServiceAccount(serviceAccount.value).setServiceAccountScopes(oauth2Scopes.asJava)
     }
@@ -256,11 +257,11 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     // The Leo service account
     val leoServiceAccountEntityString = s"user-${dataprocConfig.serviceAccount.string}"
 
-    // If creating the cluster as the pet service account, grant bucket access to the pet service account.
-    // Otherwise, grant access to the Google compute engine default service account.
     val clusterServiceAccountEntityStringFuture: Future[String] = if (dataprocConfig.createClusterAsPetServiceAccount) {
+      // If creating the cluster as the pet service account, grant bucket access to the pet service account.
       Future.successful(s"user-${userServiceAccount.value}")
     } else {
+      // Otherwise, grant access to the Google compute engine default service account.
       getComputeEngineDefaultServiceAccount(clusterGoogleProject).map {
         case Some(serviceAccount) => s"user-${serviceAccount.string}"
         case None => throw GoogleProjectNotFoundException(clusterGoogleProject)

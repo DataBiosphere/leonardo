@@ -18,6 +18,10 @@ trait DataprocDAO {
 
   def updateFirewallRule(googleProject: GoogleProject): Future[Unit]
 
+  /*
+   * The bucketGoogleProject is the project the bucket resides in; the clusterGoogleProject is needed to set the
+   * appropriate ACLs on the bucket.
+   */
   def createBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, bucketName: GcsBucketName, userServiceAccount: WorkbenchUserServiceAccountEmail): Future[GcsBucketName]
 
   def uploadToBucket(googleProject: GoogleProject, bucketPath: GcsPath, content: File): Future[Unit]

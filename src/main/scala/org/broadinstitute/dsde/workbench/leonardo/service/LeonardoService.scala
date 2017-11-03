@@ -192,6 +192,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   /* Create a google bucket and populate it with init files */
   private[service] def initializeBucket(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountEmail: WorkbenchUserServiceAccountEmail, serviceAccountKey: Option[WorkbenchUserServiceAccountKey]): Future[GcsBucketName] = {
     for {
+      // Note the bucket is created in Leo's project, not the cluster's project.
+      // ACLs are granted so the cluster's service account can access the bucket at initialization time.
       _ <- gdDAO.createBucket(dataprocConfig.leoGoogleProject, googleProject, bucketName, serviceAccountEmail)
       _ <- initializeBucketObjects(googleProject, clusterName, bucketName, clusterRequest, serviceAccountKey)
     } yield { bucketName }
