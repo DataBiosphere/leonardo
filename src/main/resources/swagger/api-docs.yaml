@@ -276,6 +276,7 @@ definitions:
       - Deleting
       - Deleted
       - Unknown
+
   ErrorReport:
     description: ''
     required:
@@ -306,6 +307,7 @@ definitions:
         description: stack trace
         items:
           $ref: '#/definitions/StackTraceElement'
+
   StackTraceElement:
     description: ''
     required:
@@ -326,6 +328,7 @@ definitions:
       lineNumber:
         type: integer
         description: line number
+
   Cluster:
     description: ''
     required:
@@ -334,6 +337,7 @@ definitions:
       - googleProject
       - googleServiceAccount
       - googleBucket
+      - machineConfig
       - operationName
       - status
       - createdDate
@@ -354,6 +358,9 @@ definitions:
       googleBucket:
         type: string
         description: The Google Bucket associated with the cluster
+      machineConfig:
+        description: The machine configurations for the master and worker nodes
+        $ref: '#/definitions/MachineConfig'
       operationName:
         type: string
         description: Google's operation ID for the cluster
@@ -373,6 +380,7 @@ definitions:
       labels:
         type: object
         description: The labels to be placed on the cluster. Of type Map[String,String]
+
   ClusterRequest:
     description: ''
     required:
@@ -391,7 +399,50 @@ definitions:
           Optional bucket URI to an archive containing Jupyter notebook extension files.
           The archive must be in tar.gz format, must not include a parent directory, and
           must have an entry point named 'main'. For more information on notebook extensions,
-          see: http://jupyter-notebook.readthedocs.io/en/latest/extending/frontend_extensions.html.
+          see http://jupyter-notebook.readthedocs.io/en/latest/extending/frontend_extensions.html.
+      machineConfig:
+        description: The machine configurations for the master and worker nodes
+        $ref: '#/definitions/MachineConfig'
+
+  MachineConfig:
+    description: ''
+    properties:
+      numberOfWorkers:
+        type: integer
+        description: |
+          Optional, number of workers in the cluster. Can be 0 (default), 2 or more. Google Dataproc does not allow 1 worker.
+      masterMachineType:
+        type: string
+        description: |
+          Optional, the machine type determines the number of CPUs and memory for the master node. For example "n1-standard-16"
+          or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
+          see https://cloud.google.com/compute/docs/machine-types. Ignored if numberOfWorkers is 0.
+      masterDiskSize:
+        type: integer
+        description: |
+          Optional, the size of the disk on the master node. Minimum size is 100GB. If unspecified, default size is 500GB.
+          Ignored if numberOfWorkers is 0.
+      workerMachineType:
+        type: string
+        description: |
+          Optional, the machine type determines the number of CPUs and memory for the worker nodes. For example "n1-standard-16"
+          or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
+          see https://cloud.google.com/compute/docs/machine-types. Ignored if numberOfWorkers is 0.
+      workerDiskSize:
+        type: integer
+        description: |
+          Optional, the size of the disk on the master node. Minimum size is 100GB. If unspecified, default size is 500GB.
+          Ignored if numberOfWorkers is 0.
+      numberOfWorkerLocalSSDs:
+        type: integer
+        description: |
+          Optional, the number of local solid state disks for workers. If unspecified, the default number is 0.
+          Ignored if numberOfWorkers is 0.
+      numberOfPreemptibleWorkers:
+        type: integer
+        description: |
+          Optional, the number of preemptible workers. If unspecified, the default number is 0. Ignored if numberOfWorkers is 0.
+          For more information, see https://cloud.google.com/compute/docs/instances/preemptible
 
   SubsystemStatus:
     description: status of a subsystem Leonardo depends on
@@ -420,4 +471,3 @@ definitions:
       systems:
         type: object
         description: Map[String, SubsystemStatus]
-
