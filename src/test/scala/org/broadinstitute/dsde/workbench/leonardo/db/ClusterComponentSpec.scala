@@ -21,6 +21,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       googleProject = project,
       googleServiceAccount = googleServiceAccount,
       googleBucket = GcsBucketName("bucket1"),
+      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, name1),
       operationName = OperationName("op1"),
       status = ClusterStatus.Unknown,
@@ -36,6 +37,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       googleProject = project,
       googleServiceAccount = googleServiceAccount,
       googleBucket = GcsBucketName("bucket2"),
+      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, name2),
       operationName = OperationName("op2"),
       status = ClusterStatus.Creating,
@@ -45,22 +47,43 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       labels = Map.empty,
       jupyterExtensionUri = jupyterExtensionUri)
 
+    val c3 = Cluster(
+      clusterName = name3,
+      googleId = UUID.randomUUID(),
+      googleProject = project,
+      googleServiceAccount = googleServiceAccount,
+      googleBucket = GcsBucketName("bucket3"),
+      machineConfig = MachineConfig(Some(3),Some("test-master-machine-type"), Some(500), Some("test-worker-machine-type"), Some(200), Some(2), Some(1)),
+      clusterUrl = Cluster.getClusterUrl(project, name3),
+      operationName = OperationName("op3"),
+      status = ClusterStatus.Running,
+      hostIp = None,
+      createdDate = Instant.now(),
+      destroyedDate = None,
+      labels = Map.empty,
+      jupyterExtensionUri = jupyterExtensionUri)
+
+
     dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1")) } shouldEqual c1
     dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2")) } shouldEqual c2
-    dbFutureValue { _.clusterQuery.list() } should contain theSameElementsAs Seq(c1, c2)
+    dbFutureValue { _.clusterQuery.save(c3, gcsPath("gs://bucket3")) } shouldEqual c3
+    dbFutureValue { _.clusterQuery.list() } should contain theSameElementsAs Seq(c1, c2, c3)
     dbFutureValue { _.clusterQuery.getActiveClusterByName(c1.googleProject, c1.clusterName) } shouldEqual Some(c1)
-    dbFutureValue { _.clusterQuery.getActiveClusterByName(c1.googleProject, c2.clusterName) } shouldEqual Some(c2)
+    dbFutureValue { _.clusterQuery.getActiveClusterByName(c2.googleProject, c2.clusterName) } shouldEqual Some(c2)
+    dbFutureValue { _.clusterQuery.getActiveClusterByName(c3.googleProject, c3.clusterName) } shouldEqual Some(c3)
     dbFutureValue { _.clusterQuery.getByGoogleId(c1.googleId) } shouldEqual Some(c1)
     dbFutureValue { _.clusterQuery.getByGoogleId(c2.googleId) } shouldEqual Some(c2)
+    dbFutureValue { _.clusterQuery.getByGoogleId(c3.googleId) } shouldEqual Some(c3)
 
     // (project, name) unique key test
 
-    val c3 = Cluster(
+    val c4 = Cluster(
       clusterName = c1.clusterName,
       googleId = UUID.randomUUID(),
       googleProject = c1.googleProject,
       googleServiceAccount = WorkbenchUserServiceAccountEmail("something-new@google.com"),
       googleBucket = GcsBucketName("bucket3"),
+      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(c1.googleProject, c1.clusterName),
       operationName = OperationName("op3"),
       status = ClusterStatus.Unknown,
@@ -69,18 +92,19 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       destroyedDate = None,
       labels = Map.empty,
       jupyterExtensionUri = jupyterExtensionUri)
-    dbFailure { _.clusterQuery.save(c3, gcsPath("gs://bucket3")) } shouldBe a[SQLException]
+    dbFailure { _.clusterQuery.save(c4, gcsPath("gs://bucket3")) } shouldBe a[SQLException]
 
     // googleId unique key test
 
-    val name4 = ClusterName("name4")
-    val c4 = Cluster(
-      clusterName = name4,
+    val name5 = ClusterName("name5")
+    val c5 = Cluster(
+      clusterName = name5,
       googleId = c1.googleId,
       googleProject = project,
       googleServiceAccount = WorkbenchUserServiceAccountEmail("something-new@google.com"),
       googleBucket = GcsBucketName("bucket4"),
-      clusterUrl = Cluster.getClusterUrl(project, name4),
+      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
+      clusterUrl = Cluster.getClusterUrl(project, name5),
       operationName = OperationName("op4"),
       status = ClusterStatus.Unknown,
       hostIp = Some(IP("1.2.3.4")),
@@ -88,21 +112,28 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       destroyedDate = None,
       labels = Map.empty,
       jupyterExtensionUri = jupyterExtensionUri)
-    dbFailure { _.clusterQuery.save(c4, gcsPath("gs://bucket4")) } shouldBe a[SQLException]
+    dbFailure { _.clusterQuery.save(c5, gcsPath("gs://bucket5")) } shouldBe a[SQLException]
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(c1.googleId) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq(c2)
+    dbFutureValue { _.clusterQuery.listActive() } should contain theSameElementsAs Seq(c2, c3)
     val c1status = dbFutureValue { _.clusterQuery.getByGoogleId(c1.googleId) }.get
     c1status.status shouldEqual ClusterStatus.Deleting
     assert(c1status.destroyedDate.nonEmpty)
     c1status.hostIp shouldBe None
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(c2.googleId) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq()
+    dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq(c3)
     val c2status = dbFutureValue { _.clusterQuery.getByGoogleId(c2.googleId) }.get
     c2status.status shouldEqual ClusterStatus.Deleting
     assert(c2status.destroyedDate.nonEmpty)
     c2status.hostIp shouldBe None
+
+    dbFutureValue { _.clusterQuery.markPendingDeletion(c3.googleId) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq()
+    val c3status = dbFutureValue { _.clusterQuery.getByGoogleId(c3.googleId) }.get
+    c3status.status shouldEqual ClusterStatus.Deleting
+    assert(c3status.destroyedDate.nonEmpty)
+    c3status.hostIp shouldBe None
   }
 
   it should "get by labels" in isolatedDbTest {
@@ -112,6 +143,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       googleProject = project,
       googleServiceAccount = googleServiceAccount,
       googleBucket = GcsBucketName("bucket1"),
+      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, name1),
       operationName = OperationName("op1"),
       status = ClusterStatus.Unknown,
@@ -127,6 +159,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       googleProject = project,
       googleServiceAccount = googleServiceAccount,
       googleBucket = GcsBucketName("bucket2"),
+      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, name2),
       operationName = OperationName("op2"),
       status = ClusterStatus.Running,
@@ -142,6 +175,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       googleProject = project,
       googleServiceAccount = googleServiceAccount,
       googleBucket = GcsBucketName("bucket3"),
+      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, name3),
       operationName = OperationName("op3"),
       status = ClusterStatus.Deleted,

@@ -33,7 +33,7 @@ class StatusRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest wi
 
   it should "give 500 for not ok" in {
     val badSam = new MockSamDAO(false)
-    val badDataproc = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, false)
+    val badDataproc = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig, false)
     val statusService = new StatusService(badDataproc, badSam, DbSingleton.ref, dataprocConfig, pollInterval = 1.second)
     val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, whitelistConfig) with MockUserInfoDirectives {
       override val userInfo: UserInfo = defaultUserInfo
