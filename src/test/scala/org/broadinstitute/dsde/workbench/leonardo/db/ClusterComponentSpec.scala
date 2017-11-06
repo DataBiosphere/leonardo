@@ -64,9 +64,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       jupyterExtensionUri = jupyterExtensionUri)
 
 
-    dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1")) } shouldEqual c1
-    dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2")) } shouldEqual c2
-    dbFutureValue { _.clusterQuery.save(c3, gcsPath("gs://bucket3")) } shouldEqual c3
+    dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), None) } shouldEqual c1
+    dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id)) } shouldEqual c2
+    dbFutureValue { _.clusterQuery.save(c3, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } shouldEqual c3
     dbFutureValue { _.clusterQuery.list() } should contain theSameElementsAs Seq(c1, c2, c3)
     dbFutureValue { _.clusterQuery.getActiveClusterByName(c1.googleProject, c1.clusterName) } shouldEqual Some(c1)
     dbFutureValue { _.clusterQuery.getActiveClusterByName(c2.googleProject, c2.clusterName) } shouldEqual Some(c2)
@@ -74,6 +74,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFutureValue { _.clusterQuery.getByGoogleId(c1.googleId) } shouldEqual Some(c1)
     dbFutureValue { _.clusterQuery.getByGoogleId(c2.googleId) } shouldEqual Some(c2)
     dbFutureValue { _.clusterQuery.getByGoogleId(c3.googleId) } shouldEqual Some(c3)
+    dbFutureValue { _.clusterQuery.getServiceAccountKeyId(c1.googleProject, c1.clusterName) } shouldEqual None
+    dbFutureValue { _.clusterQuery.getServiceAccountKeyId(c2.googleProject, c2.clusterName) } shouldEqual Some(serviceAccountKey.id)
+    dbFutureValue { _.clusterQuery.getServiceAccountKeyId(c3.googleProject, c3.clusterName) } shouldEqual Some(serviceAccountKey.id)
 
     // (project, name) unique key test
 
@@ -92,7 +95,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       destroyedDate = None,
       labels = Map.empty,
       jupyterExtensionUri = jupyterExtensionUri)
-    dbFailure { _.clusterQuery.save(c4, gcsPath("gs://bucket3")) } shouldBe a[SQLException]
+    dbFailure { _.clusterQuery.save(c4, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
 
     // googleId unique key test
 
@@ -112,7 +115,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       destroyedDate = None,
       labels = Map.empty,
       jupyterExtensionUri = jupyterExtensionUri)
-    dbFailure { _.clusterQuery.save(c5, gcsPath("gs://bucket5")) } shouldBe a[SQLException]
+    dbFailure { _.clusterQuery.save(c5, gcsPath("gs://bucket5"), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(c1.googleId) } shouldEqual 1
     dbFutureValue { _.clusterQuery.listActive() } should contain theSameElementsAs Seq(c2, c3)
@@ -185,9 +188,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       labels = Map("a" -> "b", "bam" -> "yes"),
       jupyterExtensionUri = jupyterExtensionUri)
 
-    dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1")) } shouldEqual c1
-    dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2")) } shouldEqual c2
-    dbFutureValue { _.clusterQuery.save(c3, gcsPath("gs://bucket3")) } shouldEqual c3
+    dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1
+    dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id)) } shouldEqual c2
+    dbFutureValue { _.clusterQuery.save(c3, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } shouldEqual c3
 
     dbFutureValue { _.clusterQuery.listByLabels(Map.empty, false) }.toSet shouldEqual Set(c1, c2)
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes"), false) }.toSet shouldEqual Set(c1)

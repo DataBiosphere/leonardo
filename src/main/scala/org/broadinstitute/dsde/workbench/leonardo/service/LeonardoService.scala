@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMa
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted, RegisterLeoService}
 import org.broadinstitute.dsde.workbench.google.gcs._
-import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail
+import org.broadinstitute.dsde.workbench.model.{WorkbenchUserServiceAccountEmail, WorkbenchUserServiceAccountKey}
 import slick.dbio.DBIO
 import spray.json._
 
@@ -70,13 +70,17 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       case Some(_) => throw ClusterAlreadyExistsException(googleProject, clusterName)
       case None =>
         val augmentedClusterRequest = addClusterDefaultLabels(serviceAccount, googleProject, clusterName, clusterRequest)
-        createGoogleCluster(serviceAccount, googleProject, clusterName, augmentedClusterRequest).flatMap { case (cluster, initBucket) =>
-          dbRef.inTransaction { dataAccess =>
-            dataAccess.clusterQuery.save(cluster, GcsPath(initBucket, GcsRelativePath("")))
-          }
-        } andThen { case Success(cluster) =>
-          // Notify the cluster monitor upon cluster creation
-          clusterMonitorSupervisor ! ClusterCreated(cluster)
+        val createFuture = for {
+          // Create the cluster in Google
+          (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(serviceAccount, googleProject, clusterName, augmentedClusterRequest)
+          // Save the cluster in the database
+          savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, GcsPath(initBucket, GcsRelativePath("")), serviceAccountKeyOpt.map(_.id)))
+        } yield savedCluster
+
+        createFuture andThen {
+          case Success(cluster) =>
+            // Notify the cluster monitor upon cluster creation
+            clusterMonitorSupervisor ! ClusterCreated(cluster)
         }
     }
   }
@@ -90,7 +94,16 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName): Future[Int] = {
     getActiveClusterDetails(googleProject, clusterName) flatMap { cluster =>
       if(cluster.status.isActive) {
+        // Delete the service account key in Google, if present
+        val deleteServiceAccountKey = dbRef.inTransaction { dataAccess =>
+          dataAccess.clusterQuery.getServiceAccountKeyId(googleProject, clusterName)
+        } flatMap {
+          case Some(key) => googleIamDAO.removeServiceAccountKey(WorkbenchGoogleProject(dataprocConfig.leoGoogleProject.string), cluster.googleServiceAccount, key)
+          case None => Future.successful(())
+        }
+
         for {
+          _ <- deleteServiceAccountKey
           _ <- gdDAO.deleteCluster(googleProject, clusterName)
           recordCount <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.googleId))
         } yield {
@@ -122,25 +135,44 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
      - Upload all the necessary initialization files to the bucket
      - Create the cluster in the google project
    Currently, the bucketPath of the clusterRequest is not used - it will be used later as a place to store notebook results */
-  private[service] def createGoogleCluster(serviceAccount: WorkbenchUserServiceAccountEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName)] = {
+  private[service] def createGoogleCluster(serviceAccount: WorkbenchUserServiceAccountEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName, Option[WorkbenchUserServiceAccountKey])] = {
     val bucketName = generateUniqueBucketName(clusterName.string)
     for {
       // Validate that the Jupyter extension URI is a valid URI and references a real GCS object
       _ <- validateJupyterExtensionUri(googleProject, clusterRequest.jupyterExtensionUri)
       // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
       _ <- gdDAO.updateFirewallRule(googleProject)
-      // Create the bucket in leo's google bucket and populate with initialization files
-      initBucketPath <- initializeBucket(dataprocConfig.leoGoogleProject, serviceAccount, clusterName, bucketName, clusterRequest)
-      // Add Dataproc Worker role to the pet service account
-      _ <- googleIamDAO.addIamRolesForUser(WorkbenchGoogleProject(googleProject.string), serviceAccount, Set("roles/dataproc.worker"))
+      // Generate a service account key if configured to do so
+      serviceAccountKeyOpt <- generateServiceAccountKey(googleProject, serviceAccount)
+      // Add Dataproc Worker role to the pet service account if configured to do so
+      _ <- addDataprocWorkerRoleToServiceAccount(googleProject, serviceAccount)
+      // Create the bucket in leo's google project and populate with initialization files
+      initBucketPath <- initializeBucket(googleProject, clusterName, bucketName, clusterRequest, serviceAccount, serviceAccountKeyOpt)
       // Once the bucket is ready, build the cluster
       cluster <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, bucketName, serviceAccount).andThen { case Failure(_) =>
         // If cluster creation fails, delete the init bucket asynchronously
         gdDAO.deleteBucket(googleProject, bucketName)
       }
     } yield {
-      (cluster, initBucketPath)
+      (cluster, initBucketPath, serviceAccountKeyOpt)
     }
+  }
+
+  private[service] def generateServiceAccountKey(googleProject: GoogleProject, serviceAccountEmail: WorkbenchUserServiceAccountEmail): Future[Option[WorkbenchUserServiceAccountKey]] = {
+    // Only generate a key if NOT creating the cluster as the pet service account.
+    // If the pet service account is used to create a cluster, its credentials are on the metadata
+    // server and we don't need to propagate a key file.
+    if (!dataprocConfig.createClusterAsPetServiceAccount) {
+      googleIamDAO.createServiceAccountKey(WorkbenchGoogleProject(dataprocConfig.leoGoogleProject.string), serviceAccountEmail).map(Option(_))
+    } else Future.successful(None)
+  }
+
+  private[service] def addDataprocWorkerRoleToServiceAccount(googleProject: GoogleProject, serviceAccountEmail: WorkbenchUserServiceAccountEmail): Future[Unit] = {
+    // Only add Dataproc Worker if creating the cluster as the pet service account.
+    // Otherwise, the default Google Compute Engine service account is used, which already has the required permissions.
+    if (dataprocConfig.createClusterAsPetServiceAccount) {
+      googleIamDAO.addIamRolesForUser(WorkbenchGoogleProject(googleProject.string), serviceAccountEmail, Set("roles/dataproc.worker"))
+    } else Future.successful(())
   }
 
   private[service] def validateJupyterExtensionUri(googleProject: GoogleProject, gcsUriOpt: Option[GcsPath])(implicit executionContext: ExecutionContext): Future[Unit] = {
@@ -158,18 +190,25 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   /* Create a google bucket and populate it with init files */
-  private[service] def initializeBucket(googleProject: GoogleProject, serviceAccount: WorkbenchUserServiceAccountEmail, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest): Future[GcsBucketName] = {
+  private[service] def initializeBucket(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountEmail: WorkbenchUserServiceAccountEmail, serviceAccountKey: Option[WorkbenchUserServiceAccountKey]): Future[GcsBucketName] = {
     for {
-      _ <- gdDAO.createBucket(googleProject, bucketName, serviceAccount)
-      _ <- initializeBucketObjects(googleProject, clusterName, bucketName, clusterRequest)
+      // Note the bucket is created in Leo's project, not the cluster's project.
+      // ACLs are granted so the cluster's service account can access the bucket at initialization time.
+      _ <- gdDAO.createBucket(dataprocConfig.leoGoogleProject, googleProject, bucketName, serviceAccountEmail)
+      _ <- initializeBucketObjects(googleProject, clusterName, bucketName, clusterRequest, serviceAccountKey)
     } yield { bucketName }
   }
 
   /* Process the templated cluster init script and put all initialization files in the init bucket */
-  private[service] def initializeBucketObjects(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest): Future[Unit] = {
-    val replacements = ClusterInitValues(googleProject, clusterName, bucketName, clusterRequest, dataprocConfig, clusterResourcesConfig, proxyConfig).toJson.asJsObject.fields
+  private[service] def initializeBucketObjects(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountKey: Option[WorkbenchUserServiceAccountKey]): Future[Unit] = {
+    val replacements = ClusterInitValues(googleProject, clusterName, bucketName, clusterRequest, dataprocConfig, clusterResourcesConfig, proxyConfig, serviceAccountKey).toJson.asJsObject.fields
     val filesToUpload = List(clusterResourcesConfig.jupyterServerCrt, clusterResourcesConfig.jupyterServerKey, clusterResourcesConfig.jupyterRootCaPem,
       clusterResourcesConfig.clusterDockerCompose, clusterResourcesConfig.jupyterProxySiteConf, clusterResourcesConfig.jupyterInstallExtensionScript)
+
+    val uploadPrivateKey: Future[Unit] = serviceAccountKey.flatMap(_.privateKeyData.decode).map { k =>
+      gdDAO.uploadToBucket(googleProject,
+        GcsPath(bucketName, GcsRelativePath(ClusterInitValues.serviceAccountCredentialsFilename)), k)
+    } getOrElse(Future.successful(()))
 
     for {
       // Fill in templated fields in the init script with the given replacements
@@ -178,6 +217,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       _ <- gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.initActionsScript)), content)
       // Upload ancillary files like the certs, cluster docker compose file, site.conf, etc to the init bucket
       _ <- Future.traverse(filesToUpload)(fileName => gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(fileName)), new File(clusterResourcesConfig.configFolderPath, fileName)))
+      // Update the private key json, if defined
+      _ <- uploadPrivateKey
     } yield ()
   }
 
