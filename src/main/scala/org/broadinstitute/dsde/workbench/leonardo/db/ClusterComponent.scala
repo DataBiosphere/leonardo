@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail
+import org.broadinstitute.dsde.workbench.model.{WorkbenchUserServiceAccountEmail, WorkbenchUserServiceAccountKeyId}
 
 import scala.util.Random
 
@@ -31,7 +31,8 @@ case class ClusterRecord(id: Long,
                          createdDate: Timestamp,
                          destroyedDate: Timestamp,
                          jupyterExtensionUri: Option[String],
-                         initBucket: String)
+                         initBucket: String,
+                         serviceAccountKeyId: Option[String])
 
 trait ClusterComponent extends LeoComponent {
   this: LabelComponent =>
@@ -59,18 +60,19 @@ trait ClusterComponent extends LeoComponent {
     def destroyedDate =               column[Timestamp]         ("destroyedDate",         O.SqlType("TIMESTAMP(6)"))
     def jupyterExtensionUri =         column[Option[String]]    ("jupyterExtensionUri",   O.Length(1024))
     def initBucket =                  column[String]            ("initBucket",            O.Length(1024))
+    def serviceAccountKeyId =         column[Option[String]]    ("serviceAccountKeyId",   O.Length(254))
 
     def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName), unique = true)
 
-    def * = (id, clusterName, googleId, googleProject, googleServiceAccount, googleBucket, numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers, operationName, status, hostIp, createdDate, destroyedDate, jupyterExtensionUri, initBucket) <> (ClusterRecord.tupled, ClusterRecord.unapply)
+    def * = (id, clusterName, googleId, googleProject, googleServiceAccount, googleBucket, numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers, operationName, status, hostIp, createdDate, destroyedDate, jupyterExtensionUri, initBucket, serviceAccountKeyId) <> (ClusterRecord.tupled, ClusterRecord.unapply)
   }
 
   object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
     private final val dummyDate:Instant = Instant.ofEpochMilli(1000)
 
-    def save(cluster: Cluster, initBucket: GcsPath): DBIO[Cluster] = {
-      (clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster, initBucket.toUri)) flatMap { clusterId =>
+    def save(cluster: Cluster, initBucket: GcsPath, serviceAccountKeyId: Option[WorkbenchUserServiceAccountKeyId]): DBIO[Cluster] = {
+      (clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster, initBucket.toUri, serviceAccountKeyId)) flatMap { clusterId =>
         labelQuery.saveAllForCluster(clusterId, cluster.labels)
       } map { _ => cluster }
     }
@@ -131,6 +133,15 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
+    def getServiceAccountKeyId(project: GoogleProject, name: ClusterName): DBIO[Option[WorkbenchUserServiceAccountKeyId]] = {
+      clusterQuery
+        .filter { _.googleProject === project.string }
+        .filter { _.clusterName === name.string }
+        .map(_.serviceAccountKeyId)
+        .result
+        .map { recs => recs.headOption.flatten.map(WorkbenchUserServiceAccountKeyId(_)) }
+    }
+
     def markPendingDeletion(googleId: UUID): DBIO[Int] = {
       clusterQuery.filter(_.googleId === googleId)
         .map(c => (c.destroyedDate, c.status, c.hostIp))
@@ -188,10 +199,10 @@ trait ClusterComponent extends LeoComponent {
       query.result.map(unmarshalClustersWithLabels)
     }
 
-    /* WARNING: The init bucket is secret to Leo, which means we don't unmarshal it.
+    /* WARNING: The init bucket and SA key ID is secret to Leo, which means we don't unmarshal it.
      * This function should only be called at cluster creation time, when the init bucket doesn't exist.
      */
-    private def marshalCluster(cluster: Cluster, initBucket: String): ClusterRecord = {
+    private def marshalCluster(cluster: Cluster, initBucket: String, serviceAccountKeyId: Option[WorkbenchUserServiceAccountKeyId]): ClusterRecord = {
       ClusterRecord(
         id = 0,    // DB AutoInc
         cluster.clusterName.string,
@@ -212,7 +223,8 @@ trait ClusterComponent extends LeoComponent {
         Timestamp.from(cluster.createdDate),
         Timestamp.from(cluster.destroyedDate.getOrElse(dummyDate)),
         cluster.jupyterExtensionUri map(_.toUri),
-        initBucket
+        initBucket,
+        serviceAccountKeyId.map(_.value)
       )
     }
 

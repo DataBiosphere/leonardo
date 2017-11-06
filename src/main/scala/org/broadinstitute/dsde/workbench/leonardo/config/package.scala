@@ -21,7 +21,9 @@ package object config {
       GoogleProject(config.getString("leoGoogleProject")),
       config.getString("dataprocDockerImage"),
       config.getString("clusterUrlBase"),
-      config.getString("jupyterServerName"))
+      config.getString("jupyterServerName"),
+      config.getBoolean("createClusterAsPetServiceAccount")
+    )
   }
 
   implicit val clusterResourcesConfigReader: ValueReader[ClusterResourcesConfig] = ValueReader.relative { config =>
