@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountKeyId
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 
@@ -75,8 +76,8 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     ClusterDnsCache.HostToIp shouldBe 'empty
 
     // save the clusters to the db
-    dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1")) } shouldEqual c1
-    dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2")) } shouldEqual c2
+    dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1
+    dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id)) } shouldEqual c2
 
     // maps should be populated
     eventually {

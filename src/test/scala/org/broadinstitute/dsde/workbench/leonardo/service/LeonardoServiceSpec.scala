@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
+import java.time.Instant
 import java.util.UUID
 
 import akka.actor.ActorSystem
@@ -15,7 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
-import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserId, WorkbenchUserServiceAccountEmail}
+import org.broadinstitute.dsde.workbench.model._
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import spray.json._
@@ -33,15 +34,18 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   private val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchUserEmail("user1@example.com"), 0)
   private lazy val testClusterRequest = ClusterRequest(bucketPath, Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(gdDAO.extensionPath))
   private lazy val singleNodeDefaultMachineConfig = MachineConfig(Some(clusterDefaultsConfig.numberOfWorkers), Some(clusterDefaultsConfig.masterMachineType), Some(clusterDefaultsConfig.masterDiskSize))
+  private val serviceAccountKey = WorkbenchUserServiceAccountKey(WorkbenchUserServiceAccountKeyId("123"), WorkbenchUserServiceAccountPrivateKeyData("abcdefg"), Some(Instant.now), Some(Instant.now.plusSeconds(300)))
 
   private var gdDAO: MockGoogleDataprocDAO = _
+  private var iamDAO: MockGoogleIamDAO = _
   private var samDAO: MockSamDAO = _
   private var leo: LeonardoService = _
 
   before {
     gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
+    iamDAO = new MockGoogleIamDAO
     samDAO = new MockSamDAO
-    leo = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, gdDAO, new MockGoogleIamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), samDAO)
+    leo = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), samDAO)
   }
 
   override def afterAll(): Unit = {
@@ -50,7 +54,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   val initFiles = Array(clusterResourcesConfig.clusterDockerCompose, clusterResourcesConfig.initActionsScript, clusterResourcesConfig.jupyterServerCrt,
-    clusterResourcesConfig.jupyterServerKey, clusterResourcesConfig.jupyterRootCaPem, clusterResourcesConfig.jupyterProxySiteConf, clusterResourcesConfig.jupyterInstallExtensionScript
+    clusterResourcesConfig.jupyterServerKey, clusterResourcesConfig.jupyterRootCaPem, clusterResourcesConfig.jupyterProxySiteConf, clusterResourcesConfig.jupyterInstallExtensionScript,
+    ClusterInitValues.serviceAccountCredentialsFilename
   ) map GcsRelativePath
 
 
@@ -76,6 +81,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // check the init files were added to the bucket
     initFiles.foreach(initFile => gdDAO.bucketObjects should contain (GcsPath(bucketArray.head, initFile)))
     gdDAO.bucketObjects should contain theSameElementsAs (initFiles.map(GcsPath(bucketArray.head, _)))
+    iamDAO.serviceAccountKeys should contain key (samDAO.serviceAccount)
 
     val initBucket = dbFutureValue { dataAccess =>
       dataAccess.clusterQuery.getInitBucket(googleProject, clusterName)
@@ -246,13 +252,16 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.buckets should not contain (bucketPath)
 
     // create the bucket and add files
-    leo.initializeBucket(googleProject, petServiceAccount, clusterName, bucketPath, testClusterRequest).futureValue
+    leo.initializeBucket(googleProject, clusterName, bucketPath, testClusterRequest, petServiceAccount, Some(serviceAccountKey)).futureValue
 
     // our bucket should now exist
     gdDAO.buckets should contain (bucketPath)
 
     // check the init files were added to the bucket
     initFiles.map(initFile => gdDAO.bucketObjects should contain (GcsPath(bucketPath, initFile)))
+
+    // check that the service account key was added to the bucket
+    gdDAO.bucketObjects should contain (GcsPath(bucketPath, GcsRelativePath(ClusterInitValues.serviceAccountCredentialsFilename)))
   }
 
   it should "add bucket objects" in isolatedDbTest {
@@ -260,13 +269,16 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.buckets += bucketPath
 
     // add all the bucket objects
-    leo.initializeBucketObjects(googleProject, clusterName, bucketPath, testClusterRequest).futureValue
+    leo.initializeBucketObjects(googleProject, clusterName, bucketPath, testClusterRequest, Some(serviceAccountKey)).futureValue
 
     // check that the bucket exists
     gdDAO.buckets should contain (bucketPath)
 
     // check the init files were added to the bucket
     initFiles.map(initFile => gdDAO.bucketObjects should contain (GcsPath(bucketPath, initFile)))
+
+    // check that the service account key was added to the bucket
+    gdDAO.bucketObjects should contain (GcsPath(bucketPath, GcsRelativePath(ClusterInitValues.serviceAccountCredentialsFilename)))
   }
 
   it should "create a firewall rule in a project only once when the first cluster is added" in isolatedDbTest {
@@ -290,7 +302,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "template a script using config values" in isolatedDbTest {
     // Create replacements map
-    val replacements = ClusterInitValues(googleProject, clusterName, bucketPath, testClusterRequest, dataprocConfig, clusterResourcesConfig, proxyConfig).toJson.asJsObject.fields
+    val replacements = ClusterInitValues(googleProject, clusterName, bucketPath, testClusterRequest, dataprocConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey)).toJson.asJsObject.fields
 
     // Each value in the replacement map will replace it's key in the file being processed
     val result = leo.template(clusterResourcesConfig.configFolderPath + clusterResourcesConfig.initActionsScript, replacements).futureValue
@@ -302,7 +314,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
           |"${clusterName.string}"
           |"${googleProject.string}"
           |"${proxyConfig.jupyterProxyDockerImage}"
-          |"${gdDAO.extensionPath.toUri}"""".stripMargin
+          |"${gdDAO.extensionPath.toUri}"
+          |"${GcsPath(bucketPath, GcsRelativePath(ClusterInitValues.serviceAccountCredentialsFilename)).toUri}"""".stripMargin
 
     result shouldEqual expected
   }
