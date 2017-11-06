@@ -9,5 +9,6 @@ case class DataprocConfig(
                            leoGoogleProject: GoogleProject,
                            dataprocDockerImage: String,
                            clusterUrlBase: String,
-                           jupyterServerName: String
-                           )
+                           jupyterServerName: String,
+                           createClusterAsPetServiceAccount: Boolean
+                         )
