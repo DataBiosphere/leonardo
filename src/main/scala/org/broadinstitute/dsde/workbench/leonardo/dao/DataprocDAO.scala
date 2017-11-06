@@ -5,6 +5,7 @@ import java.time.Instant
 import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath}
+import org.broadinstitute.dsde.workbench.leonardo.config.ClusterDefaultsConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserServiceAccountEmail}

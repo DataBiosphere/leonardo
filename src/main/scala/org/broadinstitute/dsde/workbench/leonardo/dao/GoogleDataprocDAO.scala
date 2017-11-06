@@ -53,7 +53,7 @@ case class AuthorizationError() extends LeoException(s"Your account is unauthori
 case class GoogleProjectNotFoundException(googleProject: GoogleProject)
   extends LeoException(s"Google project ${googleProject.string} not found", StatusCodes.NotFound)
 
-class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected val proxyConfig: ProxyConfig, protected val clusterResourcesConfig: ClusterResourcesConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
+class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected val proxyConfig: ProxyConfig, protected val clusterDefaultsConfig: ClusterDefaultsConfig, protected val clusterResourcesConfig: ClusterResourcesConfig)(implicit val system: ActorSystem, val executionContext: ExecutionContext)
   extends DataprocDAO with GoogleUtilities {
 
   // TODO pass as constructor arg when we add metrics
@@ -128,7 +128,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
   }
 
   override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, serviceAccount: WorkbenchUserServiceAccountEmail)(implicit executionContext: ExecutionContext): Future[LeoCluster] = {
-    buildCluster(googleProject, clusterName, clusterRequest, bucketName, serviceAccount).map { operation =>
+    buildCluster(googleProject, clusterName, clusterRequest, bucketName, clusterDefaultsConfig, serviceAccount).map { operation =>
       //Make a Leo cluster from the Google operation details
       LeoCluster.create(clusterRequest, clusterName, googleProject, getOperationUUID(operation), OperationName(operation.getName), serviceAccount, clusterDefaultsConfig)
     }
@@ -136,11 +136,11 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
 
 
   /* Kicks off building the cluster. This will return before the cluster finishes creating. */
-  private def buildCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, serviceAccount: WorkbenchUserServiceAccountEmail)(implicit executionContext: ExecutionContext): Future[DataprocOperation] = {
+  private def buildCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, clusterDefaultsConfig: ClusterDefaultsConfig, serviceAccount: WorkbenchUserServiceAccountEmail)(implicit executionContext: ExecutionContext): Future[DataprocOperation] = {
     // Create a Cluster and give it a name and a Cluster Config
     val cluster = new DataprocCluster()
       .setClusterName(clusterName.string)
-      .setConfig(getClusterConfig(googleProject, clusterName, clusterRequest, bucketName, serviceAccount))
+      .setConfig(getClusterConfig(googleProject, clusterName, clusterRequest, bucketName, clusterDefaultsConfig, serviceAccount))
 
     // Create a dataproc create request and give it the google project, a zone, and the Cluster
     val request = dataproc.projects().regions().clusters().create(googleProject.string, dataprocConfig.dataprocDefaultRegion, cluster)
@@ -148,17 +148,17 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected 
     executeGoogleRequestAsync(googleProject, clusterName.toString, request)  // returns a Future[DataprocOperation]
   }
 
-  private def getClusterConfig(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, serviceAccount: WorkbenchUserServiceAccountEmail): ClusterConfig = {
+  private def getClusterConfig(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, clusterDefaultsConfig: ClusterDefaultsConfig, serviceAccount: WorkbenchUserServiceAccountEmail): ClusterConfig = {
     // Create a GceClusterConfig, which has the common config settings for resources of Google Compute Engine cluster instances,
     //   applicable to all instances in the cluster.
     //   Set the network tag, which is needed by the firewall rule that allows leo to talk to the cluster
-    val gce = new GceClusterConfig().setTags(List(proxyConfig.networkTag).asJava)
+    val gceClusterConfig = new GceClusterConfig().setTags(List(proxyConfig.networkTag).asJava)
 
     // Create the cluster as the pet service account if configured to do so.
     // Otherwise leave it blank, which causes it to use to the default Compute Engine service account
     // in the cluster's project.
     if (dataprocConfig.createClusterAsPetServiceAccount) {
-      gce.setServiceAccount(serviceAccount.value).setServiceAccountScopes(oauth2Scopes.asJava)
+      gceClusterConfig.setServiceAccount(serviceAccount.value).setServiceAccountScopes(oauth2Scopes.asJava)
     }
 
     // Create a NodeInitializationAction, which specifies the executable to run on a node.

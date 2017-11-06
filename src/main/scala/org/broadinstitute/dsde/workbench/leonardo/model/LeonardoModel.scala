@@ -321,6 +321,6 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val machineConfigFormat = jsonFormat7(MachineConfig.apply)
   implicit val clusterFormat = jsonFormat14(Cluster.apply)
   implicit val clusterRequestFormat = jsonFormat4(ClusterRequest)
-  implicit val clusterInitValuesFormat = jsonFormat13(ClusterInitValues.apply)
+  implicit val clusterInitValuesFormat = jsonFormat14(ClusterInitValues.apply)
   implicit val defaultLabelsFormat = jsonFormat5(DefaultLabels.apply)
 }

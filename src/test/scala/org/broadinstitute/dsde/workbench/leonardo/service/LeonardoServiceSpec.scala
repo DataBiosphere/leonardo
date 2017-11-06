@@ -42,7 +42,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   private var leo: LeonardoService = _
 
   before {
-    gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig)
+    gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
     iamDAO = new MockGoogleIamDAO
     samDAO = new MockSamDAO
     leo = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), samDAO)
