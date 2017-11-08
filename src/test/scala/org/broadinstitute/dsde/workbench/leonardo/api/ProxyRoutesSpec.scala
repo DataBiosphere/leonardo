@@ -32,9 +32,9 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
 
   val clusterName = "test"
   val googleProject = "dsp-leo-test"
-  val TokenCookie = Cookie("FCToken", "me")
-  val unauthorizedTokenCookie = Cookie("FCToken", "unauthorized")
-  val expiredTokenCookie = Cookie("FCToken", "expired")
+  val TokenCookie = Cookie("FCtoken", "me")
+  val unauthorizedTokenCookie = Cookie("FCtoken", "unauthorized")
+  val expiredTokenCookie = Cookie("FCtoken", "expired")
 
 
   // The backend server behind the proxy
