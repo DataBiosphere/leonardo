@@ -17,7 +17,7 @@ trait ProxyRoutes extends UserInfoDirectives{ self: LazyLogging =>
   val whitelistConfig: Set[WorkbenchUserEmail]
   implicit val executionContext: ExecutionContext
 
-  protected val tokenCookieName = "FCToken"
+  protected val tokenCookieName = "FCtoken"
 
   protected val proxyRoutes: Route =
     pathPrefix("notebooks" / Segment / Segment) { (googleProject, clusterName) =>
