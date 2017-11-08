@@ -7,7 +7,7 @@ import java.io.File
 
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
 import org.broadinstitute.dsde.workbench.google.model.{GoogleProject => WorkbenchGoogleProject}
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{DataprocDAO, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
@@ -20,6 +20,7 @@ import slick.dbio.DBIO
 import spray.json._
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.io.Source
 import scala.util.{Failure, Success}
 
 case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: ClusterName)
@@ -42,8 +43,10 @@ case class IllegalLabelKeyException(labelKey: String)
 
 
 class LeonardoService(protected val dataprocConfig: DataprocConfig,
+                      protected val clusterFilesConfig: ClusterFilesConfig,
                       protected val clusterResourcesConfig: ClusterResourcesConfig,
                       protected val proxyConfig: ProxyConfig,
+                      protected val swaggerConfig: SwaggerConfig,
                       protected val gdDAO: DataprocDAO,
                       protected val googleIamDAO: GoogleIamDAO,
                       protected val dbRef: DbReference,
@@ -201,33 +204,71 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   /* Process the templated cluster init script and put all initialization files in the init bucket */
   private[service] def initializeBucketObjects(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountKey: Option[WorkbenchUserServiceAccountKey]): Future[Unit] = {
-    val replacements = ClusterInitValues(googleProject, clusterName, bucketName, clusterRequest, dataprocConfig, clusterResourcesConfig, proxyConfig, serviceAccountKey).toJson.asJsObject.fields
-    val filesToUpload = List(clusterResourcesConfig.jupyterServerCrt, clusterResourcesConfig.jupyterServerKey, clusterResourcesConfig.jupyterRootCaPem,
-      clusterResourcesConfig.clusterDockerCompose, clusterResourcesConfig.jupyterProxySiteConf, clusterResourcesConfig.jupyterInstallExtensionScript)
+    // Build a mapping of (name, value) pairs with which to apply templating logic to resources
+    val replacements: Map[String, JsValue] = ClusterInitValues(googleProject, clusterName, bucketName, clusterRequest, dataprocConfig,
+      clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, serviceAccountKey
+    ).toJson.asJsObject.fields
 
-    val uploadPrivateKey: Future[Unit] = serviceAccountKey.flatMap(_.privateKeyData.decode).map { k =>
+    // Raw files to upload to the bucket, with no additional processing
+    val filesToUpload = List(
+      clusterFilesConfig.jupyterServerCrt,
+      clusterFilesConfig.jupyterServerKey,
+      clusterFilesConfig.jupyterRootCaPem)
+
+    // Raw resourcs to upload to the bucket, with no additional processing.
+    // Note: initActionsScript and jupyterGoogleSignInJs are not included
+    // because they are post-processed by templating logic.
+    val resourcesToUpload = List(
+      clusterResourcesConfig.clusterDockerCompose,
+      clusterResourcesConfig.jupyterProxySiteConf,
+      clusterResourcesConfig.jupyterInstallExtensionScript,
+      clusterResourcesConfig.jupyterCustomJs)
+
+    // Uploads the service account private key to the init bucket, if defined.
+    // This is a no-op if createClusterAsPetServiceAccount is true.
+    val uploadPrivateKeyFuture: Future[Unit] = serviceAccountKey.flatMap(_.privateKeyData.decode).map { k =>
       gdDAO.uploadToBucket(googleProject,
         GcsPath(bucketName, GcsRelativePath(ClusterInitValues.serviceAccountCredentialsFilename)), k)
     } getOrElse(Future.successful(()))
 
+    // Fill in templated resources with the given replacements
+    val initScriptContent = templateResource(clusterResourcesConfig.initActionsScript, replacements)
+    val googleSignInJsContent = templateResource(clusterResourcesConfig.jupyterGoogleSignInJs, replacements)
+
     for {
-      // Fill in templated fields in the init script with the given replacements
-      content <- template(clusterResourcesConfig.configFolderPath + clusterResourcesConfig.initActionsScript, replacements)
-      // Upload the init script itself to the bucket
-      _ <- gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.initActionsScript)), content)
-      // Upload ancillary files like the certs, cluster docker compose file, site.conf, etc to the init bucket
-      _ <- Future.traverse(filesToUpload)(fileName => gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(fileName)), new File(clusterResourcesConfig.configFolderPath, fileName)))
+      // Upload the init script to the bucket
+      _ <- gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.initActionsScript.string)), initScriptContent)
+
+      // Upload the googleSignInJs file to the bucket
+      _ <- gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterGoogleSignInJs.string)), googleSignInJsContent)
+
+      // Upload raw files (like certs) to the bucket
+      _ <- Future.traverse(filesToUpload)(file => gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(file.getName)), file))
+
+      // Upload raw resources (like cluster-docker-compose.yml, site.conf) to the bucket
+      _ <- Future.traverse(resourcesToUpload) { resource =>
+        val content = Source.fromResource(s"${ClusterResourcesConfig.basePath}/${resource.string}").mkString
+        gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(resource.string)), content)
+      }
+
       // Update the private key json, if defined
-      _ <- uploadPrivateKey
+      _ <- uploadPrivateKeyFuture
     } yield ()
   }
 
-  /* Process a file using map of replacement values. Each value in the replacement map replaces it's key in the file*/
-  private[service] def template(filePath: String, replacementMap: Map[String, JsValue]): Future[String] = {
-    Future {
-      val raw = scala.io.Source.fromFile(filePath).mkString
-      replacementMap.foldLeft(raw)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", b._2.toString()))
-    }
+  /* Process a string using map of replacement values. Each value in the replacement map replaces it's key in the string. */
+  private[service] def template(raw: String, replacementMap: Map[String, JsValue]): String = {
+    replacementMap.foldLeft(raw)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", b._2.toString()))
+  }
+
+  private[service] def templateFile(file: File, replacementMap: Map[String, JsValue]): String = {
+    val raw = scala.io.Source.fromFile(file).mkString
+    template(raw, replacementMap)
+  }
+
+  private[service] def templateResource(resource: ClusterResource, replacementMap: Map[String, JsValue]): String = {
+    val raw = scala.io.Source.fromResource(s"${ClusterResourcesConfig.basePath}/${resource.string}").mkString
+    template(raw, replacementMap)
   }
 
   private[service] def processListClustersParameters(params: LabelMap): Future[(LabelMap, Boolean)] = {

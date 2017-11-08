@@ -1,14 +1,18 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import java.io.File
+
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
-import org.broadinstitute.dsde.workbench.leonardo.model.{GoogleProject, GoogleServiceAccount}
+import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
+
+import scala.collection.JavaConverters._
 
 package object config {
   implicit val swaggerReader: ValueReader[SwaggerConfig] = ValueReader.relative { config =>
     SwaggerConfig(
-      config.getString("googleClientId"),
+      GoogleClientId(config.getString("googleClientId")),
       config.getString("realm")
     )
   }
@@ -26,19 +30,26 @@ package object config {
     )
   }
 
-  implicit val clusterResourcesConfigReader: ValueReader[ClusterResourcesConfig] = ValueReader.relative { config =>
+  implicit val clusterFilesConfigReader: ValueReader[ClusterFilesConfig] = ValueReader.relative { config =>
+    val baseDir = config.getString("configFolderPath")
+    ClusterFilesConfig(
+      new File(baseDir, "leonardoServicePem"),
+      new File(baseDir, "jupyterServerCrt"),
+      new File(baseDir, "jupyterServerKey"),
+      new File(baseDir, "jupyterRootCaPem"),
+      new File(baseDir, "jupyterRootCaKey")
+    )
+  }
 
+  implicit val clusterResourcesConfigReader: ValueReader[ClusterResourcesConfig] = ValueReader.relative { config =>
     ClusterResourcesConfig(
-      config.getString("configFolderPath"),
-      config.getString("initActionsScript"),
-      config.getString("clusterDockerCompose"),
-      config.getString("leonardoServicePem"),
-      config.getString("jupyterServerCrt"),
-      config.getString("jupyterServerKey"),
-      config.getString("jupyterRootCaPem"),
-      config.getString("jupyterRootCaKey"),
-      config.getString("proxySiteConf"),
-      config.getString("jupyterInstallExtensionScript"))
+      ClusterResource(config.getString("initActionsScript")),
+      ClusterResource(config.getString("clusterDockerCompose")),
+      ClusterResource(config.getString("jupyterInstallExtensionScript")),
+      ClusterResource(config.getString("proxySiteConf")),
+      ClusterResource(config.getString("jupyterCustomJs")),
+      ClusterResource(config.getString("jupyterGoogleSignInJs"))
+    )
   }
 
   implicit val clusterDefaultConfigReader: ValueReader[ClusterDefaultsConfig] = ValueReader.relative { config =>

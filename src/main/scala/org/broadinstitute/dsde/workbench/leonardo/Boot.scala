@@ -11,7 +11,7 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.HttpGoogleIamDAO
 import org.broadinstitute.dsde.workbench.leonardo.api.{LeoRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{GoogleDataprocDAO, HttpSamDAO}
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SamConfig, SwaggerConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SamConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus
@@ -42,6 +42,8 @@ object Boot extends App with LazyLogging {
     val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
     val dataprocConfig = config.as[DataprocConfig]("dataproc")
     val proxyConfig = config.as[ProxyConfig]("proxy")
+    val swaggerConfig = config.as[SwaggerConfig]("swagger")
+    val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
     val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
     val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
     val monitorConfig = config.as[MonitorConfig]("monitor")
@@ -58,15 +60,15 @@ object Boot extends App with LazyLogging {
       dbRef.database.close()
     }
 
-    val gdDAO = new GoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig, clusterResourcesConfig)
-    val googleIamDAO = new HttpGoogleIamDAO(dataprocConfig.serviceAccount.string, new File(clusterResourcesConfig.configFolderPath, clusterResourcesConfig.leonardoServicePem).getAbsolutePath, dataprocConfig.applicationName, "google")
+    val gdDAO = new GoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig, clusterFilesConfig, clusterResourcesConfig)
+    val googleIamDAO = new HttpGoogleIamDAO(dataprocConfig.serviceAccount.string, clusterFilesConfig.leonardoServicePem.getAbsolutePath, dataprocConfig.applicationName, "google")
     val samDAO = new HttpSamDAO(samConfig.server)
     val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO, googleIamDAO, dbRef))
-    val leonardoService = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, gdDAO, googleIamDAO, dbRef, clusterMonitorSupervisor, samDAO)
+    val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, googleIamDAO, dbRef, clusterMonitorSupervisor, samDAO)
     val clusterDnsCache = system.actorOf(ClusterDnsCache.props(proxyConfig, dbRef))
     val proxyService = new ProxyService(proxyConfig, gdDAO, dbRef, clusterDnsCache)
     val statusService = new StatusService(gdDAO, samDAO, dbRef, dataprocConfig)
-    val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, config.as[SwaggerConfig]("swagger"), whitelistConfig) with StandardUserInfoDirectives
+    val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, whitelistConfig) with StandardUserInfoDirectives
 
     startClusterMonitors(dbRef, clusterMonitorSupervisor)
 

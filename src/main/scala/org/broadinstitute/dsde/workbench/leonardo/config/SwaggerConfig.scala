@@ -1,3 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
-case class SwaggerConfig(googleClientId: String, realm: String)
+import org.broadinstitute.dsde.workbench.leonardo.model.GoogleClientId
+
+case class SwaggerConfig(googleClientId: GoogleClientId, realm: String)
