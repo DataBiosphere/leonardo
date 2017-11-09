@@ -209,13 +209,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, serviceAccountKey
     ).toJson.asJsObject.fields
 
-    // Raw files to upload to the bucket, with no additional processing
+    // Raw files to upload to the bucket, no additional processing needed.
     val filesToUpload = List(
       clusterFilesConfig.jupyterServerCrt,
       clusterFilesConfig.jupyterServerKey,
       clusterFilesConfig.jupyterRootCaPem)
 
-    // Raw resourcs to upload to the bucket, with no additional processing.
+    // Raw resources to upload to the bucket, no additional processing needed.
     // Note: initActionsScript and jupyterGoogleSignInJs are not included
     // because they are post-processed by templating logic.
     val resourcesToUpload = List(
@@ -262,12 +262,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   private[service] def templateFile(file: File, replacementMap: Map[String, JsValue]): String = {
-    val raw = scala.io.Source.fromFile(file).mkString
+    val raw = Source.fromFile(file).mkString
     template(raw, replacementMap)
   }
 
   private[service] def templateResource(resource: ClusterResource, replacementMap: Map[String, JsValue]): String = {
-    val raw = scala.io.Source.fromResource(s"${ClusterResourcesConfig.basePath}/${resource.string}").mkString
+    val raw = Source.fromResource(s"${ClusterResourcesConfig.basePath}/${resource.string}").mkString
     template(raw, replacementMap)
   }
 

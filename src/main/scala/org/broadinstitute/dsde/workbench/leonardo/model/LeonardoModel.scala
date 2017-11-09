@@ -55,7 +55,6 @@ case class InstanceName(string: String) extends AnyVal with StringValueClass {
 }
 
 case class ClusterResource(string: String) extends AnyVal with StringValueClass
-case class TemplatedClusterResource(string: String) extends AnyVal with StringValueClass
 case class GoogleClientId(string: String) extends AnyVal with StringValueClass
 
 object StringValueClass {
