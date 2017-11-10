@@ -35,5 +35,4 @@ function set_cookie(token, expires_in) {
     var now = new Date();
     now.setSeconds(now.getSeconds() + expires_in);
     document.cookie = "FCtoken="+token+";expires="+now.toUTCString();
-    console.info("Cookies: " + document.cookie);
 }
