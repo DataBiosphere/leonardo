@@ -7,8 +7,6 @@ import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 
-import scala.collection.JavaConverters._
-
 package object config {
   implicit val swaggerReader: ValueReader[SwaggerConfig] = ValueReader.relative { config =>
     SwaggerConfig(
@@ -33,11 +31,11 @@ package object config {
   implicit val clusterFilesConfigReader: ValueReader[ClusterFilesConfig] = ValueReader.relative { config =>
     val baseDir = config.getString("configFolderPath")
     ClusterFilesConfig(
-      new File(baseDir, "leonardoServicePem"),
-      new File(baseDir, "jupyterServerCrt"),
-      new File(baseDir, "jupyterServerKey"),
-      new File(baseDir, "jupyterRootCaPem"),
-      new File(baseDir, "jupyterRootCaKey")
+      new File(baseDir, config.getString("leonardoServicePem")),
+      new File(baseDir, config.getString("jupyterServerCrt")),
+      new File(baseDir, config.getString("jupyterServerKey")),
+      new File(baseDir, config.getString("jupyterRootCaPem")),
+      new File(baseDir, config.getString("jupyterRootCaKey"))
     )
   }
 
