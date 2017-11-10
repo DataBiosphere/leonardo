@@ -24,6 +24,8 @@ JUPYTER_PROXY_SITE_CONF=$(jupyterProxySiteConf)
 JUPYTER_INSTALL_EXTENSION_SCRIPT=$(jupyterInstallExtensionScript)
 JUPYTER_EXTENSION_URI=$(jupyterExtensionUri)
 JUPYTER_SERVICE_ACCOUNT_CREDENTIALS=$(jupyterServiceAccountCredentials)
+JUPYTER_CUSTOM_JS_URI=$(jupyterCustomJsUri)
+JUPYTER_GOOGLE_SIGN_IN_JS_URI=$(jupyterGoogleSignInJsUri)
 
 apt-get update
 apt-get install -y -q docker.io
@@ -54,6 +56,9 @@ else
   echo "" > /etc/empty
   export JUPYTER_SERVICE_ACCOUNT_CREDENTIALS=empty
 fi
+
+gsutil cp ${JUPYTER_CUSTOM_JS_URI} /etc
+gsutil cp ${JUPYTER_GOOGLE_SIGN_IN_JS_URI} /etc
 
 # Make sure the install-jupyter-extension.sh script is executable
 chmod +x /etc/install-jupyter-extension.sh
