@@ -10,7 +10,7 @@ import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, MockGoogleDataprocDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -24,9 +24,11 @@ import spray.json._
 class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures with OptionValues {
   private val configFactory = ConfigFactory.load()
   private val dataprocConfig = configFactory.as[DataprocConfig]("dataproc")
+  private val clusterFilesConfig = configFactory.as[ClusterFilesConfig]("clusterFiles")
   private val clusterResourcesConfig = configFactory.as[ClusterResourcesConfig]("clusterResources")
   private val clusterDefaultsConfig = configFactory.as[ClusterDefaultsConfig]("clusterDefaults")
   private val proxyConfig = configFactory.as[ProxyConfig]("proxy")
+  private val swaggerConfig = configFactory.as[SwaggerConfig]("swagger")
   private val bucketPath = GcsBucketName("bucket-path")
   private val googleProject = GoogleProject("test-google-project")
   private val petServiceAccount = WorkbenchUserServiceAccountEmail("petSA@test-domain.iam.gserviceaccount.com")
@@ -45,7 +47,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
     iamDAO = new MockGoogleIamDAO
     samDAO = new MockSamDAO
-    leo = new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), samDAO)
+    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), samDAO)
   }
 
   override def afterAll(): Unit = {
@@ -53,8 +55,16 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     super.afterAll()
   }
 
-  val initFiles = Array(clusterResourcesConfig.clusterDockerCompose, clusterResourcesConfig.initActionsScript, clusterResourcesConfig.jupyterServerCrt,
-    clusterResourcesConfig.jupyterServerKey, clusterResourcesConfig.jupyterRootCaPem, clusterResourcesConfig.jupyterProxySiteConf, clusterResourcesConfig.jupyterInstallExtensionScript,
+  val initFiles = List(
+    clusterResourcesConfig.clusterDockerCompose.string,
+    clusterResourcesConfig.initActionsScript.string,
+    clusterFilesConfig.jupyterServerCrt.getName,
+    clusterFilesConfig.jupyterServerKey.getName,
+    clusterFilesConfig.jupyterRootCaPem.getName,
+    clusterResourcesConfig.jupyterProxySiteConf.string,
+    clusterResourcesConfig.jupyterInstallExtensionScript.string,
+    clusterResourcesConfig.jupyterCustomJs.string,
+    clusterResourcesConfig.jupyterGoogleSignInJs.string,
     ClusterInitValues.serviceAccountCredentialsFilename
   ) map GcsRelativePath
 
@@ -302,10 +312,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "template a script using config values" in isolatedDbTest {
     // Create replacements map
-    val replacements = ClusterInitValues(googleProject, clusterName, bucketPath, testClusterRequest, dataprocConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey)).toJson.asJsObject.fields
+    val replacements = ClusterInitValues(googleProject, clusterName, bucketPath, testClusterRequest, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, Some(serviceAccountKey)).toJson.asJsObject.fields
 
     // Each value in the replacement map will replace it's key in the file being processed
-    val result = leo.template(clusterResourcesConfig.configFolderPath + clusterResourcesConfig.initActionsScript, replacements).futureValue
+    val result = leo.templateResource(clusterResourcesConfig.initActionsScript, replacements)
 
     // Check that the values in the bash script file were correctly replaced
     val expected =
@@ -316,6 +326,19 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
           |"${proxyConfig.jupyterProxyDockerImage}"
           |"${gdDAO.extensionPath.toUri}"
           |"${GcsPath(bucketPath, GcsRelativePath(ClusterInitValues.serviceAccountCredentialsFilename)).toUri}"""".stripMargin
+
+    result shouldEqual expected
+  }
+
+  it should "template google_sign_in.js with config values" in isolatedDbTest {
+    // Create replacements map
+    val replacements = ClusterInitValues(googleProject, clusterName, bucketPath, testClusterRequest, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, Some(serviceAccountKey)).toJson.asJsObject.fields
+
+    // Each value in the replacement map will replace it's key in the file being processed
+    val result = leo.templateResource(clusterResourcesConfig.jupyterGoogleSignInJs, replacements)
+
+    // Check that the values in the bash script file were correctly replaced
+    val expected = s""""${swaggerConfig.googleClientId}""""
 
     result shouldEqual expected
   }
