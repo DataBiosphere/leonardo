@@ -1,14 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
-case class ClusterResourcesConfig(
-                                   configFolderPath: String,
-                                   initActionsScript: String,
-                                   clusterDockerCompose: String,
-                                   leonardoServicePem: String,
-                                   jupyterServerCrt: String,
-                                   jupyterServerKey: String,
-                                   jupyterRootCaPem: String,
-                                   jupyterRootCaKey: String,
-                                   jupyterProxySiteConf: String,
-                                   jupyterInstallExtensionScript: String
-                                 )
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterResource
+
+case class ClusterResourcesConfig(initActionsScript: ClusterResource,
+                                  clusterDockerCompose: ClusterResource,
+                                  jupyterProxySiteConf: ClusterResource,
+                                  jupyterInstallExtensionScript: ClusterResource,
+                                  jupyterCustomJs: ClusterResource,
+                                  jupyterGoogleSignInJs: ClusterResource)
+
+object ClusterResourcesConfig {
+  val basePath = "jupyter"
+}
