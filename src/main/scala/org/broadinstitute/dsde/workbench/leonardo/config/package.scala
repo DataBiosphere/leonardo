@@ -1,8 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import java.io.File
+
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
-import org.broadinstitute.dsde.workbench.leonardo.model.{GoogleProject, GoogleServiceAccount}
+import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 
 package object config {
@@ -26,19 +28,26 @@ package object config {
     )
   }
 
-  implicit val clusterResourcesConfigReader: ValueReader[ClusterResourcesConfig] = ValueReader.relative { config =>
+  implicit val clusterFilesConfigReader: ValueReader[ClusterFilesConfig] = ValueReader.relative { config =>
+    val baseDir = config.getString("configFolderPath")
+    ClusterFilesConfig(
+      new File(baseDir, config.getString("leonardoServicePem")),
+      new File(baseDir, config.getString("jupyterServerCrt")),
+      new File(baseDir, config.getString("jupyterServerKey")),
+      new File(baseDir, config.getString("jupyterRootCaPem")),
+      new File(baseDir, config.getString("jupyterRootCaKey"))
+    )
+  }
 
+  implicit val clusterResourcesConfigReader: ValueReader[ClusterResourcesConfig] = ValueReader.relative { config =>
     ClusterResourcesConfig(
-      config.getString("configFolderPath"),
-      config.getString("initActionsScript"),
-      config.getString("clusterDockerCompose"),
-      config.getString("leonardoServicePem"),
-      config.getString("jupyterServerCrt"),
-      config.getString("jupyterServerKey"),
-      config.getString("jupyterRootCaPem"),
-      config.getString("jupyterRootCaKey"),
-      config.getString("proxySiteConf"),
-      config.getString("jupyterInstallExtensionScript"))
+      ClusterResource(config.getString("initActionsScript")),
+      ClusterResource(config.getString("clusterDockerCompose")),
+      ClusterResource(config.getString("jupyterInstallExtensionScript")),
+      ClusterResource(config.getString("proxySiteConf")),
+      ClusterResource(config.getString("jupyterCustomJs")),
+      ClusterResource(config.getString("jupyterGoogleSignInJs"))
+    )
   }
 
   implicit val clusterDefaultConfigReader: ValueReader[ClusterDefaultsConfig] = ValueReader.relative { config =>
