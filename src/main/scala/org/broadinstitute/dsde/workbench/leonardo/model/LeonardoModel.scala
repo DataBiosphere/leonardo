@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.model
 
-import java.io.File
 import java.net.URL
 import java.time.Instant
 import java.util.UUID
@@ -55,7 +54,6 @@ case class InstanceName(string: String) extends AnyVal with StringValueClass {
 }
 
 case class ClusterResource(string: String) extends AnyVal with StringValueClass
-case class GoogleClientId(string: String) extends AnyVal with StringValueClass
 
 object StringValueClass {
   type LabelMap = Map[String, String]
@@ -211,7 +209,7 @@ object ClusterInitValues {
       serviceAccountKey.map(_ => GcsPath(bucketName, GcsRelativePath(serviceAccountCredentialsFilename)).toUri).getOrElse(""),
       GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterCustomJs.string)).toUri,
       GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterGoogleSignInJs.string)).toUri,
-      swaggerConfig.googleClientId.string
+      swaggerConfig.googleClientId
     )
 }
 

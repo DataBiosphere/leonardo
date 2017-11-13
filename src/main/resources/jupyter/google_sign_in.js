@@ -9,9 +9,10 @@ require.config({
     }
 })
 
-/// TEMPLATED CODE
+// TEMPLATED CODE
+// Leonardo has logic to find/replace templated values in the format $(...).
+// This will be replaced with the real Google Client ID before uploading to the notebook server.
 var clientId = $(googleClientId);
-///
 
 require(['gapi'], function(gapi) {
     gapi.load('auth2', function() {
@@ -32,7 +33,7 @@ require(['gapi'], function(gapi) {
 });
 
 function set_cookie(token, expires_in) {
-    var now = new Date();
-    now.setSeconds(now.getSeconds() + expires_in);
-    document.cookie = "FCtoken="+token+";expires="+now.toUTCString();
+    var expiresDate = new Date();
+    expiresDate.setSeconds(expiresDate.getSeconds() + expires_in);
+    document.cookie = "FCtoken="+token+";expires="+expiresDate.toUTCString();
 }

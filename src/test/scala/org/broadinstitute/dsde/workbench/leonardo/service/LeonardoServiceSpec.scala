@@ -338,7 +338,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val result = leo.templateResource(clusterResourcesConfig.jupyterGoogleSignInJs, replacements)
 
     // Check that the values in the bash script file were correctly replaced
-    val expected = s""""${swaggerConfig.googleClientId.string}""""
+    val expected = s""""${swaggerConfig.googleClientId}""""
 
     result shouldEqual expected
   }
