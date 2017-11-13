@@ -12,7 +12,7 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils, VCMockitoMatchers}
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath}
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterResourcesConfig, DataprocConfig, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{DataprocDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -33,8 +33,10 @@ import scala.concurrent.{ExecutionContext, Future}
 class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll with TestComponent with VCMockitoMatchers with CommonTestData with GcsPathUtils { testKit =>
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
+  val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
   val proxyConfig = config.as[ProxyConfig]("proxy")
+  val swaggerConfig = config.as[SwaggerConfig]("swagger")
 
   val creatingCluster = Cluster(
     clusterName = name1,
@@ -75,7 +77,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
   def createClusterSupervisor(dao: DataprocDAO): ActorRef = {
     val actor = system.actorOf(TestClusterSupervisorActor.props(dataprocConfig, dao, new MockGoogleIamDAO, DbSingleton.ref, testKit))
-    new LeonardoService(dataprocConfig, clusterResourcesConfig, proxyConfig, dao, new MockGoogleIamDAO, DbSingleton.ref, actor, new MockSamDAO)
+    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, dao, new MockGoogleIamDAO, DbSingleton.ref, actor, new MockSamDAO)
     actor
   }
 

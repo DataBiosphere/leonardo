@@ -11,7 +11,7 @@ import akka.http.scaladsl.model.StatusCodes
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.{WorkbenchUserServiceAccountEmail, WorkbenchUserServiceAccountKey, WorkbenchUserServiceAccountKeyId}
@@ -52,6 +52,8 @@ case class FirewallRuleName(string: String) extends AnyVal with StringValueClass
 case class InstanceName(string: String) extends AnyVal with StringValueClass {
   override def productPrefix: String = "Instance "
 }
+
+case class ClusterResource(string: String) extends AnyVal with StringValueClass
 
 object StringValueClass {
   type LabelMap = Map[String, String]
@@ -188,22 +190,26 @@ object ClusterInitValues {
   val serviceAccountCredentialsFilename = "service-account-credentials.json"
 
   def apply(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest, dataprocConfig: DataprocConfig,
-            clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig, serviceAccountKey: Option[WorkbenchUserServiceAccountKey]): ClusterInitValues =
+            clusterFilesConfig: ClusterFilesConfig, clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig, swaggerConfig: SwaggerConfig,
+            serviceAccountKey: Option[WorkbenchUserServiceAccountKey]): ClusterInitValues =
     ClusterInitValues(
       googleProject.string,
       clusterName.string,
       dataprocConfig.dataprocDockerImage,
       proxyConfig.jupyterProxyDockerImage,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterServerCrt)).toUri,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterServerKey)).toUri,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterRootCaPem)).toUri,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.clusterDockerCompose)).toUri,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterProxySiteConf)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterFilesConfig.jupyterServerCrt.getName)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterFilesConfig.jupyterServerKey.getName)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterFilesConfig.jupyterRootCaPem.getName)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.clusterDockerCompose.string)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterProxySiteConf.string)).toUri,
       dataprocConfig.jupyterServerName,
       proxyConfig.proxyServerName,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterInstallExtensionScript)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterInstallExtensionScript.string)).toUri,
       clusterRequest.jupyterExtensionUri.map(_.toUri).getOrElse(""),
-      serviceAccountKey.map(_ => GcsPath(bucketName, GcsRelativePath(serviceAccountCredentialsFilename)).toUri).getOrElse("")
+      serviceAccountKey.map(_ => GcsPath(bucketName, GcsRelativePath(serviceAccountCredentialsFilename)).toUri).getOrElse(""),
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterCustomJs.string)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterGoogleSignInJs.string)).toUri,
+      swaggerConfig.googleClientId
     )
 }
 
@@ -222,7 +228,10 @@ case class ClusterInitValues(googleProject: String,
                              proxyServerName: String,
                              jupyterInstallExtensionScript: String,
                              jupyterExtensionUri: String,
-                             jupyterServiceAccountCredentials: String)
+                             jupyterServiceAccountCredentials: String,
+                             jupyterCustomJsUri: String,
+                             jupyterGoogleSignInJsUri: String,
+                             googleClientId: String)
 
 
 object FirewallRuleRequest {
@@ -321,6 +330,6 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val machineConfigFormat = jsonFormat7(MachineConfig.apply)
   implicit val clusterFormat = jsonFormat14(Cluster.apply)
   implicit val clusterRequestFormat = jsonFormat4(ClusterRequest)
-  implicit val clusterInitValuesFormat = jsonFormat14(ClusterInitValues.apply)
+  implicit val clusterInitValuesFormat = jsonFormat17(ClusterInitValues.apply)
   implicit val defaultLabelsFormat = jsonFormat5(DefaultLabels.apply)
 }
