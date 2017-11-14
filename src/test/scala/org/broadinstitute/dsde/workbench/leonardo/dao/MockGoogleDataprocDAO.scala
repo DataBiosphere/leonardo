@@ -23,6 +23,7 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
   val bucketObjects: mutable.Set[GcsPath] = mutable.Set()  // Set of Bucket Name and Object
   val extensionPath = GcsPath(GcsBucketName("bucket"), GcsRelativePath("my_extension.tar.gz"))
   val badClusterName = ClusterName("badCluster")
+  val errorClusterName = ClusterName("erroredCluster")
 
   private def googleID = UUID.randomUUID()
 
@@ -39,8 +40,12 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
   override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, serviceAccount: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[Cluster] = {
     if (clusterName == badClusterName) {
       Future.failed(CallToGoogleApiFailedException(googleProject, clusterName.string, 500, "Bad Cluster!"))
+    } else if(clusterName == errorClusterName){
+      val cluster = Cluster.create(clusterRequest, clusterName, googleProject, googleID, OperationName("op-name"), serviceAccount, clusterDefaultsConfig, ClusterStatus.Error)
+      clusters += clusterName -> cluster
+      Future.successful(cluster)
     } else {
-      val cluster = Cluster.create(clusterRequest, clusterName, googleProject, googleID, OperationName("op-name"), serviceAccount, clusterDefaultsConfig)
+      val cluster = Cluster.create(clusterRequest, clusterName, googleProject, googleID, OperationName("op-name"), serviceAccount, clusterDefaultsConfig, ClusterStatus.Creating)
       clusters += clusterName -> cluster
       Future.successful(cluster)
     }

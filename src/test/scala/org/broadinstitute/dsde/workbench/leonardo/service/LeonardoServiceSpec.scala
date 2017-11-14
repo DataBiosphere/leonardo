@@ -254,6 +254,26 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     iamDAO.serviceAccountKeys should not contain key (samDAO.serviceAccount)
   }
 
+  it should "delete a cluster that has status Error" in isolatedDbTest {
+    // check that the cluster does not exist
+    gdDAO.clusters should not contain key (clusterName)
+
+    // create the cluster
+    val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, gdDAO.errorClusterName, testClusterRequest).futureValue
+
+    // check that the cluster was created
+    gdDAO.clusters should contain key (gdDAO.errorClusterName)
+
+    // delete the cluster
+    val clusterDeleteResponse = leo.deleteCluster(googleProject, gdDAO.errorClusterName).futureValue
+
+    // the delete response should indicate 1 cluster was deleted
+    clusterDeleteResponse shouldEqual 1
+
+    // check that the cluster no longer exists
+    gdDAO.clusters should not contain key (gdDAO.errorClusterName)
+  }
+
   it should "throw ClusterNotFoundException when deleting non existent clusters" in isolatedDbTest {
     whenReady( leo.deleteCluster(GoogleProject("nonexistent"), ClusterName("cluster")).failed ) { exc =>
       exc shouldBe a [ClusterNotFoundException]

@@ -96,7 +96,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName): Future[Int] = {
     getActiveClusterDetails(googleProject, clusterName) flatMap { cluster =>
-      if(cluster.status.isActive) {
+      if(cluster.status.isDeletable) {
         // Delete the service account key in Google, if present
         val deleteServiceAccountKey = dbRef.inTransaction { dataAccess =>
           dataAccess.clusterQuery.getServiceAccountKeyId(googleProject, clusterName)
