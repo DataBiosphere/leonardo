@@ -84,6 +84,10 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
     Future.successful(())
   }
 
+  override def setStagingBucketOwnership(cluster: Cluster): Future[Unit] = {
+    Future.successful(())
+  }
+
   override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[ClusterStatus] = {
     Future.successful {
       if (clusters.contains(clusterName)) ClusterStatus.Running
