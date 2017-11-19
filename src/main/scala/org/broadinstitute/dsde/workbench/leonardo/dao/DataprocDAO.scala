@@ -5,7 +5,6 @@ import java.time.Instant
 import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath}
-import org.broadinstitute.dsde.workbench.leonardo.config.ClusterDefaultsConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserServiceAccountEmail}
@@ -30,6 +29,8 @@ trait DataprocDAO {
   def uploadToBucket(googleProject: GoogleProject, bucketPath: GcsPath, content: String): Future[Unit]
 
   def bucketObjectExists(googleProject: GoogleProject, bucketPath: GcsPath): Future[Boolean]
+
+  def setStagingBucketOwnership(cluster: Cluster): Future[Unit]
 
   def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[LeoClusterStatus]
 
