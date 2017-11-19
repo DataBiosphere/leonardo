@@ -160,16 +160,9 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
     val gceClusterConfig = new GceClusterConfig().setTags(List(proxyConfig.networkTag).asJava)
 
     // Create the cluster as the pet service account if configured to do so
-    // Otherwise set the necessary Hadoop properties to enable the cluster project's
-    // default Compute Engine service account to use the pet's credentials
-    val authProperties: Map[String, String] = if (dataprocConfig.createClusterAsPetServiceAccount) {
+    if (dataprocConfig.createClusterAsPetServiceAccount) {
       gceClusterConfig.setServiceAccount(serviceAccount.value).setServiceAccountScopes(oauth2Scopes.asJava)
-      Map.empty
     }
-    else Map(
-      "core:google.cloud.auth.service.account.enable" -> "true",
-      "core:google.cloud.auth.service.account.json.keyfile" -> s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}"
-    )
 
     // Create a NodeInitializationAction, which specifies the executable to run on a node.
     //    This executable is our init-actions.sh, which will stand up our jupyter server and proxy.
@@ -183,7 +176,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
       .setDiskConfig(new DiskConfig().setBootDiskSizeGb(machineConfig.masterDiskSize.get))
 
     // Create a Cluster Config and give it the GceClusterConfig, the NodeInitializationAction and the InstanceGroupConfig
-    createClusterConfig(machineConfig, authProperties)
+    createClusterConfig(machineConfig)
       .setGceClusterConfig(gceClusterConfig)
       .setInitializationActions(initActions.asJava)
       .setMasterConfig(masterConfig)
@@ -191,15 +184,38 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
 
   // Expects a Machine Config with master configs defined for a 0 worker cluster and both master and worker
   // configs defined for 2 or more workers.
-  private def createClusterConfig(machineConfig: MachineConfig, swProps: Map[String, String]): ClusterConfig = {
+  private def createClusterConfig(machineConfig: MachineConfig): ClusterConfig = {
+
+    val swConfig: SoftwareConfig = getSoftwareConfig(machineConfig.numberOfWorkers)
+
     // If the number of workers is zero, make a Single Node cluster, else make a Standard one
     if (machineConfig.numberOfWorkers.get == 0) {
-      // Set a SoftwareConfig property that makes the cluster have only one node
-      val zeroWorkerSwProp = "dataproc:dataproc.allow.zero.workers" -> "true"
-      new ClusterConfig().setSoftwareConfig(new SoftwareConfig().setProperties((swProps + zeroWorkerSwProp).asJava))
+      new ClusterConfig().setSoftwareConfig(swConfig)
     }
     else // Standard, multi node cluster
-      getMultiNodeClusterConfig(machineConfig).setSoftwareConfig(new SoftwareConfig().setProperties(swProps.asJava))
+      getMultiNodeClusterConfig(machineConfig).setSoftwareConfig(swConfig)
+  }
+
+  private def getSoftwareConfig(numWorkers: Option[Int]) = {
+    val authProps: Map[String, String] = if (dataprocConfig.createClusterAsPetServiceAccount)
+      Map.empty
+    else {
+      // Set the necessary Hadoop properties to enable the cluster project's
+      // default Compute Engine service account to use the pet's credentials
+      Map(
+        "core:google.cloud.auth.service.account.enable" -> "true",
+        "core:google.cloud.auth.service.account.json.keyfile" -> s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}"
+      )
+    }
+
+    val workerProps: Map[String, String] = if (numWorkers.get == 0) {
+      // Set a SoftwareConfig property that makes the cluster have only one node
+      Map("dataproc:dataproc.allow.zero.workers" -> "true")
+    }
+    else
+      Map.empty
+
+    new SoftwareConfig().setProperties((authProps ++ workerProps).asJava)
   }
 
   private def getMultiNodeClusterConfig(machineConfig: MachineConfig): ClusterConfig = {
