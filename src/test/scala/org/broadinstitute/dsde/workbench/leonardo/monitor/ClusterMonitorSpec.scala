@@ -19,7 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted}
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.model.{WorkbenchUserServiceAccountEmail, WorkbenchUserServiceAccountKey, WorkbenchUserServiceAccountKeyId}
-import org.mockito.ArgumentMatchers._
+import org.mockito.ArgumentMatchers.{any, anyString, eq => mockitoEq}
 import org.mockito.Mockito._
 import org.scalatest.mockito.MockitoSugar
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
@@ -101,6 +101,10 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     when {
       dao.deleteBucket(vcEq(dataprocConfig.leoGoogleProject), vcAny(GcsBucketName))(any[ExecutionContext])
+    } thenReturn Future.successful(())
+
+    when {
+      dao.setStagingBucketOwnership(mockitoEq(creatingCluster))
     } thenReturn Future.successful(())
 
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
@@ -295,6 +299,10 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful {
       creatingCluster.copy(googleId=newClusterId)
     }
+
+    when {
+      dao.setStagingBucketOwnership(mockitoEq(creatingCluster.copy(googleId=newClusterId)))
+    } thenReturn Future.successful(())
 
     when {
       dao.updateFirewallRule(vcEq(creatingCluster.googleProject))
