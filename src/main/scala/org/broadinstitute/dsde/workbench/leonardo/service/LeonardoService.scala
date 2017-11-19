@@ -139,7 +139,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
      - Create the cluster in the google project
    Currently, the bucketPath of the clusterRequest is not used - it will be used later as a place to store notebook results */
   private[service] def createGoogleCluster(serviceAccount: WorkbenchUserServiceAccountEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName, Option[WorkbenchUserServiceAccountKey])] = {
-    val bucketName = generateUniqueBucketName(clusterName.string)
+    val initBucketName = generateUniqueBucketName(clusterName.string)
     for {
       // Validate that the Jupyter extension URI is a valid URI and references a real GCS object
       _ <- validateJupyterExtensionUri(googleProject, clusterRequest.jupyterExtensionUri)
@@ -150,11 +150,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Add Dataproc Worker role to the pet service account if configured to do so
       _ <- addDataprocWorkerRoleToServiceAccount(googleProject, serviceAccount)
       // Create the bucket in leo's google project and populate with initialization files
-      initBucketPath <- initializeBucket(googleProject, clusterName, bucketName, clusterRequest, serviceAccount, serviceAccountKeyOpt)
+      initBucketPath <- initializeBucket(googleProject, clusterName, initBucketName, clusterRequest, serviceAccount, serviceAccountKeyOpt)
       // Once the bucket is ready, build the cluster
-      cluster <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, bucketName, serviceAccount).andThen { case Failure(_) =>
+      cluster <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, initBucketName, serviceAccount).andThen { case Failure(_) =>
         // If cluster creation fails, delete the init bucket asynchronously
-        gdDAO.deleteBucket(googleProject, bucketName)
+        gdDAO.deleteBucket(googleProject, initBucketName)
       }
     } yield {
       (cluster, initBucketPath, serviceAccountKeyOpt)

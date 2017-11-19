@@ -2,9 +2,12 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import akka.actor.{Actor, Props}
 import akka.pattern.pipe
+import cats.data.OptionT
+import com.google.api.services.storage.model.BucketAccessControl
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
+import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
 import org.broadinstitute.dsde.workbench.google.model.{GoogleProject => WorkbenchGoogleProject}
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, DataprocDAO}
@@ -116,12 +119,12 @@ class ClusterMonitorActor(val cluster: Cluster,
     */
   private def handleReadyCluster(publicIp: IP): Future[ClusterMonitorMessage] = {
     // Get the init bucket path for this cluster
-    val bucketPathFuture = dbRef.inTransaction { dataAccess =>
+    val initBucketPathFuture = dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getInitBucket(cluster.googleProject, cluster.clusterName)
     }
 
     // Then delete it
-    val deleteBucketFuture = bucketPathFuture flatMap {
+    val deleteInitBucketFuture = initBucketPathFuture flatMap {
       case None => Future.successful( logger.warn(s"Could not lookup bucket for cluster ${cluster.googleProject}/${cluster.clusterName}: cluster not in db") )
       case Some(bucketPath) =>
         gdDAO.deleteBucket(dataprocConfig.leoGoogleProject, bucketPath.bucketName) map { _ =>
@@ -131,17 +134,21 @@ class ClusterMonitorActor(val cluster: Cluster,
 
     // Then remove the Dataproc Worker IAM role for the pet service account
     // Only do this if the cluster was created with the pet service account.
-    val iamFuture = deleteBucketFuture flatMap { _ => removeIamRolesForUser() }
+    val iamFuture = deleteInitBucketFuture flatMap { _ => removeIamRolesForUser() }
 
-    // Then update the database
-    val dbFuture = iamFuture flatMap { _ =>
-      dbRef.inTransaction { dataAccess =>
+    // Add Staging Bucket ACLs to the pet
+    // Only do this if the cluster was not created with the pet service account.
+    val bucketACLFuture = setStagingBucketACLsForUser()
+
+    for {
+      _ <- iamFuture
+      _ <- bucketACLFuture
+      // update DB after auth futures finish
+      _ <- dbRef.inTransaction { dataAccess =>
         dataAccess.clusterQuery.setToRunning(cluster.googleId, publicIp)
       }
-    }
-
-    // Finally pipe a shutdown message to this actor
-    dbFuture map { _ =>
+    } yield {
+      // Finally pipe a shutdown message to this actor
       logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is ready for use!")
       ShutdownActor()
     }
@@ -240,5 +247,15 @@ class ClusterMonitorActor(val cluster: Cluster,
     if (dataprocConfig.createClusterAsPetServiceAccount) {
       googleIamDAO.removeIamRolesForUser(WorkbenchGoogleProject(cluster.googleProject.string), cluster.googleServiceAccount, Set("roles/dataproc.worker"))
     } else Future.successful(())
+  }
+
+  private def setStagingBucketACLsForUser(): Future[Unit] = {
+    // Add Staging Bucket ACLs to the pet
+    // Only do this if the cluster was not created with the pet service account.
+    if (dataprocConfig.createClusterAsPetServiceAccount)
+      Future.successful(())
+    else {
+      gdDAO.setStagingBucketOwnership(cluster)
+    }
   }
 }
