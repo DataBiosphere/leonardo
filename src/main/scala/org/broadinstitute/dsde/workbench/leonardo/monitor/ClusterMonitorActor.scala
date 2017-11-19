@@ -138,17 +138,15 @@ class ClusterMonitorActor(val cluster: Cluster,
 
     // Add Staging Bucket ACLs to the pet
     // Only do this if the cluster was not created with the pet service account.
-    val bucketACLFuture: Future[Unit] = setStagingBucketACLsForUser()
-
-    // Then update the database
-    val dbFuture: Future[Int] = dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.setToRunning(cluster.googleId, publicIp)
-    }
+    val bucketACLFuture = setStagingBucketACLsForUser()
 
     for {
       _ <- iamFuture
       _ <- bucketACLFuture
-      _ <- dbFuture
+      // update DB after auth futures finish
+      _ <- dbRef.inTransaction { dataAccess =>
+        dataAccess.clusterQuery.setToRunning(cluster.googleId, publicIp)
+      }
     } yield {
       // Finally pipe a shutdown message to this actor
       logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is ready for use!")
@@ -254,7 +252,8 @@ class ClusterMonitorActor(val cluster: Cluster,
   private def setStagingBucketACLsForUser(): Future[Unit] = {
     // Add Staging Bucket ACLs to the pet
     // Only do this if the cluster was not created with the pet service account.
-    if (dataprocConfig.createClusterAsPetServiceAccount) Future.successful(())
+    if (dataprocConfig.createClusterAsPetServiceAccount)
+      Future.successful(())
     else {
       gdDAO.setStagingBucketOwnership(cluster)
     }
