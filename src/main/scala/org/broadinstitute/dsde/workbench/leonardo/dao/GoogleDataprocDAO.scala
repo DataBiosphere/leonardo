@@ -370,22 +370,22 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
     val entity: String = s"user-${cluster.googleServiceAccount.value}"
 
     // set owner access for the bucket itself
-    val bacInsert = {
+    def bacInsert(bucket: GcsBucketName) = {
       val acl = new BucketAccessControl().setEntity(entity).setRole("OWNER")
-      storage.bucketAccessControls().insert(cluster.googleBucket.name, acl)
+      storage.bucketAccessControls().insert(bucket.name, acl)
     }
 
     // set default owner access for objects created in the bucket
-    val doacInsert = {
+    def doacInsert(bucket: GcsBucketName) = {
       val acl = new ObjectAccessControl().setEntity(entity).setRole("OWNER")
-      storage.defaultObjectAccessControls().insert(cluster.googleBucket.name, acl)
+      storage.defaultObjectAccessControls().insert(bucket.name, acl)
     }
 
     val transformed: OptionT[Future, Unit] = for {
       dCluster <- OptionT.liftF[Future, DataprocCluster] { getCluster(cluster.googleProject, cluster.clusterName) }
       stagingBucket <- OptionT.fromOption { getStagingBucket(dCluster) }
-      _ <- OptionT.liftF[Future, BucketAccessControl] { executeGoogleRequestAsync(cluster.googleProject, s"Bucket ${cluster.googleBucket.name}", bacInsert) }
-      _ <- OptionT.liftF[Future, ObjectAccessControl] { executeGoogleRequestAsync(cluster.googleProject, s"Bucket ${cluster.googleBucket.name}", doacInsert) }
+      _ <- OptionT.liftF[Future, BucketAccessControl] { executeGoogleRequestAsync(cluster.googleProject, s"Bucket ${stagingBucket.name}", bacInsert(stagingBucket)) }
+      _ <- OptionT.liftF[Future, ObjectAccessControl] { executeGoogleRequestAsync(cluster.googleProject, s"Bucket ${stagingBucket.name}", doacInsert(stagingBucket)) }
     } yield ()
 
     transformed.value.void
