@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.firecloud.page
 
-import org.broadinstitute.dsde.firecloud.test.WebBrowserUtil
+import org.broadinstitute.dsde.workbench.util.WebBrowserUtil
 import org.openqa.selenium.WebDriver
 import org.scalatest.selenium.WebBrowser
 

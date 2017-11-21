@@ -1,4 +1,4 @@
-package org.broadinstitute.dsde.firecloud.util
+package org.broadinstitute.dsde.workbench.util
 
 import com.typesafe.scalalogging.LazyLogging
 

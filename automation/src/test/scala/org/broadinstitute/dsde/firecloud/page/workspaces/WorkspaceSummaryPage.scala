@@ -4,7 +4,8 @@ import org.broadinstitute.dsde.firecloud.api.WorkspaceAccessLevel
 import org.broadinstitute.dsde.firecloud.api.WorkspaceAccessLevel.WorkspaceAccessLevel
 import org.broadinstitute.dsde.firecloud.config.FireCloudConfig
 import org.broadinstitute.dsde.firecloud.page.workspaces.methodconfigs.WorkspaceMethodConfigListPage
-import org.broadinstitute.dsde.firecloud.page.{PageUtil, _}
+import org.broadinstitute.dsde.firecloud.page._
+import org.broadinstitute.dsde.workbench.page.PageUtil
 import org.openqa.selenium.WebDriver
 import org.scalatest.selenium.Page
 
