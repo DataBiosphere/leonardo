@@ -7,6 +7,6 @@ object LeonardoConfig extends WorkbenchConfig {
 
   object Leonardo {
     val apiUrl: String = leonardo.getString("apiUrl")
-    val notebooksServiceAccountEmail = leonardo.getString("notebooksServiceAccountEmail")
+    val notebooksServiceAccountEmail: String = leonardo.getString("notebooksServiceAccountEmail")
   }
 }

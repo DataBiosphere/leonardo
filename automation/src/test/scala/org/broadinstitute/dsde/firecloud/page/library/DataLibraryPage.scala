@@ -1,7 +1,8 @@
 package org.broadinstitute.dsde.firecloud.page.library
 
 import org.broadinstitute.dsde.firecloud.config.FireCloudConfig
-import org.broadinstitute.dsde.firecloud.page.{AuthenticatedPage, PageUtil}
+import org.broadinstitute.dsde.firecloud.page.AuthenticatedPage
+import org.broadinstitute.dsde.workbench.page.PageUtil
 import org.openqa.selenium.WebDriver
 import org.scalatest.selenium.Page
 
