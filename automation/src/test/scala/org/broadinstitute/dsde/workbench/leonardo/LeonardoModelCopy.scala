@@ -26,11 +26,35 @@ case class GcsRelativePath(name: String) extends AnyVal
 /** A valid GCS bucket name */
 case class GcsBucketName(name: String) extends AnyVal
 
+case class WorkbenchUserServiceAccountEmail(value: String) extends AnyVal
+
+case class MachineConfig(numberOfWorkers: Option[Int] = None,
+                         masterMachineType: Option[String] = None,
+                         masterDiskSize: Option[Int] = None,  //min 10
+                         workerMachineType: Option[String] = None,
+                         workerDiskSize: Option[Int] = None,   //min 10
+                         numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
+                         numberOfPreemptibleWorkers: Option[Int] = None
+                        )
+object MachineConfig {
+  // TODO: something less hacky
+  def apply(m: Map[String, String]): MachineConfig = MachineConfig(
+    m.get("numberOfWorkers").map(Integer.parseInt),
+    m.get("masterMachineType"),
+    m.get("masterDiskSize").map(Integer.parseInt),
+    m.get("workerMachineType"),
+    m.get("workerDiskSize").map(Integer.parseInt),
+    m.get("numberOfWorkerLocalSSDs").map(Integer.parseInt),
+    m.get("numberOfPreemptibleWorkers").map(Integer.parseInt)
+  )
+}
+
 case class Cluster(clusterName: ClusterName,
                    googleId: UUID,
                    googleProject: GoogleProject,
                    googleServiceAccount: GoogleServiceAccount,
                    googleBucket: GcsBucketName,
+                   machineConfig: MachineConfig,
                    clusterUrl: URL,
                    operationName: OperationName,
                    status: ClusterStatus,
@@ -41,14 +65,13 @@ case class Cluster(clusterName: ClusterName,
                    jupyterExtensionUri: Option[GcsPath])
 
 case class ClusterRequest(bucketPath: GcsBucketName,
-                          serviceAccount: GoogleServiceAccount,
                           labels: LabelMap,
-                          jupyterExtensionUri: Option[GcsPath])
+                          jupyterExtensionUri: Option[GcsPath] = None)
 
 case class DefaultLabels(clusterName: ClusterName,
                          googleProject: GoogleProject,
                          googleBucket: GcsBucketName,
-                         serviceAccount: GoogleServiceAccount,
+                         serviceAccount: WorkbenchUserServiceAccountEmail,
                          notebookExtension: Option[GcsPath]) {
 
   // TODO don't hardcode fields
@@ -59,7 +82,7 @@ case class DefaultLabels(clusterName: ClusterName,
       "clusterName" -> clusterName.string,
       "googleProject" -> googleProject.string,
       "googleBucket" -> googleBucket.name,
-      "serviceAccount" -> serviceAccount.string
+      "serviceAccount" -> serviceAccount.value
     ) ++ ext
   }
 }

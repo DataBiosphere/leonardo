@@ -8,6 +8,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.api.WorkbenchClient
 import org.broadinstitute.dsde.workbench.config.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
+import org.openqa.selenium.WebDriver
 
 /**
   * Leonardo API service client.
@@ -32,6 +33,7 @@ object Leonardo extends WorkbenchClient with LazyLogging {
                                     googleProject: GoogleProject,
                                     googleServiceAccount: GoogleServiceAccount,
                                     googleBucket: GcsBucketName,
+                                    machineConfig: Map[String, String],
                                     clusterUrl: URL,
                                     operationName: OperationName,
                                     status: String,
@@ -46,6 +48,7 @@ object Leonardo extends WorkbenchClient with LazyLogging {
         googleProject,
         googleServiceAccount,
         googleBucket,
+        MachineConfig(machineConfig),
         clusterUrl,
         operationName,
         ClusterStatus.withName(status),
@@ -58,6 +61,16 @@ object Leonardo extends WorkbenchClient with LazyLogging {
 
     def handleClusterResponse(response: String): Cluster = mapper.readValue(response, classOf[ClusterKluge]).toCluster
 
+    def handleClusterSeqResponse(response: String): List[Cluster] = {
+      // this does not work, due to type erasure
+      // mapper.readValue(response, classOf[List[ClusterKluge]])
+
+      mapper.readValue(response, classOf[List[_]]).map { clusterAsAny =>
+        val clusterAsJson = mapper.writeValueAsString(clusterAsAny)
+        mapper.readValue(clusterAsJson, classOf[ClusterKluge]).toCluster
+      }
+    }
+
 
 
 
@@ -65,9 +78,14 @@ object Leonardo extends WorkbenchClient with LazyLogging {
     def clusterPath(googleProject: GoogleProject, clusterName: ClusterName): String =
       s"api/cluster/${googleProject.string}/${clusterName.string}"
 
-    def list()(implicit token: AuthToken): String = {
+    def list()(implicit token: AuthToken): Seq[Cluster] = {
       logger.info(s"Listing all active clusters: GET /api/clusters")
-      parseResponse(getRequest(url + "api/clusters"))
+      handleClusterSeqResponse(parseResponse(getRequest(url + "api/clusters")))
+    }
+
+    def listIncludingDeleted()(implicit token: AuthToken): Seq[Cluster] = {
+      logger.info(s"Listing all clusters including deleted: GET /api/clusters?includeDeleted=true")
+      handleClusterSeqResponse(parseResponse(getRequest(url + "api/clusters?includeDeleted=true")))
     }
 
     def create(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(implicit token: AuthToken): Cluster = {
@@ -86,6 +104,18 @@ object Leonardo extends WorkbenchClient with LazyLogging {
       val path = clusterPath(googleProject, clusterName)
       logger.info(s"Delete cluster: DELETE /$path")
       deleteRequest(url + path)
+    }
+
+  }
+
+  object notebooks {
+    def notebooksPath(googleProject: GoogleProject, clusterName: ClusterName): String =
+      s"notebooks/${googleProject.string}/${clusterName.string}"
+
+    def get(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver): NotebooksListPage = {
+      val path = notebooksPath(googleProject, clusterName)
+      logger.info(s"Get notebook: GET /$path")
+      new NotebooksListPage(url + path)
     }
 
   }
