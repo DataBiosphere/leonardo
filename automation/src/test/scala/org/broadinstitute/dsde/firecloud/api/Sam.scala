@@ -5,6 +5,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.firecloud.config.FireCloudConfig
 import org.broadinstitute.dsde.workbench.api.WorkbenchClient
 import org.broadinstitute.dsde.workbench.config.AuthToken
+import org.broadinstitute.dsde.workbench.leonardo.WorkbenchUserServiceAccountEmail
 
 /**
   * Sam API service client. This should only be used when Orchestration does
@@ -28,6 +29,15 @@ object Sam extends WorkbenchClient with LazyLogging {
         case StatusCodes.NotFound => Option(false)
         case _ => None
       }
+    }
+  }
+
+  object user {
+    def petServiceAccount()(implicit token: AuthToken): WorkbenchUserServiceAccountEmail = {
+      val response = parseResponse(getRequest(url + s"api/user/petServiceAccount"))
+      // parses the returned JSON string - the raw string includes double quotes
+      val email = mapper.readValue(response, classOf[String])
+      WorkbenchUserServiceAccountEmail(email)
     }
   }
 }

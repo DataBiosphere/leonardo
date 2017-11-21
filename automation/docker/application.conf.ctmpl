@@ -4,7 +4,30 @@
 {{with $dir := env "ROOT_DIR"}}
 {{with $local_ui := env "LOCAL_UI"}}
 {{with $users := vault (printf "secret/dsde/firecloud/%s/common/users" $environment)}}
+{{with $secrets := vault (printf "secret/dsde/firecloud/%s/common/secrets" $environment)}}
 {{with $leoServiceAccount := vault (printf "secret/dsde/firecloud/%s/leonardo/leonardo-swagger-account.json" $environment)}}
+
+fireCloud {
+  baseUrl = {{if eq $local_ui "true"}}"http://local.broadinstitute.org/"{{else if eq $environment "alpha"}}"https://firecloud.dsde-alpha.broadinstitute.org/"{{else if eq $environment "prod"}}"https://portal.firecloud.org/"{{else}}"https://firecloud-fiab.dsde-{{$environment}}.broadinstitute.org:22443/"{{end}}
+  {{if eq $environment "alpha"}}
+  orchApiUrl = "https://firecloud-orchestration.dsde-alpha.broadinstitute.org/"
+  rawlsApiUrl = "https://rawls.dsde-alpha.broadinstitute.org/"
+  samApiUrl = "https://sam.dsde-alpha.broadinstitute.org/"
+  thurloeApiUrl = "https://thurloe.dsde-alpha.broadinstitute.org/"
+  {{else if eq $environment "prod"}}
+  orchApiUrl = "https://api.firecloud.org/"
+  rawlsApiUrl = "https://rawls.dsde-prod.broadinstitute.org"
+  samApiUrl = "https://sam.dsde-prod.broadinstitute.org/"
+  thurloeApiUrl = "https://thurloe.dsde-prod.broadinstitute.org/"
+  {{else}}
+  orchApiUrl = "https://firecloud-orchestration-fiab.dsde-{{$environment}}.broadinstitute.org:23443/"
+  rawlsApiUrl = "https://rawls-fiab.dsde-{{$environment}}.broadinstitute.org:24443/"
+  samApiUrl = "https://sam-fiab.dsde-{{$environment}}.broadinstitute.org:29443/"
+  thurloeApiUrl = "https://thurloe-fiab.dsde-{{$environment}}.broadinstitute.org:25443/"
+  {{end}}
+  fireCloudId = "{{$secrets.Data.firecloud_id}}"
+}
+
 leonardo {
   {{if eq $environment "alpha"}}
   apiUrl = "https://leonardo.dsde-alpha.broadinstitute.org/"
@@ -48,6 +71,7 @@ chromeSettings {
   chromedriverHost = "http://hub:4444/wd/hub"
   chromedriverPath = "/usr/local/bin/chromedriver"
 }
+{{end}}
 {{end}}
 {{end}}
 {{end}}

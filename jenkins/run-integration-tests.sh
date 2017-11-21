@@ -10,7 +10,7 @@ if [ -z "${ENV}" ]; then
     exit 2
 fi
 
-SCALATESTS=automation
+SCALATESTS=automation-leo
 VAULT_TOKEN=$(cat /etc/vault-token-dsde)
 
 # build test docker image

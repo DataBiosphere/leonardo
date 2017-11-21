@@ -1,4 +1,4 @@
-package org.broadinstitute.dsde.firecloud.page
+package org.broadinstitute.dsde.workbench.page
 
 import org.openqa.selenium.WebDriver
 import org.scalatest.selenium.Page

@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.firecloud.config
 
-import com.typesafe.config.ConfigFactory
 import org.broadinstitute.dsde.workbench.config.WorkbenchConfig
 
 object FireCloudConfig extends WorkbenchConfig {
@@ -13,6 +12,5 @@ object FireCloudConfig extends WorkbenchConfig {
     val rawlsApiUrl: String = fireCloud.getString("rawlsApiUrl")
     val samApiUrl: String = fireCloud.getString("samApiUrl")
     val thurloeApiUrl: String = fireCloud.getString("thurloeApiUrl")
-    val leonardoApiUrl: String = fireCloud.getString("leonardoApiUrl")
   }
 }

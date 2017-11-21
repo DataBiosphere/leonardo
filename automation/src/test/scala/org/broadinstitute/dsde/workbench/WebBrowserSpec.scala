@@ -1,4 +1,4 @@
-package org.broadinstitute.dsde.firecloud.test
+package org.broadinstitute.dsde.workbench
 
 import java.io.{File, FileInputStream, FileOutputStream}
 import java.net.URL
@@ -6,26 +6,21 @@ import java.text.SimpleDateFormat
 import java.util.UUID
 
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.firecloud.api.Orchestration
-import org.broadinstitute.dsde.firecloud.config.FireCloudConfig
-import org.broadinstitute.dsde.firecloud.page.user.SignInPage
-import org.broadinstitute.dsde.firecloud.page.workspaces.WorkspaceListPage
-import org.broadinstitute.dsde.firecloud.util.ExceptionHandling
-import org.broadinstitute.dsde.workbench.config.Credentials
-import org.openqa.selenium.chrome.ChromeDriverService
+import org.broadinstitute.dsde.workbench.config.WorkbenchConfig
+import org.broadinstitute.dsde.workbench.util.{ExceptionHandling, WebBrowserUtil}
+import org.openqa.selenium.chrome.{ChromeDriverService, ChromeOptions}
 import org.openqa.selenium.remote.{Augmenter, DesiredCapabilities, LocalFileDetector, RemoteWebDriver}
 import org.openqa.selenium.{OutputType, TakesScreenshot, WebDriver}
 import org.scalatest.Suite
 
+import scala.collection.JavaConverters._
 import scala.sys.SystemProperties
 import scala.util.Random
 
 /**
-  * Base spec for writing FireCloud web browser tests.
+  * Base spec for writing web browser tests.
   */
 trait WebBrowserSpec extends WebBrowserUtil with ExceptionHandling with LazyLogging { self: Suite =>
-
-  val api = Orchestration
 
   /**
     * Executes a test in a fixture with a managed WebDriver. A test that uses
@@ -35,17 +30,43 @@ trait WebBrowserSpec extends WebBrowserUtil with ExceptionHandling with LazyLogg
     * @param testCode the test code to run
     */
   def withWebDriver(testCode: (WebDriver) => Any): Unit = {
+    withWebDriver(System.getProperty("java.io.tmpdir"))(testCode)
+  }
+
+  /**
+    * Executes a test in a fixture with a managed WebDriver. A test that uses
+    * this will get its own WebDriver instance will be destroyed when the test
+    * is complete. This encourages test case isolation.
+    *
+    * @param downloadPath a directory where downloads should be saved
+    * @param testCode the test code to run
+    */
+  def withWebDriver(downloadPath: String)(testCode: (WebDriver) => Any): Unit = {
+    val capabilities = getChromeIncognitoOption(downloadPath)
     val headless = new SystemProperties().get("headless")
     headless match {
-      case Some("false") => runLocalChrome(testCode)
-      case _ => runHeadless(testCode)
+      case Some("false") => runLocalChrome(capabilities, testCode)
+      case _ => runHeadless(capabilities, testCode)
     }
   }
 
-  private def runLocalChrome(testCode: (WebDriver) => Any) = {
-    val service = new ChromeDriverService.Builder().usingDriverExecutable(new File(FireCloudConfig.ChromeSettings.chromDriverPath)).usingAnyFreePort().build()
+  private def getChromeIncognitoOption(downloadPath: String): DesiredCapabilities = {
+    val options = new ChromeOptions
+    options.addArguments("--incognito")
+    // Note that download.prompt_for_download will be ignored if download.default_directory is invalid or doesn't exist
+    options.setExperimentalOptions("prefs", Map(
+      "download.default_directory" -> downloadPath,
+      "download.prompt_for_download" -> "false").asJava)
+    val capabilities = DesiredCapabilities.chrome
+    capabilities.setCapability(ChromeOptions.CAPABILITY, options)
+    capabilities
+  }
+
+  private def runLocalChrome(capabilities: DesiredCapabilities, testCode: (WebDriver) => Any): Unit = {
+    val service = new ChromeDriverService.Builder().usingDriverExecutable(new File(WorkbenchConfig.ChromeSettings.chromDriverPath)).usingAnyFreePort().build()
     service.start()
-    implicit val driver = new RemoteWebDriver(service.getUrl, DesiredCapabilities.chrome())
+    implicit val driver: RemoteWebDriver = new RemoteWebDriver(service.getUrl, capabilities)
+//    driver.manage.window.setSize(new org.openqa.selenium.Dimension(1600, 2400))
     driver.setFileDetector(new LocalFileDetector())
     try {
       withScreenshot {
@@ -57,10 +78,10 @@ trait WebBrowserSpec extends WebBrowserUtil with ExceptionHandling with LazyLogg
     }
   }
 
-  private def runHeadless(testCode: (WebDriver) => Any) = {
-    val defaultChrome = FireCloudConfig.ChromeSettings.chromedriverHost
-    implicit val driver = new RemoteWebDriver(new URL(defaultChrome), DesiredCapabilities.chrome())
-    driver.manage.window.setSize(new org.openqa.selenium.Dimension(1600, 2400))
+  private def runHeadless(capabilities: DesiredCapabilities, testCode: (WebDriver) => Any): Unit = {
+    val defaultChrome = WorkbenchConfig.ChromeSettings.chromedriverHost
+    implicit val driver: RemoteWebDriver = new RemoteWebDriver(new URL(defaultChrome), capabilities)
+//    driver.manage.window.setSize(new org.openqa.selenium.Dimension(1600, 2400))
     driver.setFileDetector(new LocalFileDetector())
     try {
       withScreenshot {
@@ -85,23 +106,6 @@ trait WebBrowserSpec extends WebBrowserUtil with ExceptionHandling with LazyLogg
 
   def randomUuid: String = {
     UUID.randomUUID().toString
-  }
-
-  /**
-    * Convenience method for sign-in to the configured FireCloud URL.
-    */
-  def signIn(email: String, password: String)(implicit webDriver: WebDriver): Unit = {
-    new SignInPage(FireCloudConfig.FireCloud.baseUrl).open.signIn(email, password)
-  }
-
-  /**
-    * Convenience method for sign-in to the configured FireCloud URL. Assumes
-    * that the user has previously registered and will therefore be taken to
-    * the workspace list page.
-    */
-  def signIn(credentials: Credentials)(implicit webDriver: WebDriver): WorkspaceListPage = {
-    signIn(credentials.email, credentials.password)
-    new WorkspaceListPage
   }
 
   /**
