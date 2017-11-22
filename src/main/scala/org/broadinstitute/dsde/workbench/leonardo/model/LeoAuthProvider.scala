@@ -23,10 +23,4 @@ abstract class LeoAuthProvider {
   //notifications that Leo has created/destroyed clusters
   def notifyClusterCreated(user: UserInfo, project: GoogleProject, clusterGoogleID: UUID): Future[Unit]
   def notifyClusterDestroyed(user: UserInfo, project: GoogleProject, clusterGoogleID: UUID): Future[Unit]
-
-
-}
-
-class Blerg(authProvider: LeoAuthProvider) {
-
 }
