@@ -4,6 +4,7 @@ import akka.actor.ActorRef
 import akka.http.scaladsl.model.StatusCodes
 import com.typesafe.scalalogging.LazyLogging
 import java.io.File
+import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
 import org.broadinstitute.dsde.workbench.model.google.{ServiceAccountKey, GoogleProject}
@@ -51,7 +52,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val googleIamDAO: GoogleIamDAO,
                       protected val dbRef: DbReference,
                       protected val clusterMonitorSupervisor: ActorRef,
-                      protected val samDAO: SamDAO)
+                      protected val samDAO: SamDAO,
+                      protected val authProvider: LeoAuthProvider)
                      (implicit val executionContext: ExecutionContext) extends LazyLogging {
   private val bucketPathMaxLength = 1024
   private val includeDeletedKey = "includeDeleted"
@@ -59,13 +61,29 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   // Register this instance with the cluster monitor supervisor so our cluster monitor can potentially delete and recreate clusters
   clusterMonitorSupervisor ! RegisterLeoService(this)
 
-  def createCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
-    samDAO.getPetServiceAccount(userInfo).flatMap { serviceAccount =>
-      createCluster(serviceAccount, googleProject, clusterName, clusterRequest)
+  protected def checkProjectPermission(user: UserInfo, action: ProjectAction, project: GoogleProject): Future[Unit] = {
+    authProvider.hasProjectPermission(user, action, project) map {
+      case false => throw AuthorizationError(user.userEmail)
+      case true => ()
     }
   }
 
-  def createCluster(serviceAccount: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
+  protected def checkClusterPermission(user: UserInfo, action: NotebookClusterAction, clusterGoogleID: UUID): Future[Unit] = {
+    authProvider.hasNotebookClusterPermission(user, action, clusterGoogleID) map {
+      case false => throw AuthorizationError(user.userEmail)
+      case true => ()
+    }
+  }
+
+  def createCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
+    for {
+      _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
+      serviceAccount <- samDAO.getPetServiceAccount(userInfo)
+      cluster <- internalCreateCluster(serviceAccount, googleProject, clusterName, clusterRequest)
+    } yield cluster
+  }
+
+  def internalCreateCluster(serviceAccount: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
     // Check if the google project has a cluster with the same name. If not, we can create it
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName)
@@ -87,15 +105,21 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         }
     }
   }
+  def getActiveClusterDetails(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Cluster] = {
+    for {
+      clusterOpt <- dbRef.inTransaction { da => da.clusterQuery.getActiveClusterByName(googleProject, clusterName) }
+      _ <- checkClusterPermission(userInfo, GetClusterStatus, )
+    }
+  }
 
-  def getActiveClusterDetails(googleProject: GoogleProject, clusterName: ClusterName): Future[Cluster] = {
+  def internalGetActiveClusterDetails(googleProject: GoogleProject, clusterName: ClusterName): Future[Cluster] = {
     dbRef.inTransaction { dataAccess =>
       getActiveCluster(googleProject, clusterName, dataAccess)
     }
   }
 
   def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName): Future[Int] = {
-    getActiveClusterDetails(googleProject, clusterName) flatMap { cluster =>
+    internalGetActiveClusterDetails(googleProject, clusterName) flatMap { cluster =>
       if(cluster.status.isDeletable) {
         // Delete the service account key in Google, if present
         val deleteServiceAccountKey = dbRef.inTransaction { dataAccess =>

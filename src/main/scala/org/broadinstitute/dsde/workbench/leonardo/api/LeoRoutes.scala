@@ -50,7 +50,7 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
           } ~
             get {
               complete {
-                leonardoService.getActiveClusterDetails(GoogleProject(googleProject), ClusterName(clusterName)).map { clusterDetails =>
+                leonardoService.getActiveClusterDetails(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { clusterDetails =>
                   StatusCodes.OK -> clusterDetails
                 }
               }
