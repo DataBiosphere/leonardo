@@ -6,6 +6,7 @@
 
 spark.master yarn
 spark.submit.deployMode client
+spark.executor.instances 10000
 
 ###################
 # required by Hail
