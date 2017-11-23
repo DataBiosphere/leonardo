@@ -212,10 +212,16 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
       // Set a SoftwareConfig property that makes the cluster have only one node
       Map("dataproc:dataproc.allow.zero.workers" -> "true")
     }
-    else
+    else {
       Map.empty
+    }
 
-    new SoftwareConfig().setProperties((authProps ++ workerProps).asJava)
+    val everyoneProps = Map(
+      "yarn:yarn.log-aggregation-enable" -> "true",
+      "yarn:yarn.nodemanager.log-aggregation.roll-monitoring-interval-seconds" -> "3600"
+    )
+
+    new SoftwareConfig().setProperties((authProps ++ workerProps ++ everyoneProps).asJava)
   }
 
   private def getMultiNodeClusterConfig(machineConfig: MachineConfig): ClusterConfig = {

@@ -20,6 +20,7 @@ jupyter:
   volumes:
     - /work:/home/user/work
     - /etc/hadoop/conf:/etc/hadoop/conf
+    - /etc/spark/conf/spark-defaults.conf:/etc/spark/conf/spark-defaults.conf
     - /hadoop_gcs_connector_metadata_cache:/hadoop_gcs_connector_metadata_cache
     - /etc/install-jupyter-extension.sh:/etc/install-jupyter-extension.sh
     - /etc/${JUPYTER_EXTENSION_ARCHIVE}:/etc/${JUPYTER_EXTENSION_ARCHIVE}
