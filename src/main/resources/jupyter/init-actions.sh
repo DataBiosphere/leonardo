@@ -82,8 +82,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
     docker-compose -f /etc/cluster-docker-compose.yaml up -d
 
-    # Copy in the Dataproc-provided spark-defaults.conf and append our custom settings to the end of it
-    docker cp /etc/spark/conf/spark-defaults.conf ${JUPYTER_SERVER_NAME}:/etc/spark/conf/spark-defaults.conf
+    # The Dataproc-provided spark-defaults.conf is compose'd into the Docker; append our custom settings to the end of it
     docker exec -d ${JUPYTER_SERVER_NAME} /etc/construct-spark-defaults.sh
 
     # If a Jupyter extension was specified, poke it into the jupyter docker container.
