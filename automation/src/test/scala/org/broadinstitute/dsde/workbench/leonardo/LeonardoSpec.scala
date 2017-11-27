@@ -197,10 +197,13 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
     val fileName: String = "import-hail.ipynb"
     val upFile = ResourceFile(s"diff-tests/$fileName")
-    val downFile = ResourceFile.downloadsFile(fileName)
-    val downloadsDestination = downFile.getParent
 
-    "should verify notebook execution" in withWebDriver(downloadsDestination) { implicit driver =>
+    // must align with run-tests.sh and hub-compose-fiab.yml
+    val downloadDir = "chrome/downloads"
+    val downFile = new File(downloadDir, fileName)
+    downFile.mkdirs()
+
+    "should verify notebook execution" in withWebDriver(downloadDir) { implicit driver =>
       withReadyCluster(project) { cluster =>
         withNotebookUpload(cluster, upFile) { notebook =>
           notebook.runAllCells(60)  // wait 60 sec for Kernel to init and Hail to load
@@ -209,7 +212,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       }
 
       // move the file to a unique location so it won't interfere with other tests
-      val uniqueDownFile = ResourceFile.downloadsFile(s"import-hail-${Instant.now().toString}.ipynb")
+      val uniqueDownFile = new File(downloadDir, s"import-hail-${Instant.now().toString}.ipynb")
 
       moveFile(downFile, uniqueDownFile)
       uniqueDownFile.deleteOnExit()
