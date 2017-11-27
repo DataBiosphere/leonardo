@@ -15,7 +15,7 @@ proxy:
 
 jupyter:
   container_name: "${JUPYTER_SERVER_NAME}"
-  image: "${JUPYTER_DOCKER_IMAGE}"
+  image: broadinstitute/leonardo-notebooks:dataproc_spark_conf
   net: host
   volumes:
     - /work:/home/user/work
