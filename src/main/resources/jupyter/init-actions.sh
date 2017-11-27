@@ -82,10 +82,16 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
     docker-compose -f /etc/cluster-docker-compose.yaml up -d
 
+    # Copy in the Dataproc-provided spark-defaults.conf and append our custom settings to the end of it
+    docker cp /etc/spark/conf/spark-defaults.conf ${JUPYTER_SERVER_NAME}:/etc/spark/conf/spark-defaults.conf
+    docker exec -d ${JUPYTER_SERVER_NAME} /etc/construct-spark-defaults.sh
+
     # If a Jupyter extension was specified, poke it into the jupyter docker container.
     # Note: docker-compose doesn't appear to have the ability to execute a command after run, so we do this explicitly with docker exec commands.
     # See https://github.com/docker/compose/issues/1809
     if [ ! -z ${JUPYTER_EXTENSION_URI} ] ; then
       docker exec -d ${JUPYTER_SERVER_NAME} /etc/install-jupyter-extension.sh /etc/${JUPYTER_EXTENSION_ARCHIVE}
     fi
+
+    docker exec -d ${JUPYTER_SERVER_NAME} pyspark
 fi

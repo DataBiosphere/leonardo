@@ -29,7 +29,6 @@ ENV HAIL_HOME /hail
 # YARN configuration required by DataProc Spark
 # mount this from outside
 ENV HADOOP_CONF_DIR /etc/hadoop/conf
-ENV SPARK_DEFAULTS_CONF /etc/spark/conf/spark-defaults.conf
 
 ENV PATH $SPARK_HOME:$SPARK_HOME/python:$SPARK_HOME/bin:$HAIL_HOME:$PATH
 ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip
@@ -108,15 +107,8 @@ RUN echo "deb $DEBIAN_REPO/debian jessie main\ndeb $DEBIAN_REPO/debian-security 
  && pip install fastinterval \
  && pip install matplotlib-venn
 
-
 ADD spark-defaults.conf.template $SPARK_HOME/conf/
-
-# Copy in the spark-defaults.conf that Dataproc provides, which is set up properly for this cluster
-RUN cp /etc/spark/conf/spark-defaults.conf $SPARK_HOME/conf/spark-defaults.conf
-# Render our "extras" using find and replace [HAILHASH] with the hash
-RUN sed "s|\[HAILHASH\]|$HAILHASH|g" $SPARK_HOME/conf/spark-defaults.conf.template > $SPARK_HOME/conf/spark-defaults.extras
-# Append our extras to the Dataproc-provided spark-defaults
-RUN cat $SPARK_HOME/conf/spark-defaults.extras >> $SPARK_HOME/conf/spark-defaults.conf
+ADD construct-spark-defaults.sh /etc/construct-spark-defaults.sh
 ADD jupyter_notebook_config.py $JUPYTER_HOME
 RUN chown -R $USER:users $JUPYTER_HOME
 
@@ -124,4 +116,3 @@ USER $USER
 WORKDIR $HOME
 
 EXPOSE $JUPYTER_PORT
-ENTRYPOINT ["pyspark"]
