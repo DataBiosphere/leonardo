@@ -37,42 +37,40 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
 
   def leoRoutes: Route =
     requireUserInfo { userInfo =>
-      checkWhiteList(userInfo.userEmail) {
-        path("cluster" / Segment / Segment) { (googleProject, clusterName) =>
-          put {
-            entity(as[ClusterRequest]) { cluster =>
-              complete {
-                leonardoService.createCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName), cluster).map { cluster =>
-                  StatusCodes.OK -> cluster
-                }
-              }
-            }
-          } ~
-            get {
-              complete {
-                leonardoService.getActiveClusterDetails(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { clusterDetails =>
-                  StatusCodes.OK -> clusterDetails
-                }
-              }
-            } ~
-            delete {
-              complete {
-                leonardoService.deleteCluster(GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
-                  StatusCodes.Accepted
-                }
-              }
-            }
-        } ~
-          path("clusters") {
-            parameterMap { params =>
-              complete {
-                leonardoService.listClusters(params).map { clusters =>
-                  StatusCodes.OK -> clusters
-                }
+      path("cluster" / Segment / Segment) { (googleProject, clusterName) =>
+        put {
+          entity(as[ClusterRequest]) { cluster =>
+            complete {
+              leonardoService.createCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName), cluster).map { cluster =>
+                StatusCodes.OK -> cluster
               }
             }
           }
-      }
+        } ~
+          get {
+            complete {
+              leonardoService.getActiveClusterDetails(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { clusterDetails =>
+                StatusCodes.OK -> clusterDetails
+              }
+            }
+          } ~
+          delete {
+            complete {
+              leonardoService.deleteCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
+                StatusCodes.Accepted
+              }
+            }
+          }
+      } ~
+        path("clusters") {
+          parameterMap { params =>
+            complete {
+              leonardoService.listClusters(userInfo, params).map { clusters =>
+                StatusCodes.OK -> clusters
+              }
+            }
+          }
+        }
     }
 
   def route: Route = (logRequestResult & handleExceptions(myExceptionHandler) & handleRejections(rejectionHandler)) {

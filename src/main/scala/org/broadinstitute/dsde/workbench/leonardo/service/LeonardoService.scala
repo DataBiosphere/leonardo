@@ -62,15 +62,21 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   clusterMonitorSupervisor ! RegisterLeoService(this)
 
   protected def checkProjectPermission(user: UserInfo, action: ProjectAction, project: GoogleProject): Future[Unit] = {
-    authProvider.hasProjectPermission(user, action, project) map {
+    authProvider.hasProjectPermission(user.userEmail, action, project) map {
       case false => throw AuthorizationError(user.userEmail)
       case true => ()
     }
   }
 
-  protected def checkClusterPermission(user: UserInfo, action: NotebookClusterAction, clusterGoogleID: UUID): Future[Unit] = {
-    authProvider.hasNotebookClusterPermission(user, action, clusterGoogleID) map {
-      case false => throw AuthorizationError(user.userEmail)
+  //Throws 404 and pretends we don't even know there's a cluster there, by default.
+  //If the cluster really exists and you're OK with the user knowing that, set throw401 = true.
+  protected def checkClusterPermission(user: UserInfo, action: NotebookClusterAction, cluster: Cluster, throw401: Boolean = false): Future[Unit] = {
+    authProvider.hasNotebookClusterPermission(user.userEmail, action, cluster.googleId) map {
+      case false =>
+        if( throw401 )
+          throw AuthorizationError(user.userEmail)
+        else
+          throw ClusterNotFoundException(cluster.googleProject, cluster.clusterName)
       case true => ()
     }
   }
@@ -105,11 +111,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         }
     }
   }
+
+  //throws 404 if nonexistent or no permissions
   def getActiveClusterDetails(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Cluster] = {
     for {
-      clusterOpt <- dbRef.inTransaction { da => da.clusterQuery.getActiveClusterByName(googleProject, clusterName) }
-      _ <- checkClusterPermission(userInfo, GetClusterStatus, )
-    }
+      cluster <- internalGetActiveClusterDetails(googleProject, clusterName) //throws 404 if nonexistent
+      _ <- checkClusterPermission(userInfo, GetClusterDetails, cluster) //throws 404 if no auth
+    } yield { cluster }
   }
 
   def internalGetActiveClusterDetails(googleProject: GoogleProject, clusterName: ClusterName): Future[Cluster] = {
@@ -118,34 +126,63 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
-  def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName): Future[Int] = {
-    internalGetActiveClusterDetails(googleProject, clusterName) flatMap { cluster =>
-      if(cluster.status.isDeletable) {
-        // Delete the service account key in Google, if present
-        val deleteServiceAccountKey = dbRef.inTransaction { dataAccess =>
-          dataAccess.clusterQuery.getServiceAccountKeyId(googleProject, clusterName)
-        } flatMap {
-          case Some(key) => googleIamDAO.removeServiceAccountKey(dataprocConfig.leoGoogleProject, cluster.googleServiceAccount, key)
-          case None => Future.successful(())
-        }
-
-        for {
-          _ <- deleteServiceAccountKey
-          _ <- gdDAO.deleteCluster(googleProject, clusterName)
-          recordCount <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.googleId))
-        } yield {
-          clusterMonitorSupervisor ! ClusterDeleted(cluster)
-          recordCount
-        }
-      } else Future.successful(0)
-    }
+  def deleteCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Int] = {
+    for {
+      cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName) //throws 404 if no permissions
+      count <- internalDeleteCluster(cluster)
+    } yield { count }
   }
 
-  def listClusters(params: LabelMap): Future[Seq[Cluster]] = {
-    processListClustersParameters(params).flatMap { paramMap =>
-      dbRef.inTransaction { dataAccess =>
-        dataAccess.clusterQuery.listByLabels(paramMap._1, paramMap._2)
+  def internalDeleteCluster(cluster: Cluster): Future[Int] = {
+    if(cluster.status.isDeletable) {
+      // Delete the service account key in Google, if present
+      val deleteServiceAccountKey = dbRef.inTransaction { dataAccess =>
+        dataAccess.clusterQuery.getServiceAccountKeyId(cluster.googleProject, cluster.clusterName)
+      } flatMap {
+        case Some(key) => googleIamDAO.removeServiceAccountKey(dataprocConfig.leoGoogleProject, cluster.googleServiceAccount, key)
+        case None => Future.successful(())
       }
+
+      for {
+        _ <- deleteServiceAccountKey
+        _ <- gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)
+        recordCount <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.googleId))
+      } yield {
+        clusterMonitorSupervisor ! ClusterDeleted(cluster)
+        recordCount
+      }
+    } else Future.successful(0)
+  }
+
+  def listClusters(userInfo: UserInfo, params: LabelMap): Future[Seq[Cluster]] = {
+    for {
+      paramMap <- processListClustersParameters(params)
+      clusterList <- dbRef.inTransaction { da => da.clusterQuery.listByLabels(paramMap._1, paramMap._2) }
+
+      //Filter by authorization.
+      //Set of projects these clusters are in
+      clusterProjects = clusterList.map { _.googleProject }.toSet
+      //Does the user have god-mode, i.e. can they see all clusters in all projects?
+      hasAllProjectsPermission <- authProvider.hasPermissionInAllProjects(userInfo.userEmail, ListClusters)
+      //Get the list of projects with list-clusters permission
+      projectsWithListClusters <- if( hasAllProjectsPermission ) {
+          Future.successful(clusterProjects)
+        } else {
+          authProvider.getProjectsWithListClustersPermission(userInfo.userEmail)
+        }
+
+      //Find out which clusters we'll need to check one-by-one and which are visible by dint of project-level or god permissions.
+      (visibleClusters, checkHarder) = clusterList.partition( c => projectsWithListClusters.contains(c.googleProject) )
+
+      //Finally do per-cluster checks.
+      harderChecks <- Future.traverse(checkHarder) { cluster =>
+        authProvider.hasNotebookClusterPermission(userInfo.userEmail, GetClusterDetails, cluster.googleId) map {
+          case true => Some(cluster)
+          case false => None
+        }
+      }
+    } yield {
+        visibleClusters ++ harderChecks.flatten
     }
   }
 
