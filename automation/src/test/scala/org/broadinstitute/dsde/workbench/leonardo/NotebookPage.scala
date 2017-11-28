@@ -44,10 +44,10 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     findAll(prompts).exists { e => e.text == "In [*]:" }
   }
 
-  def runAllCells(): Unit = {
+  def runAllCells(timeoutSeconds: Long): Unit = {
     click on cellMenu
     click on (await enabled runAllCellsSelection)
-    await condition ! cellsAreRunning
+    await condition (!cellsAreRunning, timeoutSeconds)
   }
 
   def download(): Unit = {
