@@ -47,7 +47,6 @@ object Boot extends App with LazyLogging {
     val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
     val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
     val monitorConfig = config.as[MonitorConfig]("monitor")
-    val whitelistConfig = config.as[(Set[String])]("whitelist").map(WorkbenchEmail(_))
     val samConfig = config.as[SamConfig]("sam")
 
     val authProviderClass = config.as[String]("auth.providerClass")

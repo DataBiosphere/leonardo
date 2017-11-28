@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.model
 
 import java.util.UUID
 
+import com.typesafe.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.api.AuthorizationError
 import org.broadinstitute.dsde.workbench.model.WorkbenchUserEmail
 
@@ -17,7 +18,7 @@ case object ConnectToCluster extends NotebookClusterAction
 case object LocalizeDataToCluster extends NotebookClusterAction
 case object DestroyCluster extends NotebookClusterAction
 
-abstract class LeoAuthProvider {
+abstract class LeoAuthProvider(authConfig: Config) {
   //Does this user have permission in all projects to perform this action?
   def hasPermissionInAllProjects(user: WorkbenchUserEmail, action: ProjectAction): Future[Boolean]
 
@@ -25,7 +26,7 @@ abstract class LeoAuthProvider {
   def hasProjectPermission(user: WorkbenchUserEmail, action: ProjectAction, project: GoogleProject): Future[Boolean]
 
   //List the projects in which the user has ListClusters action.
-  //If hasPermissionInAllProjects(_, ListClusters) returns true in your implementation, you should return Seq.empty() for this function.
+  //If hasPermissionInAllProjects(_, ListClusters) returns true in your implementation, you should return Set.empty() for this function.
   def getProjectsWithListClustersPermission(user: WorkbenchUserEmail): Future[Set[GoogleProject]]
 
   //Does the user have permission on this individual notebook cluster to perform this action?
