@@ -46,6 +46,7 @@ services:
         syslog-address: udp://localhost:515/
     volumes:
       - $WORKING_DIR/target:/app/target
+      - $WORKING_DIR/chrome/downloads:/app/chrome/downloads
       # Prevent page crash: https://github.com/elgalu/docker-selenium/issues/20
       - /dev/shm:/dev/shm
 
