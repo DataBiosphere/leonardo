@@ -16,6 +16,7 @@ import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
 import java.util.concurrent.TimeUnit
 
+import cats.data.OptionT
 import org.broadinstitute.dsde.workbench.leonardo.api.AuthorizationError
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
@@ -73,9 +74,9 @@ class ProxyService(proxyConfig: ProxyConfig,
     */
   def proxy(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest, token: HttpCookiePair): Future[HttpResponse] = {
     val authCheck = for {
-      cluster <- dbRef.inTransaction { da => da.clusterQuery.getActiveClusterByName(googleProject, clusterName) }
-      hasViewPermission <- authProvider.hasNotebookClusterPermission(userEmail, GetClusterDetails, cluster.get.googleId)
-      hasConnectPermission <- authProvider.hasNotebookClusterPermission(userEmail, ConnectToCluster, cluster.get.googleId)
+      cluster <- OptionT(dbRef.inTransaction { da => da.clusterQuery.getActiveClusterByName(googleProject, clusterName) })
+      hasViewPermission <- OptionT.liftF(authProvider.hasNotebookClusterPermission(userEmail, GetClusterDetails, cluster.googleId))
+      hasConnectPermission <- OptionT.liftF(authProvider.hasNotebookClusterPermission(userEmail, ConnectToCluster, cluster.googleId))
     } yield {
       if(!hasViewPermission) {
         throw ClusterNotFoundException(googleProject, clusterName)
@@ -87,7 +88,7 @@ class ProxyService(proxyConfig: ProxyConfig,
     }
 
     logger.debug(s"Recevied proxy request with user token ${token.value}")
-    authCheck flatMap { _ => getTargetHost(googleProject, clusterName) } flatMap {
+    authCheck.value flatMap { _ => getTargetHost(googleProject, clusterName) } flatMap {
       case ClusterReady(targetHost) =>
         // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
         // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.

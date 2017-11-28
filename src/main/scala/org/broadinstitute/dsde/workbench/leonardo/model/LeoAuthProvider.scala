@@ -31,7 +31,8 @@ abstract class LeoAuthProvider {
   //Does the user have permission on this individual notebook cluster to perform this action?
   def hasNotebookClusterPermission(user: WorkbenchUserEmail, action: NotebookClusterAction, clusterGoogleID: UUID): Future[Boolean]
 
-  //notifications that Leo has created/destroyed clusters
+  //Notifications that Leo has created/destroyed clusters.
+  //The resulting future should return once the provider has finished doing any associated work. Leo will wait.
   def notifyClusterCreated(user: WorkbenchUserEmail, project: GoogleProject, clusterGoogleID: UUID): Future[Unit]
   def notifyClusterDestroyed(user: WorkbenchUserEmail, project: GoogleProject, clusterGoogleID: UUID): Future[Unit]
 }
