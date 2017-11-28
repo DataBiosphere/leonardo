@@ -72,6 +72,14 @@ docker-compose -f ${HUB_COMPOSE} pull
 docker-compose -f ${HUB_COMPOSE} up -d
 docker-compose -f ${HUB_COMPOSE} scale chrome=$NUM_NODES
 
+# Make sure ${WORKING_DIR}/chrome/downloads exists and make it writable by the node-chrome containers.
+mkdir -p $WORKING_DIR/chrome/downloads
+# Without this, the directory permissions don't allow chrome to automatically save downloads which
+# leads to a system save dialog opening which Selenium doesn't have any way of handling.
+echo '--- Begin ugly but sometimes necessary python stack trace and error "ValueError" that looks bad but actually does something useful ---'
+docker-compose -f ${HUB_COMPOSE} exec chrome sudo chmod 777 /app/chrome/downloads
+echo '--- End ugly but necessary python error ---'
+
 # render ctmpls
 docker pull broadinstitute/dsde-toolbox:dev
 docker run --rm -e VAULT_TOKEN=${VAULT_TOKEN} \
@@ -97,6 +105,7 @@ docker run -e DOCKERHOST=$DOCKERHOST \
     -v $WORKING_DIR/target/application.conf:/app/src/test/resources/application.conf \
     -v $WORKING_DIR/target/firecloud-account.pem:/app/src/test/resources/firecloud-account.pem \
     -v $WORKING_DIR/target:/app/target \
+    -v $WORKING_DIR/chrome/downloads:/app/chrome/downloads \
     -v $WORKING_DIR/failure_screenshots:/app/failure_screenshots \
     -v $WORKING_DIR/output:/app/output \
     -v jar-cache:/root/.ivy -v jar-cache:/root/.ivy2 \

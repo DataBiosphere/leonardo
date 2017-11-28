@@ -23,6 +23,9 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
   with WebBrowser with WebBrowserSpec with LocalFileUtil {
   implicit val ronAuthToken = AuthToken(LeonardoConfig.Users.ron)
 
+  // kudos to whoever named this Patience
+  val clusterPatience = PatienceConfig(timeout = scaled(Span(10, Minutes)), interval = scaled(Span(20, Seconds)))
+
   // simultaneous requests by the same user to create their pet in Sam can cause contention
   // but this is not a realistic production scenario
   // so we avoid this by pre-creating
@@ -81,7 +84,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     // wait for "Running" or error (fail fast)
     val runningCluster = eventually {
       clusterCheck(Leonardo.cluster.get(googleProject, clusterName), clusterRequest.labels, clusterName, Seq(ClusterStatus.Running, ClusterStatus.Error))
-    } (PatienceConfig(timeout = scaled(Span(8, Minutes)), interval = scaled(Span(20, Seconds))))
+    } (clusterPatience)
 
     // now check that it didn't timeout or error
     runningCluster.status shouldBe ClusterStatus.Running
@@ -103,7 +106,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     eventually {
       val statusOpt = Leonardo.cluster.listIncludingDeleted().find(_.clusterName == clusterName).map(_.status)
       statusOpt getOrElse ClusterStatus.Deleted shouldBe ClusterStatus.Deleted
-    } (PatienceConfig(timeout = scaled(Span(8, Minutes)), interval = scaled(Span(20, Seconds))))
+    } (clusterPatience)
   }
 
 
@@ -141,7 +144,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
       // GAWB-2797: Leo might not be ready to proxy yet
       import concurrent.duration._
-      Thread sleep 15.seconds.toMillis
+      Thread sleep 25.seconds.toMillis
 
       testCode(cluster)
     }
@@ -194,19 +197,22 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
     val fileName: String = "import-hail.ipynb"
     val upFile = ResourceFile(s"diff-tests/$fileName")
-    val downFile = ResourceFile.downloadsFile(fileName)
-    val downloadsDestination = downFile.getParent
 
-    "should verify notebook execution" in withWebDriver(downloadsDestination) { implicit driver =>
+    // must align with run-tests.sh and hub-compose-fiab.yml
+    val downloadDir = "chrome/downloads"
+    val downFile = new File(downloadDir, fileName)
+    downFile.mkdirs()
+
+    "should verify notebook execution" in withWebDriver(downloadDir) { implicit driver =>
       withReadyCluster(project) { cluster =>
         withNotebookUpload(cluster, upFile) { notebook =>
-          notebook.runAllCells()
+          notebook.runAllCells(60)  // wait 60 sec for Kernel to init and Hail to load
           notebook.download()
         }
       }
 
       // move the file to a unique location so it won't interfere with other tests
-      val uniqueDownFile = ResourceFile.downloadsFile(s"import-hail-${Instant.now().toString}.ipynb")
+      val uniqueDownFile = new File(downloadDir, s"import-hail-${Instant.now().toString}.ipynb")
 
       moveFile(downFile, uniqueDownFile)
       uniqueDownFile.deleteOnExit()
