@@ -128,7 +128,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   def deleteCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Int] = {
     for {
-      cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName) //throws 404 if no permissions
+      //throws 404 if no permissions
+      cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
+
+      //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually destroy it
+      _ <- checkClusterPermission(userInfo,  DestroyCluster, cluster, throw401 = true)
+
       count <- internalDeleteCluster(cluster)
     } yield { count }
   }

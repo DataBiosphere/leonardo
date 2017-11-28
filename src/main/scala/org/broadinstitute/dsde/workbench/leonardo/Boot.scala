@@ -5,7 +5,7 @@ import java.io.File
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{Config, ConfigFactory}
 import com.typesafe.scalalogging.LazyLogging
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.HttpGoogleIamDAO
@@ -14,7 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{GoogleDataprocDAO, HttpSa
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SamConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterStatus, LeoAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
@@ -50,6 +50,9 @@ object Boot extends App with LazyLogging {
     val whitelistConfig = config.as[(Set[String])]("whitelist").map(WorkbenchEmail(_))
     val samConfig = config.as[SamConfig]("sam")
 
+    val authProviderClass = config.as[String]("auth.providerClass")
+    val authConfig = config.atPath("auth.providerConfig")
+
     // we need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")
     implicit val materializer = ActorMaterializer()
@@ -60,13 +63,14 @@ object Boot extends App with LazyLogging {
       dbRef.database.close()
     }
 
+    val authProvider = constructAuthProvider(authProviderClass, authConfig)
     val gdDAO = new GoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig, clusterFilesConfig, clusterResourcesConfig)
     val googleIamDAO = new HttpGoogleIamDAO(dataprocConfig.serviceAccountEmail.value, clusterFilesConfig.leonardoServicePem.getAbsolutePath, dataprocConfig.applicationName, "google")
     val samDAO = new HttpSamDAO(samConfig.server)
     val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO, googleIamDAO, dbRef))
-    val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, googleIamDAO, dbRef, clusterMonitorSupervisor, samDAO)
+    val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, googleIamDAO, dbRef, clusterMonitorSupervisor, samDAO, authProvider)
     val clusterDnsCache = system.actorOf(ClusterDnsCache.props(proxyConfig, dbRef))
-    val proxyService = new ProxyService(proxyConfig, gdDAO, dbRef, clusterDnsCache)
+    val proxyService = new ProxyService(proxyConfig, gdDAO, dbRef, clusterDnsCache, authProvider)
     val statusService = new StatusService(gdDAO, samDAO, dbRef, dataprocConfig)
     val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, whitelistConfig) with StandardUserInfoDirectives
 
@@ -78,6 +82,13 @@ object Boot extends App with LazyLogging {
           logger.error("FATAL - failure starting http server", t)
           throw t
       }
+  }
+
+  private def constructAuthProvider(authProviderClass: String, authConfig: Config): LeoAuthProvider = {
+    Class.forName(authProviderClass)
+      .getConstructor(classOf[Config])
+      .newInstance(authConfig)
+      .asInstanceOf[LeoAuthProvider]
   }
 
   private def startClusterMonitors(dbRef: DbReference, clusterMonitor: ActorRef)(implicit executionContext: ExecutionContext) = {
