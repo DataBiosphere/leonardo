@@ -47,7 +47,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
           cluster.labels,
           cluster.jupyterExtensionUri,
           Some(cluster.machineConfig))
-        leoService.createCluster(cluster.googleServiceAccount, cluster.googleProject, cluster.clusterName, clusterRequest).failed.foreach { e =>
+        leoService.internalCreateCluster(cluster.googleServiceAccount, cluster.googleProject, cluster.clusterName, clusterRequest).failed.foreach { e =>
           logger.error("Error occurred recreating cluster", e)
         }
       } else {
