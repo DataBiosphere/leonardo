@@ -44,8 +44,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_CUSTOM_JS_URI=$(jupyterCustomJsUri)
     JUPYTER_GOOGLE_SIGN_IN_JS_URI=$(jupyterGoogleSignInJsUri)
 
-    apt-get update
-    apt-get install -y -q docker.io
+    curl -fsSL get.docker.com -o get-docker.sh
+    sh get-docker.sh
+
     mkdir /work
     mkdir /certs
     chmod a+wx /work
