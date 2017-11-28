@@ -16,13 +16,15 @@ import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMa
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted, RegisterLeoService}
 import org.broadinstitute.dsde.workbench.google.gcs._
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserServiceAccountEmail, WorkbenchUserServiceAccountKey}
 import slick.dbio.DBIO
 import spray.json._
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.Source
 import scala.util.{Failure, Success}
+
+case class AuthorizationError(email: WorkbenchEmail) extends LeoException(s"'$email' is unauthorized", StatusCodes.Unauthorized)
 
 case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: ClusterName)
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.string} not found", StatusCodes.NotFound)

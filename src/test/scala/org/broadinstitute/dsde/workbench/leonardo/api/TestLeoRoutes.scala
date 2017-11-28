@@ -5,6 +5,7 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
+import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockGoogleDataprocDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
@@ -24,19 +25,19 @@ trait TestLeoRoutes { this: ScalatestRouteTest =>
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
-  val whitelistConfig = config.as[(Set[String])]("whitelist").map(WorkbenchEmail(_))
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockSamDAO = new MockSamDAO
   val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
+  val whitelistAuthProvider = new WhitelistAuthProvider(config.atPath("auth.providerConfig"))
   // Route tests don't currently do cluster monitoring, so use NoopActor
   val clusterMonitorSupervisor = system.actorOf(NoopActor.props)
-  val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, mockGoogleDataprocDAO, mockGoogleIamDAO, DbSingleton.ref, clusterMonitorSupervisor, mockSamDAO)
+  val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, mockGoogleDataprocDAO, mockGoogleIamDAO, DbSingleton.ref, clusterMonitorSupervisor, mockSamDAO, whitelistAuthProvider)
   val proxyService = new MockProxyService(proxyConfig, mockGoogleDataprocDAO, DbSingleton.ref)
   val statusService = new StatusService(mockGoogleDataprocDAO, mockSamDAO, DbSingleton.ref, dataprocConfig, pollInterval = 1.second)
   val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
-  val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, whitelistConfig) with MockUserInfoDirectives {
+  val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with MockUserInfoDirectives {
     override val userInfo: UserInfo = defaultUserInfo
   }
 }

@@ -15,7 +15,6 @@ import scala.concurrent.ExecutionContext
   */
 trait ProxyRoutes extends UserInfoDirectives{ self: LazyLogging =>
   val proxyService: ProxyService
-  val whitelistConfig: Set[WorkbenchEmail]
   implicit val executionContext: ExecutionContext
 
   protected val tokenCookieName = "FCtoken"

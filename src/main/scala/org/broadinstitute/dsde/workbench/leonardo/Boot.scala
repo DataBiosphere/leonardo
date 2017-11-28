@@ -71,7 +71,7 @@ object Boot extends App with LazyLogging {
     val clusterDnsCache = system.actorOf(ClusterDnsCache.props(proxyConfig, dbRef))
     val proxyService = new ProxyService(proxyConfig, gdDAO, dbRef, clusterDnsCache, authProvider)
     val statusService = new StatusService(gdDAO, samDAO, dbRef, dataprocConfig)
-    val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, whitelistConfig) with StandardUserInfoDirectives
+    val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with StandardUserInfoDirectives
 
     startClusterMonitors(dbRef, clusterMonitorSupervisor)
 

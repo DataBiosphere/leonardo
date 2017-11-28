@@ -17,7 +17,6 @@ import com.typesafe.scalalogging.LazyLogging
 import java.util.concurrent.TimeUnit
 
 import cats.data.OptionT
-import org.broadinstitute.dsde.workbench.leonardo.api.AuthorizationError
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference

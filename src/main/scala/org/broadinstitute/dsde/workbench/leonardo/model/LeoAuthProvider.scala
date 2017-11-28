@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo.model
 import java.util.UUID
 
 import com.typesafe.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.api.AuthorizationError
 import org.broadinstitute.dsde.workbench.model.WorkbenchUserEmail
 
 import scala.concurrent.Future
@@ -19,6 +18,7 @@ case object LocalizeDataToCluster extends NotebookClusterAction
 case object DestroyCluster extends NotebookClusterAction
 
 abstract class LeoAuthProvider(authConfig: Config) {
+  //TODO: Scaladoc style comments please
   //Does this user have permission in all projects to perform this action?
   def hasPermissionInAllProjects(user: WorkbenchUserEmail, action: ProjectAction): Future[Boolean]
 
