@@ -16,11 +16,12 @@ import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
 import java.util.concurrent.TimeUnit
 
+import org.broadinstitute.dsde.workbench.leonardo.api.AuthorizationError
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, LeoException}
+import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -34,7 +35,11 @@ case class AccessTokenExpiredException() extends LeoException(s"Your access toke
 /**
   * Created by rtitle on 8/15/17.
   */
-class ProxyService(proxyConfig: ProxyConfig, gdDAO: DataprocDAO, dbRef: DbReference, clusterDnsCache: ActorRef)(implicit val system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext) extends LazyLogging {
+class ProxyService(proxyConfig: ProxyConfig,
+                   gdDAO: DataprocDAO,
+                   dbRef: DbReference,
+                   clusterDnsCache: ActorRef,
+                   authProvider: LeoAuthProvider)(implicit val system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext) extends LazyLogging {
 
   /* Cache for the bearer token and corresponding google user email */
   private val cachedAuth = CacheBuilder.newBuilder()
@@ -58,6 +63,7 @@ class ProxyService(proxyConfig: ProxyConfig, gdDAO: DataprocDAO, dbRef: DbRefere
     * Entry point to this class. Given a google project, cluster name, and HTTP request,
     * looks up the notebook server IP and proxies the HTTP request to the notebook server.
     * Returns NotFound if a notebook server IP could not be found for the project/cluster name.
+    * @param userEmail the email of the current user, extracted from the token
     * @param googleProject the Google project
     * @param clusterName the cluster name
     * @param request the HTTP request to proxy
@@ -65,10 +71,23 @@ class ProxyService(proxyConfig: ProxyConfig, gdDAO: DataprocDAO, dbRef: DbRefere
     * @return HttpResponse future representing the proxied response, or NotFound if a notebook
     *         server IP could not be found.
     */
-  def proxy(googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest, token: HttpCookiePair): Future[HttpResponse] = {
-    // TODO: in the future we will call sam to do authorization based on the token
+  def proxy(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest, token: HttpCookiePair): Future[HttpResponse] = {
+    val authCheck = for {
+      cluster <- dbRef.inTransaction { da => da.clusterQuery.getActiveClusterByName(googleProject, clusterName) }
+      hasViewPermission <- authProvider.hasNotebookClusterPermission(userEmail, GetClusterDetails, cluster.get.googleId)
+      hasConnectPermission <- authProvider.hasNotebookClusterPermission(userEmail, ConnectToCluster, cluster.get.googleId)
+    } yield {
+      if(!hasViewPermission) {
+        throw ClusterNotFoundException(googleProject, clusterName)
+      } else if(!hasConnectPermission){
+        throw AuthorizationError(userEmail)
+      } else {
+        ()
+      }
+    }
+
     logger.debug(s"Recevied proxy request with user token ${token.value}")
-    getTargetHost(googleProject, clusterName) flatMap {
+    authCheck flatMap { _ => getTargetHost(googleProject, clusterName) } flatMap {
       case ClusterReady(targetHost) =>
         // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
         // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
