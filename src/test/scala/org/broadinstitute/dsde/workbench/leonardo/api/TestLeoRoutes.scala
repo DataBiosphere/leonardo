@@ -30,7 +30,7 @@ trait TestLeoRoutes { this: ScalatestRouteTest =>
   val mockSamDAO = new MockSamDAO
   val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
-  val whitelistAuthProvider = new WhitelistAuthProvider(config.atPath("auth.providerConfig"))
+  val whitelistAuthProvider = new WhitelistAuthProvider(config.getConfig("auth.providerConfig"))
   // Route tests don't currently do cluster monitoring, so use NoopActor
   val clusterMonitorSupervisor = system.actorOf(NoopActor.props)
   val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, mockGoogleDataprocDAO, mockGoogleIamDAO, DbSingleton.ref, clusterMonitorSupervisor, mockSamDAO, whitelistAuthProvider)
