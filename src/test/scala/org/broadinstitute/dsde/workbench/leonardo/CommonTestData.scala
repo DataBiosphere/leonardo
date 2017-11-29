@@ -4,7 +4,8 @@ import java.time.Instant
 
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.model.{WorkbenchUserServiceAccountEmail, WorkbenchUserServiceAccountKey, WorkbenchUserServiceAccountKeyId, WorkbenchUserServiceAccountPrivateKeyData}
+import org.broadinstitute.dsde.workbench.model._
+import org.broadinstitute.dsde.workbench.model.google.{ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData}
 
 // values common to multiple tests, to reduce boilerplate
 
@@ -13,9 +14,9 @@ trait CommonTestData {
   val name2 = ClusterName("name2")
   val name3 = ClusterName("name3")
   val project = GoogleProject("dsp-leo-test")
-  val googleServiceAccount = WorkbenchUserServiceAccountEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
+  val googleServiceAccount = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
   val jupyterExtensionUri = Some(GcsPath(GcsBucketName("extension_bucket"), GcsRelativePath("extension_path")))
-  val serviceAccountKey = WorkbenchUserServiceAccountKey(WorkbenchUserServiceAccountKeyId("123"), WorkbenchUserServiceAccountPrivateKeyData("abcdefg"), Some(Instant.now), Some(Instant.now.plusSeconds(300)))
+  val serviceAccountKey = ServiceAccountKey(ServiceAccountKeyId("123"), ServiceAccountPrivateKeyData("abcdefg"), Some(Instant.now), Some(Instant.now.plusSeconds(300)))
 }
 
 trait GcsPathUtils {

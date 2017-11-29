@@ -7,7 +7,6 @@ import java.util.UUID
 import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountKeyId
 import org.scalatest.FlatSpecLike
 
 import scala.util.Random

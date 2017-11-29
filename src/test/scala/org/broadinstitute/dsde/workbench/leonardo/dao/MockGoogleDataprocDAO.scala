@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, Gcs
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserServiceAccountEmail, WorkbenchUserServiceAccountKey}
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
@@ -25,17 +25,17 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
 
   private def googleID = UUID.randomUUID()
 
-  override def getEmailAndExpirationFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[(WorkbenchUserEmail, Instant)] = {
+  override def getEmailAndExpirationFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[(WorkbenchEmail, Instant)] = {
     Future {
       accessToken match {
         case "unauthorized" => throw AuthorizationError()
-        case "expired" =>  (WorkbenchUserEmail("expiredUser@example.com"), Instant.now.minusSeconds(10))
-        case _ => (WorkbenchUserEmail("user1@example.com"), Instant.MAX)
+        case "expired" =>  (WorkbenchEmail("expiredUser@example.com"), Instant.now.minusSeconds(10))
+        case _ => (WorkbenchEmail("user1@example.com"), Instant.MAX)
       }
     }
   }
 
-  override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, serviceAccount: WorkbenchUserServiceAccountEmail)(implicit executionContext: ExecutionContext): Future[Cluster] = {
+  override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, serviceAccount: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[Cluster] = {
     if (clusterName == badClusterName) {
       Future.failed(CallToGoogleApiFailedException(googleProject, clusterName.string, 500, "Bad Cluster!"))
     } else {
@@ -57,7 +57,7 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
     Future.successful(())
   }
 
-  override def createBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, bucketName: GcsBucketName, userServiceAccount: WorkbenchUserServiceAccountEmail): Future[GcsBucketName] = {
+  override def createBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, bucketName: GcsBucketName, userServiceAccount: WorkbenchEmail): Future[GcsBucketName] = {
     if (!buckets.contains(bucketName)) {
       buckets += bucketName
     }

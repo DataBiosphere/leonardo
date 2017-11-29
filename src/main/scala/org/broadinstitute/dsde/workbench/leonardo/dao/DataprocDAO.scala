@@ -7,12 +7,12 @@ import java.util.UUID
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserServiceAccountEmail}
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 
 import scala.concurrent.{ExecutionContext, Future}
 
 trait DataprocDAO {
-  def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, serviceAccount: WorkbenchUserServiceAccountEmail)(implicit executionContext: ExecutionContext): Future[Cluster]
+  def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, serviceAccount: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[Cluster]
 
   def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit]
 
@@ -22,7 +22,7 @@ trait DataprocDAO {
    * The bucketGoogleProject is the project the bucket resides in; the clusterGoogleProject is needed to set the
    * appropriate ACLs on the bucket.
    */
-  def createBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, bucketName: GcsBucketName, userServiceAccount: WorkbenchUserServiceAccountEmail): Future[GcsBucketName]
+  def createBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, bucketName: GcsBucketName, userServiceAccount: WorkbenchEmail): Future[GcsBucketName]
 
   def uploadToBucket(googleProject: GoogleProject, bucketPath: GcsPath, content: File): Future[Unit]
 
@@ -40,7 +40,7 @@ trait DataprocDAO {
 
   def deleteBucket(googleProject: GoogleProject, gcsBucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[Unit]
 
-  def getEmailAndExpirationFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[(WorkbenchUserEmail, Instant)]
+  def getEmailAndExpirationFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[(WorkbenchEmail, Instant)]
 
   def listClusters(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[List[UUID]]
 }

@@ -36,7 +36,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig,
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterInitValues, ClusterName, ClusterRequest, FirewallRuleName, GoogleProject, GoogleServiceAccount, IP, InstanceName, LeoException, MachineConfig, OperationName, ZoneUri, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
-import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserServiceAccountEmail}
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future, blocking}
@@ -113,9 +113,9 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
   }
 
   // Using the given access token, look up the corresponding email of the user and get how long, in seconds, the token will expire in
-  def getEmailAndExpirationFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[(WorkbenchUserEmail, Instant)] = {
+  def getEmailAndExpirationFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[(WorkbenchEmail, Instant)] = {
     val request = oauth2.tokeninfo().setAccessToken(accessToken)
-    executeGoogleRequestAsync(GoogleProject(""), "cookie auth", request).map{tokenInfo => (WorkbenchUserEmail(tokenInfo.getEmail), Instant.now().plusSeconds(tokenInfo.getExpiresIn.toInt))}
+    executeGoogleRequestAsync(GoogleProject(""), "cookie auth", request).map{tokenInfo => (WorkbenchEmail(tokenInfo.getEmail), Instant.now().plusSeconds(tokenInfo.getExpiresIn.toInt))}
         .recover { case CallToGoogleApiFailedException(_, _, _, _) => {
         logger.error(s"Unable to authorize token: $accessToken")
         throw AuthorizationError()
@@ -132,7 +132,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
       .setAllowed(List(allowed).asJava)
   }
 
-  override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, serviceAccount: WorkbenchUserServiceAccountEmail)(implicit executionContext: ExecutionContext): Future[LeoCluster] = {
+  override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, serviceAccount: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[LeoCluster] = {
     buildCluster(googleProject, clusterName, clusterRequest, initBucketName, clusterDefaultsConfig, serviceAccount).map { operation =>
       //Make a Leo cluster from the Google operation details
       LeoCluster.create(clusterRequest, clusterName, googleProject, getOperationUUID(operation), OperationName(operation.getName), serviceAccount, clusterDefaultsConfig)
@@ -141,7 +141,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
 
 
   /* Kicks off building the cluster. This will return before the cluster finishes creating. */
-  private def buildCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, clusterDefaultsConfig: ClusterDefaultsConfig, serviceAccount: WorkbenchUserServiceAccountEmail)(implicit executionContext: ExecutionContext): Future[DataprocOperation] = {
+  private def buildCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, clusterDefaultsConfig: ClusterDefaultsConfig, serviceAccount: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[DataprocOperation] = {
     // Create a Cluster and give it a name and a Cluster Config
     val cluster = new DataprocCluster()
       .setClusterName(clusterName.string)
@@ -153,7 +153,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
     executeGoogleRequestAsync(googleProject, clusterName.toString, request)  // returns a Future[DataprocOperation]
   }
 
-  private def getClusterConfig(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, clusterDefaultsConfig: ClusterDefaultsConfig, serviceAccount: WorkbenchUserServiceAccountEmail): ClusterConfig = {
+  private def getClusterConfig(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, clusterDefaultsConfig: ClusterDefaultsConfig, serviceAccount: WorkbenchEmail): ClusterConfig = {
     // Create a GceClusterConfig, which has the common config settings for resources of Google Compute Engine cluster instances,
     //   applicable to all instances in the cluster.
     //   Set the network tag, which is needed by the firewall rule that allows leo to talk to the cluster
@@ -268,7 +268,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
   }
 
   /* Create a bucket in the given google project for the initialization files when creating a cluster */
-  override def createBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, initBucketName: GcsBucketName, userServiceAccount: WorkbenchUserServiceAccountEmail): Future[GcsBucketName] = {
+  override def createBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, initBucketName: GcsBucketName, userServiceAccount: WorkbenchEmail): Future[GcsBucketName] = {
     // Create lifecycle rule for the bucket that will delete the bucket after 1 day.
     //
     // Note that the init buckets are explicitly deleted by the ClusterMonitor once the cluster
