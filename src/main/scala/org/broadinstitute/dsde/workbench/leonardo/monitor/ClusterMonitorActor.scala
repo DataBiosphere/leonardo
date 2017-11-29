@@ -5,7 +5,6 @@ import akka.pattern.pipe
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
-import org.broadinstitute.dsde.workbench.model.google.{GoogleProject => WorkbenchGoogleProject}
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, DataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -242,7 +241,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     // Remove the Dataproc Worker IAM role for the pet service account
     // Only do this if the cluster was created with the pet service account.
     if (dataprocConfig.createClusterAsPetServiceAccount) {
-      googleIamDAO.removeIamRolesForUser(WorkbenchGoogleProject(cluster.googleProject.string), cluster.googleServiceAccount, Set("roles/dataproc.worker"))
+      googleIamDAO.removeIamRolesForUser(cluster.googleProject, cluster.googleServiceAccount, Set("roles/dataproc.worker"))
     } else Future.successful(())
   }
 

@@ -1,8 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
-import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, GoogleServiceAccount, OperationName}
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 
 // Mockito Argument Matchers for Value Classes
@@ -22,9 +21,6 @@ trait VCMockitoMatchers {
   implicit def gcsbnApply: String => GcsBucketName = GcsBucketName.apply
   implicit def gcsbnUnapply: GcsBucketName => Option[String] = GcsBucketName.unapply
 
-  implicit def gpApply: String => GoogleProject = GoogleProject.apply
-  implicit def gpUnapply: GoogleProject => Option[String] = GoogleProject.unapply
-
   implicit def gsaApply: String => GoogleServiceAccount = GoogleServiceAccount.apply
   implicit def gsaUnapply: GoogleServiceAccount => Option[String] = GoogleServiceAccount.unapply
 
@@ -33,7 +29,4 @@ trait VCMockitoMatchers {
 
   implicit def onApply: String => OperationName = OperationName.apply
   implicit def onUnapply: OperationName => Option[String] = OperationName.unapply
-
-  implicit def petApply: String => WorkbenchEmail = WorkbenchEmail.apply
-  implicit def petUnapply: WorkbenchEmail => Option[String] = WorkbenchEmail.unapply
 }
