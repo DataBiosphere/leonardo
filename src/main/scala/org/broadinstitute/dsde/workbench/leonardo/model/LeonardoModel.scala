@@ -83,23 +83,24 @@ object ClusterStatus extends Enumeration {
 
 
 object Cluster {
-  def create(clusterRequest: ClusterRequest, clusterName: ClusterName, googleProject: GoogleProject, googleId: UUID, operationName: OperationName, serviceAccount: WorkbenchEmail, clusterDefaultsConfig: ClusterDefaultsConfig): Cluster = {
+  def create(clusterRequest: ClusterRequest, userEmail: WorkbenchEmail, clusterName: ClusterName, googleProject: GoogleProject, googleId: UUID, operationName: OperationName, serviceAccount: WorkbenchEmail, clusterDefaultsConfig: ClusterDefaultsConfig): Cluster = {
     Cluster(
-      clusterName = clusterName,
-      googleId = googleId,
-      googleProject = googleProject,
-      googleServiceAccount = serviceAccount,
-      googleBucket = clusterRequest.bucketPath,
-      machineConfig = MachineConfig(clusterRequest.machineConfig, clusterDefaultsConfig),
-      clusterUrl = getClusterUrl(googleProject, clusterName),
-      operationName = operationName,
-      status = ClusterStatus.Creating,
-      hostIp = None,
-      createdDate = Instant.now(),
-      destroyedDate = None,
-      labels = clusterRequest.labels,
-      jupyterExtensionUri = clusterRequest.jupyterExtensionUri
-    )
+        clusterName = clusterName,
+        googleId = googleId,
+        googleProject = googleProject,
+        googleServiceAccount = serviceAccount,
+        googleBucket = clusterRequest.bucketPath,
+        machineConfig = MachineConfig(clusterRequest.machineConfig, clusterDefaultsConfig),
+        clusterUrl = getClusterUrl(googleProject, clusterName),
+        operationName = operationName,
+        status = ClusterStatus.Creating,
+        hostIp = None,
+        userEmail,
+        createdDate = Instant.now(),
+        destroyedDate = None,
+        labels = clusterRequest.labels,
+        jupyterExtensionUri = clusterRequest.jupyterExtensionUri
+      )
   }
 
   def getClusterUrl(googleProject: GoogleProject, clusterName: ClusterName): URL = {
@@ -125,6 +126,7 @@ case class Cluster(clusterName: ClusterName,
                    operationName: OperationName,
                    status: ClusterStatus,
                    hostIp: Option[IP],
+                   creator: WorkbenchEmail,
                    createdDate: Instant,
                    destroyedDate: Option[Instant],
                    labels: LabelMap,
@@ -329,7 +331,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val ipFormat = StringValueClassFormat(IP, IP.unapply)
   implicit val firewallRuleNameFormat = StringValueClassFormat(FirewallRuleName, FirewallRuleName.unapply)
   implicit val machineConfigFormat = jsonFormat7(MachineConfig.apply)
-  implicit val clusterFormat = jsonFormat14(Cluster.apply)
+  implicit val clusterFormat = jsonFormat15(Cluster.apply)
   implicit val clusterRequestFormat = jsonFormat4(ClusterRequest)
   implicit val clusterInitValuesFormat = jsonFormat17(ClusterInitValues.apply)
   implicit val defaultLabelsFormat = jsonFormat5(DefaultLabels.apply)

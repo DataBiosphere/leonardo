@@ -87,11 +87,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     for {
       _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
       serviceAccount <- samDAO.getPetServiceAccount(userInfo)
-      cluster <- internalCreateCluster(serviceAccount, googleProject, clusterName, clusterRequest)
+      cluster <- internalCreateCluster(userInfo.userEmail, serviceAccount, googleProject, clusterName, clusterRequest)
     } yield cluster
   }
 
-  def internalCreateCluster(serviceAccount: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
+  def internalCreateCluster(userEmail: WorkbenchEmail, serviceAccount: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
     // Check if the google project has a cluster with the same name. If not, we can create it
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName)
@@ -99,17 +99,17 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       case Some(_) => throw ClusterAlreadyExistsException(googleProject, clusterName)
       case None =>
         val augmentedClusterRequest = addClusterDefaultLabels(serviceAccount, googleProject, clusterName, clusterRequest)
-        val createFuture = for {
+        for {
           // Create the cluster in Google
-          (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(serviceAccount, googleProject, clusterName, augmentedClusterRequest)
+          (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(userEmail, serviceAccount, googleProject, clusterName, augmentedClusterRequest)
           // Save the cluster in the database
           savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, GcsPath(initBucket, GcsRelativePath("")), serviceAccountKeyOpt.map(_.id)))
-        } yield savedCluster
-
-        createFuture andThen {
-          case Success(cluster) =>
-            // Notify the cluster monitor upon cluster creation
-            clusterMonitorSupervisor ! ClusterCreated(cluster)
+          // Notify the auth provider that the cluster has been created
+          _ <- authProvider.notifyClusterCreated(userEmail.value, savedCluster.googleProject, savedCluster.googleId)
+        } yield {
+          // Notify the cluster monitor that the cluster has been created
+          clusterMonitorSupervisor ! ClusterCreated(savedCluster)
+          savedCluster
         }
     }
   }
@@ -191,7 +191,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
      - Upload all the necessary initialization files to the bucket
      - Create the cluster in the google project
    Currently, the bucketPath of the clusterRequest is not used - it will be used later as a place to store notebook results */
-  private[service] def createGoogleCluster(serviceAccount: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
+  private[service] def createGoogleCluster(userEmail: WorkbenchEmail, serviceAccount: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
     val initBucketName = generateUniqueBucketName(clusterName.string)
     for {
       // Validate that the Jupyter extension URI is a valid URI and references a real GCS object
@@ -205,7 +205,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Create the bucket in leo's google project and populate with initialization files
       initBucketPath <- initializeBucket(googleProject, clusterName, initBucketName, clusterRequest, serviceAccount, serviceAccountKeyOpt)
       // Once the bucket is ready, build the cluster
-      cluster <- gdDAO.createCluster(googleProject, clusterName, clusterRequest, initBucketName, serviceAccount).andThen { case Failure(_) =>
+      cluster <- gdDAO.createCluster(userEmail, googleProject, clusterName, clusterRequest, initBucketName, serviceAccount).andThen { case Failure(_) =>
         // If cluster creation fails, delete the init bucket asynchronously
         gdDAO.deleteBucket(googleProject, initBucketName)
       }
