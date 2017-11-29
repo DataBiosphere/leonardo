@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig,
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
