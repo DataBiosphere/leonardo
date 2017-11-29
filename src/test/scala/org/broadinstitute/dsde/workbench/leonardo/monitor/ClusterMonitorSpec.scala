@@ -266,7 +266,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Error)
     updatedCluster.flatMap(_.hostIp) shouldBe None
 
-    verify(dataprocDAO, never).deleteBucket(any[GoogleProject], GcsBucketName(anyString))(any[ExecutionContext])
+    verify(gdDAO, never).deleteBucket(any[GoogleProject], GcsBucketName(anyString))(any[ExecutionContext])
     verify(iamDAO, if (dataprocConfig.createClusterAsPetServiceAccount) times(1) else never()).removeIamRolesForUser(any[WorkbenchGoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
     verify(iamDAO, times(1)).removeServiceAccountKey(any[WorkbenchGoogleProject], any[WorkbenchUserServiceAccountEmail], any[WorkbenchUserServiceAccountKeyId])
   }
@@ -404,7 +404,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     newCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
     newCluster.flatMap(_.hostIp) shouldBe Some(IP("1.2.3.4"))
 
-    verify(dataprocDAO).deleteBucket(mockitoEq(dataprocConfig.leoGoogleProject), vcEq(newClusterBucket.get.bucketName))(any[ExecutionContext])
+    verify(gdDAO).deleteBucket(mockitoEq(dataprocConfig.leoGoogleProject), vcEq(newClusterBucket.get.bucketName))(any[ExecutionContext])
     verify(iamDAO, if (dataprocConfig.createClusterAsPetServiceAccount) times(1) else never()).removeIamRolesForUser(any[WorkbenchGoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
     verify(iamDAO, times(1)).removeServiceAccountKey(any[WorkbenchGoogleProject], any[WorkbenchUserServiceAccountEmail], any[WorkbenchUserServiceAccountKeyId])
   }
