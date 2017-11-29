@@ -85,21 +85,21 @@ object ClusterStatus extends Enumeration {
 object Cluster {
   def create(clusterRequest: ClusterRequest, clusterName: ClusterName, googleProject: GoogleProject, googleId: UUID, operationName: OperationName, serviceAccount: WorkbenchEmail, clusterDefaultsConfig: ClusterDefaultsConfig, clusterStatus:ClusterStatus): Cluster = {
     Cluster(
-        clusterName = clusterName,
-        googleId = googleId,
-        googleProject = googleProject,
-        googleServiceAccount = serviceAccount,
-        googleBucket = clusterRequest.bucketPath,
-        machineConfig = MachineConfig(clusterRequest.machineConfig, clusterDefaultsConfig),
-        clusterUrl = getClusterUrl(googleProject, clusterName),
-        operationName = operationName,
-        status = clusterStatus,
-        hostIp = None,
-        createdDate = Instant.now(),
-        destroyedDate = None,
-        labels = clusterRequest.labels,
-        jupyterExtensionUri = clusterRequest.jupyterExtensionUri
-      )
+      clusterName = clusterName,
+      googleId = googleId,
+      googleProject = googleProject,
+      googleServiceAccount = serviceAccount,
+      googleBucket = clusterRequest.bucketPath,
+      machineConfig = MachineConfig(clusterRequest.machineConfig, clusterDefaultsConfig),
+      clusterUrl = getClusterUrl(googleProject, clusterName),
+      operationName = operationName,
+      status = clusterStatus,
+      hostIp = None,
+      createdDate = Instant.now(),
+      destroyedDate = None,
+      labels = clusterRequest.labels,
+      jupyterExtensionUri = clusterRequest.jupyterExtensionUri
+    )
   }
 
   def getClusterUrl(googleProject: GoogleProject, clusterName: ClusterName): URL = {

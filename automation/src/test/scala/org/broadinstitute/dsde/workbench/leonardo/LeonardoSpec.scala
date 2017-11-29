@@ -164,7 +164,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
   }
 
   // create a new cluster and wait sufficient time for the jupyter server to be ready
-  
+
   def withReadyCluster[T](googleProject: GoogleProject)(testCode: Cluster => T)(implicit token: AuthToken): T = {
     withNewCluster(googleProject) { cluster =>
 
@@ -213,10 +213,10 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     }
 
     "should error on cluster create and delete the cluster" in {
-            withNewErroredCluster(project) { _ =>
-                // no-op; just verify that it launches
-                }
-          }
+      withNewErroredCluster(project) { _ =>
+        // no-op; just verify that it launches
+      }
+    }
 
     "should open the notebooks list page" in withWebDriver { implicit driver =>
       implicit val token = ronAuthToken

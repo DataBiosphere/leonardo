@@ -72,10 +72,6 @@ object Leonardo extends WorkbenchClient with LazyLogging {
       }
     }
 
-
-
-
-
     def clusterPath(googleProject: GoogleProject, clusterName: ClusterName): String =
       s"api/cluster/${googleProject.value}/${clusterName.string}"
 
