@@ -47,7 +47,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
   val project = GoogleProject(LeonardoConfig.Projects.default)
   val sa = GoogleServiceAccount(LeonardoConfig.Leonardo.notebooksServiceAccountEmail)
   val bucket = GcsBucketName("mah-bukkit")
-  val incorrectJupyterExtensionUri = "gs://leonardo-swat-test-bucket-do-not-delete"
+  val incorrectJupyterExtensionUri = "gs://leonardo-swat-test-bucket-do-not-delete/test.rtf"
 
   // must align with run-tests.sh and hub-compose-fiab.yml
   val downloadDir = "chrome/downloads"
