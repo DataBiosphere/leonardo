@@ -105,7 +105,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           // Save the cluster in the database
           savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, GcsPath(initBucket, GcsRelativePath("")), serviceAccountKeyOpt.map(_.id)))
           // Notify the auth provider that the cluster has been created
-          _ <- authProvider.notifyClusterCreated(userEmail.value, savedCluster.googleProject, savedCluster.googleId)
+          _ <- authProvider.notifyClusterCreated(savedCluster.creator.value, savedCluster.googleProject, savedCluster.googleId)
         } yield {
           // Notify the cluster monitor that the cluster has been created
           clusterMonitorSupervisor ! ClusterCreated(savedCluster)
@@ -154,6 +154,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         _ <- deleteServiceAccountKey
         _ <- gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)
         recordCount <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.googleId))
+        _ <- authProvider.notifyClusterCreated(cluster.creator.value, cluster.googleProject, cluster.googleId)
       } yield {
         clusterMonitorSupervisor ! ClusterDeleted(cluster)
         recordCount
