@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
-import akka.actor.{Actor, Props}
+import akka.actor.{Actor, ActorRef, Props}
 import akka.pattern.pipe
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
@@ -8,6 +8,7 @@ import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, DataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache.ProcessReadyCluster
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterErrorDetails, ClusterStatus, IP}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
@@ -18,13 +19,15 @@ import org.broadinstitute.dsde.workbench.util.addJitter
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Failure
+import akka.pattern.ask
+import akka.util.Timeout
 
 object ClusterMonitorActor {
   /**
     * Creates a Props object used for creating a {{{ClusterMonitorActor}}}.
     */
-  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: DataprocDAO, googleIamDAO: GoogleIamDAO, dbRef: DbReference): Props =
-    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, gdDAO, googleIamDAO, dbRef))
+  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: DataprocDAO, googleIamDAO: GoogleIamDAO, dbRef: DbReference, clusterDnsCache: ActorRef): Props =
+    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, gdDAO, googleIamDAO, dbRef, clusterDnsCache))
 
   // ClusterMonitorActor messages:
 
@@ -51,7 +54,8 @@ class ClusterMonitorActor(val cluster: Cluster,
                           val dataprocConfig: DataprocConfig,
                           val gdDAO: DataprocDAO,
                           val googleIamDAO: GoogleIamDAO,
-                          val dbRef: DbReference) extends Actor with LazyLogging {
+                          val dbRef: DbReference,
+                          val clusterDnsCache: ActorRef) extends Actor with LazyLogging {
   import context._
 
   override def preStart(): Unit = {
@@ -137,9 +141,13 @@ class ClusterMonitorActor(val cluster: Cluster,
     // Only do this if the cluster was not created with the pet service account.
     val bucketACLFuture = setStagingBucketACLsForUser()
 
+    implicit val timeout: Timeout = Timeout(5 seconds)
+    val enableClusterProxying: Future[Any] = clusterDnsCache ? ProcessReadyCluster(cluster)
+
     for {
       _ <- iamFuture
       _ <- bucketACLFuture
+      _ <- enableClusterProxying
       // update DB after auth futures finish
       _ <- dbRef.inTransaction { dataAccess =>
         dataAccess.clusterQuery.setToRunning(cluster.googleId, publicIp)

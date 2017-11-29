@@ -170,11 +170,6 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
   def withReadyCluster[T](googleProject: GoogleProject)(testCode: Cluster => T)(implicit token: AuthToken): T = {
     withNewCluster(googleProject) { cluster =>
-
-      // GAWB-2797: Leo might not be ready to proxy yet
-      import concurrent.duration._
-      Thread sleep 25.seconds.toMillis
-
       testCode(cluster)
     }
   }
