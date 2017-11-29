@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo.model
 import java.util.UUID
 
 import com.typesafe.config.Config
-import org.broadinstitute.dsde.workbench.model.WorkbenchUserEmail
 
 import scala.concurrent.Future
 
@@ -18,22 +17,45 @@ case object LocalizeDataToCluster extends NotebookClusterAction
 case object DestroyCluster extends NotebookClusterAction
 
 abstract class LeoAuthProvider(authConfig: Config) {
-  //TODO: Scaladoc style comments please
-  //Does this user have permission in all projects to perform this action?
-  def hasPermissionInAllProjects(user: WorkbenchUserEmail, action: ProjectAction): Future[Boolean]
+  /**
+    * @param userEmail The email address of the user in question
+    * @param action The project-level action (above) the user is requesting
+    * @param project The Google project to check in
+    * @return If the given user has permissions in this project to perform the specified action.
+    */
+  def hasProjectPermission(userEmail: String, action: ProjectAction, project: GoogleProject): Future[Boolean]
 
-  //Does the user have permission in this project to perform this action?
-  def hasProjectPermission(user: WorkbenchUserEmail, action: ProjectAction, project: GoogleProject): Future[Boolean]
+  /**
+    * @param userEmail The email address of the user in question
+    * @param action The cluster-level action (above) the user is requesting
+    * @param clusterGoogleID The UUID of the Dataproc cluster
+    * @return If the userEmail has permission on this individual notebook cluster to perform this action
+    */
+  def hasNotebookClusterPermission(userEmail: String, action: NotebookClusterAction, clusterGoogleID: UUID): Future[Boolean]
 
-  //List the projects in which the user has ListClusters action.
-  //If hasPermissionInAllProjects(_, ListClusters) returns true in your implementation, you should return Set.empty() for this function.
-  def getProjectsWithListClustersPermission(user: WorkbenchUserEmail): Future[Set[GoogleProject]]
+  //Notifications that Leo has created/destroyed clusters. Allows the auth provider to register things.
 
-  //Does the user have permission on this individual notebook cluster to perform this action?
-  def hasNotebookClusterPermission(user: WorkbenchUserEmail, action: NotebookClusterAction, clusterGoogleID: UUID): Future[Boolean]
+  /**
+    * Leo calls this method to notify the auth provider that a new notebook cluster has been created.
+    * The returned future should complete once the provider has finished doing any associated work.
+    * Leo will wait, so be timely!
+    *
+    * @param userEmail The email address of the user in question
+    * @param project The Google project the cluster was created in
+    * @param clusterGoogleID The unique ID of the Dataproc cluster
+    * @return A Future that will complete when the auth provider has finished doing its business.
+    */
+  def notifyClusterCreated(userEmail: String, project: GoogleProject, clusterGoogleID: UUID): Future[Unit]
 
-  //Notifications that Leo has created/destroyed clusters.
-  //The resulting future should return once the provider has finished doing any associated work. Leo will wait.
-  def notifyClusterCreated(user: WorkbenchUserEmail, project: GoogleProject, clusterGoogleID: UUID): Future[Unit]
-  def notifyClusterDestroyed(user: WorkbenchUserEmail, project: GoogleProject, clusterGoogleID: UUID): Future[Unit]
+  /**
+    * Leo calls this method to notify the auth provider that a notebook cluster has been destroyed.
+    * The returned future should complete once the provider has finished doing any associated work.
+    * Leo will wait, so be timely!
+    *
+    * @param userEmail The email address of the user in question
+    * @param project The Google project the cluster was created in
+    * @param clusterGoogleID The unique ID of the Dataproc cluster
+    * @return A Future that will complete when the auth provider has finished doing its business.
+    */
+  def notifyClusterDestroyed(userEmail: String, project: GoogleProject, clusterGoogleID: UUID): Future[Unit]
 }

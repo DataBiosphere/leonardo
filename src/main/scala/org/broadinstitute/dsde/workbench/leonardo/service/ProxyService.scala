@@ -75,8 +75,8 @@ class ProxyService(proxyConfig: ProxyConfig,
   def proxy(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest, token: HttpCookiePair): Future[HttpResponse] = {
     val authCheck = for {
       cluster <- OptionT(dbRef.inTransaction { da => da.clusterQuery.getActiveClusterByName(googleProject, clusterName) })
-      hasViewPermission <- OptionT.liftF(authProvider.hasNotebookClusterPermission(userEmail, GetClusterDetails, cluster.googleId))
-      hasConnectPermission <- OptionT.liftF(authProvider.hasNotebookClusterPermission(userEmail, ConnectToCluster, cluster.googleId))
+      hasViewPermission <- OptionT.liftF(authProvider.hasNotebookClusterPermission(userEmail.value, GetClusterDetails, cluster.googleId))
+      hasConnectPermission <- OptionT.liftF(authProvider.hasNotebookClusterPermission(userEmail.value, ConnectToCluster, cluster.googleId))
     } yield {
       if(!hasViewPermission) {
         throw ClusterNotFoundException(googleProject, clusterName)

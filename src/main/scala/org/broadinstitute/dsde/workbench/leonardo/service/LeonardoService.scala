@@ -64,7 +64,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   clusterMonitorSupervisor ! RegisterLeoService(this)
 
   protected def checkProjectPermission(user: UserInfo, action: ProjectAction, project: GoogleProject): Future[Unit] = {
-    authProvider.hasProjectPermission(user.userEmail, action, project) map {
+    authProvider.hasProjectPermission(user.userEmail.value, action, project) map {
       case false => throw AuthorizationError(user.userEmail)
       case true => ()
     }
@@ -73,7 +73,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   //Throws 404 and pretends we don't even know there's a cluster there, by default.
   //If the cluster really exists and you're OK with the user knowing that, set throw401 = true.
   protected def checkClusterPermission(user: UserInfo, action: NotebookClusterAction, cluster: Cluster, throw401: Boolean = false): Future[Unit] = {
-    authProvider.hasNotebookClusterPermission(user.userEmail, action, cluster.googleId) map {
+    authProvider.hasNotebookClusterPermission(user.userEmail.value, action, cluster.googleId) map {
       case false =>
         if( throw401 )
           throw AuthorizationError(user.userEmail)
@@ -166,30 +166,15 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       paramMap <- processListClustersParameters(params)
       clusterList <- dbRef.inTransaction { da => da.clusterQuery.listByLabels(paramMap._1, paramMap._2) }
 
-      //Filter by authorization.
-      //Set of projects these clusters are in
-      clusterProjects = clusterList.map { _.googleProject }.toSet
-      //Does the user have god-mode, i.e. can they see all clusters in all projects?
-      hasAllProjectsPermission <- authProvider.hasPermissionInAllProjects(userInfo.userEmail, ListClusters)
-      //Get the list of projects with list-clusters permission
-      projectsWithListClusters <- if( hasAllProjectsPermission ) {
-          Future.successful(clusterProjects)
-        } else {
-          authProvider.getProjectsWithListClustersPermission(userInfo.userEmail)
-        }
-
-      //Find out which clusters we'll need to check one-by-one and which are visible by dint of project-level or god permissions.
-      (visibleClusters, checkHarder) = clusterList.partition( c => projectsWithListClusters.contains(c.googleProject) )
-
-      //Finally do per-cluster checks.
-      harderChecks <- Future.traverse(checkHarder) { cluster =>
-        authProvider.hasNotebookClusterPermission(userInfo.userEmail, GetClusterDetails, cluster.googleId) map {
-          case true => Some(cluster)
-          case false => None
-        }
+      //look up permissions for cluster
+      clusterPermissions <- Future.traverse(clusterList) { cluster =>
+        val hasProjectPermission = authProvider.hasProjectPermission(userInfo.userEmail.value, ListClusters, cluster.googleProject)
+        val hasNotebookPermission = authProvider.hasNotebookClusterPermission(userInfo.userEmail.value, GetClusterDetails, cluster.googleId)
+        Future.reduceLeft(List(hasProjectPermission, hasNotebookPermission))(_ || _)
       }
     } yield {
-        visibleClusters ++ harderChecks.flatten
+      //merge "can we see this cluster" with the cluster and filter out the ones we can't see
+      clusterList zip clusterPermissions filter( _._2 ) map ( _._1 )
     }
   }
 
