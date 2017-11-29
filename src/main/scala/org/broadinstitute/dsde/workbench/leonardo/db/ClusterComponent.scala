@@ -1,4 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
+
 import java.time.Instant
 import java.sql.Timestamp
 import java.util.UUID
@@ -8,7 +9,8 @@ import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.model.{WorkbenchUserServiceAccountEmail, WorkbenchUserServiceAccountKeyId}
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.google.ServiceAccountKeyId
 
 import scala.util.Random
 
@@ -71,7 +73,7 @@ trait ClusterComponent extends LeoComponent {
 
     private final val dummyDate:Instant = Instant.ofEpochMilli(1000)
 
-    def save(cluster: Cluster, initBucket: GcsPath, serviceAccountKeyId: Option[WorkbenchUserServiceAccountKeyId]): DBIO[Cluster] = {
+    def save(cluster: Cluster, initBucket: GcsPath, serviceAccountKeyId: Option[ServiceAccountKeyId]): DBIO[Cluster] = {
       (clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster, initBucket.toUri, serviceAccountKeyId)) flatMap { clusterId =>
         labelQuery.saveAllForCluster(clusterId, cluster.labels)
       } map { _ => cluster }
@@ -133,13 +135,13 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    def getServiceAccountKeyId(project: GoogleProject, name: ClusterName): DBIO[Option[WorkbenchUserServiceAccountKeyId]] = {
+    def getServiceAccountKeyId(project: GoogleProject, name: ClusterName): DBIO[Option[ServiceAccountKeyId]] = {
       clusterQuery
         .filter { _.googleProject === project.string }
         .filter { _.clusterName === name.string }
         .map(_.serviceAccountKeyId)
         .result
-        .map { recs => recs.headOption.flatten.map(WorkbenchUserServiceAccountKeyId(_)) }
+        .map { recs => recs.headOption.flatten.map(ServiceAccountKeyId(_)) }
     }
 
     def markPendingDeletion(googleId: UUID): DBIO[Int] = {
@@ -202,7 +204,7 @@ trait ClusterComponent extends LeoComponent {
     /* WARNING: The init bucket and SA key ID is secret to Leo, which means we don't unmarshal it.
      * This function should only be called at cluster creation time, when the init bucket doesn't exist.
      */
-    private def marshalCluster(cluster: Cluster, initBucket: String, serviceAccountKeyId: Option[WorkbenchUserServiceAccountKeyId]): ClusterRecord = {
+    private def marshalCluster(cluster: Cluster, initBucket: String, serviceAccountKeyId: Option[ServiceAccountKeyId]): ClusterRecord = {
       ClusterRecord(
         id = 0,    // DB AutoInc
         cluster.clusterName.string,
@@ -257,7 +259,7 @@ trait ClusterComponent extends LeoComponent {
         name,
         clusterRecord.googleId,
         project,
-        WorkbenchUserServiceAccountEmail(clusterRecord.googleServiceAccount),
+        WorkbenchEmail(clusterRecord.googleServiceAccount),
         GcsBucketName(clusterRecord.googleBucket),
         machineConfig,
         Cluster.getClusterUrl(project, name),

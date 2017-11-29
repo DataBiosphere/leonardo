@@ -4,7 +4,7 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.server.Directive1
 import akka.http.scaladsl.server.Directives.headerValueByName
 import org.broadinstitute.dsde.workbench.leonardo.model.UserInfo
-import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserId}
+import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchUserId}
 
 /**
   * Created by rtitle on 10/16/17.
@@ -15,7 +15,7 @@ trait StandardUserInfoDirectives extends UserInfoDirectives {
      headerValueByName("OIDC_CLAIM_user_id") &
      headerValueByName("OIDC_CLAIM_expires_in") &
      headerValueByName("OIDC_CLAIM_email")).tmap { case (token, userId, expiresIn, email) =>
-      UserInfo(OAuth2BearerToken(token), WorkbenchUserId(userId), WorkbenchUserEmail(email), expiresIn.toLong)
+      UserInfo(OAuth2BearerToken(token), WorkbenchUserId(userId), WorkbenchEmail(email), expiresIn.toLong)
     }
   }
 }
