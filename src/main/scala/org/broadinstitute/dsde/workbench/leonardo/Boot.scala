@@ -50,7 +50,7 @@ object Boot extends App with LazyLogging {
     val samConfig = config.as[SamConfig]("sam")
 
     val authProviderClass = config.as[String]("auth.providerClass")
-    val authConfig = config.atPath("auth.providerConfig")
+    val authConfig = config.getConfig("auth.providerConfig")
 
     // we need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")
