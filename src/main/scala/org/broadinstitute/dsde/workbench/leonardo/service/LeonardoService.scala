@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMa
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted, RegisterLeoService}
 import org.broadinstitute.dsde.workbench.google.gcs._
-import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserServiceAccountEmail, WorkbenchUserServiceAccountKey}
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import slick.dbio.DBIO
 import spray.json._
 
