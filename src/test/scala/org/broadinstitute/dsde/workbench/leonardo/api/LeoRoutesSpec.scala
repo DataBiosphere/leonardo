@@ -50,14 +50,14 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   it should "404 when getting a cluster as a non-white-listed user" in isolatedDbTest {
     val newCluster = ClusterRequest(bucketPath, Map.empty, None)
 
-    Put(s"/api/cluster/${googleProject.string}/notyourcluster", newCluster.toJson) ~> leoRoutes.route ~> check {
+    Put(s"/api/cluster/${googleProject.value}/notyourcluster", newCluster.toJson) ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
     }
 
     val invalidUserLeoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with MockUserInfoDirectives {
       override val userInfo: UserInfo =  UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("badUser"), WorkbenchEmail("badUser@example.com"), 0)
     }
-    Get(s"/api/cluster/${googleProject.string}/notyourcluster") ~> invalidUserLeoRoutes.route ~> check {
+    Get(s"/api/cluster/${googleProject.value}/notyourcluster") ~> invalidUserLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
   }

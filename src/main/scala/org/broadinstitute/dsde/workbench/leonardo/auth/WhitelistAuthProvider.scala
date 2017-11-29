@@ -4,7 +4,7 @@ import java.util.UUID
 
 import com.typesafe.config.Config
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.leonardo.model.{GoogleProject, LeoAuthProvider, NotebookClusterAction, ProjectAction}
+import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, NotebookClusterAction, ProjectAction}
 
 import scala.concurrent.Future
 
@@ -19,10 +19,10 @@ class WhitelistAuthProvider(authConfig: Config) extends LeoAuthProvider(authConf
   /**
     * @param userEmail The email address of the user in question
     * @param action The project-level action (above) the user is requesting
-    * @param project The Google project to check in
+    * @param googleProject The Google project to check in
     * @return If the given user has permissions in this project to perform the specified action.
     */
-  def hasProjectPermission(userEmail: String, action: ProjectAction, project: GoogleProject): Future[Boolean]  = {
+  def hasProjectPermission(userEmail: String, action: ProjectAction, googleProject: String): Future[Boolean]  = {
     checkWhitelist(userEmail)
   }
 
@@ -44,11 +44,11 @@ class WhitelistAuthProvider(authConfig: Config) extends LeoAuthProvider(authConf
     * Leo will wait, so be timely!
     *
     * @param userEmail The email address of the user in question
-    * @param project The Google project the cluster was created in
+    * @param googleProject The Google project the cluster was created in
     * @param clusterGoogleID The unique ID of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterCreated(userEmail: String, project: GoogleProject, clusterGoogleID: UUID): Future[Unit] = Future.successful(())
+  def notifyClusterCreated(userEmail: String, googleProject: String, clusterGoogleID: UUID): Future[Unit] = Future.successful(())
 
   /**
     * Leo calls this method to notify the auth provider that a notebook cluster has been destroyed.
@@ -56,9 +56,9 @@ class WhitelistAuthProvider(authConfig: Config) extends LeoAuthProvider(authConf
     * Leo will wait, so be timely!
     *
     * @param userEmail The email address of the user in question
-    * @param project The Google project the cluster was created in
+    * @param googleProject The Google project the cluster was created in
     * @param clusterGoogleID The unique ID of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterDestroyed(userEmail: String, project: GoogleProject, clusterGoogleID: UUID): Future[Unit] = Future.successful(())
+  def notifyClusterDestroyed(userEmail: String, googleProject: String, clusterGoogleID: UUID): Future[Unit] = Future.successful(())
 }

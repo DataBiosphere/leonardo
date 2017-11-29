@@ -20,10 +20,10 @@ abstract class LeoAuthProvider(authConfig: Config) {
   /**
     * @param userEmail The email address of the user in question
     * @param action The project-level action (above) the user is requesting
-    * @param project The Google project to check in
+    * @param googleProject The Google project to check in
     * @return If the given user has permissions in this project to perform the specified action.
     */
-  def hasProjectPermission(userEmail: String, action: ProjectAction, project: GoogleProject): Future[Boolean]
+  def hasProjectPermission(userEmail: String, action: ProjectAction, googleProject: String): Future[Boolean]
 
   /**
     * @param userEmail The email address of the user in question
@@ -41,11 +41,11 @@ abstract class LeoAuthProvider(authConfig: Config) {
     * Leo will wait, so be timely!
     *
     * @param userEmail The email address of the user in question
-    * @param project The Google project the cluster was created in
+    * @param googleProject The Google project the cluster was created in
     * @param clusterGoogleID The unique ID of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterCreated(userEmail: String, project: GoogleProject, clusterGoogleID: UUID): Future[Unit]
+  def notifyClusterCreated(userEmail: String, googleProject: String, clusterGoogleID: UUID): Future[Unit]
 
   /**
     * Leo calls this method to notify the auth provider that a notebook cluster has been destroyed.
@@ -53,9 +53,9 @@ abstract class LeoAuthProvider(authConfig: Config) {
     * Leo will wait, so be timely!
     *
     * @param userEmail The email address of the user in question
-    * @param project The Google project the cluster was created in
+    * @param googleProject The Google project the cluster was created in
     * @param clusterGoogleID The unique ID of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterDestroyed(userEmail: String, project: GoogleProject, clusterGoogleID: UUID): Future[Unit]
+  def notifyClusterDestroyed(userEmail: String, googleProject: String, clusterGoogleID: UUID): Future[Unit]
 }

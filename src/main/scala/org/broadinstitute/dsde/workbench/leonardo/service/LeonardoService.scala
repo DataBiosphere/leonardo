@@ -64,7 +64,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   clusterMonitorSupervisor ! RegisterLeoService(this)
 
   protected def checkProjectPermission(user: UserInfo, action: ProjectAction, project: GoogleProject): Future[Unit] = {
-    authProvider.hasProjectPermission(user.userEmail.value, action, project) map {
+    authProvider.hasProjectPermission(user.userEmail.value, action, project.value) map {
       case false => throw AuthorizationError(user.userEmail)
       case true => ()
     }
@@ -105,7 +105,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           // Save the cluster in the database
           savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, GcsPath(initBucket, GcsRelativePath("")), serviceAccountKeyOpt.map(_.id)))
           // Notify the auth provider that the cluster has been created
-          _ <- authProvider.notifyClusterCreated(savedCluster.creator.value, savedCluster.googleProject, savedCluster.googleId)
+          _ <- authProvider.notifyClusterCreated(savedCluster.creator.value, savedCluster.googleProject.value, savedCluster.googleId)
         } yield {
           // Notify the cluster monitor that the cluster has been created
           clusterMonitorSupervisor ! ClusterCreated(savedCluster)
@@ -154,7 +154,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         _ <- deleteServiceAccountKey
         _ <- gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)
         recordCount <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.googleId))
-        _ <- authProvider.notifyClusterCreated(cluster.creator.value, cluster.googleProject, cluster.googleId)
+        _ <- authProvider.notifyClusterCreated(cluster.creator.value, cluster.googleProject.value, cluster.googleId)
       } yield {
         clusterMonitorSupervisor ! ClusterDeleted(cluster)
         recordCount
@@ -169,7 +169,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
       //look up permissions for cluster
       clusterPermissions <- Future.traverse(clusterList) { cluster =>
-        val hasProjectPermission = authProvider.hasProjectPermission(userInfo.userEmail.value, ListClusters, cluster.googleProject)
+        val hasProjectPermission = authProvider.hasProjectPermission(userInfo.userEmail.value, ListClusters, cluster.googleProject.value)
         val hasNotebookPermission = authProvider.hasNotebookClusterPermission(userInfo.userEmail.value, GetClusterDetails, cluster.googleId)
         Future.reduceLeft(List(hasProjectPermission, hasNotebookPermission))(_ || _)
       }
