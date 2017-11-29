@@ -6,7 +6,7 @@ import com.typesafe.scalalogging.LazyLogging
 import java.io.File
 
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
-import org.broadinstitute.dsde.workbench.google.model.{GoogleProject => WorkbenchGoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{ServiceAccountKey, GoogleProject => WorkbenchGoogleProject}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{DataprocDAO, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMa
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted, RegisterLeoService}
 import org.broadinstitute.dsde.workbench.google.gcs._
-import org.broadinstitute.dsde.workbench.model.{WorkbenchUserServiceAccountEmail, WorkbenchUserServiceAccountKey}
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import slick.dbio.DBIO
 import spray.json._
 
@@ -65,7 +65,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
-  def createCluster(serviceAccount: WorkbenchUserServiceAccountEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
+  def createCluster(serviceAccount: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
     // Check if the google project has a cluster with the same name. If not, we can create it
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName)
@@ -138,7 +138,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
      - Upload all the necessary initialization files to the bucket
      - Create the cluster in the google project
    Currently, the bucketPath of the clusterRequest is not used - it will be used later as a place to store notebook results */
-  private[service] def createGoogleCluster(serviceAccount: WorkbenchUserServiceAccountEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName, Option[WorkbenchUserServiceAccountKey])] = {
+  private[service] def createGoogleCluster(serviceAccount: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
     val initBucketName = generateUniqueBucketName(clusterName.string)
     for {
       // Validate that the Jupyter extension URI is a valid URI and references a real GCS object
@@ -161,7 +161,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
-  private[service] def generateServiceAccountKey(googleProject: GoogleProject, serviceAccountEmail: WorkbenchUserServiceAccountEmail): Future[Option[WorkbenchUserServiceAccountKey]] = {
+  private[service] def generateServiceAccountKey(googleProject: GoogleProject, serviceAccountEmail: WorkbenchEmail): Future[Option[ServiceAccountKey]] = {
     // Only generate a key if NOT creating the cluster as the pet service account.
     // If the pet service account is used to create a cluster, its credentials are on the metadata
     // server and we don't need to propagate a key file.
@@ -170,7 +170,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } else Future.successful(None)
   }
 
-  private[service] def addDataprocWorkerRoleToServiceAccount(googleProject: GoogleProject, serviceAccountEmail: WorkbenchUserServiceAccountEmail): Future[Unit] = {
+  private[service] def addDataprocWorkerRoleToServiceAccount(googleProject: GoogleProject, serviceAccountEmail: WorkbenchEmail): Future[Unit] = {
     // Only add Dataproc Worker if creating the cluster as the pet service account.
     // Otherwise, the default Google Compute Engine service account is used, which already has the required permissions.
     if (dataprocConfig.createClusterAsPetServiceAccount) {
@@ -193,7 +193,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   /* Create a google bucket and populate it with init files */
-  private[service] def initializeBucket(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountEmail: WorkbenchUserServiceAccountEmail, serviceAccountKey: Option[WorkbenchUserServiceAccountKey]): Future[GcsBucketName] = {
+  private[service] def initializeBucket(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountEmail: WorkbenchEmail, serviceAccountKey: Option[ServiceAccountKey]): Future[GcsBucketName] = {
     for {
       // Note the bucket is created in Leo's project, not the cluster's project.
       // ACLs are granted so the cluster's service account can access the bucket at initialization time.
@@ -203,7 +203,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   /* Process the templated cluster init script and put all initialization files in the init bucket */
-  private[service] def initializeBucketObjects(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountKey: Option[WorkbenchUserServiceAccountKey]): Future[Unit] = {
+  private[service] def initializeBucketObjects(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountKey: Option[ServiceAccountKey]): Future[Unit] = {
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
     val replacements: Map[String, JsValue] = ClusterInitValues(googleProject, clusterName, bucketName, clusterRequest, dataprocConfig,
       clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, serviceAccountKey
@@ -308,7 +308,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
-  private[service] def addClusterDefaultLabels(serviceAccount: WorkbenchUserServiceAccountEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): ClusterRequest = {
+  private[service] def addClusterDefaultLabels(serviceAccount: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): ClusterRequest = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultLabels(clusterName, googleProject, clusterRequest.bucketPath, serviceAccount, clusterRequest.jupyterExtensionUri)
       .toJson.asJsObject.fields.mapValues(labelValue => labelValue.convertTo[String])

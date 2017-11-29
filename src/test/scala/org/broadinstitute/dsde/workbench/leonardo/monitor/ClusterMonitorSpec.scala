@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted}
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
-import org.broadinstitute.dsde.workbench.model.{WorkbenchUserServiceAccountEmail, WorkbenchUserServiceAccountKey, WorkbenchUserServiceAccountKeyId}
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.mockito.ArgumentMatchers.{any, anyString, eq => mockitoEq}
 import org.mockito.Mockito._
 import org.scalatest.mockito.MockitoSugar
@@ -295,7 +295,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val newClusterId = UUID.randomUUID()
     when {
-      dao.createCluster(vcEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName), any[ClusterRequest], vcAny[GcsBucketName], vcAny[WorkbenchUserServiceAccountEmail])(any[ExecutionContext])
+      dao.createCluster(vcEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName), any[ClusterRequest], vcAny[GcsBucketName], vcAny[WorkbenchEmail])(any[ExecutionContext])
     } thenReturn Future.successful {
       creatingCluster.copy(googleId=newClusterId)
     }
@@ -309,7 +309,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(())
 
     when {
-      dao.createBucket(vcAny[GoogleProject], vcAny[GoogleProject], vcAny[GcsBucketName], vcAny[WorkbenchUserServiceAccountEmail])
+      dao.createBucket(vcAny[GoogleProject], vcAny[GoogleProject], vcAny[GcsBucketName], vcAny[WorkbenchEmail])
     } thenReturn Future.successful(GcsBucketName("my-bucket"))
 
     when {
