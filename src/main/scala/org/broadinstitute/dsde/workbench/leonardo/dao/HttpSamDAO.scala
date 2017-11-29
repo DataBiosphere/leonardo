@@ -11,7 +11,7 @@ import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.ActorMaterializer
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoException, UserInfo}
 import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
-import org.broadinstitute.dsde.workbench.model.WorkbenchUserServiceAccountEmail
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.util.health.StatusJsonSupport._
 import org.broadinstitute.dsde.workbench.util.health.SubsystemStatus
 
@@ -39,11 +39,11 @@ class HttpSamDAO(val baseSamServiceURL: String)(implicit system: ActorSystem, ma
     }
   }
 
-  override def getPetServiceAccount(userInfo: UserInfo): Future[WorkbenchUserServiceAccountEmail] = {
+  override def getPetServiceAccount(userInfo: UserInfo): Future[WorkbenchEmail] = {
     val uri = Uri(samServiceURL + "/api/user/petServiceAccount")
     executeSamRequestAsUser(HttpRequest(GET, uri), userInfo).flatMap {
       case HttpResponse(OK, _, entity, _) =>
-        Unmarshal(entity).to[WorkbenchUserServiceAccountEmail]
+        Unmarshal(entity).to[WorkbenchEmail]
       case HttpResponse(status, _, entity, _) =>
         Unmarshal(entity).to[String].flatMap { entityAsString =>
           Future.failed(CallToSamFailedException(uri, status, entityAsString))

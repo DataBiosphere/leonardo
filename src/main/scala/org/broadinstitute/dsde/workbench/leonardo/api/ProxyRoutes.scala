@@ -5,7 +5,7 @@ import akka.http.scaladsl.server.Route
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, GoogleProject}
 import org.broadinstitute.dsde.workbench.leonardo.service.ProxyService
-import org.broadinstitute.dsde.workbench.model.WorkbenchUserEmail
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 
 import scala.concurrent.ExecutionContext
 
@@ -14,7 +14,7 @@ import scala.concurrent.ExecutionContext
   */
 trait ProxyRoutes extends UserInfoDirectives{ self: LazyLogging =>
   val proxyService: ProxyService
-  val whitelistConfig: Set[WorkbenchUserEmail]
+  val whitelistConfig: Set[WorkbenchEmail]
   implicit val executionContext: ExecutionContext
 
   protected val tokenCookieName = "FCtoken"

@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
-import org.broadinstitute.dsde.workbench.model.WorkbenchUserEmail
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
@@ -47,7 +47,7 @@ object Boot extends App with LazyLogging {
     val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
     val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
     val monitorConfig = config.as[MonitorConfig]("monitor")
-    val whitelistConfig = config.as[(Set[String])]("whitelist").map(WorkbenchUserEmail(_))
+    val whitelistConfig = config.as[(Set[String])]("whitelist").map(WorkbenchEmail(_))
     val samConfig = config.as[SamConfig]("sam")
 
     // we need an ActorSystem to host our application in

@@ -7,7 +7,7 @@ import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserId}
+import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.{FlatSpec, Matchers}
 import spray.json._
 
@@ -42,7 +42,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
 
   it should "401 when using a non-white-listed user" in isolatedDbTest {
     val invalidUserLeoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, whitelistConfig) with MockUserInfoDirectives {
-      override val userInfo: UserInfo =  UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("badUser"), WorkbenchUserEmail("badUser@example.com"), 0)
+      override val userInfo: UserInfo =  UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("badUser"), WorkbenchEmail("badUser@example.com"), 0)
     }
     Get("/api/clusters") ~> invalidUserLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Unauthorized

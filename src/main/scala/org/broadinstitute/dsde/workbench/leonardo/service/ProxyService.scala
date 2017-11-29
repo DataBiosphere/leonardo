@@ -21,7 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, GoogleProject, LeoException}
-import org.broadinstitute.dsde.workbench.model.WorkbenchUserEmail
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 
 import scala.collection.immutable
 import scala.concurrent.duration._
@@ -40,7 +40,7 @@ class ProxyService(proxyConfig: ProxyConfig, gdDAO: DataprocDAO, dbRef: DbRefere
     .expireAfterWrite(proxyConfig.cacheExpiryTime, TimeUnit.MINUTES)
     .maximumSize(proxyConfig.cacheMaxSize)
     .build(
-      new CacheLoader[String, Future[(WorkbenchUserEmail, Instant)]] {
+      new CacheLoader[String, Future[(WorkbenchEmail, Instant)]] {
         def load(key: String) = {
           gdDAO.getEmailAndExpirationFromAccessToken(key)
         }
@@ -48,7 +48,7 @@ class ProxyService(proxyConfig: ProxyConfig, gdDAO: DataprocDAO, dbRef: DbRefere
     )
 
   /* Ask the cache for the corresponding google email given a token */
-  def getCachedEmailFromToken(token: String): Future[WorkbenchUserEmail] = {
+  def getCachedEmailFromToken(token: String): Future[WorkbenchEmail] = {
     cachedAuth.get(token).map{ case (email, expireTime) => if (expireTime.isAfter(Instant.now)) email else throw AccessTokenExpiredException() }
   }
 

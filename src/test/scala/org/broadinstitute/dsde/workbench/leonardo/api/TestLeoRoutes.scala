@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
 import org.broadinstitute.dsde.workbench.leonardo.model.UserInfo
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, MockProxyService, StatusService}
-import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserId}
+import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchUserId}
 
 import scala.concurrent.duration._
 
@@ -24,7 +24,7 @@ trait TestLeoRoutes { this: ScalatestRouteTest =>
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
-  val whitelistConfig = config.as[(Set[String])]("whitelist").map(WorkbenchUserEmail(_))
+  val whitelistConfig = config.as[(Set[String])]("whitelist").map(WorkbenchEmail(_))
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockSamDAO = new MockSamDAO
@@ -35,7 +35,7 @@ trait TestLeoRoutes { this: ScalatestRouteTest =>
   val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, mockGoogleDataprocDAO, mockGoogleIamDAO, DbSingleton.ref, clusterMonitorSupervisor, mockSamDAO)
   val proxyService = new MockProxyService(proxyConfig, mockGoogleDataprocDAO, DbSingleton.ref)
   val statusService = new StatusService(mockGoogleDataprocDAO, mockSamDAO, DbSingleton.ref, dataprocConfig, pollInterval = 1.second)
-  val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchUserEmail("user1@example.com"), 0)
+  val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
   val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, whitelistConfig) with MockUserInfoDirectives {
     override val userInfo: UserInfo = defaultUserInfo
   }

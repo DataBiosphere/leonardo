@@ -9,13 +9,14 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.broadinstitute.dsde.workbench.leonardo.model.UserInfo
-import org.broadinstitute.dsde.workbench.model.{WorkbenchUserEmail, WorkbenchUserId, WorkbenchUserServiceAccountEmail}
+import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
 import org.broadinstitute.dsde.workbench.util.health.StatusJsonSupport._
 import org.broadinstitute.dsde.workbench.util.health.SubsystemStatus
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
+
 import scala.concurrent.Future
 
 /**
@@ -36,9 +37,9 @@ class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll with 
   }
 
   val expectedStatus = SubsystemStatus(true, None)
-  val expectedPet = WorkbenchUserServiceAccountEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
-  val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchUserEmail("user1@example.com"), 0)
-  val otherUserInfo = UserInfo(OAuth2BearerToken("tokenFoo"), WorkbenchUserId("user2"), WorkbenchUserEmail("user2@example.com"), 0)
+  val expectedPet = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
+  val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
+  val otherUserInfo = UserInfo(OAuth2BearerToken("tokenFoo"), WorkbenchUserId("user2"), WorkbenchEmail("user2@example.com"), 0)
 
   val backendRoute: Route =
     path("status") {
