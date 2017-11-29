@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import org.broadinstitute.dsde.workbench.leonardo.model.UserInfo
-import org.broadinstitute.dsde.workbench.model.{ErrorReportSource, WorkbenchUserServiceAccountEmail}
+import org.broadinstitute.dsde.workbench.model.{ErrorReportSource, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.health.SubsystemStatus
 
 import scala.concurrent.Future
@@ -14,5 +14,5 @@ trait SamDAO {
 
   def getStatus(): Future[SubsystemStatus]
 
-  def getPetServiceAccount(userInfo: UserInfo): Future[WorkbenchUserServiceAccountEmail]
+  def getPetServiceAccount(userInfo: UserInfo): Future[WorkbenchEmail]
 }

@@ -2,13 +2,10 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import akka.actor.{Actor, Props}
 import akka.pattern.pipe
-import cats.data.OptionT
-import com.google.api.services.storage.model.BucketAccessControl
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
-import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
-import org.broadinstitute.dsde.workbench.google.model.{GoogleProject => WorkbenchGoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{GoogleProject => WorkbenchGoogleProject}
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, DataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference

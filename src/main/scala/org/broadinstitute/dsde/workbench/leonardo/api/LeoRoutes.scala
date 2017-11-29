@@ -17,11 +17,11 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, ClusterReq
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport, WorkbenchUserEmail}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchEmail, WorkbenchExceptionWithErrorReport}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxyService, val statusService: StatusService, val swaggerConfig: SwaggerConfig, val whitelistConfig: Set[WorkbenchUserEmail])(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext) extends LazyLogging with ProxyRoutes with SwaggerRoutes with StatusRoutes with UserInfoDirectives {
+abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxyService, val statusService: StatusService, val swaggerConfig: SwaggerConfig, val whitelistConfig: Set[WorkbenchEmail])(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext) extends LazyLogging with ProxyRoutes with SwaggerRoutes with StatusRoutes with UserInfoDirectives {
 
   def unauthedRoutes: Route =
     path("ping") {

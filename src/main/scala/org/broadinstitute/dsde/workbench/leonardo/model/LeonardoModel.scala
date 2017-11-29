@@ -14,8 +14,9 @@ import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, Gcs
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
-import org.broadinstitute.dsde.workbench.model.{WorkbenchUserServiceAccountEmail, WorkbenchUserServiceAccountKey, WorkbenchUserServiceAccountKeyId}
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
+import org.broadinstitute.dsde.workbench.model.google.ServiceAccountKey
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat, SerializationException}
 
 import scala.language.implicitConversions
@@ -81,7 +82,7 @@ object ClusterStatus extends Enumeration {
 
 
 object Cluster {
-  def create(clusterRequest: ClusterRequest, clusterName: ClusterName, googleProject: GoogleProject, googleId: UUID, operationName: OperationName, serviceAccount: WorkbenchUserServiceAccountEmail, clusterDefaultsConfig: ClusterDefaultsConfig): Cluster = {
+  def create(clusterRequest: ClusterRequest, clusterName: ClusterName, googleProject: GoogleProject, googleId: UUID, operationName: OperationName, serviceAccount: WorkbenchEmail, clusterDefaultsConfig: ClusterDefaultsConfig): Cluster = {
     Cluster(
         clusterName = clusterName,
         googleId = googleId,
@@ -110,13 +111,13 @@ object Cluster {
 case class DefaultLabels(clusterName: ClusterName,
                          googleProject: GoogleProject,
                          googleBucket: GcsBucketName,
-                         serviceAccount: WorkbenchUserServiceAccountEmail,
+                         serviceAccount: WorkbenchEmail,
                          notebookExtension: Option[GcsPath])
 
 case class Cluster(clusterName: ClusterName,
                    googleId: UUID,
                    googleProject: GoogleProject,
-                   googleServiceAccount: WorkbenchUserServiceAccountEmail,
+                   googleServiceAccount: WorkbenchEmail,
                    googleBucket: GcsBucketName,
                    machineConfig: MachineConfig,
                    clusterUrl: URL,
@@ -191,7 +192,7 @@ object ClusterInitValues {
 
   def apply(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest, dataprocConfig: DataprocConfig,
             clusterFilesConfig: ClusterFilesConfig, clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig, swaggerConfig: SwaggerConfig,
-            serviceAccountKey: Option[WorkbenchUserServiceAccountKey]): ClusterInitValues =
+            serviceAccountKey: Option[ServiceAccountKey]): ClusterInitValues =
     ClusterInitValues(
       googleProject.string,
       clusterName.string,
