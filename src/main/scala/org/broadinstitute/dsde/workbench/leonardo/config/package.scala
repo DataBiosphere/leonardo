@@ -5,6 +5,7 @@ import java.io.File
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 
 package object config {
@@ -18,7 +19,7 @@ package object config {
   implicit val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
     DataprocConfig(
       config.getString("applicationName"),
-      GoogleServiceAccount(config.getString("serviceAccount")),
+      ServiceAccountName(config.getString("serviceAccount")),
       config.getString("dataprocDefaultRegion"),
       GoogleProject(config.getString("leoGoogleProject")),
       config.getString("dataprocDockerImage"),
