@@ -37,7 +37,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterSt
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterInitValues, ClusterName, ClusterRequest, FirewallRuleName, IP, InstanceName, LeoException, MachineConfig, OperationName, ZoneUri, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future, blocking}
