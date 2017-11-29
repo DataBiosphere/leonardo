@@ -42,7 +42,7 @@ object Leonardo extends WorkbenchClient with LazyLogging {
                                     createdDate: String,
                                     destroyedDate: Option[String],
                                     labels: LabelMap,
-                                    jupyterExtensionUri: Option[GcsPath]) {
+                                    jupyterExtensionUri: Option[String]) {
 
       def toCluster = Cluster(clusterName,
         googleId,
@@ -57,7 +57,7 @@ object Leonardo extends WorkbenchClient with LazyLogging {
         Instant.parse(createdDate),
         destroyedDate map Instant.parse,
         labels,
-        jupyterExtensionUri)
+        jupyterExtensionUri map (GcsPath.parse(_).right.get))
     }
 
     def handleClusterResponse(response: String): Cluster = mapper.readValue(response, classOf[ClusterKluge]).toCluster
