@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted}
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.mockito.ArgumentMatchers.{any, anyString, eq => mockitoEq}
 import org.mockito.Mockito._
 import org.scalatest.mockito.MockitoSugar
@@ -42,7 +43,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     clusterName = name1,
     googleId = UUID.randomUUID(),
     googleProject = project,
-    googleServiceAccount = googleServiceAccount,
+    googleServiceAccount = serviceAccountEmail,
     googleBucket = GcsBucketName("bucket1"),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name1),
@@ -58,7 +59,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     clusterName = name2,
     googleId = UUID.randomUUID(),
     googleProject = project,
-    googleServiceAccount = googleServiceAccount,
+    googleServiceAccount = serviceAccountEmail,
     googleBucket = GcsBucketName("bucket1"),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name2),
@@ -92,15 +93,15 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val dao = mock[DataprocDAO]
     when {
-      dao.getClusterStatus(vcEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
+      dao.getClusterStatus(mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(ClusterStatus.Running)
 
     when {
-      dao.getClusterMasterInstanceIp(vcEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
+      dao.getClusterMasterInstanceIp(mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(Some(IP("1.2.3.4")))
 
     when {
-      dao.deleteBucket(vcEq(dataprocConfig.leoGoogleProject), vcAny(GcsBucketName))(any[ExecutionContext])
+      dao.deleteBucket(mockitoEq(dataprocConfig.leoGoogleProject), vcAny(GcsBucketName))(any[ExecutionContext])
     } thenReturn Future.successful(())
 
     when {
@@ -115,7 +116,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
     updatedCluster.flatMap(_.hostIp) shouldBe Some(IP("1.2.3.4"))
 
-    verify(dao).deleteBucket(vcEq(dataprocConfig.leoGoogleProject), vcAny(GcsBucketName))(any[ExecutionContext])
+    verify(dao).deleteBucket(mockitoEq(dataprocConfig.leoGoogleProject), vcAny(GcsBucketName))(any[ExecutionContext])
   }
 
   // Pre:
@@ -130,7 +131,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
       val dao = mock[DataprocDAO]
       when {
-        dao.getClusterStatus(vcEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
+        dao.getClusterStatus(mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
       } thenReturn Future.successful(status)
 
       createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
@@ -141,7 +142,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       updatedCluster shouldBe 'defined
       updatedCluster shouldBe Some(creatingCluster)
 
-      verify(dao, never).deleteBucket(anyString, GcsBucketName(anyString))(any[ExecutionContext])
+      verify(dao, never).deleteBucket(any[GoogleProject], GcsBucketName(anyString))(any[ExecutionContext])
     }
   }
 
@@ -156,11 +157,11 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val dao = mock[DataprocDAO]
     when {
-      dao.getClusterStatus(vcEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
+      dao.getClusterStatus(mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(ClusterStatus.Running)
 
     when {
-      dao.getClusterMasterInstanceIp(vcEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
+      dao.getClusterMasterInstanceIp(mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(None)
 
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
@@ -171,7 +172,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster shouldBe 'defined
     updatedCluster shouldBe Some(creatingCluster)
 
-    verify(dao, never).deleteBucket(anyString, GcsBucketName(anyString))(any[ExecutionContext])
+    verify(dao, never).deleteBucket(any[GoogleProject], GcsBucketName(anyString))(any[ExecutionContext])
   }
 
   // Pre:
@@ -185,7 +186,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val dao = mock[DataprocDAO]
     when {
-      dao.getClusterStatus(vcEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
+      dao.getClusterStatus(mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(ClusterStatus.Error)
 
     when {
@@ -200,7 +201,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster shouldBe 'defined
     updatedCluster shouldBe Some(creatingCluster)
 
-    verify(dao, never).deleteBucket(anyString, GcsBucketName(anyString))(any[ExecutionContext])
+    verify(dao, never).deleteBucket(any[GoogleProject], GcsBucketName(anyString))(any[ExecutionContext])
   }
 
   // Pre:
@@ -214,7 +215,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val dao = mock[DataprocDAO]
     when {
-      dao.getClusterStatus(vcEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
+      dao.getClusterStatus(mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(ClusterStatus.Error)
 
     when {
@@ -222,7 +223,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(Some(ClusterErrorDetails(Code.CANCELLED.value, Some("test message"))))
 
     when {
-      dao.deleteCluster(vcEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
+      dao.deleteCluster(mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(())
 
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
@@ -233,7 +234,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Error)
     updatedCluster.flatMap(_.hostIp) shouldBe None
 
-    verify(dao, never).deleteBucket(anyString, GcsBucketName(anyString))(any[ExecutionContext])
+    verify(dao, never).deleteBucket(any[GoogleProject], GcsBucketName(anyString))(any[ExecutionContext])
   }
 
   // Pre:
@@ -247,7 +248,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val dao = mock[DataprocDAO]
     when {
-      dao.getClusterStatus(vcEq(deletingCluster.googleProject), vcEq(deletingCluster.clusterName))(any[ExecutionContext])
+      dao.getClusterStatus(mockitoEq(deletingCluster.googleProject), vcEq(deletingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(ClusterStatus.Deleted)
 
     createClusterSupervisor(dao) ! ClusterDeleted(deletingCluster)
@@ -258,7 +259,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Deleted)
     updatedCluster.flatMap(_.hostIp) shouldBe None
 
-    verify(dao, never).deleteBucket(anyString, GcsBucketName(anyString))(any[ExecutionContext])
+    verify(dao, never).deleteBucket(any[GoogleProject], GcsBucketName(anyString))(any[ExecutionContext])
   }
 
   // Pre:
@@ -274,7 +275,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val dao = mock[DataprocDAO]
     when {
-      dao.getClusterStatus(vcEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
+      dao.getClusterStatus(mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn {
       Future.successful(ClusterStatus.Error)
     } thenReturn {
@@ -290,12 +291,12 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(Some(ClusterErrorDetails(Code.UNKNOWN.value, Some("Test message"))))
 
     when {
-      dao.deleteCluster(vcEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
+      dao.deleteCluster(mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(())
 
     val newClusterId = UUID.randomUUID()
     when {
-      dao.createCluster(vcEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName), any[ClusterRequest], vcAny[GcsBucketName], vcAny[WorkbenchEmail])(any[ExecutionContext])
+      dao.createCluster(mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName), any[ClusterRequest], vcAny[GcsBucketName], any[WorkbenchEmail])(any[ExecutionContext])
     } thenReturn Future.successful {
       creatingCluster.copy(googleId=newClusterId)
     }
@@ -305,27 +306,27 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(())
 
     when {
-      dao.updateFirewallRule(vcEq(creatingCluster.googleProject))
+      dao.updateFirewallRule(mockitoEq(creatingCluster.googleProject))
     } thenReturn Future.successful(())
 
     when {
-      dao.createBucket(vcAny[GoogleProject], vcAny[GoogleProject], vcAny[GcsBucketName], vcAny[WorkbenchEmail])
+      dao.createBucket(any[GoogleProject], any[GoogleProject], vcAny[GcsBucketName], any[WorkbenchEmail])
     } thenReturn Future.successful(GcsBucketName("my-bucket"))
 
     when {
-      dao.uploadToBucket(vcAny[GoogleProject], any[GcsPath], any[File])
+      dao.uploadToBucket(any[GoogleProject], any[GcsPath], any[File])
     } thenReturn Future.successful(())
 
     when {
-      dao.uploadToBucket(vcAny[GoogleProject], any[GcsPath], anyString)
+      dao.uploadToBucket(any[GoogleProject], any[GcsPath], anyString)
     } thenReturn Future.successful(())
 
     when {
-      dao.getClusterMasterInstanceIp(vcEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
+      dao.getClusterMasterInstanceIp(mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(Some(IP("1.2.3.4")))
 
     when {
-      dao.deleteBucket(vcEq(dataprocConfig.leoGoogleProject), vcAny(GcsBucketName))(any[ExecutionContext])
+      dao.deleteBucket(mockitoEq(dataprocConfig.leoGoogleProject), vcAny(GcsBucketName))(any[ExecutionContext])
     } thenReturn Future.successful(())
 
     createClusterSupervisor(dao) ! ClusterCreated(creatingCluster)
@@ -352,7 +353,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     newCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
     newCluster.flatMap(_.hostIp) shouldBe Some(IP("1.2.3.4"))
 
-    verify(dao).deleteBucket(vcEq(dataprocConfig.leoGoogleProject), vcEq(newClusterBucket.get.bucketName))(any[ExecutionContext])
+    verify(dao).deleteBucket(mockitoEq(dataprocConfig.leoGoogleProject), vcEq(newClusterBucket.get.bucketName))(any[ExecutionContext])
   }
 
   // Pre:
@@ -366,7 +367,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val dao = mock[DataprocDAO]
     when {
-      dao.getClusterStatus(vcEq(deletingCluster.googleProject), vcEq(deletingCluster.clusterName))(any[ExecutionContext])
+      dao.getClusterStatus(mockitoEq(deletingCluster.googleProject), vcEq(deletingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(ClusterStatus.Running)
 
     createClusterSupervisor(dao) ! ClusterCreated(deletingCluster)
@@ -377,6 +378,6 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster shouldBe 'defined
     updatedCluster shouldBe Some(deletingCluster)
 
-    verify(dao, never).deleteBucket(anyString, GcsBucketName(anyString))(any[ExecutionContext])
+    verify(dao, never).deleteBucket(any[GoogleProject], GcsBucketName(anyString))(any[ExecutionContext])
   }
 }

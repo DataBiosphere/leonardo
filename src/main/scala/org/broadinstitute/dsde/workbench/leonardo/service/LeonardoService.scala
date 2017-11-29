@@ -6,7 +6,7 @@ import com.typesafe.scalalogging.LazyLogging
 import java.io.File
 
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
-import org.broadinstitute.dsde.workbench.model.google.{ServiceAccountKey, GoogleProject => WorkbenchGoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{ServiceAccountKey, GoogleProject}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{DataprocDAO, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
@@ -24,13 +24,13 @@ import scala.io.Source
 import scala.util.{Failure, Success}
 
 case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: ClusterName)
-  extends LeoException(s"Cluster ${googleProject.string}/${clusterName.string} not found", StatusCodes.NotFound)
+  extends LeoException(s"Cluster ${googleProject.value}/${clusterName.string} not found", StatusCodes.NotFound)
 
 case class ClusterAlreadyExistsException(googleProject: GoogleProject, clusterName: ClusterName)
-  extends LeoException(s"Cluster ${googleProject.string}/${clusterName.string} already exists", StatusCodes.Conflict)
+  extends LeoException(s"Cluster ${googleProject.value}/${clusterName.string} already exists", StatusCodes.Conflict)
 
 case class InitializationFileException(googleProject: GoogleProject, clusterName: ClusterName, errorMessage: String)
-  extends LeoException(s"Unable to process initialization files for ${googleProject.string}/${clusterName.string}. Returned message: $errorMessage", StatusCodes.Conflict)
+  extends LeoException(s"Unable to process initialization files for ${googleProject.value}/${clusterName.string}. Returned message: $errorMessage", StatusCodes.Conflict)
 
 case class JupyterExtensionException(gcsUri: GcsPath)
   extends LeoException(s"Jupyter extension URI is invalid or unparseable: ${gcsUri.toUri}", StatusCodes.BadRequest)
@@ -101,7 +101,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         val deleteServiceAccountKey = dbRef.inTransaction { dataAccess =>
           dataAccess.clusterQuery.getServiceAccountKeyId(googleProject, clusterName)
         } flatMap {
-          case Some(key) => googleIamDAO.removeServiceAccountKey(WorkbenchGoogleProject(dataprocConfig.leoGoogleProject.string), cluster.googleServiceAccount, key)
+          case Some(key) => googleIamDAO.removeServiceAccountKey(dataprocConfig.leoGoogleProject, cluster.googleServiceAccount, key)
           case None => Future.successful(())
         }
 
@@ -166,7 +166,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     // If the pet service account is used to create a cluster, its credentials are on the metadata
     // server and we don't need to propagate a key file.
     if (!dataprocConfig.createClusterAsPetServiceAccount) {
-      googleIamDAO.createServiceAccountKey(WorkbenchGoogleProject(dataprocConfig.leoGoogleProject.string), serviceAccountEmail).map(Option(_))
+      googleIamDAO.createServiceAccountKey(dataprocConfig.leoGoogleProject, serviceAccountEmail).map(Option(_))
     } else Future.successful(None)
   }
 
@@ -174,7 +174,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     // Only add Dataproc Worker if creating the cluster as the pet service account.
     // Otherwise, the default Google Compute Engine service account is used, which already has the required permissions.
     if (dataprocConfig.createClusterAsPetServiceAccount) {
-      googleIamDAO.addIamRolesForUser(WorkbenchGoogleProject(googleProject.string), serviceAccountEmail, Set("roles/dataproc.worker"))
+      googleIamDAO.addIamRolesForUser(googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
     } else Future.successful(())
   }
 

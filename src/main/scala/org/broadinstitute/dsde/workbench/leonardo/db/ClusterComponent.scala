@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterSta
 import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.ServiceAccountKeyId
+import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKeyId}
 
 import scala.util.Random
 
@@ -96,12 +96,12 @@ trait ClusterComponent extends LeoComponent {
     }
 
     def findByName(project: GoogleProject, name: ClusterName) = {
-      clusterQueryWithLabels.filter { _._1.googleProject === project.string }.filter { _._1.clusterName === name.string }
+      clusterQueryWithLabels.filter { _._1.googleProject === project.value }.filter { _._1.clusterName === name.string }
     }
 
     def getActiveClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
       clusterQueryWithLabels
-        .filter { _._1.googleProject === project.string }
+        .filter { _._1.googleProject === project.value }
         .filter { _._1.clusterName === name.string }
         .filter{_._1.destroyedDate === Timestamp.from(dummyDate)}
         .result map { recs =>
@@ -111,7 +111,7 @@ trait ClusterComponent extends LeoComponent {
 
     def getDeletingClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
       clusterQueryWithLabels
-        .filter { _._1.googleProject === project.string }
+        .filter { _._1.googleProject === project.value }
         .filter { _._1.clusterName === name.string }
         .filter{_._1.status === ClusterStatus.Deleting.toString}
         .result map { recs =>
@@ -127,7 +127,7 @@ trait ClusterComponent extends LeoComponent {
 
     def getInitBucket(project: GoogleProject, name: ClusterName): DBIO[Option[GcsPath]] = {
       clusterQuery
-        .filter { _.googleProject === project.string }
+        .filter { _.googleProject === project.value }
         .filter { _.clusterName === name.string }
         .map(_.initBucket)
         .result map { recs =>
@@ -137,7 +137,7 @@ trait ClusterComponent extends LeoComponent {
 
     def getServiceAccountKeyId(project: GoogleProject, name: ClusterName): DBIO[Option[ServiceAccountKeyId]] = {
       clusterQuery
-        .filter { _.googleProject === project.string }
+        .filter { _.googleProject === project.value }
         .filter { _.clusterName === name.string }
         .map(_.serviceAccountKeyId)
         .result
@@ -209,7 +209,7 @@ trait ClusterComponent extends LeoComponent {
         id = 0,    // DB AutoInc
         cluster.clusterName.string,
         cluster.googleId,
-        cluster.googleProject.string,
+        cluster.googleProject.value,
         cluster.googleServiceAccount.value,
         cluster.googleBucket.name,
         cluster.machineConfig.numberOfWorkers.get,   //a cluster should always have numberOfWorkers defined
