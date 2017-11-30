@@ -1,13 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.net.{URI, URL}
+import java.net.URL
 import java.time.Instant
 import java.util.UUID
-import com.google.common.net.UrlEscapers
 import scala.language.implicitConversions
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
-import scala.util.{Failure, Success, Try}
 import org.broadinstitute.dsde.workbench.google.gcs.GcsPath
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
