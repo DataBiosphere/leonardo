@@ -8,9 +8,9 @@ import scala.language.implicitConversions
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 sealed trait StringValueClass extends Any
-case class GoogleProject(string: String) extends AnyVal with StringValueClass
 case class ClusterName(string: String) extends AnyVal with StringValueClass
 case class GoogleServiceAccount(string: String) extends AnyVal with StringValueClass
 case class IP(string: String) extends AnyVal with StringValueClass
@@ -79,7 +79,7 @@ case class DefaultLabels(clusterName: ClusterName,
 
     Map(
       "clusterName" -> clusterName.string,
-      "googleProject" -> googleProject.string,
+      "googleProject" -> googleProject.value,
       "googleBucket" -> googleBucket.name,
       "serviceAccount" -> serviceAccount.value
     ) ++ ext
