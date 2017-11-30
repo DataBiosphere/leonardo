@@ -236,7 +236,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val googleSignInJsContent = templateResource(clusterResourcesConfig.jupyterGoogleSignInJs, replacements)
 
     for {
-    // Upload the init script to the bucket
+      // Upload the init script to the bucket
       _ <- gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.initActionsScript.string)), initScriptContent)
 
       // Upload the googleSignInJs file to the bucket
