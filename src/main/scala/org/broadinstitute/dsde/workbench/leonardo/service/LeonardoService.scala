@@ -74,7 +74,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       case None =>
         val augmentedClusterRequest = addClusterDefaultLabels(serviceAccount, googleProject, clusterName, clusterRequest)
         val createFuture = for {
-        // Create the cluster in Google
+          // Create the cluster in Google
           (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(serviceAccount, googleProject, clusterName, augmentedClusterRequest)
           // Save the cluster in the database
           savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, GcsPath(initBucket, GcsRelativePath("")), serviceAccountKeyOpt.map(_.id)))
@@ -141,7 +141,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private[service] def createGoogleCluster(serviceAccount: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
     val initBucketName = generateUniqueBucketName(clusterName.string)
     for {
-    // Validate that the Jupyter extension URI is a valid URI and references a real GCS object
+      // Validate that the Jupyter extension URI is a valid URI and references a real GCS object
       _ <- validateJupyterExtensionUri(googleProject, clusterRequest.jupyterExtensionUri)
       // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
       _ <- gdDAO.updateFirewallRule(googleProject)
@@ -195,8 +195,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   /* Create a google bucket and populate it with init files */
   private[service] def initializeBucket(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountEmail: WorkbenchEmail, serviceAccountKey: Option[ServiceAccountKey]): Future[GcsBucketName] = {
     for {
-    // Note the bucket is created in Leo's project, not the cluster's project.
-    // ACLs are granted so the cluster's service account can access the bucket at initialization time.
+      // Note the bucket is created in Leo's project, not the cluster's project.
+      // ACLs are granted so the cluster's service account can access the bucket at initialization time.
       _ <- gdDAO.createBucket(dataprocConfig.leoGoogleProject, googleProject, bucketName, serviceAccountEmail)
       _ <- initializeBucketObjects(googleProject, clusterName, bucketName, clusterRequest, serviceAccountKey)
     } yield { bucketName }

@@ -10,6 +10,13 @@ object Settings {
     "artifactory-snapshots" at artifactory + "libs-snapshot"
   )
 
+  // for org.broadinstitute.dsde.workbench modules
+  val artifactory = "https://broadinstitute.jfrog.io/broadinstitute/"
+  val commonResolvers = List(
+    "artifactory-releases" at artifactory + "libs-release",
+    "artifactory-snapshots" at artifactory + "libs-snapshot"
+  )
+
   //coreDefaultSettings + defaultConfigs = the now deprecated defaultSettings
   val commonBuildSettings = Defaults.coreDefaultSettings ++ Defaults.defaultConfigs ++ Seq(
     javaOptions += "-Xmx2G",

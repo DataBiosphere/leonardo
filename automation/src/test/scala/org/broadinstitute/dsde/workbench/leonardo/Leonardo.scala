@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.config.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.openqa.selenium.WebDriver
+import org.broadinstitute.dsde.workbench.google.gcs.GcsPath
 
 /**
   * Leonardo API service client.

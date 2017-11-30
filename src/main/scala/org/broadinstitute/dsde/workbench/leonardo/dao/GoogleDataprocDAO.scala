@@ -398,7 +398,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
     executeGoogleRequestAsync(googleProject, clusterName.toString, request).recover {
       // treat a 404 error as a successful deletion
       case CallToGoogleApiFailedException(_, _, 404, _) => ()
-      case CallToGoogleApiFailedException(_, _, _, msg) if msg.contains("it has other pending delete operations against it") => ()
+      case CallToGoogleApiFailedException(_, _, 400, msg) if msg.contains("it has other pending delete operations against it") => ()
     }.void
   }
 
