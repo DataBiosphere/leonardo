@@ -3,6 +3,12 @@ import sbt.Keys._
 import sbt._
 
 object Settings {
+  val artifactory = "https://broadinstitute.jfrog.io/broadinstitute/"
+
+  val commonResolvers = List(
+    "artifactory-releases" at artifactory + "libs-release",
+    "artifactory-snapshots" at artifactory + "libs-snapshot"
+  )
 
   //coreDefaultSettings + defaultConfigs = the now deprecated defaultSettings
   val commonBuildSettings = Defaults.coreDefaultSettings ++ Defaults.defaultConfigs ++ Seq(
@@ -28,6 +34,7 @@ object Settings {
     commonBuildSettings ++ testSettings ++ List(
     organization  := "org.broadinstitute.dsde.firecloud",
     scalaVersion  := "2.11.8",
+    resolvers ++= commonResolvers,
     scalacOptions ++= commonCompilerSettings
   )
 

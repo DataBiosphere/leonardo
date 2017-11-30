@@ -5,6 +5,14 @@ object Dependencies {
   val akkaV = "2.4.17"
   val akkaHttpV = "10.0.5"
 
+  val workbenchModelV   = "0.8-d97f551"
+  val workbenchGoogleV  = "0.10-1b27c96-SNAP"
+
+  val excludeWorkbenchModel =   ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-model_2.11")
+
+  val workbenchModel: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-model"  % workbenchModelV
+  val workbenchGoogle: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-google" % workbenchGoogleV excludeAll excludeWorkbenchModel
+
   val rootDependencies = Seq(
     // proactively pull in latest versions of Jackson libs, instead of relying on the versions
     // specified as transitive dependencies, due to OWASP DependencyCheck warnings for earlier versions.
@@ -26,6 +34,12 @@ object Dependencies {
     "org.specs2"          %%  "specs2-core"   % "3.7"  % "test",
     "org.scalatest"       %%  "scalatest"     % "2.2.6"   % "test",
     "org.seleniumhq.selenium" % "selenium-java" % "2.35.0" % "test",
-    "com.typesafe.scala-logging" %% "scala-logging" % "3.1.0"
+    "com.typesafe.scala-logging" %% "scala-logging" % "3.1.0",
+
+    workbenchModel,
+    workbenchGoogle,
+
+    // required by workbenchGoogle
+    "com.typesafe.akka" %% "akka-http-spray-json" % "10.0.6" % "provided"
   )
 }

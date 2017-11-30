@@ -2,10 +2,12 @@ package org.broadinstitute.dsde.firecloud.api
 
 import akka.http.scaladsl.model.StatusCodes
 import com.typesafe.scalalogging.LazyLogging
+import org.broadinstitute.dsde.firecloud.api.Sam.user.UserStatusDetails
 import org.broadinstitute.dsde.firecloud.config.FireCloudConfig
 import org.broadinstitute.dsde.workbench.api.WorkbenchClient
 import org.broadinstitute.dsde.workbench.config.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.WorkbenchUserServiceAccountEmail
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.google.ServiceAccountName
 
 /**
   * Sam API service client. This should only be used when Orchestration does
@@ -15,6 +17,8 @@ import org.broadinstitute.dsde.workbench.leonardo.WorkbenchUserServiceAccountEma
 object Sam extends WorkbenchClient with LazyLogging {
 
   private val url = FireCloudConfig.FireCloud.samApiUrl
+
+  def petName(userInfo: UserStatusDetails) = ServiceAccountName(s"pet-${userInfo.userSubjectId}")
 
   object admin {
 
@@ -33,11 +37,18 @@ object Sam extends WorkbenchClient with LazyLogging {
   }
 
   object user {
-    def petServiceAccount()(implicit token: AuthToken): WorkbenchUserServiceAccountEmail = {
-      val response = parseResponse(getRequest(url + s"api/user/petServiceAccount"))
-      // parses the returned JSON string - the raw string includes double quotes
-      val email = mapper.readValue(response, classOf[String])
-      WorkbenchUserServiceAccountEmail(email)
+    case class UserStatusDetails(userSubjectId: String, userEmail: String)
+    case class UserStatus(userInfo: UserStatusDetails, enabled: Map[String, Boolean])
+
+    def status()(implicit token: AuthToken): Option[UserStatus] = {
+      logger.info(s"Getting user registration status")
+      parseResponseOption[UserStatus](getRequest(url + "register/user"))
+    }
+
+    def petServiceAccountEmail()(implicit token: AuthToken): WorkbenchEmail = {
+      logger.info(s"Getting pet service account email")
+      val petEmailStr = parseResponseAs[String](getRequest(url + "api/user/petServiceAccount"))
+      WorkbenchEmail(petEmailStr)
     }
   }
 }
