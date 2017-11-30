@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervis
 import org.broadinstitute.dsde.workbench.google.gcs._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, UserInfo}
 import slick.dbio.DBIO
 import spray.json._
 

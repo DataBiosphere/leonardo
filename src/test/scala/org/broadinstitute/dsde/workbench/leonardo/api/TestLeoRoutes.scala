@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockGoogleDataprocDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
-import org.broadinstitute.dsde.workbench.leonardo.model.UserInfo
+import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, MockProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchUserId}

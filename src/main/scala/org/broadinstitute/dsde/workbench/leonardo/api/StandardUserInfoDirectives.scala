@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.api
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.server.Directive1
 import akka.http.scaladsl.server.Directives.headerValueByName
-import org.broadinstitute.dsde.workbench.leonardo.model.UserInfo
+import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchUserId}
 
 /**
