@@ -92,7 +92,7 @@ class ProxyService(proxyConfig: ProxyConfig,
       }
     }
 
-    logger.debug(s"Recevied proxy request with user token ${token.value}")
+    logger.debug(s"Received proxy request with user token ${token.value}")
     authCheck.value flatMap { _ => getTargetHost(googleProject, clusterName) } flatMap {
       case ClusterReady(targetHost) =>
         // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a

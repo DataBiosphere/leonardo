@@ -1,33 +1,24 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
-import java.io.InputStream
-import java.security.{KeyStore, SecureRandom}
-import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
-
-import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.{Cookie, RawHeader}
-import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage, WebSocketRequest}
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.model.ws.{TextMessage, WebSocketRequest}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
-import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
-import org.broadinstitute.dsde.workbench.leonardo.api.ProxyRoutesSpec._
+import akka.http.scaladsl.Http
+import akka.stream.scaladsl.{Keep, Sink, Source}
+import org.broadinstitute.dsde.workbench.leonardo.service.TestProxy
+import org.broadinstitute.dsde.workbench.leonardo.service.TestProxy.Data
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
-import spray.json.DefaultJsonProtocol._
-import spray.json.RootJsonFormat
 
 import scala.collection.immutable
-import scala.concurrent.Future
 
 /**
   * Created by rtitle on 8/10/17.
   */
-class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with ScalatestRouteTest with ScalaFutures with TestLeoRoutes {
+class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with ScalatestRouteTest with ScalaFutures with TestLeoRoutes with TestProxy {
   implicit val patience = PatienceConfig(timeout = scaled(Span(10, Seconds)))
 
   val clusterName = "test"
@@ -35,36 +26,15 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
   val TokenCookie = Cookie("FCtoken", "me")
   val unauthorizedTokenCookie = Cookie("FCtoken", "unauthorized")
   val expiredTokenCookie = Cookie("FCtoken", "expired")
-
-
-  // The backend server behind the proxy
-  var bindingFuture: Future[ServerBinding] = _
+  val routeTest = this
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-    val password = "leo-test".toCharArray
-
-    val ks: KeyStore = KeyStore.getInstance("PKCS12")
-    val keystore: InputStream = getClass.getClassLoader.getResourceAsStream("test-jupyter-server.p12")
-
-    require(keystore != null, "Keystore required!")
-    ks.load(keystore, password)
-
-    val keyManagerFactory: KeyManagerFactory = KeyManagerFactory.getInstance("SunX509")
-    keyManagerFactory.init(ks, password)
-
-    val tmf: TrustManagerFactory = TrustManagerFactory.getInstance("SunX509")
-    tmf.init(ks)
-
-    val sslContext: SSLContext = SSLContext.getInstance("TLS")
-    sslContext.init(keyManagerFactory.getKeyManagers, tmf.getTrustManagers, new SecureRandom)
-    val https: HttpsConnectionContext = ConnectionContext.https(sslContext)
-
-    bindingFuture = Http().bindAndHandle(backendRoute, "0.0.0.0", proxyConfig.jupyterPort, https)
+    startProxyServer()
   }
 
   override def afterAll(): Unit = {
-    bindingFuture.flatMap(_.unbind())
+    shutdownProxyServer()
     super.afterAll()
   }
 
@@ -175,38 +145,6 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
     result.futureValue shouldBe "Hello Leonardo!"
   }
 
-  // The backend route (i.e. the route behind the proxy)
-  val backendRoute: Route =
-    pathPrefix("notebooks" / googleProject / clusterName) {
-      extractRequest { request =>
-        path("websocket") {
-          handleWebSocketMessages(greeter)
-        } ~
-          complete {
-            Data(
-              request.method.value,
-              request.uri.path.toString,
-              request.uri.queryString(),
-              request.headers.map(h => h.name -> h.value).toMap
-            )
-          }
-      }
-    }
-
-  // A simple websocket handler
-  def greeter: Flow[Message, Message, Any] =
-    Flow[Message].mapConcat {
-      case TextMessage.Strict(text) =>
-        TextMessage.Strict("Hello " + text + "!") :: Nil
-
-      case text: TextMessage =>
-        TextMessage(Source.single("Hello ") ++ text.textStream ++ Source.single("!")) :: Nil
-
-      case bm: BinaryMessage =>
-        // ignore binary messages but drain content to avoid the stream being clogged
-        bm.dataStream.runWith(Sink.ignore)
-        Nil
-    }
 
   /**
     * Akka-http TestKit doesn't seem to support websocket servers.
@@ -220,11 +158,5 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
       bindingFuture.flatMap(_.unbind())
     }
   }
-
 }
 
-object ProxyRoutesSpec {
-  // Convenience class for capturing HTTP data sent to the backend server and returning it back to the caller
-  case class Data(method: String, path: String, qs: Option[String], headers: Map[String, String])
-  implicit val DataFormat: RootJsonFormat[Data] = jsonFormat4(Data)
-}
