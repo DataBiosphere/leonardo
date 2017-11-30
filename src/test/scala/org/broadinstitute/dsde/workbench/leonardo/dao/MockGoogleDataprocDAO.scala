@@ -37,7 +37,7 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
         case "expired" =>
           (UserInfo(OAuth2BearerToken(accessToken), WorkbenchUserId("1234567890"), WorkbenchEmail("expiredUser@example.com"), -10), Instant.now.minusSeconds(10))
         case _ =>
-          (UserInfo(OAuth2BearerToken(accessToken), WorkbenchUserId("1234567890"), WorkbenchEmail("expiredUser@example.com"), Long.MaxValue), Instant.MAX)
+          (UserInfo(OAuth2BearerToken(accessToken), WorkbenchUserId("1234567890"), WorkbenchEmail("expiredUser@example.com"), Instant.MAX.minusMillis(Instant.now.toEpochMilli).toEpochMilli), Instant.MAX)
       }
     }
   }
