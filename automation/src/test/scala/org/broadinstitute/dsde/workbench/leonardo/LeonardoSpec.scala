@@ -166,14 +166,6 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     testResult.get
   }
 
-  // create a new cluster and wait sufficient time for the jupyter server to be ready
-
-  def withReadyCluster[T](googleProject: GoogleProject)(testCode: Cluster => T)(implicit token: AuthToken): T = {
-    withNewCluster(googleProject) { cluster =>
-      testCode(cluster)
-    }
-  }
-
   def withNotebooksListPage[T](cluster: Cluster)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     val notebooksListPage = Leonardo.notebooks.get(cluster.googleProject, cluster.clusterName)
     testCode(notebooksListPage.open)
@@ -219,7 +211,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
     "should open the notebooks list page" in withWebDriver { implicit driver =>
       implicit val token = ronAuthToken
-      withReadyCluster(project) { cluster =>
+      withNewCluster(project) { cluster =>
         withNotebooksListPage(cluster) { _ =>
           // no-op; just verify that it opens
         }
@@ -230,7 +222,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       implicit val token = ronAuthToken
       val file = ResourceFile("diff-tests/import-hail.ipynb")
 
-      withReadyCluster(project) { cluster =>
+      withNewCluster(project) { cluster =>
         withNotebookUpload(cluster, file) { _ =>
           // no-op; just verify that it uploads
         }
@@ -248,7 +240,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     "should verify notebook execution" in withWebDriver(downloadDir) { implicit driver =>
       implicit val token = ronAuthToken
 
-      withReadyCluster(project) { cluster =>
+      withNewCluster(project) { cluster =>
         withNotebookUpload(cluster, upFile) { notebook =>
           notebook.runAllCells(60)  // wait 60 sec for Kernel to init and Hail to load
           notebook.download()
@@ -267,7 +259,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
     "should execute cells" in withWebDriver { implicit driver =>
       implicit val token = ronAuthToken
-      withReadyCluster(project) { cluster =>
+      withNewCluster(project) { cluster =>
         withNewNotebook(cluster) { notebookPage =>
           notebookPage.executeCell("1+1") shouldBe Some("2")
           notebookPage.executeCell("2*3") shouldBe Some("6")
@@ -296,7 +288,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       /*
        * Create a cluster
        */
-      withReadyCluster(project) { cluster =>
+      withNewCluster(project) { cluster =>
         // 1 new key should have been generated
         val keys = googleIamDAO.listServiceAccountKeys(project, samPetEmail).futureValue
         val newKeys = keys.toSet diff initialKeys.toSet
