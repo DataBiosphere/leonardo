@@ -120,7 +120,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   def getActiveClusterDetails(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Cluster] = {
     for {
       cluster <- internalGetActiveClusterDetails(googleProject, clusterName) //throws 404 if nonexistent
-      _ <- checkClusterPermission(userInfo, GetClusterDetails, cluster) //throws 404 if no auth
+      _ <- checkClusterPermission(userInfo, GetClusterStatus, cluster) //throws 404 if no auth
     } yield { cluster }
   }
 
@@ -136,7 +136,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
 
       //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually destroy it
-      _ <- checkClusterPermission(userInfo,  DestroyCluster, cluster, throw401 = true)
+      _ <- checkClusterPermission(userInfo,  DeleteCluster, cluster, throw401 = true)
 
       count <- internalDeleteCluster(cluster)
     } yield { count }
@@ -172,7 +172,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       //look up permissions for cluster
       clusterPermissions <- Future.traverse(clusterList) { cluster =>
         val hasProjectPermission = authProvider.hasProjectPermission(userInfo.userEmail.value, ListClusters, cluster.googleProject.value)
-        val hasNotebookPermission = authProvider.hasNotebookClusterPermission(userInfo.userEmail.value, GetClusterDetails, cluster.googleId)
+        val hasNotebookPermission = authProvider.hasNotebookClusterPermission(userInfo.userEmail.value, GetClusterStatus, cluster.googleId)
         Future.reduceLeft(List(hasProjectPermission, hasNotebookPermission))(_ || _)
       }
     } yield {

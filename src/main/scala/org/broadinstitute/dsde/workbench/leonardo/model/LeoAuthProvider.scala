@@ -15,11 +15,11 @@ object ProjectActions {
 
 object NotebookClusterActions {
   sealed trait NotebookClusterAction extends Product with Serializable
-  case object GetClusterDetails extends NotebookClusterAction
+  case object GetClusterStatus extends NotebookClusterAction
   case object ConnectToCluster extends NotebookClusterAction
-  case object LocalizeDataToCluster extends NotebookClusterAction
-  case object DestroyCluster extends NotebookClusterAction
-  val allActions = Seq(GetClusterDetails, ConnectToCluster, LocalizeDataToCluster, DestroyCluster)
+  case object SyncDataToCluster extends NotebookClusterAction
+  case object DeleteCluster extends NotebookClusterAction
+  val allActions = Seq(GetClusterStatus, ConnectToCluster, SyncDataToCluster, DeleteCluster)
 
 }
 
