@@ -165,7 +165,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       // Only do this if the cluster was created with the pet service account.
       removeIamRolesForUser,
       // Remove the service account key in Google, if present.
-      // Only do this if the cluster was NOT created with the pet service account.
+      // Only happens if the cluster was NOT created with the pet service account.
       removeServiceAccountKey
     ))
 
