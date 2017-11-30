@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.model
 import java.util.UUID
 
 import com.typesafe.config.Config
+import org.broadinstitute.dsde.workbench.model.UserInfo
 
 import scala.concurrent.Future
 
@@ -25,20 +26,20 @@ object NotebookClusterActions {
 
 abstract class LeoAuthProvider(authConfig: Config) {
   /**
-    * @param userEmail The email address of the user in question
+    * @param userInfo The user in question
     * @param action The project-level action (above) the user is requesting
     * @param googleProject The Google project to check in
     * @return If the given user has permissions in this project to perform the specified action.
     */
-  def hasProjectPermission(userEmail: String, action: ProjectActions.ProjectAction, googleProject: String): Future[Boolean]
+  def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: String): Future[Boolean]
 
   /**
-    * @param userEmail The email address of the user in question
+    * @param userInfo The user in question
     * @param action The cluster-level action (above) the user is requesting
     * @param clusterGoogleID The UUID of the Dataproc cluster
     * @return If the userEmail has permission on this individual notebook cluster to perform this action
     */
-  def hasNotebookClusterPermission(userEmail: String, action: NotebookClusterActions.NotebookClusterAction, clusterGoogleID: UUID): Future[Boolean]
+  def hasNotebookClusterPermission(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, clusterGoogleID: UUID): Future[Boolean]
 
   //Notifications that Leo has created/destroyed clusters. Allows the auth provider to register things.
 

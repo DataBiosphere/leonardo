@@ -24,7 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.collection.immutable
@@ -48,24 +48,28 @@ class ProxyService(proxyConfig: ProxyConfig,
     .expireAfterWrite(proxyConfig.cacheExpiryTime, TimeUnit.MINUTES)
     .maximumSize(proxyConfig.cacheMaxSize)
     .build(
-      new CacheLoader[String, Future[(WorkbenchEmail, Instant)]] {
+      new CacheLoader[String, Future[(UserInfo, Instant)]] {
         def load(key: String) = {
-          gdDAO.getEmailAndExpirationFromAccessToken(key)
+          gdDAO.getUserInfoAndExpirationFromAccessToken(key)
         }
       }
     )
 
-  /* Ask the cache for the corresponding google email given a token */
-  def getCachedEmailFromToken(token: String): Future[WorkbenchEmail] = {
-    cachedAuth.get(token).map{ case (email, expireTime) => if (expireTime.isAfter(Instant.now)) email else throw AccessTokenExpiredException() }
+  /* Ask the cache for the corresponding user info given a token */
+  def getCachedUserInfoFromToken(token: String): Future[UserInfo] = {
+    cachedAuth.get(token).map {
+      case (userInfo, expireTime) =>
+        if (expireTime.isAfter(Instant.now))
+          userInfo.copy(tokenExpiresIn = expireTime.toEpochMilli - Instant.now.toEpochMilli)
+        else
+          throw AccessTokenExpiredException() }
   }
-
 
   /**
     * Entry point to this class. Given a google project, cluster name, and HTTP request,
     * looks up the notebook server IP and proxies the HTTP request to the notebook server.
     * Returns NotFound if a notebook server IP could not be found for the project/cluster name.
-    * @param userEmail the email of the current user, extracted from the token
+    * @param userInfo the current user
     * @param googleProject the Google project
     * @param clusterName the cluster name
     * @param request the HTTP request to proxy
@@ -73,16 +77,16 @@ class ProxyService(proxyConfig: ProxyConfig,
     * @return HttpResponse future representing the proxied response, or NotFound if a notebook
     *         server IP could not be found.
     */
-  def proxy(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest, token: HttpCookiePair): Future[HttpResponse] = {
+  def proxy(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest, token: HttpCookiePair): Future[HttpResponse] = {
     val authCheck = for {
       cluster <- OptionT(dbRef.inTransaction { da => da.clusterQuery.getActiveClusterByName(googleProject, clusterName) })
-      hasViewPermission <- OptionT.liftF(authProvider.hasNotebookClusterPermission(userEmail.value, GetClusterStatus, cluster.googleId))
-      hasConnectPermission <- OptionT.liftF(authProvider.hasNotebookClusterPermission(userEmail.value, ConnectToCluster, cluster.googleId))
+      hasViewPermission <- OptionT.liftF(authProvider.hasNotebookClusterPermission(userInfo, GetClusterStatus, cluster.googleId))
+      hasConnectPermission <- OptionT.liftF(authProvider.hasNotebookClusterPermission(userInfo, ConnectToCluster, cluster.googleId))
     } yield {
       if(!hasViewPermission) {
         throw ClusterNotFoundException(googleProject, clusterName)
       } else if(!hasConnectPermission){
-        throw AuthorizationError(userEmail)
+        throw AuthorizationError(userInfo.userEmail)
       } else {
         ()
       }

@@ -5,11 +5,12 @@ import java.net.URL
 import java.time.Instant
 import java.util.UUID
 
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.collection.concurrent.TrieMap
@@ -28,12 +29,15 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
 
   private def googleID = UUID.randomUUID()
 
-  override def getEmailAndExpirationFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[(WorkbenchEmail, Instant)] = {
+  def getUserInfoAndExpirationFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[(UserInfo, Instant)] = {
     Future {
       accessToken match {
-        case "unauthorized" => throw AuthorizationError()
-        case "expired" =>  (WorkbenchEmail("expiredUser@example.com"), Instant.now.minusSeconds(10))
-        case _ => (WorkbenchEmail("user1@example.com"), Instant.MAX)
+        case "unauthorized" =>
+          throw AuthorizationError()
+        case "expired" =>
+          (UserInfo(OAuth2BearerToken(accessToken), WorkbenchUserId("1234567890"), WorkbenchEmail("expiredUser@example.com"), -10), Instant.now.minusSeconds(10))
+        case _ =>
+          (UserInfo(OAuth2BearerToken(accessToken), WorkbenchUserId("1234567890"), WorkbenchEmail("expiredUser@example.com"), Long.MaxValue), Instant.MAX)
       }
     }
   }

@@ -66,7 +66,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   clusterMonitorSupervisor ! RegisterLeoService(this)
 
   protected def checkProjectPermission(user: UserInfo, action: ProjectAction, project: GoogleProject): Future[Unit] = {
-    authProvider.hasProjectPermission(user.userEmail.value, action, project.value) map {
+    authProvider.hasProjectPermission(user, action, project.value) map {
       case false => throw AuthorizationError(user.userEmail)
       case true => ()
     }
@@ -75,7 +75,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   //Throws 404 and pretends we don't even know there's a cluster there, by default.
   //If the cluster really exists and you're OK with the user knowing that, set throw401 = true.
   protected def checkClusterPermission(user: UserInfo, action: NotebookClusterAction, cluster: Cluster, throw401: Boolean = false): Future[Unit] = {
-    authProvider.hasNotebookClusterPermission(user.userEmail.value, action, cluster.googleId) map {
+    authProvider.hasNotebookClusterPermission(user, action, cluster.googleId) map {
       case false =>
         if( throw401 )
           throw AuthorizationError(user.userEmail)
@@ -171,8 +171,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
       //look up permissions for cluster
       clusterPermissions <- Future.traverse(clusterList) { cluster =>
-        val hasProjectPermission = authProvider.hasProjectPermission(userInfo.userEmail.value, ListClusters, cluster.googleProject.value)
-        val hasNotebookPermission = authProvider.hasNotebookClusterPermission(userInfo.userEmail.value, GetClusterStatus, cluster.googleId)
+        val hasProjectPermission = authProvider.hasProjectPermission(userInfo, ListClusters, cluster.googleProject.value)
+        val hasNotebookPermission = authProvider.hasNotebookClusterPermission(userInfo, GetClusterStatus, cluster.googleId)
         Future.reduceLeft(List(hasProjectPermission, hasNotebookPermission))(_ || _)
       }
     } yield {

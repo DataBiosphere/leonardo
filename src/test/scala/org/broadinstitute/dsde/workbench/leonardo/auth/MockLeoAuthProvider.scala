@@ -4,6 +4,7 @@ import java.util.UUID
 
 import com.typesafe.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.model.UserInfo
 
 import scala.concurrent.Future
 
@@ -14,11 +15,11 @@ class MockLeoAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig
   val clusterPermissions: Map[NotebookClusterActions.NotebookClusterAction, Boolean] =
     (NotebookClusterActions.allActions map (action => action -> authConfig.getBoolean(action.toString) )).toMap
 
-  def hasProjectPermission(userEmail: String, action: ProjectActions.ProjectAction, googleProject: String): Future[Boolean] = {
+  def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: String): Future[Boolean] = {
     Future.successful(projectPermissions(action))
   }
 
-  def hasNotebookClusterPermission(userEmail: String, action: NotebookClusterActions.NotebookClusterAction, clusterGoogleID: UUID): Future[Boolean] = {
+  def hasNotebookClusterPermission(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, clusterGoogleID: UUID): Future[Boolean] = {
     Future.successful(clusterPermissions(action))
   }
 

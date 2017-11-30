@@ -24,9 +24,9 @@ trait ProxyRoutes extends UserInfoDirectives{ self: LazyLogging =>
       extractRequest { request =>
         cookie(tokenCookieName) { tokenCookie => // rejected with MissingCookieRejection if the cookie is not present
           complete {
-            proxyService.getCachedEmailFromToken(tokenCookie.value).flatMap { email =>
+            proxyService.getCachedUserInfoFromToken(tokenCookie.value).flatMap { userInfo =>
               // Proxy logic handled by the ProxyService class
-              proxyService.proxy(email, GoogleProject(googleProject), ClusterName(clusterName), request, tokenCookie)
+              proxyService.proxy(userInfo, GoogleProject(googleProject), ClusterName(clusterName), request, tokenCookie)
             }
           }
         }
