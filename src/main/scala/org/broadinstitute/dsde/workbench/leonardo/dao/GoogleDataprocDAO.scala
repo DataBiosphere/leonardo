@@ -34,7 +34,7 @@ import org.broadinstitute.dsde.workbench.google.GoogleUtilities
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterInitValues, ClusterName, ClusterRequest, FirewallRuleName, GoogleServiceAccount, IP, InstanceName, LeoException, MachineConfig, OperationName, ZoneUri, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterInitValues, ClusterName, ClusterRequest, FirewallRuleName, IP, InstanceName, LeoException, MachineConfig, OperationName, ZoneUri, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -103,7 +103,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
     new GoogleCredential.Builder()
       .setTransport(httpTransport)
       .setJsonFactory(jsonFactory)
-      .setServiceAccountId(dataprocConfig.serviceAccount.string)
+      .setServiceAccountId(dataprocConfig.serviceAccountEmail.value)
       .setServiceAccountScopes(scopes.asJava)
       .setServiceAccountPrivateKeyFromPemFile(serviceAccountPemFile)
       .build()
@@ -283,7 +283,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
     val lifecycle = new Lifecycle().setRule(List(lifecycleRule).asJava)
 
     // The Leo service account
-    val leoServiceAccountEntityString = s"user-${dataprocConfig.serviceAccount.string}"
+    val leoServiceAccountEntityString = s"user-${dataprocConfig.serviceAccountEmail.value}"
 
     val clusterServiceAccountEntityStringFuture: Future[String] = if (dataprocConfig.createClusterAsPetServiceAccount) {
       // If creating the cluster as the pet service account, grant bucket access to the pet service account.
@@ -291,7 +291,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
     } else {
       // Otherwise, grant access to the Google compute engine default service account.
       getComputeEngineDefaultServiceAccount(clusterGoogleProject).map {
-        case Some(serviceAccount) => s"user-${serviceAccount.string}"
+        case Some(serviceAccount) => s"user-${serviceAccount.value}"
         case None => throw GoogleProjectNotFoundException(clusterGoogleProject)
       }
     }
@@ -567,12 +567,12 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
     }
   }
 
-  private def getComputeEngineDefaultServiceAccount(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[GoogleServiceAccount]] = {
+  private def getComputeEngineDefaultServiceAccount(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
     getProjectNumber(googleProject).map { numberOpt =>
       numberOpt.map { number =>
         // Service account email format documented in:
         // https://cloud.google.com/compute/docs/access/service-accounts#compute_engine_default_service_account
-        GoogleServiceAccount(s"$number-compute@developer.gserviceaccount.com")
+        WorkbenchEmail(s"$number-compute@developer.gserviceaccount.com")
       }
     }
   }
