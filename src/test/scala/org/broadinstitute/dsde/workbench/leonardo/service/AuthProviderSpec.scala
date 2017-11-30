@@ -71,7 +71,7 @@ class AuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with FreeSpe
       //can't make a cluster
       val clusterCreateException = leo.createCluster(userInfo, project, name1, testClusterRequest).failed.futureValue
       clusterCreateException shouldBe a [AuthorizationError]
-      clusterCreateException.asInstanceOf[AuthorizationError].statusCode shouldBe StatusCodes.Forbidden
+      clusterCreateException.asInstanceOf[AuthorizationError].statusCode shouldBe StatusCodes.Unauthorized
 
       //can't get details on an existing cluster
       //poke a cluster into the database so we actually have something to look for
@@ -88,7 +88,7 @@ class AuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with FreeSpe
     }
 
     "should give you a 401 if you can see a cluster's details but can't do the more specific action" in isolatedDbTest {
-      val readOnlyProvider = new MockLeoAuthProvider(config.getConfig("auth.readOnlyProvider"))
+      val readOnlyProvider = new MockLeoAuthProvider(config.getConfig("auth.readOnlyProviderConfig"))
       //test connect and destroy
       val leo = leoWithAuthProvider(readOnlyProvider)
     }
