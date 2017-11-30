@@ -329,7 +329,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       // TODO needs withErrorCluster from https://github.com/broadinstitute/leonardo/pull/83
 
       /*
-       * Post-conditions (after cluster deletion)
+       * Post-conditions (after clustCer deletion)
        */
       // pet should still exist in Google
       val googlePetEmail2 = googleIamDAO.findServiceAccount(googleProject, petName).futureValue.map(_.email)

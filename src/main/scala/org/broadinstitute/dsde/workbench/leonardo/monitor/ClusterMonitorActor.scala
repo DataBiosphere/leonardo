@@ -263,7 +263,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getServiceAccountKeyId(cluster.googleProject, cluster.clusterName)
     } flatMap {
-      case Some(key) => googleIamDAO.removeServiceAccountKey(WorkbenchGoogleProject(dataprocConfig.leoGoogleProject.string), cluster.googleServiceAccount, key)
+      case Some(key) => googleIamDAO.removeServiceAccountKey(dataprocConfig.leoGoogleProject, cluster.googleServiceAccount, key)
       case None => Future.successful(())
     }
   }
