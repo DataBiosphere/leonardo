@@ -32,7 +32,6 @@ case class OneWorkerSpecifiedInClusterRequestException()
 // this needs to be a Universal Trait to enable mixin with Value Classes
 // it only serves as a marker for StringValueClassFormat
 sealed trait StringValueClass extends Any
-case class GoogleServiceAccount(string: String) extends AnyVal with StringValueClass
 case class IP(string: String) extends AnyVal with StringValueClass
 case class ZoneUri(string: String) extends AnyVal with StringValueClass
 
