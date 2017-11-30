@@ -31,7 +31,7 @@ object Leonardo extends WorkbenchClient with LazyLogging {
     // the default doesn't handle some fields correctly so here they're strings
     private case class ClusterKluge(clusterName: ClusterName,
                                     googleId: UUID,
-                                    googleProject: GoogleProject,
+                                    googleProject: String,
                                     googleServiceAccount: GoogleServiceAccount,
                                     googleBucket: GcsBucketName,
                                     machineConfig: Map[String, String],
@@ -46,7 +46,7 @@ object Leonardo extends WorkbenchClient with LazyLogging {
 
       def toCluster = Cluster(clusterName,
         googleId,
-        googleProject,
+        GoogleProject(googleProject),
         googleServiceAccount,
         googleBucket,
         MachineConfig(machineConfig),
