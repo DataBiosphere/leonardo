@@ -26,8 +26,6 @@ import scala.concurrent.duration._
   */
 class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfterAll with TestComponent with ScalaFutures with Eventually with CommonTestData with GcsPathUtils {
 
-  val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
-  val proxyConfig = config.as[ProxyConfig]("proxy")
   implicit val timeout = Timeout(5 seconds)
 
   override def afterAll(): Unit = {

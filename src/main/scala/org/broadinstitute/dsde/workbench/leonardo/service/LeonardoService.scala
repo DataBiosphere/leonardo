@@ -7,7 +7,7 @@ import java.io.File
 import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
-import org.broadinstitute.dsde.workbench.model.google.{ServiceAccountKey, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{DataprocDAO, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
@@ -16,6 +16,8 @@ import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMa
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted, RegisterLeoService}
 import org.broadinstitute.dsde.workbench.google.gcs._
+import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
+import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import slick.dbio.DBIO
 import spray.json._

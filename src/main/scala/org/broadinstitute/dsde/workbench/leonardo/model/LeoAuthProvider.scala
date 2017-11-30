@@ -6,15 +6,22 @@ import com.typesafe.config.Config
 
 import scala.concurrent.Future
 
-sealed trait ProjectAction
-case object ListClusters extends ProjectAction
-case object CreateClusters extends ProjectAction
+object ProjectActions {
+  sealed trait ProjectAction extends Product with Serializable
+  case object ListClusters extends ProjectAction
+  case object CreateClusters extends ProjectAction
+  val allActions = Seq(ListClusters, CreateClusters)
+}
 
-sealed trait NotebookClusterAction
-case object GetClusterDetails extends NotebookClusterAction
-case object ConnectToCluster extends NotebookClusterAction
-case object LocalizeDataToCluster extends NotebookClusterAction
-case object DestroyCluster extends NotebookClusterAction
+object NotebookClusterActions {
+  sealed trait NotebookClusterAction extends Product with Serializable
+  case object GetClusterDetails extends NotebookClusterAction
+  case object ConnectToCluster extends NotebookClusterAction
+  case object LocalizeDataToCluster extends NotebookClusterAction
+  case object DestroyCluster extends NotebookClusterAction
+  val allActions = Seq(GetClusterDetails, ConnectToCluster, LocalizeDataToCluster, DestroyCluster)
+
+}
 
 abstract class LeoAuthProvider(authConfig: Config) {
   /**
@@ -23,7 +30,7 @@ abstract class LeoAuthProvider(authConfig: Config) {
     * @param googleProject The Google project to check in
     * @return If the given user has permissions in this project to perform the specified action.
     */
-  def hasProjectPermission(userEmail: String, action: ProjectAction, googleProject: String): Future[Boolean]
+  def hasProjectPermission(userEmail: String, action: ProjectActions.ProjectAction, googleProject: String): Future[Boolean]
 
   /**
     * @param userEmail The email address of the user in question
@@ -31,7 +38,7 @@ abstract class LeoAuthProvider(authConfig: Config) {
     * @param clusterGoogleID The UUID of the Dataproc cluster
     * @return If the userEmail has permission on this individual notebook cluster to perform this action
     */
-  def hasNotebookClusterPermission(userEmail: String, action: NotebookClusterAction, clusterGoogleID: UUID): Future[Boolean]
+  def hasNotebookClusterPermission(userEmail: String, action: NotebookClusterActions.NotebookClusterAction, clusterGoogleID: UUID): Future[Boolean]
 
   //Notifications that Leo has created/destroyed clusters. Allows the auth provider to register things.
 
