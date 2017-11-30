@@ -103,7 +103,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
     new GoogleCredential.Builder()
       .setTransport(httpTransport)
       .setJsonFactory(jsonFactory)
-      .setServiceAccountId(dataprocConfig.serviceAccount.value)
+      .setServiceAccountId(dataprocConfig.serviceAccountEmail.value)
       .setServiceAccountScopes(scopes.asJava)
       .setServiceAccountPrivateKeyFromPemFile(serviceAccountPemFile)
       .build()
@@ -283,7 +283,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
     val lifecycle = new Lifecycle().setRule(List(lifecycleRule).asJava)
 
     // The Leo service account
-    val leoServiceAccountEntityString = s"user-${dataprocConfig.serviceAccount.value}"
+    val leoServiceAccountEntityString = s"user-${dataprocConfig.serviceAccountEmail.value}"
 
     val clusterServiceAccountEntityStringFuture: Future[String] = if (dataprocConfig.createClusterAsPetServiceAccount) {
       // If creating the cluster as the pet service account, grant bucket access to the pet service account.

@@ -5,7 +5,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 case class DataprocConfig(
                            applicationName: String,
-                           serviceAccount: WorkbenchEmail,
+                           serviceAccountEmail: WorkbenchEmail,
                            dataprocDefaultRegion: String,
                            leoGoogleProject: GoogleProject,
                            dataprocDockerImage: String,

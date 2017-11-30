@@ -20,7 +20,7 @@ package object config {
   implicit val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
     DataprocConfig(
       config.getString("applicationName"),
-      WorkbenchEmail(config.getString("serviceAccount")),
+      WorkbenchEmail(config.getString("serviceAccountEmail")),
       config.getString("dataprocDefaultRegion"),
       GoogleProject(config.getString("leoGoogleProject")),
       config.getString("dataprocDockerImage"),
