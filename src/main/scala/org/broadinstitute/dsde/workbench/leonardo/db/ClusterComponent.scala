@@ -101,6 +101,12 @@ trait ClusterComponent extends LeoComponent {
       clusterQueryWithLabels.filter { _._1.googleProject === project.value }.filter { _._1.clusterName === name.string }
     }
 
+    def getClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
+      findByName(project, name).result map { recs =>
+        unmarshalClustersWithLabels(recs).headOption
+      }
+    }
+
     def getActiveClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
       clusterQueryWithLabels
         .filter { _._1.googleProject === project.value }

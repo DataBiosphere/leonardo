@@ -101,7 +101,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       case Some(_) => throw ClusterAlreadyExistsException(googleProject, clusterName)
       case None =>
         val augmentedClusterRequest = addClusterDefaultLabels(serviceAccount, googleProject, clusterName, clusterRequest)
-        for {
+        val clusterFuture = for {
           // Create the cluster in Google
           (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(userEmail, serviceAccount, googleProject, clusterName, augmentedClusterRequest)
           // Save the cluster in the database
@@ -113,6 +113,14 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           clusterMonitorSupervisor ! ClusterCreated(savedCluster)
           savedCluster
         }
+        clusterFuture.onComplete {
+          case Failure(_) =>
+            //make a dummy cluster with the details
+            val clusterToDelete = Cluster.createDummyForDeletion(clusterRequest, userEmail, clusterName, googleProject, serviceAccount)
+            internalDeleteCluster(clusterToDelete)
+          case Success(_) => //no-op
+        }
+        clusterFuture
     }
   }
 
@@ -130,7 +138,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
-  def deleteCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Int] = {
+  def deleteCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Unit] = {
     for {
       //throws 404 if no permissions
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
@@ -138,10 +146,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually destroy it
       _ <- checkClusterPermission(userInfo,  DeleteCluster, cluster, throw401 = true)
 
-      count <- internalDeleteCluster(cluster)
-    } yield { count }
+      _ <- internalDeleteCluster(cluster)
+    } yield { () }
   }
 
+  //NOTE: This function MUST ALWAYS complete ALL steps. i.e. if deleting thing1 fails, it must still proceed to delete thing2
   def internalDeleteCluster(cluster: Cluster): Future[Int] = {
     if(cluster.status.isDeletable) {
       // Delete the service account key in Google, if present
@@ -156,7 +165,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         _ <- deleteServiceAccountKey
         _ <- gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)
         recordCount <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.googleId))
-        _ <- authProvider.notifyClusterCreated(cluster.creator.value, cluster.googleProject.value, cluster.googleId)
+        _ <- authProvider.notifyClusterDeleted(cluster.creator.value, cluster.googleProject.value, cluster.googleId)
       } yield {
         clusterMonitorSupervisor ! ClusterDeleted(cluster)
         recordCount

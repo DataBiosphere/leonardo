@@ -103,6 +103,26 @@ object Cluster {
       )
   }
 
+  def createDummyForDeletion(clusterRequest: ClusterRequest, userEmail: WorkbenchEmail, clusterName: ClusterName, googleProject: GoogleProject, serviceAccount: WorkbenchEmail): Cluster = {
+    Cluster(
+      clusterName = clusterName,
+      googleId = UUID.randomUUID,
+      googleProject = googleProject,
+      googleServiceAccount = serviceAccount,
+      googleBucket = clusterRequest.bucketPath,
+      machineConfig = MachineConfig(clusterRequest.machineConfig, ClusterDefaultsConfig(0, "", 0, "", 0, 0, 0)),
+      clusterUrl = getClusterUrl(googleProject, clusterName),
+      operationName = OperationName("dummy-operation"),
+      status = ClusterStatus.Creating,
+      hostIp = None,
+      userEmail,
+      createdDate = Instant.now(),
+      destroyedDate = None,
+      labels = clusterRequest.labels,
+      jupyterExtensionUri = clusterRequest.jupyterExtensionUri
+    )
+  }
+
   def getClusterUrl(googleProject: GoogleProject, clusterName: ClusterName): URL = {
     val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
     val dataprocConfig = config.as[DataprocConfig]("dataproc")

@@ -46,6 +46,7 @@ abstract class LeoAuthProvider(authConfig: Config) {
   /**
     * Leo calls this method to notify the auth provider that a new notebook cluster has been created.
     * The returned future should complete once the provider has finished doing any associated work.
+    * Returning a failed Future will prevent the cluster from being created.
     * Leo will wait, so be timely!
     *
     * @param userEmail The email address of the user in question
@@ -56,7 +57,7 @@ abstract class LeoAuthProvider(authConfig: Config) {
   def notifyClusterCreated(userEmail: String, googleProject: String, clusterGoogleID: UUID): Future[Unit]
 
   /**
-    * Leo calls this method to notify the auth provider that a notebook cluster has been destroyed.
+    * Leo calls this method to notify the auth provider that a notebook cluster has been deleted.
     * The returned future should complete once the provider has finished doing any associated work.
     * Leo will wait, so be timely!
     *
@@ -65,5 +66,5 @@ abstract class LeoAuthProvider(authConfig: Config) {
     * @param clusterGoogleID The unique ID of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterDestroyed(userEmail: String, googleProject: String, clusterGoogleID: UUID): Future[Unit]
+  def notifyClusterDeleted(userEmail: String, googleProject: String, clusterGoogleID: UUID): Future[Unit]
 }

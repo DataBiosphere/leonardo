@@ -13,10 +13,10 @@ import scala.concurrent.Future
 
 class WhitelistAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) {
 
-  val whitelist = authConfig.as[(Set[String])]("whitelist")
+  val whitelist = authConfig.as[(Set[String])]("whitelist").map(_.toLowerCase)
 
-  def checkWhitelist(userEmail: WorkbenchEmail): Future[Boolean] = {
-    Future.successful(whitelist contains userEmail.value)
+  protected def checkWhitelist(userEmail: WorkbenchEmail): Future[Boolean] = {
+    Future.successful(whitelist contains userEmail.value.toLowerCase)
   }
 
   /**
@@ -63,5 +63,5 @@ class WhitelistAuthProvider(authConfig: Config) extends LeoAuthProvider(authConf
     * @param clusterGoogleID The unique ID of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterDestroyed(userEmail: String, googleProject: String, clusterGoogleID: UUID): Future[Unit] = Future.successful(())
+  def notifyClusterDeleted(userEmail: String, googleProject: String, clusterGoogleID: UUID): Future[Unit] = Future.successful(())
 }

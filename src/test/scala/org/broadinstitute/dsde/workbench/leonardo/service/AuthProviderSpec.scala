@@ -173,5 +173,15 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       val clusterDestroyException = leo.deleteCluster(userInfo, project, name1).failed.futureValue
       clusterDestroyException shouldBe a [AuthorizationError]
     }
+
+    "should not create cluster if auth provider notifyClusterCreated returns failure" in isolatedDbTest {
+      val badNotifyProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), notifySucceeds = false)
+      val leo = leoWithAuthProvider(badNotifyProvider)
+
+      val clusterCreateExc = leo.createCluster(userInfo, project, name1, testClusterRequest).failed.futureValue
+      clusterCreateExc shouldBe a [RuntimeException]
+      //TODO: db should not have record of this cluster
+      //TODO: mock google should have record of delete-cluster
+    }
   }
 }

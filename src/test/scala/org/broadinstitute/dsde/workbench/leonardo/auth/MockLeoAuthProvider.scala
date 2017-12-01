@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 
 import scala.concurrent.Future
 
-class MockLeoAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) {
+class MockLeoAuthProvider(authConfig: Config, notifySucceeds: Boolean = true) extends LeoAuthProvider(authConfig) {
   //behaviour defined in test\...\reference.conf
   val projectPermissions: Map[ProjectActions.ProjectAction, Boolean] =
     (ProjectActions.allActions map (action => action -> authConfig.getBoolean(action.toString) )).toMap
@@ -23,6 +23,14 @@ class MockLeoAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig
     Future.successful(clusterPermissions(action))
   }
 
-  def notifyClusterCreated(userEmail: String, googleProject: String, clusterGoogleID: UUID): Future[Unit] = Future.successful(())
-  def notifyClusterDestroyed(userEmail: String, googleProject: String, clusterGoogleID: UUID): Future[Unit] = Future.successful(())
+  private def notifyInternal = {
+    if( notifySucceeds )
+      Future.successful(())
+    else
+      Future.failed(new RuntimeException("boom"))
+  }
+
+  def notifyClusterCreated(userEmail: String, googleProject: String, clusterGoogleID: UUID): Future[Unit] = notifyInternal
+
+  def notifyClusterDeleted(userEmail: String, googleProject: String, clusterGoogleID: UUID): Future[Unit] = notifyInternal
 }
