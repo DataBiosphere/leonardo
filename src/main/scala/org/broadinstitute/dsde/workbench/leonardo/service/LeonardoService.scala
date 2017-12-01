@@ -75,7 +75,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   //Throws 404 and pretends we don't even know there's a cluster there, by default.
   //If the cluster really exists and you're OK with the user knowing that, set throw401 = true.
   protected def checkClusterPermission(user: UserInfo, action: NotebookClusterAction, cluster: Cluster, throw401: Boolean = false): Future[Unit] = {
-    authProvider.hasNotebookClusterPermission(user, action, cluster.googleId) map {
+    authProvider.hasNotebookClusterPermission(user, action, cluster.googleProject.value, cluster.clusterName.string) map {
       case false =>
         if( throw401 )
           throw AuthorizationError(user.userEmail)
@@ -102,12 +102,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       case None =>
         val augmentedClusterRequest = addClusterDefaultLabels(serviceAccount, googleProject, clusterName, clusterRequest)
         val clusterFuture = for {
+        // Notify the auth provider that the cluster has been created
+          _ <- authProvider.notifyClusterCreated(userEmail.value, googleProject.value, clusterName.string)
           // Create the cluster in Google
           (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(userEmail, serviceAccount, googleProject, clusterName, augmentedClusterRequest)
           // Save the cluster in the database
           savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, GcsPath(initBucket, GcsRelativePath("")), serviceAccountKeyOpt.map(_.id)))
-          // Notify the auth provider that the cluster has been created
-          _ <- authProvider.notifyClusterCreated(savedCluster.creator.value, savedCluster.googleProject.value, savedCluster.googleId)
         } yield {
           // Notify the cluster monitor that the cluster has been created
           clusterMonitorSupervisor ! ClusterCreated(savedCluster)
@@ -117,7 +117,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           case Failure(_) =>
             //make a dummy cluster with the details
             val clusterToDelete = Cluster.createDummyForDeletion(clusterRequest, userEmail, clusterName, googleProject, serviceAccount)
-            internalDeleteCluster(clusterToDelete)
+            internalDeleteCluster(clusterToDelete) //don't wait for it
           case Success(_) => //no-op
         }
         clusterFuture
@@ -164,8 +164,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       for {
         _ <- deleteServiceAccountKey
         _ <- gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)
-        recordCount <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.googleId))
-        _ <- authProvider.notifyClusterDeleted(cluster.creator.value, cluster.googleProject.value, cluster.googleId)
+        _ <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.googleId))
+        _ <- authProvider.notifyClusterDeleted(cluster.creator.value, cluster.googleProject.value, cluster.clusterName.string)
       } yield {
         clusterMonitorSupervisor ! ClusterDeleted(cluster)
       }
@@ -180,7 +180,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       //look up permissions for cluster
       clusterPermissions <- Future.traverse(clusterList) { cluster =>
         val hasProjectPermission = authProvider.hasProjectPermission(userInfo, ListClusters, cluster.googleProject.value)
-        val hasNotebookPermission = authProvider.hasNotebookClusterPermission(userInfo, GetClusterStatus, cluster.googleId)
+        val hasNotebookPermission = authProvider.hasNotebookClusterPermission(userInfo, GetClusterStatus, cluster.googleProject.value, cluster.clusterName.string)
         Future.reduceLeft(List(hasProjectPermission, hasNotebookPermission))(_ || _)
       }
     } yield {

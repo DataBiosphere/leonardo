@@ -19,7 +19,7 @@ class MockLeoAuthProvider(authConfig: Config, notifySucceeds: Boolean = true) ex
     Future.successful(projectPermissions(action))
   }
 
-  def hasNotebookClusterPermission(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, clusterGoogleID: UUID): Future[Boolean] = {
+  def hasNotebookClusterPermission(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: String, clusterName: String): Future[Boolean] = {
     Future.successful(clusterPermissions(action))
   }
 
@@ -30,7 +30,7 @@ class MockLeoAuthProvider(authConfig: Config, notifySucceeds: Boolean = true) ex
       Future.failed(new RuntimeException("boom"))
   }
 
-  def notifyClusterCreated(userEmail: String, googleProject: String, clusterGoogleID: UUID): Future[Unit] = notifyInternal
+  def notifyClusterCreated(userEmail: String, googleProject: String, clusterName: String): Future[Unit] = notifyInternal
 
-  def notifyClusterDeleted(userEmail: String, googleProject: String, clusterGoogleID: UUID): Future[Unit] = notifyInternal
+  def notifyClusterDeleted(userEmail: String, googleProject: String, clusterName: String): Future[Unit] = notifyInternal
 }

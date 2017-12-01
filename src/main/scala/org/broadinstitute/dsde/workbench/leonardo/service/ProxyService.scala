@@ -78,24 +78,18 @@ class ProxyService(proxyConfig: ProxyConfig,
     *         server IP could not be found.
     */
   def proxy(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest, token: HttpCookiePair): Future[HttpResponse] = {
-    //look up the cluster and check auth to see it
-    val lookupClusterF = dbRef.inTransaction { da => da.clusterQuery.getActiveClusterByName(googleProject, clusterName) }
-    val authCheck = lookupClusterF flatMap {
-      case None => Future.failed(ClusterNotFoundException(googleProject, clusterName))
-      case Some(cluster) =>
-        val x: OptionT[Future, Unit] = for {
-          hasViewPermission <- OptionT.liftF(authProvider.hasNotebookClusterPermission(userInfo, GetClusterStatus, cluster.googleId))
-          hasConnectPermission <- OptionT.liftF(authProvider.hasNotebookClusterPermission(userInfo, ConnectToCluster, cluster.googleId))
-        } yield {
-          if (!hasViewPermission) {
-            throw ClusterNotFoundException(googleProject, clusterName)
-          } else if (!hasConnectPermission) {
-            throw AuthorizationError(userInfo.userEmail)
-          } else {
-            ()
-          }
-        }
-        x.value
+    //check auth to see it
+    val authCheck = for {
+      hasViewPermission <- authProvider.hasNotebookClusterPermission(userInfo, GetClusterStatus, googleProject.value, clusterName.string)
+      hasConnectPermission <- authProvider.hasNotebookClusterPermission(userInfo, ConnectToCluster, googleProject.value, clusterName.string)
+    } yield {
+      if (!hasViewPermission) {
+        throw ClusterNotFoundException(googleProject, clusterName)
+      } else if (!hasConnectPermission) {
+        throw AuthorizationError(userInfo.userEmail)
+      } else {
+        ()
+      }
     }
 
     logger.debug(s"Received proxy request with user token ${token.value}")

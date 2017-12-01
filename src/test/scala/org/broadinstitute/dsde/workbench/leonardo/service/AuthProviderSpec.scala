@@ -19,11 +19,14 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.mockito.Mockito._
+import org.scalatest.mockito.MockitoSugar
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers, OptionValues}
 import net.ceedubs.ficus.Ficus._
+import org.mockito.Mockito
 
-class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers with TestComponent with ScalaFutures with GcsPathUtils with TestProxy with BeforeAndAfterAll {
+class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers with MockitoSugar with TestComponent with ScalaFutures with OptionValues with GcsPathUtils with TestProxy with BeforeAndAfterAll {
   val name1 = ClusterName("name1")
   val project = GoogleProject("dsp-leo-test")
   val userInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
@@ -91,8 +94,9 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
 
   "Leo with an AuthProvider" - {
     "should let you do things if the auth provider says yes" in isolatedDbTest {
-      val leo = leoWithAuthProvider(alwaysYesProvider)
-      val proxy = proxyWithAuthProvider(alwaysYesProvider)
+      val spyProvider = spy(alwaysYesProvider)
+      val leo = leoWithAuthProvider(spyProvider)
+      val proxy = proxyWithAuthProvider(spyProvider)
 
       // create
       val cluster1 = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
@@ -114,11 +118,16 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
 
       //delete
       leo.deleteCluster(userInfo, project, name1).futureValue
+
+      //verify we correctly notified the auth provider
+      verify(spyProvider).notifyClusterCreated(userEmail.value, project.value, name1.string)
+      verify(spyProvider).notifyClusterDeleted(userEmail.value, project.value, name1.string)
     }
 
     "should not let you do things if the auth provider says no" in isolatedDbTest {
-      val leo = leoWithAuthProvider(alwaysNoProvider)
-      val proxy = proxyWithAuthProvider(alwaysNoProvider)
+      val spyProvider = spy(alwaysNoProvider)
+      val leo = leoWithAuthProvider(spyProvider)
+      val proxy = proxyWithAuthProvider(spyProvider)
 
       //can't make a cluster
       val clusterCreateException = leo.createCluster(userInfo, project, name1, testClusterRequest).failed.futureValue
@@ -145,12 +154,17 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       //destroy cluster
       val clusterNotFoundAgain = leo.deleteCluster(userInfo, project, name1).failed.futureValue
       clusterNotFoundAgain shouldBe a [ClusterNotFoundException]
+
+      //verify we never notified the auth provider of clusters happening because they didn't
+      verify(spyProvider, Mockito.never).notifyClusterCreated(userEmail.value, project.value, name1.string)
+      verify(spyProvider, Mockito.never).notifyClusterDeleted(userEmail.value, project.value, name1.string)
     }
 
     "should give you a 401 if you can see a cluster's details but can't do the more specific action" in isolatedDbTest {
       val readOnlyProvider = new MockLeoAuthProvider(config.getConfig("auth.readOnlyProviderConfig"))
-      val leo = leoWithAuthProvider(readOnlyProvider)
-      val proxy = proxyWithAuthProvider(readOnlyProvider)
+      val spyProvider = spy(readOnlyProvider)
+      val leo = leoWithAuthProvider(spyProvider)
+      val proxy = proxyWithAuthProvider(spyProvider)
 
       //poke a cluster into the database so we actually have something to look for
       dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), None) }
@@ -172,16 +186,32 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       //destroy should 401 too
       val clusterDestroyException = leo.deleteCluster(userInfo, project, name1).failed.futureValue
       clusterDestroyException shouldBe a [AuthorizationError]
+
+      //verify we never notified the auth provider of clusters happening because they didn't
+      verify(spyProvider, Mockito.never).notifyClusterCreated(userEmail.value, project.value, name1.string)
+      verify(spyProvider, Mockito.never).notifyClusterDeleted(userEmail.value, project.value, name1.string)
     }
 
-    "should not create cluster if auth provider notifyClusterCreated returns failure" in isolatedDbTest {
+    "should not create a cluster if auth provider notifyClusterCreated returns failure" in isolatedDbTest {
       val badNotifyProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), notifySucceeds = false)
-      val leo = leoWithAuthProvider(badNotifyProvider)
+      val spyProvider = spy(badNotifyProvider)
+      val leo = leoWithAuthProvider(spyProvider)
 
       val clusterCreateExc = leo.createCluster(userInfo, project, name1, testClusterRequest).failed.futureValue
       clusterCreateExc shouldBe a [RuntimeException]
-      //TODO: db should not have record of this cluster
-      //TODO: mock google should have record of delete-cluster
+
+      // no cluster should have been made
+      val clusterLookup = dbFutureValue { _.clusterQuery.getClusterByName(project, name1) }
+      clusterLookup shouldBe 'empty
+
+      // check that the cluster does not exist
+      gdDAO.clusters should not contain key (name1)
+
+      //verify we correctly notified the auth provider
+      verify(spyProvider).notifyClusterCreated(userEmail.value, project.value, name1.string)
+      verify(spyProvider).notifyClusterDeleted(userEmail.value, project.value, name1.string)
     }
+
+
   }
 }
