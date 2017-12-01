@@ -95,13 +95,16 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       val proxy = proxyWithAuthProvider(alwaysYesProvider)
 
       // create
-      leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
+      val cluster1 = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
 
       // get status
-      leo.getActiveClusterDetails(userInfo, project, name1).futureValue
+      val clusterStatus = leo.getActiveClusterDetails(userInfo, project, name1).futureValue
+
+      cluster1 shouldEqual clusterStatus
 
       // list
-      leo.listClusters(userInfo, Map()).futureValue
+      val listResponse = leo.listClusters(userInfo, Map()).futureValue
+      listResponse shouldBe Seq(cluster1)
 
       //connect
       val httpRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
@@ -110,7 +113,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       //todo: sync
 
       //delete
-      leo.deleteCluster(userInfo, project, name1)
+      leo.deleteCluster(userInfo, project, name1).futureValue
     }
 
     "should not let you do things if the auth provider says no" in isolatedDbTest {
@@ -130,20 +133,45 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       clusterGetResponseException shouldBe a [ClusterNotFoundException]
       clusterGetResponseException.asInstanceOf[ClusterNotFoundException].statusCode shouldBe StatusCodes.NotFound
 
-      // TODO:
-      //list all clusters
+      //list all clusters should be fine, but empty
+      val emptyList = leo.listClusters(userInfo, Map()).futureValue
+      emptyList shouldBe 'empty
+
       //connect to cluster
       val httpRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
       val clusterNotFoundException = proxy.proxy(userInfo, GoogleProject(googleProject), ClusterName(clusterName), httpRequest, tokenCookie).failed.futureValue
-      clusterNotFoundException should be a [ClusterNotFoundException]
+      clusterNotFoundException shouldBe a [ClusterNotFoundException]
 
       //destroy cluster
+      val clusterNotFoundAgain = leo.deleteCluster(userInfo, project, name1).failed.futureValue
+      clusterNotFoundAgain shouldBe a [ClusterNotFoundException]
     }
 
     "should give you a 401 if you can see a cluster's details but can't do the more specific action" in isolatedDbTest {
       val readOnlyProvider = new MockLeoAuthProvider(config.getConfig("auth.readOnlyProviderConfig"))
-      //test connect and destroy
       val leo = leoWithAuthProvider(readOnlyProvider)
+      val proxy = proxyWithAuthProvider(readOnlyProvider)
+
+      //poke a cluster into the database so we actually have something to look for
+      dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), None) }
+
+      // status should work for this user
+      val clusterStatus = leo.getActiveClusterDetails(userInfo, project, name1).futureValue
+      clusterStatus shouldBe c1
+
+      // list should work for this user
+      //list all clusters should be fine, but empty
+      val clusterList = leo.listClusters(userInfo, Map()).futureValue
+      clusterList shouldBe Seq(c1)
+
+      //connect should 401
+      val httpRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
+      val clusterAuthException = proxy.proxy(userInfo, GoogleProject(googleProject), ClusterName(clusterName), httpRequest, tokenCookie).failed.futureValue
+      clusterAuthException shouldBe a [AuthorizationError]
+
+      //destroy should 401 too
+      val clusterDestroyException = leo.deleteCluster(userInfo, project, name1).failed.futureValue
+      clusterDestroyException shouldBe a [AuthorizationError]
     }
   }
 }
