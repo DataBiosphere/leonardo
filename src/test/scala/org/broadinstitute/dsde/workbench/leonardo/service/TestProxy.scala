@@ -58,7 +58,7 @@ trait TestProxy {
   }
 
   // The backend route (i.e. the route behind the proxy)
-  val backendRoute: Route =
+  def backendRoute: Route =
     pathPrefix("notebooks" / googleProject / clusterName) {
       extractRequest { request =>
         path("websocket") {
