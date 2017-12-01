@@ -20,10 +20,10 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{FreeSpec, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers}
 import net.ceedubs.ficus.Ficus._
 
-class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers with TestComponent with ScalaFutures with GcsPathUtils with TestProxy {
+class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers with TestComponent with ScalaFutures with GcsPathUtils with TestProxy with BeforeAndAfterAll {
   val name1 = ClusterName("name1")
   val project = GoogleProject("dsp-leo-test")
   val userInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
@@ -71,12 +71,22 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
   val samDAO = new MockSamDAO
   val tokenCookie = HttpCookiePair("FCtoken", "me")
 
+  override def beforeAll(): Unit = {
+    super.beforeAll()
+    startProxyServer()
+  }
+
+  override def afterAll(): Unit = {
+    shutdownProxyServer()
+    super.afterAll()
+  }
+
   def leoWithAuthProvider(authProvider: LeoAuthProvider): LeonardoService = {
     new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), samDAO, authProvider)
   }
 
   def proxyWithAuthProvider(authProvider: LeoAuthProvider): ProxyService = {
-    new ProxyService(proxyConfig, gdDAO, DbSingleton.ref, system.deadLetters, authProvider)
+    new MockProxyService(proxyConfig, gdDAO, DbSingleton.ref, authProvider)
   }
 
   "Leo with an AuthProvider" - {
@@ -95,7 +105,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
 
       //connect
       val httpRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
-      proxy.proxy(userInfo, GoogleProject(googleProject), ClusterName(clusterName), httpRequest, tokenCookie)
+      proxy.proxy(userInfo, GoogleProject(googleProject), ClusterName(clusterName), httpRequest, tokenCookie).futureValue
 
       //todo: sync
 
@@ -105,6 +115,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
 
     "should not let you do things if the auth provider says no" in isolatedDbTest {
       val leo = leoWithAuthProvider(alwaysNoProvider)
+      val proxy = proxyWithAuthProvider(alwaysNoProvider)
 
       //can't make a cluster
       val clusterCreateException = leo.createCluster(userInfo, project, name1, testClusterRequest).failed.futureValue
@@ -122,6 +133,10 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       // TODO:
       //list all clusters
       //connect to cluster
+      val httpRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
+      val clusterNotFoundException = proxy.proxy(userInfo, GoogleProject(googleProject), ClusterName(clusterName), httpRequest, tokenCookie).failed.futureValue
+      clusterNotFoundException should be a [ClusterNotFoundException]
+
       //destroy cluster
     }
 
