@@ -78,22 +78,28 @@ class ProxyService(proxyConfig: ProxyConfig,
     *         server IP could not be found.
     */
   def proxy(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest, token: HttpCookiePair): Future[HttpResponse] = {
-    val authCheck = for {
-      cluster <- OptionT(dbRef.inTransaction { da => da.clusterQuery.getActiveClusterByName(googleProject, clusterName) })
-      hasViewPermission <- OptionT.liftF(authProvider.hasNotebookClusterPermission(userInfo, GetClusterStatus, cluster.googleId))
-      hasConnectPermission <- OptionT.liftF(authProvider.hasNotebookClusterPermission(userInfo, ConnectToCluster, cluster.googleId))
-    } yield {
-      if(!hasViewPermission) {
-        throw ClusterNotFoundException(googleProject, clusterName)
-      } else if(!hasConnectPermission){
-        throw AuthorizationError(userInfo.userEmail)
-      } else {
-        ()
-      }
+    //look up the cluster and check auth to see it
+    val lookupClusterF = dbRef.inTransaction { da => da.clusterQuery.getActiveClusterByName(googleProject, clusterName) }
+    val authCheck = lookupClusterF flatMap {
+      case None => Future.failed(ClusterNotFoundException(googleProject, clusterName))
+      case Some(cluster) =>
+        val x: OptionT[Future, Unit] = for {
+          hasViewPermission <- OptionT.liftF(authProvider.hasNotebookClusterPermission(userInfo, GetClusterStatus, cluster.googleId))
+          hasConnectPermission <- OptionT.liftF(authProvider.hasNotebookClusterPermission(userInfo, ConnectToCluster, cluster.googleId))
+        } yield {
+          if (!hasViewPermission) {
+            throw ClusterNotFoundException(googleProject, clusterName)
+          } else if (!hasConnectPermission) {
+            throw AuthorizationError(userInfo.userEmail)
+          } else {
+            ()
+          }
+        }
+        x.value
     }
 
     logger.debug(s"Received proxy request with user token ${token.value}")
-    authCheck.value flatMap { _ => getTargetHost(googleProject, clusterName) } flatMap {
+    authCheck flatMap { _ => getTargetHost(googleProject, clusterName) } flatMap {
       case ClusterReady(targetHost) =>
         // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
         // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.

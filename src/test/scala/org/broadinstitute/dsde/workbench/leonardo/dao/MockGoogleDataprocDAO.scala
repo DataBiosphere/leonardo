@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 import java.io.File
 import java.net.URL
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
@@ -16,6 +17,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration._
 
 class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected val proxyConfig: ProxyConfig, protected val clusterDefaultsConfig: ClusterDefaultsConfig, ok: Boolean = true) extends DataprocDAO {
 
@@ -32,12 +34,12 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
   def getUserInfoAndExpirationFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[(UserInfo, Instant)] = {
     Future {
       accessToken match {
-        case "unauthorized" =>
-          throw AuthorizationError()
         case "expired" =>
           (UserInfo(OAuth2BearerToken(accessToken), WorkbenchUserId("1234567890"), WorkbenchEmail("expiredUser@example.com"), -10), Instant.now.minusSeconds(10))
+        case "unauthorized" =>
+          (UserInfo(OAuth2BearerToken(accessToken), WorkbenchUserId("1234567890"), WorkbenchEmail("non_whitelisted@example.com"), (1 hour).toMillis), Instant.now.plus(1, ChronoUnit.HOURS))
         case _ =>
-          (UserInfo(OAuth2BearerToken(accessToken), WorkbenchUserId("1234567890"), WorkbenchEmail("expiredUser@example.com"), Instant.MAX.minusMillis(Instant.now.toEpochMilli).toEpochMilli), Instant.MAX)
+          (UserInfo(OAuth2BearerToken(accessToken), WorkbenchUserId("1234567890"), WorkbenchEmail("user1@example.com"), (1 hour).toMillis), Instant.now.plus(1, ChronoUnit.HOURS))
       }
     }
   }
