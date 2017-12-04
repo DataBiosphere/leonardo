@@ -83,12 +83,19 @@ object ClusterStatus extends Enumeration {
 
 
 object Cluster {
-  def create(clusterRequest: ClusterRequest, userEmail: WorkbenchEmail, clusterName: ClusterName, googleProject: GoogleProject, googleId: UUID, operationName: OperationName, serviceAccount: WorkbenchEmail, clusterDefaultsConfig: ClusterDefaultsConfig): Cluster = {
+  def create(clusterRequest: ClusterRequest,
+             userEmail: WorkbenchEmail,
+             clusterName: ClusterName,
+             googleProject: GoogleProject,
+             googleId: UUID,
+             operationName: OperationName,
+             serviceAccountInfo: ServiceAccountInfo,
+             clusterDefaultsConfig: ClusterDefaultsConfig): Cluster = {
     Cluster(
         clusterName = clusterName,
         googleId = googleId,
         googleProject = googleProject,
-        googleServiceAccount = serviceAccount,
+        serviceAccountInfo = serviceAccountInfo,
         googleBucket = clusterRequest.bucketPath,
         machineConfig = MachineConfig(clusterRequest.machineConfig, clusterDefaultsConfig),
         clusterUrl = getClusterUrl(googleProject, clusterName),
@@ -103,12 +110,16 @@ object Cluster {
       )
   }
 
-  def createDummyForDeletion(clusterRequest: ClusterRequest, userEmail: WorkbenchEmail, clusterName: ClusterName, googleProject: GoogleProject, serviceAccount: WorkbenchEmail): Cluster = {
+  def createDummyForDeletion(clusterRequest: ClusterRequest,
+                             userEmail: WorkbenchEmail,
+                             clusterName: ClusterName,
+                             googleProject: GoogleProject,
+                             serviceAccountInfo: ServiceAccountInfo): Cluster = {
     Cluster(
       clusterName = clusterName,
       googleId = UUID.randomUUID,
       googleProject = googleProject,
-      googleServiceAccount = serviceAccount,
+      serviceAccountInfo = serviceAccountInfo,
       googleBucket = clusterRequest.bucketPath,
       machineConfig = MachineConfig(clusterRequest.machineConfig, ClusterDefaultsConfig(0, "", 0, "", 0, 0, 0)),
       clusterUrl = getClusterUrl(googleProject, clusterName),
@@ -133,13 +144,14 @@ object Cluster {
 case class DefaultLabels(clusterName: ClusterName,
                          googleProject: GoogleProject,
                          googleBucket: GcsBucketName,
-                         serviceAccount: WorkbenchEmail,
+                         clusterServiceAccount: Option[WorkbenchEmail],
+                         overrideServiceAccount: Option[WorkbenchEmail],
                          notebookExtension: Option[GcsPath])
 
 case class Cluster(clusterName: ClusterName,
                    googleId: UUID,
                    googleProject: GoogleProject,
-                   googleServiceAccount: WorkbenchEmail,
+                   serviceAccountInfo: ServiceAccountInfo,
                    googleBucket: GcsBucketName,
                    machineConfig: MachineConfig,
                    clusterUrl: URL,
@@ -201,6 +213,9 @@ case class MachineConfig(numberOfWorkers: Option[Int] = None,
                          numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                          numberOfPreemptibleWorkers: Option[Int] = None
                         )
+
+case class ServiceAccountInfo(clusterServiceAccount: Option[WorkbenchEmail],
+                              overrideServiceAccount: Option[WorkbenchEmail])
 
 case class ClusterRequest(bucketPath: GcsBucketName,
                           labels: LabelMap,
@@ -351,8 +366,9 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val ipFormat = StringValueClassFormat(IP, IP.unapply)
   implicit val firewallRuleNameFormat = StringValueClassFormat(FirewallRuleName, FirewallRuleName.unapply)
   implicit val machineConfigFormat = jsonFormat7(MachineConfig.apply)
+  implicit val serviceAccountInfoFormat = jsonFormat2(ServiceAccountInfo.apply)
   implicit val clusterFormat = jsonFormat15(Cluster.apply)
   implicit val clusterRequestFormat = jsonFormat4(ClusterRequest)
   implicit val clusterInitValuesFormat = jsonFormat17(ClusterInitValues.apply)
-  implicit val defaultLabelsFormat = jsonFormat5(DefaultLabels.apply)
+  implicit val defaultLabelsFormat = jsonFormat6(DefaultLabels.apply)
 }

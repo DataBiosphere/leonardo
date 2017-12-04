@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import scala.concurrent.{ExecutionContext, Future}
 
 trait DataprocDAO {
-  def createCluster(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, serviceAccount: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[Cluster]
+  def createCluster(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo)(implicit executionContext: ExecutionContext): Future[Cluster]
 
   def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit]
 
@@ -23,7 +23,7 @@ trait DataprocDAO {
    * The bucketGoogleProject is the project the bucket resides in; the clusterGoogleProject is needed to set the
    * appropriate ACLs on the bucket.
    */
-  def createBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, bucketName: GcsBucketName, userServiceAccount: WorkbenchEmail): Future[GcsBucketName]
+  def createBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[GcsBucketName]
 
   def uploadToBucket(googleProject: GoogleProject, bucketPath: GcsPath, content: File): Future[Unit]
 
