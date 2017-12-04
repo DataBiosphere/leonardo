@@ -163,7 +163,10 @@ class ClusterMonitorActor(val cluster: Cluster,
       gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName),
       // Remove the Dataproc Worker IAM role for the pet service account
       // Only do this if the cluster was created with the pet service account.
-      removeIamRolesForUser
+      removeIamRolesForUser,
+      // Remove the service account key in Google, if present.
+      // Only happens if the cluster was NOT created with the pet service account.
+      removeServiceAccountKey
     ))
 
     deleteFuture.flatMap { _ =>
@@ -252,6 +255,16 @@ class ClusterMonitorActor(val cluster: Cluster,
       Future.successful(())
     else {
       gdDAO.setStagingBucketOwnership(cluster)
+    }
+  }
+
+  private def removeServiceAccountKey: Future[Unit] = {
+    // Delete the service account key in Google, if present
+    dbRef.inTransaction { dataAccess =>
+      dataAccess.clusterQuery.getServiceAccountKeyId(cluster.googleProject, cluster.clusterName)
+    } flatMap {
+      case Some(key) => googleIamDAO.removeServiceAccountKey(dataprocConfig.leoGoogleProject, cluster.googleServiceAccount, key)
+      case None => Future.successful(())
     }
   }
 }
