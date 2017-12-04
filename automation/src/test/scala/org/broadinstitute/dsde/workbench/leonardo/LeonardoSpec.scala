@@ -20,7 +20,6 @@ import org.scalatest.selenium.WebBrowser
 import org.scalatest.time.{Minutes, Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers, ParallelTestExecution}
 
-import scala.io.Source
 import scala.util.{Random, Try}
 
 class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelTestExecution with BeforeAndAfterAll
@@ -134,11 +133,6 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     linesWithoutIPs(left) shouldEqual linesWithoutIPs(right)
   }
 
-  def findReplaceMacros(replacementMap: Map[String, String], file: File): String = {
-    val raw = Source.fromFile(file).mkString
-    replacementMap.foldLeft(raw) { case (content, (k, v)) => content.replaceAllLiterally(s"[$k]", v) }
-  }
-
   // ------------------------------------------------------
 
   def withNewCluster[T](googleProject: GoogleProject)(testCode: Cluster => T)(implicit token: AuthToken): T = {
@@ -182,6 +176,13 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     }
   }
 
+  def withNewNotebook[T](cluster: Cluster)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+    withNotebooksListPage(cluster) { notebooksListPage =>
+      val notebookPage = notebooksListPage.newNotebook
+      testCode(notebookPage)
+    }
+  }
+
   // ------------------------------------------------------
 
   "Leonardo" - {
@@ -217,11 +218,16 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       }
     }
 
+    val fileName: String = "import-hail.ipynb"
+    val upFile = ResourceFile(s"diff-tests/$fileName")
+
+    // must align with run-tests.sh and hub-compose-fiab.yml
+    val downloadDir = "chrome/downloads"
+    val downFile = new File(downloadDir, fileName)
+    downFile.mkdirs()
+
     "should verify notebook execution" in withWebDriver(downloadDir) { implicit driver =>
       implicit val token = ronAuthToken
-      val fileName: String = "import-hail.ipynb"
-      val upFile = ResourceFile(s"diff-tests/$fileName")
-      val downFile = new File(downloadDir, fileName)
 
       withReadyCluster(project) { cluster =>
         withNotebookUpload(cluster, upFile) { notebook =>
@@ -240,13 +246,20 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       compareFilesExcludingIPs(upFile, uniqueDownFile)
     }
 
-    "should put the pet's credentials on the cluster" in withWebDriver(downloadDir) { implicit driver =>
+    "should foo execute cells" in withWebDriver { implicit driver =>
+      implicit val token = ronAuthToken
+      withReadyCluster(project) { cluster =>
+        withNewNotebook(cluster) { notebookPage =>
+          notebookPage.executeCell("1+1") shouldBe "2"
+          notebookPage.executeCell("2*3") shouldBe "6"
+          notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe "Hello Notebook!"
+        }
+      }
+    }
+
+    "should put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
       // Use Hermione for this test to keep her keys separate from Ron's
       implicit val token = hermioneAuthToken
-
-      val fileName: String = "application-default-credentials.ipynb"
-      val upFile = ResourceFile(s"diff-tests/$fileName")
-      val downFile = new File(downloadDir, fileName)
 
       /*
        * Pre-conditions (before cluster creation)
@@ -264,30 +277,21 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       /*
        * Create a cluster
        */
-      val expectedContent = withReadyCluster(project) { cluster =>
+      withReadyCluster(project) { cluster =>
         // 1 new key should have been generated
         val keys = googleIamDAO.listServiceAccountKeys(project, samPetEmail).futureValue
         val newKeys = keys.toSet diff initialKeys.toSet
         newKeys.size shouldBe 1
 
         // cluster should have the pet's credentials
-        withNotebookUpload(cluster, upFile) { notebook =>
-          notebook.runAllCells(60)  // wait 60 sec for Kernel to init and Hail to load
-          notebook.download()
+        withNewNotebook(cluster) { notebookPage =>
+          notebookPage.executeCell("from oauth2client.client import GoogleCredentials")
+          notebookPage.executeCell("credentials = GoogleCredentials.get_application_default()")
+          notebookPage.executeCell("print credentials._service_account_email") shouldBe samPetEmail.value
+          notebookPage.executeCell("print credentials._private_key_id") shouldBe newKeys.head
+
         }
-
-        val replacements = Map("pet_email" -> samPetEmail.value, "pet_key_id" -> newKeys.head.id.value)
-        findReplaceMacros(replacements, upFile)
       } (hermioneAuthToken)
-
-      // Verify downloaded file
-      // move the file to a unique location so it won't interfere with other tests
-      val uniqueDownFile = new File(downloadDir, s"application-default-credentials-${Instant.now().toString}.ipynb")
-      moveFile(downFile, uniqueDownFile)
-      uniqueDownFile.deleteOnExit()
-
-      // verify down file contains the expected content
-      Source.fromFile(uniqueDownFile).mkString shouldBe expectedContent
 
       /*
        * Post-conditions (after cluster deletion)
