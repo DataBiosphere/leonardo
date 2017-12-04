@@ -86,7 +86,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
   }
 
   // creates a cluster and checks to see that it reaches the Running state
-  def createAndMonitor(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Cluster = {
+  def createAndMonitor(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(implicit token: AuthToken): Cluster = {
     // Google doesn't seem to like simultaneous cluster creates.  Add 0-30 sec jitter
     Thread sleep Random.nextInt(30000)
 
@@ -151,7 +151,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     testResult.get
   }
 
-  def withNewErroredCluster[T](googleProject: GoogleProject)(testCode: Cluster => T): T = {
+  def withNewErroredCluster[T](googleProject: GoogleProject)(testCode: Cluster => T)(implicit token: AuthToken): T = {
     val name = ClusterName(s"automation-test-a${makeRandomId()}z")
     val request = ClusterRequest(bucket, Map("foo" -> makeRandomId()), Some(incorrectJupyterExtensionUri))
     val testResult: Try[T] = Try {
@@ -216,6 +216,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     }
 
     "should error on cluster create and delete the cluster" in {
+      implicit val token = ronAuthToken
       withNewErroredCluster(project) { _ =>
         // no-op; just verify that it launches
       }
