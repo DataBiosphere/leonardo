@@ -44,7 +44,7 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
     }
   }
 
-  override def createCluster(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, serviceAccount: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[Cluster] = {
+  override def createCluster(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo)(implicit executionContext: ExecutionContext): Future[Cluster] = {
     if (clusterName == badClusterName) {
       Future.failed(CallToGoogleApiFailedException(googleProject, clusterName.string, 500, "Bad Cluster!"))
     } else if(clusterName == errorClusterName){
@@ -52,7 +52,7 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
       clusters += clusterName -> cluster
       Future.successful(cluster)
     } else {
-      val cluster = Cluster.create(clusterRequest, userEmail, clusterName, googleProject, googleID, OperationName("op-name"), serviceAccount, clusterDefaultsConfig)
+      val cluster = Cluster.create(clusterRequest, userEmail, clusterName, googleProject, googleID, OperationName("op-name"), serviceAccountInfo, clusterDefaultsConfig)
       clusters += clusterName -> cluster
       Future.successful(cluster)
     }
@@ -70,7 +70,7 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
     Future.successful(())
   }
 
-  override def createBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, bucketName: GcsBucketName, userServiceAccount: WorkbenchEmail): Future[GcsBucketName] = {
+  override def createBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[GcsBucketName] = {
     if (!buckets.contains(bucketName)) {
       buckets += bucketName
     }
