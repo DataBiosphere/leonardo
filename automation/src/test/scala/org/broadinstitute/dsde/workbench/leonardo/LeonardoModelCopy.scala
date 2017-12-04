@@ -66,11 +66,11 @@ case class DefaultLabels(clusterName: ClusterName,
                          googleProject: GoogleProject,
                          googleBucket: GcsBucketName,
                          serviceAccount: WorkbenchEmail,
-                         notebookExtension: Option[GcsPath]) {
+                         notebookExtension: Option[String]) {
 
   // TODO don't hardcode fields
   def toMap: Map[String, String] = {
-    val ext: Map[String, String] = notebookExtension map { ext => Map("notebookExtension" -> ext.toUri) } getOrElse Map.empty
+    val ext: Map[String, String] = notebookExtension map { ext => Map("notebookExtension" -> ext) } getOrElse Map.empty
 
     Map(
       "clusterName" -> clusterName.string,

@@ -47,7 +47,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
   val project = GoogleProject(LeonardoConfig.Projects.default)
   val sa = GoogleServiceAccount(LeonardoConfig.Leonardo.notebooksServiceAccountEmail)
   val bucket = GcsBucketName("mah-bukkit")
-  val incorrectJupyterExtensionUri = "gs://leonardo-swat-test-bucket-do-not-delete"
+  val incorrectJupyterExtensionUri = "gs://leonardo-swat-test-bucket-do-not-delete/"
 
   // must align with run-tests.sh and hub-compose-fiab.yml
   val downloadDir = "chrome/downloads"
@@ -58,27 +58,29 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
                  requestedLabels: LabelMap,
                  clusterName: ClusterName,
                  googleProject: GoogleProject,
-                 gcsBucketName: GcsBucketName): Unit = {
+                 gcsBucketName: GcsBucketName,
+                 notebookExtension: Option[String] = None): Unit = {
 
     // we don't actually know the SA because it's the pet
     // set a dummy here and then remove it from the comparison
 
     val dummyPetSa = WorkbenchEmail("dummy")
-    val expected = requestedLabels ++ DefaultLabels(clusterName, googleProject, gcsBucketName, dummyPetSa, None).toMap - "serviceAccount"
+    val expected = requestedLabels ++ DefaultLabels(clusterName, googleProject, gcsBucketName, dummyPetSa, notebookExtension).toMap - "serviceAccount"
 
-    (seen - "serviceAccount" - "notebookExtension") shouldBe (expected - "serviceAccount" - "notebookExtension")
+    (seen - "serviceAccount") shouldBe (expected - "serviceAccount")
   }
 
   def clusterCheck(cluster: Cluster,
                    requestedLabels: Map[String, String],
                    expectedName: ClusterName,
-                   expectedStatuses: Iterable[ClusterStatus]): Cluster = {
+                   expectedStatuses: Iterable[ClusterStatus],
+                  notebookExtension: Option[String] = None): Cluster = {
 
     expectedStatuses should contain (cluster.status)
     cluster.googleProject shouldBe project
     cluster.clusterName shouldBe expectedName
     cluster.googleBucket shouldBe bucket
-    labelCheck(cluster.labels, requestedLabels, expectedName, project, bucket)
+    labelCheck(cluster.labels, requestedLabels, expectedName, project, bucket, notebookExtension)
 
     cluster
   }
@@ -89,14 +91,14 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     Thread sleep Random.nextInt(30000)
 
     val cluster = Leonardo.cluster.create(googleProject, clusterName, clusterRequest)
-    clusterCheck(cluster, clusterRequest.labels, clusterName, Seq(ClusterStatus.Creating))
+    clusterCheck(cluster, clusterRequest.labels, clusterName, Seq(ClusterStatus.Creating), clusterRequest.jupyterExtensionUri)
 
     // verify with get()
-    clusterCheck(Leonardo.cluster.get(googleProject, clusterName), clusterRequest.labels, clusterName, Seq(ClusterStatus.Creating))
+    clusterCheck(Leonardo.cluster.get(googleProject, clusterName), clusterRequest.labels, clusterName, Seq(ClusterStatus.Creating), clusterRequest.jupyterExtensionUri)
 
     // wait for "Running" or error (fail fast)
     val actualCluster = eventually {
-      clusterCheck(Leonardo.cluster.get(googleProject, clusterName), clusterRequest.labels, clusterName, Seq(ClusterStatus.Running, ClusterStatus.Error))
+      clusterCheck(Leonardo.cluster.get(googleProject, clusterName), clusterRequest.labels, clusterName, Seq(ClusterStatus.Running, ClusterStatus.Error), clusterRequest.jupyterExtensionUri)
     } (clusterPatience)
 
     // now check that it didn't timeout or error
