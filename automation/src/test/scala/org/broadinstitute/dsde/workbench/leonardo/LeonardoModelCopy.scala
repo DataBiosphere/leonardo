@@ -7,9 +7,10 @@ import java.util.UUID
 import scala.language.implicitConversions
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 sealed trait StringValueClass extends Any
-case class GoogleProject(string: String) extends AnyVal with StringValueClass
 case class ClusterName(string: String) extends AnyVal with StringValueClass
 case class GoogleServiceAccount(string: String) extends AnyVal with StringValueClass
 case class IP(string: String) extends AnyVal with StringValueClass
@@ -25,8 +26,6 @@ case class GcsRelativePath(name: String) extends AnyVal
 
 /** A valid GCS bucket name */
 case class GcsBucketName(name: String) extends AnyVal
-
-case class WorkbenchUserServiceAccountEmail(value: String) extends AnyVal
 
 case class MachineConfig(numberOfWorkers: Option[Int] = None,
                          masterMachineType: Option[String] = None,
@@ -71,7 +70,7 @@ case class ClusterRequest(bucketPath: GcsBucketName,
 case class DefaultLabels(clusterName: ClusterName,
                          googleProject: GoogleProject,
                          googleBucket: GcsBucketName,
-                         serviceAccount: WorkbenchUserServiceAccountEmail,
+                         serviceAccount: WorkbenchEmail,
                          notebookExtension: Option[GcsPath]) {
 
   // TODO don't hardcode fields
@@ -80,7 +79,7 @@ case class DefaultLabels(clusterName: ClusterName,
 
     Map(
       "clusterName" -> clusterName.string,
-      "googleProject" -> googleProject.string,
+      "googleProject" -> googleProject.value,
       "googleBucket" -> googleBucket.name,
       "serviceAccount" -> serviceAccount.value
     ) ++ ext

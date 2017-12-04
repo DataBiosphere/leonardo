@@ -1,8 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.config.AuthToken
-import org.openqa.selenium.WebDriver
+import org.openqa.selenium.{WebDriver, WebElement}
 import org.openqa.selenium.interactions.Actions
+import scala.collection.JavaConverters._
 
 class NotebookPage(override val url: String)(override implicit val authToken: AuthToken, override implicit val webDriver: WebDriver)
   extends JupyterPage {
@@ -36,6 +37,9 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   // Cell -> Run All Cells
   lazy val runAllCellsSelection: Query = cssSelector("[id='run_all_cells']")
 
+  // Run Cell toolbar button
+  lazy val runCellButton: Query = cssSelector("[title='Run']")
+
   // selects the numbered left-side cell prompts
   lazy val prompts: Query = cssSelector("[class='prompt input_prompt']")
 
@@ -56,5 +60,25 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     // hover over downloadSubMenu
     new Actions(webDriver).moveToElement(downloadSubMenu.underlying).perform()
     click on (await enabled downloadSelection)
+  }
+
+  lazy val cells: Query = cssSelector(".CodeMirror")
+  lazy val outputs: Query = cssSelector(".output_subarea")
+
+  def lastCell: WebElement = {
+    webDriver.findElements(cells.by).asScala.toList.last
+  }
+
+  def lastOutput: Option[Element] = {
+    outputs.findAllElements.toList.lastOption
+  }
+
+  def executeCell(code: String, timeoutSeconds: Long = 60): Option[String] = {
+    await enabled cells
+    executeScript(s"""arguments[0].CodeMirror.setValue("$code");""", lastCell)
+    click on runCellButton
+    await condition (!cellsAreRunning, timeoutSeconds)
+    Thread.sleep(1000)
+    lastOutput.map(_.text)
   }
 }
