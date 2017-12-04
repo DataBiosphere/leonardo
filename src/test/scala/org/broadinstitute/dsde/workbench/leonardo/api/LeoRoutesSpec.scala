@@ -19,10 +19,26 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   private val clusterName = ClusterName("test-cluster")
   private val bucketPath = GcsBucketName("test-bucket-path")
 
+  val invalidUserLeoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with MockUserInfoDirectives {
+    override val userInfo: UserInfo =  UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("badUser"), WorkbenchEmail("badUser@example.com"), 0)
+  }
+
 
   "LeoRoutes" should "200 on ping" in {
     Get("/ping") ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
+    }
+  }
+
+  it should "200 if you're on the whitelist" in isolatedDbTest {
+    Get(s"/api/isWhitelisted") ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+    }
+  }
+
+  it should "401 if you're not on the whitelist" in isolatedDbTest {
+    Get(s"/api/isWhitelisted") ~> invalidUserLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.Unauthorized
     }
   }
 
@@ -55,9 +71,6 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       status shouldEqual StatusCodes.OK
     }
 
-    val invalidUserLeoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with MockUserInfoDirectives {
-      override val userInfo: UserInfo =  UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("badUser"), WorkbenchEmail("badUser@example.com"), 0)
-    }
     Get(s"/api/cluster/${googleProject.value}/notyourcluster") ~> invalidUserLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }

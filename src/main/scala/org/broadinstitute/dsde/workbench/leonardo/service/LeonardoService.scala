@@ -85,6 +85,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
+  def isWhitelisted(userInfo: UserInfo): Future[Unit] = {
+    checkProjectPermission(userInfo, ListClusters, GoogleProject("dummy"))
+  }
+
   def createCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
     for {
       _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
