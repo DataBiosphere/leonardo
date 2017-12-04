@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import java.io.File
+import java.net.URL
 import java.time.Instant
 import java.util.UUID
 
@@ -41,11 +42,11 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
     if (clusterName == badClusterName) {
       Future.failed(CallToGoogleApiFailedException(googleProject, clusterName.string, 500, "Bad Cluster!"))
     } else if(clusterName == errorClusterName){
-      val cluster = Cluster.create(clusterRequest, clusterName, googleProject, googleID, OperationName("op-name"), serviceAccount, clusterDefaultsConfig, ClusterStatus.Error)
+      val cluster = Cluster(clusterName,googleID,googleProject,serviceAccount,clusterRequest.bucketPath,MachineConfig(clusterRequest.machineConfig,clusterDefaultsConfig),new URL("https://www.broadinstitute.org"),OperationName("op-name"),ClusterStatus.Error, None, Instant.now(),None,clusterRequest.labels,clusterRequest.jupyterExtensionUri)
       clusters += clusterName -> cluster
       Future.successful(cluster)
     } else {
-      val cluster = Cluster.create(clusterRequest, clusterName, googleProject, googleID, OperationName("op-name"), serviceAccount, clusterDefaultsConfig, ClusterStatus.Creating)
+      val cluster = Cluster.create(clusterRequest, clusterName, googleProject, googleID, OperationName("op-name"), serviceAccount, clusterDefaultsConfig)
       clusters += clusterName -> cluster
       Future.successful(cluster)
     }
@@ -96,7 +97,8 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
 
   override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[ClusterStatus] = {
     Future.successful {
-      if (clusters.contains(clusterName)) ClusterStatus.Running
+      if (clusters.contains(clusterName) && clusterName == errorClusterName) ClusterStatus.Error
+      else if(clusters.contains(clusterName)) ClusterStatus.Running
       else ClusterStatus.Unknown
     }
   }

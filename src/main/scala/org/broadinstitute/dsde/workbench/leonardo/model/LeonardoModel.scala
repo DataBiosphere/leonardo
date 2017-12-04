@@ -83,7 +83,7 @@ object ClusterStatus extends Enumeration {
 
 
 object Cluster {
-  def create(clusterRequest: ClusterRequest, clusterName: ClusterName, googleProject: GoogleProject, googleId: UUID, operationName: OperationName, serviceAccount: WorkbenchEmail, clusterDefaultsConfig: ClusterDefaultsConfig, clusterStatus:ClusterStatus): Cluster = {
+  def create(clusterRequest: ClusterRequest, clusterName: ClusterName, googleProject: GoogleProject, googleId: UUID, operationName: OperationName, serviceAccount: WorkbenchEmail, clusterDefaultsConfig: ClusterDefaultsConfig): Cluster = {
     Cluster(
       clusterName = clusterName,
       googleId = googleId,
@@ -93,7 +93,7 @@ object Cluster {
       machineConfig = MachineConfig(clusterRequest.machineConfig, clusterDefaultsConfig),
       clusterUrl = getClusterUrl(googleProject, clusterName),
       operationName = operationName,
-      status = clusterStatus,
+      status = ClusterStatus.Creating,
       hostIp = None,
       createdDate = Instant.now(),
       destroyedDate = None,

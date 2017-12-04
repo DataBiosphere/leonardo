@@ -256,17 +256,17 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "delete a cluster that has status Error" in isolatedDbTest {
     // check that the cluster does not exist
-    gdDAO.clusters should not contain key (clusterName)
+    gdDAO.clusters should not contain key (gdDAO.errorClusterName)
 
     // create the cluster
     val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, gdDAO.errorClusterName, testClusterRequest).futureValue
 
     // check that the cluster was created
-    gdDAO.clusters should contain key (gdDAO.errorClusterName)
+    gdDAO.clusters should contain key gdDAO.errorClusterName
 
     // delete the cluster
     val clusterDeleteResponse = leo.deleteCluster(googleProject, gdDAO.errorClusterName).futureValue
-
+ 
     // the delete response should indicate 1 cluster was deleted
     clusterDeleteResponse shouldEqual 1
 

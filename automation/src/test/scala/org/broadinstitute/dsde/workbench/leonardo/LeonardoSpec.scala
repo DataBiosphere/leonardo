@@ -86,7 +86,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
   }
 
   // creates a cluster and checks to see that it reaches the Running state
-  def createAndMonitor(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, clusterStatus:ClusterStatus = ClusterStatus.Running): Cluster = {
+  def createAndMonitor(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Cluster = {
     // Google doesn't seem to like simultaneous cluster creates.  Add 0-30 sec jitter
     Thread sleep Random.nextInt(30000)
 
@@ -101,8 +101,6 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       clusterCheck(Leonardo.cluster.get(googleProject, clusterName), clusterRequest.labels, clusterName, Seq(ClusterStatus.Running, ClusterStatus.Error), clusterRequest.jupyterExtensionUri)
     } (clusterPatience)
 
-    // now check that it didn't timeout or error
-    actualCluster.status shouldBe clusterStatus
     actualCluster
   }
 
@@ -143,7 +141,8 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     val request = ClusterRequest(bucket, Map("foo" -> makeRandomId()))
 
     val testResult: Try[T] = Try {
-      val cluster = createAndMonitor(googleProject, name, request, ClusterStatus.Running)
+      val cluster = createAndMonitor(googleProject, name, request)
+      cluster.status shouldBe ClusterStatus.Running
       testCode(cluster)
     }
 
@@ -153,10 +152,12 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
   }
 
   def withNewErroredCluster[T](googleProject: GoogleProject)(testCode: Cluster => T): T = {
-    val name = ClusterName(s"automation-test-a${Random.alphanumeric.take(10).mkString.toLowerCase}z")
-    val request = ClusterRequest(bucket, Map("foo" -> Random.alphanumeric.take(10).mkString), Some(incorrectJupyterExtensionUri))
+    val name = ClusterName(s"automation-test-a${makeRandomId()}z")
+    val request = ClusterRequest(bucket, Map("foo" -> makeRandomId()), Some(incorrectJupyterExtensionUri))
     val testResult: Try[T] = Try {
-      val cluster = createAndMonitor(googleProject, name, request, ClusterStatus.Error)
+      val cluster = createAndMonitor(googleProject, name, request)
+      // now check that it didn't timeout or error
+      cluster.status shouldBe ClusterStatus.Error
       testCode(cluster)
     }
 
