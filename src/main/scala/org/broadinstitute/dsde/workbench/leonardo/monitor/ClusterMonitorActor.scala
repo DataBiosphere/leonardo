@@ -8,19 +8,19 @@ import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, DataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache.ProcessReadyCluster
+import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache.{ClusterReady, GetClusterResponse, ProcessReadyCluster}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterErrorDetails, ClusterStatus, IP}
+import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterDeleted
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.util.addJitter
-
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Failure
 import akka.pattern.ask
 import akka.util.Timeout
+import org.broadinstitute.dsde.workbench.leonardo.service.ClusterNotReadyException
 
 object ClusterMonitorActor {
   /**
@@ -119,35 +119,17 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ShutdownActor
     */
   private def handleReadyCluster(publicIp: IP): Future[ClusterMonitorMessage] = {
-    // Get the init bucket path for this cluster
-    val initBucketPathFuture = dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.getInitBucket(cluster.googleProject, cluster.clusterName)
-    }
-
-    // Then delete it
-    val deleteInitBucketFuture = initBucketPathFuture flatMap {
-      case None => Future.successful( logger.warn(s"Could not lookup bucket for cluster ${cluster.googleProject}/${cluster.clusterName}: cluster not in db") )
-      case Some(bucketPath) =>
-        gdDAO.deleteBucket(dataprocConfig.leoGoogleProject, bucketPath.bucketName) map { _ =>
-          logger.debug(s"Deleted init bucket $bucketPath for cluster ${cluster.googleProject}/${cluster.clusterName}")
-        }
-    }
-
-    // Then remove the Dataproc Worker IAM role for the pet service account
-    // Only do this if the cluster was created with the pet service account.
-    val iamFuture = deleteInitBucketFuture flatMap { _ => removeIamRolesForUser() }
-
-    // Add Staging Bucket ACLs to the pet
-    // Only do this if the cluster was not created with the pet service account.
-    val bucketACLFuture = setStagingBucketACLsForUser()
-
-    implicit val timeout: Timeout = Timeout(5 seconds)
-    val enableClusterProxying: Future[Any] = clusterDnsCache ? ProcessReadyCluster(cluster)
-
     for {
-      _ <- iamFuture
-      _ <- bucketACLFuture
-      _ <- enableClusterProxying
+      // Delete the init bucket
+      _ <- deleteInitBucket
+      // Remove the Dataproc Worker IAM role for the pet service account
+      // Only happens if the cluster was created with the pet service account.
+      _ <- removeIamRolesForUser
+      // Add Staging Bucket ACLs to the pet
+      // Only happens if the cluster was NOT created with the pet service account.
+      _ <- setStagingBucketACLsForUser()
+      // Ensure the cluster is ready for proxying but updating the IP -> DNS cache
+      _ <- ensureClusterReadyForProxying(publicIp)
       // update DB after auth futures finish
       _ <- dbRef.inTransaction { dataAccess =>
         dataAccess.clusterQuery.setToRunning(cluster.googleId, publicIp)
@@ -275,5 +257,30 @@ class ClusterMonitorActor(val cluster: Cluster,
       case Some(key) => googleIamDAO.removeServiceAccountKey(dataprocConfig.leoGoogleProject, cluster.googleServiceAccount, key)
       case None => Future.successful(())
     }
+  }
+
+  private def deleteInitBucket: Future[Unit] = {
+    // Get the init bucket path for this cluster, then delete the bucket in Google.
+    dbRef.inTransaction { dataAccess =>
+      dataAccess.clusterQuery.getInitBucket(cluster.googleProject, cluster.clusterName)
+    } flatMap {
+      case None => Future.successful( logger.warn(s"Could not lookup bucket for cluster ${cluster.googleProject}/${cluster.clusterName}: cluster not in db") )
+      case Some(bucketPath) =>
+        gdDAO.deleteBucket(dataprocConfig.leoGoogleProject, bucketPath.bucketName) map { _ =>
+          logger.debug(s"Deleted init bucket $bucketPath for cluster ${cluster.googleProject}/${cluster.clusterName}")
+        }
+    }
+  }
+
+  private def ensureClusterReadyForProxying(ip: IP): Future[Unit] = {
+    // Ensure if the cluster's IP has been picked up by the DNS cache and is ready for proxying.
+    implicit val timeout: Timeout = Timeout(5 seconds)
+    (clusterDnsCache ? ProcessReadyCluster(cluster.copy(hostIp = Some(ip))))
+      .mapTo[Either[Throwable, GetClusterResponse]]
+      .map {
+        case Left(throwable) => throw throwable
+        case Right(ClusterReady(_)) => ()
+        case Right(_) => throw ClusterNotReadyException(cluster.googleProject, cluster.clusterName)
+      }
   }
 }

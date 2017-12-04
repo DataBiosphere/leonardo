@@ -107,15 +107,15 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
     logger.debug(s"Saved ${clusters.size} clusters to DNS cache, ${clustersWithIp.size} with IPs")
   }
 
-  def processReadyCluster(cluster: Cluster): Future[GetClusterResponse] = {
-    if (cluster.hostIp.isEmpty)
-      Future.failed(ClusterNotReadyException(cluster.googleProject, cluster.clusterName))
-    else Future {
+  def processReadyCluster(cluster: Cluster): Either[Throwable, GetClusterResponse] = {
+    if (cluster.hostIp.isEmpty) {
+      Left(ClusterNotReadyException(cluster.googleProject, cluster.clusterName))
+    } else {
       ClusterDnsCache.HostToIp += hostToIpEntry(cluster)
       ProjectNameToHost += projectNameToHostEntry(cluster)
 
       logger.debug(s"Saved new cluster ${cluster.googleProject.value}/${cluster.clusterName.string} to DNS cache with IP ${cluster.hostIp.get.string}")
-      ProjectNameToHost(cluster.googleProject, cluster.clusterName)
+      Right(ProjectNameToHost(cluster.googleProject, cluster.clusterName))
     }
   }
 }
