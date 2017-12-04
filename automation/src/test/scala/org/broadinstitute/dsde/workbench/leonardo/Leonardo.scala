@@ -8,6 +8,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.api.WorkbenchClient
 import org.broadinstitute.dsde.workbench.config.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.openqa.selenium.WebDriver
 
 /**
@@ -30,7 +31,7 @@ object Leonardo extends WorkbenchClient with LazyLogging {
     // the default doesn't handle some fields correctly so here they're strings
     private case class ClusterKluge(clusterName: ClusterName,
                                     googleId: UUID,
-                                    googleProject: GoogleProject,
+                                    googleProject: String,
                                     googleServiceAccount: GoogleServiceAccount,
                                     googleBucket: GcsBucketName,
                                     machineConfig: Map[String, String],
@@ -45,7 +46,7 @@ object Leonardo extends WorkbenchClient with LazyLogging {
 
       def toCluster = Cluster(clusterName,
         googleId,
-        googleProject,
+        GoogleProject(googleProject),
         googleServiceAccount,
         googleBucket,
         MachineConfig(machineConfig),
@@ -76,7 +77,7 @@ object Leonardo extends WorkbenchClient with LazyLogging {
 
 
     def clusterPath(googleProject: GoogleProject, clusterName: ClusterName): String =
-      s"api/cluster/${googleProject.string}/${clusterName.string}"
+      s"api/cluster/${googleProject.value}/${clusterName.string}"
 
     def list()(implicit token: AuthToken): Seq[Cluster] = {
       logger.info(s"Listing all active clusters: GET /api/clusters")
@@ -110,7 +111,7 @@ object Leonardo extends WorkbenchClient with LazyLogging {
 
   object notebooks {
     def notebooksPath(googleProject: GoogleProject, clusterName: ClusterName): String =
-      s"notebooks/${googleProject.string}/${clusterName.string}"
+      s"notebooks/${googleProject.value}/${clusterName.string}"
 
     def get(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver): NotebooksListPage = {
       val path = notebooksPath(googleProject, clusterName)

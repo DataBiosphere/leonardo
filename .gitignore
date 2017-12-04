@@ -1,4 +1,4 @@
-/.idea/
+.idea/
 /project/boot/
 /project/plugins/project
 target/
@@ -14,5 +14,10 @@ test-output/
 /bin/
 *.log
 /config/
-
 *.pid
+
+# Automation exclusions
+automation/chrome/
+automation/failure_screenshots/
+automation/src/test/resources/application.conf
+automation/src/test/resources/firecloud-account.pem
