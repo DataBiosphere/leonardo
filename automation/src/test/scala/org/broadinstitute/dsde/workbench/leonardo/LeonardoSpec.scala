@@ -288,7 +288,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
           notebookPage.executeCell("from oauth2client.client import GoogleCredentials") shouldBe None
           notebookPage.executeCell("credentials = GoogleCredentials.get_application_default()") shouldBe None
           notebookPage.executeCell("print credentials._service_account_email") shouldBe Some(samPetEmail.value)
-          notebookPage.executeCell("print credentials._private_key_id") shouldBe Some(newKeys.head)
+          notebookPage.executeCell("print credentials._private_key_id") shouldBe Some(newKeys.head.id.value)
 
         }
       } (hermioneAuthToken)
