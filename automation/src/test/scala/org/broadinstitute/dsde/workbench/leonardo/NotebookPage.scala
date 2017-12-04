@@ -63,22 +63,22 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   }
 
   lazy val cells: Query = cssSelector(".CodeMirror")
-  lazy val outputs: Query = cssSelector("[class='output_subarea output_text output_result']")
+  lazy val outputs: Query = cssSelector(".output_subarea")
 
   def lastCell: WebElement = {
     webDriver.findElements(cells.by).asScala.toList.last
   }
 
-  def lastOutput: Element = {
-    outputs.findAllElements.toList.last
+  def lastOutput: Option[Element] = {
+    outputs.findAllElements.toList.lastOption
   }
 
-  def executeCell(code: String, timeoutSeconds: Long = 60): String = {
+  def executeCell(code: String, timeoutSeconds: Long = 60): Option[String] = {
     await enabled cells
     executeScript(s"""arguments[0].CodeMirror.setValue("$code");""", lastCell)
     click on runCellButton
     await condition (!cellsAreRunning, timeoutSeconds)
     Thread.sleep(1000)
-    lastOutput.text
+    lastOutput.map(_.text)
   }
 }

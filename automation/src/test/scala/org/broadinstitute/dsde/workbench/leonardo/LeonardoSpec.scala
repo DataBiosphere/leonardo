@@ -246,13 +246,13 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       compareFilesExcludingIPs(upFile, uniqueDownFile)
     }
 
-    "should foo execute cells" in withWebDriver { implicit driver =>
+    "should execute cells" in withWebDriver { implicit driver =>
       implicit val token = ronAuthToken
       withReadyCluster(project) { cluster =>
         withNewNotebook(cluster) { notebookPage =>
-          notebookPage.executeCell("1+1") shouldBe "2"
-          notebookPage.executeCell("2*3") shouldBe "6"
-          notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe "Hello Notebook!"
+          notebookPage.executeCell("1+1") shouldBe Some("2")
+          notebookPage.executeCell("2*3") shouldBe Some("6")
+          notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
         }
       }
     }
@@ -285,10 +285,10 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
         // cluster should have the pet's credentials
         withNewNotebook(cluster) { notebookPage =>
-          notebookPage.executeCell("from oauth2client.client import GoogleCredentials")
-          notebookPage.executeCell("credentials = GoogleCredentials.get_application_default()")
-          notebookPage.executeCell("print credentials._service_account_email") shouldBe samPetEmail.value
-          notebookPage.executeCell("print credentials._private_key_id") shouldBe newKeys.head
+          notebookPage.executeCell("from oauth2client.client import GoogleCredentials") shouldBe None
+          notebookPage.executeCell("credentials = GoogleCredentials.get_application_default()") shouldBe None
+          notebookPage.executeCell("print credentials._service_account_email") shouldBe Some(samPetEmail.value)
+          notebookPage.executeCell("print credentials._private_key_id") shouldBe Some(newKeys.head)
 
         }
       } (hermioneAuthToken)
