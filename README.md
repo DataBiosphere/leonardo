@@ -1,9 +1,32 @@
 [![Build Status](https://travis-ci.org/broadinstitute/leonardo.svg?branch=develop)](https://travis-ci.org/broadinstitute/leonardo) [![Coverage Status](https://coveralls.io/repos/github/broadinstitute/leonardo/badge.svg?branch=develop)](https://coveralls.io/github/broadinstitute/leonardo?branch=develop)
 
-# leonardo
-Notebook service for Workbench
+# Leonardo
 
-## Getting started
+Leo provisions Spark clusters through [Google Dataproc](https://cloud.google.com/dataproc/) and installs [Jupyter notebooks](http://jupyter.org/) and [Hail](https://hail.is/) on them. It can also proxy end-user connections to the Jupyter interface in order to provide authorization for particular users.
+
+## Configurability
+
+Documentation on how to configure Leo is Coming Soon™. Until then, a brief overview: there are two points at which Leonardo ~~is~~ will be pluggable.
+
+### Authorization provider
+
+Leo provides two modes of authorization out of the box:
+1. By whitelist
+2. Through [Sam](github.com/broadinstitute/sam), the Workbench IAM service (Coming Soon™)
+
+Users wanting to roll their own authorization mechanism can do so by subclassing `LeoAuthProvider` and setting up the Leo configuration file appropriately.
+
+### Service account provider
+
+There are (up to) three service accounts used in the process of spinning up a notebook cluster:
+
+1. The Leo service account itself, used to _make_ the call to Google Dataproc
+2. The service account _passed_ to [dataproc clusters create](https://cloud.google.com/sdk/gcloud/reference/dataproc/clusters/create) via the `--service-account` parameter, whose credentials will be used to set up the instance and localized into the [GCE metadata server](https://cloud.google.com/compute/docs/storing-retrieving-metadata)
+3. The service account that will be localized into the user environment and returned when any application asks [for application default credentials](https://developers.google.com/identity/protocols/application-default-credentials).
+
+Currently, Leo expects to use its own SA for #1, and the same per-user project-specific SA for #2, which it fetches from [Sam](github.com/broadinstitute/sam). We are in the process of making these user-definable via a `ServiceAccountProvider` interface.
+
+## Building and running Leonardo
 Clone the repo.
 ```
 $ git clone https://github.com/broadinstitute/leonardo.git
