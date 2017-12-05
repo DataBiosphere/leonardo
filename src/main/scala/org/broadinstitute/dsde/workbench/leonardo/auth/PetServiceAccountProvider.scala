@@ -11,7 +11,7 @@ import scala.concurrent.Future
   */
 class PetServiceAccountProvider(config: Config) extends SamServiceAccountProvider(config) {
 
-  val leoServiceAccount = config.getString("leoServiceAccount")
+  val leoServiceAccount = config.getString("leoServiceAccountEmail")
 
   override def getLeoServiceAccount: WorkbenchEmail = WorkbenchEmail(leoServiceAccount)
 
