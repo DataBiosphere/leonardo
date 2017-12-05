@@ -14,6 +14,7 @@ import scala.concurrent.Future
 abstract class ServiceAccountProvider(config: Config) {
   /**
     * The service account email used for making Google Dataproc calls.
+    * Note this does NOT return a Future; we expect a constant value for this.
     *
     * @return service account email
     */

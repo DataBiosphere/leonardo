@@ -53,7 +53,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     samDAO = new MockSamDAO
     authProvider = new WhitelistAuthProvider(configFactory.getConfig("auth.providerConfig"))
     serviceAccountProvider = new MockServiceAccountProvider(configFactory.getConfig("serviceAccounts.config"))
-    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), samDAO, authProvider, serviceAccountProvider)
+    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider)
   }
 
   override def afterAll(): Unit = {

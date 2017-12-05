@@ -37,7 +37,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     clusterName = name1,
     googleId = UUID.randomUUID(),
     googleProject = project,
-    googleServiceAccount = serviceAccountEmail,
+    serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
     googleBucket = GcsBucketName("bucket1"),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name1),
@@ -54,7 +54,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     clusterName = name2,
     googleId = UUID.randomUUID(),
     googleProject = project,
-    googleServiceAccount = serviceAccountEmail,
+    serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
     googleBucket = GcsBucketName("bucket1"),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name2),
@@ -75,7 +75,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   def createClusterSupervisor(gdDAO: DataprocDAO, iamDAO: GoogleIamDAO): ActorRef = {
     val cacheActor = system.actorOf(ClusterDnsCache.props(proxyConfig, DbSingleton.ref))
     val supervisorActor = system.actorOf(TestClusterSupervisorActor.props(dataprocConfig, gdDAO, iamDAO, DbSingleton.ref, cacheActor, testKit))
-    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, supervisorActor, new MockSamDAO,  whitelistAuthProvider, serviceAccountProvider)
+    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, supervisorActor, whitelistAuthProvider, serviceAccountProvider)
     supervisorActor
   }
 

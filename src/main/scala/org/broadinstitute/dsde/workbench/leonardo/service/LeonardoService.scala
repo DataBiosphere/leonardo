@@ -10,7 +10,7 @@ import cats.implicits._
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{DataprocDAO, SamDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
@@ -57,7 +57,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val googleIamDAO: GoogleIamDAO,
                       protected val dbRef: DbReference,
                       protected val clusterMonitorSupervisor: ActorRef,
-                      protected val samDAO: SamDAO,
                       protected val authProvider: LeoAuthProvider,
                       protected val serviceAccountProvider: ServiceAccountProvider)
                      (implicit val executionContext: ExecutionContext) extends LazyLogging {

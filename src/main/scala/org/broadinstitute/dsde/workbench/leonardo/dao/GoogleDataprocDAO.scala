@@ -159,17 +159,18 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
 
   private def getClusterConfig(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, clusterDefaultsConfig: ClusterDefaultsConfig, serviceAccountInfo: ServiceAccountInfo): ClusterConfig = {
     // Create a GceClusterConfig, which has the common config settings for resources of Google Compute Engine cluster instances,
-    //   applicable to all instances in the cluster.
-    //   Set the network tag, which is needed by the firewall rule that allows leo to talk to the cluster
+    // applicable to all instances in the cluster.
+    // Set the network tag, which is needed by the firewall rule that allows leo to talk to the cluster
     val gceClusterConfig = new GceClusterConfig().setTags(List(proxyConfig.networkTag).asJava)
 
-    // Set the cluster service account, if present
+    // Set the cluster service account, if present.
+    // This is the service account passed to the create cluster API call.
     serviceAccountInfo.clusterServiceAccount.foreach { serviceAccountEmail =>
       gceClusterConfig.setServiceAccount(serviceAccountEmail.value).setServiceAccountScopes(oauth2Scopes.asJava)
     }
 
     // Create a NodeInitializationAction, which specifies the executable to run on a node.
-    //    This executable is our init-actions.sh, which will stand up our jupyter server and proxy.
+    // This executable is our init-actions.sh, which will stand up our jupyter server and proxy.
     val initActions = Seq(new NodeInitializationAction().setExecutableFile(GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.initActionsScript.string)).toUri))
 
     val machineConfig = MachineConfig(clusterRequest.machineConfig, clusterDefaultsConfig)
@@ -202,11 +203,14 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
 
   private def getSoftwareConfig(numWorkers: Option[Int], serviceAccountInfo: ServiceAccountInfo) = {
     val authProps: Map[String, String] = serviceAccountInfo.overrideServiceAccount match {
-      // If not overriding the cluster service account, no need to set Hadoop properties since
-      // the SA credentials are on the metadata server.
-      case None => Map.empty
-      // Set the necessary Hadoop properties to specify the override service account key file.
+      case None =>
+        // If not overriding the cluster service account, no need to set Hadoop properties since
+        // the SA credentials are on the metadata server.
+        Map.empty
+
       case Some(_) =>
+        // If we are overriding the cluster service account, set the necessary Hadoop properties
+        // to specify the location of the override service account key file.
         Map(
           "core:google.cloud.auth.service.account.enable" -> "true",
           "core:google.cloud.auth.service.account.json.keyfile" -> s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}"
@@ -289,13 +293,12 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
     // The Leo service account
     val leoServiceAccountEntityString = s"user-${serviceAccountProvider.getLeoServiceAccount.value}"
 
-    // The cluster service account, or compute engine default service account
     val clusterServiceAccountEntityStringFuture: Future[String] = serviceAccountInfo.clusterServiceAccount match {
       case Some(serviceAccountEmail) =>
-        // If creating the cluster as the pet service account, grant bucket access to the pet service account.
+        // If passing a service account to the create cluster command, grant bucket access to that service account.
         Future.successful(s"user-${serviceAccountEmail.value}")
       case None =>
-        // Otherwise, grant access to the Google compute engine default service account.
+        // Otherwise, grant bucket access to the Google compute engine default service account.
         getComputeEngineDefaultServiceAccount(clusterGoogleProject).map {
           case Some(serviceAccount) => s"user-${serviceAccount.value}"
           case None => throw GoogleProjectNotFoundException(clusterGoogleProject)
@@ -375,7 +378,10 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
   /* set the override service account as the staging bucket owner */
   override def setStagingBucketOwnership(cluster: LeoCluster): Future[Unit] = {
     cluster.serviceAccountInfo.overrideServiceAccount match {
-      case None => Future.successful(())
+      case None =>
+        // No need to do this if we're not overriding the cluster service account
+        Future.successful(())
+
       case Some(serviceAccountEmail) =>
         val entity: String = s"user-${serviceAccountEmail.value}"
 

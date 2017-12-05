@@ -74,6 +74,10 @@ trait ClusterComponent extends LeoComponent {
 
     def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName), unique = true)
 
+    // Can't use the shorthand
+    //   def * = (...) <> (ClusterRecord.tupled, ClusterRecord.unapply)
+    // because CLUSTER has more than 22 columns.
+    // So we split ClusterRecord into multiple case classes and bind them to slick in the following way.
     def * = (
       id, clusterName, googleId, googleProject, googleBucket, operationName, status, hostIp, creator,
       createdDate, destroyedDate, jupyterExtensionUri, initBucket,
