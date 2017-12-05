@@ -122,7 +122,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
           "googleBucket" -> bucketPath.name,
           "clusterName" -> cluster.clusterName.string,
           "googleProject" -> googleProject.value,
-          "serviceAccount" -> mockSamDAO.serviceAccount.value)
+          "overrideServiceAccount" -> mockSamDAO.serviceAccount.value)
       }
     }
   }
@@ -149,7 +149,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
         "googleBucket" -> bucketPath.name,
         "clusterName" -> "test-cluster-6",
         "googleProject" -> googleProject.value,
-        "serviceAccount" -> mockSamDAO.serviceAccount.value,
+        "overrideServiceAccount" -> mockSamDAO.serviceAccount.value,
         "label6" -> "value6")
     }
 
@@ -167,7 +167,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
         "googleBucket" -> bucketPath.name,
         "clusterName" -> "test-cluster-4",
         "googleProject" -> googleProject.value,
-        "serviceAccount" -> mockSamDAO.serviceAccount.value,
+        "overrideServiceAccount" -> mockSamDAO.serviceAccount.value,
         "label4" -> "value4")
     }
 

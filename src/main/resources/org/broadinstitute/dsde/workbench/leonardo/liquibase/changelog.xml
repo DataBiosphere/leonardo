@@ -12,4 +12,6 @@
     <include file="changesets/20171026_configurable_clusters.xml" relativeToChangelogFile="true" />
     <include file="changesets/20171101_cluster-serviceAccountKeyId.xml" relativeToChangelogFile="true" />
     <include file="changesets/20171129_cluster-creator.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20171205_cluster-split-up-service-accounts.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>
+
