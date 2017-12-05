@@ -8,6 +8,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.api.WorkbenchClient
 import org.broadinstitute.dsde.workbench.config.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.openqa.selenium.WebDriver
 import org.broadinstitute.dsde.workbench.google.gcs.GcsPath
@@ -56,7 +57,7 @@ object Leonardo extends WorkbenchClient with LazyLogging {
         operationName,
         ClusterStatus.withName(status),
         hostIp,
-        creator,
+        WorkbenchEmail(creator),
         Instant.parse(createdDate),
         destroyedDate map Instant.parse,
         labels,
