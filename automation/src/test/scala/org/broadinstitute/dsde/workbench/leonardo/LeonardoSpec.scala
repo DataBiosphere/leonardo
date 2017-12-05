@@ -268,7 +268,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       }
     }
 
-    "should put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
+    "foo should put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
       // Use Hermione for this test to keep her keys separate from Ron's
       implicit val token = hermioneAuthToken
 
@@ -296,11 +296,28 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
         // cluster should have the pet's credentials
         withNewNotebook(cluster) { notebookPage =>
+          // verify oauth2client
           notebookPage.executeCell("from oauth2client.client import GoogleCredentials") shouldBe None
           notebookPage.executeCell("credentials = GoogleCredentials.get_application_default()") shouldBe None
           notebookPage.executeCell("print credentials._service_account_email") shouldBe Some(samPetEmail.value)
           notebookPage.executeCell("print credentials._private_key_id") shouldBe Some(newKeys.head.id.value)
 
+          // verify FISS
+          notebookPage.executeCell("import firecloud.api as fapi")
+          notebookPage.executeCell("fiss_credentials = fapi.GoogleCredentials.get_application_default()")
+          notebookPage.executeCell("print fiss_credentials._service_account_email") shouldBe Some(samPetEmail.value)
+          notebookPage.executeCell("print fiss_credentials._private_key_id") shouldBe Some(newKeys.head.id.value)
+
+          // verify Spark
+          notebookPage.executeCell("hadoop_config = sc._jsc.hadoopConfiguration()")
+          notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.enable')") shouldBe Some("true")
+          notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.json.keyfile')") shouldBe Some("/etc/service-account-credentials.json")
+          val nbEmail = notebookPage.executeCell("! grep client_email /etc/service-account-credentials.json")
+          nbEmail shouldBe 'defined
+          nbEmail.get should contain (samPetEmail.value)
+          val nbKey = notebookPage.executeCell("! grep private_key_id /etc/service-account-credentials.json")
+          nbKey shouldBe 'defined
+          nbKey.get should contain (newKeys.head.id.value)
         }
       } (hermioneAuthToken)
 
