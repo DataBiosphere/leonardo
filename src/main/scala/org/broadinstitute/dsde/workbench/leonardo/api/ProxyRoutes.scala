@@ -15,7 +15,6 @@ import scala.concurrent.ExecutionContext
   */
 trait ProxyRoutes extends UserInfoDirectives{ self: LazyLogging =>
   val proxyService: ProxyService
-  val whitelistConfig: Set[WorkbenchEmail]
   implicit val executionContext: ExecutionContext
 
   protected val tokenCookieName = "FCtoken"
@@ -25,11 +24,9 @@ trait ProxyRoutes extends UserInfoDirectives{ self: LazyLogging =>
       extractRequest { request =>
         cookie(tokenCookieName) { tokenCookie => // rejected with MissingCookieRejection if the cookie is not present
           complete {
-            proxyService.getCachedEmailFromToken(tokenCookie.value).flatMap { email =>
-              if (whitelistConfig.contains(email)) {
-                // Proxy logic handled by the ProxyService class
-                proxyService.proxy(GoogleProject(googleProject), ClusterName(clusterName), request, tokenCookie)
-              } else throw AuthorizationError(email)
+            proxyService.getCachedUserInfoFromToken(tokenCookie.value).flatMap { userInfo =>
+              // Proxy logic handled by the ProxyService class
+              proxyService.proxy(userInfo, GoogleProject(googleProject), ClusterName(clusterName), request, tokenCookie)
             }
           }
         }

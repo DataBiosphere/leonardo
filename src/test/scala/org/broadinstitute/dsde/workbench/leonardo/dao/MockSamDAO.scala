@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
-import org.broadinstitute.dsde.workbench.leonardo.model.UserInfo
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, UserInfo}
 import org.broadinstitute.dsde.workbench.util.health.SubsystemStatus
 
 import scala.concurrent.Future

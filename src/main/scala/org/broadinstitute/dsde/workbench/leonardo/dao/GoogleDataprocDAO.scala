@@ -7,6 +7,7 @@ import java.util.UUID
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.data.OptionT
 import cats.instances.future._
 import cats.syntax.functor._
@@ -36,7 +37,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig,
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterInitValues, ClusterName, ClusterRequest, FirewallRuleName, IP, InstanceName, LeoException, MachineConfig, OperationName, ZoneUri, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.collection.JavaConverters._
@@ -113,14 +114,15 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
     UUID.fromString(dop.getMetadata.get("clusterUuid").toString)
   }
 
-  // Using the given access token, look up the corresponding email of the user and get how long, in seconds, the token will expire in
-  def getEmailAndExpirationFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[(WorkbenchEmail, Instant)] = {
+  // Using the given access token, look up the corresponding UserInfo of the user
+  def getUserInfoAndExpirationFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[(UserInfo, Instant)] = {
     val request = oauth2.tokeninfo().setAccessToken(accessToken)
-    executeGoogleRequestAsync(GoogleProject(""), "cookie auth", request).map{tokenInfo => (WorkbenchEmail(tokenInfo.getEmail), Instant.now().plusSeconds(tokenInfo.getExpiresIn.toInt))}
-      .recover { case CallToGoogleApiFailedException(_, _, _, _) => {
-        logger.error(s"Unable to authorize token: $accessToken")
-        throw AuthorizationError()
-      }}
+    executeGoogleRequestAsync(GoogleProject(""), "cookie auth", request).map { tokenInfo =>
+      (UserInfo(OAuth2BearerToken(accessToken), WorkbenchUserId(tokenInfo.getUserId), WorkbenchEmail(tokenInfo.getEmail), tokenInfo.getExpiresIn.toInt), Instant.now().plusSeconds(tokenInfo.getExpiresIn.toInt))
+    }.recover { case CallToGoogleApiFailedException(_, _, _, _) => {
+      logger.error(s"Unable to authorize token: $accessToken")
+      throw AuthorizationError()
+    }}
   }
 
   private lazy val googleFirewallRule = {
@@ -133,10 +135,10 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
       .setAllowed(List(allowed).asJava)
   }
 
-  override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, serviceAccount: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[LeoCluster] = {
+  override def createCluster(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, serviceAccount: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[LeoCluster] = {
     buildCluster(googleProject, clusterName, clusterRequest, initBucketName, clusterDefaultsConfig, serviceAccount).map { operation =>
       //Make a Leo cluster from the Google operation details
-      LeoCluster.create(clusterRequest, clusterName, googleProject, getOperationUUID(operation), OperationName(operation.getName), serviceAccount, clusterDefaultsConfig)
+      LeoCluster.create(clusterRequest, userEmail, clusterName, googleProject, getOperationUUID(operation), OperationName(operation.getName), serviceAccount, clusterDefaultsConfig)
     }
   }
 
