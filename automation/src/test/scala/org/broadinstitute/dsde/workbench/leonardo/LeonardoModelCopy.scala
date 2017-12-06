@@ -3,10 +3,10 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.net.URL
 import java.time.Instant
 import java.util.UUID
-
 import scala.language.implicitConversions
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
+import org.broadinstitute.dsde.workbench.google.gcs.GcsPath
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -15,11 +15,6 @@ case class ClusterName(string: String) extends AnyVal with StringValueClass
 case class GoogleServiceAccount(string: String) extends AnyVal with StringValueClass
 case class IP(string: String) extends AnyVal with StringValueClass
 case class OperationName(string: String) extends AnyVal with StringValueClass
-
-case class GcsPath(bucketName: GcsBucketName, relativePath: GcsRelativePath) {
-  final val GCS_SCHEME = "gs"
-  def toUri: String = s"$GCS_SCHEME://${bucketName.name}/${relativePath.name}"
-}
 
 /** A GCS relative path */
 case class GcsRelativePath(name: String) extends AnyVal
@@ -65,17 +60,17 @@ case class Cluster(clusterName: ClusterName,
 
 case class ClusterRequest(bucketPath: GcsBucketName,
                           labels: LabelMap,
-                          jupyterExtensionUri: Option[GcsPath] = None)
+                          jupyterExtensionUri: Option[String] = None)
 
 case class DefaultLabels(clusterName: ClusterName,
                          googleProject: GoogleProject,
                          googleBucket: GcsBucketName,
                          serviceAccount: WorkbenchEmail,
-                         notebookExtension: Option[GcsPath]) {
+                         notebookExtension: Option[String]) {
 
   // TODO don't hardcode fields
   def toMap: Map[String, String] = {
-    val ext: Map[String, String] = notebookExtension map { ext => Map("notebookExtension" -> ext.toUri) } getOrElse Map.empty
+    val ext: Map[String, String] = notebookExtension map { ext => Map("notebookExtension" -> ext) } getOrElse Map.empty
 
     Map(
       "clusterName" -> clusterName.string,
