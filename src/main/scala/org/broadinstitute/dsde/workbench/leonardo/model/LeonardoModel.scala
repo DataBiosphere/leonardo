@@ -64,11 +64,13 @@ object ClusterStatus extends Enumeration {
   //NOTE: Remember to update the definition of this enum in Swagger when you add new ones
   val Unknown, Creating, Running, Updating, Error, Deleting, Deleted = Value
   val activeStatuses = Set(Unknown, Creating, Running, Updating)
+  val deletableStatuses = Set(Unknown, Creating, Running, Updating, Error)
   val monitoredStatuses = Set(Unknown, Creating, Updating, Deleting)
 
   class StatusValue(status: ClusterStatus) {
     def isActive: Boolean = activeStatuses contains status
     def isMonitored: Boolean = monitoredStatuses contains status
+    def isDeletable: Boolean = deletableStatuses contains status
   }
   implicit def enumConvert(status: ClusterStatus): StatusValue = new StatusValue(status)
 
@@ -83,21 +85,21 @@ object ClusterStatus extends Enumeration {
 object Cluster {
   def create(clusterRequest: ClusterRequest, clusterName: ClusterName, googleProject: GoogleProject, googleId: UUID, operationName: OperationName, serviceAccount: WorkbenchEmail, clusterDefaultsConfig: ClusterDefaultsConfig): Cluster = {
     Cluster(
-        clusterName = clusterName,
-        googleId = googleId,
-        googleProject = googleProject,
-        googleServiceAccount = serviceAccount,
-        googleBucket = clusterRequest.bucketPath,
-        machineConfig = MachineConfig(clusterRequest.machineConfig, clusterDefaultsConfig),
-        clusterUrl = getClusterUrl(googleProject, clusterName),
-        operationName = operationName,
-        status = ClusterStatus.Creating,
-        hostIp = None,
-        createdDate = Instant.now(),
-        destroyedDate = None,
-        labels = clusterRequest.labels,
-        jupyterExtensionUri = clusterRequest.jupyterExtensionUri
-      )
+      clusterName = clusterName,
+      googleId = googleId,
+      googleProject = googleProject,
+      googleServiceAccount = serviceAccount,
+      googleBucket = clusterRequest.bucketPath,
+      machineConfig = MachineConfig(clusterRequest.machineConfig, clusterDefaultsConfig),
+      clusterUrl = getClusterUrl(googleProject, clusterName),
+      operationName = operationName,
+      status = ClusterStatus.Creating,
+      hostIp = None,
+      createdDate = Instant.now(),
+      destroyedDate = None,
+      labels = clusterRequest.labels,
+      jupyterExtensionUri = clusterRequest.jupyterExtensionUri
+    )
   }
 
   def getClusterUrl(googleProject: GoogleProject, clusterName: ClusterName): URL = {

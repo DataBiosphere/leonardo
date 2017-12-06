@@ -77,7 +77,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
 
   private lazy val oauth2 =
     new Builder(httpTransport, jsonFactory, null)
-    .setApplicationName(dataprocConfig.applicationName).build()
+      .setApplicationName(dataprocConfig.applicationName).build()
 
   private lazy val dataproc = {
     new Dataproc.Builder(httpTransport, jsonFactory, getServiceAccountCredential(cloudPlatformScopes))
@@ -117,7 +117,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
   def getEmailAndExpirationFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[(WorkbenchEmail, Instant)] = {
     val request = oauth2.tokeninfo().setAccessToken(accessToken)
     executeGoogleRequestAsync(GoogleProject(""), "cookie auth", request).map{tokenInfo => (WorkbenchEmail(tokenInfo.getEmail), Instant.now().plusSeconds(tokenInfo.getExpiresIn.toInt))}
-        .recover { case CallToGoogleApiFailedException(_, _, _, _) => {
+      .recover { case CallToGoogleApiFailedException(_, _, _, _) => {
         logger.error(s"Unable to authorize token: $accessToken")
         throw AuthorizationError()
       }}
@@ -398,6 +398,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
     executeGoogleRequestAsync(googleProject, clusterName.toString, request).recover {
       // treat a 404 error as a successful deletion
       case CallToGoogleApiFailedException(_, _, 404, _) => ()
+      case CallToGoogleApiFailedException(_, _, 400, msg) if msg.contains("it has other pending delete operations against it") => ()
     }.void
   }
 

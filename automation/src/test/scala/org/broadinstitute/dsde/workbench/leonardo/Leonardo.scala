@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.config.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.openqa.selenium.WebDriver
+import org.broadinstitute.dsde.workbench.google.gcs.GcsPath
 
 /**
   * Leonardo API service client.
@@ -42,7 +43,7 @@ object Leonardo extends WorkbenchClient with LazyLogging {
                                     createdDate: String,
                                     destroyedDate: Option[String],
                                     labels: LabelMap,
-                                    jupyterExtensionUri: Option[GcsPath]) {
+                                    jupyterExtensionUri: Option[String]) {
 
       def toCluster = Cluster(clusterName,
         googleId,
@@ -57,7 +58,7 @@ object Leonardo extends WorkbenchClient with LazyLogging {
         Instant.parse(createdDate),
         destroyedDate map Instant.parse,
         labels,
-        jupyterExtensionUri)
+        jupyterExtensionUri map (GcsPath.parse(_).right.get))
     }
 
     def handleClusterResponse(response: String): Cluster = mapper.readValue(response, classOf[ClusterKluge]).toCluster
@@ -71,10 +72,6 @@ object Leonardo extends WorkbenchClient with LazyLogging {
         mapper.readValue(clusterAsJson, classOf[ClusterKluge]).toCluster
       }
     }
-
-
-
-
 
     def clusterPath(googleProject: GoogleProject, clusterName: ClusterName): String =
       s"api/cluster/${googleProject.value}/${clusterName.string}"
