@@ -48,7 +48,7 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
     if (clusterName == badClusterName) {
       Future.failed(CallToGoogleApiFailedException(googleProject, clusterName.string, 500, "Bad Cluster!"))
     } else if(clusterName == errorClusterName){
-      val cluster = Cluster(clusterName,googleID,googleProject,serviceAccount,clusterRequest.bucketPath,MachineConfig(clusterRequest.machineConfig,clusterDefaultsConfig),new URL("https://www.broadinstitute.org"),OperationName("op-name"),ClusterStatus.Error, None, Instant.now(),None,clusterRequest.labels,clusterRequest.jupyterExtensionUri)
+      val cluster = Cluster(clusterName,googleID,googleProject,serviceAccount,clusterRequest.bucketPath,MachineConfig(clusterRequest.machineConfig,clusterDefaultsConfig),new URL("https://www.broadinstitute.org"),OperationName("op-name"),ClusterStatus.Error, None, userEmail, Instant.now(),None,clusterRequest.labels,clusterRequest.jupyterExtensionUri)
       clusters += clusterName -> cluster
       Future.successful(cluster)
     } else {

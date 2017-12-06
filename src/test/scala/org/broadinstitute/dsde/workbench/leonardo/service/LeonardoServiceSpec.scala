@@ -262,10 +262,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key gdDAO.errorClusterName
 
     // delete the cluster
-    val clusterDeleteResponse = leo.deleteCluster(googleProject, gdDAO.errorClusterName).futureValue
- 
-    // the delete response should indicate 1 cluster was deleted
-    clusterDeleteResponse shouldEqual 1
+    leo.deleteCluster(defaultUserInfo, googleProject, gdDAO.errorClusterName).futureValue
 
     // check that the cluster no longer exists
     gdDAO.clusters should not contain key (gdDAO.errorClusterName)
