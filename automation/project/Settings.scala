@@ -3,8 +3,8 @@ import sbt.Keys._
 import sbt._
 
 object Settings {
+  // for org.broadinstitute.dsde.workbench modules
   val artifactory = "https://broadinstitute.jfrog.io/broadinstitute/"
-
   val commonResolvers = List(
     "artifactory-releases" at artifactory + "libs-release",
     "artifactory-snapshots" at artifactory + "libs-snapshot"
