@@ -7,13 +7,13 @@ import java.util.UUID
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.{ExecutionContext, Future}
 
 trait DataprocDAO {
-  def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, serviceAccount: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[Cluster]
+  def createCluster(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, serviceAccount: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[Cluster]
 
   def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit]
 
@@ -41,7 +41,7 @@ trait DataprocDAO {
 
   def deleteBucket(googleProject: GoogleProject, gcsBucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[Unit]
 
-  def getEmailAndExpirationFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[(WorkbenchEmail, Instant)]
+  def getUserInfoAndExpirationFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[(UserInfo, Instant)]
 
   def listClusters(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[List[UUID]]
 }

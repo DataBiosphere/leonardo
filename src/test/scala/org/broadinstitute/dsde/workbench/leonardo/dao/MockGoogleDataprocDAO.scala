@@ -3,18 +3,21 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 import java.io.File
 import java.net.URL
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration._
 
 class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protected val proxyConfig: ProxyConfig, protected val clusterDefaultsConfig: ClusterDefaultsConfig, ok: Boolean = true) extends DataprocDAO {
 
@@ -28,25 +31,28 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
 
   private def googleID = UUID.randomUUID()
 
-  override def getEmailAndExpirationFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[(WorkbenchEmail, Instant)] = {
+  def getUserInfoAndExpirationFromAccessToken(accessToken: String)(implicit executionContext: ExecutionContext): Future[(UserInfo, Instant)] = {
     Future {
       accessToken match {
-        case "unauthorized" => throw AuthorizationError()
-        case "expired" =>  (WorkbenchEmail("expiredUser@example.com"), Instant.now.minusSeconds(10))
-        case _ => (WorkbenchEmail("user1@example.com"), Instant.MAX)
+        case "expired" =>
+          (UserInfo(OAuth2BearerToken(accessToken), WorkbenchUserId("1234567890"), WorkbenchEmail("expiredUser@example.com"), -10), Instant.now.minusSeconds(10))
+        case "unauthorized" =>
+          (UserInfo(OAuth2BearerToken(accessToken), WorkbenchUserId("1234567890"), WorkbenchEmail("non_whitelisted@example.com"), (1 hour).toMillis), Instant.now.plus(1, ChronoUnit.HOURS))
+        case _ =>
+          (UserInfo(OAuth2BearerToken(accessToken), WorkbenchUserId("1234567890"), WorkbenchEmail("user1@example.com"), (1 hour).toMillis), Instant.now.plus(1, ChronoUnit.HOURS))
       }
     }
   }
 
-  override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, serviceAccount: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[Cluster] = {
+  override def createCluster(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, serviceAccount: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[Cluster] = {
     if (clusterName == badClusterName) {
       Future.failed(CallToGoogleApiFailedException(googleProject, clusterName.string, 500, "Bad Cluster!"))
     } else if(clusterName == errorClusterName){
-      val cluster = Cluster(clusterName,googleID,googleProject,serviceAccount,clusterRequest.bucketPath,MachineConfig(clusterRequest.machineConfig,clusterDefaultsConfig),new URL("https://www.broadinstitute.org"),OperationName("op-name"),ClusterStatus.Error, None, Instant.now(),None,clusterRequest.labels,clusterRequest.jupyterExtensionUri)
+      val cluster = Cluster(clusterName,googleID,googleProject,serviceAccount,clusterRequest.bucketPath,MachineConfig(clusterRequest.machineConfig,clusterDefaultsConfig),new URL("https://www.broadinstitute.org"),OperationName("op-name"),ClusterStatus.Error, None, userEmail, Instant.now(),None,clusterRequest.labels,clusterRequest.jupyterExtensionUri)
       clusters += clusterName -> cluster
       Future.successful(cluster)
     } else {
-      val cluster = Cluster.create(clusterRequest, clusterName, googleProject, googleID, OperationName("op-name"), serviceAccount, clusterDefaultsConfig)
+      val cluster = Cluster.create(clusterRequest, userEmail, clusterName, googleProject, googleID, OperationName("op-name"), serviceAccount, clusterDefaultsConfig)
       clusters += clusterName -> cluster
       Future.successful(cluster)
     }

@@ -11,4 +11,5 @@
     <include file="changesets/20171011_cluster_destroyedDate_not_null.xml" relativeToChangelogFile="true" />
     <include file="changesets/20171026_configurable_clusters.xml" relativeToChangelogFile="true" />
     <include file="changesets/20171101_cluster-serviceAccountKeyId.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20171129_cluster-creator.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>
