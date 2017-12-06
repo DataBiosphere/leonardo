@@ -30,6 +30,7 @@ case class ClusterRecord(id: Long,
                          operationName: String,
                          status: String,
                          hostIp: Option[String],
+                         creator: String,
                          createdDate: Timestamp,
                          destroyedDate: Timestamp,
                          jupyterExtensionUri: Option[String],
@@ -58,6 +59,7 @@ trait ClusterComponent extends LeoComponent {
     def operationName =               column[String]            ("operationName",         O.Length(254))
     def status =                      column[String]            ("status",                O.Length(254))
     def hostIp =                      column[Option[String]]    ("hostIp",                O.Length(254))
+    def creator =                     column[String]            ("creator",                O.Length(254))
     def createdDate =                 column[Timestamp]         ("createdDate",           O.SqlType("TIMESTAMP(6)"))
     def destroyedDate =               column[Timestamp]         ("destroyedDate",         O.SqlType("TIMESTAMP(6)"))
     def jupyterExtensionUri =         column[Option[String]]    ("jupyterExtensionUri",   O.Length(1024))
@@ -66,7 +68,7 @@ trait ClusterComponent extends LeoComponent {
 
     def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName), unique = true)
 
-    def * = (id, clusterName, googleId, googleProject, googleServiceAccount, googleBucket, numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers, operationName, status, hostIp, createdDate, destroyedDate, jupyterExtensionUri, initBucket, serviceAccountKeyId) <> (ClusterRecord.tupled, ClusterRecord.unapply)
+    def * = (id, clusterName, googleId, googleProject, googleServiceAccount, googleBucket, numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers, operationName, status, hostIp, creator, createdDate, destroyedDate, jupyterExtensionUri, initBucket, serviceAccountKeyId) <> (ClusterRecord.tupled, ClusterRecord.unapply)
   }
 
   object clusterQuery extends TableQuery(new ClusterTable(_)) {
@@ -97,6 +99,12 @@ trait ClusterComponent extends LeoComponent {
 
     def findByName(project: GoogleProject, name: ClusterName) = {
       clusterQueryWithLabels.filter { _._1.googleProject === project.value }.filter { _._1.clusterName === name.string }
+    }
+
+    def getClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
+      findByName(project, name).result map { recs =>
+        unmarshalClustersWithLabels(recs).headOption
+      }
     }
 
     def getActiveClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
@@ -222,6 +230,7 @@ trait ClusterComponent extends LeoComponent {
         cluster.operationName.string,
         cluster.status.toString,
         cluster.hostIp map(_.string),
+        cluster.creator.value,
         Timestamp.from(cluster.createdDate),
         Timestamp.from(cluster.destroyedDate.getOrElse(dummyDate)),
         cluster.jupyterExtensionUri map(_.toUri),
@@ -266,6 +275,7 @@ trait ClusterComponent extends LeoComponent {
         OperationName(clusterRecord.operationName),
         ClusterStatus.withName(clusterRecord.status),
         clusterRecord.hostIp map IP,
+        WorkbenchEmail(clusterRecord.creator),
         clusterRecord.createdDate.toInstant,
         getDestroyedDate(clusterRecord.destroyedDate),
         labels,

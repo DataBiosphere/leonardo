@@ -10,6 +10,7 @@ import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
+import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, MockGoogleDataprocDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
@@ -43,12 +44,14 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   private var iamDAO: MockGoogleIamDAO = _
   private var samDAO: MockSamDAO = _
   private var leo: LeonardoService = _
+  private var authProvider: LeoAuthProvider = _
 
   before {
     gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
     iamDAO = new MockGoogleIamDAO
     samDAO = new MockSamDAO
-    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), samDAO)
+    authProvider = new WhitelistAuthProvider(configFactory.getConfig("auth.providerConfig"))
+    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), samDAO, authProvider)
   }
 
   override def afterAll(): Unit = {
@@ -105,7 +108,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, testClusterRequest).futureValue
 
     // get the cluster detail
-    val clusterGetResponse = leo.getActiveClusterDetails(googleProject, clusterName).futureValue
+    val clusterGetResponse = leo.getActiveClusterDetails(defaultUserInfo, googleProject, clusterName).futureValue
 
     // check the create response and get response are the same
     clusterCreateResponse shouldEqual clusterGetResponse
@@ -197,7 +200,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "throw ClusterNotFoundException for nonexistent clusters" in isolatedDbTest {
-    whenReady( leo.getActiveClusterDetails(GoogleProject("nonexistent"), ClusterName("cluster")).failed ) { exc =>
+    whenReady( leo.getActiveClusterDetails(defaultUserInfo, GoogleProject("nonexistent"), ClusterName("cluster")).failed ) { exc =>
       exc shouldBe a [ClusterNotFoundException]
     }
   }
@@ -220,10 +223,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key (clusterName)
 
     // delete the cluster
-    val clusterDeleteResponse = leo.deleteCluster(googleProject, clusterName).futureValue
-
-    // the delete response should indicate 1 cluster was deleted
-    clusterDeleteResponse shouldEqual 1
+    leo.deleteCluster(defaultUserInfo, googleProject, clusterName).futureValue
 
     //recreate cluster with same project and cluster name
     leo.createCluster(defaultUserInfo, googleProject, clusterName, testClusterRequest).futureValue
@@ -244,10 +244,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     iamDAO.serviceAccountKeys should contain key (samDAO.serviceAccount)
 
     // delete the cluster
-    val clusterDeleteResponse = leo.deleteCluster(googleProject, clusterName).futureValue
-
-    // the delete response should indicate 1 cluster was deleted
-    clusterDeleteResponse shouldEqual 1
+    leo.deleteCluster(defaultUserInfo, googleProject, clusterName).futureValue
 
     // check that the cluster no longer exists
     gdDAO.clusters should not contain key (clusterName)
@@ -265,17 +262,14 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key gdDAO.errorClusterName
 
     // delete the cluster
-    val clusterDeleteResponse = leo.deleteCluster(googleProject, gdDAO.errorClusterName).futureValue
- 
-    // the delete response should indicate 1 cluster was deleted
-    clusterDeleteResponse shouldEqual 1
+    leo.deleteCluster(defaultUserInfo, googleProject, gdDAO.errorClusterName).futureValue
 
     // check that the cluster no longer exists
     gdDAO.clusters should not contain key (gdDAO.errorClusterName)
   }
 
   it should "throw ClusterNotFoundException when deleting non existent clusters" in isolatedDbTest {
-    whenReady( leo.deleteCluster(GoogleProject("nonexistent"), ClusterName("cluster")).failed ) { exc =>
+    whenReady( leo.deleteCluster(defaultUserInfo, GoogleProject("nonexistent"), ClusterName("cluster")).failed ) { exc =>
       exc shouldBe a [ClusterNotFoundException]
     }
   }
@@ -385,8 +379,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "list no clusters" in isolatedDbTest {
-    leo.listClusters(Map.empty).futureValue shouldBe 'empty
-    leo.listClusters(Map("foo" -> "bar", "baz" -> "biz")).futureValue shouldBe 'empty
+    leo.listClusters(defaultUserInfo, Map.empty).futureValue shouldBe 'empty
+    leo.listClusters(defaultUserInfo, Map("foo" -> "bar", "baz" -> "biz")).futureValue shouldBe 'empty
   }
 
   it should "list all clusters" in isolatedDbTest {
@@ -397,7 +391,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName2 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     val cluster2 = leo.createCluster(defaultUserInfo, googleProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
-    leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(defaultUserInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
   }
 
   it should "list all active clusters" in isolatedDbTest {
@@ -407,9 +401,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName2 = ClusterName("test-cluster-2")
     val cluster2 = leo.createCluster(defaultUserInfo, googleProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
-    leo.listClusters(Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
-    leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
-    leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(defaultUserInfo, Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(defaultUserInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(defaultUserInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
 
     val clusterName3 = ClusterName("test-cluster-3")
     val cluster3 = leo.createCluster(defaultUserInfo, googleProject, clusterName3, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
@@ -418,9 +412,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       dataAccess.clusterQuery.completeDeletion(cluster3.googleId, clusterName3)
     )
 
-    leo.listClusters(Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
-    leo.listClusters(Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
-    leo.listClusters(Map("includeDeleted" -> "true")).futureValue.toSet.size shouldBe 3
+    leo.listClusters(defaultUserInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(defaultUserInfo, Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(defaultUserInfo, Map("includeDeleted" -> "true")).futureValue.toSet.size shouldBe 3
   }
 
 
@@ -432,12 +426,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName2 = ClusterName(s"test-cluster-2")
     val cluster2 = leo.createCluster(defaultUserInfo, googleProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
-    leo.listClusters(Map("foo" -> "bar")).futureValue.toSet shouldBe Set(cluster1, cluster2)
-    leo.listClusters(Map("foo" -> "bar", "bam" -> "yes")).futureValue.toSet shouldBe Set(cluster1)
-    leo.listClusters(Map("foo" -> "bar", "bam" -> "yes", "vcf" -> "no")).futureValue.toSet shouldBe Set(cluster1)
-    leo.listClusters(Map("a" -> "b")).futureValue.toSet shouldBe Set(cluster2)
-    leo.listClusters(Map("foo" -> "bar", "baz" -> "biz")).futureValue.toSet shouldBe Set.empty
-    leo.listClusters(Map("A" -> "B")).futureValue.toSet shouldBe Set(cluster2)  // labels are not case sensitive because MySQL
+    leo.listClusters(defaultUserInfo, Map("foo" -> "bar")).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(defaultUserInfo, Map("foo" -> "bar", "bam" -> "yes")).futureValue.toSet shouldBe Set(cluster1)
+    leo.listClusters(defaultUserInfo, Map("foo" -> "bar", "bam" -> "yes", "vcf" -> "no")).futureValue.toSet shouldBe Set(cluster1)
+    leo.listClusters(defaultUserInfo, Map("a" -> "b")).futureValue.toSet shouldBe Set(cluster2)
+    leo.listClusters(defaultUserInfo, Map("foo" -> "bar", "baz" -> "biz")).futureValue.toSet shouldBe Set.empty
+    leo.listClusters(defaultUserInfo, Map("A" -> "B")).futureValue.toSet shouldBe Set(cluster2)  // labels are not case sensitive because MySQL
   }
 
   it should "throw IllegalLabelKeyException when using a forbidden label" in isolatedDbTest {
@@ -454,17 +448,17 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName2 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     val cluster2 = leo.createCluster(defaultUserInfo, googleProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
-    leo.listClusters(Map("_labels" -> "foo=bar")).futureValue.toSet shouldBe Set(cluster1, cluster2)
-    leo.listClusters(Map("_labels" -> "foo=bar,bam=yes")).futureValue.toSet shouldBe Set(cluster1)
-    leo.listClusters(Map("_labels" -> "foo=bar,bam=yes,vcf=no")).futureValue.toSet shouldBe Set(cluster1)
-    leo.listClusters(Map("_labels" -> "a=b")).futureValue.toSet shouldBe Set(cluster2)
-    leo.listClusters(Map("_labels" -> "baz=biz")).futureValue.toSet shouldBe Set.empty
-    leo.listClusters(Map("_labels" -> "A=B")).futureValue.toSet shouldBe Set(cluster2)   // labels are not case sensitive because MySQL
-    leo.listClusters(Map("_labels" -> "foo%3Dbar")).failed.futureValue shouldBe a [ParseLabelsException]
-    leo.listClusters(Map("_labels" -> "foo=bar;bam=yes")).failed.futureValue shouldBe a [ParseLabelsException]
-    leo.listClusters(Map("_labels" -> "foo=bar,bam")).failed.futureValue shouldBe a [ParseLabelsException]
-    leo.listClusters(Map("_labels" -> "bogus")).failed.futureValue shouldBe a [ParseLabelsException]
-    leo.listClusters(Map("_labels" -> "a,b")).failed.futureValue shouldBe a [ParseLabelsException]
+    leo.listClusters(defaultUserInfo, Map("_labels" -> "foo=bar")).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(defaultUserInfo, Map("_labels" -> "foo=bar,bam=yes")).futureValue.toSet shouldBe Set(cluster1)
+    leo.listClusters(defaultUserInfo, Map("_labels" -> "foo=bar,bam=yes,vcf=no")).futureValue.toSet shouldBe Set(cluster1)
+    leo.listClusters(defaultUserInfo, Map("_labels" -> "a=b")).futureValue.toSet shouldBe Set(cluster2)
+    leo.listClusters(defaultUserInfo, Map("_labels" -> "baz=biz")).futureValue.toSet shouldBe Set.empty
+    leo.listClusters(defaultUserInfo, Map("_labels" -> "A=B")).futureValue.toSet shouldBe Set(cluster2)   // labels are not case sensitive because MySQL
+    leo.listClusters(defaultUserInfo, Map("_labels" -> "foo%3Dbar")).failed.futureValue shouldBe a [ParseLabelsException]
+    leo.listClusters(defaultUserInfo, Map("_labels" -> "foo=bar;bam=yes")).failed.futureValue shouldBe a [ParseLabelsException]
+    leo.listClusters(defaultUserInfo, Map("_labels" -> "foo=bar,bam")).failed.futureValue shouldBe a [ParseLabelsException]
+    leo.listClusters(defaultUserInfo, Map("_labels" -> "bogus")).failed.futureValue shouldBe a [ParseLabelsException]
+    leo.listClusters(defaultUserInfo, Map("_labels" -> "a,b")).failed.futureValue shouldBe a [ParseLabelsException]
   }
 
   it should "delete the init bucket if cluster creation fails" in isolatedDbTest {
@@ -477,5 +471,15 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.firewallRules should contain (googleProject, proxyConfig.firewallRuleName)
 
     gdDAO.buckets shouldBe 'empty
+  }
+
+  it should "tell you if you're whitelisted" in isolatedDbTest {
+    leo.isWhitelisted(defaultUserInfo).futureValue
+  }
+
+  it should "complain if you're not whitelisted" in isolatedDbTest {
+    val badUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("badguy"), WorkbenchEmail("dont@whitelist.me"), 0)
+    val authExc = leo.isWhitelisted(badUserInfo).failed.futureValue
+    authExc shouldBe a [AuthorizationError]
   }
 }

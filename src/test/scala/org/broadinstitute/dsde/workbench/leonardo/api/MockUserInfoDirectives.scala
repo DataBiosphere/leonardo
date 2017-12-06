@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.api
 
 import akka.http.scaladsl.server.Directive1
 import akka.http.scaladsl.server.Directives.provide
-import org.broadinstitute.dsde.workbench.leonardo.model.UserInfo
+import org.broadinstitute.dsde.workbench.model.UserInfo
 
 /**
   * Created by rtitle on 10/16/17.

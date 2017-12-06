@@ -4,6 +4,7 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
+import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -18,10 +19,26 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   private val clusterName = ClusterName("test-cluster")
   private val bucketPath = GcsBucketName("test-bucket-path")
 
+  val invalidUserLeoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with MockUserInfoDirectives {
+    override val userInfo: UserInfo =  UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("badUser"), WorkbenchEmail("badUser@example.com"), 0)
+  }
+
 
   "LeoRoutes" should "200 on ping" in {
     Get("/ping") ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
+    }
+  }
+
+  it should "200 if you're on the whitelist" in isolatedDbTest {
+    Get(s"/api/isWhitelisted") ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+    }
+  }
+
+  it should "401 if you're not on the whitelist" in isolatedDbTest {
+    Get(s"/api/isWhitelisted") ~> invalidUserLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.Unauthorized
     }
   }
 
@@ -41,17 +58,20 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
     }
   }
 
-  it should "401 when using a non-white-listed user" in isolatedDbTest {
-    val invalidUserLeoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, whitelistConfig) with MockUserInfoDirectives {
-      override val userInfo: UserInfo =  UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("badUser"), WorkbenchEmail("badUser@example.com"), 0)
-    }
-    Get("/api/clusters") ~> invalidUserLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.Unauthorized
+  it should "404 when getting a nonexistent cluster" in isolatedDbTest {
+    Get(s"/api/cluster/nonexistent/cluster") ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.NotFound
     }
   }
 
-  it should "404 when getting a nonexistent cluster" in isolatedDbTest {
-    Get(s"/api/cluster/nonexistent/cluster") ~> leoRoutes.route ~> check {
+  it should "404 when getting a cluster as a non-white-listed user" in isolatedDbTest {
+    val newCluster = ClusterRequest(bucketPath, Map.empty, None)
+
+    Put(s"/api/cluster/${googleProject.value}/notyourcluster", newCluster.toJson) ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+    }
+
+    Get(s"/api/cluster/${googleProject.value}/notyourcluster") ~> invalidUserLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
   }

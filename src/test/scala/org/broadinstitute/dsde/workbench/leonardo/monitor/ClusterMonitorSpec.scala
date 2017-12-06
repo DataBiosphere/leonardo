@@ -10,6 +10,7 @@ import com.typesafe.config.ConfigFactory
 import io.grpc.Status.Code
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
+import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils, VCMockitoMatchers}
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
@@ -32,13 +33,6 @@ import scala.concurrent.{ExecutionContext, Future}
   * Created by rtitle on 9/6/17.
   */
 class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll with TestComponent with VCMockitoMatchers with CommonTestData with GcsPathUtils { testKit =>
-  val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
-  val dataprocConfig = config.as[DataprocConfig]("dataproc")
-  val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
-  val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
-  val proxyConfig = config.as[ProxyConfig]("proxy")
-  val swaggerConfig = config.as[SwaggerConfig]("swagger")
-
   val creatingCluster = Cluster(
     clusterName = name1,
     googleId = UUID.randomUUID(),
@@ -50,6 +44,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     operationName = OperationName("op1"),
     status = ClusterStatus.Creating,
     hostIp = None,
+    creator = userEmail,
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"),
@@ -66,6 +61,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     operationName = OperationName("op1"),
     status = ClusterStatus.Deleting,
     hostIp = None,
+    creator = userEmail,
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"),
@@ -78,7 +74,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
   def createClusterSupervisor(gdDAO: DataprocDAO, iamDAO: GoogleIamDAO): ActorRef = {
     val actor = system.actorOf(TestClusterSupervisorActor.props(dataprocConfig, gdDAO, iamDAO, DbSingleton.ref, testKit))
-    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, actor, new MockSamDAO)
+    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, actor, new MockSamDAO, new WhitelistAuthProvider(config.getConfig("auth.providerConfig")))
     actor
   }
 
@@ -132,7 +128,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // Post:
   // - cluster is not changed in the DB
   // - monitor actor does not shut down
-  Seq(ClusterStatus.Creating, ClusterStatus.Updating, ClusterStatus.Unknown).map { status =>
+  Seq(ClusterStatus.Creating, ClusterStatus.Updating, ClusterStatus.Unknown).foreach { status =>
     it should s"monitor $status status" in isolatedDbTest {
       dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual creatingCluster
 
@@ -333,7 +329,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val newClusterId = UUID.randomUUID()
     when {
-      gdDAO.createCluster(mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName), any[ClusterRequest], vcAny[GcsBucketName], any[WorkbenchEmail])(any[ExecutionContext])
+      gdDAO.createCluster(mockitoEq(creatingCluster.creator), mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName), any[ClusterRequest], vcAny[GcsBucketName], any[WorkbenchEmail])(any[ExecutionContext])
     } thenReturn Future.successful {
       creatingCluster.copy(googleId=newClusterId)
     }
