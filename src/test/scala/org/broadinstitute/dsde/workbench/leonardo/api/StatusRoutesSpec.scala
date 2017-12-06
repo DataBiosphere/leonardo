@@ -5,8 +5,8 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockGoogleDataprocDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.model.UserInfo
 import org.broadinstitute.dsde.workbench.leonardo.service.StatusService
+import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.util.health.{HealthMonitor, StatusCheckResponse}
 import org.broadinstitute.dsde.workbench.util.health.Subsystems._
 import org.broadinstitute.dsde.workbench.util.health.StatusJsonSupport._
@@ -35,7 +35,7 @@ class StatusRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest wi
     val badSam = new MockSamDAO(false)
     val badDataproc = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig, false)
     val statusService = new StatusService(badDataproc, badSam, DbSingleton.ref, dataprocConfig, pollInterval = 1.second)
-    val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, whitelistConfig) with MockUserInfoDirectives {
+    val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with MockUserInfoDirectives {
       override val userInfo: UserInfo = defaultUserInfo
     }
 
