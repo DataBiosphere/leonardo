@@ -204,12 +204,12 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
   private def getSoftwareConfig(numWorkers: Option[Int], serviceAccountInfo: ServiceAccountInfo) = {
     val authProps: Map[String, String] = serviceAccountInfo.notebookServiceAccount match {
       case None =>
-        // If not overriding the cluster service account, no need to set Hadoop properties since
+        // If we're not using a notebook service account, no need to set Hadoop properties since
         // the SA credentials are on the metadata server.
         Map.empty
 
       case Some(_) =>
-        // If we are overriding the cluster service account, set the necessary Hadoop properties
+        // If we are using a notebook service account, set the necessary Hadoop properties
         // to specify the location of the notebook service account key file.
         Map(
           "core:google.cloud.auth.service.account.enable" -> "true",
@@ -379,7 +379,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
   override def setStagingBucketOwnership(cluster: LeoCluster): Future[Unit] = {
     cluster.serviceAccountInfo.notebookServiceAccount match {
       case None =>
-        // No need to do this if we're not overriding the cluster service account
+        // No need to do this if we're not using a notebook service account
         Future.successful(())
 
       case Some(serviceAccountEmail) =>
