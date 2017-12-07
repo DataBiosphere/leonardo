@@ -128,10 +128,10 @@ class ClusterMonitorActor(val cluster: Cluster,
       // than the compute engine default service account.
       _ <- removeIamRolesForUser
       // Remove credentials from instance metadata.
-      // Only happens if an override service account was used.
+      // Only happens if an notebook service account was used.
       _ <- removeCredentialsFromMetadata
-      // Add Staging Bucket ACLs to the override service account.
-      // Only happens if an override service account was localized onto the cluster.
+      // Add Staging Bucket ACLs to the notebook service account.
+      // Only happens if an notebook service account was localized onto the cluster.
       _ <- gdDAO.setStagingBucketOwnership(cluster)
       // Ensure the cluster is ready for proxying but updating the IP -> DNS cache
       _ <- ensureClusterReadyForProxying(publicIp)
@@ -246,10 +246,10 @@ class ClusterMonitorActor(val cluster: Cluster,
   }
 
   private def removeServiceAccountKey: Future[Unit] = {
-    // Delete the override service account key in Google, if present
+    // Delete the notebook service account key in Google, if present
     val tea = for {
       key <- OptionT(dbRef.inTransaction { _.clusterQuery.getServiceAccountKeyId(cluster.googleProject, cluster.clusterName) })
-      serviceAccountEmail <- OptionT.fromOption[Future](cluster.serviceAccountInfo.overrideServiceAccount)
+      serviceAccountEmail <- OptionT.fromOption[Future](cluster.serviceAccountInfo.notebookServiceAccount)
       _ <- OptionT.liftF(googleIamDAO.removeServiceAccountKey(dataprocConfig.leoGoogleProject, serviceAccountEmail, key))
     } yield ()
 
@@ -282,12 +282,12 @@ class ClusterMonitorActor(val cluster: Cluster,
   }
 
   private def removeCredentialsFromMetadata: Future[Unit] = {
-    cluster.serviceAccountInfo.overrideServiceAccount match {
-      // No override service account: don't remove creds from metadata! We need them.
+    cluster.serviceAccountInfo.notebookServiceAccount match {
+      // No notebook service account: don't remove creds from metadata! We need them.
       case None => Future.successful(())
 
       // Remove credentials from instance metadata.
-      // We want to ensure that _only_ the override service account is used;
+      // We want to ensure that _only_ the notebook service account is used;
       // users should not be able to yank the cluster SA credentials from the metadata server.
       case Some(_) =>
         // TODO https://broadinstitute.atlassian.net/browse/GAWB-2961

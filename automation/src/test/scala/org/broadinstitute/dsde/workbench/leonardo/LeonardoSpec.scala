@@ -67,7 +67,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     val dummyOverridePetSa = WorkbenchEmail("dummy")
     val expected = requestedLabels ++ DefaultLabels(clusterName, googleProject, gcsBucketName, None, Some(dummyOverridePetSa), notebookExtension).toMap
 
-    (seen - "overrideServiceAccount") shouldBe (expected - "overrideServiceAccount")
+    (seen - "notebookServiceAccount") shouldBe (expected - "notebookServiceAccount")
   }
 
   def clusterCheck(cluster: Cluster,

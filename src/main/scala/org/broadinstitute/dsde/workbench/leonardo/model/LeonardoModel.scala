@@ -145,7 +145,7 @@ case class DefaultLabels(clusterName: ClusterName,
                          googleProject: GoogleProject,
                          googleBucket: GcsBucketName,
                          clusterServiceAccount: Option[WorkbenchEmail],
-                         overrideServiceAccount: Option[WorkbenchEmail],
+                         notebookServiceAccount: Option[WorkbenchEmail],
                          notebookExtension: Option[GcsPath])
 
 case class Cluster(clusterName: ClusterName,
@@ -215,7 +215,7 @@ case class MachineConfig(numberOfWorkers: Option[Int] = None,
                         )
 
 case class ServiceAccountInfo(clusterServiceAccount: Option[WorkbenchEmail],
-                              overrideServiceAccount: Option[WorkbenchEmail])
+                              notebookServiceAccount: Option[WorkbenchEmail])
 
 case class ClusterRequest(bucketPath: GcsBucketName,
                           labels: LabelMap,

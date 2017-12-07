@@ -20,7 +20,7 @@ class PetServiceAccountProvider(config: Config) extends SamServiceAccountProvide
     Future(None)
   }
 
-  override def getOverrideServiceAccount(userInfo: UserInfo, googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
+  override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
     // Ask Sam for the pet service account for the user
     samDAO.getPetServiceAccount(userInfo).map(Option(_))
   }

@@ -22,7 +22,7 @@ class MockServiceAccountProvider(config: Config) extends ServiceAccountProvider(
     Future.successful(None)
   }
 
-  override def getOverrideServiceAccount(userInfo: UserInfo, googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
+  override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
     // Pretend we're asking Sam for the pet
     mockSamDAO.getPetServiceAccount(userInfo).map(Option(_))
   }

@@ -82,7 +82,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // check the create response has the correct info
     clusterCreateResponse.googleBucket shouldEqual bucketPath
     clusterCreateResponse.serviceAccountInfo.clusterServiceAccount shouldEqual None
-    clusterCreateResponse.serviceAccountInfo.overrideServiceAccount shouldEqual Some(samDAO.serviceAccount)
+    clusterCreateResponse.serviceAccountInfo.notebookServiceAccount shouldEqual Some(samDAO.serviceAccount)
 
     // check the cluster has the correct machine configs
     clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig

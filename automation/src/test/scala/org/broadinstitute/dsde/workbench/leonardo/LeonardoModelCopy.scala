@@ -44,7 +44,7 @@ object MachineConfig {
 }
 
 case class ServiceAccountInfo(clusterServiceAccount: Option[WorkbenchEmail],
-                              overrideServiceAccount: Option[WorkbenchEmail])
+                              notebookServiceAccount: Option[WorkbenchEmail])
 
 object ServiceAccountInfo {
   // TODO: something less hacky, please!
@@ -52,7 +52,7 @@ object ServiceAccountInfo {
   // Otherwise we should rip out LeonardoModelCopy + ClusterKluge and just use Leo model objects + spray json (my prefrence).
   def apply(m: Map[String, String]): ServiceAccountInfo = ServiceAccountInfo(
     m.get("clusterServiceAccount").map(WorkbenchEmail),
-    m.get("overrideServiceAccount").map(WorkbenchEmail)
+    m.get("notebookServiceAccount").map(WorkbenchEmail)
   )
 }
 
@@ -80,20 +80,20 @@ case class DefaultLabels(clusterName: ClusterName,
                          googleProject: GoogleProject,
                          googleBucket: GcsBucketName,
                          clusterServiceAccount: Option[WorkbenchEmail],
-                         overrideServiceAccount: Option[WorkbenchEmail],
+                         notebookServiceAccount: Option[WorkbenchEmail],
                          notebookExtension: Option[String]) {
 
   // TODO don't hardcode fields
   def toMap: Map[String, String] = {
     val ext: Map[String, String] = notebookExtension map { ext => Map("notebookExtension" -> ext) } getOrElse Map.empty
     val clusterSa: Map[String, String] = clusterServiceAccount map { sa => Map("clusterServiceAccount" -> sa.value) } getOrElse Map.empty
-    val overrideSa: Map[String, String] = overrideServiceAccount map { sa => Map("overrideServiceAccount" -> sa.value) } getOrElse Map.empty
+    val notebookSa: Map[String, String] = notebookServiceAccount map { sa => Map("notebookServiceAccount" -> sa.value) } getOrElse Map.empty
 
     Map(
       "clusterName" -> clusterName.string,
       "googleProject" -> googleProject.value,
       "googleBucket" -> googleBucket.name
-    ) ++ ext ++ clusterSa ++ overrideSa
+    ) ++ ext ++ clusterSa ++ notebookSa
   }
 }
 

@@ -96,8 +96,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
       // Grab the service accounts from serviceAccountProvider for use later
       clusterServiceAccountOpt <- serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject)
-      overrideServiceAccountOpt <- serviceAccountProvider.getOverrideServiceAccount(userInfo, googleProject)
-      serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountOpt, overrideServiceAccountOpt)
+      notebookServiceAccountOpt <- serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject)
+      serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountOpt, notebookServiceAccountOpt)
 
       cluster <- internalCreateCluster(userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
     } yield cluster
@@ -168,8 +168,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   def internalDeleteCluster(cluster: Cluster): Future[Unit] = {
     if (cluster.status.isDeletable) {
       for {
-        // Delete the override service account key in Google, if present
-        _ <- removeServiceAccountKey(cluster.googleProject, cluster.clusterName, cluster.serviceAccountInfo.overrideServiceAccount)
+        // Delete the notebook service account key in Google, if present
+        _ <- removeServiceAccountKey(cluster.googleProject, cluster.clusterName, cluster.serviceAccountInfo.notebookServiceAccount)
         // Delete the cluster in Google
         _ <- gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)
         // Change the cluster status to Deleting in the database
@@ -226,10 +226,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       _ <- validateJupyterExtensionUri(googleProject, clusterRequest.jupyterExtensionUri)
       // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
       _ <- gdDAO.updateFirewallRule(googleProject)
-      // Generate a service account key for the override service account (if present) to localize on the cluster.
+      // Generate a service account key for the notebook service account (if present) to localize on the cluster.
       // We don't need to do this for the cluster service account because its credentials are already
       // on the metadata server.
-      serviceAccountKeyOpt <- generateServiceAccountKey(googleProject, serviceAccountInfo.overrideServiceAccount)
+      serviceAccountKeyOpt <- generateServiceAccountKey(googleProject, serviceAccountInfo.notebookServiceAccount)
       // Add Dataproc Worker role to the cluster service account, if present.
       // This is needed to be able to spin up Dataproc clusters.
       // If the Google Compute default service account is being used, this is not necessary.
@@ -285,12 +285,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   /* Create a google bucket and populate it with init files */
-  private[service] def initializeBucket(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountInfo: ServiceAccountInfo, overrideServiceAccountKeyOpt: Option[ServiceAccountKey]): Future[GcsBucketName] = {
+  private[service] def initializeBucket(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountInfo: ServiceAccountInfo, notebookServiceAccountKeyOpt: Option[ServiceAccountKey]): Future[GcsBucketName] = {
     for {
       // Note the bucket is created in Leo's project, not the cluster's project.
       // ACLs are granted so the cluster's service account can access the bucket at initialization time.
       _ <- gdDAO.createBucket(dataprocConfig.leoGoogleProject, googleProject, bucketName, serviceAccountInfo)
-      _ <- initializeBucketObjects(googleProject, clusterName, bucketName, clusterRequest, overrideServiceAccountKeyOpt)
+      _ <- initializeBucketObjects(googleProject, clusterName, bucketName, clusterRequest, notebookServiceAccountKeyOpt)
     } yield { bucketName }
   }
 
@@ -403,7 +403,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private[service] def addClusterDefaultLabels(serviceAccountInfo: ServiceAccountInfo, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): ClusterRequest = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultLabels(clusterName, googleProject, clusterRequest.bucketPath,
-      serviceAccountInfo.clusterServiceAccount, serviceAccountInfo.overrideServiceAccount, clusterRequest.jupyterExtensionUri)
+      serviceAccountInfo.clusterServiceAccount, serviceAccountInfo.notebookServiceAccount, clusterRequest.jupyterExtensionUri)
       .toJson.asJsObject.fields.mapValues(labelValue => labelValue.convertTo[String])
     // combine default and given labels
     val allLabels = clusterRequest.labels ++ defaultLabels

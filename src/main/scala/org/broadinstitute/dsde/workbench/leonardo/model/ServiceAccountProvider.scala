@@ -49,5 +49,5 @@ abstract class ServiceAccountProvider(config: Config) {
     * @param googleProject the Google project the cluster is created in
     * @return service account email
     */
-  def getOverrideServiceAccount(userInfo: UserInfo, googleProject: GoogleProject): Future[Option[WorkbenchEmail]]
+  def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject): Future[Option[WorkbenchEmail]]
 }

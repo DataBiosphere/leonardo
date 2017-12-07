@@ -54,7 +54,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       val responseCluster = responseAs[Cluster]
       responseCluster.googleBucket shouldEqual bucketPath
       responseCluster.serviceAccountInfo.clusterServiceAccount shouldEqual None
-      responseCluster.serviceAccountInfo.overrideServiceAccount shouldEqual Some(mockSamDAO.serviceAccount)
+      responseCluster.serviceAccountInfo.notebookServiceAccount shouldEqual Some(mockSamDAO.serviceAccount)
       responseCluster.jupyterExtensionUri shouldEqual Some(mockGoogleDataprocDAO.extensionPath)
     }
   }
@@ -117,12 +117,12 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
         cluster.googleProject shouldEqual googleProject
         cluster.googleBucket shouldEqual bucketPath
         cluster.serviceAccountInfo.clusterServiceAccount shouldEqual None
-        cluster.serviceAccountInfo.overrideServiceAccount shouldEqual Some(mockSamDAO.serviceAccount)
+        cluster.serviceAccountInfo.notebookServiceAccount shouldEqual Some(mockSamDAO.serviceAccount)
         cluster.labels shouldEqual Map(
           "googleBucket" -> bucketPath.name,
           "clusterName" -> cluster.clusterName.string,
           "googleProject" -> googleProject.value,
-          "overrideServiceAccount" -> mockSamDAO.serviceAccount.value)
+          "notebookServiceAccount" -> mockSamDAO.serviceAccount.value)
       }
     }
   }
@@ -144,12 +144,12 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       cluster.clusterName shouldEqual ClusterName("test-cluster-6")
       cluster.googleBucket shouldEqual bucketPath
       cluster.serviceAccountInfo.clusterServiceAccount shouldEqual None
-      cluster.serviceAccountInfo.overrideServiceAccount shouldEqual Some(mockSamDAO.serviceAccount)
+      cluster.serviceAccountInfo.notebookServiceAccount shouldEqual Some(mockSamDAO.serviceAccount)
       cluster.labels shouldEqual Map(
         "googleBucket" -> bucketPath.name,
         "clusterName" -> "test-cluster-6",
         "googleProject" -> googleProject.value,
-        "overrideServiceAccount" -> mockSamDAO.serviceAccount.value,
+        "notebookServiceAccount" -> mockSamDAO.serviceAccount.value,
         "label6" -> "value6")
     }
 
@@ -162,12 +162,12 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       cluster.clusterName shouldEqual ClusterName("test-cluster-4")
       cluster.googleBucket shouldEqual bucketPath
       cluster.serviceAccountInfo.clusterServiceAccount shouldEqual None
-      cluster.serviceAccountInfo.overrideServiceAccount shouldEqual Some(mockSamDAO.serviceAccount)
+      cluster.serviceAccountInfo.notebookServiceAccount shouldEqual Some(mockSamDAO.serviceAccount)
       cluster.labels shouldEqual Map(
         "googleBucket" -> bucketPath.name,
         "clusterName" -> "test-cluster-4",
         "googleProject" -> googleProject.value,
-        "overrideServiceAccount" -> mockSamDAO.serviceAccount.value,
+        "notebookServiceAccount" -> mockSamDAO.serviceAccount.value,
         "label4" -> "value4")
     }
 

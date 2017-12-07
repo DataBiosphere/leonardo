@@ -39,7 +39,7 @@ case class MachineConfigRecord(numberOfWorkers: Int,
                                numberOfPreemptibleWorkers: Option[Int])
 
 case class ServiceAccountInfoRecord(clusterServiceAccount: Option[String],
-                                    overrideServiceAccount: Option[String],
+                                    notebookServiceAccount: Option[String],
                                     serviceAccountKeyId: Option[String])
 
 trait ClusterComponent extends LeoComponent {
@@ -53,7 +53,7 @@ trait ClusterComponent extends LeoComponent {
     def googleId =                    column[UUID]              ("googleId",              O.Unique)
     def googleProject =               column[String]            ("googleProject",         O.Length(254))
     def clusterServiceAccount =       column[Option[String]]    ("clusterServiceAccount", O.Length(254))
-    def overrideServiceAccount =      column[Option[String]]    ("overrideServiceAccount", O.Length(254))
+    def notebookServiceAccount =      column[Option[String]]    ("notebookServiceAccount", O.Length(254))
     def googleBucket =                column[String]            ("googleBucket",          O.Length(1024))
     def numberOfWorkers =             column[Int]               ("numberOfWorkers")
     def masterMachineType =           column[String]            ("masterMachineType",     O.Length(254))
@@ -82,7 +82,7 @@ trait ClusterComponent extends LeoComponent {
       id, clusterName, googleId, googleProject, googleBucket, operationName, status, hostIp, creator,
       createdDate, destroyedDate, jupyterExtensionUri, initBucket,
       (numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers),
-      (clusterServiceAccount, overrideServiceAccount, serviceAccountKeyId)
+      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId)
     ).shaped <> ({
       case (id, clusterName, googleId, googleProject, googleBucket, operationName, status, hostIp, creator,
             createdDate, destroyedDate, jupyterExtensionUri, initBucket, machineConfig, serviceAccountInfo) =>
@@ -269,7 +269,7 @@ trait ClusterComponent extends LeoComponent {
         ),
         ServiceAccountInfoRecord(
           cluster.serviceAccountInfo.clusterServiceAccount.map(_.value),
-          cluster.serviceAccountInfo.overrideServiceAccount.map(_.value),
+          cluster.serviceAccountInfo.notebookServiceAccount.map(_.value),
           serviceAccountKeyId.map(_.value)
         )
       )
@@ -301,7 +301,7 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.machineConfig.numberOfPreemptibleWorkers)
       val serviceAccountInfo = ServiceAccountInfo(
         clusterRecord.serviceAccountInfo.clusterServiceAccount.map(WorkbenchEmail),
-        clusterRecord.serviceAccountInfo.overrideServiceAccount.map(WorkbenchEmail))
+        clusterRecord.serviceAccountInfo.notebookServiceAccount.map(WorkbenchEmail))
 
       Cluster(
         name,
