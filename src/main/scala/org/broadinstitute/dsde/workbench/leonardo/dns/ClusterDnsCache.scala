@@ -8,6 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.service.ClusterNotReadyException
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.Future
@@ -26,6 +27,7 @@ object ClusterDnsCache {
   sealed trait ClusterDnsCacheMessage
   case object RefreshFromDatabase extends ClusterDnsCacheMessage
   case class ProcessClusters(clusters: Seq[Cluster]) extends ClusterDnsCacheMessage
+  case class ProcessReadyCluster(cluster: Cluster) extends ClusterDnsCacheMessage
   case class GetByProjectAndName(googleProject: GoogleProject, clusterName: ClusterName) extends ClusterDnsCacheMessage
 
   // Responses to GetByProjectAndName message
@@ -65,6 +67,10 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
       processClusters(clusters)
       scheduleRefresh
 
+    // add one ready cluster to the caches now instead of waiting for the refresh cycle
+    case ProcessReadyCluster(cluster) =>
+      sender ! processReadyCluster(cluster)
+
     case GetByProjectAndName(googleProject, clusterName) =>
       sender ! ProjectNameToHost.get((googleProject, clusterName)).getOrElse(ClusterNotFound)
   }
@@ -79,20 +85,37 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
     }.map(ProcessClusters.apply)
   }
 
+  private def host(c: Cluster): Host = Host(c.googleId.toString + proxyConfig.jupyterDomain)
+
+  private def hostToIpEntry(c: Cluster): (Host, IP) = host(c) -> c.hostIp.get
+
+  private def projectNameToHostEntry(c: Cluster): ((GoogleProject, ClusterName), GetClusterResponse) = {
+    if (c.hostIp.isDefined)
+      (c.googleProject, c.clusterName) -> ClusterReady(host(c))
+    else
+      (c.googleProject, c.clusterName) -> ClusterNotReady
+  }
+
   def processClusters(clusters: Seq[Cluster]): Unit = {
     // Only populate the HostToIp map for clusters with an IP address
     val clustersWithIp = clusters.filter(_.hostIp.isDefined)
-    ClusterDnsCache.HostToIp = clustersWithIp.map(c => Host(c.googleId.toString + proxyConfig.jupyterDomain) -> c.hostIp.get).toMap
+    ClusterDnsCache.HostToIp = clustersWithIp.map(hostToIpEntry).toMap
 
     // Populate the ProjectNameToHost map with all clusters
-    ProjectNameToHost = clusters.map {
-      case c if c.hostIp.isDefined =>
-        (c.googleProject, c.clusterName) -> ClusterReady(Host(c.googleId.toString + proxyConfig.jupyterDomain))
-      case c =>
-        (c.googleProject, c.clusterName) -> ClusterNotReady
-    }.toMap
+    ProjectNameToHost = clusters.map(projectNameToHostEntry).toMap
 
     logger.debug(s"Saved ${clusters.size} clusters to DNS cache, ${clustersWithIp.size} with IPs")
   }
 
+  def processReadyCluster(cluster: Cluster): Either[Throwable, GetClusterResponse] = {
+    if (cluster.hostIp.isEmpty) {
+      Left(ClusterNotReadyException(cluster.googleProject, cluster.clusterName))
+    } else {
+      ClusterDnsCache.HostToIp += hostToIpEntry(cluster)
+      ProjectNameToHost += projectNameToHostEntry(cluster)
+
+      logger.debug(s"Saved new cluster ${cluster.googleProject.value}/${cluster.clusterName.string} to DNS cache with IP ${cluster.hostIp.get.string}")
+      Right(ProjectNameToHost(cluster.googleProject, cluster.clusterName))
+    }
+  }
 }
