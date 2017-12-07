@@ -166,15 +166,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   //NOTE: This function MUST ALWAYS complete ALL steps. i.e. if deleting thing1 fails, it must still proceed to delete thing2
   def internalDeleteCluster(cluster: Cluster): Future[Unit] = {
-    if(cluster.status.isActive) {
-      // Delete the service account key in Google, if present
-      val deleteServiceAccountKey = dbRef.inTransaction { dataAccess =>
-        dataAccess.clusterQuery.getServiceAccountKeyId(cluster.googleProject, cluster.clusterName)
-      } flatMap {
-        case Some(key) => googleIamDAO.removeServiceAccountKey(dataprocConfig.leoGoogleProject, cluster.googleServiceAccount, key)
-        case None => Future.successful(())
-      }
-
+    if (cluster.status.isDeletable) {
       for {
         // Delete the override service account key in Google, if present
         _ <- removeServiceAccountKey(cluster.googleProject, cluster.clusterName, cluster.serviceAccountInfo.overrideServiceAccount)
