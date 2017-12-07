@@ -127,6 +127,9 @@ class ClusterMonitorActor(val cluster: Cluster,
       // Only happens if the cluster was created with a service account other
       // than the compute engine default service account.
       _ <- removeIamRolesForUser
+      // Remove credentials from instance metadata.
+      // Only happens if an override service account was used.
+      _ <- removeCredentialsFromMetadata
       // Add Staging Bucket ACLs to the override service account.
       // Only happens if an override service account was localized onto the cluster.
       _ <- gdDAO.setStagingBucketOwnership(cluster)
@@ -276,5 +279,19 @@ class ClusterMonitorActor(val cluster: Cluster,
         case Right(ClusterReady(_)) => ()
         case Right(_) => throw ClusterNotReadyException(cluster.googleProject, cluster.clusterName)
       }
+  }
+
+  private def removeCredentialsFromMetadata: Future[Unit] = {
+    cluster.serviceAccountInfo.overrideServiceAccount match {
+      // No override service account: don't remove creds from metadata! We need them.
+      case None => Future.successful(())
+
+      // Remove credentials from instance metadata.
+      // We want to ensure that _only_ the override service account is used;
+      // users should not be able to yank the cluster SA credentials from the metadata server.
+      case Some(_) =>
+        // TODO https://broadinstitute.atlassian.net/browse/GAWB-2961
+        Future.successful(())
+    }
   }
 }
