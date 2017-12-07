@@ -79,19 +79,21 @@ case class ClusterRequest(bucketPath: GcsBucketName,
 case class DefaultLabels(clusterName: ClusterName,
                          googleProject: GoogleProject,
                          googleBucket: GcsBucketName,
-                         serviceAccount: WorkbenchEmail,
+                         clusterServiceAccount: Option[WorkbenchEmail],
+                         overrideServiceAccount: Option[WorkbenchEmail],
                          notebookExtension: Option[String]) {
 
   // TODO don't hardcode fields
   def toMap: Map[String, String] = {
     val ext: Map[String, String] = notebookExtension map { ext => Map("notebookExtension" -> ext) } getOrElse Map.empty
+    val clusterSa: Map[String, String] = clusterServiceAccount map { sa => Map("clusterServiceAccount" -> sa.value) } getOrElse Map.empty
+    val overrideSa: Map[String, String] = overrideServiceAccount map { sa => Map("overrideServiceAccount" -> sa.value) } getOrElse Map.empty
 
     Map(
       "clusterName" -> clusterName.string,
       "googleProject" -> googleProject.value,
-      "googleBucket" -> googleBucket.name,
-      "serviceAccount" -> serviceAccount.value
-    ) ++ ext
+      "googleBucket" -> googleBucket.name
+    ) ++ ext ++ clusterSa ++ overrideSa
   }
 }
 
