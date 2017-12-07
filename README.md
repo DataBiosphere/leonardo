@@ -4,6 +4,8 @@
 
 Leo provisions Spark clusters through [Google Dataproc](https://cloud.google.com/dataproc/) and installs [Jupyter notebooks](http://jupyter.org/) and [Hail](https://hail.is/) on them. It can also proxy end-user connections to the Jupyter interface in order to provide authorization for particular users.
 
+For more information and an overview, see the [wiki](https://github.com/broadinstitute/leonardo/wiki).
+
 ## Configurability
 
 Documentation on how to configure Leo is Coming Soon™. Until then, a brief overview: there are two points at which Leonardo ~~is~~ will be pluggable.
