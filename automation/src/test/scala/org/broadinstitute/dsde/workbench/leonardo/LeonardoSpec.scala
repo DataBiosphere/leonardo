@@ -314,10 +314,10 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
           notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.json.keyfile')") shouldBe Some("/etc/service-account-credentials.json")
           val nbEmail = notebookPage.executeCell("! grep client_email /etc/service-account-credentials.json")
           nbEmail shouldBe 'defined
-          nbEmail.get should contain (samPetEmail.value)
+          nbEmail.get should include (samPetEmail.value)
           val nbKey = notebookPage.executeCell("! grep private_key_id /etc/service-account-credentials.json")
           nbKey shouldBe 'defined
-          nbKey.get should contain (newKeys.head.id.value)
+          nbKey.get should include (newKeys.head.id.value)
         }
       } (hermioneAuthToken)
 
