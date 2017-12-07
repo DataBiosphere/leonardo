@@ -31,6 +31,8 @@ abstract class ServiceAccountProvider(config: Config) {
     * (https://cloud.google.com/compute/docs/access/service-accounts#compute_engine_default_service_account)
     * is used instead.
     *
+    * @param userInfo the user who is making the Leo request
+    * @param googleProject the Google project the cluster is created in
     * @return service account email
     */
   def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject): Future[Option[WorkbenchEmail]]
@@ -43,6 +45,8 @@ abstract class ServiceAccountProvider(config: Config) {
     * If not present, application default credentials will return the service account in
     * instance metadata, i.e. the service account returned by [getClusterServiceAccount].
     *
+    * @param userInfo the user who is making the Leo request
+    * @param googleProject the Google project the cluster is created in
     * @return service account email
     */
   def getOverrideServiceAccount(userInfo: UserInfo, googleProject: GoogleProject): Future[Option[WorkbenchEmail]]

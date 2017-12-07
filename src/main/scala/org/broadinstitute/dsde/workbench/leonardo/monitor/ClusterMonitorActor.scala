@@ -123,11 +123,12 @@ class ClusterMonitorActor(val cluster: Cluster,
     for {
       // Delete the init bucket
       _ <- deleteInitBucket
-      // Remove the Dataproc Worker IAM role for the pet service account
-      // Only happens if the cluster was created with the pet service account.
+      // Remove the Dataproc Worker IAM role for the cluster service account.
+      // Only happens if the cluster was created with a service account other
+      // than the compute engine default service account.
       _ <- removeIamRolesForUser
-      // Add Staging Bucket ACLs to the pet
-      // Only happens if the cluster was NOT created with the pet service account.
+      // Add Staging Bucket ACLs to the override service account.
+      // Only happens if an override service account was localized onto the cluster.
       _ <- gdDAO.setStagingBucketOwnership(cluster)
       // Ensure the cluster is ready for proxying but updating the IP -> DNS cache
       _ <- ensureClusterReadyForProxying(publicIp)
@@ -234,7 +235,6 @@ class ClusterMonitorActor(val cluster: Cluster,
 
   private def removeIamRolesForUser(): Future[Unit] = {
     // Remove the Dataproc Worker IAM role for the cluster service account
-    // Only do this if the cluster was created with the pet service account.
     cluster.serviceAccountInfo.clusterServiceAccount match {
       case None => Future.successful(())
       case Some(serviceAccountEmail) =>
@@ -243,7 +243,7 @@ class ClusterMonitorActor(val cluster: Cluster,
   }
 
   private def removeServiceAccountKey: Future[Unit] = {
-    // Delete the service account key in Google, if present
+    // Delete the override service account key in Google, if present
     val tea = for {
       key <- OptionT(dbRef.inTransaction { _.clusterQuery.getServiceAccountKeyId(cluster.googleProject, cluster.clusterName) })
       serviceAccountEmail <- OptionT.fromOption[Future](cluster.serviceAccountInfo.overrideServiceAccount)

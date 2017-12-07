@@ -268,7 +268,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       }
     }
 
-    "foo should put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
+    "should put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
       // Use Hermione for this test to keep her keys separate from Ron's
       implicit val token = hermioneAuthToken
 

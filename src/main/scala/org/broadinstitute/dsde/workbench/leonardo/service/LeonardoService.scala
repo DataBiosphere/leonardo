@@ -116,7 +116,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       case None =>
         val augmentedClusterRequest = addClusterDefaultLabels(serviceAccountInfo, googleProject, clusterName, clusterRequest)
         val clusterFuture = for {
-        // Notify the auth provider that the cluster has been created
+          // Notify the auth provider that the cluster has been created
           _ <- authProvider.notifyClusterCreated(userEmail.value, googleProject.value, clusterName.string)
           // Create the cluster in Google
           (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest)
