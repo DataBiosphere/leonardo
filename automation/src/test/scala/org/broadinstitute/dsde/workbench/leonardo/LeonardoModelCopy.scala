@@ -43,10 +43,23 @@ object MachineConfig {
   )
 }
 
+case class ServiceAccountInfo(clusterServiceAccount: Option[WorkbenchEmail],
+                              overrideServiceAccount: Option[WorkbenchEmail])
+
+object ServiceAccountInfo {
+  // TODO: something less hacky, please!
+  // If we're going to use Jackson we should use it the right way, with annotations in our model.
+  // Otherwise we should rip out LeonardoModelCopy + ClusterKluge and just use Leo model objects + spray json (my prefrence).
+  def apply(m: Map[String, String]): ServiceAccountInfo = ServiceAccountInfo(
+    m.get("clusterServiceAccount").map(WorkbenchEmail),
+    m.get("overrideServiceAccount").map(WorkbenchEmail)
+  )
+}
+
 case class Cluster(clusterName: ClusterName,
                    googleId: UUID,
                    googleProject: GoogleProject,
-                   googleServiceAccount: GoogleServiceAccount,
+                   serviceAccountInfo: ServiceAccountInfo,
                    googleBucket: GcsBucketName,
                    machineConfig: MachineConfig,
                    clusterUrl: URL,
