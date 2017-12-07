@@ -354,6 +354,8 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
        * Create a failed cluster.
        */
       // TODO needs withErrorCluster from https://github.com/broadinstitute/leonardo/pull/83
+      //
+      // 
 
       /*
        * Post-conditions (after clustCer deletion)
