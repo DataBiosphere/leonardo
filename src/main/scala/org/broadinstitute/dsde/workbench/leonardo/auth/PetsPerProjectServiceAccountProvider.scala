@@ -6,16 +6,22 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.Future
 
-@deprecated(message = "Use PetsPerProjectServiceAccountProvider", since = "")
-class PetServiceAccountProvider(config: Config) extends SamServiceAccountProvider(config) {
+/**
+  * Created by rtitle on 12/8/17.
+  */
+class PetsPerProjectServiceAccountProvider(config: Config) extends SamServiceAccountProvider(config) {
+
+  val leoServiceAccount = config.getString("leoServiceAccountEmail")
+
+  override def getLeoServiceAccount: WorkbenchEmail = WorkbenchEmail(leoServiceAccount)
 
   override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
-    // Create cluster with the Google Compute Engine default service account
-    Future(None)
+    // Ask Sam for a pet service account for the given (user, project)
+    samDAO.getPetServiceAccountForProject(userInfo, googleProject).map(Option(_))
   }
 
   override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
-    // Ask Sam for the pet service account for the user
-    samDAO.getPetServiceAccount(userInfo).map(Option(_))
+    Future(None)
   }
+
 }

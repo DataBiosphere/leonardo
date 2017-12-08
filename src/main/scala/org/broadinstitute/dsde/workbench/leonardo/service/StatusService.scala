@@ -69,12 +69,12 @@ class StatusService(gdDAO: DataprocDAO,
     logger.debug("Checking Sam status")
     samDAO.getStatus().map { statusCheckResponse =>
       // SamDAO returns a StatusCheckResponse. Convert to a SubsystemStatus for use by the health checker.
-      val messages = statusCheckResponse.systems.toList.traverse[Option, String] { case (subsystem, subSystemStatus) =>
-        subSystemStatus.messages.map(msgs => s"${subsystem.value} -> ${msgs.mkString(", ")}")
-      } match {
-        // It's weird that I need to do this. Traversing an empty list always returns Some(List()) instead of None.
-        case Some(Nil) => None
-        case x => x
+      val messages = statusCheckResponse.systems.toList match {
+        case Nil => None
+        case systems =>
+          systems.flatTraverse[Option, String] { case (subsystem, subSystemStatus) =>
+            subSystemStatus.messages.map(msgs => msgs.map(m => s"${subsystem.value} -> $m"))
+          }
       }
       SubsystemStatus(statusCheckResponse.ok, messages)
     }
