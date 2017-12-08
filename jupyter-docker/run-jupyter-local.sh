@@ -14,6 +14,7 @@ start () {
     echo "Starting Jupyter server container..."
     docker create -it --name ${CONTAINER} --rm -p 8001:8001 $DOCKER_IMG
     docker cp jupyter-docker/jupyter_notebook_config.py ${CONTAINER}:/etc/jupyter/jupyter_notebook_config.py
+    docker cp jupyter-docker/jupyter_localize_extension.py ${CONTAINER}:/etc/jupyter/custom/jupyter_localize_extension.py
     docker start ${CONTAINER}
 
     sleep 5

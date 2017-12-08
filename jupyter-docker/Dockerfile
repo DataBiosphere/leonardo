@@ -30,9 +30,6 @@ ENV HAIL_HOME /hail
 # mount this from outside
 ENV HADOOP_CONF_DIR /etc/hadoop/conf
 
-ENV PATH $SPARK_HOME:$SPARK_HOME/python:$SPARK_HOME/bin:$HAIL_HOME:$PATH
-ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip
-
 ENV USER jupyter-user
 ENV UID 1000
 ENV HOME /home/$USER
@@ -42,6 +39,9 @@ ENV JUPYTER_PORT 8000
 ENV JUPYTER_HOME /etc/jupyter/
 ENV PYSPARK_DRIVER_PYTHON jupyter
 ENV PYSPARK_DRIVER_PYTHON_OPTS notebook
+
+ENV PATH $SPARK_HOME:$SPARK_HOME/python:$SPARK_HOME/bin:$HAIL_HOME:$PATH
+ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip:$JUPYTER_HOME/custom
 
 RUN echo "deb $DEBIAN_REPO/debian jessie main\ndeb $DEBIAN_REPO/debian-security jessie/updates main" > /etc/apt/sources.list \
  && apt-get update && apt-get -yq dist-upgrade \
@@ -112,6 +112,7 @@ ADD spark-defaults.conf.template $SPARK_HOME/conf/
 # Spark defaults conf find and replace [HAILHASH] with the hash
 RUN sed "s|\[HAILHASH\]|$HAILHASH|g" $SPARK_HOME/conf/spark-defaults.conf.template > $SPARK_HOME/conf/spark-defaults.conf
 ADD jupyter_notebook_config.py $JUPYTER_HOME
+ADD jupyter_localize_extension.py $JUPYTER_HOME/custom/
 RUN chown -R $USER:users $JUPYTER_HOME
 
 USER $USER
