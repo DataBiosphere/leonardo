@@ -1,7 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
-import org.broadinstitute.dsde.workbench.model.{ErrorReportSource, WorkbenchEmail, UserInfo}
-import org.broadinstitute.dsde.workbench.util.health.SubsystemStatus
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.{ErrorReportSource, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.util.health.StatusCheckResponse
 
 import scala.concurrent.Future
 
@@ -11,7 +12,10 @@ import scala.concurrent.Future
 trait SamDAO {
   implicit val errorReportSource = ErrorReportSource("sam")
 
-  def getStatus(): Future[SubsystemStatus]
+  def getStatus(): Future[StatusCheckResponse]
 
+  @deprecated(message = "Use getPetServiceAccountForProject(UserInfo, GoogleProject) instead", since = "")
   def getPetServiceAccount(userInfo: UserInfo): Future[WorkbenchEmail]
+
+  def getPetServiceAccountForProject(userInfo: UserInfo, googleProject: GoogleProject): Future[WorkbenchEmail]
 }

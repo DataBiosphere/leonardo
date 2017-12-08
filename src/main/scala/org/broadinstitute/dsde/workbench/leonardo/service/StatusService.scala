@@ -3,6 +3,8 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 import akka.actor.ActorSystem
 import akka.pattern.ask
 import akka.util.Timeout
+
+import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.{DataprocDAO, SamDAO}
@@ -65,7 +67,17 @@ class StatusService(gdDAO: DataprocDAO,
 
   private def checkSam: Future[SubsystemStatus] = {
     logger.debug("Checking Sam status")
-    samDAO.getStatus()
+    samDAO.getStatus().map { statusCheckResponse =>
+      // SamDAO returns a StatusCheckResponse. Convert to a SubsystemStatus for use by the health checker.
+      val messages = statusCheckResponse.systems.toList.traverse[Option, String] { case (subsystem, subSystemStatus) =>
+        subSystemStatus.messages.map(msgs => s"${subsystem.value} -> ${msgs.mkString(", ")}")
+      } match {
+        // It's weird that I need to do this. Traversing an empty list always returns Some(List()) instead of None.
+        case Some(Nil) => None
+        case x => x
+      }
+      SubsystemStatus(statusCheckResponse.ok, messages)
+    }
   }
 
 }
