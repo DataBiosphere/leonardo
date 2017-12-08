@@ -1,4 +1,4 @@
-Copyright (c) 2017, Broad Institute, Inc.
+Copyright (c) 2017, Broad Institute, Inc., Verily Life Sciences LLC
 All rights reserved.
  
 Redistribution and use in source and binary forms, with or without
