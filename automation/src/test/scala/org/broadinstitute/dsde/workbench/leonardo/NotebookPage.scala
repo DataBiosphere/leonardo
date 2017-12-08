@@ -78,7 +78,8 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     executeScript(s"""arguments[0].CodeMirror.setValue("$code");""", lastCell)
     click on runCellButton
     await condition (!cellsAreRunning, timeoutSeconds)
-    Thread.sleep(1000)
+    // TODO: remove sleep, find the output relative to the current cell
+    Thread.sleep(3000)
     lastOutput.map(_.text)
   }
 }
