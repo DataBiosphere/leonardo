@@ -1,5 +1,8 @@
 # Contributing
 
+## External Contributions
+External contribution guidelines coming soon. In the interim, comments and questions are welcome in the [Issues](https://github.com/DataBiosphere/leonardo/issues).
+
 ## Opening a Pull Request
 
 You most likely want to do your work on a feature branch based on develop. There is no explicit naming convention; we usually use some combination of the JIRA issue number and something alluding to the work we're doing.
