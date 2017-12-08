@@ -6,6 +6,9 @@ Leo provisions Spark clusters through [Google Dataproc](https://cloud.google.com
 
 For more information and an overview, see the [wiki](https://github.com/broadinstitute/leonardo/wiki).
 
+## Project status
+This project is under active development. It is not yet ready for independent production deployment. See the [roadmap](https://github.com/DataBiosphere/leonardo/wiki#roadmap) section of the wiki for details.
+
 ## Configurability
 
 Documentation on how to configure Leo is Coming Soon™. Until then, a brief overview: there are two points at which Leonardo ~~is~~ will be pluggable.
