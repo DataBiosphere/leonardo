@@ -30,7 +30,6 @@ package object config {
   implicit val clusterFilesConfigReader: ValueReader[ClusterFilesConfig] = ValueReader.relative { config =>
     val baseDir = config.getString("configFolderPath")
     ClusterFilesConfig(
-      new File(baseDir, config.getString("leonardoServicePem")),
       new File(baseDir, config.getString("jupyterServerCrt")),
       new File(baseDir, config.getString("jupyterServerKey")),
       new File(baseDir, config.getString("jupyterRootCaPem")),

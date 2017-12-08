@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.model
 
+import java.io.File
+
 import com.typesafe.config.Config
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
@@ -13,12 +15,17 @@ import scala.concurrent.Future
   */
 abstract class ServiceAccountProvider(config: Config) {
   /**
-    * The service account email used for making Google Dataproc calls.
-    * Note this does NOT return a Future; we expect a constant value for this.
+    * The service account email and pem file used for making Google Dataproc calls.
+    * Note this does NOT return a Future; we expect constant values for this.
+    * The default implementation simply reads these values from config.
     *
-    * @return service account email
+    * @return service account email and pem file
     */
-  def getLeoServiceAccount: WorkbenchEmail
+  def getLeoServiceAccountAndKey: (WorkbenchEmail, File) = {
+    val email = config.getString("leoServiceAccountEmail")
+    val pemFile = config.getString("leoServiceAccountPemFile")
+    (WorkbenchEmail(email), new File(pemFile))
+  }
 
   /**
     * Optional. The service account email _passed_ to [dataproc clusters create]

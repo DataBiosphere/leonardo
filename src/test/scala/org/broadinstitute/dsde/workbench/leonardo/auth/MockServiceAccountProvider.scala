@@ -15,8 +15,6 @@ class MockServiceAccountProvider(config: Config) extends ServiceAccountProvider(
   private val mockSamDAO = new MockSamDAO
   private implicit val ec = scala.concurrent.ExecutionContext.global
 
-  override def getLeoServiceAccount: WorkbenchEmail = WorkbenchEmail("leo@leonardo.leo")
-
   override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
     // Pretend we're using the compute engine default SA
     Future.successful(None)

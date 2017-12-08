@@ -39,7 +39,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, Cl
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future, blocking}
 
@@ -55,12 +54,13 @@ case class AuthorizationError() extends LeoException(s"Your account is unauthori
 case class GoogleProjectNotFoundException(googleProject: GoogleProject)
   extends LeoException(s"Google project ${googleProject.value} not found", StatusCodes.NotFound)
 
-class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
+class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
+                        protected val leoServiceAccountPemFile: File,
+                        protected val dataprocConfig: DataprocConfig,
                         protected val proxyConfig: ProxyConfig,
                         protected val clusterDefaultsConfig: ClusterDefaultsConfig,
                         protected val clusterFilesConfig: ClusterFilesConfig,
-                        protected val clusterResourcesConfig: ClusterResourcesConfig,
-                        protected val serviceAccountProvider: ServiceAccountProvider)
+                        protected val clusterResourcesConfig: ClusterResourcesConfig)
                        (implicit val system: ActorSystem, val executionContext: ExecutionContext)
   extends DataprocDAO with GoogleUtilities {
 
@@ -75,7 +75,6 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
   private lazy val vmScopes = List(ComputeScopes.COMPUTE, ComputeScopes.CLOUD_PLATFORM)
   private lazy val oauth2Scopes = List(Oauth2Scopes.USERINFO_EMAIL, Oauth2Scopes.USERINFO_PROFILE)
   private lazy val cloudResourceManagerScopes = List(CloudResourceManagerScopes.CLOUD_PLATFORM)
-  private lazy val serviceAccountPemFile = clusterFilesConfig.leonardoServicePem
 
   private lazy val oauth2 =
     new Builder(httpTransport, jsonFactory, null)
@@ -105,9 +104,9 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
     new GoogleCredential.Builder()
       .setTransport(httpTransport)
       .setJsonFactory(jsonFactory)
-      .setServiceAccountId(serviceAccountProvider.getLeoServiceAccount.value)
+      .setServiceAccountId(leoServiceAccountEmail.value)
       .setServiceAccountScopes(scopes.asJava)
-      .setServiceAccountPrivateKeyFromPemFile(serviceAccountPemFile)
+      .setServiceAccountPrivateKeyFromPemFile(leoServiceAccountPemFile)
       .build()
   }
 
@@ -291,7 +290,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
     val lifecycle = new Lifecycle().setRule(List(lifecycleRule).asJava)
 
     // The Leo service account
-    val leoServiceAccountEntityString = s"user-${serviceAccountProvider.getLeoServiceAccount.value}"
+    val leoServiceAccountEntityString = s"user-${leoServiceAccountEmail.value}"
 
     val clusterServiceAccountEntityStringFuture: Future[String] = serviceAccountInfo.clusterServiceAccount match {
       case Some(serviceAccountEmail) =>

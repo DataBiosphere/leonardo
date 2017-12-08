@@ -11,10 +11,6 @@ import scala.concurrent.Future
   */
 class PetServiceAccountProvider(config: Config) extends SamServiceAccountProvider(config) {
 
-  val leoServiceAccount = config.getString("leoServiceAccountEmail")
-
-  override def getLeoServiceAccount: WorkbenchEmail = WorkbenchEmail(leoServiceAccount)
-
   override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
     // Create cluster with the Google Compute Engine default service account
     Future(None)
