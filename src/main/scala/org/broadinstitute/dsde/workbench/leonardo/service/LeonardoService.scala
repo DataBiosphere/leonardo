@@ -25,6 +25,7 @@ import spray.json._
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.Source
+import scala.util.control.NonFatal
 import scala.util.{Failure, Success}
 
 case class AuthorizationError(email: WorkbenchEmail) extends LeoException(s"'$email' is unauthorized", StatusCodes.Unauthorized)
@@ -169,7 +170,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     if (cluster.status.isDeletable) {
       for {
         // Delete the notebook service account key in Google, if present
-        _ <- removeServiceAccountKey(cluster.googleProject, cluster.clusterName, cluster.serviceAccountInfo.notebookServiceAccount)
+        _ <- removeServiceAccountKey(cluster.googleProject, cluster.clusterName, cluster.serviceAccountInfo.notebookServiceAccount).recover { case NonFatal(e) =>
+          logger.error(s"Error occurred removing service account key for ${cluster.googleProject} / ${cluster.clusterName}", e)
+        }
         // Delete the cluster in Google
         _ <- gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)
         // Change the cluster status to Deleting in the database
