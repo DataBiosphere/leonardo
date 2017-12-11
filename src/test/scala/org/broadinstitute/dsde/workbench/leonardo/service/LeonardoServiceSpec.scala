@@ -10,7 +10,7 @@ import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
-import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
+import org.broadinstitute.dsde.workbench.leonardo.auth.{MockServiceAccountProvider, WhitelistAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, MockGoogleDataprocDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
@@ -45,13 +45,15 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   private var samDAO: MockSamDAO = _
   private var leo: LeonardoService = _
   private var authProvider: LeoAuthProvider = _
+  private var serviceAccountProvider: ServiceAccountProvider = _
 
   before {
     gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
     iamDAO = new MockGoogleIamDAO
     samDAO = new MockSamDAO
     authProvider = new WhitelistAuthProvider(configFactory.getConfig("auth.providerConfig"))
-    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), samDAO, authProvider)
+    serviceAccountProvider = new MockServiceAccountProvider(configFactory.getConfig("serviceAccounts.config"))
+    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider)
   }
 
   override def afterAll(): Unit = {
@@ -79,7 +81,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // check the create response has the correct info
     clusterCreateResponse.googleBucket shouldEqual bucketPath
-    clusterCreateResponse.googleServiceAccount shouldEqual samDAO.serviceAccount
+    clusterCreateResponse.serviceAccountInfo.clusterServiceAccount shouldEqual None
+    clusterCreateResponse.serviceAccountInfo.notebookServiceAccount shouldEqual Some(samDAO.serviceAccount)
 
     // check the cluster has the correct machine configs
     clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig
@@ -279,7 +282,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.buckets should not contain (bucketPath)
 
     // create the bucket and add files
-    leo.initializeBucket(googleProject, clusterName, bucketPath, testClusterRequest, petServiceAccount, Some(serviceAccountKey)).futureValue
+    leo.initializeBucket(googleProject, clusterName, bucketPath, testClusterRequest, ServiceAccountInfo(None, Some(petServiceAccount)), Some(serviceAccountKey)).futureValue
 
     // our bucket should now exist
     gdDAO.buckets should contain (bucketPath)
