@@ -29,7 +29,7 @@ There are (up to) three service accounts used in the process of spinning up a no
 2. The service account _passed_ to [dataproc clusters create](https://cloud.google.com/sdk/gcloud/reference/dataproc/clusters/create) via the `--service-account` parameter, whose credentials will be used to set up the instance and localized into the [GCE metadata server](https://cloud.google.com/compute/docs/storing-retrieving-metadata)
 3. The service account that will be localized into the user environment and returned when any application asks [for application default credentials](https://developers.google.com/identity/protocols/application-default-credentials).
 
-Currently, Leo expects to use its own SA for #1, and the same per-user project-specific SA for #2, which it fetches from [Sam](github.com/broadinstitute/sam). We are in the process of making these user-definable via a `ServiceAccountProvider` interface.
+Currently, Leo expects to use its own SA for #1, and the same per-user project-specific SA for #2 and #3, which it fetches from [Sam](github.com/broadinstitute/sam). We are in the process of making these user-definable via a `ServiceAccountProvider` interface.
 
 ## Building and running Leonardo
 Clone the repo.
