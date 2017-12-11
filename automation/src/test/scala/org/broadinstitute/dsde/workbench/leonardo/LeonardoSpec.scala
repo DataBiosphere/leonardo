@@ -159,7 +159,6 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     val request = ClusterRequest(bucket, Map("foo" -> makeRandomId()), Some(incorrectJupyterExtensionUri))
     val testResult: Try[T] = Try {
       val cluster = createAndMonitor(googleProject, name, request)
-      // now check that it didn't timeout or error
       cluster.status shouldBe ClusterStatus.Error
       testCode(cluster)
     }
