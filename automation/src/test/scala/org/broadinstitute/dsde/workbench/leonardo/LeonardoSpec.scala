@@ -64,10 +64,10 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     // we don't actually know the SA because it's the pet
     // set a dummy here and then remove it from the comparison
 
-    val dummyPetSa = WorkbenchEmail("dummy")
-    val expected = requestedLabels ++ DefaultLabels(clusterName, googleProject, gcsBucketName, dummyPetSa, notebookExtension).toMap - "serviceAccount"
+    val dummyOverridePetSa = WorkbenchEmail("dummy")
+    val expected = requestedLabels ++ DefaultLabels(clusterName, googleProject, gcsBucketName, None, Some(dummyOverridePetSa), notebookExtension).toMap
 
-    (seen - "serviceAccount") shouldBe (expected - "serviceAccount")
+    (seen - "notebookServiceAccount") shouldBe (expected - "notebookServiceAccount")
   }
 
   def clusterCheck(cluster: Cluster,
@@ -269,40 +269,43 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     }
 
     "should put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
-      // Use Hermione for this test to keep her keys separate from Ron's
-      implicit val token = hermioneAuthToken
+      implicit val token = ronAuthToken
 
       /*
        * Pre-conditions (before cluster creation)
        */
       // pet should exist in Google
-      val samPetEmail = Sam.user.petServiceAccountEmail()(hermioneAuthToken)
-      val userStatus = Sam.user.status()(hermioneAuthToken).get
+      val samPetEmail = Sam.user.petServiceAccountEmail()
+      val userStatus = Sam.user.status().get
       val petName = Sam.petName(userStatus.userInfo)
       val googlePetEmail = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
       googlePetEmail shouldBe Some(samPetEmail)
-
-      // get the pet's initial keys
-      val initialKeys = googleIamDAO.listServiceAccountKeys(project, samPetEmail).futureValue
 
       /*
        * Create a cluster
        */
       withNewCluster(project) { cluster =>
-        // 1 new key should have been generated
-        val keys = googleIamDAO.listServiceAccountKeys(project, samPetEmail).futureValue
-        val newKeys = keys.toSet diff initialKeys.toSet
-        newKeys.size shouldBe 1
-
         // cluster should have the pet's credentials
         withNewNotebook(cluster) { notebookPage =>
+          // verify oauth2client
           notebookPage.executeCell("from oauth2client.client import GoogleCredentials") shouldBe None
           notebookPage.executeCell("credentials = GoogleCredentials.get_application_default()") shouldBe None
           notebookPage.executeCell("print credentials._service_account_email") shouldBe Some(samPetEmail.value)
-          notebookPage.executeCell("print credentials._private_key_id") shouldBe Some(newKeys.head.id.value)
 
+          // verify FISS
+          notebookPage.executeCell("import firecloud.api as fapi") shouldBe None
+          notebookPage.executeCell("fiss_credentials = fapi.GoogleCredentials.get_application_default()") shouldBe None
+          notebookPage.executeCell("print fiss_credentials._service_account_email") shouldBe Some(samPetEmail.value)
+
+          // verify Spark
+          notebookPage.executeCell("hadoop_config = sc._jsc.hadoopConfiguration()") shouldBe None
+          notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.enable')") shouldBe Some("true")
+          notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.json.keyfile')") shouldBe Some("/etc/service-account-credentials.json")
+          val nbEmail = notebookPage.executeCell("! grep client_email /etc/service-account-credentials.json")
+          nbEmail shouldBe 'defined
+          nbEmail.get should include (samPetEmail.value)
         }
-      } (hermioneAuthToken)
+      }
 
       /*
        * Post-conditions (after cluster deletion)
@@ -310,13 +313,10 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       // pet should still exist in Google
       val googlePetEmail2 = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
       googlePetEmail2 shouldBe Some(samPetEmail)
-
-      // the new key should have been deleted
-      val finalKeys = googleIamDAO.listServiceAccountKeys(project, samPetEmail).futureValue
-      finalKeys shouldBe initialKeys
     }
 
-    "should clean up pet keys on cluster error" in withWebDriver { implicit driver =>
+    // TODO retrieving service account keys from Google is SUPER inconsistent and flakey
+    "should clean up pet keys on cluster error" ignore withWebDriver { implicit driver =>
       // Use Hermione for this test to keep her keys separate from Ron's
       implicit val token = hermioneAuthToken
 
@@ -324,8 +324,8 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       * Pre-conditions (before cluster creation)
       */
       // pet should exist in Google
-      val samPetEmail = Sam.user.petServiceAccountEmail()(hermioneAuthToken)
-      val userStatus = Sam.user.status()(hermioneAuthToken).get
+      val samPetEmail = Sam.user.petServiceAccountEmail()
+      val userStatus = Sam.user.status().get
       val petName = Sam.petName(userStatus.userInfo)
       val googlePetEmail = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
       googlePetEmail shouldBe Some(samPetEmail)
@@ -336,10 +336,12 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       /*
        * Create a failed cluster.
        */
-      // TODO needs withErrorCluster from https://github.com/broadinstitute/leonardo/pull/83
+      withNewErroredCluster(project) { _ =>
+        // no-op
+      }
 
       /*
-       * Post-conditions (after clustCer deletion)
+       * Post-conditions (after cluster deletion)
        */
       // pet should still exist in Google
       val googlePetEmail2 = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)

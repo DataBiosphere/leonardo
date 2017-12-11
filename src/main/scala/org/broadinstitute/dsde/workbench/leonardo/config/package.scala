@@ -5,7 +5,6 @@ import java.io.File
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 
@@ -20,20 +19,17 @@ package object config {
   implicit val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
     DataprocConfig(
       config.getString("applicationName"),
-      WorkbenchEmail(config.getString("serviceAccountEmail")),
       config.getString("dataprocDefaultRegion"),
       GoogleProject(config.getString("leoGoogleProject")),
       config.getString("dataprocDockerImage"),
       config.getString("clusterUrlBase"),
-      config.getString("jupyterServerName"),
-      config.getBoolean("createClusterAsPetServiceAccount")
+      config.getString("jupyterServerName")
     )
   }
 
   implicit val clusterFilesConfigReader: ValueReader[ClusterFilesConfig] = ValueReader.relative { config =>
     val baseDir = config.getString("configFolderPath")
     ClusterFilesConfig(
-      new File(baseDir, config.getString("leonardoServicePem")),
       new File(baseDir, config.getString("jupyterServerCrt")),
       new File(baseDir, config.getString("jupyterServerKey")),
       new File(baseDir, config.getString("jupyterRootCaPem")),

@@ -44,7 +44,7 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
     clusterName = ClusterName(clusterName),
     googleId = UUID.randomUUID(),
     googleProject = GoogleProject(googleProject),
-    googleServiceAccount = serviceAccountEmail,
+    serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
     googleBucket = GcsBucketName("bucket1"),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(GoogleProject(googleProject), ClusterName(clusterName)),

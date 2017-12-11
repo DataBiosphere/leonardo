@@ -2,6 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import akka.actor.{Actor, ActorRef, Props}
 import akka.pattern.pipe
+import cats.data.OptionT
+import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
@@ -13,7 +15,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterDeleted
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.util.addJitter
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -122,12 +123,16 @@ class ClusterMonitorActor(val cluster: Cluster,
     for {
       // Delete the init bucket
       _ <- deleteInitBucket
-      // Remove the Dataproc Worker IAM role for the pet service account
-      // Only happens if the cluster was created with the pet service account.
+      // Remove the Dataproc Worker IAM role for the cluster service account.
+      // Only happens if the cluster was created with a service account other
+      // than the compute engine default service account.
       _ <- removeIamRolesForUser
-      // Add Staging Bucket ACLs to the pet
-      // Only happens if the cluster was NOT created with the pet service account.
-      _ <- setStagingBucketACLsForUser()
+      // Remove credentials from instance metadata.
+      // Only happens if an notebook service account was used.
+      _ <- removeCredentialsFromMetadata
+      // Add Staging Bucket ACLs to the notebook service account.
+      // Only happens if an notebook service account was localized onto the cluster.
+      _ <- gdDAO.setStagingBucketOwnership(cluster)
       // Ensure the cluster is ready for proxying but updating the IP -> DNS cache
       _ <- ensureClusterReadyForProxying(publicIp)
       // update DB after auth futures finish
@@ -232,31 +237,23 @@ class ClusterMonitorActor(val cluster: Cluster,
   }
 
   private def removeIamRolesForUser(): Future[Unit] = {
-    // Remove the Dataproc Worker IAM role for the pet service account
-    // Only do this if the cluster was created with the pet service account.
-    if (dataprocConfig.createClusterAsPetServiceAccount) {
-      googleIamDAO.removeIamRolesForUser(cluster.googleProject, cluster.googleServiceAccount, Set("roles/dataproc.worker"))
-    } else Future.successful(())
-  }
-
-  private def setStagingBucketACLsForUser(): Future[Unit] = {
-    // Add Staging Bucket ACLs to the pet
-    // Only do this if the cluster was not created with the pet service account.
-    if (dataprocConfig.createClusterAsPetServiceAccount)
-      Future.successful(())
-    else {
-      gdDAO.setStagingBucketOwnership(cluster)
+    // Remove the Dataproc Worker IAM role for the cluster service account
+    cluster.serviceAccountInfo.clusterServiceAccount match {
+      case None => Future.successful(())
+      case Some(serviceAccountEmail) =>
+        googleIamDAO.removeIamRolesForUser(cluster.googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
     }
   }
 
   private def removeServiceAccountKey: Future[Unit] = {
-    // Delete the service account key in Google, if present
-    dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.getServiceAccountKeyId(cluster.googleProject, cluster.clusterName)
-    } flatMap {
-      case Some(key) => googleIamDAO.removeServiceAccountKey(dataprocConfig.leoGoogleProject, cluster.googleServiceAccount, key)
-      case None => Future.successful(())
-    }
+    // Delete the notebook service account key in Google, if present
+    val tea = for {
+      key <- OptionT(dbRef.inTransaction { _.clusterQuery.getServiceAccountKeyId(cluster.googleProject, cluster.clusterName) })
+      serviceAccountEmail <- OptionT.fromOption[Future](cluster.serviceAccountInfo.notebookServiceAccount)
+      _ <- OptionT.liftF(googleIamDAO.removeServiceAccountKey(dataprocConfig.leoGoogleProject, serviceAccountEmail, key))
+    } yield ()
+
+    tea.value.void
   }
 
   private def deleteInitBucket: Future[Unit] = {
@@ -282,5 +279,19 @@ class ClusterMonitorActor(val cluster: Cluster,
         case Right(ClusterReady(_)) => ()
         case Right(_) => throw ClusterNotReadyException(cluster.googleProject, cluster.clusterName)
       }
+  }
+
+  private def removeCredentialsFromMetadata: Future[Unit] = {
+    cluster.serviceAccountInfo.notebookServiceAccount match {
+      // No notebook service account: don't remove creds from metadata! We need them.
+      case None => Future.successful(())
+
+      // Remove credentials from instance metadata.
+      // We want to ensure that _only_ the notebook service account is used;
+      // users should not be able to yank the cluster SA credentials from the metadata server.
+      case Some(_) =>
+        // TODO https://broadinstitute.atlassian.net/browse/GAWB-2961
+        Future.successful(())
+    }
   }
 }
