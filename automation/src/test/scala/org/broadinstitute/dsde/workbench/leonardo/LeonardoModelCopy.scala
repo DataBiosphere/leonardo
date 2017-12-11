@@ -43,10 +43,23 @@ object MachineConfig {
   )
 }
 
+case class ServiceAccountInfo(clusterServiceAccount: Option[WorkbenchEmail],
+                              notebookServiceAccount: Option[WorkbenchEmail])
+
+object ServiceAccountInfo {
+  // TODO: something less hacky, please!
+  // If we're going to use Jackson we should use it the right way, with annotations in our model.
+  // Otherwise we should rip out LeonardoModelCopy + ClusterKluge and just use Leo model objects + spray json (my prefrence).
+  def apply(m: Map[String, String]): ServiceAccountInfo = ServiceAccountInfo(
+    m.get("clusterServiceAccount").map(WorkbenchEmail),
+    m.get("notebookServiceAccount").map(WorkbenchEmail)
+  )
+}
+
 case class Cluster(clusterName: ClusterName,
                    googleId: UUID,
                    googleProject: GoogleProject,
-                   googleServiceAccount: GoogleServiceAccount,
+                   serviceAccountInfo: ServiceAccountInfo,
                    googleBucket: GcsBucketName,
                    machineConfig: MachineConfig,
                    clusterUrl: URL,
@@ -66,19 +79,21 @@ case class ClusterRequest(bucketPath: GcsBucketName,
 case class DefaultLabels(clusterName: ClusterName,
                          googleProject: GoogleProject,
                          googleBucket: GcsBucketName,
-                         serviceAccount: WorkbenchEmail,
+                         clusterServiceAccount: Option[WorkbenchEmail],
+                         notebookServiceAccount: Option[WorkbenchEmail],
                          notebookExtension: Option[String]) {
 
   // TODO don't hardcode fields
   def toMap: Map[String, String] = {
     val ext: Map[String, String] = notebookExtension map { ext => Map("notebookExtension" -> ext) } getOrElse Map.empty
+    val clusterSa: Map[String, String] = clusterServiceAccount map { sa => Map("clusterServiceAccount" -> sa.value) } getOrElse Map.empty
+    val notebookSa: Map[String, String] = notebookServiceAccount map { sa => Map("notebookServiceAccount" -> sa.value) } getOrElse Map.empty
 
     Map(
       "clusterName" -> clusterName.string,
       "googleProject" -> googleProject.value,
-      "googleBucket" -> googleBucket.name,
-      "serviceAccount" -> serviceAccount.value
-    ) ++ ext
+      "googleBucket" -> googleBucket.name
+    ) ++ ext ++ clusterSa ++ notebookSa
   }
 }
 

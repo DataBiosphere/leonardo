@@ -1,8 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.config.AuthToken
-import org.openqa.selenium.{WebDriver, WebElement}
+import org.openqa.selenium.{By, WebDriver, WebElement}
 import org.openqa.selenium.interactions.Actions
+
 import scala.collection.JavaConverters._
 
 class NotebookPage(override val url: String)(override implicit val authToken: AuthToken, override implicit val webDriver: WebDriver)
@@ -63,22 +64,22 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   }
 
   lazy val cells: Query = cssSelector(".CodeMirror")
-  lazy val outputs: Query = cssSelector(".output_subarea")
 
   def lastCell: WebElement = {
     webDriver.findElements(cells.by).asScala.toList.last
   }
 
-  def lastOutput: Option[Element] = {
-    outputs.findAllElements.toList.lastOption
+  def cellOutput(cell: WebElement): Option[String] = {
+    val outputs = cell.findElements(By.xpath("../../../..//div[contains(@class, 'output_subarea')]"))
+    outputs.asScala.headOption.map(_.getText)
   }
 
   def executeCell(code: String, timeoutSeconds: Long = 60): Option[String] = {
     await enabled cells
-    executeScript(s"""arguments[0].CodeMirror.setValue("$code");""", lastCell)
+    val cell = lastCell
+    executeScript(s"""arguments[0].CodeMirror.setValue("$code");""", cell)
     click on runCellButton
     await condition (!cellsAreRunning, timeoutSeconds)
-    Thread.sleep(1000)
-    lastOutput.map(_.text)
+    cellOutput(cell)
   }
 }
