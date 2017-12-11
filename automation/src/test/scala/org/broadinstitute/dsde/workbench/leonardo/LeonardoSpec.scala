@@ -314,42 +314,5 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       val googlePetEmail2 = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
       googlePetEmail2 shouldBe Some(samPetEmail)
     }
-
-    // TODO retrieving service account keys from Google is SUPER inconsistent and flakey
-    "should clean up pet keys on cluster error" ignore withWebDriver { implicit driver =>
-      // Use Hermione for this test to keep her keys separate from Ron's
-      implicit val token = hermioneAuthToken
-
-      /*
-      * Pre-conditions (before cluster creation)
-      */
-      // pet should exist in Google
-      val samPetEmail = Sam.user.petServiceAccountEmail()
-      val userStatus = Sam.user.status().get
-      val petName = Sam.petName(userStatus.userInfo)
-      val googlePetEmail = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
-      googlePetEmail shouldBe Some(samPetEmail)
-
-      // get the pet's initial keys
-      val initialKeys = googleIamDAO.listServiceAccountKeys(project, samPetEmail).futureValue
-
-      /*
-       * Create a failed cluster.
-       */
-      withNewErroredCluster(project) { _ =>
-        // no-op
-      }
-
-      /*
-       * Post-conditions (after cluster deletion)
-       */
-      // pet should still exist in Google
-      val googlePetEmail2 = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
-      googlePetEmail2 shouldBe Some(samPetEmail)
-
-      // the new key should have been deleted
-      val finalKeys = googleIamDAO.listServiceAccountKeys(project, samPetEmail).futureValue
-      finalKeys shouldBe initialKeys
-    }
   }
 }

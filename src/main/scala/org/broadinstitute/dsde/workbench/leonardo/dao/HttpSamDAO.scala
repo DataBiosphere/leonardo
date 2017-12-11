@@ -33,7 +33,7 @@ class HttpSamDAO(val baseSamServiceURL: String)(implicit system: ActorSystem, ma
   override def getStatus(): Future[StatusCheckResponse] = {
     val uri = Uri(samServiceURL + "/status")
     executeSamRequest[StatusCheckResponse](HttpRequest(GET, uri), ignoreError = true) map { statusCheckResponse =>
-      // If it's an OK status, strip out the subsystem information from the Sam response.
+      // If it's an OK status, strip out any subsystem information from the Sam response.
       // Otherwise, return the StatusCheckResponse as-is, with error information.
       if (statusCheckResponse.ok) statusCheckResponse.copy(systems = Map.empty)
       else statusCheckResponse
@@ -63,11 +63,12 @@ class HttpSamDAO(val baseSamServiceURL: String)(implicit system: ActorSystem, ma
         // Try to unmarshal the response entity as an ErrorReport
         Unmarshal(response.entity).to[ErrorReport] map { report =>
           // Log the full error report, but only return the message to the user
-          logger.error(s"Sam call to ${httpRequest.uri} failed with error report: ${errorReportToString(report)}")
+          logger.error(s"Sam call to ${httpRequest.uri} failed with error report: ${ErrorReport.loggableString(report)}")
           Some(report.message)
         } recoverWith { case _: Throwable =>
           // Couldn't unmarshal as an ErrorReport, unmarshal as a String instead
           Unmarshal(response.entity).to[String] map { entityAsString =>
+            // Log the Sam entity response, but return a generic message to the user
             logger.error(s"Sam call to ${httpRequest.uri} failed with entity: $entityAsString")
             None
           }
@@ -76,15 +77,6 @@ class HttpSamDAO(val baseSamServiceURL: String)(implicit system: ActorSystem, ma
         }
       }
     }
-  }
-
-  // Gives a loggable string from an ErrorReport. Should be cleaned up and moved to wb-libs.
-  private def errorReportToString(errorReport: ErrorReport): String = {
-    val strippedStr = errorReport.copy(stackTrace = Seq.empty).toString
-    val stackTrace = errorReport.stackTrace
-    if (stackTrace.nonEmpty) {
-      s"$strippedStr. Stack trace:\n${stackTrace.mkString(start = "\tat ", sep = "\n\tat ", end = "")}"
-    } else strippedStr
   }
 
   private def executeSamRequestAsUser[T](httpRequest: HttpRequest, userInfo: UserInfo, ignoreError: Boolean = false)(implicit um: Unmarshaller[ResponseEntity, T]): Future[T] = {
