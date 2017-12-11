@@ -1,33 +1,36 @@
-proxy:
-  container_name: "${PROXY_SERVER_NAME}"
-  image: "${PROXY_DOCKER_IMAGE}"
-  net: host
-  volumes:
-    - /certs/jupyter-server.crt:/etc/ssl/certs/server.crt:ro
-    - /certs/jupyter-server.key:/etc/ssl/private/server.key:ro
-    - /certs/rootCA.pem:/etc/ssl/certs/ca-bundle.crt:ro
-    - /etc/cluster-site.conf:/etc/apache2/sites-enabled/site.conf
-    - /auth_openidc.conf:/etc/apache2/mods-enabled/auth_openidc.conf
-  restart: always
-  environment:
-    HTTPD_PORT: '80'
-    SSL_HTTPD_PORT: '443'
+version: '2'
+services:
+  proxy:
+    container_name: "${PROXY_SERVER_NAME}"
+    image: "${PROXY_DOCKER_IMAGE}"
+    network_mode: host
+    volumes:
+      - /certs/jupyter-server.crt:/etc/ssl/certs/server.crt:ro
+      - /certs/jupyter-server.key:/etc/ssl/private/server.key:ro
+      - /certs/rootCA.pem:/etc/ssl/certs/ca-bundle.crt:ro
+      - /etc/cluster-site.conf:/etc/apache2/sites-enabled/site.conf
+      - /auth_openidc.conf:/etc/apache2/mods-enabled/auth_openidc.conf
+    restart: always
+    environment:
+      HTTPD_PORT: '80'
+      SSL_HTTPD_PORT: '443'
 
-jupyter:
-  container_name: "${JUPYTER_SERVER_NAME}"
-  image: "${JUPYTER_DOCKER_IMAGE}"
-  net: host
-  volumes:
-    - /work:/home/user/work
-    - /etc/hadoop/conf:/etc/hadoop/conf
-    - /hadoop_gcs_connector_metadata_cache:/hadoop_gcs_connector_metadata_cache
-    - /etc/install-jupyter-extension.sh:/etc/install-jupyter-extension.sh
-    - /etc/${JUPYTER_EXTENSION_ARCHIVE}:/etc/${JUPYTER_EXTENSION_ARCHIVE}
-    - /etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}:/etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}
-    - /etc/custom.js:/home/jupyter-user/.jupyter/custom/custom.js
-    - /etc/google_sign_in.js:/home/jupyter-user/.jupyter/custom/google_sign_in.js
-  restart: always
-  environment:
-    GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
-    CLUSTER_NAME: "${CLUSTER_NAME}"
-    GOOGLE_APPLICATION_CREDENTIALS: "/etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}"
+  jupyter:
+    container_name: "${JUPYTER_SERVER_NAME}"
+    image: broadinstitute/leonardo-notebooks:dataproc_spark_conf
+    network_mode: host
+    volumes:
+      - /work:/home/user/work
+      - /etc/hadoop/conf:/etc/hadoop/conf
+      - /etc/spark/conf/spark-defaults.conf:/etc/spark-defaults.conf
+      - /hadoop_gcs_connector_metadata_cache:/hadoop_gcs_connector_metadata_cache
+      - /etc/install-jupyter-extension.sh:/etc/install-jupyter-extension.sh
+      - /etc/${JUPYTER_EXTENSION_ARCHIVE}:/etc/${JUPYTER_EXTENSION_ARCHIVE}
+      - /etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}:/etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}
+      - /etc/custom.js:/home/jupyter-user/.jupyter/custom/custom.js
+      - /etc/google_sign_in.js:/home/jupyter-user/.jupyter/custom/google_sign_in.js
+    restart: always
+    environment:
+      GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
+      CLUSTER_NAME: "${CLUSTER_NAME}"
+      GOOGLE_APPLICATION_CREDENTIALS: "/etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}"

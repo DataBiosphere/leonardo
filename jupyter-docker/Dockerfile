@@ -107,10 +107,8 @@ RUN echo "deb $DEBIAN_REPO/debian jessie main\ndeb $DEBIAN_REPO/debian-security 
  && pip install fastinterval \
  && pip install matplotlib-venn
 
-
 ADD spark-defaults.conf.template $SPARK_HOME/conf/
-# Spark defaults conf find and replace [HAILHASH] with the hash
-RUN sed "s|\[HAILHASH\]|$HAILHASH|g" $SPARK_HOME/conf/spark-defaults.conf.template > $SPARK_HOME/conf/spark-defaults.conf
+ADD construct-spark-defaults.sh /etc/construct-spark-defaults.sh
 ADD jupyter_notebook_config.py $JUPYTER_HOME
 RUN chown -R $USER:users $JUPYTER_HOME
 
@@ -118,4 +116,3 @@ USER $USER
 WORKDIR $HOME
 
 EXPOSE $JUPYTER_PORT
-ENTRYPOINT ["pyspark"]

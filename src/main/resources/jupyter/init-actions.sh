@@ -44,8 +44,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_CUSTOM_JS_URI=$(jupyterCustomJsUri)
     JUPYTER_GOOGLE_SIGN_IN_JS_URI=$(jupyterGoogleSignInJsUri)
 
-    apt-get update
-    apt-get install -y -q docker.io
+    curl -fsSL get.docker.com -o get-docker.sh
+    sh get-docker.sh
+
     mkdir /work
     mkdir /certs
     chmod a+wx /work
@@ -73,7 +74,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     chmod +x /etc/install-jupyter-extension.sh
 
     # Install docker-compose
-    curl -L https://github.com/docker/compose/releases/download/1.15.0/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
+    curl -L https://github.com/docker/compose/releases/download/1.17.0/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
     sudo chmod +x /usr/local/bin/docker-compose
 
     # Needed because docker-compose can't handle symlinks
@@ -82,10 +83,15 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
     docker-compose -f /etc/cluster-docker-compose.yaml up -d
 
+    # The Dataproc-provided spark-defaults.conf is compose'd into the Docker; append our custom settings to the end of it
+    docker exec -d ${JUPYTER_SERVER_NAME} /etc/construct-spark-defaults.sh
+
     # If a Jupyter extension was specified, poke it into the jupyter docker container.
     # Note: docker-compose doesn't appear to have the ability to execute a command after run, so we do this explicitly with docker exec commands.
     # See https://github.com/docker/compose/issues/1809
     if [ ! -z ${JUPYTER_EXTENSION_URI} ] ; then
       docker exec -d ${JUPYTER_SERVER_NAME} /etc/install-jupyter-extension.sh /etc/${JUPYTER_EXTENSION_ARCHIVE}
     fi
+
+    docker exec -d ${JUPYTER_SERVER_NAME} pyspark
 fi

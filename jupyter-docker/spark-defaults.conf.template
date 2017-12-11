@@ -1,13 +1,3 @@
-#######################
-# required by DataProc
-#######################
-
-# Uses the YARN configuration in $HADOOP_CONF_DIR
-
-spark.master yarn
-spark.submit.deployMode client
-spark.executor.instances 10000
-
 ###################
 # required by Hail
 ###################
@@ -27,3 +17,15 @@ spark.executor.extraClassPath ./gcs-connector.jar:./hail-0.1-[HAILHASH]-Spark-2.
 
 spark.sql.files.maxPartitionBytes=100000000000
 spark.sql.files.openCostInBytes=100000000000
+
+###################
+# A-Team additions
+###################
+
+# fixes RPC timeout issue
+spark.executor.heartbeatInterval=20s
+spark.network.timeout=120s
+
+# borrowed from here: http://discuss.hail.is/t/using-hail-on-the-google-cloud-platform/80
+spark.task.maxFailures=20
+spark.kryoserializer.buffer.max=1g
