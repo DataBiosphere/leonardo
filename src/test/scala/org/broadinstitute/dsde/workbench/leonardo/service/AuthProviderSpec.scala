@@ -10,8 +10,8 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import com.typesafe.config.ConfigFactory
 import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
-import org.broadinstitute.dsde.workbench.leonardo.GcsPathUtils
-import org.broadinstitute.dsde.workbench.leonardo.auth.MockLeoAuthProvider
+import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
+import org.broadinstitute.dsde.workbench.leonardo.auth.{MockLeoAuthProvider, MockServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockGoogleDataprocDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
@@ -51,12 +51,13 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
   private val testClusterRequest = ClusterRequest(bucketPath, Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), None)
   private val alwaysYesProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"))
   private val alwaysNoProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysNoProviderConfig"))
+  private val serviceAccountProvider = new MockServiceAccountProvider(config.getConfig("serviceAccounts.config"))
 
   val c1 = Cluster(
     clusterName = name1,
     googleId = UUID.randomUUID(),
     googleProject = project,
-    googleServiceAccount = serviceAccountEmail,
+    serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
     googleBucket = GcsBucketName("bucket1"),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name1),
@@ -85,7 +86,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
   }
 
   def leoWithAuthProvider(authProvider: LeoAuthProvider): LeonardoService = {
-    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), samDAO, authProvider)
+    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider)
   }
 
   def proxyWithAuthProvider(authProvider: LeoAuthProvider): ProxyService = {

@@ -18,15 +18,7 @@ case class ClusterRecord(id: Long,
                          clusterName: String,
                          googleId: UUID,
                          googleProject: String,
-                         googleServiceAccount: String,
                          googleBucket: String,
-                         numberOfWorkers: Int,
-                         masterMachineType: String,
-                         masterDiskSize: Int,
-                         workerMachineType: Option[String],
-                         workerDiskSize: Option[Int],
-                         numberOfWorkerLocalSsds: Option[Int],
-                         numberOfPreemptibleWorkers: Option[Int],
                          operationName: String,
                          status: String,
                          hostIp: Option[String],
@@ -35,7 +27,20 @@ case class ClusterRecord(id: Long,
                          destroyedDate: Timestamp,
                          jupyterExtensionUri: Option[String],
                          initBucket: String,
-                         serviceAccountKeyId: Option[String])
+                         machineConfig: MachineConfigRecord,
+                         serviceAccountInfo: ServiceAccountInfoRecord)
+
+case class MachineConfigRecord(numberOfWorkers: Int,
+                               masterMachineType: String,
+                               masterDiskSize: Int,
+                               workerMachineType: Option[String],
+                               workerDiskSize: Option[Int],
+                               numberOfWorkerLocalSsds: Option[Int],
+                               numberOfPreemptibleWorkers: Option[Int])
+
+case class ServiceAccountInfoRecord(clusterServiceAccount: Option[String],
+                                    notebookServiceAccount: Option[String],
+                                    serviceAccountKeyId: Option[String])
 
 trait ClusterComponent extends LeoComponent {
   this: LabelComponent =>
@@ -47,7 +52,8 @@ trait ClusterComponent extends LeoComponent {
     def clusterName =                 column[String]            ("clusterName",           O.Length(254))
     def googleId =                    column[UUID]              ("googleId",              O.Unique)
     def googleProject =               column[String]            ("googleProject",         O.Length(254))
-    def googleServiceAccount =        column[String]            ("googleServiceAccount",  O.Length(254))
+    def clusterServiceAccount =       column[Option[String]]    ("clusterServiceAccount", O.Length(254))
+    def notebookServiceAccount =      column[Option[String]]    ("notebookServiceAccount", O.Length(254))
     def googleBucket =                column[String]            ("googleBucket",          O.Length(1024))
     def numberOfWorkers =             column[Int]               ("numberOfWorkers")
     def masterMachineType =           column[String]            ("masterMachineType",     O.Length(254))
@@ -68,7 +74,32 @@ trait ClusterComponent extends LeoComponent {
 
     def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName), unique = true)
 
-    def * = (id, clusterName, googleId, googleProject, googleServiceAccount, googleBucket, numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers, operationName, status, hostIp, creator, createdDate, destroyedDate, jupyterExtensionUri, initBucket, serviceAccountKeyId) <> (ClusterRecord.tupled, ClusterRecord.unapply)
+    // Can't use the shorthand
+    //   def * = (...) <> (ClusterRecord.tupled, ClusterRecord.unapply)
+    // because CLUSTER has more than 22 columns.
+    // So we split ClusterRecord into multiple case classes and bind them to slick in the following way.
+    def * = (
+      id, clusterName, googleId, googleProject, googleBucket, operationName, status, hostIp, creator,
+      createdDate, destroyedDate, jupyterExtensionUri, initBucket,
+      (numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers),
+      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId)
+    ).shaped <> ({
+      case (id, clusterName, googleId, googleProject, googleBucket, operationName, status, hostIp, creator,
+            createdDate, destroyedDate, jupyterExtensionUri, initBucket, machineConfig, serviceAccountInfo) =>
+        ClusterRecord(
+          id, clusterName, googleId, googleProject, googleBucket, operationName, status, hostIp, creator,
+          createdDate, destroyedDate, jupyterExtensionUri, initBucket,
+          MachineConfigRecord.tupled.apply(machineConfig),
+          ServiceAccountInfoRecord.tupled.apply(serviceAccountInfo))
+    }, { c: ClusterRecord =>
+      def mc(_mc: MachineConfigRecord) = MachineConfigRecord.unapply(_mc).get
+      def sa(_sa: ServiceAccountInfoRecord) = ServiceAccountInfoRecord.unapply(_sa).get
+      Some((
+        c.id, c.clusterName, c.googleId, c.googleProject, c.googleBucket, c.operationName, c.status, c.hostIp, c.creator,
+        c.createdDate, c.destroyedDate, c.jupyterExtensionUri, c.initBucket,
+        mc(c.machineConfig), sa(c.serviceAccountInfo)
+      ))
+    })
   }
 
   object clusterQuery extends TableQuery(new ClusterTable(_)) {
@@ -218,15 +249,7 @@ trait ClusterComponent extends LeoComponent {
         cluster.clusterName.string,
         cluster.googleId,
         cluster.googleProject.value,
-        cluster.googleServiceAccount.value,
         cluster.googleBucket.name,
-        cluster.machineConfig.numberOfWorkers.get,   //a cluster should always have numberOfWorkers defined
-        cluster.machineConfig.masterMachineType.get, //a cluster should always have masterMachineType defined
-        cluster.machineConfig.masterDiskSize.get,    //a cluster should always have masterDiskSize defined
-        cluster.machineConfig.workerMachineType,
-        cluster.machineConfig.workerDiskSize,
-        cluster.machineConfig.numberOfWorkerLocalSSDs,
-        cluster.machineConfig.numberOfPreemptibleWorkers,
         cluster.operationName.string,
         cluster.status.toString,
         cluster.hostIp map(_.string),
@@ -235,7 +258,20 @@ trait ClusterComponent extends LeoComponent {
         Timestamp.from(cluster.destroyedDate.getOrElse(dummyDate)),
         cluster.jupyterExtensionUri map(_.toUri),
         initBucket,
-        serviceAccountKeyId.map(_.value)
+        MachineConfigRecord(
+          cluster.machineConfig.numberOfWorkers.get,   //a cluster should always have numberOfWorkers defined
+          cluster.machineConfig.masterMachineType.get, //a cluster should always have masterMachineType defined
+          cluster.machineConfig.masterDiskSize.get,    //a cluster should always have masterDiskSize defined
+          cluster.machineConfig.workerMachineType,
+          cluster.machineConfig.workerDiskSize,
+          cluster.machineConfig.numberOfWorkerLocalSSDs,
+          cluster.machineConfig.numberOfPreemptibleWorkers
+        ),
+        ServiceAccountInfoRecord(
+          cluster.serviceAccountInfo.clusterServiceAccount.map(_.value),
+          cluster.serviceAccountInfo.notebookServiceAccount.map(_.value),
+          serviceAccountKeyId.map(_.value)
+        )
       )
     }
 
@@ -256,19 +292,22 @@ trait ClusterComponent extends LeoComponent {
       val name = ClusterName(clusterRecord.clusterName)
       val project = GoogleProject(clusterRecord.googleProject)
       val machineConfig = MachineConfig(
-        Some(clusterRecord.numberOfWorkers),
-        Some(clusterRecord.masterMachineType),
-        Some(clusterRecord.masterDiskSize),
-        clusterRecord.workerMachineType,
-        clusterRecord.workerDiskSize,
-        clusterRecord.numberOfWorkerLocalSsds,
-        clusterRecord.numberOfPreemptibleWorkers)
+        Some(clusterRecord.machineConfig.numberOfWorkers),
+        Some(clusterRecord.machineConfig.masterMachineType),
+        Some(clusterRecord.machineConfig.masterDiskSize),
+        clusterRecord.machineConfig.workerMachineType,
+        clusterRecord.machineConfig.workerDiskSize,
+        clusterRecord.machineConfig.numberOfWorkerLocalSsds,
+        clusterRecord.machineConfig.numberOfPreemptibleWorkers)
+      val serviceAccountInfo = ServiceAccountInfo(
+        clusterRecord.serviceAccountInfo.clusterServiceAccount.map(WorkbenchEmail),
+        clusterRecord.serviceAccountInfo.notebookServiceAccount.map(WorkbenchEmail))
 
       Cluster(
         name,
         clusterRecord.googleId,
         project,
-        WorkbenchEmail(clusterRecord.googleServiceAccount),
+        serviceAccountInfo,
         GcsBucketName(clusterRecord.googleBucket),
         machineConfig,
         Cluster.getClusterUrl(project, name),

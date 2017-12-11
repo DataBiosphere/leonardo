@@ -35,11 +35,10 @@ import org.broadinstitute.dsde.workbench.google.GoogleUtilities
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterInitValues, ClusterName, ClusterRequest, FirewallRuleName, IP, InstanceName, LeoException, MachineConfig, OperationName, ZoneUri, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterInitValues, ClusterName, ClusterRequest, FirewallRuleName, IP, InstanceName, LeoException, MachineConfig, OperationName, ServiceAccountInfo, ServiceAccountProvider, ZoneUri, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future, blocking}
 
@@ -55,7 +54,9 @@ case class AuthorizationError() extends LeoException(s"Your account is unauthori
 case class GoogleProjectNotFoundException(googleProject: GoogleProject)
   extends LeoException(s"Google project ${googleProject.value} not found", StatusCodes.NotFound)
 
-class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
+class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
+                        protected val leoServiceAccountPemFile: File,
+                        protected val dataprocConfig: DataprocConfig,
                         protected val proxyConfig: ProxyConfig,
                         protected val clusterDefaultsConfig: ClusterDefaultsConfig,
                         protected val clusterFilesConfig: ClusterFilesConfig,
@@ -74,7 +75,6 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
   private lazy val vmScopes = List(ComputeScopes.COMPUTE, ComputeScopes.CLOUD_PLATFORM)
   private lazy val oauth2Scopes = List(Oauth2Scopes.USERINFO_EMAIL, Oauth2Scopes.USERINFO_PROFILE)
   private lazy val cloudResourceManagerScopes = List(CloudResourceManagerScopes.CLOUD_PLATFORM)
-  private lazy val serviceAccountPemFile = clusterFilesConfig.leonardoServicePem
 
   private lazy val oauth2 =
     new Builder(httpTransport, jsonFactory, null)
@@ -104,9 +104,9 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
     new GoogleCredential.Builder()
       .setTransport(httpTransport)
       .setJsonFactory(jsonFactory)
-      .setServiceAccountId(dataprocConfig.serviceAccountEmail.value)
+      .setServiceAccountId(leoServiceAccountEmail.value)
       .setServiceAccountScopes(scopes.asJava)
-      .setServiceAccountPrivateKeyFromPemFile(serviceAccountPemFile)
+      .setServiceAccountPrivateKeyFromPemFile(leoServiceAccountPemFile)
       .build()
   }
 
@@ -135,20 +135,20 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
       .setAllowed(List(allowed).asJava)
   }
 
-  override def createCluster(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, serviceAccount: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[LeoCluster] = {
-    buildCluster(googleProject, clusterName, clusterRequest, initBucketName, clusterDefaultsConfig, serviceAccount).map { operation =>
+  override def createCluster(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo)(implicit executionContext: ExecutionContext): Future[LeoCluster] = {
+    buildCluster(googleProject, clusterName, clusterRequest, initBucketName, clusterDefaultsConfig, serviceAccountInfo).map { operation =>
       //Make a Leo cluster from the Google operation details
-      LeoCluster.create(clusterRequest, userEmail, clusterName, googleProject, getOperationUUID(operation), OperationName(operation.getName), serviceAccount, clusterDefaultsConfig)
+      LeoCluster.create(clusterRequest, userEmail, clusterName, googleProject, getOperationUUID(operation), OperationName(operation.getName), serviceAccountInfo, clusterDefaultsConfig)
     }
   }
 
 
   /* Kicks off building the cluster. This will return before the cluster finishes creating. */
-  private def buildCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, clusterDefaultsConfig: ClusterDefaultsConfig, serviceAccount: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[DataprocOperation] = {
+  private def buildCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, clusterDefaultsConfig: ClusterDefaultsConfig, serviceAccountInfo: ServiceAccountInfo)(implicit executionContext: ExecutionContext): Future[DataprocOperation] = {
     // Create a Cluster and give it a name and a Cluster Config
     val cluster = new DataprocCluster()
       .setClusterName(clusterName.string)
-      .setConfig(getClusterConfig(googleProject, clusterName, clusterRequest, initBucketName, clusterDefaultsConfig, serviceAccount))
+      .setConfig(getClusterConfig(googleProject, clusterName, clusterRequest, initBucketName, clusterDefaultsConfig, serviceAccountInfo))
 
     // Create a dataproc create request and give it the google project, a zone, and the Cluster
     val request = dataproc.projects().regions().clusters().create(googleProject.value, dataprocConfig.dataprocDefaultRegion, cluster)
@@ -156,19 +156,20 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
     executeGoogleRequestAsync(googleProject, clusterName.toString, request)  // returns a Future[DataprocOperation]
   }
 
-  private def getClusterConfig(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, clusterDefaultsConfig: ClusterDefaultsConfig, serviceAccount: WorkbenchEmail): ClusterConfig = {
+  private def getClusterConfig(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, clusterDefaultsConfig: ClusterDefaultsConfig, serviceAccountInfo: ServiceAccountInfo): ClusterConfig = {
     // Create a GceClusterConfig, which has the common config settings for resources of Google Compute Engine cluster instances,
-    //   applicable to all instances in the cluster.
-    //   Set the network tag, which is needed by the firewall rule that allows leo to talk to the cluster
+    // applicable to all instances in the cluster.
+    // Set the network tag, which is needed by the firewall rule that allows leo to talk to the cluster
     val gceClusterConfig = new GceClusterConfig().setTags(List(proxyConfig.networkTag).asJava)
 
-    // Create the cluster as the pet service account if configured to do so
-    if (dataprocConfig.createClusterAsPetServiceAccount) {
-      gceClusterConfig.setServiceAccount(serviceAccount.value).setServiceAccountScopes(oauth2Scopes.asJava)
+    // Set the cluster service account, if present.
+    // This is the service account passed to the create cluster API call.
+    serviceAccountInfo.clusterServiceAccount.foreach { serviceAccountEmail =>
+      gceClusterConfig.setServiceAccount(serviceAccountEmail.value).setServiceAccountScopes(oauth2Scopes.asJava)
     }
 
     // Create a NodeInitializationAction, which specifies the executable to run on a node.
-    //    This executable is our init-actions.sh, which will stand up our jupyter server and proxy.
+    // This executable is our init-actions.sh, which will stand up our jupyter server and proxy.
     val initActions = Seq(new NodeInitializationAction().setExecutableFile(GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.initActionsScript.string)).toUri))
 
     val machineConfig = MachineConfig(clusterRequest.machineConfig, clusterDefaultsConfig)
@@ -179,7 +180,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
       .setDiskConfig(new DiskConfig().setBootDiskSizeGb(machineConfig.masterDiskSize.get))
 
     // Create a Cluster Config and give it the GceClusterConfig, the NodeInitializationAction and the InstanceGroupConfig
-    createClusterConfig(machineConfig)
+    createClusterConfig(machineConfig, serviceAccountInfo)
       .setGceClusterConfig(gceClusterConfig)
       .setInitializationActions(initActions.asJava)
       .setMasterConfig(masterConfig)
@@ -187,9 +188,9 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
 
   // Expects a Machine Config with master configs defined for a 0 worker cluster and both master and worker
   // configs defined for 2 or more workers.
-  private def createClusterConfig(machineConfig: MachineConfig): ClusterConfig = {
+  private def createClusterConfig(machineConfig: MachineConfig, serviceAccountInfo: ServiceAccountInfo): ClusterConfig = {
 
-    val swConfig: SoftwareConfig = getSoftwareConfig(machineConfig.numberOfWorkers)
+    val swConfig: SoftwareConfig = getSoftwareConfig(machineConfig.numberOfWorkers, serviceAccountInfo)
 
     // If the number of workers is zero, make a Single Node cluster, else make a Standard one
     if (machineConfig.numberOfWorkers.get == 0) {
@@ -199,16 +200,20 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
       getMultiNodeClusterConfig(machineConfig).setSoftwareConfig(swConfig)
   }
 
-  private def getSoftwareConfig(numWorkers: Option[Int]) = {
-    val authProps: Map[String, String] = if (dataprocConfig.createClusterAsPetServiceAccount)
-      Map.empty
-    else {
-      // Set the necessary Hadoop properties to enable the cluster project's
-      // default Compute Engine service account to use the pet's credentials
-      Map(
-        "core:google.cloud.auth.service.account.enable" -> "true",
-        "core:google.cloud.auth.service.account.json.keyfile" -> s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}"
-      )
+  private def getSoftwareConfig(numWorkers: Option[Int], serviceAccountInfo: ServiceAccountInfo) = {
+    val authProps: Map[String, String] = serviceAccountInfo.notebookServiceAccount match {
+      case None =>
+        // If we're not using a notebook service account, no need to set Hadoop properties since
+        // the SA credentials are on the metadata server.
+        Map.empty
+
+      case Some(_) =>
+        // If we are using a notebook service account, set the necessary Hadoop properties
+        // to specify the location of the notebook service account key file.
+        Map(
+          "core:google.cloud.auth.service.account.enable" -> "true",
+          "core:google.cloud.auth.service.account.json.keyfile" -> s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}"
+        )
     }
 
     val workerProps: Map[String, String] = if (numWorkers.get == 0) {
@@ -271,7 +276,7 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
   }
 
   /* Create a bucket in the given google project for the initialization files when creating a cluster */
-  override def createBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, initBucketName: GcsBucketName, userServiceAccount: WorkbenchEmail): Future[GcsBucketName] = {
+  override def createBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, initBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[GcsBucketName] = {
     // Create lifecycle rule for the bucket that will delete the bucket after 1 day.
     //
     // Note that the init buckets are explicitly deleted by the ClusterMonitor once the cluster
@@ -285,17 +290,18 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
     val lifecycle = new Lifecycle().setRule(List(lifecycleRule).asJava)
 
     // The Leo service account
-    val leoServiceAccountEntityString = s"user-${dataprocConfig.serviceAccountEmail.value}"
+    val leoServiceAccountEntityString = s"user-${leoServiceAccountEmail.value}"
 
-    val clusterServiceAccountEntityStringFuture: Future[String] = if (dataprocConfig.createClusterAsPetServiceAccount) {
-      // If creating the cluster as the pet service account, grant bucket access to the pet service account.
-      Future.successful(s"user-${userServiceAccount.value}")
-    } else {
-      // Otherwise, grant access to the Google compute engine default service account.
-      getComputeEngineDefaultServiceAccount(clusterGoogleProject).map {
-        case Some(serviceAccount) => s"user-${serviceAccount.value}"
-        case None => throw GoogleProjectNotFoundException(clusterGoogleProject)
-      }
+    val clusterServiceAccountEntityStringFuture: Future[String] = serviceAccountInfo.clusterServiceAccount match {
+      case Some(serviceAccountEmail) =>
+        // If passing a service account to the create cluster command, grant bucket access to that service account.
+        Future.successful(s"user-${serviceAccountEmail.value}")
+      case None =>
+        // Otherwise, grant bucket access to the Google compute engine default service account.
+        getComputeEngineDefaultServiceAccount(clusterGoogleProject).map {
+          case Some(serviceAccount) => s"user-${serviceAccount.value}"
+          case None => throw GoogleProjectNotFoundException(clusterGoogleProject)
+        }
     }
 
     clusterServiceAccountEntityStringFuture.flatMap { clusterServiceAccountEntityString =>
@@ -368,30 +374,37 @@ class GoogleDataprocDAO(protected val dataprocConfig: DataprocConfig,
     executeGoogleRequestAsync(googleProject, "Bucket Path " + bucketPath.toUri, fileInserter).void
   }
 
-  /* set the pet service account as the staging bucket owner */
+  /* set the notebook service account as the staging bucket owner */
   override def setStagingBucketOwnership(cluster: LeoCluster): Future[Unit] = {
-    val entity: String = s"user-${cluster.googleServiceAccount.value}"
+    cluster.serviceAccountInfo.notebookServiceAccount match {
+      case None =>
+        // No need to do this if we're not using a notebook service account
+        Future.successful(())
 
-    // set owner access for the bucket itself
-    def bacInsert(bucket: GcsBucketName) = {
-      val acl = new BucketAccessControl().setEntity(entity).setRole("OWNER")
-      storage.bucketAccessControls().insert(bucket.name, acl)
+      case Some(serviceAccountEmail) =>
+        val entity: String = s"user-${serviceAccountEmail.value}"
+
+        // set owner access for the bucket itself
+        def bacInsert(bucket: GcsBucketName) = {
+          val acl = new BucketAccessControl().setEntity(entity).setRole("OWNER")
+          storage.bucketAccessControls().insert(bucket.name, acl)
+        }
+
+        // set default owner access for objects created in the bucket
+        def doacInsert(bucket: GcsBucketName) = {
+          val acl = new ObjectAccessControl().setEntity(entity).setRole("OWNER")
+          storage.defaultObjectAccessControls().insert(bucket.name, acl)
+        }
+
+        val transformed: OptionT[Future, Unit] = for {
+          dCluster <- OptionT.liftF[Future, DataprocCluster] { getCluster(cluster.googleProject, cluster.clusterName) }
+          stagingBucket <- OptionT.fromOption { getStagingBucket(dCluster) }
+          _ <- OptionT.liftF[Future, BucketAccessControl] { executeGoogleRequestAsync(cluster.googleProject, s"Bucket ${stagingBucket.name}", bacInsert(stagingBucket)) }
+          _ <- OptionT.liftF[Future, ObjectAccessControl] { executeGoogleRequestAsync(cluster.googleProject, s"Bucket ${stagingBucket.name}", doacInsert(stagingBucket)) }
+        } yield ()
+
+        transformed.value.void
     }
-
-    // set default owner access for objects created in the bucket
-    def doacInsert(bucket: GcsBucketName) = {
-      val acl = new ObjectAccessControl().setEntity(entity).setRole("OWNER")
-      storage.defaultObjectAccessControls().insert(bucket.name, acl)
-    }
-
-    val transformed: OptionT[Future, Unit] = for {
-      dCluster <- OptionT.liftF[Future, DataprocCluster] { getCluster(cluster.googleProject, cluster.clusterName) }
-      stagingBucket <- OptionT.fromOption { getStagingBucket(dCluster) }
-      _ <- OptionT.liftF[Future, BucketAccessControl] { executeGoogleRequestAsync(cluster.googleProject, s"Bucket ${stagingBucket.name}", bacInsert(stagingBucket)) }
-      _ <- OptionT.liftF[Future, ObjectAccessControl] { executeGoogleRequestAsync(cluster.googleProject, s"Bucket ${stagingBucket.name}", doacInsert(stagingBucket)) }
-    } yield ()
-
-    transformed.value.void
   }
 
   /* Delete a cluster within the google project */

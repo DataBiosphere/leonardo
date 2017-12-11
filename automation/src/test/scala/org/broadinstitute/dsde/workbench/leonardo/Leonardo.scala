@@ -34,7 +34,7 @@ object Leonardo extends WorkbenchClient with LazyLogging {
     private case class ClusterKluge(clusterName: ClusterName,
                                     googleId: UUID,
                                     googleProject: String,
-                                    googleServiceAccount: GoogleServiceAccount,
+                                    serviceAccountInfo: Map[String, String],
                                     googleBucket: GcsBucketName,
                                     machineConfig: Map[String, String],
                                     clusterUrl: URL,
@@ -50,7 +50,7 @@ object Leonardo extends WorkbenchClient with LazyLogging {
       def toCluster = Cluster(clusterName,
         googleId,
         GoogleProject(googleProject),
-        googleServiceAccount,
+        ServiceAccountInfo(serviceAccountInfo),
         googleBucket,
         MachineConfig(machineConfig),
         clusterUrl,
@@ -64,7 +64,9 @@ object Leonardo extends WorkbenchClient with LazyLogging {
         jupyterExtensionUri map (GcsPath.parse(_).right.get))
     }
 
-    def handleClusterResponse(response: String): Cluster = mapper.readValue(response, classOf[ClusterKluge]).toCluster
+    def handleClusterResponse(response: String): Cluster = {
+      mapper.readValue(response, classOf[ClusterKluge]).toCluster
+    }
 
     def handleClusterSeqResponse(response: String): List[Cluster] = {
       // this does not work, due to type erasure

@@ -12,11 +12,10 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{GoogleDataprocDAO, HttpSa
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SamConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterStatus, LeoAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterStatus, LeoAuthProvider, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
@@ -50,6 +49,9 @@ object Boot extends App with LazyLogging {
     val authProviderClass = config.as[String]("auth.providerClass")
     val authConfig = config.getConfig("auth.providerConfig")
 
+    val serviceAccountProviderClass = config.as[String]("serviceAccounts.providerClass")
+    val serviceAccountConfig = config.getConfig("serviceAccounts.config")
+
     // we need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")
     implicit val materializer = ActorMaterializer()
@@ -60,13 +62,16 @@ object Boot extends App with LazyLogging {
       dbRef.database.close()
     }
 
-    val authProvider = constructAuthProvider(authProviderClass, authConfig)
-    val gdDAO = new GoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig, clusterFilesConfig, clusterResourcesConfig)
-    val googleIamDAO = new HttpGoogleIamDAO(dataprocConfig.serviceAccountEmail.value, clusterFilesConfig.leonardoServicePem.getAbsolutePath, dataprocConfig.applicationName, "google")
+    val authProvider = constructProvider[LeoAuthProvider](authProviderClass, authConfig)
+    val serviceAccountProvider = constructProvider[ServiceAccountProvider](serviceAccountProviderClass, serviceAccountConfig)
+
+    val (leoServiceAccountEmail, leoServiceAccountPemFile) = serviceAccountProvider.getLeoServiceAccountAndKey
+    val gdDAO = new GoogleDataprocDAO(leoServiceAccountEmail, leoServiceAccountPemFile, dataprocConfig, proxyConfig, clusterDefaultsConfig, clusterFilesConfig, clusterResourcesConfig)
+    val googleIamDAO = new HttpGoogleIamDAO(leoServiceAccountEmail.value, leoServiceAccountPemFile.getAbsolutePath, dataprocConfig.applicationName, "google")
     val samDAO = new HttpSamDAO(samConfig.server)
     val clusterDnsCache = system.actorOf(ClusterDnsCache.props(proxyConfig, dbRef))
     val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO, googleIamDAO, dbRef, clusterDnsCache))
-    val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, googleIamDAO, dbRef, clusterMonitorSupervisor, samDAO, authProvider)
+    val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, googleIamDAO, dbRef, clusterMonitorSupervisor, authProvider, serviceAccountProvider)
     val proxyService = new ProxyService(proxyConfig, gdDAO, dbRef, clusterDnsCache, authProvider)
     val statusService = new StatusService(gdDAO, samDAO, dbRef, dataprocConfig)
     val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with StandardUserInfoDirectives
@@ -81,11 +86,11 @@ object Boot extends App with LazyLogging {
       }
   }
 
-  private def constructAuthProvider(authProviderClass: String, authConfig: Config): LeoAuthProvider = {
-    Class.forName(authProviderClass)
+  private def constructProvider[T](className: String, config: Config): T = {
+    Class.forName(className)
       .getConstructor(classOf[Config])
-      .newInstance(authConfig)
-      .asInstanceOf[LeoAuthProvider]
+      .newInstance(config)
+      .asInstanceOf[T]
   }
 
   private def startClusterMonitors(dbRef: DbReference, clusterMonitor: ActorRef)(implicit executionContext: ExecutionContext) = {
