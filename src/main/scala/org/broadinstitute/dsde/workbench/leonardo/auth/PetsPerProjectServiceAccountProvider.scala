@@ -11,10 +11,6 @@ import scala.concurrent.Future
   */
 class PetsPerProjectServiceAccountProvider(config: Config) extends SamServiceAccountProvider(config) {
 
-  val leoServiceAccount = config.getString("leoServiceAccountEmail")
-
-  override def getLeoServiceAccount: WorkbenchEmail = WorkbenchEmail(leoServiceAccount)
-
   override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
     // Ask Sam for a pet service account for the given (user, project)
     samDAO.getPetServiceAccountForProject(userInfo, googleProject).map(Option(_))
