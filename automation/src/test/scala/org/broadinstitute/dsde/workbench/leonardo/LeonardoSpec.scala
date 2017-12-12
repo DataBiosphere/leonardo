@@ -4,22 +4,23 @@ import java.io.File
 import java.nio.file.Files
 import java.time.Instant
 
-import org.broadinstitute.dsde.firecloud.api.Sam
+import org.broadinstitute.dsde.firecloud.api.{Orchestration, Rawls, Sam}
 import org.broadinstitute.dsde.workbench.api.APIException
 import org.broadinstitute.dsde.workbench.{ResourceFile, WebBrowserSpec}
-import org.broadinstitute.dsde.workbench.config.AuthToken
+import org.broadinstitute.dsde.workbench.config.{AuthToken, WorkbenchConfig}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.util.LocalFileUtil
 import org.broadinstitute.dsde.workbench.dao.Google.googleIamDAO
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountName}
 import org.openqa.selenium.WebDriver
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.selenium.WebBrowser
 import org.scalatest.time.{Minutes, Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers, ParallelTestExecution}
 
+import scala.util.control.NonFatal
 import scala.util.{Random, Try}
 
 class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelTestExecution with BeforeAndAfterAll
@@ -40,8 +41,8 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
   override def beforeAll(): Unit = {
     // ensure pet is initialized in test env
-    Sam.user.petServiceAccountEmail()(ronAuthToken)
-    Sam.user.petServiceAccountEmail()(hermioneAuthToken)
+    Sam.user.petServiceAccountEmail(project)(ronAuthToken)
+    Sam.user.petServiceAccountEmail(project)(hermioneAuthToken)
   }
 
   val project = GoogleProject(LeonardoConfig.Projects.default)
@@ -187,6 +188,52 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     }
   }
 
+  def withNewBillingProject[T](testCode: GoogleProject => T)(implicit token: AuthToken): T = {
+    val billingProject = GoogleProject("leonardo-billing-spec" + makeRandomId())
+    val billingProjectName = "leonardo-billing-spec" + makeRandomId()
+    // Create billing project and run test code
+    val testResult: Try[T] = Try {
+      logger.info(s"Creating billing project: $billingProject")
+      Orchestration.billing.createBillingProject(billingProjectName, WorkbenchConfig.Projects.billingAccountId)
+      testCode(billingProject)
+    }
+    // Clean up billing project
+    Try(Rawls.admin.deleteBillingProject(billingProjectName)).recover { case NonFatal(e) =>
+      logger.warn(s"Could not delete billing project $billingProjectName", e)
+    }
+    // Return the test result, or throw error
+    testResult.get
+  }
+
+  def verifyNotebookCredentials(notebookPage: NotebookPage, expectedEmail: WorkbenchEmail): Unit = {
+    // verify oauth2client
+    notebookPage.executeCell("from oauth2client.client import GoogleCredentials") shouldBe None
+    notebookPage.executeCell("credentials = GoogleCredentials.get_application_default()") shouldBe None
+    notebookPage.executeCell("print credentials._service_account_email") shouldBe Some(expectedEmail.value)
+
+    // verify FISS
+    notebookPage.executeCell("import firecloud.api as fapi") shouldBe None
+    notebookPage.executeCell("fiss_credentials = fapi.GoogleCredentials.get_application_default()") shouldBe None
+    notebookPage.executeCell("print fiss_credentials._service_account_email") shouldBe Some(expectedEmail.value)
+
+    // verify Spark
+    notebookPage.executeCell("hadoop_config = sc._jsc.hadoopConfiguration()") shouldBe None
+    notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.enable')") shouldBe Some("true")
+    notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.json.keyfile')") shouldBe Some("/etc/service-account-credentials.json")
+    val nbEmail = notebookPage.executeCell("! grep client_email /etc/service-account-credentials.json")
+    nbEmail shouldBe 'defined
+    nbEmail.get should include (expectedEmail.value)
+  }
+
+  def getAndVerifyPet(project: GoogleProject)(implicit token: AuthToken): (ServiceAccountName, WorkbenchEmail) = {
+    val samPetEmail = Sam.user.petServiceAccountEmail(project)
+    val userStatus = Sam.user.status().get
+    val petName = Sam.petName(userStatus.userInfo)
+    val googlePetEmail = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
+    googlePetEmail shouldBe Some(samPetEmail)
+    (petName, samPetEmail)
+  }
+
   // ------------------------------------------------------
 
   "Leonardo" - {
@@ -272,47 +319,50 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       implicit val token = ronAuthToken
 
       /*
-       * Pre-conditions (before cluster creation)
+       * Pre-conditions: pet service account exists in this Google project and in Sam
        */
-      // pet should exist in Google
-      val samPetEmail = Sam.user.petServiceAccountEmail()
-      val userStatus = Sam.user.status().get
-      val petName = Sam.petName(userStatus.userInfo)
-      val googlePetEmail = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
-      googlePetEmail shouldBe Some(samPetEmail)
+      val (petName, petEmail) = getAndVerifyPet(project)
 
       /*
        * Create a cluster
        */
       withNewCluster(project) { cluster =>
-        // cluster should have the pet's credentials
         withNewNotebook(cluster) { notebookPage =>
-          // verify oauth2client
-          notebookPage.executeCell("from oauth2client.client import GoogleCredentials") shouldBe None
-          notebookPage.executeCell("credentials = GoogleCredentials.get_application_default()") shouldBe None
-          notebookPage.executeCell("print credentials._service_account_email") shouldBe Some(samPetEmail.value)
-
-          // verify FISS
-          notebookPage.executeCell("import firecloud.api as fapi") shouldBe None
-          notebookPage.executeCell("fiss_credentials = fapi.GoogleCredentials.get_application_default()") shouldBe None
-          notebookPage.executeCell("print fiss_credentials._service_account_email") shouldBe Some(samPetEmail.value)
-
-          // verify Spark
-          notebookPage.executeCell("hadoop_config = sc._jsc.hadoopConfiguration()") shouldBe None
-          notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.enable')") shouldBe Some("true")
-          notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.json.keyfile')") shouldBe Some("/etc/service-account-credentials.json")
-          val nbEmail = notebookPage.executeCell("! grep client_email /etc/service-account-credentials.json")
-          nbEmail shouldBe 'defined
-          nbEmail.get should include (samPetEmail.value)
+          verifyNotebookCredentials(notebookPage, petEmail)
         }
       }
 
       /*
-       * Post-conditions (after cluster deletion)
+       * Post-conditions: pet should still exist in this Google project
        */
-      // pet should still exist in Google
       val googlePetEmail2 = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
-      googlePetEmail2 shouldBe Some(samPetEmail)
+      googlePetEmail2 shouldBe Some(petEmail)
+    }
+
+
+    "should create a cluster in a different billing project" in withWebDriver { implicit driver =>
+      // need to be project owner for this test
+      implicit val token = hermioneAuthToken
+
+      /*
+       * Create a cluster in a different billing project
+       */
+      val (billingProject, petName) = withNewBillingProject { billingProject =>
+        withNewCluster(billingProject) { cluster =>
+          // Pet should exist in the new Google project and in Sam
+          val (petName, petEmail) = getAndVerifyPet(billingProject)
+
+          // Verify pet credentials from a notebook
+          withNewNotebook(cluster) { notebookPage =>
+            verifyNotebookCredentials(notebookPage, petEmail)
+          }
+
+          (billingProject, petName)
+        }
+      }
+
+      // The pet should be gone, along with the billing project
+      googleIamDAO.findServiceAccount(billingProject, petName).futureValue shouldBe None
     }
   }
 }
