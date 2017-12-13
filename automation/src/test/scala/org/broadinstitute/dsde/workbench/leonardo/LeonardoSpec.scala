@@ -65,10 +65,10 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     // we don't actually know the SA because it's the pet
     // set a dummy here and then remove it from the comparison
 
-    val dummyOverridePetSa = WorkbenchEmail("dummy")
-    val expected = requestedLabels ++ DefaultLabels(clusterName, googleProject, gcsBucketName, None, Some(dummyOverridePetSa), notebookExtension).toMap
+    val dummyPetSa = WorkbenchEmail("dummy")
+    val expected = requestedLabels ++ DefaultLabels(clusterName, googleProject, gcsBucketName, Some(dummyPetSa), None, notebookExtension).toMap
 
-    (seen - "notebookServiceAccount") shouldBe (expected - "notebookServiceAccount")
+    (seen - "clusterServiceAccount") shouldBe (expected - "clusterServiceAccount")
   }
 
   def clusterCheck(cluster: Cluster,
@@ -198,7 +198,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       testCode(billingProject)
     }
     // Clean up billing project
-    Try(Rawls.admin.deleteBillingProject(billingProjectName)).recover { case NonFatal(e) =>
+    Try(Rawls.admin.deleteBillingProject(billingProjectName)(AuthToken(LeonardoConfig.Users.dumbledore))).recover { case NonFatal(e) =>
       logger.warn(s"Could not delete billing project $billingProjectName", e)
     }
     // Return the test result, or throw error
@@ -315,7 +315,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       }
     }
 
-    "should put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
+    "foo should put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
       implicit val token = ronAuthToken
 
       /*

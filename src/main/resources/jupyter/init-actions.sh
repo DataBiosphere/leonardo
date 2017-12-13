@@ -19,8 +19,8 @@ if [ ! -z ${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} ] ; then
   # This needs to happen on master and worker nodes.
   export GOOGLE_APPLICATION_CREDENTIALS=/etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}
 else
-  echo "" > /etc/empty
-  export JUPYTER_SERVICE_ACCOUNT_CREDENTIALS=empty
+  echo "" > /etc/empty_credentials
+  export JUPYTER_SERVICE_ACCOUNT_CREDENTIALS=empty_credentials
 fi
 
 # Only initialize Jupyter docker containers on the master
@@ -62,8 +62,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
       gsutil cp ${JUPYTER_EXTENSION_URI} /etc
       export JUPYTER_EXTENSION_ARCHIVE=`basename ${JUPYTER_EXTENSION_URI}`
     else
-      echo "" > /etc/empty
-      export JUPYTER_EXTENSION_ARCHIVE=empty
+      echo "" > /etc/empty_extension
+      export JUPYTER_EXTENSION_ARCHIVE=empty_extension
     fi
 
     gsutil cp ${JUPYTER_CUSTOM_JS_URI} /etc
