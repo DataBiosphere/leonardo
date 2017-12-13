@@ -22,8 +22,6 @@ jupyter:
     - /etc/hadoop/conf:/etc/hadoop/conf
     - /hadoop_gcs_connector_metadata_cache:/hadoop_gcs_connector_metadata_cache
     - /etc/install-jupyter-extension.sh:/etc/install-jupyter-extension.sh
-    - /etc/${JUPYTER_EXTENSION_ARCHIVE}:/etc/${JUPYTER_EXTENSION_ARCHIVE}
-    - /etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}:/etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}
     - /etc/custom.js:/home/jupyter-user/.jupyter/custom/custom.js
     - /etc/google_sign_in.js:/home/jupyter-user/.jupyter/custom/google_sign_in.js
   restart: always

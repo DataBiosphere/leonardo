@@ -8,20 +8,6 @@ set -e -x
 # Uses cluster-docker-compose.yaml
 
 ROLE=$(/usr/share/google/get_metadata_value attributes/dataproc-role)
-JUPYTER_SERVICE_ACCOUNT_CREDENTIALS=$(jupyterServiceAccountCredentials)
-
-if [ ! -z ${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} ] ; then
-  gsutil cp ${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} /etc
-  export JUPYTER_SERVICE_ACCOUNT_CREDENTIALS=`basename ${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}`
-
-  # Set the GOOGLE_APPLICATION_CREDENTIALS EV to the service account json file.
-  # This overrides the credentials on the metadata server.
-  # This needs to happen on master and worker nodes.
-  export GOOGLE_APPLICATION_CREDENTIALS=/etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}
-else
-  echo "" > /etc/empty_credentials
-  export JUPYTER_SERVICE_ACCOUNT_CREDENTIALS=empty_credentials
-fi
 
 # Only initialize Jupyter docker containers on the master
 if [[ "${ROLE}" == 'Master' ]]; then
@@ -57,15 +43,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
     gsutil cp ${JUPYTER_PROXY_SITE_CONF} /etc
     gsutil cp ${JUPYTER_DOCKER_COMPOSE} /etc
     gsutil cp ${JUPYTER_INSTALL_EXTENSION_SCRIPT} /etc
-
-    if [ ! -z ${JUPYTER_EXTENSION_URI} ] ; then
-      gsutil cp ${JUPYTER_EXTENSION_URI} /etc
-      export JUPYTER_EXTENSION_ARCHIVE=`basename ${JUPYTER_EXTENSION_URI}`
-    else
-      echo "" > /etc/empty_extension
-      export JUPYTER_EXTENSION_ARCHIVE=empty_extension
-    fi
-
     gsutil cp ${JUPYTER_CUSTOM_JS_URI} /etc
     gsutil cp ${JUPYTER_GOOGLE_SIGN_IN_JS_URI} /etc
 
@@ -86,6 +63,27 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # Note: docker-compose doesn't appear to have the ability to execute a command after run, so we do this explicitly with docker exec commands.
     # See https://github.com/docker/compose/issues/1809
     if [ ! -z ${JUPYTER_EXTENSION_URI} ] ; then
+      gsutil cp ${JUPYTER_EXTENSION_URI} /etc
+      JUPYTER_EXTENSION_ARCHIVE=`basename ${JUPYTER_EXTENSION_URI}`
+      docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:/etc/${JUPYTER_EXTENSION_ARCHIVE}
       docker exec -d ${JUPYTER_SERVER_NAME} /etc/install-jupyter-extension.sh /etc/${JUPYTER_EXTENSION_ARCHIVE}
     fi
+fi
+
+JUPYTER_SERVICE_ACCOUNT_CREDENTIALS=$(jupyterServiceAccountCredentials)
+
+if [ ! -z ${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} ] ; then
+  gsutil cp ${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} /etc
+  JUPYTER_SERVICE_ACCOUNT_CREDENTIALS=`basename ${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}`
+
+  # Set the GOOGLE_APPLICATION_CREDENTIALS EV to the service account json file.
+  # This overrides the credentials on the metadata server.
+  # This needs to happen on master and worker nodes.
+  export GOOGLE_APPLICATION_CREDENTIALS=/etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}
+
+  # Copy the service account JSON file into the Jupyter docker container.
+  # This only needs to happen on the master node.
+  if [[ "${ROLE}" == 'Master' ]]; then
+    docker cp /etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} ${JUPYTER_SERVER_NAME}:/etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}
+  fi
 fi
