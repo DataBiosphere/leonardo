@@ -347,8 +347,6 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
        * Create a cluster in a different billing project
        */
       val (billingProject, petName) = withNewBillingProject { billingProject =>
-        println(s"Billing project $billingProject is ready!")
-        Thread.sleep(60000)
         withNewCluster(billingProject) { cluster =>
           // Pet should exist in the new Google project and in Sam
           val (petName, petEmail) = getAndVerifyPet(billingProject)
