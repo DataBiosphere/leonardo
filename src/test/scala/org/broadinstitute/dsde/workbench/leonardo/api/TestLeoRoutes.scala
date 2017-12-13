@@ -5,21 +5,23 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
-import org.broadinstitute.dsde.workbench.leonardo.auth.{MockServiceAccountProvider, WhitelistAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetServiceAccountProvider, MockPetsPerProjectServiceAccountProvider, WhitelistAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockGoogleDataprocDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, MockProxyService, StatusService}
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchUserId}
+import org.scalatest.concurrent.ScalaFutures
 
 import scala.concurrent.duration._
 
 /**
   * Created by rtitle on 8/15/17.
   */
-trait TestLeoRoutes { this: ScalatestRouteTest =>
+trait TestLeoRoutes { this: ScalatestRouteTest with ScalaFutures =>
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
   val proxyConfig = config.as[ProxyConfig]("proxy")
@@ -31,7 +33,11 @@ trait TestLeoRoutes { this: ScalatestRouteTest =>
   val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
   val whitelistAuthProvider = new WhitelistAuthProvider(config.getConfig("auth.providerConfig"))
-  val serviceAccountProvider = new MockServiceAccountProvider(config.getConfig("serviceAccounts.config"))
+
+  // TODO look into parameterized tests so both provider impls can both be tested
+  //val serviceAccountProvider = new MockPetServiceAccountProvider(config.getConfig("serviceAccounts.config"))
+  val serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(config.getConfig("serviceAccounts.config"))
+
   // Route tests don't currently do cluster monitoring, so use NoopActor
   val clusterMonitorSupervisor = system.actorOf(NoopActor.props)
   val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, mockGoogleDataprocDAO, mockGoogleIamDAO, DbSingleton.ref, clusterMonitorSupervisor, whitelistAuthProvider, serviceAccountProvider)
@@ -40,5 +46,13 @@ trait TestLeoRoutes { this: ScalatestRouteTest =>
   val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
   val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with MockUserInfoDirectives {
     override val userInfo: UserInfo = defaultUserInfo
+  }
+
+  def clusterServiceAccount(googleProject: GoogleProject): Option[WorkbenchEmail] = {
+    serviceAccountProvider.getClusterServiceAccount(defaultUserInfo, googleProject).futureValue
+  }
+
+  def notebookServiceAccount(googleProject: GoogleProject): Option[WorkbenchEmail] = {
+    serviceAccountProvider.getNotebookServiceAccount(defaultUserInfo, googleProject).futureValue
   }
 }

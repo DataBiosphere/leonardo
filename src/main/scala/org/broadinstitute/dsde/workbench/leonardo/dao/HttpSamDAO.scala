@@ -40,12 +40,6 @@ class HttpSamDAO(val baseSamServiceURL: String)(implicit system: ActorSystem, ma
     }
   }
 
-  @deprecated(message = "Use getPetServiceAccountForProject(UserInfo, GoogleProject) instead", since = "")
-  override def getPetServiceAccount(userInfo: UserInfo): Future[WorkbenchEmail] = {
-    val uri = Uri(samServiceURL + "/api/user/petServiceAccount")
-    executeSamRequestAsUser[WorkbenchEmail](HttpRequest(GET, uri), userInfo)
-  }
-
   override def getPetServiceAccountForProject(userInfo: UserInfo, googleProject: GoogleProject): Future[WorkbenchEmail] = {
     val uri = Uri(samServiceURL + s"/api/google/user/petServiceAccount/${googleProject.value}")
     executeSamRequestAsUser[WorkbenchEmail](HttpRequest(GET, uri), userInfo)
@@ -53,6 +47,8 @@ class HttpSamDAO(val baseSamServiceURL: String)(implicit system: ActorSystem, ma
 
   private def authHeader(userInfo: UserInfo): HttpHeader = Authorization(userInfo.accessToken)
 
+  // If ignoreError is true, this method will try to unmarshal the response entity to a T, regardless of status code.
+  // If ignoreError is false (the default), it will try to unmarshal an ErrorReport for a non-successful status code.
   private def executeSamRequest[T](httpRequest: HttpRequest, ignoreError: Boolean = false)(implicit um: Unmarshaller[ResponseEntity, T]): Future[T] = {
     http.singleRequest(httpRequest) recover { case t: Throwable =>
       throw CallToSamFailedException(httpRequest.uri, StatusCodes.InternalServerError, Some(t.getMessage))

@@ -18,10 +18,6 @@ class MockSamDAO(ok: Boolean = true) extends SamDAO {
     else Future.successful(StatusCheckResponse(false, Map(OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!"))))))
   }
 
-  override def getPetServiceAccount(userInfo: UserInfo): Future[WorkbenchEmail] = {
-    Future.successful(serviceAccount)
-  }
-
   override def getPetServiceAccountForProject(userInfo: UserInfo, googleProject: GoogleProject): Future[WorkbenchEmail] = {
     Future.successful(serviceAccount)
   }

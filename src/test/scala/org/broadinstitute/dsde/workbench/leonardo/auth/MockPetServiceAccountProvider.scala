@@ -11,7 +11,7 @@ import scala.concurrent.Future
 /**
   * Created by rtitle on 12/4/17.
   */
-class MockServiceAccountProvider(config: Config) extends ServiceAccountProvider(config) {
+class MockPetServiceAccountProvider(config: Config) extends ServiceAccountProvider(config) {
   private val mockSamDAO = new MockSamDAO
   private implicit val ec = scala.concurrent.ExecutionContext.global
 
@@ -22,6 +22,6 @@ class MockServiceAccountProvider(config: Config) extends ServiceAccountProvider(
 
   override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
     // Pretend we're asking Sam for the pet
-    mockSamDAO.getPetServiceAccount(userInfo).map(Option(_))
+    mockSamDAO.getPetServiceAccountForProject(userInfo, googleProject).map(Option(_))
   }
 }

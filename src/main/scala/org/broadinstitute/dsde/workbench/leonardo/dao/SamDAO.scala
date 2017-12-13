@@ -14,8 +14,5 @@ trait SamDAO {
 
   def getStatus(): Future[StatusCheckResponse]
 
-  @deprecated(message = "Use getPetServiceAccountForProject(UserInfo, GoogleProject) instead", since = "")
-  def getPetServiceAccount(userInfo: UserInfo): Future[WorkbenchEmail]
-
   def getPetServiceAccountForProject(userInfo: UserInfo, googleProject: GoogleProject): Future[WorkbenchEmail]
 }

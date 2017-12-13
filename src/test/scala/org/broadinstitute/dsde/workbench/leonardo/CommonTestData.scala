@@ -6,17 +6,18 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
-import org.broadinstitute.dsde.workbench.leonardo.auth.{MockServiceAccountProvider, WhitelistAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetServiceAccountProvider, MockPetsPerProjectServiceAccountProvider, WhitelistAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterName
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData}
+import org.scalatest.concurrent.ScalaFutures
 
 // values common to multiple tests, to reduce boilerplate
 
-trait CommonTestData {
+trait CommonTestData { this: ScalaFutures =>
   val name1 = ClusterName("name1")
   val name2 = ClusterName("name2")
   val name3 = ClusterName("name3")
@@ -35,9 +36,23 @@ trait CommonTestData {
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
 
+  val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
   val whitelistAuthProvider = new WhitelistAuthProvider(config.getConfig("auth.providerConfig"))
-  val serviceAccountProvider = new MockServiceAccountProvider(config.getConfig("serviceAccounts.config"))
+
+  // TODO look into parameterized tests so both provider impls can both be tested
+  // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData
+  //val serviceAccountProvider = new MockPetServiceAccountProvider(config.getConfig("serviceAccounts.config"))
+  val serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(config.getConfig("serviceAccounts.config"))
+
   val samDAO = new MockSamDAO
+
+  protected def clusterServiceAccount(googleProject: GoogleProject): Option[WorkbenchEmail] = {
+    serviceAccountProvider.getClusterServiceAccount(defaultUserInfo, googleProject).futureValue
+  }
+
+  protected def notebookServiceAccount(googleProject: GoogleProject): Option[WorkbenchEmail] = {
+    serviceAccountProvider.getNotebookServiceAccount(defaultUserInfo, googleProject).futureValue
+  }
 }
 
 trait GcsPathUtils {

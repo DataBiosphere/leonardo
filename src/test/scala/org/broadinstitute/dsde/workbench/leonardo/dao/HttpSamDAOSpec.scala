@@ -31,10 +31,18 @@ class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll with 
   var bindingFutureHealthy: Future[ServerBinding] = _
   var bindingFutureUnhealthy: Future[ServerBinding] = _
 
+  val healthyPort = 9090
+  val unhealthyPort = 9091
+  val unknownPort = 9092
+
+  val dao = new HttpSamDAO(s"http://localhost:$healthyPort")
+  val unhealthyDAO = new HttpSamDAO(s"http://localhost:$unhealthyPort")
+  val unknownDAO = new HttpSamDAO(s"http://localhost:$unknownPort")
+
   override def beforeAll(): Unit = {
     super.beforeAll()
-    bindingFutureHealthy = Http().bindAndHandle(backendRoute, "0.0.0.0", 9090)
-    bindingFutureUnhealthy = Http().bindAndHandle(unhealthyRoute, "0.0.0.0", 9091)
+    bindingFutureHealthy = Http().bindAndHandle(backendRoute, "0.0.0.0", healthyPort)
+    bindingFutureUnhealthy = Http().bindAndHandle(unhealthyRoute, "0.0.0.0", unhealthyPort)
   }
 
   override def afterAll(): Unit = {
@@ -92,27 +100,10 @@ class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll with 
       }
     }
 
-  val dao = new HttpSamDAO("http://localhost:9090")
-  val unhealthyDAO = new HttpSamDAO("http://localhost:9091")
-  val unknownDAO = new HttpSamDAO("http://localhost:9092")
-
   "HttpSamDAO" should "get Sam status" in {
     dao.getStatus().futureValue shouldBe expectedOkStatus
     unhealthyDAO.getStatus().futureValue shouldBe notOkStatus
     unknownDAO.getStatus().failed.futureValue shouldBe a [CallToSamFailedException]
-  }
-
-  it should "get pet service accounts" in {
-    dao.getPetServiceAccount(defaultUserInfo).futureValue shouldBe expectedPet
-    val exception = dao.getPetServiceAccount(errorUserInfo).failed.futureValue
-    exception shouldBe a [CallToSamFailedException]
-    exception.asInstanceOf[CallToSamFailedException].status shouldBe StatusCodes.InternalServerError
-    exception.asInstanceOf[CallToSamFailedException].msg shouldBe Some("my message")  // matches returned ErrorReport
-
-    val exception2 = dao.getPetServiceAccount(unknownUserInfo).failed.futureValue
-    exception2 shouldBe a [CallToSamFailedException]
-    exception2.asInstanceOf[CallToSamFailedException].status shouldBe StatusCodes.Unauthorized
-    exception2.asInstanceOf[CallToSamFailedException].msg shouldBe None  // no ErrorReport
   }
 
   it should "get pet service accounts per project" in {
@@ -129,8 +120,7 @@ class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll with 
   }
 
   it should "fail gracefully if it can't connect" in {
-    val badDao = new HttpSamDAO("http://localhost:9099")
-    val exception = badDao.getPetServiceAccountForProject(defaultUserInfo, googleProject).failed.futureValue
+    val exception = unknownDAO.getPetServiceAccountForProject(defaultUserInfo, googleProject).failed.futureValue
     exception shouldBe a [CallToSamFailedException]
     exception.asInstanceOf[CallToSamFailedException].status shouldBe StatusCodes.InternalServerError
   }
