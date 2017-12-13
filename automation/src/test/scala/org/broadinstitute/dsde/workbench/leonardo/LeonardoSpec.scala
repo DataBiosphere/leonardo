@@ -190,16 +190,15 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
   def withNewBillingProject[T](testCode: GoogleProject => T)(implicit token: AuthToken): T = {
     val billingProject = GoogleProject("leonardo-billing-spec" + makeRandomId())
-    val billingProjectName = "leonardo-billing-spec" + makeRandomId()
     // Create billing project and run test code
     val testResult: Try[T] = Try {
       logger.info(s"Creating billing project: $billingProject")
-      Orchestration.billing.createBillingProject(billingProjectName, WorkbenchConfig.Projects.billingAccountId)
+      Orchestration.billing.createBillingProject(billingProject.value, WorkbenchConfig.Projects.billingAccountId)
       testCode(billingProject)
     }
     // Clean up billing project
-    Try(Rawls.admin.deleteBillingProject(billingProjectName)(AuthToken(LeonardoConfig.Users.dumbledore))).recover { case NonFatal(e) =>
-      logger.warn(s"Could not delete billing project $billingProjectName", e)
+    Try(Rawls.admin.deleteBillingProject(billingProject.value)(AuthToken(LeonardoConfig.Users.dumbledore))).recover { case NonFatal(e) =>
+      logger.warn(s"Could not delete billing project $billingProject", e)
     }
     // Return the test result, or throw error
     testResult.get
@@ -315,7 +314,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       }
     }
 
-    "foo should put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
+    "should put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
       implicit val token = ronAuthToken
 
       /*
@@ -340,7 +339,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     }
 
 
-    "should create a cluster in a different billing project" in withWebDriver { implicit driver =>
+    "foo should create a cluster in a different billing project" in withWebDriver { implicit driver =>
       // need to be project owner for this test
       implicit val token = hermioneAuthToken
 
@@ -348,6 +347,8 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
        * Create a cluster in a different billing project
        */
       val (billingProject, petName) = withNewBillingProject { billingProject =>
+        println(s"Billing project $billingProject is ready!")
+        Thread.sleep(60000)
         withNewCluster(billingProject) { cluster =>
           // Pet should exist in the new Google project and in Sam
           val (petName, petEmail) = getAndVerifyPet(billingProject)

@@ -126,7 +126,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       // Remove the Dataproc Worker IAM role for the cluster service account.
       // Only happens if the cluster was created with a service account other
       // than the compute engine default service account.
-      _ <- removeIamRolesForUser
+  //    _ <- removeIamRolesForUser
       // Remove credentials from instance metadata.
       // Only happens if an notebook service account was used.
       _ <- removeCredentialsFromMetadata
