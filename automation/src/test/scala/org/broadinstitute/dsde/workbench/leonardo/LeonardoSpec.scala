@@ -73,15 +73,16 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
   def clusterCheck(cluster: Cluster,
                    requestedLabels: Map[String, String],
+                   expectedProject: GoogleProject,
                    expectedName: ClusterName,
                    expectedStatuses: Iterable[ClusterStatus],
                   notebookExtension: Option[String] = None): Cluster = {
 
     expectedStatuses should contain (cluster.status)
-    cluster.googleProject shouldBe project
+    cluster.googleProject shouldBe expectedProject
     cluster.clusterName shouldBe expectedName
     cluster.googleBucket shouldBe bucket
-    labelCheck(cluster.labels, requestedLabels, expectedName, project, bucket, notebookExtension)
+    labelCheck(cluster.labels, requestedLabels, expectedName, expectedProject, bucket, notebookExtension)
 
     cluster
   }
@@ -92,14 +93,14 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     Thread sleep Random.nextInt(30000)
 
     val cluster = Leonardo.cluster.create(googleProject, clusterName, clusterRequest)
-    clusterCheck(cluster, clusterRequest.labels, clusterName, Seq(ClusterStatus.Creating), clusterRequest.jupyterExtensionUri)
+    clusterCheck(cluster, clusterRequest.labels, googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest.jupyterExtensionUri)
 
     // verify with get()
-    clusterCheck(Leonardo.cluster.get(googleProject, clusterName), clusterRequest.labels, clusterName, Seq(ClusterStatus.Creating), clusterRequest.jupyterExtensionUri)
+    clusterCheck(Leonardo.cluster.get(googleProject, clusterName), clusterRequest.labels, googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest.jupyterExtensionUri)
 
     // wait for "Running" or error (fail fast)
     val actualCluster = eventually {
-      clusterCheck(Leonardo.cluster.get(googleProject, clusterName), clusterRequest.labels, clusterName, Seq(ClusterStatus.Running, ClusterStatus.Error), clusterRequest.jupyterExtensionUri)
+      clusterCheck(Leonardo.cluster.get(googleProject, clusterName), clusterRequest.labels, googleProject, clusterName, Seq(ClusterStatus.Running, ClusterStatus.Error), clusterRequest.jupyterExtensionUri)
     } (clusterPatience)
 
     actualCluster
@@ -314,7 +315,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       }
     }
 
-    "should put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
+    "bar should put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
       implicit val token = ronAuthToken
 
       /*
@@ -326,6 +327,10 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
        * Create a cluster
        */
       withNewCluster(project) { cluster =>
+        // cluster should have been created with the pet service account
+        cluster.serviceAccountInfo.clusterServiceAccount shouldBe Some(petEmail)
+        cluster.serviceAccountInfo.notebookServiceAccount shouldBe None
+
         withNewNotebook(cluster) { notebookPage =>
           verifyNotebookCredentials(notebookPage, petEmail)
         }
@@ -346,22 +351,21 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       /*
        * Create a cluster in a different billing project
        */
-      val (billingProject, petName) = withNewBillingProject { billingProject =>
+      withNewBillingProject { billingProject =>
         withNewCluster(billingProject) { cluster =>
-          // Pet should exist in the new Google project and in Sam
-          val (petName, petEmail) = getAndVerifyPet(billingProject)
+          // cluster should have been created with the pet service account
+          // Can't actually verify this against a Google IAM call since the QA
+          // service account doesn't have IAM permissions in other billing projects.
+          cluster.serviceAccountInfo.clusterServiceAccount shouldBe 'defined
+          cluster.serviceAccountInfo.notebookServiceAccount shouldBe None
+          val Some(petEmail) = cluster.serviceAccountInfo.clusterServiceAccount
 
           // Verify pet credentials from a notebook
           withNewNotebook(cluster) { notebookPage =>
             verifyNotebookCredentials(notebookPage, petEmail)
           }
-
-          (billingProject, petName)
         }
       }
-
-      // The pet should be gone, along with the billing project
-      googleIamDAO.findServiceAccount(billingProject, petName).futureValue shouldBe None
     }
   }
 }
