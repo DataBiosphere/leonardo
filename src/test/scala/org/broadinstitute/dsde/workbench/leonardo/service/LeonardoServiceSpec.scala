@@ -10,7 +10,7 @@ import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
-import org.broadinstitute.dsde.workbench.leonardo.auth.{MockServiceAccountProvider, WhitelistAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetServiceAccountProvider, MockPetsPerProjectServiceAccountProvider, WhitelistAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, MockGoogleDataprocDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
@@ -52,7 +52,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     iamDAO = new MockGoogleIamDAO
     samDAO = new MockSamDAO
     authProvider = new WhitelistAuthProvider(configFactory.getConfig("auth.providerConfig"))
-    serviceAccountProvider = new MockServiceAccountProvider(configFactory.getConfig("serviceAccounts.config"))
+
+    // TODO look into parameterized tests so both provider impls can both be tested
+    //serviceAccountProvider = new MockPetServiceAccountProvider(configFactory.getConfig("serviceAccounts.config"))
+    serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(configFactory.getConfig("serviceAccounts.config"))
+
     leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider)
   }
 
@@ -61,7 +65,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     super.afterAll()
   }
 
-  val initFiles = List(
+  lazy val initFiles = List(
     clusterResourcesConfig.clusterDockerCompose.string,
     clusterResourcesConfig.initActionsScript.string,
     clusterFilesConfig.jupyterServerCrt.getName,
@@ -70,10 +74,18 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterResourcesConfig.jupyterProxySiteConf.string,
     clusterResourcesConfig.jupyterInstallExtensionScript.string,
     clusterResourcesConfig.jupyterCustomJs.string,
-    clusterResourcesConfig.jupyterGoogleSignInJs.string,
-    ClusterInitValues.serviceAccountCredentialsFilename
+    clusterResourcesConfig.jupyterGoogleSignInJs.string
+  ) ++ (
+    notebookServiceAccount(googleProject).map(_ => List(ClusterInitValues.serviceAccountCredentialsFilename)).getOrElse(List.empty)
   ) map GcsRelativePath
 
+  private def clusterServiceAccount(googleProject: GoogleProject): Option[WorkbenchEmail] = {
+    serviceAccountProvider.getClusterServiceAccount(defaultUserInfo, googleProject).futureValue
+  }
+
+  private def notebookServiceAccount(googleProject: GoogleProject): Option[WorkbenchEmail] = {
+    serviceAccountProvider.getNotebookServiceAccount(defaultUserInfo, googleProject).futureValue
+  }
 
   "LeonardoService" should "create a single node cluster with default machine configs" in isolatedDbTest {
     // create the cluster
@@ -81,8 +93,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // check the create response has the correct info
     clusterCreateResponse.googleBucket shouldEqual bucketPath
-    clusterCreateResponse.serviceAccountInfo.clusterServiceAccount shouldEqual None
-    clusterCreateResponse.serviceAccountInfo.notebookServiceAccount shouldEqual Some(samDAO.serviceAccount)
+    clusterCreateResponse.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccount(googleProject)
+    clusterCreateResponse.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccount(googleProject)
 
     // check the cluster has the correct machine configs
     clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig
@@ -98,7 +110,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // check the init files were added to the bucket
     initFiles.foreach(initFile => gdDAO.bucketObjects should contain (GcsPath(bucketArray.head, initFile)))
     gdDAO.bucketObjects should contain theSameElementsAs (initFiles.map(GcsPath(bucketArray.head, _)))
-    iamDAO.serviceAccountKeys should contain key (samDAO.serviceAccount)
+    // a service account key should only have been created if using a notebook service account
+    if (notebookServiceAccount(googleProject).isDefined) {
+      iamDAO.serviceAccountKeys should contain key(samDAO.serviceAccount)
+    } else {
+      iamDAO.serviceAccountKeys should not contain key(samDAO.serviceAccount)
+    }
 
     val initBucket = dbFutureValue { dataAccess =>
       dataAccess.clusterQuery.getInitBucket(googleProject, clusterName)
@@ -244,12 +261,17 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // check that the cluster was created
     gdDAO.clusters should contain key (clusterName)
-    iamDAO.serviceAccountKeys should contain key (samDAO.serviceAccount)
+    // a service account key should only have been created if using a notebook service account
+    if (notebookServiceAccount(googleProject).isDefined) {
+      iamDAO.serviceAccountKeys should contain key(samDAO.serviceAccount)
+    } else {
+      iamDAO.serviceAccountKeys should not contain key(samDAO.serviceAccount)
+    }
 
     // delete the cluster
     leo.deleteCluster(defaultUserInfo, googleProject, clusterName).futureValue
 
-    // check that the cluster no longer exists
+    // check that  the cluster no longer exists
     gdDAO.clusters should not contain key (clusterName)
     iamDAO.serviceAccountKeys should not contain key (samDAO.serviceAccount)
   }
