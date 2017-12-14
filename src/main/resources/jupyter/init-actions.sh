@@ -70,7 +70,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # If we have a service account JSON file, create an .env file to set GOOGLE_APPLICATION_CREDENTIALS
     # in the docker container. Otherwise, we should _not_ set this environment variable so it uses the
     # credentials on the metadata server.
-    if [ -z ${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} ] ; then
+    if [ ! -z ${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} ] ; then
       echo "GOOGLE_APPLICATION_CREDENTIALS=/etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}" > /etc/google_application_credentials.env
     fi
 
@@ -78,7 +78,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     docker-compose -f /etc/cluster-docker-compose.yaml up -d
 
     # Copy the actual service account JSON file into the Jupyter docker container.
-    if [ -z ${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} ] ; then
+    if [ ! -z ${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} ] ; then
       docker cp /etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} ${JUPYTER_SERVER_NAME}:/etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}
     fi
 
