@@ -44,8 +44,11 @@ class StatusRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest wi
         responseAs[StatusCheckResponse].ok shouldEqual false
         responseAs[StatusCheckResponse].systems.keySet shouldEqual Set(GoogleDataproc, Database, Sam)
         responseAs[StatusCheckResponse].systems(GoogleDataproc).ok shouldBe false
+        responseAs[StatusCheckResponse].systems(GoogleDataproc).messages shouldBe 'defined
         responseAs[StatusCheckResponse].systems(Sam).ok shouldBe false
+        responseAs[StatusCheckResponse].systems(Sam).messages shouldBe 'defined
         responseAs[StatusCheckResponse].systems(Database).ok shouldBe true
+        responseAs[StatusCheckResponse].systems(Database).messages shouldBe None
         status shouldEqual StatusCodes.InternalServerError
       }
     }

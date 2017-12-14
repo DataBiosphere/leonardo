@@ -9,19 +9,18 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import scala.concurrent.Future
 
 /**
-  * Created by rtitle on 12/4/17.
+  * Created by rtitle on 12/11/17.
   */
-class MockServiceAccountProvider(config: Config) extends ServiceAccountProvider(config) {
+class MockPetsPerProjectServiceAccountProvider(config: Config) extends ServiceAccountProvider(config) {
   private val mockSamDAO = new MockSamDAO
   private implicit val ec = scala.concurrent.ExecutionContext.global
 
   override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
-    // Pretend we're using the compute engine default SA
-    Future.successful(None)
+    // Pretend we're asking Sam for the pet
+    mockSamDAO.getPetServiceAccountForProject(userInfo, googleProject).map(Option(_))
   }
 
   override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
-    // Pretend we're asking Sam for the pet
-    mockSamDAO.getPetServiceAccount(userInfo).map(Option(_))
+    Future(None)
   }
 }
