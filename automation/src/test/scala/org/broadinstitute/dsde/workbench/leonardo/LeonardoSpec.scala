@@ -33,7 +33,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
   val hermioneAuthToken = AuthToken(LeonardoConfig.Users.hermione)
 
   // kudos to whoever named this Patience
-  val clusterPatience = PatienceConfig(timeout = scaled(Span(10, Minutes)), interval = scaled(Span(20, Seconds)))
+  val clusterPatience = PatienceConfig(timeout = scaled(Span(15, Minutes)), interval = scaled(Span(20, Seconds)))
 
   // simultaneous requests by the same user to create their pet in Sam can cause contention
   // but this is not a realistic production scenario
