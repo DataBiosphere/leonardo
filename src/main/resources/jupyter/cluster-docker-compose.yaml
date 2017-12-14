@@ -28,4 +28,5 @@ jupyter:
   environment:
     GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
     CLUSTER_NAME: "${CLUSTER_NAME}"
-    GOOGLE_APPLICATION_CREDENTIALS: "/etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}"
+  env_file:
+    - /etc/google_application_credentials.env
