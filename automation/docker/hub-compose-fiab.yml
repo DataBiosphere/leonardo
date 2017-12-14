@@ -11,6 +11,7 @@ services:
     environment:
       # Prevent nodes from giving up after 30 seconds of inactivity (yes, this is configured on the hub rather than the nodes)
       SE_OPTS: -timeout 360
+      GRID_TIMEOUT: 0
     logging:
       driver: syslog
       options:
