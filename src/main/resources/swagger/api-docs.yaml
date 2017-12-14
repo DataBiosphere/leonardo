@@ -228,8 +228,8 @@ paths:
     get:
       summary: Access Jupyter notebooks on a Dataproc cluster
       description: |
-      This URI supports all HTTP methods, not just GET as implied by this Swagger.
-      Proxies all requests through to the Jupyter notebook server running on the given cluster.
+        This URI supports all HTTP methods, not just GET as implied by this Swagger.
+        Proxies all requests through to the Jupyter notebook server running on the given cluster.
       operationId: proxyCluster
       tags:
         - notebooks
