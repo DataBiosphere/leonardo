@@ -9,9 +9,8 @@ services:
       - "firecloud-orchestration-fiab.dsde-$ENV.broadinstitute.org:$DOCKERHOST"
       - "leonardo-fiab.dsde-$ENV.broadinstitute.org:$DOCKERHOST"
     environment:
-      # Prevent nodes from giving up after 30 seconds of inactivity (yes, this is configured on the hub rather than the nodes)
-      SE_OPTS: -timeout 360
-      GRID_TIMEOUT: 0
+      # Prevent nodes from giving up after 10 minutes of inactivity (yes, this is configured on the hub rather than the nodes)
+      SE_OPTS: -timeout 600 -browserTimeout 600
     logging:
       driver: syslog
       options:
