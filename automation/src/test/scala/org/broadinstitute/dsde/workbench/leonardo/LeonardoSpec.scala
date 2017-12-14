@@ -225,6 +225,24 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     nbEmail.get should include (expectedEmail.value)
   }
 
+  // TODO: is there a way to check the cluster credentials on the metadata server?
+  def verifyNoNotebookCredentials(notebookPage: NotebookPage): Unit = {
+    // verify oauth2client
+    notebookPage.executeCell("from oauth2client.client import GoogleCredentials") shouldBe None
+    notebookPage.executeCell("credentials = GoogleCredentials.get_application_default()") shouldBe None
+    notebookPage.executeCell("print credentials.service_account_email") shouldBe Some("None")
+
+    // verify FISS
+    notebookPage.executeCell("import firecloud.api as fapi") shouldBe None
+    notebookPage.executeCell("fiss_credentials = fapi.GoogleCredentials.get_application_default()") shouldBe None
+    notebookPage.executeCell("print fiss_credentials.service_account_email") shouldBe Some("None")
+
+    // verify Spark
+    notebookPage.executeCell("hadoop_config = sc._jsc.hadoopConfiguration()") shouldBe None
+    notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.enable')") shouldBe Some("None")
+    notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.json.keyfile')") shouldBe Some("None")
+  }
+
   def getAndVerifyPet(project: GoogleProject)(implicit token: AuthToken): (ServiceAccountName, WorkbenchEmail) = {
     val samPetEmail = Sam.user.petServiceAccountEmail(project)
     val userStatus = Sam.user.status().get
@@ -315,7 +333,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       }
     }
 
-    "bar should put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
+    "should put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
       implicit val token = ronAuthToken
 
       /*
@@ -332,7 +350,8 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
         cluster.serviceAccountInfo.notebookServiceAccount shouldBe None
 
         withNewNotebook(cluster) { notebookPage =>
-          verifyNotebookCredentials(notebookPage, petEmail)
+          // should not have notebook credentials because Leo is not configured to use a notebook service account
+          verifyNoNotebookCredentials(notebookPage)
         }
       }
 
@@ -344,7 +363,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     }
 
 
-    "foo should create a cluster in a different billing project" in withWebDriver { implicit driver =>
+    "should create a cluster in a different billing project" in withWebDriver { implicit driver =>
       // need to be project owner for this test
       implicit val token = hermioneAuthToken
 
@@ -358,11 +377,11 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
           // service account doesn't have IAM permissions in other billing projects.
           cluster.serviceAccountInfo.clusterServiceAccount shouldBe 'defined
           cluster.serviceAccountInfo.notebookServiceAccount shouldBe None
-          val Some(petEmail) = cluster.serviceAccountInfo.clusterServiceAccount
 
           // Verify pet credentials from a notebook
           withNewNotebook(cluster) { notebookPage =>
-            verifyNotebookCredentials(notebookPage, petEmail)
+            // should not have notebook credentials because Leo is not configured to use a notebook service account
+            verifyNoNotebookCredentials(notebookPage)
           }
         }
       }
