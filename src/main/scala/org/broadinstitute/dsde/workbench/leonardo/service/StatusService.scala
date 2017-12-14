@@ -3,6 +3,8 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 import akka.actor.ActorSystem
 import akka.pattern.ask
 import akka.util.Timeout
+
+import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.{DataprocDAO, SamDAO}
@@ -65,7 +67,17 @@ class StatusService(gdDAO: DataprocDAO,
 
   private def checkSam: Future[SubsystemStatus] = {
     logger.debug("Checking Sam status")
-    samDAO.getStatus()
+    samDAO.getStatus().map { statusCheckResponse =>
+      // SamDAO returns a StatusCheckResponse. Convert to a SubsystemStatus for use by the health checker.
+      val messages = statusCheckResponse.systems.toList match {
+        case Nil => None
+        case systems =>
+          systems.flatTraverse[Option, String] { case (subsystem, subSystemStatus) =>
+            subSystemStatus.messages.map(msgs => msgs.map(m => s"${subsystem.value} -> $m"))
+          }
+      }
+      SubsystemStatus(statusCheckResponse.ok, messages)
+    }
   }
 
 }
