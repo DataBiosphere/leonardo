@@ -72,6 +72,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # credentials on the metadata server.
     if [ ! -z ${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} ] ; then
       echo "GOOGLE_APPLICATION_CREDENTIALS=/etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}" > /etc/google_application_credentials.env
+    else
+      echo "" > /etc/google_application_credentials.env
     fi
 
     # Run docker-compose
