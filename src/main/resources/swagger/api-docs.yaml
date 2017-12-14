@@ -120,8 +120,8 @@ paths:
 
   '/api/cluster/{googleProject}/{clusterName}':
     get:
-      summary: Get details of a dataproc cluster
-      description: Returns information about an existing dataproc cluster managed by Leo. Poll this to find out when your cluster has finished starting up.
+      summary: Get details of a Dataproc cluster
+      description: Returns information about an existing Dataproc cluster managed by Leo. Poll this to find out when your cluster has finished starting up.
       operationId: getCluster
       tags:
         - cluster
@@ -155,7 +155,7 @@ paths:
             - email
             - profile
     put:
-      summary: Creates a new dataproc cluster in the given project with the given name
+      summary: Creates a new Dataproc cluster in the given project with the given name
       description: Default labels clusterName, googleProject, googleBucket, serviceAccount, and notebookExtension cannot be overridden.
       operationId: createCluster
       tags:
@@ -196,8 +196,8 @@ paths:
             - email
             - profile
     delete:
-      summary: Deletes an existing dataproc cluster in the given project
-      description: deletes a dataproc cluster
+      summary: Deletes an existing Dataproc cluster in the given project
+      description: deletes a Dataproc cluster
       operationId: deleteCluster
       tags:
         - cluster
@@ -226,8 +226,10 @@ paths:
 
   '/notebooks/{googleProject}/{clusterName}':
     get:
-      summary: Access Jupyter notebooks on a dataproc cluster
-      description: Serves as a proxy for the Jupyer notebook server running the given dataproc cluster managed by Leo.
+      summary: Access Jupyter notebooks on a Dataproc cluster
+      description: |
+      This URI supports all HTTP methods, not just GET as implied by this Swagger.
+      Proxies all requests through to the Jupyter notebook server running on the given cluster.
       operationId: proxyCluster
       tags:
         - notebooks
@@ -405,7 +407,7 @@ definitions:
         $ref: '#/definitions/MachineConfig'
 
   MachineConfig:
-    description: ''
+    description: 'The configuration for a single Dataproc cluster'
     properties:
       numberOfWorkers:
         type: integer
@@ -416,12 +418,11 @@ definitions:
         description: |
           Optional, the machine type determines the number of CPUs and memory for the master node. For example "n1-standard-16"
           or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
-          see https://cloud.google.com/compute/docs/machine-types. Ignored if numberOfWorkers is 0.
+          see https://cloud.google.com/compute/docs/machine-types
       masterDiskSize:
         type: integer
         description: |
           Optional, the size of the disk on the master node. Minimum size is 100GB. If unspecified, default size is 500GB.
-          Ignored if numberOfWorkers is 0.
       workerMachineType:
         type: string
         description: |
