@@ -79,6 +79,7 @@ case class ClusterRequest(bucketPath: GcsBucketName,
 case class DefaultLabels(clusterName: ClusterName,
                          googleProject: GoogleProject,
                          googleBucket: GcsBucketName,
+                         creator: WorkbenchEmail,
                          clusterServiceAccount: Option[WorkbenchEmail],
                          notebookServiceAccount: Option[WorkbenchEmail],
                          notebookExtension: Option[String]) {
