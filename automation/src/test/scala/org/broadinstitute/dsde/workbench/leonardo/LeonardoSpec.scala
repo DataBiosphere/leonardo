@@ -4,22 +4,23 @@ import java.io.File
 import java.nio.file.Files
 import java.time.Instant
 
-import org.broadinstitute.dsde.firecloud.api.Sam
+import org.broadinstitute.dsde.firecloud.api.{Orchestration, Rawls, Sam}
 import org.broadinstitute.dsde.workbench.api.APIException
 import org.broadinstitute.dsde.workbench.{ResourceFile, WebBrowserSpec}
-import org.broadinstitute.dsde.workbench.config.AuthToken
+import org.broadinstitute.dsde.workbench.config.{AuthToken, WorkbenchConfig}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.util.LocalFileUtil
 import org.broadinstitute.dsde.workbench.dao.Google.googleIamDAO
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountName}
 import org.openqa.selenium.WebDriver
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.selenium.WebBrowser
 import org.scalatest.time.{Minutes, Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers, ParallelTestExecution}
 
+import scala.util.control.NonFatal
 import scala.util.{Random, Try}
 
 class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelTestExecution with BeforeAndAfterAll
@@ -32,7 +33,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
   val hermioneAuthToken = AuthToken(LeonardoConfig.Users.hermione)
 
   // kudos to whoever named this Patience
-  val clusterPatience = PatienceConfig(timeout = scaled(Span(10, Minutes)), interval = scaled(Span(20, Seconds)))
+  val clusterPatience = PatienceConfig(timeout = scaled(Span(15, Minutes)), interval = scaled(Span(20, Seconds)))
 
   // simultaneous requests by the same user to create their pet in Sam can cause contention
   // but this is not a realistic production scenario
@@ -40,8 +41,8 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
   override def beforeAll(): Unit = {
     // ensure pet is initialized in test env
-    Sam.user.petServiceAccountEmail()(ronAuthToken)
-    Sam.user.petServiceAccountEmail()(hermioneAuthToken)
+    Sam.user.petServiceAccountEmail(project)(ronAuthToken)
+    Sam.user.petServiceAccountEmail(project)(hermioneAuthToken)
   }
 
   val project = GoogleProject(LeonardoConfig.Projects.default)
@@ -64,23 +65,24 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     // we don't actually know the SA because it's the pet
     // set a dummy here and then remove it from the comparison
 
-    val dummyOverridePetSa = WorkbenchEmail("dummy")
-    val expected = requestedLabels ++ DefaultLabels(clusterName, googleProject, gcsBucketName, None, Some(dummyOverridePetSa), notebookExtension).toMap
+    val dummyPetSa = WorkbenchEmail("dummy")
+    val expected = requestedLabels ++ DefaultLabels(clusterName, googleProject, gcsBucketName, Some(dummyPetSa), None, notebookExtension).toMap
 
-    (seen - "notebookServiceAccount") shouldBe (expected - "notebookServiceAccount")
+    (seen - "clusterServiceAccount") shouldBe (expected - "clusterServiceAccount")
   }
 
   def clusterCheck(cluster: Cluster,
                    requestedLabels: Map[String, String],
+                   expectedProject: GoogleProject,
                    expectedName: ClusterName,
                    expectedStatuses: Iterable[ClusterStatus],
                   notebookExtension: Option[String] = None): Cluster = {
 
     expectedStatuses should contain (cluster.status)
-    cluster.googleProject shouldBe project
+    cluster.googleProject shouldBe expectedProject
     cluster.clusterName shouldBe expectedName
     cluster.googleBucket shouldBe bucket
-    labelCheck(cluster.labels, requestedLabels, expectedName, project, bucket, notebookExtension)
+    labelCheck(cluster.labels, requestedLabels, expectedName, expectedProject, bucket, notebookExtension)
 
     cluster
   }
@@ -91,14 +93,14 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     Thread sleep Random.nextInt(30000)
 
     val cluster = Leonardo.cluster.create(googleProject, clusterName, clusterRequest)
-    clusterCheck(cluster, clusterRequest.labels, clusterName, Seq(ClusterStatus.Creating), clusterRequest.jupyterExtensionUri)
+    clusterCheck(cluster, clusterRequest.labels, googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest.jupyterExtensionUri)
 
     // verify with get()
-    clusterCheck(Leonardo.cluster.get(googleProject, clusterName), clusterRequest.labels, clusterName, Seq(ClusterStatus.Creating), clusterRequest.jupyterExtensionUri)
+    clusterCheck(Leonardo.cluster.get(googleProject, clusterName), clusterRequest.labels, googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest.jupyterExtensionUri)
 
     // wait for "Running" or error (fail fast)
     val actualCluster = eventually {
-      clusterCheck(Leonardo.cluster.get(googleProject, clusterName), clusterRequest.labels, clusterName, Seq(ClusterStatus.Running, ClusterStatus.Error), clusterRequest.jupyterExtensionUri)
+      clusterCheck(Leonardo.cluster.get(googleProject, clusterName), clusterRequest.labels, googleProject, clusterName, Seq(ClusterStatus.Running, ClusterStatus.Error), clusterRequest.jupyterExtensionUri)
     } (clusterPatience)
 
     actualCluster
@@ -187,6 +189,69 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     }
   }
 
+  def withNewBillingProject[T](testCode: GoogleProject => T)(implicit token: AuthToken): T = {
+    val billingProject = GoogleProject("leonardo-billing-spec" + makeRandomId())
+    // Create billing project and run test code
+    val testResult: Try[T] = Try {
+      logger.info(s"Creating billing project: $billingProject")
+      Orchestration.billing.createBillingProject(billingProject.value, WorkbenchConfig.Projects.billingAccountId)
+      testCode(billingProject)
+    }
+    // Clean up billing project
+    Try(Rawls.admin.deleteBillingProject(billingProject.value)(AuthToken(LeonardoConfig.Users.dumbledore))).recover { case NonFatal(e) =>
+      logger.warn(s"Could not delete billing project $billingProject", e)
+    }
+    // Return the test result, or throw error
+    testResult.get
+  }
+
+  def verifyNotebookCredentials(notebookPage: NotebookPage, expectedEmail: WorkbenchEmail): Unit = {
+    // verify oauth2client
+    notebookPage.executeCell("from oauth2client.client import GoogleCredentials") shouldBe None
+    notebookPage.executeCell("credentials = GoogleCredentials.get_application_default()") shouldBe None
+    notebookPage.executeCell("print credentials._service_account_email") shouldBe Some(expectedEmail.value)
+
+    // verify FISS
+    notebookPage.executeCell("import firecloud.api as fapi") shouldBe None
+    notebookPage.executeCell("fiss_credentials = fapi.GoogleCredentials.get_application_default()") shouldBe None
+    notebookPage.executeCell("print fiss_credentials._service_account_email") shouldBe Some(expectedEmail.value)
+
+    // verify Spark
+    notebookPage.executeCell("hadoop_config = sc._jsc.hadoopConfiguration()") shouldBe None
+    notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.enable')") shouldBe Some("true")
+    notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.json.keyfile')") shouldBe Some("/etc/service-account-credentials.json")
+    val nbEmail = notebookPage.executeCell("! grep client_email /etc/service-account-credentials.json")
+    nbEmail shouldBe 'defined
+    nbEmail.get should include (expectedEmail.value)
+  }
+
+  // TODO: is there a way to check the cluster credentials on the metadata server?
+  def verifyNoNotebookCredentials(notebookPage: NotebookPage): Unit = {
+    // verify oauth2client
+    notebookPage.executeCell("from oauth2client.client import GoogleCredentials") shouldBe None
+    notebookPage.executeCell("credentials = GoogleCredentials.get_application_default()") shouldBe None
+    notebookPage.executeCell("print credentials.service_account_email") shouldBe Some("None")
+
+    // verify FISS
+    notebookPage.executeCell("import firecloud.api as fapi") shouldBe None
+    notebookPage.executeCell("fiss_credentials = fapi.GoogleCredentials.get_application_default()") shouldBe None
+    notebookPage.executeCell("print fiss_credentials.service_account_email") shouldBe Some("None")
+
+    // verify Spark
+    notebookPage.executeCell("hadoop_config = sc._jsc.hadoopConfiguration()") shouldBe None
+    notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.enable')") shouldBe Some("None")
+    notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.json.keyfile')") shouldBe Some("None")
+  }
+
+  def getAndVerifyPet(project: GoogleProject)(implicit token: AuthToken): (ServiceAccountName, WorkbenchEmail) = {
+    val samPetEmail = Sam.user.petServiceAccountEmail(project)
+    val userStatus = Sam.user.status().get
+    val petName = Sam.petName(userStatus.userInfo)
+    val googlePetEmail = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
+    googlePetEmail shouldBe Some(samPetEmail)
+    (petName, samPetEmail)
+  }
+
   // ------------------------------------------------------
 
   "Leonardo" - {
@@ -272,84 +337,54 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       implicit val token = ronAuthToken
 
       /*
-       * Pre-conditions (before cluster creation)
+       * Pre-conditions: pet service account exists in this Google project and in Sam
        */
-      // pet should exist in Google
-      val samPetEmail = Sam.user.petServiceAccountEmail()
-      val userStatus = Sam.user.status().get
-      val petName = Sam.petName(userStatus.userInfo)
-      val googlePetEmail = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
-      googlePetEmail shouldBe Some(samPetEmail)
+      val (petName, petEmail) = getAndVerifyPet(project)
 
       /*
        * Create a cluster
        */
       withNewCluster(project) { cluster =>
-        // cluster should have the pet's credentials
+        // cluster should have been created with the pet service account
+        cluster.serviceAccountInfo.clusterServiceAccount shouldBe Some(petEmail)
+        cluster.serviceAccountInfo.notebookServiceAccount shouldBe None
+
         withNewNotebook(cluster) { notebookPage =>
-          // verify oauth2client
-          notebookPage.executeCell("from oauth2client.client import GoogleCredentials") shouldBe None
-          notebookPage.executeCell("credentials = GoogleCredentials.get_application_default()") shouldBe None
-          notebookPage.executeCell("print credentials._service_account_email") shouldBe Some(samPetEmail.value)
-
-          // verify FISS
-          notebookPage.executeCell("import firecloud.api as fapi") shouldBe None
-          notebookPage.executeCell("fiss_credentials = fapi.GoogleCredentials.get_application_default()") shouldBe None
-          notebookPage.executeCell("print fiss_credentials._service_account_email") shouldBe Some(samPetEmail.value)
-
-          // verify Spark
-          notebookPage.executeCell("hadoop_config = sc._jsc.hadoopConfiguration()") shouldBe None
-          notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.enable')") shouldBe Some("true")
-          notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.json.keyfile')") shouldBe Some("/etc/service-account-credentials.json")
-          val nbEmail = notebookPage.executeCell("! grep client_email /etc/service-account-credentials.json")
-          nbEmail shouldBe 'defined
-          nbEmail.get should include (samPetEmail.value)
+          // should not have notebook credentials because Leo is not configured to use a notebook service account
+          verifyNoNotebookCredentials(notebookPage)
         }
       }
 
       /*
-       * Post-conditions (after cluster deletion)
+       * Post-conditions: pet should still exist in this Google project
        */
-      // pet should still exist in Google
       val googlePetEmail2 = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
-      googlePetEmail2 shouldBe Some(samPetEmail)
+      googlePetEmail2 shouldBe Some(petEmail)
     }
 
-    // TODO retrieving service account keys from Google is SUPER inconsistent and flakey
-    "should clean up pet keys on cluster error" ignore withWebDriver { implicit driver =>
-      // Use Hermione for this test to keep her keys separate from Ron's
+
+    "should create a cluster in a different billing project" in withWebDriver { implicit driver =>
+      // need to be project owner for this test
       implicit val token = hermioneAuthToken
 
       /*
-      * Pre-conditions (before cluster creation)
-      */
-      // pet should exist in Google
-      val samPetEmail = Sam.user.petServiceAccountEmail()
-      val userStatus = Sam.user.status().get
-      val petName = Sam.petName(userStatus.userInfo)
-      val googlePetEmail = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
-      googlePetEmail shouldBe Some(samPetEmail)
-
-      // get the pet's initial keys
-      val initialKeys = googleIamDAO.listServiceAccountKeys(project, samPetEmail).futureValue
-
-      /*
-       * Create a failed cluster.
+       * Create a cluster in a different billing project
        */
-      withNewErroredCluster(project) { _ =>
-        // no-op
+      withNewBillingProject { billingProject =>
+        withNewCluster(billingProject) { cluster =>
+          // cluster should have been created with the pet service account
+          // Can't actually verify this against a Google IAM call since the QA
+          // service account doesn't have IAM permissions in other billing projects.
+          cluster.serviceAccountInfo.clusterServiceAccount shouldBe 'defined
+          cluster.serviceAccountInfo.notebookServiceAccount shouldBe None
+
+          // Verify pet credentials from a notebook
+          withNewNotebook(cluster) { notebookPage =>
+            // should not have notebook credentials because Leo is not configured to use a notebook service account
+            verifyNoNotebookCredentials(notebookPage)
+          }
+        }
       }
-
-      /*
-       * Post-conditions (after cluster deletion)
-       */
-      // pet should still exist in Google
-      val googlePetEmail2 = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
-      googlePetEmail2 shouldBe Some(samPetEmail)
-
-      // the new key should have been deleted
-      val finalKeys = googleIamDAO.listServiceAccountKeys(project, samPetEmail).futureValue
-      finalKeys shouldBe initialKeys
     }
   }
 }

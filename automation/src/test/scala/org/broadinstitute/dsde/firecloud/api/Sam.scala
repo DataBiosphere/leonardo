@@ -7,7 +7,7 @@ import org.broadinstitute.dsde.firecloud.config.FireCloudConfig
 import org.broadinstitute.dsde.workbench.api.WorkbenchClient
 import org.broadinstitute.dsde.workbench.config.AuthToken
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.ServiceAccountName
+import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountName}
 
 /**
   * Sam API service client. This should only be used when Orchestration does
@@ -45,9 +45,9 @@ object Sam extends WorkbenchClient with LazyLogging {
       parseResponseOption[UserStatus](getRequest(url + "register/user"))
     }
 
-    def petServiceAccountEmail()(implicit token: AuthToken): WorkbenchEmail = {
+    def petServiceAccountEmail(googleProject: GoogleProject)(implicit token: AuthToken): WorkbenchEmail = {
       logger.info(s"Getting pet service account email")
-      val petEmailStr = parseResponseAs[String](getRequest(url + "api/user/petServiceAccount"))
+      val petEmailStr = parseResponseAs[String](getRequest(s"$url/api/google/user/petServiceAccount/${googleProject.value}"))
       WorkbenchEmail(petEmailStr)
     }
   }
