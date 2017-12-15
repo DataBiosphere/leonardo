@@ -7,15 +7,21 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 
 import scala.concurrent.Future
 
+object Actions {
+  sealed trait Action extends Product with Serializable
+}
+
 object ProjectActions {
-  sealed trait ProjectAction extends Product with Serializable
+  sealed trait ProjectAction extends Actions.Action
   case object ListClusters extends ProjectAction
   case object CreateClusters extends ProjectAction
+  case object SyncDataToClusters extends ProjectAction
+  case object DeleteClusters extends ProjectAction
   val allActions = Seq(ListClusters, CreateClusters)
 }
 
 object NotebookClusterActions {
-  sealed trait NotebookClusterAction extends Product with Serializable
+  sealed trait NotebookClusterAction extends Actions.Action
   case object GetClusterStatus extends NotebookClusterAction
   case object ConnectToCluster extends NotebookClusterAction
   case object SyncDataToCluster extends NotebookClusterAction

@@ -5,6 +5,7 @@ import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
 import com.typesafe.config.{Config, ConfigFactory}
 import com.typesafe.scalalogging.LazyLogging
+import io.swagger.client.ApiClient
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.HttpGoogleIamDAO
 import org.broadinstitute.dsde.workbench.leonardo.api.{LeoRoutes, StandardUserInfoDirectives}
@@ -16,6 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterStatus, LeoAuthP
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
+import io.swagger.client.api.ResourcesApi
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
