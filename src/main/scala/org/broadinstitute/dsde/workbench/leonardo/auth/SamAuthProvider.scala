@@ -46,10 +46,10 @@ class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) {
 
   protected def getNotebookClusterActionString(action: NotebookClusterAction): String = {
     action match {
-      case GetClusterStatus => "launch_notebook_cluster"
-      case ConnectToCluster => "list_notebook_cluster"
-      case SyncDataToCluster => "sync_notebook_cluster"
-      case DeleteCluster => "delete_notebook_cluster"
+      case GetClusterStatus => "status"
+      case ConnectToCluster => "connect"
+      case SyncDataToCluster => "sync"
+      case DeleteCluster => "delete"
       case _ => "return error here???"
     }
   }
