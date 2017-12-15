@@ -93,7 +93,8 @@ case class DefaultLabels(clusterName: ClusterName,
     Map(
       "clusterName" -> clusterName.string,
       "googleProject" -> googleProject.value,
-      "googleBucket" -> googleBucket.name
+      "googleBucket" -> googleBucket.name,
+      "creator" -> creator.value
     ) ++ ext ++ clusterSa ++ notebookSa
   }
 }
