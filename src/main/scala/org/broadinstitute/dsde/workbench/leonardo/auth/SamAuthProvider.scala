@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.Actions._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) {
 
@@ -60,7 +60,7 @@ class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) {
     * @param googleProject The Google project to check in
     * @return If the given user has permissions in this project to perform the specified action.
     */
-  def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: String): Future[Boolean] = {
+  def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: String)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     Future{ resourcesApi.resourceAction(billingProjectResourceTypeName, googleProject, getProjectActionString(action)) }
   }
 
@@ -74,7 +74,7 @@ class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) {
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return If the userEmail has permission on this individual notebook cluster to perform this action
     */
-  def hasNotebookClusterPermission(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: String, clusterName: String): Future[Boolean] = {
+  def hasNotebookClusterPermission(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     // get the id for the cluster resource
     val clusterResourceId = getClusterResourceId(googleProject, clusterName)
 
@@ -102,7 +102,7 @@ class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) {
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterCreated(userEmail: String, googleProject: String, clusterName: String): Future[Unit] = {
+  def notifyClusterCreated(userEmail: String, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
     val clusterResourceId = getClusterResourceId(googleProject, clusterName)
     // Add the cluster resource with the user as owner
     Future { resourcesApi.createResource(notebookClusterResourceTypeName, clusterResourceId) }
@@ -118,7 +118,7 @@ class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) {
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterDeleted(userEmail: String, googleProject: String, clusterName: String): Future[Unit] = {
+  def notifyClusterDeleted(userEmail: String, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
     // get the id for the cluster resource
     val clusterResourceId = getClusterResourceId(googleProject, clusterName)
     // delete the resource
