@@ -5,7 +5,7 @@ import java.util.UUID
 import com.typesafe.config.Config
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 object Actions {
   sealed trait Action extends Product with Serializable
@@ -37,7 +37,7 @@ abstract class LeoAuthProvider(authConfig: Config) {
     * @param googleProject The Google project to check in
     * @return If the given user has permissions in this project to perform the specified action.
     */
-  def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: String): Future[Boolean]
+  def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: String)(implicit executionContext: ExecutionContext): Future[Boolean]
 
   /**
     * Leo calls this method to verify if the user has permission to perform the given action on a specific notebook cluster.
@@ -49,7 +49,7 @@ abstract class LeoAuthProvider(authConfig: Config) {
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return If the userEmail has permission on this individual notebook cluster to perform this action
     */
-  def hasNotebookClusterPermission(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: String, clusterName: String): Future[Boolean]
+  def hasNotebookClusterPermission(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Boolean]
 
   //Notifications that Leo has created/destroyed clusters. Allows the auth provider to register things.
 
@@ -64,7 +64,7 @@ abstract class LeoAuthProvider(authConfig: Config) {
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterCreated(userEmail: String, googleProject: String, clusterName: String): Future[Unit]
+  def notifyClusterCreated(userEmail: String, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit]
 
   /**
     * Leo calls this method to notify the auth provider that a notebook cluster has been deleted.
@@ -76,5 +76,5 @@ abstract class LeoAuthProvider(authConfig: Config) {
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterDeleted(userEmail: String, googleProject: String, clusterName: String): Future[Unit]
+  def notifyClusterDeleted(userEmail: String, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit]
 }
