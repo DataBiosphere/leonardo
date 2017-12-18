@@ -128,6 +128,12 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
+    def listByClusterServiceAccount(clusterServiceAccount: WorkbenchEmail) = {
+      clusterQueryWithLabels.filter { _._1.clusterServiceAccount === Option(clusterServiceAccount.value) }.result map { recs =>
+        unmarshalClustersWithLabels(recs)
+      }
+    }
+
     def findByName(project: GoogleProject, name: ClusterName) = {
       clusterQueryWithLabels.filter { _._1.googleProject === project.value }.filter { _._1.clusterName === name.string }
     }

@@ -19,7 +19,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       clusterName = name1,
       googleId = UUID.randomUUID(),
       googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
+      serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
       googleBucket = GcsBucketName("bucket1"),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, name1),
@@ -36,7 +36,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       clusterName = name2,
       googleId = UUID.randomUUID(),
       googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
+      serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
       googleBucket = GcsBucketName("bucket2"),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, name2),
@@ -80,6 +80,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFutureValue { _.clusterQuery.getServiceAccountKeyId(c1.googleProject, c1.clusterName) } shouldEqual None
     dbFutureValue { _.clusterQuery.getServiceAccountKeyId(c2.googleProject, c2.clusterName) } shouldEqual Some(serviceAccountKey.id)
     dbFutureValue { _.clusterQuery.getServiceAccountKeyId(c3.googleProject, c3.clusterName) } shouldEqual Some(serviceAccountKey.id)
+    dbFutureValue { _.clusterQuery.listByClusterServiceAccount(serviceAccountEmail) }.toSet shouldEqual Set(c1, c2)
 
     // (project, name) unique key test
 
