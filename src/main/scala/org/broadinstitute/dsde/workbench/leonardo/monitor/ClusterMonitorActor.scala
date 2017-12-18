@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterDeleted
 import org.broadinstitute.dsde.workbench.util.addJitter
+
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Failure
@@ -123,10 +124,6 @@ class ClusterMonitorActor(val cluster: Cluster,
     for {
       // Delete the init bucket
       _ <- deleteInitBucket
-      // Remove the Dataproc Worker IAM role for the cluster service account.
-      // Only happens if the cluster was created with a service account other
-      // than the compute engine default service account.
-      _ <- removeIamRolesForUser
       // Remove credentials from instance metadata.
       // Only happens if an notebook service account was used.
       _ <- removeCredentialsFromMetadata
@@ -139,6 +136,10 @@ class ClusterMonitorActor(val cluster: Cluster,
       _ <- dbRef.inTransaction { dataAccess =>
         dataAccess.clusterQuery.setToRunning(cluster.googleId, publicIp)
       }
+      // Remove the Dataproc Worker IAM role for the cluster service account.
+      // Only happens if the cluster was created with a service account other
+      // than the compute engine default service account.
+      _ <- removeIamRolesForUser
     } yield {
       // Finally pipe a shutdown message to this actor
       logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is ready for use!")
@@ -157,9 +158,6 @@ class ClusterMonitorActor(val cluster: Cluster,
     val deleteFuture = Future.sequence(Seq(
       // Delete the cluster in Google
       gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName),
-      // Remove the Dataproc Worker IAM role for the pet service account
-      // Only do this if the cluster was created with the pet service account.
-      removeIamRolesForUser,
       // Remove the service account key in Google, if present.
       // Only happens if the cluster was NOT created with the pet service account.
       removeServiceAccountKey
@@ -179,11 +177,12 @@ class ClusterMonitorActor(val cluster: Cluster,
       } else {
         // Update the database record to Error and shutdown this actor.
         logger.warn(s"Cluster ${cluster.projectNameString} is in an error state with $errorDetails'. Unable to recreate cluster.")
-        dbRef.inTransaction { dataAccess =>
-          dataAccess.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Error)
-        } map { _ =>
-          ShutdownActor()
-        }
+        for {
+          _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Error) }
+          // Remove the Dataproc Worker IAM role for the pet service account
+          // Only happens if the cluster was created with the pet service account.
+          _ <-  removeIamRolesForUser
+        } yield ShutdownActor()
       }
     }
   }
@@ -236,12 +235,23 @@ class ClusterMonitorActor(val cluster: Cluster,
     }
   }
 
-  private def removeIamRolesForUser(): Future[Unit] = {
+  private def removeIamRolesForUser: Future[Unit] = {
     // Remove the Dataproc Worker IAM role for the cluster service account
     cluster.serviceAccountInfo.clusterServiceAccount match {
       case None => Future.successful(())
       case Some(serviceAccountEmail) =>
-        googleIamDAO.removeIamRolesForUser(cluster.googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
+        // Only remove the Dataproc Worker role if there are no other clusters with the same owner
+        // in the DB with CREATING status. This prevents situations where we prematurely yank pet SA
+        // roles when the same user is creating multiple clusters.
+        dbRef.inTransaction { dataAccess =>
+          dataAccess.clusterQuery.countByClusterServiceAccountAndStatus(serviceAccountEmail, ClusterStatus.Creating)
+        } flatMap { count =>
+          if (count > 0) {
+            Future.successful(())
+          } else {
+            googleIamDAO.removeIamRolesForUser(cluster.googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
+          }
+        }
     }
   }
 
