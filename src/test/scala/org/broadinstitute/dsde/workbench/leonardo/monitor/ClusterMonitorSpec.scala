@@ -402,9 +402,9 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     newCluster.flatMap(_.hostIp) shouldBe Some(IP("1.2.3.4"))
 
     verify(gdDAO).deleteBucket(mockitoEq(dataprocConfig.leoGoogleProject), vcEq(newClusterBucket.get.bucketName))(any[ExecutionContext])
-    // should add/remove the dataproc.worker role 2 times
+    // should only add/remove the dataproc.worker role 1 time
     verify(iamDAO, if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()).addIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
-    verify(iamDAO, if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(2) else never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
+    verify(iamDAO, if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
     verify(iamDAO, if (notebookServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
   }
 
@@ -434,6 +434,76 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     verify(gdDAO, never).deleteBucket(any[GoogleProject], GcsBucketName(anyString))(any[ExecutionContext])
     verify(iamDAO, never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
+    verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
+  }
+
+  it should "create two clusters for the same user" in isolatedDbTest {
+    dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual creatingCluster
+    val creatingCluster2 = creatingCluster.copy(
+      clusterName = creatingCluster.clusterName + "_2",
+      googleId = UUID.randomUUID(),
+      hostIp = Option(IP("5.6.7.8"))
+    )
+    dbFutureValue { _.clusterQuery.save(creatingCluster2, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual creatingCluster2
+
+    val gdDAO = mock[DataprocDAO]
+    when {
+      gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
+    } thenReturn Future.successful(ClusterStatus.Running)
+    when {
+      gdDAO.getClusterStatus(mockitoEq(creatingCluster2.googleProject), vcEq(creatingCluster2.clusterName))(any[ExecutionContext])
+    } thenReturn Future.successful(ClusterStatus.Running)
+
+    when {
+      gdDAO.getClusterMasterInstanceIp(mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
+    } thenReturn Future.successful(Some(IP("1.2.3.4")))
+    when {
+      gdDAO.getClusterMasterInstanceIp(mockitoEq(creatingCluster2.googleProject), vcEq(creatingCluster2.clusterName))(any[ExecutionContext])
+    } thenReturn Future.successful(Some(IP("5.6.7.8")))
+
+    when {
+      gdDAO.deleteBucket(mockitoEq(dataprocConfig.leoGoogleProject), vcAny(GcsBucketName))(any[ExecutionContext])
+    } thenReturn Future.successful(())
+
+    when {
+      gdDAO.setStagingBucketOwnership(mockitoEq(creatingCluster))
+    } thenReturn Future.successful(())
+    when {
+      gdDAO.setStagingBucketOwnership(mockitoEq(creatingCluster2))
+    } thenReturn Future.successful(())
+
+    val iamDAO = mock[GoogleIamDAO]
+    when {
+      iamDAO.removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
+    } thenReturn Future.successful(())
+
+    // Create the first cluster
+    val supervisor = createClusterSupervisor(gdDAO, iamDAO)
+    supervisor ! ClusterCreated(creatingCluster)
+    expectMsgClass(1 second, classOf[Terminated])
+
+    val updatedCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName) }
+    updatedCluster shouldBe 'defined
+    updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
+    updatedCluster.flatMap(_.hostIp) shouldBe Some(IP("1.2.3.4"))
+
+    verify(gdDAO, times(1)).deleteBucket(mockitoEq(dataprocConfig.leoGoogleProject), vcAny(GcsBucketName))(any[ExecutionContext])
+    // removeIamRolesForUser should not have been called because there is still a creating cluster in the DB
+    verify(iamDAO, never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
+    verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
+
+    // Create the second cluster
+    supervisor ! ClusterCreated(creatingCluster2)
+    expectMsgClass(1 second, classOf[Terminated])
+
+    val updatedCluster2 = dbFutureValue { _.clusterQuery.getActiveClusterByName(creatingCluster2.googleProject, creatingCluster2.clusterName) }
+    updatedCluster2 shouldBe 'defined
+    updatedCluster2.map(_.status) shouldBe Some(ClusterStatus.Running)
+    updatedCluster2.flatMap(_.hostIp) shouldBe Some(IP("5.6.7.8"))
+
+    verify(gdDAO, times(2)).deleteBucket(mockitoEq(dataprocConfig.leoGoogleProject), vcAny(GcsBucketName))(any[ExecutionContext])
+    // removeIamRolesForUser should have been called once now
+    verify(iamDAO, if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
     verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
   }
 }
