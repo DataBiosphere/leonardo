@@ -128,10 +128,12 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    def listByClusterServiceAccount(clusterServiceAccount: WorkbenchEmail) = {
-      clusterQueryWithLabels.filter { _._1.clusterServiceAccount === Option(clusterServiceAccount.value) }.result map { recs =>
-        unmarshalClustersWithLabels(recs)
-      }
+    def countByClusterServiceAccountAndStatus(clusterServiceAccount: WorkbenchEmail, status: ClusterStatus) = {
+      clusterQueryWithLabels
+        .filter { _._1.clusterServiceAccount === Option(clusterServiceAccount.value) }
+        .filter { _._1.status === status.toString }
+        .length
+        .result
     }
 
     def findByName(project: GoogleProject, name: ClusterName) = {
@@ -334,14 +336,6 @@ trait ClusterComponent extends LeoComponent {
       else
         None
     }
-    private def updateClusterName(googleId: UUID, newName: String): DBIO[Int] = {
-      clusterQuery.filter { _.googleId === googleId }.map(_.clusterName).update(newName)
-    }
-
-    private def appendRandomSuffix(str: String, n: Int = 6): String = {
-      s"${str}_${Random.alphanumeric.take(n).mkString}"
-    }
-
   }
 
   // select * from cluster c left join label l on c.id = l.clusterId

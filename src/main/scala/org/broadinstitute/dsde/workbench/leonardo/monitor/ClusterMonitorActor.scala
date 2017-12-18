@@ -244,9 +244,9 @@ class ClusterMonitorActor(val cluster: Cluster,
         // in the DB with CREATING status. This prevents situations where we prematurely yank pet SA
         // roles when the same user is creating multiple clusters.
         dbRef.inTransaction { dataAccess =>
-          dataAccess.clusterQuery.listByClusterServiceAccount(serviceAccountEmail)
-        } flatMap { clusters =>
-          if (clusters.map(_.status).toSet.contains(ClusterStatus.Creating)) {
+          dataAccess.clusterQuery.countByClusterServiceAccountAndStatus(serviceAccountEmail, ClusterStatus.Creating)
+        } flatMap { count =>
+          if (count > 0) {
             Future.successful(())
           } else {
             googleIamDAO.removeIamRolesForUser(cluster.googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
