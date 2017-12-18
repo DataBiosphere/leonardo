@@ -241,8 +241,8 @@ class ClusterMonitorActor(val cluster: Cluster,
       case None => Future.successful(())
       case Some(serviceAccountEmail) =>
         // Only remove the Dataproc Worker role if there are no other clusters with the same owner
-        // in the DB with CREATING status. This prevents situations where pet SA roles are yanked from
-        // underneath creating clusters.
+        // in the DB with CREATING status. This prevents situations where we prematurely yank pet SA
+        // roles when the same user is creating multiple clusters.
         dbRef.inTransaction { dataAccess =>
           dataAccess.clusterQuery.listByClusterServiceAccount(serviceAccountEmail)
         } flatMap { clusters =>
