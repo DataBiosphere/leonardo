@@ -101,11 +101,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       notebookServiceAccountOpt <- serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject)
       serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountOpt, notebookServiceAccountOpt)
 
-      cluster <- internalCreateCluster(userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
+      cluster <- internalCreateCluster(userInfo, serviceAccountInfo, googleProject, clusterName, clusterRequest)
     } yield cluster
   }
 
-  def internalCreateCluster(userEmail: WorkbenchEmail,
+  def internalCreateCluster(userInfo: UserInfo,
                             serviceAccountInfo: ServiceAccountInfo,
                             googleProject: GoogleProject,
                             clusterName: ClusterName,
@@ -119,9 +119,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         val augmentedClusterRequest = addClusterDefaultLabels(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
         val clusterFuture = for {
           // Notify the auth provider that the cluster has been created
-          _ <- authProvider.notifyClusterCreated(userEmail.value, googleProject.value, clusterName.string)
+          _ <- authProvider.notifyClusterCreated(userInfo, googleProject.value, clusterName.string)
           // Create the cluster in Google
-          (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest)
+          (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest)
           // Save the cluster in the database
           savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, GcsPath(initBucket, GcsRelativePath("")), serviceAccountKeyOpt.map(_.id)))
         } yield {
@@ -132,8 +132,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         clusterFuture.onComplete {
           case Failure(_) =>
             //make a dummy cluster with the details
-            val clusterToDelete = Cluster.createDummyForDeletion(clusterRequest, userEmail, clusterName, googleProject, serviceAccountInfo)
-            internalDeleteCluster(clusterToDelete) //don't wait for it
+            val clusterToDelete = Cluster.createDummyForDeletion(clusterRequest, userInfo.userEmail, clusterName, googleProject, serviceAccountInfo)
+            internalDeleteCluster(userInfo, clusterToDelete) //don't wait for it
           case Success(_) => //no-op
         }
         clusterFuture
@@ -162,12 +162,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually destroy it
       _ <- checkClusterPermission(userInfo,  DeleteCluster, cluster, throw401 = true)
 
-      _ <- internalDeleteCluster(cluster)
+      _ <- internalDeleteCluster(userInfo, cluster)
     } yield { () }
   }
 
   //NOTE: This function MUST ALWAYS complete ALL steps. i.e. if deleting thing1 fails, it must still proceed to delete thing2
-  def internalDeleteCluster(cluster: Cluster): Future[Unit] = {
+  def internalDeleteCluster(userInfo: UserInfo, cluster: Cluster): Future[Unit] = {
     if (cluster.status.isDeletable) {
       for {
         // Delete the notebook service account key in Google, if present
@@ -179,7 +179,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         // Change the cluster status to Deleting in the database
         _ <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.googleId))
         // Notify the auth provider of cluster deletion
-        _ <- authProvider.notifyClusterDeleted(cluster.creator.value, cluster.googleProject.value, cluster.clusterName.string)
+        _ <- authProvider.notifyClusterDeleted(userInfo, cluster.googleProject.value, cluster.clusterName.string)
       } yield {
         // Notify the cluster monitor supervisor of cluster deletion.
         // This will kick off polling until the cluster is actually deleted in Google.

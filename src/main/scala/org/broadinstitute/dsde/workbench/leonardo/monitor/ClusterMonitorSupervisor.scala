@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
+import org.broadinstitute.dsde.workbench.model.UserInfo
 
 object ClusterMonitorSupervisor {
   def props(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: DataprocDAO, googleIamDAO: GoogleIamDAO, dbRef: DbReference, clusterDnsCache: ActorRef): Props =
@@ -19,7 +20,7 @@ object ClusterMonitorSupervisor {
   case class RegisterLeoService(service: LeonardoService) extends ClusterSupervisorMessage
   case class ClusterCreated(cluster: Cluster) extends ClusterSupervisorMessage
   case class ClusterDeleted(cluster: Cluster, recreate: Boolean = false) extends ClusterSupervisorMessage
-  case class RecreateCluster(cluster: Cluster) extends ClusterSupervisorMessage
+  case class RecreateCluster(userInfo: UserInfo, cluster: Cluster) extends ClusterSupervisorMessage
 }
 
 class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: DataprocDAO, googleIamDAO: GoogleIamDAO, dbRef: DbReference, clusterDnsCache: ActorRef) extends Actor with LazyLogging {
@@ -39,14 +40,14 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
       logger.info(s"Monitoring cluster ${cluster.projectNameString} for deletion.")
       startClusterMonitorActor(cluster, recreate)
 
-    case RecreateCluster(cluster) =>
+    case RecreateCluster(userInfo, cluster) =>
       if (monitorConfig.recreateCluster) {
         logger.info(s"Recreating cluster ${cluster.projectNameString}...")
         val clusterRequest = ClusterRequest(
           cluster.labels,
           cluster.jupyterExtensionUri,
           Some(cluster.machineConfig))
-        leoService.internalCreateCluster(cluster.creator, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest).failed.foreach { e =>
+        leoService.internalCreateCluster(userInfo, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest).failed.foreach { e =>
           logger.error("Error occurred recreating cluster", e)
         }
       } else {
@@ -61,9 +62,9 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
   def startClusterMonitorActor(cluster: Cluster, recreate: Boolean = false): Unit = {
     val child = createChildActor(cluster)
 
-    if (recreate && monitorConfig.recreateCluster) {
-      context.watchWith(child, RecreateCluster(cluster))
-    }
+//    if (recreate && monitorConfig.recreateCluster) {
+//      context.watchWith(child, RecreateCluster(cluster))
+//    }
   }
 
   override val supervisorStrategy = {
