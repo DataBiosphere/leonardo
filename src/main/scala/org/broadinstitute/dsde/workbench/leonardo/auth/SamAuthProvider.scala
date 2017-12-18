@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.auth
 import com.typesafe.config.Config
 import net.ceedubs.ficus.Ficus._
 import io.swagger.client.ApiClient
+import io.swagger.client.Configuration
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, NotebookClusterActions, ProjectActions}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import io.swagger.client.api.ResourcesApi
@@ -15,17 +16,23 @@ import scala.concurrent.{ExecutionContext, Future}
 
 class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) {
 
-  //is this how we do this???
-  val resourcesApi = new ResourcesApi(new ApiClient().setBasePath(authConfig.as[String]("samServer")))
   val notebookClusterResourceTypeName = "notebook-cluster"
   val billingProjectResourceTypeName = "billing-project"
+
+
+  //is this how we do this???
+  def resourcesApi(userInfo: UserInfo) = {
+    val apiClient = new ApiClient()
+    apiClient.setAccessToken(userInfo.accessToken.token)
+    new ResourcesApi(apiClient.setBasePath(authConfig.as[String]("samServer")))
+  }
 
   protected def getClusterResourceId(googleProject: String, clusterName: String): String = {
     // cluster names must be unique within a single google project so this should be fine...right???
     googleProject + "_" + clusterName
   }
 
-  //gets the string we want for each type of action - definitely not how we want to do this - probably put this is in a config and have ProjectAction
+  //gets the string we want for each type of action - definitely NOT how we want to do this - probably put this is in a config and have ProjectAction
   // and NotebookClusterAction have a toString method. Doing it this way to test stuff quickly
   protected def getProjectActionString(action: Action): String = {
     action match {
@@ -61,7 +68,8 @@ class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) {
     * @return If the given user has permissions in this project to perform the specified action.
     */
   def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: String)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-    Future{ resourcesApi.resourceAction(billingProjectResourceTypeName, googleProject, getProjectActionString(action)) }
+
+    Future{ resourcesApi(userInfo).resourceAction(billingProjectResourceTypeName, googleProject, getProjectActionString(action)) }
   }
 
   /**
@@ -81,10 +89,10 @@ class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) {
     // if action is connect, check only cluster resource. If action is anything else, either cluster or project must be true
    Future {
      if (action == ConnectToCluster) {
-       resourcesApi.resourceAction(notebookClusterResourceTypeName, clusterResourceId, getNotebookClusterActionString(action))
+       resourcesApi(userInfo).resourceAction(notebookClusterResourceTypeName, clusterResourceId, getNotebookClusterActionString(action))
      } else {
-       resourcesApi.resourceAction(notebookClusterResourceTypeName, clusterResourceId, getNotebookClusterActionString(action)) ||
-       resourcesApi.resourceAction(billingProjectResourceTypeName, googleProject, getNotebookClusterActionString(action))
+       resourcesApi(userInfo).resourceAction(notebookClusterResourceTypeName, clusterResourceId, getNotebookClusterActionString(action)) ||
+       resourcesApi(userInfo).resourceAction(billingProjectResourceTypeName, googleProject, getNotebookClusterActionString(action))
      }
     }
   }
@@ -97,15 +105,15 @@ class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) {
     * Returning a failed Future will prevent the cluster from being created, and will call notifyClusterDeleted for the same cluster.
     * Leo will wait, so be timely!
     *
-    * @param userEmail     The email address of the user in question
+    * @param userInfo      The email address of the user in question
     * @param googleProject The Google project the cluster was created in
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterCreated(userEmail: String, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  def notifyClusterCreated(userInfo: UserInfo, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
     val clusterResourceId = getClusterResourceId(googleProject, clusterName)
     // Add the cluster resource with the user as owner
-    Future { resourcesApi.createResource(notebookClusterResourceTypeName, clusterResourceId) }
+    Future { resourcesApi(userInfo).createResource(notebookClusterResourceTypeName, clusterResourceId) }
   }
 
   /**
@@ -113,15 +121,15 @@ class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) {
     * The returned future should complete once the provider has finished doing any associated work.
     * Leo will wait, so be timely!
     *
-    * @param userEmail     The email address of the user in question
+    * @param userInfo      The email address of the user in question
     * @param googleProject The Google project the cluster was created in
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterDeleted(userEmail: String, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  def notifyClusterDeleted(userInfo: UserInfo, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
     // get the id for the cluster resource
     val clusterResourceId = getClusterResourceId(googleProject, clusterName)
     // delete the resource
-    Future{resourcesApi.deleteResource(notebookClusterResourceTypeName, clusterResourceId)}
+    Future{resourcesApi(userInfo).deleteResource(notebookClusterResourceTypeName, clusterResourceId)}
   }
 }

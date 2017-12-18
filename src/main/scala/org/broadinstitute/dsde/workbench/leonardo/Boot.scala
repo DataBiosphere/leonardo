@@ -17,6 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterStatus, LeoAuthP
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
+import org.broadinstitute.dsde.workbench.model.UserInfo
 import io.swagger.client.api.ResourcesApi
 
 import scala.concurrent.ExecutionContext
