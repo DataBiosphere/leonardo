@@ -115,7 +115,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } flatMap {
       case Some(_) => throw ClusterAlreadyExistsException(googleProject, clusterName)
       case None =>
-        val augmentedClusterRequest = addClusterDefaultLabels(serviceAccountInfo, googleProject, clusterName, clusterRequest)
+        val augmentedClusterRequest = addClusterDefaultLabels(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
         val clusterFuture = for {
           // Notify the auth provider that the cluster has been created
           _ <- authProvider.notifyClusterCreated(userEmail.value, googleProject.value, clusterName.string)
@@ -403,9 +403,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
-  private[service] def addClusterDefaultLabels(serviceAccountInfo: ServiceAccountInfo, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): ClusterRequest = {
+  private[service] def addClusterDefaultLabels(serviceAccountInfo: ServiceAccountInfo, googleProject: GoogleProject, clusterName: ClusterName, creator: WorkbenchEmail, clusterRequest: ClusterRequest): ClusterRequest = {
     // create a LabelMap of default labels
-    val defaultLabels = DefaultLabels(clusterName, googleProject, clusterRequest.bucketPath,
+    val defaultLabels = DefaultLabels(clusterName, googleProject, clusterRequest.bucketPath, creator,
       serviceAccountInfo.clusterServiceAccount, serviceAccountInfo.notebookServiceAccount, clusterRequest.jupyterExtensionUri)
       .toJson.asJsObject.fields.mapValues(labelValue => labelValue.convertTo[String])
     // combine default and given labels
