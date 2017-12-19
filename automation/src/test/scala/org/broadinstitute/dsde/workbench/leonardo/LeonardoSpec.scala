@@ -60,13 +60,14 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
                  clusterName: ClusterName,
                  googleProject: GoogleProject,
                  gcsBucketName: GcsBucketName,
+                 creator: WorkbenchEmail,
                  notebookExtension: Option[String] = None): Unit = {
 
     // we don't actually know the SA because it's the pet
     // set a dummy here and then remove it from the comparison
 
     val dummyPetSa = WorkbenchEmail("dummy")
-    val expected = requestedLabels ++ DefaultLabels(clusterName, googleProject, gcsBucketName, Some(dummyPetSa), None, notebookExtension).toMap
+    val expected = requestedLabels ++ DefaultLabels(clusterName, googleProject, gcsBucketName, creator, Some(dummyPetSa), None, notebookExtension).toMap
 
     (seen - "clusterServiceAccount") shouldBe (expected - "clusterServiceAccount")
   }
@@ -82,7 +83,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     cluster.googleProject shouldBe expectedProject
     cluster.clusterName shouldBe expectedName
     cluster.googleBucket shouldBe bucket
-    labelCheck(cluster.labels, requestedLabels, expectedName, expectedProject, bucket, notebookExtension)
+    labelCheck(cluster.labels, requestedLabels, expectedName, expectedProject, bucket, cluster.creator, notebookExtension)
 
     cluster
   }
