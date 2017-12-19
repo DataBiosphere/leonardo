@@ -144,6 +144,7 @@ object Cluster {
 case class DefaultLabels(clusterName: ClusterName,
                          googleProject: GoogleProject,
                          googleBucket: GcsBucketName,
+                         creator: WorkbenchEmail,
                          clusterServiceAccount: Option[WorkbenchEmail],
                          notebookServiceAccount: Option[WorkbenchEmail],
                          notebookExtension: Option[GcsPath])
@@ -370,5 +371,5 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val clusterFormat = jsonFormat15(Cluster.apply)
   implicit val clusterRequestFormat = jsonFormat4(ClusterRequest)
   implicit val clusterInitValuesFormat = jsonFormat17(ClusterInitValues.apply)
-  implicit val defaultLabelsFormat = jsonFormat6(DefaultLabels.apply)
+  implicit val defaultLabelsFormat = jsonFormat7(DefaultLabels.apply)
 }
