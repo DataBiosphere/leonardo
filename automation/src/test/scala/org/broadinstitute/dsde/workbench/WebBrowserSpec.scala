@@ -54,7 +54,7 @@ trait WebBrowserSpec extends WebBrowserUtil with ExceptionHandling with LazyLogg
     val options = new ChromeOptions
     options.addArguments("--incognito")
     // Note that download.prompt_for_download will be ignored if download.default_directory is invalid or doesn't exist
-    options.setExperimentalOptions("prefs", Map(
+    options.setExperimentalOption("prefs", Map(
       "download.default_directory" -> downloadPath,
       "download.prompt_for_download" -> "false").asJava)
     val capabilities = DesiredCapabilities.chrome
