@@ -28,7 +28,8 @@ import scala.io.Source
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success}
 
-case class AuthorizationError(email: WorkbenchEmail) extends LeoException(s"'$email' is unauthorized", StatusCodes.Unauthorized)
+case class AuthorizationError(email: Option[WorkbenchEmail] = None) extends
+  LeoException(s"'${email.map(_.value).getOrElse("Your account")}' is unauthorized", StatusCodes.Unauthorized)
 
 case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: ClusterName)
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.string} not found", StatusCodes.NotFound)
@@ -69,7 +70,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   protected def checkProjectPermission(user: UserInfo, action: ProjectAction, project: GoogleProject): Future[Unit] = {
     authProvider.hasProjectPermission(user, action, project.value) map {
-      case false => throw AuthorizationError(user.userEmail)
+      case false => throw AuthorizationError(Option(user.userEmail))
       case true => ()
     }
   }
@@ -80,7 +81,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     authProvider.hasNotebookClusterPermission(user, action, cluster.googleProject.value, cluster.clusterName.string) map {
       case false =>
         if( throw401 )
-          throw AuthorizationError(user.userEmail)
+          throw AuthorizationError(Option(user.userEmail))
         else
           throw ClusterNotFoundException(cluster.googleProject, cluster.clusterName)
       case true => ()

@@ -15,10 +15,10 @@ import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, ClusterRequest, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
+import org.broadinstitute.dsde.workbench.leonardo.service.{AuthorizationError, LeonardoService, ProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchEmail, WorkbenchExceptionWithErrorReport}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -102,10 +102,8 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
   private val rejectionHandler: RejectionHandler = {
     RejectionHandler.newBuilder()
       .handle {
-        case MissingCookieRejection(name) if name == tokenCookieName =>
-          complete(StatusCodes.Unauthorized,
-            ErrorReport("Unauthorized: Access is denied due to invalid credentials.",
-              Some(StatusCodes.Unauthorized), Seq.empty, Seq.empty, Some(classOf[LeoRoutes])))
+        case AuthorizationFailedRejection =>
+          myExceptionHandler.apply(AuthorizationError())
       }
       .result()
   }

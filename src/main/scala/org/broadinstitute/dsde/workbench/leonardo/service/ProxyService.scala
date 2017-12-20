@@ -6,7 +6,6 @@ import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.HttpCookiePair
 import akka.http.scaladsl.model.ws._
 import akka.pattern.ask
 import akka.stream.ActorMaterializer
@@ -16,15 +15,13 @@ import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
 import java.util.concurrent.TimeUnit
 
-import cats.data.OptionT
-import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.collection.immutable
@@ -83,7 +80,7 @@ class ProxyService(proxyConfig: ProxyConfig,
     }
   }
 
-  def proxyLocalize(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest, token: HttpCookiePair): Future[HttpResponse] = {
+  def proxyLocalize(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest): Future[HttpResponse] = {
     authCheck(userInfo, googleProject, clusterName, SyncDataToCluster).flatMap { _ =>
       proxyInternal(userInfo, googleProject, clusterName, request, token)
     }
@@ -97,11 +94,10 @@ class ProxyService(proxyConfig: ProxyConfig,
     * @param googleProject the Google project
     * @param clusterName the cluster name
     * @param request the HTTP request to proxy
-    * @param token the user access token
     * @return HttpResponse future representing the proxied response, or NotFound if a notebook
     *         server IP could not be found.
     */
-  def proxyNotebook(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest, token: HttpCookiePair): Future[HttpResponse] = {
+  def proxyNotebook(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest): Future[HttpResponse] = {
     authCheck(userInfo, googleProject, clusterName, ConnectToCluster).flatMap { _ =>
       proxyInternal(userInfo, googleProject, clusterName, request, token)
     }

@@ -111,11 +111,11 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
 
       //connect
       val proxyRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
-      proxy.proxyNotebook(userInfo, GoogleProject(googleProject), ClusterName(clusterName), proxyRequest, tokenCookie).futureValue
+      proxy.proxyNotebook(userInfo, GoogleProject(googleProject), ClusterName(clusterName), proxyRequest).futureValue
 
       //sync
       val syncRequest = HttpRequest(POST, Uri(s"/notebooks/$googleProject/$clusterName/api/localize"))
-      proxy.proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), syncRequest, tokenCookie).futureValue
+      proxy.proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), syncRequest).futureValue
 
       //delete
       leo.deleteCluster(userInfo, project, name1).futureValue
@@ -186,12 +186,12 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
 
       //connect should 401
       val httpRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
-      val clusterAuthException = proxy.proxyNotebook(userInfo, GoogleProject(googleProject), ClusterName(clusterName), httpRequest, tokenCookie).failed.futureValue
+      val clusterAuthException = proxy.proxyNotebook(userInfo, GoogleProject(googleProject), ClusterName(clusterName), httpRequest).failed.futureValue
       clusterAuthException shouldBe a [AuthorizationError]
 
       //sync
       val syncRequest = HttpRequest(POST, Uri(s"/notebooks/$googleProject/$clusterName/api/localize"))
-      val syncNotFoundException = proxy.proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), syncRequest, tokenCookie).failed.futureValue
+      val syncNotFoundException = proxy.proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), syncRequest).failed.futureValue
       syncNotFoundException shouldBe a [AuthorizationError]
 
       //destroy should 401 too
