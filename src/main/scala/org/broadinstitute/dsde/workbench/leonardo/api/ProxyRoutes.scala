@@ -7,6 +7,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.service.ProxyService
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import akka.http.scaladsl.model.headers.{Authorization, HttpCookie}
+import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 
 import scala.concurrent.ExecutionContext
 
@@ -15,6 +16,7 @@ import scala.concurrent.ExecutionContext
   */
 trait ProxyRoutes extends UserInfoDirectives{ self: LazyLogging =>
   val proxyService: ProxyService
+  val proxyConfig: ProxyConfig
   implicit val executionContext: ExecutionContext
 
   protected val tokenCookieName = "FCtoken"
@@ -60,12 +62,22 @@ trait ProxyRoutes extends UserInfoDirectives{ self: LazyLogging =>
         // We have an Authorization header, extract the token and tack on a Set-Cookie header
         case Some(header) =>
           val token = header.credentials.token()
-          setCookie(HttpCookie(tokenCookieName, token)) tmap { _ => token }
+          setCookie(buildCookie(token)) tmap { _ => token }
 
         // Not found in cookie or Authorization header, fail
         case None => reject(AuthorizationFailedRejection)
       }
     }
+  }
+
+  private def buildCookie(token: String): HttpCookie = {
+    HttpCookie(
+      name = tokenCookieName,
+      value = token,
+      domain = Option(proxyConfig.cookieDomain),
+      maxAge = Option(proxyConfig.cookieMaxAge),
+      path = Option(proxyConfig.cookiePath)
+    )
   }
 
 }

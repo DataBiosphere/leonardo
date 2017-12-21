@@ -11,7 +11,7 @@ import akka.http.scaladsl.server._
 import akka.stream.Materializer
 import akka.stream.scaladsl._
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, ClusterRequest, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
@@ -22,7 +22,7 @@ import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionW
 
 import scala.concurrent.{ExecutionContext, Future}
 
-abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxyService, val statusService: StatusService, val swaggerConfig: SwaggerConfig)(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext) extends LazyLogging with ProxyRoutes with SwaggerRoutes with StatusRoutes with UserInfoDirectives {
+abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxyService, val statusService: StatusService, val swaggerConfig: SwaggerConfig, val proxyConfig: ProxyConfig)(implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext) extends LazyLogging with ProxyRoutes with SwaggerRoutes with StatusRoutes with UserInfoDirectives {
 
   def unauthedRoutes: Route =
     path("ping") {

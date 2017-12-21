@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
+
 import scala.concurrent.duration.FiniteDuration
 
 case class ProxyConfig(
@@ -13,4 +14,8 @@ case class ProxyConfig(
                         jupyterDomain: String,
                         dnsPollPeriod: FiniteDuration,
                         cacheExpiryTime: Long,
-                        cacheMaxSize: Int)
+                        cacheMaxSize: Int,
+                        cookieDomain: String,
+                        cookieMaxAge: Long,
+                        cookiePath: String
+                      )

@@ -44,7 +44,7 @@ trait TestLeoRoutes { this: ScalatestRouteTest with ScalaFutures =>
   val proxyService = new MockProxyService(proxyConfig, mockGoogleDataprocDAO, DbSingleton.ref, whitelistAuthProvider)
   val statusService = new StatusService(mockGoogleDataprocDAO, mockSamDAO, DbSingleton.ref, dataprocConfig, pollInterval = 1.second)
   val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
-  val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with MockUserInfoDirectives {
+  val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig, proxyConfig) with MockUserInfoDirectives {
     override val userInfo: UserInfo = defaultUserInfo
   }
 

@@ -77,7 +77,12 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
       .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value))) ~> leoRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
-      header[`Set-Cookie`] shouldBe Some(`Set-Cookie`(HttpCookie.fromPair(tokenCookie)))
+      header[`Set-Cookie`] shouldBe Some(`Set-Cookie`(
+        HttpCookie.fromPair(
+          tokenCookie,
+          maxAge = Some(3600),
+          domain = Some("test-notebooks.firecloud.org"),
+          path = Some("/"))))
     }
   }
 
