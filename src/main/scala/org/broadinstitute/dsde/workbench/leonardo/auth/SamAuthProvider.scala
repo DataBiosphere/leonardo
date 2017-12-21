@@ -21,10 +21,11 @@ class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) {
 
 
   //is this how we do this???
-  def resourcesApi(userInfo: UserInfo) = {
+  private def resourcesApi(userInfo: UserInfo): ResourcesApi = {
     val apiClient = new ApiClient()
     apiClient.setAccessToken(userInfo.accessToken.token)
-    new ResourcesApi(apiClient.setBasePath(authConfig.as[String]("samServer")))
+   // new ResourcesApi(apiClient.setBasePath(authConfig.as[String]("samServer")))
+    new ResourcesApi(apiClient)
   }
 
   protected def getClusterResourceId(googleProject: String, clusterName: String): String = {
