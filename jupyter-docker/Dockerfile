@@ -36,7 +36,7 @@ ENV HOME /home/$USER
 
 # ensure this matches c.NotebookApp.port in jupyter_notebook_config.py
 ENV JUPYTER_PORT 8000
-ENV JUPYTER_HOME /etc/jupyter/
+ENV JUPYTER_HOME /etc/jupyter
 ENV PYSPARK_DRIVER_PYTHON jupyter
 ENV PYSPARK_DRIVER_PYTHON_OPTS notebook
 

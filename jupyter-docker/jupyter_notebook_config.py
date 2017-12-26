@@ -20,5 +20,5 @@ c.NotebookApp.base_url = '/notebooks/' + fragment + '/'
 c.NotebookApp.webapp_settings = {'static_url_prefix':'/notebooks/' + fragment + '/static/'}
 
 c.NotebookApp.nbserver_extensions = {
-    'jupyter_server_extension': True,
+    'jupyter_localize_extension': True,
 }
