@@ -111,7 +111,7 @@ RUN echo "deb $DEBIAN_REPO/debian jessie main\ndeb $DEBIAN_REPO/debian-security 
 ADD spark-defaults.conf.template $SPARK_HOME/conf/
 # Spark defaults conf find and replace [HAILHASH] with the hash
 RUN sed "s|\[HAILHASH\]|$HAILHASH|g" $SPARK_HOME/conf/spark-defaults.conf.template > $SPARK_HOME/conf/spark-defaults.conf
-ADD jupyter_notebook_config.py $JUPYTER_HOME
+ADD jupyter_notebook_config.py $JUPYTER_HOME/
 ADD jupyter_localize_extension.py $JUPYTER_HOME/custom/
 RUN chown -R $USER:users $JUPYTER_HOME
 
