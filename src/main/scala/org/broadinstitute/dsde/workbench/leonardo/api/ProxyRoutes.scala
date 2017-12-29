@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{AuthorizationFailedRejection, Directive1, Route}
 import com.typesafe.scalalogging.LazyLogging
@@ -22,9 +23,29 @@ trait ProxyRoutes extends UserInfoDirectives{ self: LazyLogging =>
   protected val tokenCookieName = "FCtoken"
 
   protected val proxyRoutes: Route =
+    path("notebooks" / "login") {
+      extractToken(setTokenCookie = true) { token =>
+        complete {
+          proxyService.getCachedUserInfoFromToken(token).map { userInfo =>
+            logger.debug(s"Successfully logged in $userInfo")
+            StatusCodes.OK
+          }
+        }
+      }
+    } ~
+    path("notebooks" / "logout") {
+      extractToken(setTokenCookie = false) { token =>
+        complete {
+          proxyService.invalidateAccessToken(token).map { _ =>
+            logger.debug(s"Invalidated access token $token")
+            StatusCodes.OK
+          }
+        }
+      }
+    } ~
     path("notebooks" / Segment / Segment / "api" / "localize") { (googleProject, clusterName) =>
       extractRequest { request =>
-        extractToken { token => // rejected with AuthorizationFailedRejection if the token is not present
+        extractToken(setTokenCookie = false) { token => // rejected with AuthorizationFailedRejection if the token is not present
           complete {
             proxyService.getCachedUserInfoFromToken(tokenCookie.value).flatMap { userInfo =>
               // Proxy logic handled by the ProxyService class
@@ -36,7 +57,7 @@ trait ProxyRoutes extends UserInfoDirectives{ self: LazyLogging =>
     } ~
     pathPrefix("notebooks" / Segment / Segment) { (googleProject, clusterName) =>
       extractRequest { request =>
-        extractToken { token => // rejected with AuthorizationFailedRejection if the token is not present
+        extractToken(setTokenCookie = false) { token => // rejected with AuthorizationFailedRejection if the token is not present
           complete {
             proxyService.getCachedUserInfoFromToken(token).flatMap { userInfo =>
               // Proxy logic handled by the ProxyService class
@@ -51,7 +72,7 @@ trait ProxyRoutes extends UserInfoDirectives{ self: LazyLogging =>
     * Extracts the user token from either a cookie or Authorization header.
     * If coming from an Authorization header, tacks on a Set-Cookie header in the response.
     */
-  private def extractToken: Directive1[String] = {
+  private def extractToken(setTokenCookie: Boolean): Directive1[String] = {
     optionalCookie(tokenCookieName) flatMap {
       // We have a cookie, we're done
       case Some(cookie) => provide(cookie.value)
@@ -62,7 +83,11 @@ trait ProxyRoutes extends UserInfoDirectives{ self: LazyLogging =>
         // We have an Authorization header, extract the token and tack on a Set-Cookie header
         case Some(header) =>
           val token = header.credentials.token()
-          setCookie(buildCookie(token)) tmap { _ => token }
+          if (setTokenCookie) {
+            setCookie(buildCookie(token)) tmap { _ => token }
+          } else {
+            provide(token)
+          }
 
         // Not found in cookie or Authorization header, fail
         case None => reject(AuthorizationFailedRejection)

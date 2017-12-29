@@ -14,14 +14,14 @@ import org.broadinstitute.dsde.workbench.leonardo.service.TestProxy.Data
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
-import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
+import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll, FlatSpec, Matchers}
 
 import scala.collection.immutable
 
 /**
   * Created by rtitle on 8/10/17.
   */
-class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with ScalatestRouteTest with ScalaFutures with TestLeoRoutes with TestProxy with TestComponent with GcsPathUtils {
+class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with BeforeAndAfter with ScalatestRouteTest with ScalaFutures with TestLeoRoutes with TestProxy with TestComponent with GcsPathUtils {
   implicit val patience = PatienceConfig(timeout = scaled(Span(10, Seconds)))
 
   val clusterName = "test"
@@ -44,7 +44,11 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
     super.afterAll()
   }
 
-  "ProxyRoutes" should "foo listen on /notebooks/{project}/{name}/..." in {
+  before {
+    proxyService.cachedAuth.invalidateAll()
+  }
+
+  "ProxyRoutes" should "listen on /notebooks/{project}/{name}/..." in {
     Get(s"/notebooks/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
@@ -69,20 +73,6 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
     Get(s"/notebooks/$googleProject/$clusterName") ~> leoRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.Unauthorized
-    }
-  }
-
-  it should "accept an Authorization header instead of a cookie" in {
-    Get(s"/notebooks/$googleProject/$clusterName")
-      .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value))) ~> leoRoutes.route ~> check {
-      handled shouldBe true
-      status shouldEqual StatusCodes.OK
-      header[`Set-Cookie`] shouldBe Some(`Set-Cookie`(
-        HttpCookie.fromPair(
-          tokenCookie,
-          maxAge = Some(3600),
-          domain = Some("test-notebooks.firecloud.org"),
-          path = Some("/"))))
     }
   }
 
@@ -165,6 +155,51 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
     result.futureValue shouldBe "Hello Leonardo!"
   }
 
+  it should "log in via Authorization header" in {
+    // cache should not initially contain the token
+    proxyService.cachedAuth.asMap().containsKey(tokenCookie.value) shouldBe false
+
+    // login request with Authorization header should succeed and return a Set-Cookie header
+    Get(s"/notebooks/login")
+      .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value))) ~> leoRoutes.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.OK
+      header[`Set-Cookie`] shouldBe Some(`Set-Cookie`(
+        HttpCookie.fromPair(
+          tokenCookie,
+          maxAge = Some(3600),
+          domain = Some("test-notebooks.firecloud.org"),
+          path = Some("/"))))
+    }
+
+    // cache should now conain the token
+    proxyService.cachedAuth.asMap().containsKey(tokenCookie.value) shouldBe true
+  }
+
+  it should "log out a token" in {
+    // cache should not initially contain the token
+    proxyService.cachedAuth.asMap().containsKey(tokenCookie.value) shouldBe false
+
+    // regular request with a cookie should succeed but NOT return a Set-Cookie header
+    Get(s"/notebooks/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.OK
+      header[`Set-Cookie`] shouldBe None
+    }
+
+    // cache should now contain the token
+    proxyService.cachedAuth.asMap().containsKey(tokenCookie.value) shouldBe true
+
+    // log out, passing a cookie
+    Get(s"/notebooks/logout").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.OK
+      header[`Set-Cookie`] shouldBe None
+    }
+
+    // cache should not contain the token
+    proxyService.cachedAuth.asMap().containsKey(tokenCookie.value) shouldBe false
+  }
 
   /**
     * Akka-http TestKit doesn't seem to support websocket servers.

@@ -41,7 +41,7 @@ class ProxyService(proxyConfig: ProxyConfig,
                    authProvider: LeoAuthProvider)(implicit val system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext) extends LazyLogging {
 
   /* Cache for the bearer token and corresponding google user email */
-  private val cachedAuth = CacheBuilder.newBuilder()
+  private[leonardo] val cachedAuth = CacheBuilder.newBuilder()
     .expireAfterWrite(proxyConfig.cacheExpiryTime, TimeUnit.MINUTES)
     .maximumSize(proxyConfig.cacheMaxSize)
     .build(
@@ -84,6 +84,10 @@ class ProxyService(proxyConfig: ProxyConfig,
     authCheck(userInfo, googleProject, clusterName, SyncDataToCluster).flatMap { _ =>
       proxyInternal(userInfo, googleProject, clusterName, request, token)
     }
+  }
+
+  def invalidateAccessToken(token: String): Future[Unit] = {
+    Future(cachedAuth.invalidate(token))
   }
 
   /**
