@@ -137,7 +137,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
 
       //can't get details on an existing cluster
       //poke a cluster into the database so we actually have something to look for
-      dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), None) }
+      dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), None, None) }
 
       val clusterGetResponseException = leo.getActiveClusterDetails(userInfo, c1.googleProject, c1.clusterName).failed.futureValue
       clusterGetResponseException shouldBe a [ClusterNotFoundException]
@@ -173,7 +173,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       val proxy = proxyWithAuthProvider(spyProvider)
 
       //poke a cluster into the database so we actually have something to look for
-      dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), None) }
+      dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), None, None) }
 
       // status should work for this user
       val clusterStatus = leo.getActiveClusterDetails(userInfo, project, name1).futureValue

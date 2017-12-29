@@ -53,14 +53,14 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTest
     dbFutureValue { _.labelQuery.get(missingId, "missing") } shouldEqual None
     dbFailure { _.labelQuery.save(missingId, "key1", "value1") } shouldBe a [SQLException]
 
-    dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1
+    dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id), Some(googleClientId)) } shouldEqual c1
     val c1Id = dbFutureValue { _.clusterQuery.getIdByGoogleId(c1.googleId) }.get
 
     dbFutureValue { _.labelQuery.save(c1Id, "key1", "value1") } shouldEqual 1
     dbFutureValue { _.labelQuery.getAllForCluster(c1Id) } shouldEqual Map("key1" -> "value1")
     dbFutureValue { _.labelQuery.get(c1Id, "key1") } shouldEqual Some("value1")
 
-    dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id)) } shouldEqual c2
+    dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id), None) } shouldEqual c2
     val c2Id = dbFutureValue { _.clusterQuery.getIdByGoogleId(c2.googleId) }.get
 
     dbFutureValue { _.labelQuery.saveAllForCluster(c2Id, c2Map) }

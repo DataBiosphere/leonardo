@@ -73,8 +73,8 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     ClusterDnsCache.HostToIp = Map.empty
 
     // save the clusters to the db
-    dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1
-    dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id)) } shouldEqual c2
+    dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id), Some(googleClientId)) } shouldEqual c1
+    dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id), None) } shouldEqual c2
 
     // maps should be populated
     eventually {
@@ -101,8 +101,8 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     ClusterDnsCache.HostToIp = Map.empty
 
     // save the clusters to the db
-    dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1
-    dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id)) } shouldEqual c2
+    dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id), Some(googleClientId)) } shouldEqual c1
+    dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id), None) } shouldEqual c2
 
     // we have not yet executed a DNS cache refresh cycle
 
@@ -131,8 +131,8 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val newC1 = c1.copy(clusterName = newname1, hostIp = Some(IP("a new IP")), googleId = UUID.randomUUID())
     val newC2 = c2.copy(clusterName = newname2, hostIp = Some(IP("another new IP")), googleId = UUID.randomUUID())
 
-    dbFutureValue { _.clusterQuery.save(newC1, gcsPath("gs://newbucket1"), Some(serviceAccountKey.id)) } shouldEqual newC1
-    dbFutureValue { _.clusterQuery.save(newC2, gcsPath("gs://newbucket2"), Some(serviceAccountKey.id)) } shouldEqual newC2
+    dbFutureValue { _.clusterQuery.save(newC1, gcsPath("gs://newbucket1"), Some(serviceAccountKey.id), Some(googleClientId)) } shouldEqual newC1
+    dbFutureValue { _.clusterQuery.save(newC2, gcsPath("gs://newbucket2"), Some(serviceAccountKey.id), None) } shouldEqual newC2
 
     // add one cluster to cache immediately without waiting for the cycle
 

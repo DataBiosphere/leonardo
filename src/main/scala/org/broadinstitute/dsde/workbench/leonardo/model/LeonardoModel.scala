@@ -241,10 +241,9 @@ object ClusterInitValues {
       proxyConfig.proxyServerName,
       GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.jupyterInstallExtensionScript.string)).toUri,
       clusterRequest.jupyterExtensionUri.map(_.toUri).getOrElse(""),
-      serviceAccountKey.map(_ => GcsPath(initBucketName, GcsRelativePath(serviceAccountCredentialsFilename)).toUri).getOrElse(""),
-      GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.jupyterCustomJs.string)).toUri,
-      GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.jupyterGoogleSignInJs.string)).toUri,
-      swaggerConfig.googleClientId
+      serviceAccountKey.map(_ => GcsPath(bucketName, GcsRelativePath(serviceAccountCredentialsFilename)).toUri).getOrElse(""),
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterCustomJs.string)).toUri,
+      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterGoogleSignInJs.string)).toUri
     )
 }
 
@@ -265,8 +264,7 @@ case class ClusterInitValues(googleProject: String,
                              jupyterExtensionUri: String,
                              jupyterServiceAccountCredentials: String,
                              jupyterCustomJsUri: String,
-                             jupyterGoogleSignInJsUri: String,
-                             googleClientId: String)
+                             jupyterGoogleSignInJsUri: String)
 
 
 object FirewallRuleRequest {

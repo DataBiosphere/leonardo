@@ -35,6 +35,7 @@ trait CommonTestData { this: ScalaFutures =>
   val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
+  val googleClientId = swaggerConfig.googleClientId
 
   val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
   val whitelistAuthProvider = new WhitelistAuthProvider(config.getConfig("auth.providerConfig"))

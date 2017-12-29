@@ -450,6 +450,9 @@ definitions:
       machineConfig:
         description: The machine configurations for the master and worker nodes
         $ref: '#/definitions/MachineConfig'
+      googleClientId:
+        type: string
+        description: The Google Client ID to use for authentication in the Jupyter notebook
 
   MachineConfig:
     description: 'The configuration for a single Dataproc cluster'

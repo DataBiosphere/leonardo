@@ -379,7 +379,20 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val result = leo.templateResource(clusterResourcesConfig.jupyterGoogleSignInJs, replacements)
 
     // Check that the values in the bash script file were correctly replaced
-    val expected = s""""${swaggerConfig.googleClientId}""""
+    val expected =
+      s""""${testClusterRequest.googleClientId.get.string}""""
+
+    result shouldEqual expected
+  }
+
+  it should "template google_sign_in.js with a default Google client id" in isolatedDbTest {
+    val replacements = ClusterInitValues(googleProject, clusterName, bucketPath, testClusterRequest.copy(googleClientId = None), dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, Some(serviceAccountKey)).toJson.asJsObject.fields
+
+    // Each value in the replacement map will replace it's key in the file being processed
+    val result = leo.templateResource(clusterResourcesConfig.jupyterGoogleSignInJs, replacements)
+
+    // Check that the values in the bash script file were correctly replaced
+    val expected = s""""${swaggerConfig.googleClientId.string}""""
 
     result shouldEqual expected
   }
