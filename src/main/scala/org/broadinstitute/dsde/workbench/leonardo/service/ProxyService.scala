@@ -65,21 +65,28 @@ class ProxyService(proxyConfig: ProxyConfig,
           throw AccessTokenExpiredException() }
   }
 
-  def proxyLocalize(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest, token: HttpCookiePair): Future[HttpResponse] = {
-    //check auth to see it
-    val authCheck = for {
+  /*
+  Checks the user has the required notebook action, returning 403 or 404 depending on whether they can know the cluster exists
+   */
+  protected def authCheck(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, notebookAction: NotebookClusterAction): Future[Unit] = {
+    for {
       hasViewPermission <- authProvider.hasNotebookClusterPermission(userInfo, GetClusterStatus, googleProject.value, clusterName.string)
-      hasSyncPermission <- authProvider.hasNotebookClusterPermission(userInfo, SyncDataToCluster, googleProject.value, clusterName.string)
+      hasRequiredPermission <- authProvider.hasNotebookClusterPermission(userInfo, notebookAction, googleProject.value, clusterName.string)
     } yield {
       if (!hasViewPermission) {
         throw ClusterNotFoundException(googleProject, clusterName)
-      } else if (!hasSyncPermission) {
+      } else if (!hasRequiredPermission) {
         throw AuthorizationError(userInfo.userEmail)
       } else {
         ()
       }
     }
-    authCheck flatMap { _ => proxyInternal(userInfo, googleProject, clusterName, request, token) }
+  }
+
+  def proxyLocalize(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest, token: HttpCookiePair): Future[HttpResponse] = {
+    authCheck(userInfo, googleProject, clusterName, SyncDataToCluster).flatMap { _ =>
+      proxyInternal(userInfo, googleProject, clusterName, request, token)
+    }
   }
 
   /**
@@ -95,20 +102,9 @@ class ProxyService(proxyConfig: ProxyConfig,
     *         server IP could not be found.
     */
   def proxyNotebook(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest, token: HttpCookiePair): Future[HttpResponse] = {
-    //check auth to see it
-    val authCheck = for {
-      hasViewPermission <- authProvider.hasNotebookClusterPermission(userInfo, GetClusterStatus, googleProject.value, clusterName.string)
-      hasConnectPermission <- authProvider.hasNotebookClusterPermission(userInfo, ConnectToCluster, googleProject.value, clusterName.string)
-    } yield {
-      if (!hasViewPermission) {
-        throw ClusterNotFoundException(googleProject, clusterName)
-      } else if (!hasConnectPermission) {
-        throw AuthorizationError(userInfo.userEmail)
-      } else {
-        ()
-      }
+    authCheck(userInfo, googleProject, clusterName, ConnectToCluster).flatMap { _ =>
+      proxyInternal(userInfo, googleProject, clusterName, request, token)
     }
-    authCheck flatMap { _ => proxyInternal(userInfo, googleProject, clusterName, request, token) }
   }
 
   private def proxyInternal(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest, token: HttpCookiePair): Future[HttpResponse] = {

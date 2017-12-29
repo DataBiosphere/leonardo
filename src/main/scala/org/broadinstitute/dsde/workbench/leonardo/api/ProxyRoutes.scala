@@ -20,7 +20,7 @@ trait ProxyRoutes extends UserInfoDirectives{ self: LazyLogging =>
   protected val tokenCookieName = "FCtoken"
 
   protected val proxyRoutes: Route =
-    pathPrefix("notebooks" / Segment / Segment / "api/localize") { (googleProject, clusterName) =>
+    path("notebooks" / Segment / Segment / "api" / "localize") { (googleProject, clusterName) =>
       extractRequest { request =>
         cookie(tokenCookieName) { tokenCookie => // rejected with MissingCookieRejection if the cookie is not present
           complete {

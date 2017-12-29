@@ -96,7 +96,7 @@ RUN echo "deb $DEBIAN_REPO/debian jessie main\ndeb $DEBIAN_REPO/debian-security 
  # Hail requires decorator
  && pip install -U decorator jupyter \
  && pip install google-cloud \
- && pip install firecloud \
+ && pip install firecloud==0.16.7 \
  && pip install -U scikit-learn \
  && pip install ggplot \
  && pip install bokeh \
