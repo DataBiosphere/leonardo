@@ -73,7 +73,7 @@ class ProxyService(proxyConfig: ProxyConfig,
       if (!hasViewPermission) {
         throw ClusterNotFoundException(googleProject, clusterName)
       } else if (!hasRequiredPermission) {
-        throw AuthorizationError(userInfo.userEmail)
+        throw AuthorizationError(Option(userInfo.userEmail))
       } else {
         ()
       }
@@ -82,7 +82,7 @@ class ProxyService(proxyConfig: ProxyConfig,
 
   def proxyLocalize(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest): Future[HttpResponse] = {
     authCheck(userInfo, googleProject, clusterName, SyncDataToCluster).flatMap { _ =>
-      proxyInternal(userInfo, googleProject, clusterName, request, token)
+      proxyInternal(userInfo, googleProject, clusterName, request)
     }
   }
 
@@ -103,12 +103,12 @@ class ProxyService(proxyConfig: ProxyConfig,
     */
   def proxyNotebook(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest): Future[HttpResponse] = {
     authCheck(userInfo, googleProject, clusterName, ConnectToCluster).flatMap { _ =>
-      proxyInternal(userInfo, googleProject, clusterName, request, token)
+      proxyInternal(userInfo, googleProject, clusterName, request)
     }
   }
 
-  private def proxyInternal(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest, token: HttpCookiePair): Future[HttpResponse] = {
-    logger.debug(s"Received proxy request with user token ${token.value}")
+  private def proxyInternal(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest): Future[HttpResponse] = {
+    logger.debug(s"Received proxy request for user user $userInfo")
     getTargetHost(googleProject, clusterName) flatMap {
       case ClusterReady(targetHost) =>
         // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a

@@ -47,9 +47,9 @@ trait ProxyRoutes extends UserInfoDirectives{ self: LazyLogging =>
       extractRequest { request =>
         extractToken(setTokenCookie = false) { token => // rejected with AuthorizationFailedRejection if the token is not present
           complete {
-            proxyService.getCachedUserInfoFromToken(tokenCookie.value).flatMap { userInfo =>
+            proxyService.getCachedUserInfoFromToken(token).flatMap { userInfo =>
               // Proxy logic handled by the ProxyService class
-              proxyService.proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), request, tokenCookie)
+              proxyService.proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), request)
             }
           }
         }
@@ -61,7 +61,7 @@ trait ProxyRoutes extends UserInfoDirectives{ self: LazyLogging =>
           complete {
             proxyService.getCachedUserInfoFromToken(token).flatMap { userInfo =>
               // Proxy logic handled by the ProxyService class
-              proxyService.proxy(userInfo, GoogleProject(googleProject), ClusterName(clusterName), request, tokenCookie)
+              proxyService.proxyNotebook(userInfo, GoogleProject(googleProject), ClusterName(clusterName), request)
             }
           }
         }
