@@ -214,8 +214,7 @@ case class MachineConfig(numberOfWorkers: Option[Int] = None,
 case class ServiceAccountInfo(clusterServiceAccount: Option[WorkbenchEmail],
                               notebookServiceAccount: Option[WorkbenchEmail])
 
-case class ClusterRequest(bucketPath: Option[GcsBucketName],
-                          labels: LabelMap,
+case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[GcsPath] = None,
                           machineConfig: Option[MachineConfig] = None
                          )
@@ -365,7 +364,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val machineConfigFormat = jsonFormat7(MachineConfig.apply)
   implicit val serviceAccountInfoFormat = jsonFormat2(ServiceAccountInfo.apply)
   implicit val clusterFormat = jsonFormat14(Cluster.apply)
-  implicit val clusterRequestFormat = jsonFormat4(ClusterRequest)
+  implicit val clusterRequestFormat = jsonFormat3(ClusterRequest)
   implicit val clusterInitValuesFormat = jsonFormat17(ClusterInitValues.apply)
   implicit val defaultLabelsFormat = jsonFormat6(DefaultLabels.apply)
 }

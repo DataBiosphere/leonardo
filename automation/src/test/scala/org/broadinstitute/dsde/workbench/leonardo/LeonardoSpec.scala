@@ -138,7 +138,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
   def withNewCluster[T](googleProject: GoogleProject)(testCode: Cluster => T)(implicit token: AuthToken): T = {
     val name = ClusterName(s"automation-test-a${makeRandomId().toLowerCase}z")
-    val request = ClusterRequest(None, Map("foo" -> makeRandomId()))
+    val request = ClusterRequest(Map("foo" -> makeRandomId()))
 
     val testResult: Try[T] = Try {
       val cluster = createAndMonitor(googleProject, name, request)
@@ -153,7 +153,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
   def withNewErroredCluster[T](googleProject: GoogleProject)(testCode: Cluster => T)(implicit token: AuthToken): T = {
     val name = ClusterName(s"automation-test-a${makeRandomId()}z")
-    val request = ClusterRequest(None, Map("foo" -> makeRandomId()), Some(incorrectJupyterExtensionUri))
+    val request = ClusterRequest(Map("foo" -> makeRandomId()), Some(incorrectJupyterExtensionUri))
     val testResult: Try[T] = Try {
       val cluster = createAndMonitor(googleProject, name, request)
       cluster.status shouldBe ClusterStatus.Error

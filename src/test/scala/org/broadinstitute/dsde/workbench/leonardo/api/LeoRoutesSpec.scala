@@ -41,7 +41,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "200 when creating and getting cluster" in isolatedDbTest {
-    val newCluster = ClusterRequest(None, Map.empty, Some(mockGoogleDataprocDAO.extensionPath))
+    val newCluster = ClusterRequest(Map.empty, Some(mockGoogleDataprocDAO.extensionPath))
 
     Put(s"/api/cluster/${googleProject.value}/${clusterName.string}", newCluster.toJson) ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
@@ -63,7 +63,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "404 when getting a cluster as a non-white-listed user" in isolatedDbTest {
-    val newCluster = ClusterRequest(None, Map.empty, None)
+    val newCluster = ClusterRequest(Map.empty, None)
 
     Put(s"/api/cluster/${googleProject.value}/notyourcluster", newCluster.toJson) ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
@@ -75,7 +75,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "202 when deleting a cluster" in isolatedDbTest{
-    val newCluster = ClusterRequest(None, Map.empty, None)
+    val newCluster = ClusterRequest(Map.empty, None)
 
     Put(s"/api/cluster/${googleProject.value}/${clusterName.string}", newCluster.toJson) ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
@@ -99,7 +99,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "list clusters" in isolatedDbTest {
-    val newCluster = ClusterRequest(None, Map.empty, None)
+    val newCluster = ClusterRequest(Map.empty, None)
     for (i <- 1 to 10) {
       Put(s"/api/cluster/${googleProject.value}/${clusterName.string}-$i", newCluster.toJson) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.OK
@@ -123,7 +123,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "list clusters with labels" in isolatedDbTest {
-    val newCluster = ClusterRequest(None, Map.empty, None)
+    val newCluster = ClusterRequest(Map.empty, None)
     for (i <- 1 to 10) {
       Put(s"/api/cluster/${googleProject.value}/${clusterName.string}-$i", newCluster.copy(labels = Map(s"label$i" -> s"value$i")).toJson) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.OK

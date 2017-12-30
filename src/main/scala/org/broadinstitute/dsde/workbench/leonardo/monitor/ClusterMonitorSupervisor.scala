@@ -43,7 +43,6 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
       if (monitorConfig.recreateCluster) {
         logger.info(s"Recreating cluster ${cluster.projectNameString}...")
         val clusterRequest = ClusterRequest(
-          None,
           cluster.labels,
           cluster.jupyterExtensionUri,
           Some(cluster.machineConfig))

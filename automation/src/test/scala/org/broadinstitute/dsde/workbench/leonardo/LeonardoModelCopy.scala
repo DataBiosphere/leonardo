@@ -71,8 +71,7 @@ case class Cluster(clusterName: ClusterName,
                    labels: LabelMap,
                    jupyterExtensionUri: Option[GcsPath])
 
-case class ClusterRequest(bucketPath: Option[GcsBucketName],
-                          labels: LabelMap,
+case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[String] = None)
 
 case class DefaultLabels(clusterName: ClusterName,
