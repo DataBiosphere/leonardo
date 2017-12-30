@@ -303,7 +303,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.buckets should not contain (initBucketPath)
 
     // create the bucket and add files
-    leo.initializeBucket(googleProject, clusterName, initBucketPath, testClusterRequest, ServiceAccountInfo(None, Some(petServiceAccount)), Some(serviceAccountKey)).futureValue
+    leo.initializeBucket(googleProject, clusterName, initBucketPath, testClusterRequest, ServiceAccountInfo(None, Some(petServiceAccount)), Some(serviceAccountKey), defaultUserInfo.userEmail).futureValue
 
     // our bucket should now exist
     gdDAO.buckets should contain (initBucketPath)
@@ -320,7 +320,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.buckets += initBucketPath
 
     // add all the bucket objects
-    leo.initializeBucketObjects(googleProject, clusterName, initBucketPath, testClusterRequest, Some(serviceAccountKey)).futureValue
+    leo.initializeBucketObjects(googleProject, clusterName, bucketPath, testClusterRequest, Some(serviceAccountKey), defaultUserInfo.userEmail).futureValue
 
     // check that the bucket exists
     gdDAO.buckets should contain (initBucketPath)
@@ -353,7 +353,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "template a script using config values" in isolatedDbTest {
     // Create replacements map
-    val replacements = ClusterInitValues(googleProject, clusterName, initBucketPath, testClusterRequest, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, Some(serviceAccountKey)).toJson.asJsObject.fields
+    val replacements = ClusterInitValues(googleProject, clusterName, initBucketPath, testClusterRequest, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, Some(serviceAccountKey), defaultUserInfo.userEmail).toJson.asJsObject.fields
 
     // Each value in the replacement map will replace it's key in the file being processed
     val result = leo.templateResource(clusterResourcesConfig.initActionsScript, replacements)
@@ -373,26 +373,29 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "template google_sign_in.js with config values" in isolatedDbTest {
     // Create replacements map
-    val replacements = ClusterInitValues(googleProject, clusterName, initBucketPath, testClusterRequest, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, Some(serviceAccountKey)).toJson.asJsObject.fields
+    val replacements = ClusterInitValues(googleProject, clusterName, initBucketPath, testClusterRequest, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, Some(serviceAccountKey), defaultUserInfo.userEmail).toJson.asJsObject.fields
 
     // Each value in the replacement map will replace it's key in the file being processed
     val result = leo.templateResource(clusterResourcesConfig.jupyterGoogleSignInJs, replacements)
 
     // Check that the values in the bash script file were correctly replaced
     val expected =
-      s""""${testClusterRequest.googleClientId.get.string}""""
+      s"""|"${testClusterRequest.googleClientId.get.string}"
+          |"${defaultUserInfo.userEmail.value}"""".stripMargin
 
     result shouldEqual expected
   }
 
   it should "template google_sign_in.js with a default Google client id" in isolatedDbTest {
-    val replacements = ClusterInitValues(googleProject, clusterName, bucketPath, testClusterRequest.copy(googleClientId = None), dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, Some(serviceAccountKey)).toJson.asJsObject.fields
+    val replacements = ClusterInitValues(googleProject, clusterName, bucketPath, testClusterRequest.copy(googleClientId = None), dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, Some(serviceAccountKey), defaultUserInfo.userEmail).toJson.asJsObject.fields
 
     // Each value in the replacement map will replace it's key in the file being processed
     val result = leo.templateResource(clusterResourcesConfig.jupyterGoogleSignInJs, replacements)
 
     // Check that the values in the bash script file were correctly replaced
-    val expected = s""""${swaggerConfig.googleClientId.string}""""
+    val expected =
+      s"""|"${swaggerConfig.googleClientId.string}"
+          |"${defaultUserInfo.userEmail.value}"""".stripMargin
 
     result shouldEqual expected
   }

@@ -1,1 +1,2 @@
 $(googleClientId)
+$(googleLoginHint)

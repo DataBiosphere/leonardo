@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport.Goo
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey}
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat, SerializationException}
@@ -226,7 +226,7 @@ object ClusterInitValues {
 
   def apply(googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, dataprocConfig: DataprocConfig,
             clusterFilesConfig: ClusterFilesConfig, clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig, swaggerConfig: SwaggerConfig,
-            serviceAccountKey: Option[ServiceAccountKey]): ClusterInitValues =
+            serviceAccountKey: Option[ServiceAccountKey], userEmailLoginHint: WorkbenchEmail): ClusterInitValues =
     ClusterInitValues(
       googleProject.value,
       clusterName.string,
@@ -242,8 +242,9 @@ object ClusterInitValues {
       GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.jupyterInstallExtensionScript.string)).toUri,
       clusterRequest.jupyterExtensionUri.map(_.toUri).getOrElse(""),
       serviceAccountKey.map(_ => GcsPath(bucketName, GcsRelativePath(serviceAccountCredentialsFilename)).toUri).getOrElse(""),
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterCustomJs.string)).toUri,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterGoogleSignInJs.string)).toUri
+      GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.jupyterCustomJs.string)).toUri,
+      GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.jupyterGoogleSignInJs.string)).toUri,
+      userEmailLoginHint.value
     )
 }
 
