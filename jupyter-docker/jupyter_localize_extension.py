@@ -1,7 +1,6 @@
 import subprocess
 import os
 import pipes
-import json
 import tornado
 from tornado import gen
 from tornado.web import HTTPError
@@ -24,11 +23,11 @@ class LocalizeHandler(IPythonHandler):
   @gen.coroutine
   def localize(self, pathdict):
     """Treats the given dict as a string/string map and sends it to gsutil."""
-    #TODO: where does this go? where's the ipy working directory?
+    #This gets dropped inside the user's notebook working directory
     with open("localization.log", 'a') as locout:
       for key in pathdict:
         cmd = " ".join(["gsutil -m -q cp -R", self.sanitize(key), self.sanitize(pathdict[key])])
-        print cmd
+        locout.write(cmd + '\n')
         subprocess.call(cmd, stderr=locout, shell=True)
 
   def post(self):
