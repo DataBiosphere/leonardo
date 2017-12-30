@@ -213,8 +213,8 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
     // verify FISS
     notebookPage.executeCell("import firecloud.api as fapi") shouldBe None
-    notebookPage.executeCell("fiss_credentials = fapi.GoogleCredentials.get_application_default()") shouldBe None
-    notebookPage.executeCell("print fiss_credentials._service_account_email") shouldBe Some(expectedEmail.value)
+    notebookPage.executeCell("fiss_credentials, project = fapi.google.auth.default()") shouldBe None
+    notebookPage.executeCell("print fiss_credentials.service_account_email") shouldBe Some(expectedEmail.value)
 
     // verify Spark
     notebookPage.executeCell("hadoop_config = sc._jsc.hadoopConfiguration()") shouldBe None
@@ -234,8 +234,8 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
     // verify FISS
     notebookPage.executeCell("import firecloud.api as fapi") shouldBe None
-    notebookPage.executeCell("fiss_credentials = fapi.GoogleCredentials.get_application_default()") shouldBe None
-    notebookPage.executeCell("print fiss_credentials.service_account_email") shouldBe Some("None")
+    notebookPage.executeCell("fiss_credentials, project = fapi.google.auth.default()") shouldBe None
+    notebookPage.executeCell("print fiss_credentials.service_account_email") shouldBe Some("default")
 
     // verify Spark
     notebookPage.executeCell("hadoop_config = sc._jsc.hadoopConfiguration()") shouldBe None
