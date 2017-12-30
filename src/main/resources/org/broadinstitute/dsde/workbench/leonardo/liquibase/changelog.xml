@@ -14,4 +14,5 @@
     <include file="changesets/20171129_cluster-creator.xml" relativeToChangelogFile="true" />
     <include file="changesets/20171205_cluster-split-up-service-accounts.xml" relativeToChangelogFile="true" />
     <include file="changesets/20171218_cluster_indexes_serviceAccount_and_status.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20171230_remove_googlebucket.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

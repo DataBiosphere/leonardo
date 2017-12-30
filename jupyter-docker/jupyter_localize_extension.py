@@ -26,7 +26,8 @@ class LocalizeHandler(IPythonHandler):
     #This gets dropped inside the user's notebook working directory
     with open("localization.log", 'a') as locout:
       for key in pathdict:
-        cmd = " ".join(["gsutil -m -q cp -R", self.sanitize(key), self.sanitize(pathdict[key])])
+        #NOTE: keys are destinations, values are sources
+        cmd = " ".join(["gsutil -m -q cp -R", self.sanitize(pathdict[key]), self.sanitize(key)])
         locout.write(cmd + '\n')
         subprocess.call(cmd, stderr=locout, shell=True)
 

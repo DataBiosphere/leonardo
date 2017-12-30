@@ -47,7 +47,6 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
   val project = GoogleProject(LeonardoConfig.Projects.default)
   val sa = GoogleServiceAccount(LeonardoConfig.Leonardo.notebooksServiceAccountEmail)
-  val bucket = GcsBucketName("mah-bukkit")
   val incorrectJupyterExtensionUri = "gs://leonardo-swat-test-bucket-do-not-delete/"
 
   // must align with run-tests.sh and hub-compose-fiab.yml
@@ -59,7 +58,6 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
                  requestedLabels: LabelMap,
                  clusterName: ClusterName,
                  googleProject: GoogleProject,
-                 gcsBucketName: GcsBucketName,
                  creator: WorkbenchEmail,
                  notebookExtension: Option[String] = None): Unit = {
 
@@ -67,7 +65,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     // set a dummy here and then remove it from the comparison
 
     val dummyPetSa = WorkbenchEmail("dummy")
-    val expected = requestedLabels ++ DefaultLabels(clusterName, googleProject, gcsBucketName, creator, Some(dummyPetSa), None, notebookExtension).toMap
+    val expected = requestedLabels ++ DefaultLabels(clusterName, googleProject, creator, Some(dummyPetSa), None, notebookExtension).toMap
 
     (seen - "clusterServiceAccount") shouldBe (expected - "clusterServiceAccount")
   }
@@ -82,8 +80,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     expectedStatuses should contain (cluster.status)
     cluster.googleProject shouldBe expectedProject
     cluster.clusterName shouldBe expectedName
-    cluster.googleBucket shouldBe bucket
-    labelCheck(cluster.labels, requestedLabels, expectedName, expectedProject, bucket, cluster.creator, notebookExtension)
+    labelCheck(cluster.labels, requestedLabels, expectedName, expectedProject, cluster.creator, notebookExtension)
 
     cluster
   }
@@ -141,7 +138,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
   def withNewCluster[T](googleProject: GoogleProject)(testCode: Cluster => T)(implicit token: AuthToken): T = {
     val name = ClusterName(s"automation-test-a${makeRandomId().toLowerCase}z")
-    val request = ClusterRequest(bucket, Map("foo" -> makeRandomId()))
+    val request = ClusterRequest(None, Map("foo" -> makeRandomId()))
 
     val testResult: Try[T] = Try {
       val cluster = createAndMonitor(googleProject, name, request)
@@ -156,7 +153,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
   def withNewErroredCluster[T](googleProject: GoogleProject)(testCode: Cluster => T)(implicit token: AuthToken): T = {
     val name = ClusterName(s"automation-test-a${makeRandomId()}z")
-    val request = ClusterRequest(bucket, Map("foo" -> makeRandomId()), Some(incorrectJupyterExtensionUri))
+    val request = ClusterRequest(None, Map("foo" -> makeRandomId()), Some(incorrectJupyterExtensionUri))
     val testResult: Try[T] = Try {
       val cluster = createAndMonitor(googleProject, name, request)
       cluster.status shouldBe ClusterStatus.Error
