@@ -31,25 +31,25 @@ class LocalizeHandler(IPythonHandler):
         print cmd
         subprocess.call(cmd, stderr=locout, shell=True)
 
-    def post(self):
-      jbody = self.request.body.decode('utf-8')
-      try:
-        pathdict = json.loads(jbody)
-      except json.decoder.JSONDecodeError:
-        raise HTTPError(400, "Body must be JSON object of type string/string")
+  def post(self):
+    jbody = self.request.body.decode('utf-8')
+    try:
+      pathdict = json.loads(jbody)
+    except json.decoder.JSONDecodeError:
+      raise HTTPError(400, "Body must be JSON object of type string/string")
 
-      if type(pathdict) is not dict:
-        raise HTTPError(400, "Body must be JSON object of type string/string")
+    if type(pathdict) is not dict:
+      raise HTTPError(400, "Body must be JSON object of type string/string")
 
-      if not all(map(lambda v: type(v) is unicode, pathdict.values())):
-        raise HTTPError(400, "Body must be JSON object of type string/string")
+    if not all(map(lambda v: type(v) is unicode, pathdict.values())):
+      raise HTTPError(400, "Body must be JSON object of type string/string")
 
-      #complete the request HERE, without waiting for the localize to run
-      self.set_status(200)
-      self.finish()
+    #complete the request HERE, without waiting for the localize to run
+    self.set_status(200)
+    self.finish()
 
-      #fire and forget the actual work -- it'll log to a file in the user's homedir
-      tornado.ioloop.IOLoop.current().spawn_callback(localize, pathdict)
+    #fire and forget the actual work -- it'll log to a file in the user's homedir
+    tornado.ioloop.IOLoop.current().spawn_callback(localize, pathdict)
 
 def load_jupyter_server_extension(nb_server_app):
   """Entrypoint for the Jupyter extension."""
