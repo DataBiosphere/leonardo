@@ -35,7 +35,7 @@ class LocalizeHandler(IPythonHandler):
     jbody = self.request.body.decode('utf-8')
     try:
       pathdict = json.loads(jbody)
-    except json.decoder.JSONDecodeError:
+    except ValueError:
       raise HTTPError(400, "Body must be JSON object of type string/string")
 
     if type(pathdict) is not dict:
