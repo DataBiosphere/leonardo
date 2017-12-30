@@ -49,7 +49,7 @@ class LocalizeHandler(IPythonHandler):
     self.finish()
 
     #fire and forget the actual work -- it'll log to a file in the user's homedir
-    tornado.ioloop.IOLoop.current().spawn_callback(localize, pathdict)
+    tornado.ioloop.IOLoop.current().spawn_callback(self.localize, pathdict)
 
 def load_jupyter_server_extension(nb_server_app):
   """Entrypoint for the Jupyter extension."""
