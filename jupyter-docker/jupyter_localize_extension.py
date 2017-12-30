@@ -32,9 +32,8 @@ class LocalizeHandler(IPythonHandler):
         subprocess.call(cmd, stderr=locout, shell=True)
 
   def post(self):
-    jbody = self.request.body.decode('utf-8')
     try:
-      pathdict = json.loads(jbody)
+      pathdict = tornado.escape.json_decode(self.request.body)
     except ValueError:
       raise HTTPError(400, "Body must be JSON object of type string/string")
 
