@@ -4,6 +4,7 @@ import java.net.URL
 import java.time.Instant
 import java.util.UUID
 
+import akka.http.scaladsl.model.headers.{Cookie, HttpCookiePair}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.api.WorkbenchClient
 import org.broadinstitute.dsde.workbench.config.AuthToken
@@ -110,8 +111,18 @@ object Leonardo extends WorkbenchClient with LazyLogging {
   }
 
   object notebooks {
+    def handleContentItemResponse(response: String): ContentItem = {
+      mapper.readValue(response, classOf[ContentItem])
+    }
+
     def notebooksPath(googleProject: GoogleProject, clusterName: ClusterName): String =
       s"notebooks/${googleProject.value}/${clusterName.string}"
+
+    def contentsPath(googleProject: GoogleProject, clusterName: ClusterName, contentPath: String): String =
+      s"${notebooksPath(googleProject, clusterName)}/api/contents/$contentPath?content=1"
+
+    def localizePath(googleProject: GoogleProject, clusterName: ClusterName): String =
+      s"${notebooksPath(googleProject, clusterName)}/api/localize"
 
     def get(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver): NotebooksListPage = {
       val path = notebooksPath(googleProject, clusterName)
@@ -119,5 +130,18 @@ object Leonardo extends WorkbenchClient with LazyLogging {
       new NotebooksListPage(url + path)
     }
 
+    def localize(googleProject: GoogleProject, clusterName: ClusterName, locMap: Map[String, String])(implicit token: AuthToken): String = {
+      val path = localizePath(googleProject, clusterName)
+      logger.info(s"Localize notebook files: POST /$path")
+      val cookie = Cookie(HttpCookiePair("FCtoken", token.value))
+      postRequest(url + path, locMap, httpHeaders = List(cookie))
+    }
+
+    def getContentItem(googleProject: GoogleProject, clusterName: ClusterName, contentPath: String)(implicit token: AuthToken): ContentItem = {
+      val path = contentsPath(googleProject, clusterName, contentPath)
+      logger.info(s"Get notebook contents: GET /$path")
+      val cookie = Cookie(HttpCookiePair("FCtoken", token.value))
+      handleContentItemResponse(parseResponse(getRequest(url + path, httpHeaders = List(cookie))))
+    }
   }
 }

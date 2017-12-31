@@ -47,7 +47,8 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
   val project = GoogleProject(LeonardoConfig.Projects.default)
   val sa = GoogleServiceAccount(LeonardoConfig.Leonardo.notebooksServiceAccountEmail)
-  val incorrectJupyterExtensionUri = "gs://leonardo-swat-test-bucket-do-not-delete/"
+  val swatTestBucket = "gs://leonardo-swat-test-bucket-do-not-delete"
+  val incorrectJupyterExtensionUri = swatTestBucket
 
   // must align with run-tests.sh and hub-compose-fiab.yml
   val downloadDir = "chrome/downloads"
@@ -170,10 +171,15 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     testCode(notebooksListPage.open)
   }
 
-  def withNotebookUpload[T](cluster: Cluster, file: File)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+  def withFileUpload[T](cluster: Cluster, file: File)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
       notebooksListPage.upload(file)
+      testCode(notebooksListPage)
+    }
+  }
 
+  def withNotebookUpload[T](cluster: Cluster, file: File)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+    withFileUpload(cluster, file) { notebooksListPage =>
       val notebookPage = notebooksListPage.openNotebook(file)
       testCode(notebookPage)
     }
@@ -326,6 +332,33 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
           notebookPage.executeCell("1+1") shouldBe Some("2")
           notebookPage.executeCell("2*3") shouldBe Some("6")
           notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
+        }
+      }
+    }
+
+    "should localize files" in withWebDriver { implicit driver =>
+      implicit val token = ronAuthToken
+      val file = ResourceFile("diff-tests/import-hail.ipynb")
+
+      withNewCluster(project) { cluster =>
+        withFileUpload(cluster, file) { _ =>
+          //good data
+          val goodLocalize = Map(
+            "test.rtf" -> s"$swatTestBucket/test.rtf"
+            //TODO: create a bucket and upload to there
+            //"gs://new_bucket/import-hail.ipynb" -> "import-hail.ipynb"
+          )
+          Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, goodLocalize)
+          val localizationLog = Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "localization.log")
+          localizationLog.content shouldBe defined
+          localizationLog.content.get shouldNot contain("Exception")
+
+          //bad data
+          val badLocalize = Map("file.out" -> "gs://nobuckethere")
+          Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, badLocalize)
+          val localizationLogAgain = Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "localization.log")
+          localizationLogAgain.content shouldBe defined
+          localizationLogAgain.content.get should contain("Exception")
         }
       }
     }
