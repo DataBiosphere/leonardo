@@ -24,10 +24,10 @@ class LocalizeHandler(IPythonHandler):
   def localize(self, pathdict):
     """Treats the given dict as a string/string map and sends it to gsutil."""
     #This gets dropped inside the user's notebook working directory
-    with open("localization.log", 'a') as locout:
+    with open("localization.log", 'a', buffering=1) as locout:
       for key in pathdict:
         #NOTE: keys are destinations, values are sources
-        cmd = " ".join(["gsutil -m -q cp -R", self.sanitize(pathdict[key]), self.sanitize(key)])
+        cmd = " ".join(["gsutil -m -q cp -R -c -e", self.sanitize(pathdict[key]), self.sanitize(key)])
         locout.write(cmd + '\n')
         subprocess.call(cmd, stderr=locout, shell=True)
 
