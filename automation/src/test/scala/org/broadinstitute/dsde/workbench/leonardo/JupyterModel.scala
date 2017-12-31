@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 case class ContentItem (
                        `type`: String,
                        mimetype: String,
-                       writeable: Boolean,
+                       writable: Boolean,
                        name: String,
                        format: String,
                        created: String,

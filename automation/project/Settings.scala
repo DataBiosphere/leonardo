@@ -27,6 +27,7 @@ object Settings {
 
   val testSettings = List(
     testOptions in Test += Tests.Argument("-oF"),
+    testOptions in Test += Tests.Argument("-P"),
     parallelExecution in Test := true
   )
 
