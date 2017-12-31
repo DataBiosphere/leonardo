@@ -284,14 +284,14 @@ paths:
           required: true
           type: string
         - in: body
-          description: JSON object describing
+          description: |
+            JSON object. Keys represent destinations, values represent sources.
+            Paths will be quoted, intermediate local directories made, and then sent to [gsutil cp](https://cloud.google.com/storage/docs/gsutil/commands/cp).
           name: filesToLocalize
           required: true
           schema:
             type: object
-            description: |
-              JSON object. Keys represent destinations, values represent sources.
-              Paths will be quoted, intermediate local directories made, and then sent to [gsutil cp](https://cloud.google.com/storage/docs/gsutil/commands/cp).
+            description:
             example:
               "/localize/to/here" : "gs://some/bucket/object"
               "gs://upload/to/this/bucket" : "/this/local/file"
