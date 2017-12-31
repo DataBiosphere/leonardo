@@ -351,14 +351,14 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
           Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, goodLocalize)
           val localizationLog = Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "localization.log")
           localizationLog.content shouldBe defined
-          localizationLog.content.get shouldNot contain("Exception")
+          localizationLog.content.get shouldNot include("Exception")
 
           //bad data
           val badLocalize = Map("file.out" -> "gs://nobuckethere")
           Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, badLocalize)
           val localizationLogAgain = Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "localization.log")
           localizationLogAgain.content shouldBe defined
-          localizationLogAgain.content.get should contain("Exception")
+          localizationLogAgain.content.get should include("Exception")
         }
       }
     }
