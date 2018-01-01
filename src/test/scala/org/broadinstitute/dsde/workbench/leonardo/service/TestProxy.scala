@@ -61,7 +61,6 @@ trait TestProxy {
   def backendRoute: Route =
     pathPrefix("notebooks" / googleProject / clusterName) {
       extractRequest { request =>
-        println(request)
         path("websocket") {
           handleWebSocketMessages(greeter)
         } ~

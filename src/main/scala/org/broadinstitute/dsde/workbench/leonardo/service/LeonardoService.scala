@@ -29,7 +29,7 @@ import scala.util.control.NonFatal
 import scala.util.{Failure, Success}
 
 case class AuthorizationError(email: Option[WorkbenchEmail] = None) extends
-  LeoException(s"'${email.map(_.value).getOrElse("Your account")}' is unauthorized", StatusCodes.Unauthorized)
+  LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is unauthorized", StatusCodes.Unauthorized)
 
 case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: ClusterName)
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.string} not found", StatusCodes.NotFound)
