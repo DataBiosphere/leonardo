@@ -2,39 +2,35 @@ package org.broadinstitute.dsde.workbench.leonardo.api
 
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{AuthorizationFailedRejection, Directive1, Route}
+import akka.http.scaladsl.server.{AuthorizationFailedRejection, Directive0, Directive1, Route}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.service.ProxyService
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import akka.http.scaladsl.model.headers.{Authorization, HttpCookie}
-import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
+import org.broadinstitute.dsde.workbench.model.UserInfo
 
 import scala.concurrent.ExecutionContext
 
-/**
-  * Created by rtitle on 8/4/17.
-  */
-trait ProxyRoutes extends UserInfoDirectives{ self: LazyLogging =>
+trait ProxyRoutes extends UserInfoDirectives { self: LazyLogging =>
   val proxyService: ProxyService
-  val proxyConfig: ProxyConfig
   implicit val executionContext: ExecutionContext
 
   protected val tokenCookieName = "FCtoken"
 
   protected val proxyRoutes: Route =
     path("notebooks" / "login") {
-      extractToken(setTokenCookie = true) { token =>
-        complete {
-          proxyService.getCachedUserInfoFromToken(token).map { userInfo =>
-            logger.debug(s"Successfully logged in $userInfo")
+      extractUserInfo { userInfo => // rejected with AuthorizationFailedRejection if the token is not present
+        setTokenCookie(userInfo) {  // set the token cookie in the response
+          complete {
+            logger.debug(s"Successfully logged in user $userInfo")
             StatusCodes.OK
           }
         }
       }
     } ~
     path("notebooks" / "logout") {
-      extractToken(setTokenCookie = false) { token =>
+      extractToken { token =>
         complete {
           proxyService.invalidateAccessToken(token).map { _ =>
             logger.debug(s"Invalidated access token $token")
@@ -45,24 +41,20 @@ trait ProxyRoutes extends UserInfoDirectives{ self: LazyLogging =>
     } ~
     path("notebooks" / Segment / Segment / "api" / "localize") { (googleProject, clusterName) =>
       extractRequest { request =>
-        extractToken(setTokenCookie = false) { token => // rejected with AuthorizationFailedRejection if the token is not present
+        extractUserInfo { userInfo => // rejected with AuthorizationFailedRejection if the token is not present
           complete {
-            proxyService.getCachedUserInfoFromToken(token).flatMap { userInfo =>
-              // Proxy logic handled by the ProxyService class
-              proxyService.proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), request)
-            }
+            // Proxy logic handled by the ProxyService class
+            proxyService.proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), request)
           }
         }
       }
     } ~
     pathPrefix("notebooks" / Segment / Segment) { (googleProject, clusterName) =>
       extractRequest { request =>
-        extractToken(setTokenCookie = false) { token => // rejected with AuthorizationFailedRejection if the token is not present
+        extractUserInfo { userInfo => // rejected with AuthorizationFailedRejection if the token is not present
           complete {
-            proxyService.getCachedUserInfoFromToken(token).flatMap { userInfo =>
-              // Proxy logic handled by the ProxyService class
-              proxyService.proxyNotebook(userInfo, GoogleProject(googleProject), ClusterName(clusterName), request)
-            }
+            // Proxy logic handled by the ProxyService class
+            proxyService.proxyNotebook(userInfo, GoogleProject(googleProject), ClusterName(clusterName), request)
           }
         }
       }
@@ -70,24 +62,17 @@ trait ProxyRoutes extends UserInfoDirectives{ self: LazyLogging =>
 
   /**
     * Extracts the user token from either a cookie or Authorization header.
-    * If coming from an Authorization header, tacks on a Set-Cookie header in the response.
     */
-  private def extractToken(setTokenCookie: Boolean): Directive1[String] = {
+  private def extractToken: Directive1[String] = {
     optionalCookie(tokenCookieName) flatMap {
       // We have a cookie, we're done
       case Some(cookie) => provide(cookie.value)
 
-      // We don't have a cookie, check the Authorization header
+      // We don't have a cookie; check the Authorization header
       case None => optionalHeaderValueByType[`Authorization`](()) flatMap {
 
-        // We have an Authorization header, extract the token and tack on a Set-Cookie header
-        case Some(header) =>
-          val token = header.credentials.token()
-          if (setTokenCookie) {
-            setCookie(buildCookie(token)) tmap { _ => token }
-          } else {
-            provide(token)
-          }
+        // We have an Authorization header, extract the token
+        case Some(header) => provide(header.credentials.token)
 
         // Not found in cookie or Authorization header, fail
         case None => reject(AuthorizationFailedRejection)
@@ -95,13 +80,30 @@ trait ProxyRoutes extends UserInfoDirectives{ self: LazyLogging =>
     }
   }
 
-  private def buildCookie(token: String): HttpCookie = {
+  /**
+    * Extracts the user token from the request, and looks up the cached UserInfo.
+    */
+  private def extractUserInfo: Directive1[UserInfo] = {
+    extractToken.flatMap { token =>
+      onSuccess(proxyService.getCachedUserInfoFromToken(token))
+    }
+  }
+
+  /**
+    * Sets a token cookie in the HTTP response.
+    */
+  private def setTokenCookie(userInfo: UserInfo): Directive0 = {
+    setCookie(buildCookie(userInfo))
+  }
+
+  private def buildCookie(userInfo: UserInfo): HttpCookie = {
     HttpCookie(
       name = tokenCookieName,
-      value = token,
-      domain = Option(proxyConfig.cookieDomain),
-      maxAge = Option(proxyConfig.cookieMaxAge),
-      path = Option(proxyConfig.cookiePath)
+      value = userInfo.accessToken.token,
+      secure = true,  // cookie is only sent for SSL requests
+      domain = None,  // Do not specify domain, making it default to Leo's domain
+      maxAge = Option(userInfo.tokenExpiresIn / 1000),  // coookie expiry is tied to the token expiry
+      path = Some("/")  // needed so it works for AJAX requests
     )
   }
 

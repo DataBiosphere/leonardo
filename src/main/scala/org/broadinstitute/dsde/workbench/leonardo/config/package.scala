@@ -76,10 +76,7 @@ package object config {
       config.getString("jupyterDomain"),
       toScalaDuration(config.getDuration("dnsPollPeriod")),
       config.getLong("cacheExpiryTime"),
-      config.getInt("cacheMaxSize"),
-      config.getString("cookieDomain"),
-      config.getInt("cookieMaxAge"),
-      config.getString("cookiePath")
+      config.getInt("cacheMaxSize")
     )
   }
 

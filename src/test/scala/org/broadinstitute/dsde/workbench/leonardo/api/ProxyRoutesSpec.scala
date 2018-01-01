@@ -167,8 +167,9 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
       header[`Set-Cookie`] shouldBe Some(`Set-Cookie`(
         HttpCookie.fromPair(
           tokenCookie,
+          secure = true,
           maxAge = Some(3600),
-          domain = Some("test-notebooks.firecloud.org"),
+          domain = None,
           path = Some("/"))))
     }
 
