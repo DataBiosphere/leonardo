@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth
 
 import com.typesafe.config.Config
+import com.typesafe.scalalogging.LazyLogging
 import net.ceedubs.ficus.Ficus._
 import io.swagger.client.ApiClient
 import io.swagger.client.Configuration
@@ -14,7 +15,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) {
+class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) with LazyLogging {
 
   val notebookClusterResourceTypeName = "notebook-cluster"
   val billingProjectResourceTypeName = "billing-project"
@@ -23,7 +24,9 @@ class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) {
   //is this how we do this???
   private def resourcesApi(userInfo: UserInfo): ResourcesApi = {
     val apiClient = new ApiClient()
+    logger.info("USER ACCESS TOKEN:" + userInfo.accessToken.token)
     apiClient.setAccessToken(userInfo.accessToken.token)
+    logger.info("API CLIENT:" + apiClient)
    // new ResourcesApi(apiClient.setBasePath(authConfig.as[String]("samServer")))
     new ResourcesApi(apiClient)
   }
