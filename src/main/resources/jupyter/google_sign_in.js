@@ -16,8 +16,8 @@ var loginHint = $(googleLoginHint);
 var allowedOrigins = $(allowedOrigins);
 
 function receive(event) {
-//    if (allowedOrigins.indexOf(event.origin) == -1)
-//        return;
+    if (allowedOrigins.indexOf(event.origin) == -1)
+        return;
     if (event.source !== window.opener)
         return;
     if (event.data.type !== 'bootstrap-auth.response')

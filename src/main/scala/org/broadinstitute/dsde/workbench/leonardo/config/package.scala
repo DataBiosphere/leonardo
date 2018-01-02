@@ -78,8 +78,7 @@ package object config {
       toScalaDuration(config.getDuration("dnsPollPeriod")),
       config.getLong("cacheExpiryTime"),
       config.getInt("cacheMaxSize"),
-     // config.getStringList("allowedOrigins").asScala.toList
-      List.empty
+      config.getStringList("allowedOrigins").asScala.toList
     )
   }
 
