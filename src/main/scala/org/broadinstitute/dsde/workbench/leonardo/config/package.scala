@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.util.toScalaDuration
 package object config {
   implicit val swaggerReader: ValueReader[SwaggerConfig] = ValueReader.relative { config =>
     SwaggerConfig(
-      GoogleClientId(config.getString("googleClientId")),
+      config.getString("googleClientId"),
       config.getString("realm")
     )
   }

@@ -225,7 +225,7 @@ object ClusterInitValues {
   val serviceAccountCredentialsFilename = "service-account-credentials.json"
 
   def apply(googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, dataprocConfig: DataprocConfig,
-            clusterFilesConfig: ClusterFilesConfig, clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig, swaggerConfig: SwaggerConfig,
+            clusterFilesConfig: ClusterFilesConfig, clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig,
             serviceAccountKey: Option[ServiceAccountKey], userEmailLoginHint: WorkbenchEmail): ClusterInitValues =
     ClusterInitValues(
       googleProject.value,
@@ -265,7 +265,8 @@ case class ClusterInitValues(googleProject: String,
                              jupyterExtensionUri: String,
                              jupyterServiceAccountCredentials: String,
                              jupyterCustomJsUri: String,
-                             jupyterGoogleSignInJsUri: String)
+                             jupyterGoogleSignInJsUri: String,
+                             googleLoginHint: String)
 
 
 object FirewallRuleRequest {
@@ -364,6 +365,6 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val serviceAccountInfoFormat = jsonFormat2(ServiceAccountInfo.apply)
   implicit val clusterFormat = jsonFormat14(Cluster.apply)
   implicit val clusterRequestFormat = jsonFormat3(ClusterRequest)
-  implicit val clusterInitValuesFormat = jsonFormat17(ClusterInitValues.apply)
+  implicit val clusterInitValuesFormat = jsonFormat18(ClusterInitValues.apply)
   implicit val defaultLabelsFormat = jsonFormat6(DefaultLabels.apply)
 }

@@ -55,7 +55,7 @@ trait SwaggerRoutes {
     mapResponseEntity { entityFromJar =>
       entityFromJar.transformDataBytes(Flow.fromFunction[ByteString, ByteString] { original: ByteString =>
         ByteString(original.utf8String
-          .replace("your-client-id", swaggerConfig.googleClientId.string)
+          .replace("your-client-id", swaggerConfig.googleClientId)
           .replace("your-realms", swaggerConfig.realm)
           .replace("your-app-name", swaggerConfig.realm)
           .replace(scopeSeparator(","), scopeSeparator(" "))
