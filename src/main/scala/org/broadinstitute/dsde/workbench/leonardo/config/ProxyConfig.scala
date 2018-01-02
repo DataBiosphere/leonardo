@@ -14,5 +14,6 @@ case class ProxyConfig(
                         jupyterDomain: String,
                         dnsPollPeriod: FiniteDuration,
                         cacheExpiryTime: Long,
-                        cacheMaxSize: Int
+                        cacheMaxSize: Int,
+                        allowedOrigins: List[String]
                       )

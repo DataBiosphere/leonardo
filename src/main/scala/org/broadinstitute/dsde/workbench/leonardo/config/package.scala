@@ -7,6 +7,7 @@ import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
+import scala.collection.JavaConverters._
 
 package object config {
   implicit val swaggerReader: ValueReader[SwaggerConfig] = ValueReader.relative { config =>
@@ -76,7 +77,8 @@ package object config {
       config.getString("jupyterDomain"),
       toScalaDuration(config.getDuration("dnsPollPeriod")),
       config.getLong("cacheExpiryTime"),
-      config.getInt("cacheMaxSize")
+      config.getInt("cacheMaxSize"),
+      config.getStringList("allowedOrigins").asScala.toList
     )
   }
 
