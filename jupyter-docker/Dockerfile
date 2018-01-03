@@ -118,7 +118,8 @@ RUN export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" \
  && pip install biopython \
  && pip install bx-python \
  && pip install fastinterval \
- && pip install matplotlib-venn
+ && pip install matplotlib-venn \
+ && pip install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc1.zip#egg=aou_workbench_client&subdirectory=client/py"
 
 
 ADD spark-defaults.conf.template $SPARK_HOME/conf/
