@@ -6,6 +6,7 @@ import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.ws.{TextMessage, WebSocketRequest}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.HttpMethods._
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.GcsPathUtils
@@ -177,10 +178,24 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
 
       header[`Access-Control-Allow-Origin`] shouldBe Some(`Access-Control-Allow-Origin`("http://example.com"))
       header[`Access-Control-Allow-Credentials`] shouldBe Some(`Access-Control-Allow-Credentials`(true))
+      header[`Access-Control-Allow-Methods`] shouldBe None
     }
 
     // cache should now contain the token
     proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe true
+  }
+
+  it should "handle preflight OPTIONS requests" in {
+    Options(s"/notebooks/$googleProject/$clusterName/setCookie")
+      .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
+      .addHeader(Origin("http://example.com"))  ~> leoRoutes.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.OK
+      header[`Set-Cookie`] shouldBe None
+      header[`Access-Control-Allow-Origin`] shouldBe Some(`Access-Control-Allow-Origin`("http://example.com"))
+      header[`Access-Control-Allow-Credentials`] shouldBe Some(`Access-Control-Allow-Credentials`(true))
+      header[`Access-Control-Allow-Methods`] shouldBe Some(`Access-Control-Allow-Methods`(OPTIONS, POST, PUT, GET, DELETE))
+    }
   }
 
   it should "401 when not given an Authorization header" in {

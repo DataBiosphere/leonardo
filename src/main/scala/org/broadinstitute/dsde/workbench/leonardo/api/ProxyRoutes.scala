@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 
 import scala.concurrent.ExecutionContext
 
-trait ProxyRoutes extends UserInfoDirectives { self: LazyLogging =>
+trait ProxyRoutes extends UserInfoDirectives with CorsSupport { self: LazyLogging =>
   val proxyService: ProxyService
   implicit val executionContext: ExecutionContext
 
@@ -27,11 +27,11 @@ trait ProxyRoutes extends UserInfoDirectives { self: LazyLogging =>
 
         (extractRequest & extractUserInfo) { (request, userInfo) =>
           path("setCookie") {
-            get {
-              // Check the user for ConnectToCluster privileges and set a cookie in the response
-              onSuccess(proxyService.authCheck(userInfo, googleProject, clusterName, ConnectToCluster)) {
-                setTokenCookie(userInfo) {
-                  addAccessControlHeaders {
+            corsHandler {
+              get {
+                // Check the user for ConnectToCluster privileges and set a cookie in the response
+                onSuccess(proxyService.authCheck(userInfo, googleProject, clusterName, ConnectToCluster)) {
+                  setTokenCookie(userInfo) {
                     complete {
                       logger.debug(s"Successfully set cookie for user $userInfo")
                       StatusCodes.OK
@@ -104,16 +104,6 @@ trait ProxyRoutes extends UserInfoDirectives { self: LazyLogging =>
     setCookie(buildCookie(userInfo))
   }
 
-  private def addAccessControlHeaders: Directive0 = {
-    optionalHeaderValueByType[`Origin`](()) flatMap {
-      case Some(origin) => respondWithHeaders(
-        `Access-Control-Allow-Origin`(origin.value),
-        `Access-Control-Allow-Credentials`(true))
-      case None =>
-        reject(AuthorizationFailedRejection)
-    }
-
-  }
   private def buildCookie(userInfo: UserInfo): HttpCookie = {
     HttpCookie(
       name = tokenCookieName,
