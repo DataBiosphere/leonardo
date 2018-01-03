@@ -21,38 +21,35 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport { self: LazyLoggin
 
   protected val proxyRoutes: Route =
     pathPrefix("notebooks") {
-      pathPrefix(Segment / Segment) { (googleProjectParam, clusterNameParam) =>
-        val googleProject = GoogleProject(googleProjectParam)
-        val clusterName = ClusterName(clusterNameParam)
-
-        (extractRequest & extractUserInfo) { (request, userInfo) =>
-          path("setCookie") {
-            corsHandler {
-              get {
-                // Check the user for ConnectToCluster privileges and set a cookie in the response
-                onSuccess(proxyService.authCheck(userInfo, googleProject, clusterName, ConnectToCluster)) {
-                  setTokenCookie(userInfo) {
-                    complete {
-                      logger.debug(s"Successfully set cookie for user $userInfo")
-                      StatusCodes.OK
-                    }
+      (extractRequest & extractUserInfo) { (request, userInfo) =>
+        path(Segment / Segment / "setCookie") { (googleProject, clusterName) =>
+          corsHandler {
+            get {
+              // Check the user for ConnectToCluster privileges and set a cookie in the response
+              onSuccess(proxyService.authCheck(userInfo, GoogleProject(googleProject), ClusterName(clusterName), ConnectToCluster)) {
+                setTokenCookie(userInfo) {
+                  complete {
+                    logger.debug(s"Successfully set cookie for user $userInfo")
+                    StatusCodes.OK
                   }
                 }
               }
             }
-          } ~
-            // Proxy logic handled by the ProxyService class
-            // Note ProxyService calls the LeoAuthProvider internally
-            path("api" / "localize") { // route for custom Jupyter server extension
-              complete {
-                proxyService.proxyLocalize(userInfo, googleProject, clusterName, request)
-              }
-            } ~
+          }
+        } ~
+          // Proxy logic handled by the ProxyService class
+          // Note ProxyService calls the LeoAuthProvider internally
+          path(Segment / Segment / "api" / "localize") { (googleProject, clusterName) => // route for custom Jupyter server extension
             complete {
-              proxyService.proxyNotebook(userInfo, googleProject, clusterName, request)
+              proxyService.proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), request)
             }
-        }
-      } ~
+          } ~
+          pathPrefix(Segment / Segment) { (googleProject, clusterName) =>
+            complete {
+              proxyService.proxyNotebook(userInfo, GoogleProject(googleProject), ClusterName(clusterName), request)
+            }
+          }
+        } ~
         // No need to lookup the user or consult the auth provider for this endpoint
         path("invalidateToken") {
           get {
