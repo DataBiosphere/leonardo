@@ -7,7 +7,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.service.ProxyService
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import akka.http.scaladsl.model.headers.{Authorization, HttpCookie}
+import akka.http.scaladsl.model.headers._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.ConnectToCluster
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
@@ -27,12 +27,16 @@ trait ProxyRoutes extends UserInfoDirectives { self: LazyLogging =>
 
         (extractRequest & extractUserInfo) { (request, userInfo) =>
           path("setCookie") {
-            // Check the user for ConnectToCluster privileges and set a cookie in the response
-            onSuccess(proxyService.authCheck(userInfo, googleProject, clusterName, ConnectToCluster)) {
-              setTokenCookie(userInfo) {
-                complete {
-                  logger.debug(s"Successfully set cookie for user $userInfo")
-                  StatusCodes.OK
+            get {
+              // Check the user for ConnectToCluster privileges and set a cookie in the response
+              onSuccess(proxyService.authCheck(userInfo, googleProject, clusterName, ConnectToCluster)) {
+                setTokenCookie(userInfo) {
+                  addAccessControlHeaders {
+                    complete {
+                      logger.debug(s"Successfully set cookie for user $userInfo")
+                      StatusCodes.OK
+                    }
+                  }
                 }
               }
             }
@@ -51,11 +55,13 @@ trait ProxyRoutes extends UserInfoDirectives { self: LazyLogging =>
       } ~
         // No need to lookup the user or consult the auth provider for this endpoint
         path("invalidateToken") {
-          extractToken { token =>
-            complete {
-              proxyService.invalidateAccessToken(token).map { _ =>
-                logger.debug(s"Invalidated access token $token")
-                StatusCodes.OK
+          get {
+            extractToken { token =>
+              complete {
+                proxyService.invalidateAccessToken(token).map { _ =>
+                  logger.debug(s"Invalidated access token $token")
+                  StatusCodes.OK
+                }
               }
             }
           }
@@ -98,6 +104,16 @@ trait ProxyRoutes extends UserInfoDirectives { self: LazyLogging =>
     setCookie(buildCookie(userInfo))
   }
 
+  private def addAccessControlHeaders: Directive0 = {
+    optionalHeaderValueByType[`Origin`](()) flatMap {
+      case Some(origin) => respondWithHeaders(
+        `Access-Control-Allow-Origin`(origin.value),
+        `Access-Control-Allow-Credentials`(true))
+      case None =>
+        reject(AuthorizationFailedRejection)
+    }
+
+  }
   private def buildCookie(userInfo: UserInfo): HttpCookie = {
     HttpCookie(
       name = tokenCookieName,
