@@ -15,7 +15,7 @@ class LocalizeHandler(IPythonHandler):
     expanded = os.path.expanduser(pathstr)
     if not pathstr.startswith("gs://"):
       try:
-        os.makedirs(expanded)
+        os.makedirs(os.path.dirname(expanded))
       except OSError: #thrown if dirs already exist
         pass
     return pipes.quote(expanded)
