@@ -287,6 +287,7 @@ paths:
           description: |
             JSON object. Keys represent destinations, values represent sources.
             Paths will be quoted, intermediate local directories made, and then sent to [gsutil cp](https://cloud.google.com/storage/docs/gsutil/commands/cp).
+            Note that duplicate keys will lead to unexpected behaviour, so specify the destination filename explicitly if you want to localize multiple files to the same directory.
           name: filesToLocalize
           required: true
           schema:
