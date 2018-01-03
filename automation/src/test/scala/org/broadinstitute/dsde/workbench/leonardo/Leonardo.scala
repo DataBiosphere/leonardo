@@ -119,7 +119,7 @@ object Leonardo extends WorkbenchClient with LazyLogging {
       s"notebooks/${googleProject.value}/${clusterName.string}"
 
     def contentsPath(googleProject: GoogleProject, clusterName: ClusterName, contentPath: String): String =
-      s"${notebooksPath(googleProject, clusterName)}/api/contents/$contentPath?content=1"
+      s"${notebooksPath(googleProject, clusterName)}/api/contents/$contentPath"
 
     def localizePath(googleProject: GoogleProject, clusterName: ClusterName): String =
       s"${notebooksPath(googleProject, clusterName)}/api/localize"
@@ -137,8 +137,8 @@ object Leonardo extends WorkbenchClient with LazyLogging {
       postRequest(url + path, locMap, httpHeaders = List(cookie))
     }
 
-    def getContentItem(googleProject: GoogleProject, clusterName: ClusterName, contentPath: String)(implicit token: AuthToken): ContentItem = {
-      val path = contentsPath(googleProject, clusterName, contentPath)
+    def getContentItem(googleProject: GoogleProject, clusterName: ClusterName, contentPath: String, includeContent: Boolean = true)(implicit token: AuthToken): ContentItem = {
+      val path = contentsPath(googleProject, clusterName, contentPath) + if(includeContent) "?content=1" else ""
       logger.info(s"Get notebook contents: GET /$path")
       val cookie = Cookie(HttpCookiePair("FCtoken", token.value))
       handleContentItemResponse(parseResponse(getRequest(url + path, httpHeaders = List(cookie))))

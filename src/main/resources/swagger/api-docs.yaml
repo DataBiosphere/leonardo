@@ -293,8 +293,9 @@ paths:
             type: object
             description:
             example:
-              "/localize/to/here" : "gs://some/bucket/object"
-              "gs://upload/to/this/bucket" : "/this/local/file"
+              "/local/file/system/file.txt" : "gs://somebucket/file.txt"
+              "/localize/entire/directory" : "gs://somebucket/*"
+              "gs://upload/to/this/bucketdir" : "/this/local/file.txt"
       responses:
         '200':
           description: Proxy connection successful

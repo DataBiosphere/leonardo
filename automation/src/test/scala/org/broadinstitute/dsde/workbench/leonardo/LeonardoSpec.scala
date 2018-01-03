@@ -34,6 +34,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
   // kudos to whoever named this Patience
   val clusterPatience = PatienceConfig(timeout = scaled(Span(15, Minutes)), interval = scaled(Span(20, Seconds)))
+  val localizePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
 
   // simultaneous requests by the same user to create their pet in Sam can cause contention
   // but this is not a realistic production scenario
@@ -348,7 +349,14 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
             //TODO: create a bucket and upload to there
             //"gs://new_bucket/import-hail.ipynb" -> "import-hail.ipynb"
           )
-          Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, goodLocalize)
+
+          eventually {
+            Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, goodLocalize)
+            //the following line will barf with an exception if the file isn't there; that's enough
+            Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "test.rtf", includeContent = false)
+          } (localizePatience)
+
+
           val localizationLog = Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "localization.log")
           localizationLog.content shouldBe defined
           localizationLog.content.get shouldNot include("Exception")
