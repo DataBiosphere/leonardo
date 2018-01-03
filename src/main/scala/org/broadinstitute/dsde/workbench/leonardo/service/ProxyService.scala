@@ -41,7 +41,7 @@ class ProxyService(val proxyConfig: ProxyConfig,
                    authProvider: LeoAuthProvider)(implicit val system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext) extends LazyLogging {
 
   /* Cache for the bearer token and corresponding google user email */
-  private[leonardo] val cachedAuth = CacheBuilder.newBuilder()
+  private[leonardo] val googleTokenCache = CacheBuilder.newBuilder()
     .expireAfterWrite(proxyConfig.cacheExpiryTime, TimeUnit.MINUTES)
     .maximumSize(proxyConfig.cacheMaxSize)
     .build(
@@ -54,7 +54,7 @@ class ProxyService(val proxyConfig: ProxyConfig,
 
   /* Ask the cache for the corresponding user info given a token */
   def getCachedUserInfoFromToken(token: String): Future[UserInfo] = {
-    cachedAuth.get(token).map {
+    googleTokenCache.get(token).map {
       case (userInfo, expireTime) =>
         if (expireTime.isAfter(Instant.now))
           userInfo.copy(tokenExpiresIn = expireTime.toEpochMilli - Instant.now.toEpochMilli)
@@ -64,9 +64,9 @@ class ProxyService(val proxyConfig: ProxyConfig,
   }
 
   /*
-  Checks the user has the required notebook action, returning 403 or 404 depending on whether they can know the cluster exists
+   * Checks the user has the required notebook action, returning 401 or 404 depending on whether they can know the cluster exists
    */
-  protected def authCheck(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, notebookAction: NotebookClusterAction): Future[Unit] = {
+  private[leonardo] def authCheck(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, notebookAction: NotebookClusterAction): Future[Unit] = {
     for {
       hasViewPermission <- authProvider.hasNotebookClusterPermission(userInfo, GetClusterStatus, googleProject.value, clusterName.string)
       hasRequiredPermission <- authProvider.hasNotebookClusterPermission(userInfo, notebookAction, googleProject.value, clusterName.string)
@@ -88,7 +88,7 @@ class ProxyService(val proxyConfig: ProxyConfig,
   }
 
   def invalidateAccessToken(token: String): Future[Unit] = {
-    Future(cachedAuth.invalidate(token))
+    Future(googleTokenCache.invalidate(token))
   }
 
   /**

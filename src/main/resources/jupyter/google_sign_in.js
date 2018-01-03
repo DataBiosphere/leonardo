@@ -11,13 +11,10 @@ require.config({
 
 // TEMPLATED CODE
 // Leonardo has logic to find/replace templated values in the format $(...).
-// This will be replaced with the real Google Client ID before uploading to the notebook server.
-var loginHint = $(googleLoginHint);
-var allowedOrigins = $(allowedOrigins);
+// This will be replaced with the real email login hint before uploading to the notebook server.
+var loginHint = $(userEmailLoginHint);
 
 function receive(event) {
-    if (allowedOrigins.indexOf(event.origin) == -1)
-        return;
     if (event.source !== window.opener)
         return;
     if (event.data.type !== 'bootstrap-auth.response')

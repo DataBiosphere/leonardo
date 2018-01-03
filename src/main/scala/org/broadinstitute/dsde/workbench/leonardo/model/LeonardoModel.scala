@@ -266,7 +266,7 @@ case class ClusterInitValues(googleProject: String,
                              jupyterServiceAccountCredentials: String,
                              jupyterCustomJsUri: String,
                              jupyterGoogleSignInJsUri: String,
-                             googleLoginHint: String)
+                             userEmailLoginHint: String)
 
 
 object FirewallRuleRequest {

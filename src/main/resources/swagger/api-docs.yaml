@@ -319,6 +319,60 @@ paths:
           schema:
             $ref: '#/definitions/ErrorReport'
 
+  '/notebooks/{googleProject}/{clusterName}/setCookie':
+    get:
+      summary: Sets a browser cookie needed to authorize connections to a Jupyter notebook
+      description: |
+        If using Google token-based authorization to a Jupyter notebook, the Leo proxy accepts a
+        Google token passed as a cookie value. This endpoint facilitates setting that cookie.
+        It accepts a bearer token in an Authorization header and responds with a Set-Cookie header.
+    operationId: setCookie
+    tags:
+      - notebooks
+    parameters:
+      - in: path
+        name: googleProject
+        required: true
+        type: string
+      - in: path
+        name: clusterName
+        description: clusterName
+        require: true
+        type: string
+    responses:
+      '200':
+        description: Successfully set a cookie
+      '401':
+        description: Proxy connection unauthorized
+        schema:
+          $ref: '#/definitions/ErrorReport'
+      '404':
+        description: Cluster not found
+        schema:
+          $ref: '#/definitions/ErrorReport'
+      '500':
+        description: Internal Error
+        schema:
+          $ref: '#/definitions/ErrorReport'
+
+  '/notebooks/invalidateToken':
+    get:
+      summary: Invalidates a token
+      description: |
+        If using Google token-based auth, call this endpoint when a user's Google token is invalidated
+        (e.g. when logging out of the application). This ensures that the token is also invalidated in Leo
+        and that the user's proxied notebook connections stop working.
+    operationId: invalidateToken
+    tags:
+      - notebooks
+    responses:
+      '200':
+        description: Successfully invalidated a token
+      '500':
+        description: Internal Error
+        schema:
+          $ref: '#/definitions/ErrorReport'
+
 ##########################################################################################
 ## DEFINITIONS
 ##########################################################################################

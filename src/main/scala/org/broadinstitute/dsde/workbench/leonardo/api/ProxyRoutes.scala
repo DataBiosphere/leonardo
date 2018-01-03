@@ -8,6 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.service.ProxyService
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import akka.http.scaladsl.model.headers.{Authorization, HttpCookie}
+import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.ConnectToCluster
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
 import scala.concurrent.ExecutionContext
@@ -19,45 +20,46 @@ trait ProxyRoutes extends UserInfoDirectives { self: LazyLogging =>
   protected val tokenCookieName = "FCtoken"
 
   protected val proxyRoutes: Route =
-    path("notebooks" / "login") {
-      extractUserInfo { userInfo => // rejected with AuthorizationFailedRejection if the token is not present
-        setTokenCookie(userInfo) {  // set the token cookie in the response
-          complete {
-            logger.debug(s"Successfully logged in user $userInfo")
-            StatusCodes.OK
-          }
-        }
-      }
-    } ~
-    path("notebooks" / "logout") {
-      extractToken { token =>
-        complete {
-          proxyService.invalidateAccessToken(token).map { _ =>
-            logger.debug(s"Invalidated access token $token")
-            StatusCodes.OK
-          }
-        }
-      }
-    } ~
-    path("notebooks" / Segment / Segment / "api" / "localize") { (googleProject, clusterName) =>
-      extractRequest { request =>
-        extractUserInfo { userInfo => // rejected with AuthorizationFailedRejection if the token is not present
-          complete {
+    pathPrefix("notebooks") {
+      pathPrefix(Segment / Segment) { (googleProjectParam, clusterNameParam) =>
+        val googleProject = GoogleProject(googleProjectParam)
+        val clusterName = ClusterName(clusterNameParam)
+
+        (extractRequest & extractUserInfo) { (request, userInfo) =>
+          path("setCookie") {
+            // Check the user for ConnectToCluster privileges and set a cookie in the response
+            onSuccess(proxyService.authCheck(userInfo, googleProject, clusterName, ConnectToCluster)) {
+              setTokenCookie(userInfo) {
+                complete {
+                  logger.debug(s"Successfully set cookie for user $userInfo")
+                  StatusCodes.OK
+                }
+              }
+            }
+          } ~
             // Proxy logic handled by the ProxyService class
-            proxyService.proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), request)
+            // Note ProxyService calls the LeoAuthProvider internally
+            path("api" / "localize") { // route for custom Jupyter server extension
+              complete {
+                proxyService.proxyLocalize(userInfo, googleProject, clusterName, request)
+              }
+            } ~
+            complete {
+              proxyService.proxyNotebook(userInfo, googleProject, clusterName, request)
+            }
+        }
+      } ~
+        // No need to lookup the user or consult the auth provider for this endpoint
+        path("invalidateToken") {
+          extractToken { token =>
+            complete {
+              proxyService.invalidateAccessToken(token).map { _ =>
+                logger.debug(s"Invalidated access token $token")
+                StatusCodes.OK
+              }
+            }
           }
         }
-      }
-    } ~
-    pathPrefix("notebooks" / Segment / Segment) { (googleProject, clusterName) =>
-      extractRequest { request =>
-        extractUserInfo { userInfo => // rejected with AuthorizationFailedRejection if the token is not present
-          complete {
-            // Proxy logic handled by the ProxyService class
-            proxyService.proxyNotebook(userInfo, GoogleProject(googleProject), ClusterName(clusterName), request)
-          }
-        }
-      }
     }
 
   /**

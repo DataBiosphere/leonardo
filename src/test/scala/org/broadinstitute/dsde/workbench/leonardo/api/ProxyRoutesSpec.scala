@@ -45,7 +45,7 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
   }
 
   before {
-    proxyService.cachedAuth.invalidateAll()
+    proxyService.googleTokenCache.invalidateAll()
   }
 
   "ProxyRoutes" should "listen on /notebooks/{project}/{name}/..." in {
@@ -155,12 +155,12 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
     result.futureValue shouldBe "Hello Leonardo!"
   }
 
-  it should "log in via Authorization header" in {
+  "setCookie" should "set a cookie given a valid Authorization header" in {
     // cache should not initially contain the token
-    proxyService.cachedAuth.asMap().containsKey(tokenCookie.value) shouldBe false
+    proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe false
 
     // login request with Authorization header should succeed and return a Set-Cookie header
-    Get(s"/notebooks/login")
+    Get(s"/notebooks/$googleProject/$clusterName/setCookie")
       .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value))) ~> leoRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
@@ -173,13 +173,34 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
           path = Some("/"))))
     }
 
-    // cache should now conain the token
-    proxyService.cachedAuth.asMap().containsKey(tokenCookie.value) shouldBe true
+    // cache should now contain the token
+    proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe true
   }
 
-  it should "log out a token" in {
+  it should "401 when not given an Authorization header" in {
+    Get(s"/notebooks/$googleProject/$clusterName/setCookie") ~> leoRoutes.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.Unauthorized
+    }
+  }
+
+  it should "404 when using a non-white-listed user" in {
+    Get(s"/notebooks/$googleProject/$clusterName/setCookie")
+      .addHeader(Authorization(OAuth2BearerToken(unauthorizedTokenCookie.value))) ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.NotFound
+    }
+  }
+
+  it should "401 when using an expired token" in {
+    Get(s"/notebooks/$googleProject/$clusterName")
+      .addHeader(Authorization(OAuth2BearerToken(expiredTokenCookie.value))) ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.Unauthorized
+    }
+  }
+
+  "invalidateToken" should "remove a token from cache" in {
     // cache should not initially contain the token
-    proxyService.cachedAuth.asMap().containsKey(tokenCookie.value) shouldBe false
+    proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe false
 
     // regular request with a cookie should succeed but NOT return a Set-Cookie header
     Get(s"/notebooks/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
@@ -189,17 +210,17 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
     }
 
     // cache should now contain the token
-    proxyService.cachedAuth.asMap().containsKey(tokenCookie.value) shouldBe true
+    proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe true
 
     // log out, passing a cookie
-    Get(s"/notebooks/logout").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+    Get(s"/notebooks/invalidateToken").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
       header[`Set-Cookie`] shouldBe None
     }
 
     // cache should not contain the token
-    proxyService.cachedAuth.asMap().containsKey(tokenCookie.value) shouldBe false
+    proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe false
   }
 
   /**
