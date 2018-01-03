@@ -161,16 +161,22 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
 
     // login request with Authorization header should succeed and return a Set-Cookie header
     Get(s"/notebooks/$googleProject/$clusterName/setCookie")
-      .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value))) ~> leoRoutes.route ~> check {
+      .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
+      .addHeader(Origin("http://example.com"))  ~> leoRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
-      header[`Set-Cookie`] shouldBe Some(`Set-Cookie`(
-        HttpCookie.fromPair(
-          tokenCookie,
-          secure = true,
-          maxAge = Some(3600),
-          domain = None,
-          path = Some("/"))))
+      val setCookie = header[`Set-Cookie`]
+      setCookie shouldBe 'defined
+      val cookie = setCookie.get.cookie
+      cookie.name shouldBe tokenCookie.name
+      cookie.value shouldBe tokenCookie.value
+      cookie.secure shouldBe true
+      cookie.maxAge.map(a => ((9 + a) / 10) * 10) shouldBe Some(3600)   // round up to nearest 10, test execution loses some milliseconds
+      cookie.domain shouldBe None
+      cookie.path shouldBe Some("/")
+
+      header[`Access-Control-Allow-Origin`] shouldBe Some(`Access-Control-Allow-Origin`("http://example.com"))
+      header[`Access-Control-Allow-Credentials`] shouldBe Some(`Access-Control-Allow-Credentials`(true))
     }
 
     // cache should now contain the token
