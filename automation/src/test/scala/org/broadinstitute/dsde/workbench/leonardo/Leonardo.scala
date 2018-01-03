@@ -138,7 +138,7 @@ object Leonardo extends WorkbenchClient with LazyLogging {
     }
 
     def getContentItem(googleProject: GoogleProject, clusterName: ClusterName, contentPath: String, includeContent: Boolean = true)(implicit token: AuthToken): ContentItem = {
-      val path = contentsPath(googleProject, clusterName, contentPath) + if(includeContent) "?content=1" else ""
+      val path = contentsPath(googleProject, clusterName, contentPath) + (if(includeContent) "?content=1" else "")
       logger.info(s"Get notebook contents: GET /$path")
       val cookie = Cookie(HttpCookiePair("FCtoken", token.value))
       handleContentItemResponse(parseResponse(getRequest(url + path, httpHeaders = List(cookie))))
