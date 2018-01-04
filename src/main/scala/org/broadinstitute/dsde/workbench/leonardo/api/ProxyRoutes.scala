@@ -22,12 +22,13 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport { self: LazyLoggin
   protected val proxyRoutes: Route =
     pathPrefix("notebooks") {
 
-      pathPrefix(Segment / Segment) { (googleProjectParam, clusterNameParam) =>
-        val googleProject = GoogleProject(googleProjectParam)
-        val clusterName = ClusterName(clusterNameParam)
+      corsHandler {
 
-        path("setCookie") {
-          corsHandler {
+        pathPrefix(Segment / Segment) { (googleProjectParam, clusterNameParam) =>
+          val googleProject = GoogleProject(googleProjectParam)
+          val clusterName = ClusterName(clusterNameParam)
+
+          path("setCookie") {
             extractUserInfo { userInfo =>
               get {
                 // Check the user for ConnectToCluster privileges and set a cookie in the response
@@ -41,29 +42,29 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport { self: LazyLoggin
                 }
               }
             }
-          }
-        } ~
-        (extractRequest & extractUserInfo) { (request, userInfo) =>
-          // Proxy logic handled by the ProxyService class
-          // Note ProxyService calls the LeoAuthProvider internally
-          path("api" / "localize") { // route for custom Jupyter server extension
-            complete {
-              proxyService.proxyLocalize(userInfo, googleProject, clusterName, request)
-            }
           } ~
-          complete {
-            proxyService.proxyNotebook(userInfo, googleProject, clusterName, request)
-          }
-        }
+            (extractRequest & extractUserInfo) { (request, userInfo) =>
+              // Proxy logic handled by the ProxyService class
+              // Note ProxyService calls the LeoAuthProvider internally
+              path("api" / "localize") { // route for custom Jupyter server extension
+                complete {
+                  proxyService.proxyLocalize(userInfo, googleProject, clusterName, request)
+                }
+              } ~
+                complete {
+                  proxyService.proxyNotebook(userInfo, googleProject, clusterName, request)
+                }
+            }
       } ~
-      // No need to lookup the user or consult the auth provider for this endpoint
-      path("invalidateToken") {
-        get {
-          extractToken { token =>
-            complete {
-              proxyService.invalidateAccessToken(token).map { _ =>
-                logger.debug(s"Invalidated access token $token")
-                StatusCodes.OK
+        // No need to lookup the user or consult the auth provider for this endpoint
+        path("invalidateToken") {
+          get {
+            extractToken { token =>
+              complete {
+                proxyService.invalidateAccessToken(token).map { _ =>
+                  logger.debug(s"Invalidated access token $token")
+                  StatusCodes.OK
+                }
               }
             }
           }
