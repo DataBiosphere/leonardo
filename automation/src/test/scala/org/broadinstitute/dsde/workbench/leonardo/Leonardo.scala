@@ -155,16 +155,18 @@ object Leonardo extends WorkbenchClient with LazyLogging {
     import akka.http.scaladsl.server.Directives.{get => httpGet, _}
 
     def get(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver) = {
-      val url = s"http://localhost:9090/${googleProject.value}/${clusterName.string}/client?token=${token.value}"
+      val url = s"http://127.0.0.1:9090/${googleProject.value}/${clusterName.string}/client?token=${token.value}"
       logger.info(s"Get dummy client: $url")
       new DummyClientPage(url).open
     }
 
     def startServer: Future[Http.ServerBinding] = {
-      Http().bindAndHandle(route, "localhost", 9090)
+      logger.info("Starting local server on port 9090")
+      Http().bindAndHandle(route, "0.0.0.0", 9090)
     }
 
     def stopServer(bindingFuture: Future[Http.ServerBinding]): Future[Unit] = {
+      logger.info("Stopping local server")
       bindingFuture.flatMap(_.unbind())
     }
 
@@ -173,6 +175,7 @@ object Leonardo extends WorkbenchClient with LazyLogging {
         httpGet {
           parameter('token.as[String]) { token =>
             complete {
+              logger.info(s"Serving dummy client for $googleProject/$clusterName")
               HttpEntity(ContentTypes.`text/html(UTF-8)`, getContent(GoogleProject(googleProject), ClusterName(clusterName), AuthToken(token)))
             }
           }
