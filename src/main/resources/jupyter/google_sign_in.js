@@ -51,4 +51,4 @@ function set_cookie(token, expires_in) {
 }
 
 window.addEventListener('message', receive);
-window.opener.postMessage('bootstrap-auth.request', '*');
+window.opener.postMessage({'type': 'bootstrap-auth.request'}, '*');
