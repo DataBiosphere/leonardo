@@ -166,6 +166,7 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
       .addHeader(Origin("http://example.com"))  ~> leoRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
+
       val setCookie = header[`Set-Cookie`]
       setCookie shouldBe 'defined
       val cookie = setCookie.get.cookie
@@ -199,7 +200,8 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
   }
 
   it should "401 when not given an Authorization header" in {
-    Get(s"/notebooks/$googleProject/$clusterName/setCookie") ~> leoRoutes.route ~> check {
+    Get(s"/notebooks/$googleProject/$clusterName/setCookie")
+      .addHeader(Origin("http://example.com"))  ~> leoRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.Unauthorized
     }
@@ -207,14 +209,16 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
 
   it should "404 when using a non-white-listed user" in {
     Get(s"/notebooks/$googleProject/$clusterName/setCookie")
-      .addHeader(Authorization(OAuth2BearerToken(unauthorizedTokenCookie.value))) ~> leoRoutes.route ~> check {
+      .addHeader(Authorization(OAuth2BearerToken(unauthorizedTokenCookie.value)))
+      .addHeader(Origin("http://example.com"))  ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
   }
 
   it should "401 when using an expired token" in {
     Get(s"/notebooks/$googleProject/$clusterName")
-      .addHeader(Authorization(OAuth2BearerToken(expiredTokenCookie.value))) ~> leoRoutes.route ~> check {
+      .addHeader(Authorization(OAuth2BearerToken(expiredTokenCookie.value)))
+      .addHeader(Origin("http://example.com"))  ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.Unauthorized
     }
   }
