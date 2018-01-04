@@ -26,7 +26,8 @@ object Settings {
   )
 
   val testSettings = List(
-    testOptions in Test += Tests.Argument("-oF")
+    testOptions in Test += Tests.Argument("-oF"),
+    parallelExecution in Test := true
   )
 
   //common settings for all sbt subprojects
