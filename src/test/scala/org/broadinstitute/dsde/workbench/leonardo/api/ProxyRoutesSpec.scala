@@ -179,6 +179,8 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
 
       header[`Access-Control-Allow-Origin`] shouldBe Some(`Access-Control-Allow-Origin`("http://example.com"))
       header[`Access-Control-Allow-Credentials`] shouldBe Some(`Access-Control-Allow-Credentials`(true))
+      header[`Access-Control-Allow-Headers`] shouldBe Some(`Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin"))
+      header[`Access-Control-Max-Age`] shouldBe Some(`Access-Control-Max-Age`(1728000))
       header[`Access-Control-Allow-Methods`] shouldBe None
     }
 
@@ -195,6 +197,8 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
       header[`Set-Cookie`] shouldBe None
       header[`Access-Control-Allow-Origin`] shouldBe Some(`Access-Control-Allow-Origin`("http://example.com"))
       header[`Access-Control-Allow-Credentials`] shouldBe Some(`Access-Control-Allow-Credentials`(true))
+      header[`Access-Control-Allow-Headers`] shouldBe Some(`Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin"))
+      header[`Access-Control-Max-Age`] shouldBe Some(`Access-Control-Max-Age`(1728000))
       header[`Access-Control-Allow-Methods`] shouldBe Some(`Access-Control-Allow-Methods`(OPTIONS, POST, PUT, GET, DELETE, HEAD, PATCH))
     }
   }

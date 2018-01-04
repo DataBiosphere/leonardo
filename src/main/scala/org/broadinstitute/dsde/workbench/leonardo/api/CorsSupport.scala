@@ -26,7 +26,9 @@ trait CorsSupport {
     optionalHeaderValueByType[`Origin`](()) flatMap {
       case Some(origin) => respondWithHeaders(
         `Access-Control-Allow-Origin`(origin.value),
-        `Access-Control-Allow-Credentials`(true))
+        `Access-Control-Allow-Credentials`(true),
+        `Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin"),
+        `Access-Control-Max-Age`(1728000))
       case None =>
         failWith(AuthorizationError())
     }
