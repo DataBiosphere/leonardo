@@ -9,11 +9,12 @@ import org.scalatest.selenium.Page
 /**
   * Created by rtitle on 1/4/18.
   */
-class DummyClientPage(override val url: String) extends Page with PageUtil[DummyClientPage] with WebBrowserUtil {
+class DummyClientPage(override val url: String)(implicit val authToken: AuthToken, implicit val webDriver: WebDriver)
+  extends Page with PageUtil[DummyClientPage] with WebBrowserUtil {
 
   val notebookLink: Query = cssSelector("[id='notebook']")
 
-  def openNotebook(implicit authToken: AuthToken, driver: WebDriver): NotebooksListPage = {
+  def openNotebook: NotebooksListPage = {
     switchToNewTab {
       click on notebookLink
     }
@@ -22,7 +23,7 @@ class DummyClientPage(override val url: String) extends Page with PageUtil[Dummy
     new NotebooksListPage(currentUrl)
   }
 
-  override def awaitLoaded(): DummyClientPage = {
+  override def awaitLoaded: DummyClientPage = {
     await enabled notebookLink
     this
   }

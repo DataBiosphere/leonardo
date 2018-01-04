@@ -300,7 +300,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   /* Process the templated cluster init script and put all initialization files in the init bucket */
   private[service] def initializeBucketObjects(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountKey: Option[ServiceAccountKey]): Future[Unit] = {
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
-    val replacements: Map[String, JsValue] = ClusterInitValues(googleProject, clusterName, bucketName, clusterRequest, dataprocConfig,
+    val replacements: Map[String, JsValue] = ClusterInitValues(googleProject, clusterName, initBucketName, clusterRequest, dataprocConfig,
       clusterFilesConfig, clusterResourcesConfig, proxyConfig, serviceAccountKey, userEmail
     ).toJson.asJsObject.fields
 
