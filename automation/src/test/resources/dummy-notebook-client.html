@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dummy Notebook Client</title>
+    <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+    <script type="text/javascript">
+        $(function() {
+            // hijack the anchor tag click handler
+            $('a').click(function (event) {
+                event.preventDefault();
+                // make an AJAX call to Leo setCookie, passing in an Authorization header
+                $.ajax({
+                    url: 'https://leonardo-fiab.dsde-dev.broadinstitute.org:30443/notebooks/broad-dsde-dev/rt-test/setCookie',
+                    headers: {
+                        "Authorization": "Bearer ya29.GmI4BRfn2oeicG9nVNPab8NMA_awQCYOP2py_tmRgGNFfVf5MtYyiy10OS_w7m41qtTWaNMe_2H3ZfwzhaMOfFZIOLRSij8a3HpA7p0SzJStcXIoi8qDVTD0kNqiHIEaSAuMPA"
+                    },
+                    async: false,
+                    xhrFields: {
+                        withCredentials: true
+                    },
+                    crossDomain: true,
+                    success: function(response) {
+                        // on success, open the notebook content in a new tab
+                        var notebook = window.open('https://leonardo-fiab.dsde-dev.broadinstitute.org:30443/notebooks/broad-dsde-dev/rt-test', '_blank');
+
+                        // postMessage handshake with the notebook extension
+                        window.addEventListener("message", function(e) {
+                            console.info("Received message " + e.data.type);
+                            if (e.data.type !== 'bootstrap-auth.request')
+                                return;
+                            notebook.postMessage({
+                                "type": "bootstrap-auth.response",
+                                "body": {
+                                    "googleClientId": "806222273987-nqg84hiihmlc6s060tvm6respv1l6utm.apps.googleusercontent.com"
+                                }
+                            }, 'https://leonardo-fiab.dsde-dev.broadinstitute.org:30443');
+                        });
+                    }
+                });
+                return false; // for good measure
+            });
+        });
+    </script>
+</head>
+<body>
+    <h2>Notebook Client</h2>
+    <a href="#">Open Notebook</a>
+</body>
+</html>
