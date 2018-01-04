@@ -5,12 +5,22 @@
     <title>Dummy Notebook Client</title>
     <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
     <script type="text/javascript">
-        // constants
-        var leoBaseUrl = 'https://leonardo-fiab.dsde-dev.broadinstitute.org:30443';
-        var leoNotebookUrl = leoBaseUrl + '/notebooks/broad-dsde-dev/rt-test';
+        // constants templated in by swat test
+        var leoBaseUrl = $(leoBaseUrl);
+        var googleProject = $(googleProject);
+        var clusterName = $(clusterName);
+        var token = $(token);
+        var googleClientId = $(googleClientId);
+
+        // example:
+        //var leoBaseUrl = 'https://leonardo-fiab.dsde-dev.broadinstitute.org:30443/';
+        //var googleProject = 'broad-dsde-dev';
+        //var clusterName = 'rt-test';
+        //var token = 'ya29.GmI4BS1mINzvfQATrLnU9XR2x68P-DBmAIDMFKlhwBtkDaOHmuQiyJNHA5fUIV-h4uTAs4g588idC07_HA8TcHZVKA4eum62NY74XmPLa3czIniQgk_mahtMSYkunUV2GOeLyw';
+        //var googleClientId = '806222273987-nqg84hiihmlc6s060tvm6respv1l6utm.apps.googleusercontent.com';
+
+        var leoNotebookUrl = leoBaseUrl + 'notebooks/' + googleProject + '/' + clusterName;
         var leoSetCookieUrl = leoNotebookUrl + '/setCookie';
-        var token = 'ya29.GmI4BS1mINzvfQATrLnU9XR2x68P-DBmAIDMFKlhwBtkDaOHmuQiyJNHA5fUIV-h4uTAs4g588idC07_HA8TcHZVKA4eum62NY74XmPLa3czIniQgk_mahtMSYkunUV2GOeLyw';
-        var googleClientId = '806222273987-nqg84hiihmlc6s060tvm6respv1l6utm.apps.googleusercontent.com';
 
         $(function() {
             // hijack the anchor tag click handler
@@ -34,6 +44,8 @@
                         // postMessage handshake with the notebook extension
                         window.addEventListener("message", function(e) {
                             console.info("Received message " + e.data.type);
+                            if (e.source !== notebook)
+                                return;
                             if (e.data.type !== 'bootstrap-auth.request')
                                 return;
                             notebook.postMessage({
@@ -52,6 +64,6 @@
 </head>
 <body>
     <h2>Notebook Client</h2>
-    <a href="#">Open Notebook</a>
+    <a id="notebook" href="#">Open Notebook</a>
 </body>
 </html>

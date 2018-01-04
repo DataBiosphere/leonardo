@@ -193,6 +193,18 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     }
   }
 
+  def withDummyClientPage[T](cluster: Cluster)(testCode: DummyClientPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+    // start a server to load the dummy client page
+    val bindingFuture = Leonardo.dummyClient.startServer
+    val testResult = Try {
+      val dummyClientPage = Leonardo.dummyClient.get(cluster.googleProject, cluster.clusterName)
+      testCode(dummyClientPage)
+    }
+    // stop the server
+    Leonardo.dummyClient.stopServer(bindingFuture)
+    testResult.get
+  }
+
   def withNewBillingProject[T](testCode: GoogleProject => T)(implicit token: AuthToken): T = {
     val billingProject = GoogleProject("leonardo-billing-spec" + makeRandomId())
     // Create billing project and run test code
@@ -421,6 +433,21 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
             // should not have notebook credentials because Leo is not configured to use a notebook service account
             verifyNoNotebookCredentials(notebookPage)
           }
+        }
+      }
+    }
+
+    "should do cross domain cookie auth" in withWebDriver { implicit driver =>
+      implicit val token = ronAuthToken
+      withNewCluster(project) { cluster =>
+        withDummyClientPage(cluster) { dummyClientPage =>
+          // opens the notebook list page without setting a cookie
+          val notebooksListPage = dummyClientPage.openNotebook
+          val notebookPage = notebooksListPage.newNotebook
+          // execute some cells to make sure it works
+          notebookPage.executeCell("1+1") shouldBe Some("2")
+          notebookPage.executeCell("2*3") shouldBe Some("6")
+          notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
         }
       }
     }
