@@ -43,13 +43,19 @@ ENV PYSPARK_DRIVER_PYTHON_OPTS notebook
 ENV PATH $SPARK_HOME:$SPARK_HOME/python:$SPARK_HOME/bin:$HAIL_HOME:$PATH
 ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip:$JUPYTER_HOME/custom
 
+
 RUN echo "deb $DEBIAN_REPO/debian jessie main\ndeb $DEBIAN_REPO/debian-security jessie/updates main" > /etc/apt/sources.list \
  && apt-get update && apt-get -yq dist-upgrade \
  && apt-get install -yq --no-install-recommends \
+    nano \
+    #note ca-certificates has to be before wget and curl
+    ca-certificates \
     wget \
+    curl \
     maven \
     git \
     build-essential \
+    lsb-release \
 
     python \
     python-dev \
@@ -60,8 +66,15 @@ RUN echo "deb $DEBIAN_REPO/debian jessie main\ndeb $DEBIAN_REPO/debian-security 
     python-seaborn \
     python-tk \
     python-numpy \
-    libz-dev \
+    libz-dev
 
+# gsutil separately because it need lsb-release and other prereqs installed above
+RUN export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" \
+ && echo "deb http://packages.cloud.google.com/apt $CLOUD_SDK_REPO main" > /etc/apt/sources.list.d/google-cloud-sdk.list \
+ && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - \
+ && apt-get update \
+ && apt-get install -yq --no-install-recommends \
+    google-cloud-sdk \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/* \
 

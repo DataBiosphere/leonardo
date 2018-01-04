@@ -44,11 +44,11 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
     }
   }
 
-  override def createCluster(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo)(implicit executionContext: ExecutionContext): Future[Cluster] = {
+  override def createCluster(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo)(implicit executionContext: ExecutionContext): Future[Cluster] = {
     if (clusterName == badClusterName) {
       Future.failed(CallToGoogleApiFailedException(googleProject, clusterName.string, 500, "Bad Cluster!"))
     } else if(clusterName == errorClusterName){
-      val cluster = Cluster(clusterName, googleID, googleProject, serviceAccountInfo, clusterRequest.bucketPath, MachineConfig(clusterRequest.machineConfig, clusterDefaultsConfig),new URL("https://www.broadinstitute.org"), OperationName("op-name"), ClusterStatus.Error, None, userEmail, Instant.now(),None,clusterRequest.labels,clusterRequest.jupyterExtensionUri)
+      val cluster = Cluster(clusterName, googleID, googleProject, serviceAccountInfo, MachineConfig(clusterRequest.machineConfig, clusterDefaultsConfig),new URL("https://www.broadinstitute.org"), OperationName("op-name"), ClusterStatus.Error, None, userEmail, Instant.now(),None,clusterRequest.labels,clusterRequest.jupyterExtensionUri)
       clusters += clusterName -> cluster
       Future.successful(cluster)
     } else {

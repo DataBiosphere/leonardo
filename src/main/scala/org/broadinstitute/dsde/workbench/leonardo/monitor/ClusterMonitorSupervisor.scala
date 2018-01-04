@@ -43,7 +43,6 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
       if (monitorConfig.recreateCluster) {
         logger.info(s"Recreating cluster ${cluster.projectNameString}...")
         val clusterRequest = ClusterRequest(
-          cluster.googleBucket,
           cluster.labels,
           cluster.jupyterExtensionUri,
           Some(cluster.machineConfig))
