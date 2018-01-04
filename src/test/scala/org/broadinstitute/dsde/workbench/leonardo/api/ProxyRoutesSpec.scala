@@ -53,14 +53,17 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
     Get(s"/notebooks/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
+      validateCors()
     }
     Get(s"/notebooks/$googleProject/$clusterName/foo").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
+      validateCors()
     }
     Get(s"/notebooks/$googleProject/aDifferentClusterName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.NotFound
+      validateCors()
     }
     Get("/notebooks/").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
       handled shouldBe false
@@ -177,11 +180,7 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
       cookie.domain shouldBe None
       cookie.path shouldBe Some("/")
 
-      header[`Access-Control-Allow-Origin`] shouldBe Some(`Access-Control-Allow-Origin`("http://example.com"))
-      header[`Access-Control-Allow-Credentials`] shouldBe Some(`Access-Control-Allow-Credentials`(true))
-      header[`Access-Control-Allow-Headers`] shouldBe Some(`Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin"))
-      header[`Access-Control-Max-Age`] shouldBe Some(`Access-Control-Max-Age`(1728000))
-      header[`Access-Control-Allow-Methods`] shouldBe None
+      validateCors(origin = Some("http://example.com"))
     }
 
     // cache should now contain the token
@@ -193,13 +192,9 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
       .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
       .addHeader(Origin("http://example.com"))  ~> leoRoutes.route ~> check {
       handled shouldBe true
-      status shouldEqual StatusCodes.OK
+      status shouldEqual StatusCodes.NoContent
       header[`Set-Cookie`] shouldBe None
-      header[`Access-Control-Allow-Origin`] shouldBe Some(`Access-Control-Allow-Origin`("http://example.com"))
-      header[`Access-Control-Allow-Credentials`] shouldBe Some(`Access-Control-Allow-Credentials`(true))
-      header[`Access-Control-Allow-Headers`] shouldBe Some(`Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin"))
-      header[`Access-Control-Max-Age`] shouldBe Some(`Access-Control-Max-Age`(1728000))
-      header[`Access-Control-Allow-Methods`] shouldBe Some(`Access-Control-Allow-Methods`(OPTIONS, POST, PUT, GET, DELETE, HEAD, PATCH))
+      validateCors(origin = Some("http://example.com"), optionsRequest = true)
     }
   }
 
@@ -263,6 +258,17 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
     } finally {
       bindingFuture.flatMap(_.unbind())
     }
+  }
+
+  private def validateCors(origin: Option[String] = None, optionsRequest: Boolean = false): Unit = {
+    header[`Access-Control-Allow-Origin`] shouldBe origin.map(`Access-Control-Allow-Origin`(_)).orElse(Some(`Access-Control-Allow-Origin`.*))
+    header[`Access-Control-Allow-Credentials`] shouldBe Some(`Access-Control-Allow-Credentials`(true))
+    header[`Access-Control-Allow-Headers`] shouldBe Some(`Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin"))
+    header[`Access-Control-Max-Age`] shouldBe Some(`Access-Control-Max-Age`(1728000))
+    header[`Access-Control-Allow-Methods`] shouldBe (
+      if (optionsRequest) Some(`Access-Control-Allow-Methods`(OPTIONS, POST, PUT, GET, DELETE, HEAD, PATCH))
+      else None
+    )
   }
 }
 
