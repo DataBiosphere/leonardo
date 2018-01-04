@@ -34,6 +34,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
   // kudos to whoever named this Patience
   val clusterPatience = PatienceConfig(timeout = scaled(Span(15, Minutes)), interval = scaled(Span(20, Seconds)))
+  val localizePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
 
   // simultaneous requests by the same user to create their pet in Sam can cause contention
   // but this is not a realistic production scenario
@@ -47,8 +48,8 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
   val project = GoogleProject(LeonardoConfig.Projects.default)
   val sa = GoogleServiceAccount(LeonardoConfig.Leonardo.notebooksServiceAccountEmail)
-  val bucket = GcsBucketName("mah-bukkit")
-  val incorrectJupyterExtensionUri = "gs://leonardo-swat-test-bucket-do-not-delete/"
+  val swatTestBucket = "gs://leonardo-swat-test-bucket-do-not-delete"
+  val incorrectJupyterExtensionUri = swatTestBucket + "/"
 
   // must align with run-tests.sh and hub-compose-fiab.yml
   val downloadDir = "chrome/downloads"
@@ -59,7 +60,6 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
                  requestedLabels: LabelMap,
                  clusterName: ClusterName,
                  googleProject: GoogleProject,
-                 gcsBucketName: GcsBucketName,
                  creator: WorkbenchEmail,
                  notebookExtension: Option[String] = None): Unit = {
 
@@ -67,7 +67,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     // set a dummy here and then remove it from the comparison
 
     val dummyPetSa = WorkbenchEmail("dummy")
-    val expected = requestedLabels ++ DefaultLabels(clusterName, googleProject, gcsBucketName, creator, Some(dummyPetSa), None, notebookExtension).toMap
+    val expected = requestedLabels ++ DefaultLabels(clusterName, googleProject, creator, Some(dummyPetSa), None, notebookExtension).toMap
 
     (seen - "clusterServiceAccount") shouldBe (expected - "clusterServiceAccount")
   }
@@ -82,8 +82,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     expectedStatuses should contain (cluster.status)
     cluster.googleProject shouldBe expectedProject
     cluster.clusterName shouldBe expectedName
-    cluster.googleBucket shouldBe bucket
-    labelCheck(cluster.labels, requestedLabels, expectedName, expectedProject, bucket, cluster.creator, notebookExtension)
+    labelCheck(cluster.labels, requestedLabels, expectedName, expectedProject, cluster.creator, notebookExtension)
 
     cluster
   }
@@ -141,7 +140,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
   def withNewCluster[T](googleProject: GoogleProject)(testCode: Cluster => T)(implicit token: AuthToken): T = {
     val name = ClusterName(s"automation-test-a${makeRandomId().toLowerCase}z")
-    val request = ClusterRequest(bucket, Map("foo" -> makeRandomId()))
+    val request = ClusterRequest(Map("foo" -> makeRandomId()))
 
     val testResult: Try[T] = Try {
       val cluster = createAndMonitor(googleProject, name, request)
@@ -156,7 +155,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
   def withNewErroredCluster[T](googleProject: GoogleProject)(testCode: Cluster => T)(implicit token: AuthToken): T = {
     val name = ClusterName(s"automation-test-a${makeRandomId()}z")
-    val request = ClusterRequest(bucket, Map("foo" -> makeRandomId()), Some(incorrectJupyterExtensionUri))
+    val request = ClusterRequest(Map("foo" -> makeRandomId()), Some(incorrectJupyterExtensionUri))
     val testResult: Try[T] = Try {
       val cluster = createAndMonitor(googleProject, name, request)
       cluster.status shouldBe ClusterStatus.Error
@@ -173,10 +172,15 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     testCode(notebooksListPage.open)
   }
 
-  def withNotebookUpload[T](cluster: Cluster, file: File)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+  def withFileUpload[T](cluster: Cluster, file: File)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
       notebooksListPage.upload(file)
+      testCode(notebooksListPage)
+    }
+  }
 
+  def withNotebookUpload[T](cluster: Cluster, file: File)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+    withFileUpload(cluster, file) { notebooksListPage =>
       val notebookPage = notebooksListPage.openNotebook(file)
       testCode(notebookPage)
     }
@@ -329,6 +333,40 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
           notebookPage.executeCell("1+1") shouldBe Some("2")
           notebookPage.executeCell("2*3") shouldBe Some("6")
           notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
+        }
+      }
+    }
+
+    "should localize files" in withWebDriver { implicit driver =>
+      implicit val token = ronAuthToken
+      val file = ResourceFile("diff-tests/import-hail.ipynb")
+
+      withNewCluster(project) { cluster =>
+        withFileUpload(cluster, file) { _ =>
+          //good data
+          val goodLocalize = Map(
+            "test.rtf" -> s"$swatTestBucket/test.rtf"
+            //TODO: create a bucket and upload to there
+            //"gs://new_bucket/import-hail.ipynb" -> "import-hail.ipynb"
+          )
+
+          eventually {
+            Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, goodLocalize)
+            //the following line will barf with an exception if the file isn't there; that's enough
+            Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "test.rtf", includeContent = false)
+          } (localizePatience)
+
+
+          val localizationLog = Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "localization.log")
+          localizationLog.content shouldBe defined
+          localizationLog.content.get shouldNot include("Exception")
+
+          //bad data
+          val badLocalize = Map("file.out" -> "gs://nobuckethere")
+          Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, badLocalize)
+          val localizationLogAgain = Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "localization.log")
+          localizationLogAgain.content shouldBe defined
+          localizationLogAgain.content.get should include("Exception")
         }
       }
     }
