@@ -34,7 +34,7 @@ case class AccessTokenExpiredException() extends LeoException(s"Your access toke
 /**
   * Created by rtitle on 8/15/17.
   */
-class ProxyService(val proxyConfig: ProxyConfig,
+class ProxyService(proxyConfig: ProxyConfig,
                    gdDAO: DataprocDAO,
                    dbRef: DbReference,
                    clusterDnsCache: ActorRef,
