@@ -26,9 +26,9 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport { self: LazyLoggin
         val googleProject = GoogleProject(googleProjectParam)
         val clusterName = ClusterName(clusterNameParam)
 
-        (extractRequest & extractUserInfo) { (request, userInfo) =>
-          path("setCookie") {
-            corsHandler {
+        path("setCookie") {
+          corsHandler {
+            extractUserInfo { userInfo =>
               get {
                 // Check the user for ConnectToCluster privileges and set a cookie in the response
                 onSuccess(proxyService.authCheck(userInfo, googleProject, clusterName, ConnectToCluster)) {
@@ -42,7 +42,9 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport { self: LazyLoggin
                 }
               }
             }
-          } ~
+          }
+        } ~
+        (extractRequest & extractUserInfo) { (request, userInfo) =>
           // Proxy logic handled by the ProxyService class
           // Note ProxyService calls the LeoAuthProvider internally
           path("api" / "localize") { // route for custom Jupyter server extension

@@ -5,14 +5,12 @@ import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.server.{Directive0, Route}
 import akka.http.scaladsl.server.Directives._
-import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.broadinstitute.dsde.workbench.leonardo.service.AuthorizationError
 
 /**
   * Created by rtitle on 1/3/18.
   */
 trait CorsSupport {
-  case class UnknownOriginError() extends LeoException("Unknown request origin", StatusCodes.BadRequest)
-
   def corsHandler(r: Route) =
     addAccessControlHeaders {
       preflightRequestHandler ~ r
@@ -30,7 +28,7 @@ trait CorsSupport {
         `Access-Control-Allow-Origin`(origin.value),
         `Access-Control-Allow-Credentials`(true))
       case None =>
-        failWith(UnknownOriginError())
+        failWith(AuthorizationError())
     }
 
   }
