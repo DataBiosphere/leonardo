@@ -22,4 +22,9 @@ class DummyClientPage(override val url: String) extends Page with PageUtil[Dummy
     new NotebooksListPage(currentUrl)
   }
 
+  override def awaitLoaded(): DummyClientPage = {
+    await enabled notebookLink
+    this
+  }
+
 }
