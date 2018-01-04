@@ -22,12 +22,12 @@ class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) wi
 
 
   //is this how we do this???
-  private def resourcesApi(userInfo: UserInfo): ResourcesApi = {
+  private[auth] def resourcesApi(userInfo: UserInfo): ResourcesApi = {
     val apiClient = new ApiClient()
     logger.info("USER ACCESS TOKEN:" + userInfo.accessToken.token)
     apiClient.setAccessToken(userInfo.accessToken.token)
+    apiClient.setBasePath(authConfig.as[String]("samServer"))
     logger.info("API CLIENT:" + apiClient)
-   // new ResourcesApi(apiClient.setBasePath(authConfig.as[String]("samServer")))
     new ResourcesApi(apiClient)
   }
 
