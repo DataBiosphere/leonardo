@@ -18,7 +18,6 @@ case class ClusterRecord(id: Long,
                          clusterName: String,
                          googleId: UUID,
                          googleProject: String,
-                         googleBucket: String,
                          operationName: String,
                          status: String,
                          hostIp: Option[String],
@@ -54,7 +53,6 @@ trait ClusterComponent extends LeoComponent {
     def googleProject =               column[String]            ("googleProject",         O.Length(254))
     def clusterServiceAccount =       column[Option[String]]    ("clusterServiceAccount", O.Length(254))
     def notebookServiceAccount =      column[Option[String]]    ("notebookServiceAccount", O.Length(254))
-    def googleBucket =                column[String]            ("googleBucket",          O.Length(1024))
     def numberOfWorkers =             column[Int]               ("numberOfWorkers")
     def masterMachineType =           column[String]            ("masterMachineType",     O.Length(254))
     def masterDiskSize =              column[Int]               ("masterDiskSize")
@@ -79,15 +77,15 @@ trait ClusterComponent extends LeoComponent {
     // because CLUSTER has more than 22 columns.
     // So we split ClusterRecord into multiple case classes and bind them to slick in the following way.
     def * = (
-      id, clusterName, googleId, googleProject, googleBucket, operationName, status, hostIp, creator,
+      id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
       createdDate, destroyedDate, jupyterExtensionUri, initBucket,
       (numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers),
       (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId)
     ).shaped <> ({
-      case (id, clusterName, googleId, googleProject, googleBucket, operationName, status, hostIp, creator,
+      case (id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
             createdDate, destroyedDate, jupyterExtensionUri, initBucket, machineConfig, serviceAccountInfo) =>
         ClusterRecord(
-          id, clusterName, googleId, googleProject, googleBucket, operationName, status, hostIp, creator,
+          id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
           createdDate, destroyedDate, jupyterExtensionUri, initBucket,
           MachineConfigRecord.tupled.apply(machineConfig),
           ServiceAccountInfoRecord.tupled.apply(serviceAccountInfo))
@@ -95,7 +93,7 @@ trait ClusterComponent extends LeoComponent {
       def mc(_mc: MachineConfigRecord) = MachineConfigRecord.unapply(_mc).get
       def sa(_sa: ServiceAccountInfoRecord) = ServiceAccountInfoRecord.unapply(_sa).get
       Some((
-        c.id, c.clusterName, c.googleId, c.googleProject, c.googleBucket, c.operationName, c.status, c.hostIp, c.creator,
+        c.id, c.clusterName, c.googleId, c.googleProject, c.operationName, c.status, c.hostIp, c.creator,
         c.createdDate, c.destroyedDate, c.jupyterExtensionUri, c.initBucket,
         mc(c.machineConfig), sa(c.serviceAccountInfo)
       ))
@@ -257,7 +255,6 @@ trait ClusterComponent extends LeoComponent {
         cluster.clusterName.string,
         cluster.googleId,
         cluster.googleProject.value,
-        cluster.googleBucket.name,
         cluster.operationName.string,
         cluster.status.toString,
         cluster.hostIp map(_.string),
@@ -316,7 +313,6 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.googleId,
         project,
         serviceAccountInfo,
-        GcsBucketName(clusterRecord.googleBucket),
         machineConfig,
         Cluster.getClusterUrl(project, name),
         OperationName(clusterRecord.operationName),

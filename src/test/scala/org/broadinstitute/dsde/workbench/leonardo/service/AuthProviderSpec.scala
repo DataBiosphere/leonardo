@@ -47,8 +47,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
 
   val routeTest = this
 
-  private val bucketPath = GcsBucketName("bucket-path")
-  private val testClusterRequest = ClusterRequest(bucketPath, Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), None)
+  private val testClusterRequest = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), None)
   private val alwaysYesProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"))
   private val alwaysNoProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysNoProviderConfig"))
   private val serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(config.getConfig("serviceAccounts.config"))
@@ -58,7 +57,6 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
     googleId = UUID.randomUUID(),
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
-    googleBucket = GcsBucketName("bucket1"),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name1),
     operationName = OperationName("op1"),

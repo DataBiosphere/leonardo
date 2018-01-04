@@ -96,7 +96,6 @@ object Cluster {
         googleId = googleId,
         googleProject = googleProject,
         serviceAccountInfo = serviceAccountInfo,
-        googleBucket = clusterRequest.bucketPath,
         machineConfig = MachineConfig(clusterRequest.machineConfig, clusterDefaultsConfig),
         clusterUrl = getClusterUrl(googleProject, clusterName),
         operationName = operationName,
@@ -120,7 +119,6 @@ object Cluster {
       googleId = UUID.randomUUID,
       googleProject = googleProject,
       serviceAccountInfo = serviceAccountInfo,
-      googleBucket = clusterRequest.bucketPath,
       machineConfig = MachineConfig(clusterRequest.machineConfig, ClusterDefaultsConfig(0, "", 0, "", 0, 0, 0)),
       clusterUrl = getClusterUrl(googleProject, clusterName),
       operationName = OperationName("dummy-operation"),
@@ -143,7 +141,6 @@ object Cluster {
 
 case class DefaultLabels(clusterName: ClusterName,
                          googleProject: GoogleProject,
-                         googleBucket: GcsBucketName,
                          creator: WorkbenchEmail,
                          clusterServiceAccount: Option[WorkbenchEmail],
                          notebookServiceAccount: Option[WorkbenchEmail],
@@ -153,7 +150,6 @@ case class Cluster(clusterName: ClusterName,
                    googleId: UUID,
                    googleProject: GoogleProject,
                    serviceAccountInfo: ServiceAccountInfo,
-                   googleBucket: GcsBucketName,
                    machineConfig: MachineConfig,
                    clusterUrl: URL,
                    operationName: OperationName,
@@ -218,8 +214,7 @@ case class MachineConfig(numberOfWorkers: Option[Int] = None,
 case class ServiceAccountInfo(clusterServiceAccount: Option[WorkbenchEmail],
                               notebookServiceAccount: Option[WorkbenchEmail])
 
-case class ClusterRequest(bucketPath: GcsBucketName,
-                          labels: LabelMap,
+case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[GcsPath] = None,
                           machineConfig: Option[MachineConfig] = None
                          )
@@ -229,7 +224,7 @@ case class ClusterErrorDetails(code: Int, message: Option[String])
 object ClusterInitValues {
   val serviceAccountCredentialsFilename = "service-account-credentials.json"
 
-  def apply(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest, dataprocConfig: DataprocConfig,
+  def apply(googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, dataprocConfig: DataprocConfig,
             clusterFilesConfig: ClusterFilesConfig, clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig, swaggerConfig: SwaggerConfig,
             serviceAccountKey: Option[ServiceAccountKey]): ClusterInitValues =
     ClusterInitValues(
@@ -237,18 +232,18 @@ object ClusterInitValues {
       clusterName.string,
       dataprocConfig.dataprocDockerImage,
       proxyConfig.jupyterProxyDockerImage,
-      GcsPath(bucketName, GcsRelativePath(clusterFilesConfig.jupyterServerCrt.getName)).toUri,
-      GcsPath(bucketName, GcsRelativePath(clusterFilesConfig.jupyterServerKey.getName)).toUri,
-      GcsPath(bucketName, GcsRelativePath(clusterFilesConfig.jupyterRootCaPem.getName)).toUri,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.clusterDockerCompose.string)).toUri,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterProxySiteConf.string)).toUri,
+      GcsPath(initBucketName, GcsRelativePath(clusterFilesConfig.jupyterServerCrt.getName)).toUri,
+      GcsPath(initBucketName, GcsRelativePath(clusterFilesConfig.jupyterServerKey.getName)).toUri,
+      GcsPath(initBucketName, GcsRelativePath(clusterFilesConfig.jupyterRootCaPem.getName)).toUri,
+      GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.clusterDockerCompose.string)).toUri,
+      GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.jupyterProxySiteConf.string)).toUri,
       dataprocConfig.jupyterServerName,
       proxyConfig.proxyServerName,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterInstallExtensionScript.string)).toUri,
+      GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.jupyterInstallExtensionScript.string)).toUri,
       clusterRequest.jupyterExtensionUri.map(_.toUri).getOrElse(""),
-      serviceAccountKey.map(_ => GcsPath(bucketName, GcsRelativePath(serviceAccountCredentialsFilename)).toUri).getOrElse(""),
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterCustomJs.string)).toUri,
-      GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterGoogleSignInJs.string)).toUri,
+      serviceAccountKey.map(_ => GcsPath(initBucketName, GcsRelativePath(serviceAccountCredentialsFilename)).toUri).getOrElse(""),
+      GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.jupyterCustomJs.string)).toUri,
+      GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.jupyterGoogleSignInJs.string)).toUri,
       swaggerConfig.googleClientId
     )
 }
@@ -368,8 +363,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val firewallRuleNameFormat = StringValueClassFormat(FirewallRuleName, FirewallRuleName.unapply)
   implicit val machineConfigFormat = jsonFormat7(MachineConfig.apply)
   implicit val serviceAccountInfoFormat = jsonFormat2(ServiceAccountInfo.apply)
-  implicit val clusterFormat = jsonFormat15(Cluster.apply)
-  implicit val clusterRequestFormat = jsonFormat4(ClusterRequest)
+  implicit val clusterFormat = jsonFormat14(Cluster.apply)
+  implicit val clusterRequestFormat = jsonFormat3(ClusterRequest)
   implicit val clusterInitValuesFormat = jsonFormat17(ClusterInitValues.apply)
-  implicit val defaultLabelsFormat = jsonFormat7(DefaultLabels.apply)
+  implicit val defaultLabelsFormat = jsonFormat6(DefaultLabels.apply)
 }

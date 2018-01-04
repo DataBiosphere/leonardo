@@ -60,7 +60,6 @@ case class Cluster(clusterName: ClusterName,
                    googleId: UUID,
                    googleProject: GoogleProject,
                    serviceAccountInfo: ServiceAccountInfo,
-                   googleBucket: GcsBucketName,
                    machineConfig: MachineConfig,
                    clusterUrl: URL,
                    operationName: OperationName,
@@ -72,13 +71,11 @@ case class Cluster(clusterName: ClusterName,
                    labels: LabelMap,
                    jupyterExtensionUri: Option[GcsPath])
 
-case class ClusterRequest(bucketPath: GcsBucketName,
-                          labels: LabelMap,
+case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[String] = None)
 
 case class DefaultLabels(clusterName: ClusterName,
                          googleProject: GoogleProject,
-                         googleBucket: GcsBucketName,
                          creator: WorkbenchEmail,
                          clusterServiceAccount: Option[WorkbenchEmail],
                          notebookServiceAccount: Option[WorkbenchEmail],
@@ -93,7 +90,6 @@ case class DefaultLabels(clusterName: ClusterName,
     Map(
       "clusterName" -> clusterName.string,
       "googleProject" -> googleProject.value,
-      "googleBucket" -> googleBucket.name,
       "creator" -> creator.value
     ) ++ ext ++ clusterSa ++ notebookSa
   }

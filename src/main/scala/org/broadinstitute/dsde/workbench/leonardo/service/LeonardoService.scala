@@ -215,8 +215,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
      - Add a firewall rule to the user's google project if it doesn't exist, so we can access the cluster
      - Create the initialization bucket for the cluster in the leo google project
      - Upload all the necessary initialization files to the bucket
-     - Create the cluster in the google project
-   Currently, the bucketPath of the clusterRequest is not used - it will be used later as a place to store notebook results */
+     - Create the cluster in the google project */
   private[service] def createGoogleCluster(userEmail: WorkbenchEmail,
                                            serviceAccountInfo: ServiceAccountInfo,
                                            googleProject: GoogleProject,
@@ -288,19 +287,19 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   /* Create a google bucket and populate it with init files */
-  private[service] def initializeBucket(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountInfo: ServiceAccountInfo, notebookServiceAccountKeyOpt: Option[ServiceAccountKey]): Future[GcsBucketName] = {
+  private[service] def initializeBucket(googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountInfo: ServiceAccountInfo, notebookServiceAccountKeyOpt: Option[ServiceAccountKey]): Future[GcsBucketName] = {
     for {
       // Note the bucket is created in Leo's project, not the cluster's project.
       // ACLs are granted so the cluster's service account can access the bucket at initialization time.
-      _ <- gdDAO.createBucket(dataprocConfig.leoGoogleProject, googleProject, bucketName, serviceAccountInfo)
-      _ <- initializeBucketObjects(googleProject, clusterName, bucketName, clusterRequest, notebookServiceAccountKeyOpt)
-    } yield { bucketName }
+      _ <- gdDAO.createBucket(dataprocConfig.leoGoogleProject, googleProject, initBucketName, serviceAccountInfo)
+      _ <- initializeBucketObjects(googleProject, clusterName, initBucketName, clusterRequest, notebookServiceAccountKeyOpt)
+    } yield { initBucketName }
   }
 
   /* Process the templated cluster init script and put all initialization files in the init bucket */
-  private[service] def initializeBucketObjects(googleProject: GoogleProject, clusterName: ClusterName, bucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountKey: Option[ServiceAccountKey]): Future[Unit] = {
+  private[service] def initializeBucketObjects(googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountKey: Option[ServiceAccountKey]): Future[Unit] = {
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
-    val replacements: Map[String, JsValue] = ClusterInitValues(googleProject, clusterName, bucketName, clusterRequest, dataprocConfig,
+    val replacements: Map[String, JsValue] = ClusterInitValues(googleProject, clusterName, initBucketName, clusterRequest, dataprocConfig,
       clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, serviceAccountKey
     ).toJson.asJsObject.fields
 
@@ -323,7 +322,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     // This is a no-op if createClusterAsPetServiceAccount is true.
     val uploadPrivateKeyFuture: Future[Unit] = serviceAccountKey.flatMap(_.privateKeyData.decode).map { k =>
       gdDAO.uploadToBucket(googleProject,
-        GcsPath(bucketName, GcsRelativePath(ClusterInitValues.serviceAccountCredentialsFilename)), k)
+        GcsPath(initBucketName, GcsRelativePath(ClusterInitValues.serviceAccountCredentialsFilename)), k)
     } getOrElse(Future.successful(()))
 
     // Fill in templated resources with the given replacements
@@ -332,18 +331,18 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     for {
       // Upload the init script to the bucket
-      _ <- gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.initActionsScript.string)), initScriptContent)
+      _ <- gdDAO.uploadToBucket(googleProject, GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.initActionsScript.string)), initScriptContent)
 
       // Upload the googleSignInJs file to the bucket
-      _ <- gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(clusterResourcesConfig.jupyterGoogleSignInJs.string)), googleSignInJsContent)
+      _ <- gdDAO.uploadToBucket(googleProject, GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.jupyterGoogleSignInJs.string)), googleSignInJsContent)
 
       // Upload raw files (like certs) to the bucket
-      _ <- Future.traverse(filesToUpload)(file => gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(file.getName)), file))
+      _ <- Future.traverse(filesToUpload)(file => gdDAO.uploadToBucket(googleProject, GcsPath(initBucketName, GcsRelativePath(file.getName)), file))
 
       // Upload raw resources (like cluster-docker-compose.yml, site.conf) to the bucket
       _ <- Future.traverse(resourcesToUpload) { resource =>
         val content = Source.fromResource(s"${ClusterResourcesConfig.basePath}/${resource.string}").mkString
-        gdDAO.uploadToBucket(googleProject, GcsPath(bucketName, GcsRelativePath(resource.string)), content)
+        gdDAO.uploadToBucket(googleProject, GcsPath(initBucketName, GcsRelativePath(resource.string)), content)
       }
 
       // Update the private key json, if defined
@@ -405,7 +404,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   private[service] def addClusterDefaultLabels(serviceAccountInfo: ServiceAccountInfo, googleProject: GoogleProject, clusterName: ClusterName, creator: WorkbenchEmail, clusterRequest: ClusterRequest): ClusterRequest = {
     // create a LabelMap of default labels
-    val defaultLabels = DefaultLabels(clusterName, googleProject, clusterRequest.bucketPath, creator,
+    val defaultLabels = DefaultLabels(clusterName, googleProject, creator,
       serviceAccountInfo.clusterServiceAccount, serviceAccountInfo.notebookServiceAccount, clusterRequest.jupyterExtensionUri)
       .toJson.asJsObject.fields.mapValues(labelValue => labelValue.convertTo[String])
     // combine default and given labels
