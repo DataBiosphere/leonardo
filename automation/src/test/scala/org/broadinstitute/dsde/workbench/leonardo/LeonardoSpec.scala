@@ -383,6 +383,15 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       }
     }
 
+    "should import AoU library" in withWebDriver { implicit driver =>
+      implicit val token = ronAuthToken
+      withNewCluster(project) { cluster =>
+        withNewNotebook(cluster) { notebookPage =>
+          notebookPage.executeCell("""import sys\nimport aou_workbench_client\nmodulename = 'aou_workbench_client'\nif modulename not in sys.modules:\n    print 'You have not imported the {} module'.format(modulename)\nelse:\n    print 'AoU library installed'""") shouldBe Some("AoU library installed")
+        }
+      }
+    }
+
     "should put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
       implicit val token = ronAuthToken
 
