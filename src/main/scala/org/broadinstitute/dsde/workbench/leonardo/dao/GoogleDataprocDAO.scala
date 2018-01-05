@@ -36,9 +36,11 @@ import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, Gcs
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.{ClusterStatus => LeoClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterErrorDetails, ClusterInitValues, ClusterName, ClusterRequest, FirewallRuleName, IP, InstanceName, LeoException, MachineConfig, OperationName, ServiceAccountInfo, ServiceAccountProvider, ZoneUri, Cluster => LeoCluster, ClusterStatus => LeoClusterStatus}
+import org.broadinstitute.dsde.workbench.leonardo.service.AuthorizationError
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future, blocking}
 
@@ -48,8 +50,6 @@ case class CallToGoogleApiFailedException(googleProject: GoogleProject, context:
 
 case class FirewallRuleNotFoundException(googleProject: GoogleProject, firewallRuleName: FirewallRuleName)
   extends LeoException(s"Firewall rule ${firewallRuleName.string} not found in project ${googleProject.value}", StatusCodes.NotFound)
-
-case class AuthorizationError() extends LeoException(s"Your account is unauthorized", StatusCodes.Unauthorized)
 
 case class GoogleProjectNotFoundException(googleProject: GoogleProject)
   extends LeoException(s"Google project ${googleProject.value} not found", StatusCodes.NotFound)
