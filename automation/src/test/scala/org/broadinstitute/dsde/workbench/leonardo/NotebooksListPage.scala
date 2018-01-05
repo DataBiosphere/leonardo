@@ -26,9 +26,11 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
   }
 
   def newNotebook: NotebookPage = {
-    click on newButton
-    click on (await enabled python2Link)
-    Thread.sleep(5000)
-    new NotebookPage(url + "/notebooks/Untitled.ipynb").open
+    switchToNewTab {
+      click on (await enabled newButton)
+      click on (await enabled python2Link)
+    }
+    // Not calling NotebookPage.open() as it should already be opened
+    new NotebookPage(currentUrl)
   }
 }

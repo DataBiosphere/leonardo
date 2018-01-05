@@ -6,6 +6,7 @@ import java.util.UUID
 
 import akka.http.scaladsl.model.headers.{Cookie, HttpCookiePair}
 import com.typesafe.scalalogging.LazyLogging
+import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.api.WorkbenchClient
 import org.broadinstitute.dsde.workbench.config.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
@@ -13,6 +14,9 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.openqa.selenium.WebDriver
 import org.broadinstitute.dsde.workbench.google.gcs.GcsPath
+
+import scala.concurrent.Future
+import scala.io.Source
 
 /**
   * Leonardo API service client.
@@ -142,6 +146,56 @@ object Leonardo extends WorkbenchClient with LazyLogging {
       logger.info(s"Get notebook contents: GET /$path")
       val cookie = Cookie(HttpCookiePair("FCtoken", token.value))
       handleContentItemResponse(parseResponse(getRequest(url + path, httpHeaders = List(cookie))))
+    }
+  }
+
+  object dummyClient {
+    import akka.http.scaladsl.Http
+    import akka.http.scaladsl.model._
+    import akka.http.scaladsl.server.Directives.{get => httpGet, _}
+
+    def get(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver) = {
+      val localhost = java.net.InetAddress.getLocalHost().getHostName()
+      val url = s"http://${localhost}:9090/${googleProject.value}/${clusterName.string}/client?token=${token.value}"
+      logger.info(s"Get dummy client: $url")
+      new DummyClientPage(url).open
+    }
+
+    def startServer: Future[Http.ServerBinding] = {
+      logger.info("Starting local server on port 9090")
+      Http().bindAndHandle(route, "0.0.0.0", 9090)
+    }
+
+    def stopServer(bindingFuture: Future[Http.ServerBinding]): Future[Unit] = {
+      logger.info("Stopping local server")
+      bindingFuture.flatMap(_.unbind())
+    }
+
+    val route =
+      path(Segment / Segment / "client") { (googleProject, clusterName) =>
+        httpGet {
+          parameter('token.as[String]) { token =>
+            complete {
+              logger.info(s"Serving dummy client for $googleProject/$clusterName")
+              HttpEntity(ContentTypes.`text/html(UTF-8)`, getContent(GoogleProject(googleProject), ClusterName(clusterName), AuthToken(token)))
+            }
+          }
+        }
+      }
+
+    private def getContent(googleProject: GoogleProject, clusterName: ClusterName, token: AuthToken) = {
+      val resourceFile = ResourceFile("dummy-notebook-client.html")
+      val raw = Source.fromFile(resourceFile).mkString
+      val replacementMap = Map(
+        "leoBaseUrl" -> url,
+        "googleProject" -> googleProject.value,
+        "clusterName" -> clusterName.string,
+        "token" -> token.value,
+        "googleClientId" -> "some-client"
+      )
+      replacementMap.foldLeft(raw) { case (source, (key, replacement)) =>
+        source.replaceAllLiterally("$("+key+")", s"""'$replacement'""")
+      }
     }
   }
 }
