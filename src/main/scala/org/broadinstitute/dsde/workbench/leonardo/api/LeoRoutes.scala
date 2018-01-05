@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchEmail, WorkbenchExceptionWithErrorReport}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -82,7 +82,7 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
         }
     }
 
-  def route: Route = (logRequestResult & handleExceptions(myExceptionHandler) & handleRejections(rejectionHandler)) {
+  def route: Route = (logRequestResult & handleExceptions(myExceptionHandler)) {
     swaggerRoutes ~ unauthedRoutes ~ proxyRoutes ~ statusRoutes ~
     pathPrefix("api") { leoRoutes }
   }
@@ -97,17 +97,6 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
         //NOTE: this needs SprayJsonSupport._, ErrorReportJsonSupport._, and errorReportSource all imported to work
         complete(StatusCodes.InternalServerError, ErrorReport(e))
     }
-  }
-
-  private val rejectionHandler: RejectionHandler = {
-    RejectionHandler.newBuilder()
-      .handle {
-        case MissingCookieRejection(name) if name == tokenCookieName =>
-          complete(StatusCodes.Unauthorized,
-            ErrorReport("Unauthorized: Access is denied due to invalid credentials.",
-              Some(StatusCodes.Unauthorized), Seq.empty, Seq.empty, Some(classOf[LeoRoutes])))
-      }
-      .result()
   }
 
   // basis for logRequestResult lifted from http://stackoverflow.com/questions/32475471/how-does-one-log-akka-http-client-requests

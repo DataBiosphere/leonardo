@@ -12,8 +12,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKeyId}
 
-import scala.util.Random
-
 case class ClusterRecord(id: Long,
                          clusterName: String,
                          googleId: UUID,

@@ -225,8 +225,8 @@ object ClusterInitValues {
   val serviceAccountCredentialsFilename = "service-account-credentials.json"
 
   def apply(googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, dataprocConfig: DataprocConfig,
-            clusterFilesConfig: ClusterFilesConfig, clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig, swaggerConfig: SwaggerConfig,
-            serviceAccountKey: Option[ServiceAccountKey]): ClusterInitValues =
+            clusterFilesConfig: ClusterFilesConfig, clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig,
+            serviceAccountKey: Option[ServiceAccountKey], userEmailLoginHint: WorkbenchEmail): ClusterInitValues =
     ClusterInitValues(
       googleProject.value,
       clusterName.string,
@@ -244,7 +244,7 @@ object ClusterInitValues {
       serviceAccountKey.map(_ => GcsPath(initBucketName, GcsRelativePath(serviceAccountCredentialsFilename)).toUri).getOrElse(""),
       GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.jupyterCustomJs.string)).toUri,
       GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.jupyterGoogleSignInJs.string)).toUri,
-      swaggerConfig.googleClientId
+      userEmailLoginHint.value
     )
 }
 
@@ -266,7 +266,7 @@ case class ClusterInitValues(googleProject: String,
                              jupyterServiceAccountCredentials: String,
                              jupyterCustomJsUri: String,
                              jupyterGoogleSignInJsUri: String,
-                             googleClientId: String)
+                             userEmailLoginHint: String)
 
 
 object FirewallRuleRequest {

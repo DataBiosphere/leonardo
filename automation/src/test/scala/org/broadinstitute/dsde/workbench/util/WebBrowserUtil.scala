@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.util
 import org.openqa.selenium.support.ui.{ExpectedCondition, WebDriverWait}
 import org.openqa.selenium.{StaleElementReferenceException, WebDriver}
 import org.scalatest.selenium.WebBrowser
+import scala.collection.JavaConverters._
 
 /**
   * Mix-in utilities for ScalaTest's WebBrowser.
@@ -244,5 +245,13 @@ trait WebBrowserUtil extends WebBrowser {
     */
   def title(title: String)(implicit webDriver: WebDriver): Query = {
     cssSelector(s"[title='$title']")
+  }
+
+  def switchToNewTab(codeToOpenNewTab: => Unit)(implicit webDriver: WebDriver): Unit = {
+    val curTabs = webDriver.getWindowHandles.asScala
+    codeToOpenNewTab
+    val newTabs = webDriver.getWindowHandles.asScala
+    newTabs --= curTabs
+    switch to window(newTabs.head)
   }
 }
