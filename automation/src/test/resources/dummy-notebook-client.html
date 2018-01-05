@@ -46,6 +46,8 @@
                             console.info("Received message " + e.data.type);
                             if (e.source !== notebook)
                                 return;
+                            if (e.origin !== leoBaseUrl)
+                                return;
                             if (e.data.type !== 'bootstrap-auth.request')
                                 return;
                             notebook.postMessage({
