@@ -12,8 +12,7 @@ start () {
     fi
 
     echo "Starting Jupyter server container..."
-    docker create -it --name ${CONTAINER} --rm -p 8001:8001 $DOCKER_IMG 'export PYTHONPATH=$PYTHONPATH:/etc/jupyter/custom;start-notebook.sh'
-    docker cp jupyter-docker/jupyter_notebook_config.py ${CONTAINER}:/etc/jupyter/jupyter_notebook_config.py
+    docker create -it --name ${CONTAINER} --rm -p 8888:8888 $DOCKER_IMG 'export PYTHONPATH=$PYTHONPATH:/etc/jupyter/custom;start-notebook.sh'
     docker cp jupyter-docker/jupyter_localize_extension.py ${CONTAINER}:/etc/jupyter/custom/jupyter_localize_extension.py
     docker start ${CONTAINER}
 

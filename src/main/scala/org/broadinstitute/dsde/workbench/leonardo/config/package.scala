@@ -76,7 +76,8 @@ package object config {
       config.getString("jupyterDomain"),
       toScalaDuration(config.getDuration("dnsPollPeriod")),
       config.getLong("cacheExpiryTime"),
-      config.getInt("cacheMaxSize"))
+      config.getInt("cacheMaxSize")
+    )
   }
 
   implicit val monitorConfigReader: ValueReader[MonitorConfig] = ValueReader.relative { config =>

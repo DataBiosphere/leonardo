@@ -6,7 +6,6 @@ import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.HttpCookiePair
 import akka.http.scaladsl.model.ws._
 import akka.pattern.ask
 import akka.stream.ActorMaterializer
@@ -16,15 +15,13 @@ import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
 import java.util.concurrent.TimeUnit
 
-import cats.data.OptionT
-import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.collection.immutable
@@ -44,7 +41,7 @@ class ProxyService(proxyConfig: ProxyConfig,
                    authProvider: LeoAuthProvider)(implicit val system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext) extends LazyLogging {
 
   /* Cache for the bearer token and corresponding google user email */
-  private val cachedAuth = CacheBuilder.newBuilder()
+  private[leonardo] val googleTokenCache = CacheBuilder.newBuilder()
     .expireAfterWrite(proxyConfig.cacheExpiryTime, TimeUnit.MINUTES)
     .maximumSize(proxyConfig.cacheMaxSize)
     .build(
@@ -57,18 +54,19 @@ class ProxyService(proxyConfig: ProxyConfig,
 
   /* Ask the cache for the corresponding user info given a token */
   def getCachedUserInfoFromToken(token: String): Future[UserInfo] = {
-    cachedAuth.get(token).map {
+    googleTokenCache.get(token).map {
       case (userInfo, expireTime) =>
         if (expireTime.isAfter(Instant.now))
           userInfo.copy(tokenExpiresIn = expireTime.toEpochMilli - Instant.now.toEpochMilli)
         else
-          throw AccessTokenExpiredException() }
+          throw AccessTokenExpiredException()
+    }
   }
 
   /*
-  Checks the user has the required notebook action, returning 403 or 404 depending on whether they can know the cluster exists
+   * Checks the user has the required notebook action, returning 401 or 404 depending on whether they can know the cluster exists
    */
-  protected def authCheck(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, notebookAction: NotebookClusterAction): Future[Unit] = {
+  private[leonardo] def authCheck(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, notebookAction: NotebookClusterAction): Future[Unit] = {
     for {
       hasViewPermission <- authProvider.hasNotebookClusterPermission(userInfo, GetClusterStatus, googleProject.value, clusterName.string)
       hasRequiredPermission <- authProvider.hasNotebookClusterPermission(userInfo, notebookAction, googleProject.value, clusterName.string)
@@ -76,17 +74,21 @@ class ProxyService(proxyConfig: ProxyConfig,
       if (!hasViewPermission) {
         throw ClusterNotFoundException(googleProject, clusterName)
       } else if (!hasRequiredPermission) {
-        throw AuthorizationError(userInfo.userEmail)
+        throw AuthorizationError(Option(userInfo.userEmail))
       } else {
         ()
       }
     }
   }
 
-  def proxyLocalize(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest, token: HttpCookiePair): Future[HttpResponse] = {
+  def proxyLocalize(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest): Future[HttpResponse] = {
     authCheck(userInfo, googleProject, clusterName, SyncDataToCluster).flatMap { _ =>
-      proxyInternal(userInfo, googleProject, clusterName, request, token)
+      proxyInternal(userInfo, googleProject, clusterName, request)
     }
+  }
+
+  def invalidateAccessToken(token: String): Future[Unit] = {
+    Future(googleTokenCache.invalidate(token))
   }
 
   /**
@@ -97,18 +99,17 @@ class ProxyService(proxyConfig: ProxyConfig,
     * @param googleProject the Google project
     * @param clusterName the cluster name
     * @param request the HTTP request to proxy
-    * @param token the user access token
     * @return HttpResponse future representing the proxied response, or NotFound if a notebook
     *         server IP could not be found.
     */
-  def proxyNotebook(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest, token: HttpCookiePair): Future[HttpResponse] = {
+  def proxyNotebook(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest): Future[HttpResponse] = {
     authCheck(userInfo, googleProject, clusterName, ConnectToCluster).flatMap { _ =>
-      proxyInternal(userInfo, googleProject, clusterName, request, token)
+      proxyInternal(userInfo, googleProject, clusterName, request)
     }
   }
 
-  private def proxyInternal(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest, token: HttpCookiePair): Future[HttpResponse] = {
-    logger.debug(s"Received proxy request with user token ${token.value}")
+  private def proxyInternal(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest): Future[HttpResponse] = {
+    logger.debug(s"Received proxy request for user user $userInfo")
     getTargetHost(googleProject, clusterName) flatMap {
       case ClusterReady(targetHost) =>
         // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a

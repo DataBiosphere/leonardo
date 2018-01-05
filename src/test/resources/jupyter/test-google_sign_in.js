@@ -1,1 +1,1 @@
-$(googleClientId)
+$(userEmailLoginHint)
