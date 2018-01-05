@@ -155,7 +155,8 @@ object Leonardo extends WorkbenchClient with LazyLogging {
     import akka.http.scaladsl.server.Directives.{get => httpGet, _}
 
     def get(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver) = {
-      val url = s"http://127.0.0.1:9090/${googleProject.value}/${clusterName.string}/client?token=${token.value}"
+      val localhost = java.net.InetAddress.getLocalHost().getHostName()
+      val url = s"http://${localhost}:9090/${googleProject.value}/${clusterName.string}/client?token=${token.value}"
       logger.info(s"Get dummy client: $url")
       new DummyClientPage(url).open
     }
