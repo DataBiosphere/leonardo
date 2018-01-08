@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth
 
-import com.typesafe.config.ConfigFactory
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.scalatest.FlatSpec
 import org.scalatest.concurrent.ScalaFutures
