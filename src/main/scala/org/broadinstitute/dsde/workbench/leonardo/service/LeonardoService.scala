@@ -116,7 +116,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } flatMap {
       case Some(_) => throw ClusterAlreadyExistsException(googleProject, clusterName)
       case None =>
-        val augmentedClusterRequest = addClusterDefaultLabels(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
+        val augmentedClusterRequest = addClusterDefaultLabels(serviceAccountInfo, googleProject, clusterName, userInfo.userEmail, clusterRequest)
         val clusterFuture = for {
           // Notify the auth provider that the cluster has been created
           _ <- authProvider.notifyClusterCreated(userInfo, googleProject.value, clusterName.string)
