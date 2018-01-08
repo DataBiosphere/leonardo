@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class MockLeoAuthProvider(authConfig: Config, notifySucceeds: Boolean = true) extends LeoAuthProvider(authConfig) {
+class MockLeoAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider, notifySucceeds: Boolean = true) extends LeoAuthProvider(authConfig, serviceAccountProvider) {
   //behaviour defined in test\...\reference.conf
   val projectPermissions: Map[ProjectActions.ProjectAction, Boolean] =
     (ProjectActions.allActions map (action => action -> authConfig.getBoolean(action.toString) )).toMap

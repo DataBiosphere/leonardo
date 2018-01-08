@@ -37,12 +37,13 @@ trait CommonTestData { this: ScalaFutures =>
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
 
   val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
-  val whitelistAuthProvider = new WhitelistAuthProvider(config.getConfig("auth.providerConfig"))
 
   // TODO look into parameterized tests so both provider impls can both be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData
   //val serviceAccountProvider = new MockPetServiceAccountProvider(config.getConfig("serviceAccounts.config"))
   val serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(config.getConfig("serviceAccounts.config"))
+
+  val whitelistAuthProvider = new WhitelistAuthProvider(config.getConfig("auth.whitelistProviderConfig"), serviceAccountProvider)
 
   val samDAO = new MockSamDAO
 

@@ -46,11 +46,13 @@ object Boot extends App with LazyLogging {
     val monitorConfig = config.as[MonitorConfig]("monitor")
     val samConfig = config.as[SamConfig]("sam")
 
-    val authProviderClass = config.as[String]("auth.providerClass")
-    val authConfig = config.getConfig("auth.providerConfig")
-
     val serviceAccountProviderClass = config.as[String]("serviceAccounts.providerClass")
     val serviceAccountConfig = config.getConfig("serviceAccounts.config")
+    val serviceAccountProvider = constructProvider[ServiceAccountProvider](serviceAccountProviderClass, serviceAccountConfig)
+
+    val authProviderClass = config.as[String]("auth.providerClass")
+    val authConfig = config.getConfig("auth.providerConfig")
+    val authProvider = constructProvider[LeoAuthProvider](authProviderClass, authConfig, serviceAccountProvider)
 
     // we need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")
@@ -61,9 +63,6 @@ object Boot extends App with LazyLogging {
     system.registerOnTermination {
       dbRef.database.close()
     }
-
-    val authProvider = constructProvider[LeoAuthProvider](authProviderClass, authConfig)
-    val serviceAccountProvider = constructProvider[ServiceAccountProvider](serviceAccountProviderClass, serviceAccountConfig)
 
     val (leoServiceAccountEmail, leoServiceAccountPemFile) = serviceAccountProvider.getLeoServiceAccountAndKey
     val gdDAO = new GoogleDataprocDAO(leoServiceAccountEmail, leoServiceAccountPemFile, dataprocConfig, proxyConfig, clusterDefaultsConfig, clusterFilesConfig, clusterResourcesConfig)
@@ -86,10 +85,10 @@ object Boot extends App with LazyLogging {
       }
   }
 
-  private def constructProvider[T](className: String, config: Config): T = {
+  private def constructProvider[T](className: String, ctorArgs: Any*): T = {
     Class.forName(className)
       .getConstructor(classOf[Config])
-      .newInstance(config)
+      .newInstance(ctorArgs)
       .asInstanceOf[T]
   }
 

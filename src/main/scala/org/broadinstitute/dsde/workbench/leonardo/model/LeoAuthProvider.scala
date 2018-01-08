@@ -30,7 +30,7 @@ object NotebookClusterActions {
 
 }
 
-abstract class LeoAuthProvider(authConfig: Config) {
+abstract class LeoAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider) {
   /**
     * @param userInfo The user in question
     * @param action The project-level action (above) the user is requesting
