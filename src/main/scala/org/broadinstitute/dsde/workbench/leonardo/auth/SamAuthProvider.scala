@@ -1,19 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth
 
-import akka.http.scaladsl.model.StatusCodes
 import com.typesafe.config.Config
 import com.typesafe.scalalogging.LazyLogging
 import net.ceedubs.ficus.Ficus._
 import io.swagger.client.ApiClient
-import io.swagger.client.Configuration
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException, NotebookClusterActions, ProjectActions}
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, NotebookClusterActions, ProjectActions}
+import org.broadinstitute.dsde.workbench.model.UserInfo
 import io.swagger.client.api.ResourcesApi
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.Actions._
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-
 import scala.concurrent.{ExecutionContext, Future}
 
 class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) with LazyLogging {
@@ -25,10 +21,8 @@ class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) wi
   //is this how we do this???
   private[auth] def resourcesApi(userInfo: UserInfo): ResourcesApi = {
     val apiClient = new ApiClient()
-    logger.info("USER ACCESS TOKEN:" + userInfo.accessToken.token)
     apiClient.setAccessToken(userInfo.accessToken.token)
     apiClient.setBasePath(authConfig.as[String]("samServer"))
-    logger.info("API CLIENT:" + apiClient)
     new ResourcesApi(apiClient)
   }
 
@@ -65,9 +59,6 @@ class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) wi
     }
   }
 
-
-  case class AuthError(role: Boolean, resourceType: String, resourceName: String, action: String) extends
-    LeoException(s"user has $role for $action in $resourceType $resourceName", StatusCodes.Unauthorized)
   /**
     * @param userInfo The user in question
     * @param action The project-level action (above) the user is requesting
@@ -75,10 +66,7 @@ class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) wi
     * @return If the given user has permissions in this project to perform the specified action.
     */
   def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: String)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-    val actionThing = resourcesApi(userInfo).resourceAction(billingProjectResourceTypeName, googleProject, getProjectActionString(action))
-    throw AuthError(actionThing, billingProjectResourceTypeName, googleProject, getProjectActionString(action))
-
-   // Future{ resourcesApi(userInfo).resourceAction(billingProjectResourceTypeName, googleProject, getProjectActionString(action)) }
+    Future{ resourcesApi(userInfo).resourceAction(billingProjectResourceTypeName, googleProject, getProjectActionString(action)) }
   }
 
   /**
