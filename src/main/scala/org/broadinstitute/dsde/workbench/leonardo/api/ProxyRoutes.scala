@@ -17,7 +17,7 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport { self: LazyLoggin
   val proxyService: ProxyService
   implicit val executionContext: ExecutionContext
 
-  protected val tokenCookieName = "FCtoken"
+  protected val tokenCookieName = "LeoToken"
 
   protected val proxyRoutes: Route =
     pathPrefix("notebooks") {
