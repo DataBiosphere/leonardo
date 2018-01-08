@@ -48,9 +48,9 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
   val routeTest = this
 
   private val testClusterRequest = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), None)
-  private val alwaysYesProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"))
-  private val alwaysNoProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysNoProviderConfig"))
   private val serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(config.getConfig("serviceAccounts.config"))
+  private val alwaysYesProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), serviceAccountProvider)
+  private val alwaysNoProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysNoProviderConfig"), serviceAccountProvider)
 
   val c1 = Cluster(
     clusterName = name1,
@@ -167,7 +167,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
     }
 
     "should give you a 401 if you can see a cluster's details but can't do the more specific action" in isolatedDbTest {
-      val readOnlyProvider = new MockLeoAuthProvider(config.getConfig("auth.readOnlyProviderConfig"))
+      val readOnlyProvider = new MockLeoAuthProvider(config.getConfig("auth.readOnlyProviderConfig"), serviceAccountProvider)
       val spyProvider = spy(readOnlyProvider)
       val leo = leoWithAuthProvider(spyProvider)
       val proxy = proxyWithAuthProvider(spyProvider)
@@ -204,7 +204,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
     }
 
     "should not create a cluster if auth provider notifyClusterCreated returns failure" in isolatedDbTest {
-      val badNotifyProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), notifySucceeds = false)
+      val badNotifyProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), serviceAccountProvider, notifySucceeds = false)
       val spyProvider = spy(badNotifyProvider)
       val leo = leoWithAuthProvider(spyProvider)
 
