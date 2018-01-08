@@ -22,17 +22,16 @@ class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) wi
 
 
   //is this how we do this???
-  private def resourcesApi(userInfo: UserInfo): ResourcesApi = {
+  private[auth] def resourcesApi(userInfo: UserInfo): ResourcesApi = {
     val apiClient = new ApiClient()
     logger.info("USER ACCESS TOKEN:" + userInfo.accessToken.token)
     apiClient.setAccessToken(userInfo.accessToken.token)
+    apiClient.setBasePath(authConfig.as[String]("samServer"))
     logger.info("API CLIENT:" + apiClient)
-   // new ResourcesApi(apiClient.setBasePath(authConfig.as[String]("samServer")))
     new ResourcesApi(apiClient)
   }
 
   protected def getClusterResourceId(googleProject: String, clusterName: String): String = {
-    // cluster names must be unique within a single google project so this should be fine...right???
     googleProject + "_" + clusterName
   }
 
@@ -91,7 +90,7 @@ class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) wi
     val clusterResourceId = getClusterResourceId(googleProject, clusterName)
 
     // if action is connect, check only cluster resource. If action is anything else, either cluster or project must be true
-   Future {
+    Future {
      if (action == ConnectToCluster) {
        resourcesApi(userInfo).resourceAction(notebookClusterResourceTypeName, clusterResourceId, getNotebookClusterActionString(action))
      } else {
