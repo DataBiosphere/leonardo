@@ -1,12 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth
 
+import akka.http.scaladsl.model.StatusCodes
 import com.typesafe.config.Config
 import com.typesafe.scalalogging.LazyLogging
 import net.ceedubs.ficus.Ficus._
 import io.swagger.client.ApiClient
 import io.swagger.client.Configuration
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, NotebookClusterActions, ProjectActions}
-import org.broadinstitute.dsde.workbench.model.UserInfo
+import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException, NotebookClusterActions, ProjectActions}
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import io.swagger.client.api.ResourcesApi
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
@@ -64,6 +65,9 @@ class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) wi
     }
   }
 
+
+  case class AuthError(roles: String) extends
+    LeoException(s"Roles for user: ", StatusCodes.Unauthorized)
   /**
     * @param userInfo The user in question
     * @param action The project-level action (above) the user is requesting
@@ -71,8 +75,10 @@ class SamAuthProvider(authConfig: Config) extends LeoAuthProvider(authConfig) wi
     * @return If the given user has permissions in this project to perform the specified action.
     */
   def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: String)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+    val roles = resourcesApi(userInfo).resourceRoles("billing-project", "broad-dsde-dev").toString
+    throw AuthError(roles)
 
-    Future{ resourcesApi(userInfo).resourceAction(billingProjectResourceTypeName, googleProject, getProjectActionString(action)) }
+   // Future{ resourcesApi(userInfo).resourceAction(billingProjectResourceTypeName, googleProject, getProjectActionString(action)) }
   }
 
   /**
