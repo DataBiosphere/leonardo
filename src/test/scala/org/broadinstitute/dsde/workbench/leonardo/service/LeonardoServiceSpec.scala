@@ -498,14 +498,4 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     gdDAO.buckets shouldBe 'empty
   }
-
-  it should "tell you if you're whitelisted" in isolatedDbTest {
-    leo.isWhitelisted(defaultUserInfo).futureValue
-  }
-
-  it should "complain if you're not whitelisted" in isolatedDbTest {
-    val badUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("badguy"), WorkbenchEmail("dont@whitelist.me"), 0)
-    val authExc = leo.isWhitelisted(badUserInfo).failed.futureValue
-    authExc shouldBe a [AuthorizationError]
-  }
 }

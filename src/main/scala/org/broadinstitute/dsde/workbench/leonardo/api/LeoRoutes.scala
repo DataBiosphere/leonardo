@@ -37,15 +37,6 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
 
   def leoRoutes: Route =
     requireUserInfo { userInfo =>
-      path("isWhitelisted") {
-        get {
-          complete {
-            leonardoService.isWhitelisted(userInfo).map { _ =>
-              StatusCodes.OK
-            }
-          }
-        }
-      } ~
       path("cluster" / Segment / Segment) { (googleProject, clusterName) =>
         put {
           entity(as[ClusterRequest]) { cluster =>
