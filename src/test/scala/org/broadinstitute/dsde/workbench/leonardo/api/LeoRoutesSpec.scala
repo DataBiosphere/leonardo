@@ -28,18 +28,6 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
     }
   }
 
-  it should "200 if you're on the whitelist" in isolatedDbTest {
-    Get(s"/api/isWhitelisted") ~> leoRoutes.route ~> check {
-      status shouldEqual StatusCodes.OK
-    }
-  }
-
-  it should "401 if you're not on the whitelist" in isolatedDbTest {
-    Get(s"/api/isWhitelisted") ~> invalidUserLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.Unauthorized
-    }
-  }
-
   it should "200 when creating and getting cluster" in isolatedDbTest {
     val newCluster = ClusterRequest(Map.empty, Some(mockGoogleDataprocDAO.extensionPath))
 
