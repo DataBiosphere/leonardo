@@ -8,7 +8,7 @@ class SamAuthProviderSpec extends FlatSpec with CommonTestData with ScalaFutures
   private val samAuth = new SamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider)
 
   "SamAuthProvider" should "construct a sane resourcesApi" in {
-    val rAPI = samAuth.resourcesApiAsPet(defaultUserInfo.userEmail)
-    rAPI.resourceAction("resource-type", "project", "launch_notebook_cluster")
+    val resourcesAPI = samAuth.resourcesApiAsPet(defaultUserInfo.userEmail)
+    resourcesAPI.resourceAction("billing-project", project.value, "launch_notebook_cluster")
   }
 }
