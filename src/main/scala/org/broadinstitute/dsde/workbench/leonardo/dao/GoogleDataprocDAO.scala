@@ -91,7 +91,7 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
   }
 
   private lazy val compute = {
-    new Compute.Builder(httpTransport,jsonFactory,getServiceAccountCredential(vmScopes))
+    new Compute.Builder(httpTransport, jsonFactory, getServiceAccountCredential(vmScopes))
       .setApplicationName(dataprocConfig.applicationName).build()
   }
 
@@ -122,7 +122,8 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
     }.recover { case CallToGoogleApiFailedException(_, _, _, _) => {
       logger.error(s"Unable to authorize token: $accessToken")
       throw AuthorizationError()
-    }}
+    }
+    }
   }
 
   private lazy val googleFirewallRule = {
@@ -153,7 +154,7 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
     // Create a dataproc create request and give it the google project, a zone, and the Cluster
     val request = dataproc.projects().regions().clusters().create(googleProject.value, dataprocConfig.dataprocDefaultRegion, cluster)
 
-    executeGoogleRequestAsync(googleProject, clusterName.toString, request)  // returns a Future[DataprocOperation]
+    executeGoogleRequestAsync(googleProject, clusterName.toString, request) // returns a Future[DataprocOperation]
   }
 
   private def getClusterConfig(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, clusterDefaultsConfig: ClusterDefaultsConfig, serviceAccountInfo: ServiceAccountInfo): ClusterConfig = {
@@ -376,7 +377,12 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
 
   /* set the notebook service account as the staging bucket owner */
   override def setStagingBucketOwnership(cluster: LeoCluster): Future[Unit] = {
-    cluster.serviceAccountInfo.notebookServiceAccount match {
+    setBucketOwnership(cluster.serviceAccountInfo.clusterServiceAccount, cluster.googleProject, cluster.clusterName)
+    setBucketOwnership(cluster.serviceAccountInfo.notebookServiceAccount, cluster.googleProject, cluster.clusterName)
+  }
+
+  private def setBucketOwnership(serviceAccount: Option[WorkbenchEmail], googleProject: GoogleProject, clusterName: ClusterName): Future[Unit] = {
+    serviceAccount match {
       case None =>
         // No need to do this if we're not using a notebook service account
         Future.successful(())
@@ -397,10 +403,18 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
         }
 
         val transformed: OptionT[Future, Unit] = for {
-          dCluster <- OptionT.liftF[Future, DataprocCluster] { getCluster(cluster.googleProject, cluster.clusterName) }
-          stagingBucket <- OptionT.fromOption { getStagingBucket(dCluster) }
-          _ <- OptionT.liftF[Future, BucketAccessControl] { executeGoogleRequestAsync(cluster.googleProject, s"Bucket ${stagingBucket.name}", bacInsert(stagingBucket)) }
-          _ <- OptionT.liftF[Future, ObjectAccessControl] { executeGoogleRequestAsync(cluster.googleProject, s"Bucket ${stagingBucket.name}", doacInsert(stagingBucket)) }
+          dCluster <- OptionT.liftF[Future, DataprocCluster] {
+            getCluster(googleProject, clusterName)
+          }
+          stagingBucket <- OptionT.fromOption {
+            getStagingBucket(dCluster)
+          }
+          _ <- OptionT.liftF[Future, BucketAccessControl] {
+            executeGoogleRequestAsync(googleProject, s"Bucket ${stagingBucket.name}", bacInsert(stagingBucket))
+          }
+          _ <- OptionT.liftF[Future, ObjectAccessControl] {
+            executeGoogleRequestAsync(googleProject, s"Bucket ${stagingBucket.name}", doacInsert(stagingBucket))
+          }
         } yield ()
 
         transformed.value.void
