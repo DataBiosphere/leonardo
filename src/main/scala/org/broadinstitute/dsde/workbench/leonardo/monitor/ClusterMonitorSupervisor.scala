@@ -62,9 +62,9 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
   def startClusterMonitorActor(cluster: Cluster, recreate: Boolean = false): Unit = {
     val child = createChildActor(cluster)
 
-//    if (recreate && monitorConfig.recreateCluster) {
-//      context.watchWith(child, RecreateCluster(cluster))
-//    }
+    if (recreate && monitorConfig.recreateCluster) {
+      context.watchWith(child, RecreateCluster(cluster))
+    }
   }
 
   override val supervisorStrategy = {
