@@ -68,9 +68,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   // Register this instance with the cluster monitor supervisor so our cluster monitor can potentially delete and recreate clusters
   clusterMonitorSupervisor ! RegisterLeoService(this)
 
-  protected def checkProjectPermission(user: UserInfo, action: ProjectAction, project: GoogleProject): Future[Unit] = {
-    authProvider.hasProjectPermission(user, action, project.value) map {
-      case false => throw AuthorizationError(Option(user.userEmail))
+  protected def checkProjectPermission(userEmail: WorkbenchEmail, action: ProjectAction, project: GoogleProject): Future[Unit] = {
+    authProvider.hasProjectPermission(userEmail, action, project.value) map {
+      case false => throw AuthorizationError(Option(userEmail))
       case true => ()
     }
   }
@@ -78,7 +78,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   //Throws 404 and pretends we don't even know there's a cluster there, by default.
   //If the cluster really exists and you're OK with the user knowing that, set throw401 = true.
   protected def checkClusterPermission(user: UserInfo, action: NotebookClusterAction, cluster: Cluster, throw401: Boolean = false): Future[Unit] = {
-    authProvider.hasNotebookClusterPermission(user, action, cluster.googleProject.value, cluster.clusterName.string) map {
+    authProvider.hasNotebookClusterPermission(user.userEmail, action, cluster.googleProject.value, cluster.clusterName.string) map {
       case false =>
         if( throw401 )
           throw AuthorizationError(Option(user.userEmail))
@@ -90,18 +90,18 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   def createCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
     for {
-      _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
+      _ <- checkProjectPermission(userInfo.userEmail, CreateClusters, googleProject)
 
       // Grab the service accounts from serviceAccountProvider for use later
       clusterServiceAccountOpt <- serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject)
       notebookServiceAccountOpt <- serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject)
       serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountOpt, notebookServiceAccountOpt)
 
-      cluster <- internalCreateCluster(userInfo, serviceAccountInfo, googleProject, clusterName, clusterRequest)
+      cluster <- internalCreateCluster(userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
     } yield cluster
   }
 
-  def internalCreateCluster(userInfo: UserInfo,
+  def internalCreateCluster(userEmail: WorkbenchEmail,
                             serviceAccountInfo: ServiceAccountInfo,
                             googleProject: GoogleProject,
                             clusterName: ClusterName,
@@ -112,12 +112,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } flatMap {
       case Some(_) => throw ClusterAlreadyExistsException(googleProject, clusterName)
       case None =>
-        val augmentedClusterRequest = addClusterDefaultLabels(serviceAccountInfo, googleProject, clusterName, userInfo.userEmail, clusterRequest)
+        val augmentedClusterRequest = addClusterDefaultLabels(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
         val clusterFuture = for {
           // Notify the auth provider that the cluster has been created
-          _ <- authProvider.notifyClusterCreated(userInfo, googleProject.value, clusterName.string)
+          _ <- authProvider.notifyClusterCreated(userEmail, googleProject.value, clusterName.string)
           // Create the cluster in Google
-          (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest)
+          (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest)
           // Save the cluster in the database
           savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, GcsPath(initBucket, GcsRelativePath("")), serviceAccountKeyOpt.map(_.id)))
         } yield {
@@ -128,8 +128,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         clusterFuture.onComplete {
           case Failure(_) =>
             //make a dummy cluster with the details
-            val clusterToDelete = Cluster.createDummyForDeletion(clusterRequest, userInfo.userEmail, clusterName, googleProject, serviceAccountInfo)
-            internalDeleteCluster(userInfo, clusterToDelete) //don't wait for it
+            val clusterToDelete = Cluster.createDummyForDeletion(clusterRequest, userEmail, clusterName, googleProject, serviceAccountInfo)
+            internalDeleteCluster(userEmail, clusterToDelete) //don't wait for it
           case Success(_) => //no-op
         }
         clusterFuture
@@ -158,12 +158,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually destroy it
       _ <- checkClusterPermission(userInfo,  DeleteCluster, cluster, throw401 = true)
 
-      _ <- internalDeleteCluster(userInfo, cluster)
+      _ <- internalDeleteCluster(userInfo.userEmail, cluster)
     } yield { () }
   }
 
   //NOTE: This function MUST ALWAYS complete ALL steps. i.e. if deleting thing1 fails, it must still proceed to delete thing2
-  def internalDeleteCluster(userInfo: UserInfo, cluster: Cluster): Future[Unit] = {
+  def internalDeleteCluster(userEmail: WorkbenchEmail, cluster: Cluster): Future[Unit] = {
     if (cluster.status.isDeletable) {
       for {
         // Delete the notebook service account key in Google, if present
@@ -175,7 +175,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         // Change the cluster status to Deleting in the database
         _ <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.googleId))
         // Notify the auth provider of cluster deletion
-        _ <- authProvider.notifyClusterDeleted(userInfo, cluster.googleProject.value, cluster.clusterName.string)
+        _ <- authProvider.notifyClusterDeleted(userEmail, cluster.googleProject.value, cluster.clusterName.string)
       } yield {
         // Notify the cluster monitor supervisor of cluster deletion.
         // This will kick off polling until the cluster is actually deleted in Google.
@@ -191,8 +191,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
       //look up permissions for cluster
       clusterPermissions <- Future.traverse(clusterList) { cluster =>
-        val hasProjectPermission = authProvider.hasProjectPermission(userInfo, ListClusters, cluster.googleProject.value)
-        val hasNotebookPermission = authProvider.hasNotebookClusterPermission(userInfo, GetClusterStatus, cluster.googleProject.value, cluster.clusterName.string)
+        val hasProjectPermission = authProvider.hasProjectPermission(userInfo.userEmail, ListClusters, cluster.googleProject.value)
+        val hasNotebookPermission = authProvider.hasNotebookClusterPermission(userInfo.userEmail, GetClusterStatus, cluster.googleProject.value, cluster.clusterName.string)
         Future.reduceLeft(List(hasProjectPermission, hasNotebookPermission))(_ || _)
       }
     } yield {
