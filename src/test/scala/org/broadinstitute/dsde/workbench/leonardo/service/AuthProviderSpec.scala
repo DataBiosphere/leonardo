@@ -121,8 +121,8 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       leo.deleteCluster(userInfo, project, name1).futureValue
 
       //verify we correctly notified the auth provider
-      verify(spyProvider).notifyClusterCreated(userInfo, project.value, name1.string)
-      verify(spyProvider).notifyClusterDeleted(userInfo, project.value, name1.string)
+      verify(spyProvider).notifyClusterCreated(userInfo.userEmail, project.value, name1.string)
+      verify(spyProvider).notifyClusterDeleted(userInfo.userEmail, project.value, name1.string)
     }
 
     "should not let you do things if the auth provider says no" in isolatedDbTest {
@@ -162,8 +162,8 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       clusterNotFoundAgain shouldBe a [ClusterNotFoundException]
 
       //verify we never notified the auth provider of clusters happening because they didn't
-      verify(spyProvider, Mockito.never).notifyClusterCreated(userInfo, project.value, name1.string)
-      verify(spyProvider, Mockito.never).notifyClusterDeleted(userInfo, project.value, name1.string)
+      verify(spyProvider, Mockito.never).notifyClusterCreated(userInfo.userEmail, project.value, name1.string)
+      verify(spyProvider, Mockito.never).notifyClusterDeleted(userInfo.userEmail, project.value, name1.string)
     }
 
     "should give you a 401 if you can see a cluster's details but can't do the more specific action" in isolatedDbTest {
@@ -199,8 +199,8 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       clusterDestroyException shouldBe a [AuthorizationError]
 
       //verify we never notified the auth provider of clusters happening because they didn't
-      verify(spyProvider, Mockito.never).notifyClusterCreated(userInfo, project.value, name1.string)
-      verify(spyProvider, Mockito.never).notifyClusterDeleted(userInfo, project.value, name1.string)
+      verify(spyProvider, Mockito.never).notifyClusterCreated(userInfo.userEmail, project.value, name1.string)
+      verify(spyProvider, Mockito.never).notifyClusterDeleted(userInfo.userEmail, project.value, name1.string)
     }
 
     "should not create a cluster if auth provider notifyClusterCreated returns failure" in isolatedDbTest {
@@ -219,8 +219,8 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       gdDAO.clusters should not contain key (name1)
 
       //verify we correctly notified the auth provider
-      verify(spyProvider).notifyClusterCreated(userInfo, project.value, name1.string)
-      verify(spyProvider).notifyClusterDeleted(userInfo, project.value, name1.string)
+      verify(spyProvider).notifyClusterCreated(userInfo.userEmail, project.value, name1.string)
+      verify(spyProvider).notifyClusterDeleted(userInfo.userEmail, project.value, name1.string)
     }
 
 

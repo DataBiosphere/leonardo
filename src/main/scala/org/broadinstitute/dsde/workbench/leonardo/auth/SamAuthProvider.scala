@@ -1,39 +1,39 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth
 
-import com.google.api.client.auth.oauth2.Credential
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import com.google.api.client.json.jackson2.JacksonFactory
 import com.google.api.services.plus.PlusScopes
 import com.typesafe.config.Config
-import com.typesafe.scalalogging.LazyLogging
 import net.ceedubs.ficus.Ficus._
 import io.swagger.client.ApiClient
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, NotebookClusterActions, ProjectActions, ServiceAccountProvider}
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import io.swagger.client.api.ResourcesApi
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.Actions._
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.collection.JavaConverters._
 import java.io.File
-import java.time.Instant
 import java.util.concurrent.TimeUnit
 
+import akka.http.scaladsl.model.StatusCodes
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(authConfig, serviceAccountProvider) with LazyLogging {
+case class NotebookActionError(action: Action) extends
+  LeoException(s"${action.toString} was not recognized", StatusCodes.NotFound)
 
-  val notebookClusterResourceTypeName = "notebook-cluster"
-  val billingProjectResourceTypeName = "billing-project"
+
+class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(authConfig, serviceAccountProvider) {
+  private val notebookClusterResourceTypeName = "notebook-cluster"
+  private val billingProjectResourceTypeName = "billing-project"
 
   private val httpTransport = GoogleNetHttpTransport.newTrustedTransport
   private val jsonFactory = JacksonFactory.getDefaultInstance
-  val saScopes = Seq(PlusScopes.USERINFO_EMAIL, PlusScopes.USERINFO_PROFILE)
+  private val saScopes = Seq(PlusScopes.USERINFO_EMAIL, PlusScopes.USERINFO_PROFILE)
 
   //Cache lookup of pet tokens
   val cacheExpiryTime = authConfig.getInt("cacheExpiryTime")
@@ -51,7 +51,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     )
 
   //Leo SA details -- needed to get pet keyfiles
-  val (leoEmail, leoPem) : (WorkbenchEmail, File) = serviceAccountProvider.getLeoServiceAccountAndKey
+  private val (leoEmail, leoPem) : (WorkbenchEmail, File) = serviceAccountProvider.getLeoServiceAccountAndKey
 
   //Given some credentials, gets an access token
   private def getAccessTokenUsingCredential(email: WorkbenchEmail, pem: File): String = {
@@ -70,8 +70,9 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
   //"Slow" lookup of pet's access token. The cache calls this when it needs to.
   private def getPetAccessTokenFromSam(userEmail: WorkbenchEmail): String = {
     val samAPI = resourcesApi(getAccessTokenUsingCredential(leoEmail, leoPem))
-    val (petEmail, petKey): (WorkbenchEmail, File) = samAPI.gimmeThisUsersPetsKey(userEmail)
-    getAccessTokenUsingCredential(petEmail, petKey)
+//    val (petEmail, petKey): (WorkbenchEmail, File) =  samAPI.gimmeThisUsersPetsKey(userEmail)
+//    getAccessTokenUsingCredential(petEmail, petKey)
+    ""
   }
 
   //"Fast" lookup of pet's access token, using the cache.
@@ -111,7 +112,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
       case ListClusters => "list_notebook_cluster"
       case SyncDataToClusters => "sync_notebook_cluster"
       case DeleteClusters => "delete_notebook_cluster"
-      case _ => "return error here???"
+      case _ => throw NotebookActionError(action)
     }
   }
 
@@ -121,42 +122,42 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
       case ConnectToCluster => "connect"
       case SyncDataToCluster => "sync"
       case DeleteCluster => "delete"
-      case _ => "return error here???"
+      case _ => throw NotebookActionError(action)
     }
   }
 
   /**
-    * @param userInfo The user in question
+    * @param userEmail The user in question
     * @param action The project-level action (above) the user is requesting
     * @param googleProject The Google project to check in
     * @return If the given user has permissions in this project to perform the specified action.
     */
-  def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: String)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-    Future{ resourcesApi(userInfo).resourceAction(billingProjectResourceTypeName, googleProject, getProjectActionString(action)) }
+  def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: String)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+    Future{ resourcesApiAsPet(userEmail).resourceAction(billingProjectResourceTypeName, googleProject, getProjectActionString(action)) }
   }
 
   /**
     * Leo calls this method to verify if the user has permission to perform the given action on a specific notebook cluster.
     * It may call this method passing in a cluster that doesn't exist. Return Future.successful(false) if so.
     *
-    * @param userInfo      The user in question
+    * @param userEmail      The user in question
     * @param action        The cluster-level action (above) the user is requesting
     * @param googleProject The Google project the cluster was created in
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return If the userEmail has permission on this individual notebook cluster to perform this action
     */
-  def hasNotebookClusterPermission(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  def hasNotebookClusterPermission(userEmail: WorkbenchEmail, action: NotebookClusterActions.NotebookClusterAction, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     // get the id for the cluster resource
     val clusterResourceId = getClusterResourceId(googleProject, clusterName)
 
     // if action is connect, check only cluster resource. If action is anything else, either cluster or project must be true
     Future {
-     if (action == ConnectToCluster) {
-       resourcesApi(userInfo).resourceAction(notebookClusterResourceTypeName, clusterResourceId, getNotebookClusterActionString(action))
-     } else {
-       resourcesApi(userInfo).resourceAction(notebookClusterResourceTypeName, clusterResourceId, getNotebookClusterActionString(action)) ||
-       resourcesApi(userInfo).resourceAction(billingProjectResourceTypeName, googleProject, getNotebookClusterActionString(action))
-     }
+      val notebookAction = resourcesApiAsPet(userEmail).resourceAction(notebookClusterResourceTypeName, clusterResourceId, getNotebookClusterActionString(action))
+      if (action == ConnectToCluster) {
+        notebookAction
+      } else {
+        notebookAction || resourcesApiAsPet(userEmail).resourceAction(billingProjectResourceTypeName, googleProject, getNotebookClusterActionString(action))
+      }
     }
   }
 
@@ -168,15 +169,15 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * Returning a failed Future will prevent the cluster from being created, and will call notifyClusterDeleted for the same cluster.
     * Leo will wait, so be timely!
     *
-    * @param userInfo      The email address of the user in question
+    * @param userEmail      The email address of the user in question
     * @param googleProject The Google project the cluster was created in
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterCreated(userInfo: UserInfo, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  def notifyClusterCreated(userEmail: WorkbenchEmail, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
     val clusterResourceId = getClusterResourceId(googleProject, clusterName)
     // Add the cluster resource with the user as owner
-    Future { resourcesApi(userInfo).createResource(notebookClusterResourceTypeName, clusterResourceId) }
+    Future { resourcesApiAsPet(userEmail).createResource(notebookClusterResourceTypeName, clusterResourceId) }
   }
 
   /**
@@ -184,15 +185,15 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * The returned future should complete once the provider has finished doing any associated work.
     * Leo will wait, so be timely!
     *
-    * @param userInfo      The email address of the user in question
+    * @param userEmail      The email address of the user in question
     * @param googleProject The Google project the cluster was created in
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterDeleted(userInfo: UserInfo, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  def notifyClusterDeleted(userEmail: WorkbenchEmail, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
     // get the id for the cluster resource
     val clusterResourceId = getClusterResourceId(googleProject, clusterName)
     // delete the resource
-    Future{resourcesApi(userInfo).deleteResource(notebookClusterResourceTypeName, clusterResourceId)}
+    Future{resourcesApiAsPet(userEmail).deleteResource(notebookClusterResourceTypeName, clusterResourceId)}
   }
 }
