@@ -18,6 +18,7 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.googleapis.services.AbstractGoogleClientRequest
 import com.google.api.client.http.{AbstractInputStreamContent, FileContent, InputStreamContent}
 import com.google.api.client.json.jackson2.JacksonFactory
+import com.google.api.services.bigquery.BigqueryScopes
 import com.google.api.services.cloudresourcemanager.{CloudResourceManager, CloudResourceManagerScopes}
 import com.google.api.services.compute.model.Firewall.Allowed
 import com.google.api.services.compute.model.{Firewall, Instance}
@@ -75,13 +76,14 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
   private lazy val vmScopes = List(ComputeScopes.COMPUTE, ComputeScopes.CLOUD_PLATFORM)
   private lazy val oauth2Scopes = List(Oauth2Scopes.USERINFO_EMAIL, Oauth2Scopes.USERINFO_PROFILE)
   private lazy val cloudResourceManagerScopes = List(CloudResourceManagerScopes.CLOUD_PLATFORM)
+  private lazy val bigqueryScopes = List(BigqueryScopes.BIGQUERY)
 
   private lazy val oauth2 =
     new Builder(httpTransport, jsonFactory, null)
       .setApplicationName(dataprocConfig.applicationName).build()
 
   private lazy val dataproc = {
-    new Dataproc.Builder(httpTransport, jsonFactory, getServiceAccountCredential(cloudPlatformScopes))
+    new Dataproc.Builder(httpTransport, jsonFactory, getServiceAccountCredential(cloudPlatformScopes ++ bigqueryScopes))
       .setApplicationName(dataprocConfig.applicationName).build()
   }
 
