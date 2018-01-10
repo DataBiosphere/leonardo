@@ -83,7 +83,7 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
       .setApplicationName(dataprocConfig.applicationName).build()
 
   private lazy val dataproc = {
-    new Dataproc.Builder(httpTransport, jsonFactory, getServiceAccountCredential(cloudPlatformScopes ++ bigqueryScopes))
+    new Dataproc.Builder(httpTransport, jsonFactory, getServiceAccountCredential(cloudPlatformScopes))
       .setApplicationName(dataprocConfig.applicationName).build()
   }
 
@@ -167,7 +167,7 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
     // Set the cluster service account, if present.
     // This is the service account passed to the create cluster API call.
     serviceAccountInfo.clusterServiceAccount.foreach { serviceAccountEmail =>
-      gceClusterConfig.setServiceAccount(serviceAccountEmail.value).setServiceAccountScopes(oauth2Scopes.asJava)
+      gceClusterConfig.setServiceAccount(serviceAccountEmail.value).setServiceAccountScopes((oauth2Scopes ++ bigqueryScopes).asJava)
     }
 
     // Create a NodeInitializationAction, which specifies the executable to run on a node.
