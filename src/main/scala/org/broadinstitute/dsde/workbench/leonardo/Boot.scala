@@ -85,10 +85,18 @@ object Boot extends App with LazyLogging {
       }
   }
 
-  private def constructProvider[T](className: String, ctorArgs: Any*): T = {
+  private def constructProvider[T](className: String, config: Config): T = {
     Class.forName(className)
       .getConstructor(classOf[Config])
-      .newInstance(ctorArgs)
+      .newInstance(config)
+      .asInstanceOf[T]
+  }
+
+
+  private def constructProvider[T](className: String,  config: Config, serviceAccountProvider: ServiceAccountProvider): T = {
+    Class.forName(className)
+      .getConstructor(classOf[Config], classOf[ServiceAccountProvider])
+      .newInstance(config, serviceAccountProvider)
       .asInstanceOf[T]
   }
 
