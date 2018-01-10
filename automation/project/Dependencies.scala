@@ -38,6 +38,7 @@ object Dependencies {
     "org.scalatest"       %%  "scalatest"     % "2.2.6"   % "test",
     "org.seleniumhq.selenium" % "selenium-java" % "3.8.1" % "test",
     "com.typesafe.scala-logging" %% "scala-logging" % "3.1.0",
+    "org.apache.commons" % "commons-text" % "1.2",
 
     workbenchModel,
     workbenchGoogle,

@@ -460,5 +460,27 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
         }
       }
     }
+
+    "should allow BigQuerying in a new billing project" in withWebDriver { implicit driver =>
+      // Hermione is a Billing Project Owner
+      implicit val token = hermioneAuthToken
+      withNewBillingProject { projectName =>
+        withNewCluster(projectName) { cluster =>
+          withNewNotebook(cluster) { notebookPage =>
+            val query = """! bq query "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
+            val expected =
+              """Current status: DONE
+                |+----------------+
+                || scullion_count |
+                |+----------------+
+                ||              2 |
+                |+----------------+""".stripMargin
+
+            notebookPage.executeCell(query).get should include(expected)
+          }
+        }
+      }
+    }
+
   }
 }
