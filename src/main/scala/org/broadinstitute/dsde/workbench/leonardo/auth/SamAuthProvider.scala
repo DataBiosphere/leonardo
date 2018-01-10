@@ -1,31 +1,26 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth
 
+import akka.http.scaladsl.model.StatusCodes
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import com.google.api.client.json.jackson2.JacksonFactory
 import com.google.api.services.plus.PlusScopes
+import com.google.auth.oauth2.ServiceAccountCredentials
+import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.config.Config
-import net.ceedubs.ficus.Ficus._
 import io.swagger.client.ApiClient
-import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import io.swagger.client.api.ResourcesApi
 import io.swagger.client.api.GoogleApi
+import io.swagger.client.model.ServiceAccountKey
+import java.io.{ByteArrayInputStream, File}
+import java.util.concurrent.TimeUnit
+import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.Actions._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
-import org.broadinstitute.dsde.workbench.leonardo.model.Actions._
-import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey}
-import com.google.auth.oauth2.ServiceAccountCredentials
-
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import net.ceedubs.ficus.Ficus._
 import scala.collection.JavaConverters._
-import java.io.{ByteArrayInputStream, File}
-import java.time.Instant
-import java.io.{File, FileWriter}
-import java.util.concurrent.TimeUnit
-
-import akka.http.scaladsl.model.StatusCodes
-import com.google.common.cache.{CacheBuilder, CacheLoader}
-
 import scala.concurrent.{ExecutionContext, Future}
 
 case class PetServiceAccountPerProject(petServiceAccount: WorkbenchEmail, googleProject: String)
@@ -52,7 +47,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     .build(
       new CacheLoader[PetServiceAccountPerProject, String] {
         def load(petPerProject: PetServiceAccountPerProject) = {
-          getPetAccessTokenFromSam(petPerProject.petServiceAccount, petPerProject.googleProject)
+          getPetAccessTokenFromSam(petPerProject.googleProject, petPerProject.petServiceAccount)
         }
       }
     )
@@ -76,7 +71,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
 
   //Given some JSON, gets an access token
   private def getAccessTokenUsingJson(saKey: ServiceAccountKey) : String = {
-    val keyStream = new ByteArrayInputStream(saKey.privateKeyData.value.getBytes)
+    val keyStream = new ByteArrayInputStream(saKey.getPrivateKeyData.getBytes)
     val credential = ServiceAccountCredentials.fromStream(keyStream)
       .createScoped(saScopes.asJava)
 
@@ -84,7 +79,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
   }
 
   //"Slow" lookup of pet's access token. The cache calls this when it needs to.
-  private def getPetAccessTokenFromSam(googleProject: GoogleProject, userEmail: WorkbenchEmail): String = {
+  private def getPetAccessTokenFromSam(googleProject: String, userEmail: WorkbenchEmail): String = {
     val samAPI = googleApi(getAccessTokenUsingPem(leoEmail, leoPem))
     val userPetServiceAccountKey: ServiceAccountKey = samAPI.getUserPetServiceAccountKey(googleProject, userEmail.value)
     getAccessTokenUsingJson(userPetServiceAccountKey)
