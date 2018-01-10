@@ -14,8 +14,12 @@ import io.swagger.client.api.GoogleApi
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.Actions._
+import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey}
+import com.google.auth.oauth2.ServiceAccountCredentials
 
 import scala.collection.JavaConverters._
+import java.io.{ByteArrayInputStream, File}
+import java.time.Instant
 import java.io.{File, FileWriter}
 import java.util.concurrent.TimeUnit
 
@@ -56,8 +60,8 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
   //Leo SA details -- needed to get pet keyfiles
   private val (leoEmail, leoPem) : (WorkbenchEmail, File) = serviceAccountProvider.getLeoServiceAccountAndKey
 
-  //Given some credentials, gets an access token
-  private def getAccessTokenUsingCredential(email: WorkbenchEmail, pem: File): String = {
+  //Given a pem, gets an access token
+  private def getAccessTokenUsingPem(email: WorkbenchEmail, pem: File): String = {
     val credential = new GoogleCredential.Builder()
       .setTransport(httpTransport)
       .setJsonFactory(jsonFactory)
@@ -70,11 +74,20 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     credential.getAccessToken
   }
 
+  //Given some JSON, gets an access token
+  private def getAccessTokenUsingJson(saKey: ServiceAccountKey) : String = {
+    val keyStream = new ByteArrayInputStream(saKey.privateKeyData.value.getBytes)
+    val credential = ServiceAccountCredentials.fromStream(keyStream)
+      .createScoped(saScopes.asJava)
+
+    credential.refreshAccessToken.getTokenValue
+  }
+
   //"Slow" lookup of pet's access token. The cache calls this when it needs to.
-  private def getPetAccessTokenFromSam(userEmail: WorkbenchEmail, googleProject: String): String = {
-    val samAPI = googleApi(getAccessTokenUsingCredential(leoEmail, leoPem))
-    val userPetServiceAccountKey = samAPI.getUserPetServiceAccountKey(googleProject, userEmail.value)
-    getAccessTokenUsingCredential(WorkbenchEmail(userPetServiceAccountKey.getEmail), new java.io.File(userPetServiceAccountKey.getPrivateKeyData))
+  private def getPetAccessTokenFromSam(googleProject: GoogleProject, userEmail: WorkbenchEmail): String = {
+    val samAPI = googleApi(getAccessTokenUsingPem(leoEmail, leoPem))
+    val userPetServiceAccountKey: ServiceAccountKey = samAPI.getUserPetServiceAccountKey(googleProject, userEmail.value)
+    getAccessTokenUsingJson(userPetServiceAccountKey)
   }
 
   //"Fast" lookup of pet's access token, using the cache.
