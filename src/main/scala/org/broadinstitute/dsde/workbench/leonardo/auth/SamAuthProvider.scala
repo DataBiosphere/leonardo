@@ -8,7 +8,6 @@ import com.typesafe.config.Config
 import net.ceedubs.ficus.Ficus._
 import io.swagger.client.ApiClient
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import io.swagger.client.api.ResourcesApi
 import io.swagger.client.api.GoogleApi
