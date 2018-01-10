@@ -468,15 +468,16 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
         withNewCluster(projectName) { cluster =>
           withNewNotebook(cluster) { notebookPage =>
             val query = """! bq query "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
-            val expected =
-              """Current status: DONE
-                |+----------------+
+            val expectedResult =
+              """+----------------+
                 || scullion_count |
                 |+----------------+
                 ||              2 |
                 |+----------------+""".stripMargin
 
-            notebookPage.executeCell(query).get should include(expected)
+            val result = notebookPage.executeCell(query).get
+            result should include("Current status: DONE")
+            result should include(expectedResult)
           }
         }
       }
