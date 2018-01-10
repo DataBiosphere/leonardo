@@ -73,9 +73,8 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
   //"Slow" lookup of pet's access token. The cache calls this when it needs to.
   private def getPetAccessTokenFromSam(userEmail: WorkbenchEmail, googleProject: String): String = {
     val samAPI = googleApi(getAccessTokenUsingCredential(leoEmail, leoPem))
-    val petServiceAccount = samAPI.getPetServiceAccount(googleProject)
-    val serviceAccountKey = samAPI.getPetServiceAccountKey(googleProject)
-    getAccessTokenUsingCredential(WorkbenchEmail(petServiceAccount), new java.io.File(serviceAccountKey.getPrivateKeyData))
+    val userPetServiceAccountKey = samAPI.getUserPetServiceAccountKey(googleProject, userEmail.value)
+    getAccessTokenUsingCredential(WorkbenchEmail(userPetServiceAccountKey.getEmail), new java.io.File(userPetServiceAccountKey.getPrivateKeyData))
   }
 
   //"Fast" lookup of pet's access token, using the cache.
