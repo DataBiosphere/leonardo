@@ -8,20 +8,24 @@ import com.typesafe.config.Config
 import net.ceedubs.ficus.Ficus._
 import io.swagger.client.ApiClient
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import io.swagger.client.api.ResourcesApi
+import io.swagger.client.api.GoogleApi
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.Actions._
 
 import scala.collection.JavaConverters._
-import java.io.File
+import java.io.{File, FileWriter}
 import java.util.concurrent.TimeUnit
 
 import akka.http.scaladsl.model.StatusCodes
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 
 import scala.concurrent.{ExecutionContext, Future}
+
+case class PetServiceAccountPerProject(petServiceAccount: WorkbenchEmail, googleProject: String)
 
 case class NotebookActionError(action: Action) extends
   LeoException(s"${action.toString} was not recognized", StatusCodes.NotFound)
@@ -43,9 +47,9 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     .expireAfterWrite(cacheExpiryTime, TimeUnit.MINUTES)
     .maximumSize(cacheMaxSize)
     .build(
-      new CacheLoader[WorkbenchEmail, String] {
-        def load(userEmail: WorkbenchEmail) = {
-          getPetAccessTokenFromSam(userEmail)
+      new CacheLoader[PetServiceAccountPerProject, String] {
+        def load(petPerProject: PetServiceAccountPerProject) = {
+          getPetAccessTokenFromSam(petPerProject.petServiceAccount, petPerProject.googleProject)
         }
       }
     )
@@ -60,7 +64,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
       .setJsonFactory(jsonFactory)
       .setServiceAccountId(leoEmail.value)
       .setServiceAccountScopes(saScopes.asJava)
-      .setServiceAccountPrivateKeyFromPemFile(leoPem)
+      .setServiceAccountPrivateKeyFromPemFile(pem)
       .build()
 
     credential.refreshToken
@@ -68,16 +72,16 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
   }
 
   //"Slow" lookup of pet's access token. The cache calls this when it needs to.
-  private def getPetAccessTokenFromSam(userEmail: WorkbenchEmail): String = {
-    val samAPI = resourcesApi(getAccessTokenUsingCredential(leoEmail, leoPem))
-//    val (petEmail, petKey): (WorkbenchEmail, File) =  samAPI.gimmeThisUsersPetsKey(userEmail)
-//    getAccessTokenUsingCredential(petEmail, petKey)
-    ""
+  private def getPetAccessTokenFromSam(userEmail: WorkbenchEmail, googleProject: String): String = {
+    val samAPI = googleApi(getAccessTokenUsingCredential(leoEmail, leoPem))
+    val petServiceAccount = samAPI.getPetServiceAccount(googleProject)
+    val serviceAccountKey = samAPI.getPetServiceAccountKey(googleProject)
+    getAccessTokenUsingCredential(WorkbenchEmail(petServiceAccount), new java.io.File(serviceAccountKey.getPrivateKeyData))
   }
 
   //"Fast" lookup of pet's access token, using the cache.
-  private def getCachedPetAccessToken(userEmail: WorkbenchEmail): String = {
-    petTokenCache.get(userEmail)
+  private def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: String): String = {
+    petTokenCache.get(PetServiceAccountPerProject(userEmail, googleProject))
   }
 
   //A resources API if you already have a token
@@ -89,9 +93,17 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
   }
 
   //A resources API as the given user's pet SA
-  private[auth] def resourcesApiAsPet(userEmail: WorkbenchEmail): ResourcesApi = {
-    resourcesApi(getCachedPetAccessToken(userEmail))
+  private[auth] def resourcesApiAsPet(userEmail: WorkbenchEmail, googleProject: String): ResourcesApi = {
+    resourcesApi(getCachedPetAccessToken(userEmail, googleProject))
   }
+
+  private[auth] def googleApi(accessToken: String): GoogleApi = {
+    val apiClient = new ApiClient()
+    apiClient.setAccessToken(accessToken)
+    apiClient.setBasePath(authConfig.as[String]("samServer"))
+    new GoogleApi(apiClient)
+  }
+
 
   protected def getClusterResourceId(googleProject: String, clusterName: String): String = {
     googleProject + "_" + clusterName
@@ -133,7 +145,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @return If the given user has permissions in this project to perform the specified action.
     */
   def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: String)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-    Future{ resourcesApiAsPet(userEmail).resourceAction(billingProjectResourceTypeName, googleProject, getProjectActionString(action)) }
+    Future{ resourcesApiAsPet(userEmail, googleProject).resourceAction(billingProjectResourceTypeName, googleProject, getProjectActionString(action)) }
   }
 
   /**
@@ -152,11 +164,11 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
 
     // if action is connect, check only cluster resource. If action is anything else, either cluster or project must be true
     Future {
-      val notebookAction = resourcesApiAsPet(userEmail).resourceAction(notebookClusterResourceTypeName, clusterResourceId, getNotebookClusterActionString(action))
+      val notebookAction = resourcesApiAsPet(userEmail, googleProject).resourceAction(notebookClusterResourceTypeName, clusterResourceId, getNotebookClusterActionString(action))
       if (action == ConnectToCluster) {
         notebookAction
       } else {
-        notebookAction || resourcesApiAsPet(userEmail).resourceAction(billingProjectResourceTypeName, googleProject, getNotebookClusterActionString(action))
+        notebookAction || resourcesApiAsPet(userEmail, googleProject).resourceAction(billingProjectResourceTypeName, googleProject, getNotebookClusterActionString(action))
       }
     }
   }
@@ -177,7 +189,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
   def notifyClusterCreated(userEmail: WorkbenchEmail, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
     val clusterResourceId = getClusterResourceId(googleProject, clusterName)
     // Add the cluster resource with the user as owner
-    Future { resourcesApiAsPet(userEmail).createResource(notebookClusterResourceTypeName, clusterResourceId) }
+    Future { resourcesApiAsPet(userEmail, googleProject).createResource(notebookClusterResourceTypeName, clusterResourceId) }
   }
 
   /**
@@ -194,6 +206,6 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     // get the id for the cluster resource
     val clusterResourceId = getClusterResourceId(googleProject, clusterName)
     // delete the resource
-    Future{resourcesApiAsPet(userEmail).deleteResource(notebookClusterResourceTypeName, clusterResourceId)}
+    Future{resourcesApiAsPet(userEmail, googleProject).deleteResource(notebookClusterResourceTypeName, clusterResourceId)}
   }
 }
