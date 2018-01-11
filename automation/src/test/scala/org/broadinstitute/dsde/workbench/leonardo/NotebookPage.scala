@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import org.apache.commons.text.StringEscapeUtils
 import org.broadinstitute.dsde.workbench.config.AuthToken
 import org.openqa.selenium.{By, WebDriver, WebElement}
 import org.openqa.selenium.interactions.Actions
@@ -77,7 +78,8 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   def executeCell(code: String, timeoutSeconds: Long = 60): Option[String] = {
     await enabled cells
     val cell = lastCell
-    executeScript(s"""arguments[0].CodeMirror.setValue("$code");""", cell)
+    val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
+    executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
     click on runCellButton
     await condition (!cellsAreRunning, timeoutSeconds)
     cellOutput(cell)
