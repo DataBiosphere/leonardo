@@ -470,16 +470,17 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     }
 
     "should allow BigQuerying in a new billing project" in withWebDriver { implicit driver =>
-      // Hermione is a Billing Project Owner
-      implicit val token = hermioneAuthToken
+      val ownerToken = hermioneAuthToken
+
       withNewBillingProject { projectName =>
 
+        // project owners have the bigquery role automatically, so this also tests granting it to users
 
-        // TODO: have a different user create the cluster and use their bigquery.jobUser magic
+        val ronEmail = LeonardoConfig.Users.ron.email
+        Orchestration.billing.addUserToBillingProject(projectName.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(ownerToken)
+        Orchestration.billing.addGoogleRoleToBillingProjectUser(projectName.value, ronEmail, "bigquery.jobUser")(ownerToken)
 
-
-
-
+        implicit val leoToken: AuthToken = ronAuthToken
         withNewCluster(projectName) { cluster =>
           withNewNotebook(cluster) { notebookPage =>
             val query = """! bq query "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
@@ -495,7 +496,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
             result should include(expectedResult)
           }
         }
-      }
+      }(ownerToken)
     }
 
   }
