@@ -27,9 +27,9 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
 
   val clusterName = "test"
   val googleProject = "dsp-leo-test"
-  val tokenCookie = HttpCookiePair("FCtoken", "me")
-  val unauthorizedTokenCookie = HttpCookiePair("FCtoken", "unauthorized")
-  val expiredTokenCookie = HttpCookiePair("FCtoken", "expired")
+  val tokenCookie = HttpCookiePair("LeoToken", "me")
+  val unauthorizedTokenCookie = HttpCookiePair("LeoToken", "unauthorized")
+  val expiredTokenCookie = HttpCookiePair("LeoToken", "expired")
   val serviceAccountEmail = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
   val userEmail = WorkbenchEmail("user1@example.com")
 

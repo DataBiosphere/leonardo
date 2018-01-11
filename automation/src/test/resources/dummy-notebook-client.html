@@ -44,8 +44,6 @@
                         // postMessage handshake with the notebook extension
                         window.addEventListener("message", function(e) {
                             console.info("Received message " + e.data.type);
-                            if (e.source !== notebook)
-                                return;
                             if (e.origin !== leoBaseUrl)
                                 return;
                             if (e.data.type !== 'bootstrap-auth.request')
