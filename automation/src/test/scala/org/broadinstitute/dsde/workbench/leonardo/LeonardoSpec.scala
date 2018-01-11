@@ -387,7 +387,15 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       implicit val token = ronAuthToken
       withNewCluster(project) { cluster =>
         withNewNotebook(cluster) { notebookPage =>
-          notebookPage.executeCell("""import sys\nimport aou_workbench_client\nmodulename = 'aou_workbench_client'\nif modulename not in sys.modules:\n    print 'You have not imported the {} module'.format(modulename)\nelse:\n    print 'AoU library installed'""") shouldBe Some("AoU library installed")
+          val importAoU = """import sys
+                            |import aou_workbench_client
+                            |modulename = 'aou_workbench_client'
+                            |if modulename not in sys.modules:
+                            |    print 'You have not imported the {} module'.format(modulename)
+                            |else:
+                            |    print 'AoU library installed'""".stripMargin
+
+          notebookPage.executeCell(importAoU) shouldBe Some("AoU library installed")
         }
       }
     }
@@ -460,5 +468,31 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
         }
       }
     }
+
+    "should allow BigQuerying in a new billing project" in withWebDriver { implicit driver =>
+      val ownerToken = hermioneAuthToken
+
+      withNewBillingProject { projectName =>
+
+        // project owners have the bigquery role automatically, so this also tests granting it to users
+
+        val ronEmail = LeonardoConfig.Users.ron.email
+        Orchestration.billing.addUserToBillingProject(projectName.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(ownerToken)
+        Orchestration.billing.addGoogleRoleToBillingProjectUser(projectName.value, ronEmail, "bigquery.jobUser")(ownerToken)
+
+        implicit val leoToken: AuthToken = ronAuthToken
+        withNewCluster(projectName) { cluster =>
+          withNewNotebook(cluster) { notebookPage =>
+            val query = """! bq query --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
+            val expectedResult = """[{"scullion_count":"2"}]""".stripMargin
+
+            val result = notebookPage.executeCell(query).get
+            result should include("Current status: DONE")
+            result should include(expectedResult)
+          }
+        }
+      }(ownerToken)
+    }
+
   }
 }
