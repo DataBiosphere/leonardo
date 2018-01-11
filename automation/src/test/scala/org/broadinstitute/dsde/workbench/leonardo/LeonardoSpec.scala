@@ -483,13 +483,8 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
         implicit val leoToken: AuthToken = ronAuthToken
         withNewCluster(projectName) { cluster =>
           withNewNotebook(cluster) { notebookPage =>
-            val query = """! bq query "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
-            val expectedResult =
-              """+----------------+
-                || scullion_count |
-                |+----------------+
-                ||              2 |
-                |+----------------+""".stripMargin
+            val query = """! bq query --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
+            val expectedResult = """[{"scullion_count":"2"}]""".stripMargin
 
             val result = notebookPage.executeCell(query).get
             result should include("Current status: DONE")
