@@ -39,6 +39,16 @@ trait Orchestration extends WorkbenchClient with LazyLogging {
       deleteRequest(apiUrl(s"api/billing/$projectName/${role.toString}/$email"))
     }
 
+    def addGoogleRoleToBillingProjectUser(projectName: String, email: String, googleRole: String)(implicit token: AuthToken): Unit = {
+      logger.info(s"Adding google role $googleRole to user $email in billing project $projectName")
+      putRequest(apiUrl(s"api/billing/$projectName/googleRole/$googleRole/$email"))
+    }
+
+    def removeGoogleRoleFromBillingProjectUser(projectName: String, email: String, googleRole: String)(implicit token: AuthToken): Unit = {
+      logger.info(s"Removing google role $googleRole from user $email in billing project $projectName")
+      deleteRequest(apiUrl(s"api/billing/$projectName/googleRole/$googleRole/$email"))
+    }
+
     def createBillingProject(projectName: String, billingAccount: String)(implicit token: AuthToken): Unit = {
       logger.info(s"Creating billing project: $projectName $billingAccount")
       postRequest(apiUrl("api/billing"), Map("projectName" -> projectName, "billingAccount" -> billingAccount))
