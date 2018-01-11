@@ -13,23 +13,27 @@ import io.swagger.client.api.ResourcesApi
 import io.swagger.client.api.GoogleApi
 import io.swagger.client.model.ServiceAccountKey
 import java.io.{ByteArrayInputStream, File}
+import java.security.PrivateKey
 import java.util.concurrent.TimeUnit
+
+import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.Actions._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import net.ceedubs.ficus.Ficus._
+
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
 
-case class PetServiceAccountPerProject(petServiceAccount: WorkbenchEmail, googleProject: String)
+case class PetServiceAccountPerProject(userEmail: WorkbenchEmail, googleProject: String)
 
 case class NotebookActionError(action: Action) extends
   LeoException(s"${action.toString} was not recognized", StatusCodes.NotFound)
 
 
-class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(authConfig, serviceAccountProvider) {
+class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(authConfig, serviceAccountProvider) with LazyLogging {
   private val notebookClusterResourceTypeName = "notebook-cluster"
   private val billingProjectResourceTypeName = "billing-project"
 
@@ -47,7 +51,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     .build(
       new CacheLoader[PetServiceAccountPerProject, String] {
         def load(petPerProject: PetServiceAccountPerProject) = {
-          getPetAccessTokenFromSam(petPerProject.googleProject, petPerProject.petServiceAccount)
+          getPetAccessTokenFromSam(petPerProject.googleProject, petPerProject.userEmail)
         }
       }
     )
@@ -72,6 +76,9 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
   //Given some JSON, gets an access token
   private def getAccessTokenUsingJson(saKey: ServiceAccountKey) : String = {
     val keyStream = new ByteArrayInputStream(saKey.getPrivateKeyData.getBytes)
+    logger.info("SA:" + saKey.toString)
+    logger.info("SA Private Key:" + saKey.getPrivateKeyData)
+    logger.info("SA Private Key Bytes" + saKey.getPrivateKeyData.getBytes)
     val credential = ServiceAccountCredentials.fromStream(keyStream)
       .createScoped(saScopes.asJava)
 
