@@ -71,7 +71,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
   val gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
   val iamDAO = new MockGoogleIamDAO
   val samDAO = new MockSamDAO
-  val tokenCookie = HttpCookiePair("FCtoken", "me")
+  val tokenCookie = HttpCookiePair("LeoToken", "me")
 
   override def beforeAll(): Unit = {
     super.beforeAll()
