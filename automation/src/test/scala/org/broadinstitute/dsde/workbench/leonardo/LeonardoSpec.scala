@@ -387,7 +387,15 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       implicit val token = ronAuthToken
       withNewCluster(project) { cluster =>
         withNewNotebook(cluster) { notebookPage =>
-          notebookPage.executeCell("""import sys\nimport aou_workbench_client\nmodulename = 'aou_workbench_client'\nif modulename not in sys.modules:\n    print 'You have not imported the {} module'.format(modulename)\nelse:\n    print 'AoU library installed'""") shouldBe Some("AoU library installed")
+          val importAoU = """import sys
+                            |import aou_workbench_client
+                            |modulename = 'aou_workbench_client'
+                            |if modulename not in sys.modules:
+                            |    print 'You have not imported the {} module'.format(modulename)
+                            |else:
+                            |    print 'AoU library installed'""".stripMargin
+
+          notebookPage.executeCell(importAoU) shouldBe Some("AoU library installed")
         }
       }
     }
@@ -465,6 +473,13 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       // Hermione is a Billing Project Owner
       implicit val token = hermioneAuthToken
       withNewBillingProject { projectName =>
+
+
+        // TODO: have a different user create the cluster and use their bigquery.jobUser magic
+
+
+
+
         withNewCluster(projectName) { cluster =>
           withNewNotebook(cluster) { notebookPage =>
             val query = """! bq query "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
