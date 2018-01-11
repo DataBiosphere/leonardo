@@ -60,7 +60,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     val credential = new GoogleCredential.Builder()
       .setTransport(httpTransport)
       .setJsonFactory(jsonFactory)
-      .setServiceAccountId(leoEmail.value)
+      .setServiceAccountId(email.value)
       .setServiceAccountScopes(saScopes.asJava)
       .setServiceAccountPrivateKeyFromPemFile(pem)
       .build()
