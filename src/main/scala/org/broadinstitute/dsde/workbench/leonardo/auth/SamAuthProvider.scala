@@ -15,6 +15,9 @@ import io.swagger.client.model.ServiceAccountKey
 import java.io.{ByteArrayInputStream, File}
 import java.security.PrivateKey
 import java.util.concurrent.TimeUnit
+import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
+
+import spray.json._
 
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -75,10 +78,12 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
 
   //Given some JSON, gets an access token
   private def getAccessTokenUsingJson(saKey: ServiceAccountKey) : String = {
-    val keyStream = new ByteArrayInputStream(saKey.getPrivateKeyData.getBytes)
+    val saKeyJson = saKey.toJson.toString.getBytes
+    val keyStream = new ByteArrayInputStream(saKey.toJson.toString.getBytes)
     logger.info("SA:" + saKey.toString)
-    logger.info("SA Private Key:" + saKey.getPrivateKeyData)
-    logger.info("SA Private Key Bytes" + saKey.getPrivateKeyData.getBytes)
+    logger.info("SA Json" + saKey.toJson)
+    logger.info("SA String:" + saKey.toJson.toString)
+    logger.info("SA Private Key Bytes" + saKey.toJson.toString.getBytes)
     val credential = ServiceAccountCredentials.fromStream(keyStream)
       .createScoped(saScopes.asJava)
 
