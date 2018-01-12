@@ -181,6 +181,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     // if action is connect, check only cluster resource. If action is anything else, either cluster or project must be true
     Future {
       val notebookAction = resourcesApiAsPet(userEmail, googleProject).resourceAction(notebookClusterResourceTypeName, clusterResourceId, getNotebookClusterActionString(action))
+      logger.info("NOTEBOOK ACTION:" + notebookAction.toString)
       if (action == ConnectToCluster) {
         notebookAction
       } else {
