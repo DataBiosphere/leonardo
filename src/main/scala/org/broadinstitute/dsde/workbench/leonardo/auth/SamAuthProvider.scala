@@ -11,9 +11,7 @@ import com.typesafe.config.Config
 import io.swagger.client.ApiClient
 import io.swagger.client.api.ResourcesApi
 import io.swagger.client.api.GoogleApi
-import io.swagger.client.model.ServiceAccountKey
 import java.io.{ByteArrayInputStream, File}
-import java.util.Base64
 import java.util.concurrent.TimeUnit
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -26,7 +24,7 @@ import net.ceedubs.ficus.Ficus._
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
 
-case class PetServiceAccountPerProject(userEmail: WorkbenchEmail, googleProject: String)
+case class UserEmailAndProject(userEmail: String, googleProject: String)
 
 case class NotebookActionError(action: Action) extends
   LeoException(s"${action.toString} was not recognized", StatusCodes.NotFound)
@@ -48,9 +46,9 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     .expireAfterWrite(cacheExpiryTime, TimeUnit.MINUTES)
     .maximumSize(cacheMaxSize)
     .build(
-      new CacheLoader[PetServiceAccountPerProject, String] {
-        def load(petPerProject: PetServiceAccountPerProject) = {
-          getPetAccessTokenFromSam(petPerProject.googleProject, petPerProject.userEmail)
+      new CacheLoader[UserEmailAndProject, String] {
+        def load(userEmailAndProject: UserEmailAndProject) = {
+          getPetAccessTokenFromSam(userEmailAndProject.userEmail, userEmailAndProject.googleProject)
         }
       }
     )
@@ -73,31 +71,23 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
   }
 
   //Given some JSON, gets an access token
-  private def getAccessTokenUsingJson(saKey: ServiceAccountKey) : String = {
-//    val saKeyJson = saKey.toJson.toString.getBytes
-//    val keyStream = new ByteArrayInputStream(saKey.toJson.toString.getBytes)
-//    logger.info("SA:" + saKey.toString)
-//    logger.info("SA Json" + saKey.toJson)
-//    logger.info("SA String:" + saKey.toJson.toString)
-//    logger.info("SA Private Key Bytes" + saKey.toJson.toString.getBytes)
-//    val credential = ServiceAccountCredentials.fromStream(keyStream)
-//      .createScoped(saScopes.asJava)
-    val decodedStr = new String(Base64.getDecoder().decode(saKey.getPrivateKeyData))
-    val keyStream = new ByteArrayInputStream(decodedStr.getBytes)
+  private def getAccessTokenUsingJson(saKey: String) : String = {
+    //val decodedStr = new String(Base64.getDecoder().decode(saKey.getPrivateKeyData))
+    val keyStream = new ByteArrayInputStream(saKey.getBytes)
     val credential = ServiceAccountCredentials.fromStream(keyStream).createScoped(saScopes.asJava)
     credential.refreshAccessToken.getTokenValue
   }
 
   //"Slow" lookup of pet's access token. The cache calls this when it needs to.
-  private def getPetAccessTokenFromSam(googleProject: String, userEmail: WorkbenchEmail): String = {
+  private def getPetAccessTokenFromSam(userEmail: String, googleProject: String): String = {
     val samAPI = googleApi(getAccessTokenUsingPem(leoEmail, leoPem))
-    val userPetServiceAccountKey: ServiceAccountKey = samAPI.getUserPetServiceAccountKey(googleProject, userEmail.value)
+    val userPetServiceAccountKey = samAPI.getUserPetServiceAccountKey(googleProject, userEmail)
     getAccessTokenUsingJson(userPetServiceAccountKey)
   }
 
   //"Fast" lookup of pet's access token, using the cache.
-  private def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: String): String = {
-    petTokenCache.get(PetServiceAccountPerProject(userEmail, googleProject))
+  private def getCachedPetAccessToken(userEmail: String, googleProject: String): String = {
+    petTokenCache.get(UserEmailAndProject(userEmail, googleProject))
   }
 
   //A resources API if you already have a token
@@ -110,7 +100,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
 
   //A resources API as the given user's pet SA
   private[auth] def resourcesApiAsPet(userEmail: WorkbenchEmail, googleProject: String): ResourcesApi = {
-    resourcesApi(getCachedPetAccessToken(userEmail, googleProject))
+    resourcesApi(getCachedPetAccessToken(userEmail.value, googleProject))
   }
 
   private[auth] def googleApi(accessToken: String): GoogleApi = {
@@ -181,7 +171,6 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     // if action is connect, check only cluster resource. If action is anything else, either cluster or project must be true
     Future {
       val notebookAction = resourcesApiAsPet(userEmail, googleProject).resourceAction(notebookClusterResourceTypeName, clusterResourceId, getNotebookClusterActionString(action))
-      logger.info("NOTEBOOK ACTION:" + notebookAction.toString)
       if (action == ConnectToCluster) {
         notebookAction
       } else {
