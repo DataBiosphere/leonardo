@@ -13,6 +13,8 @@ import io.swagger.client.api.ResourcesApi
 import io.swagger.client.api.GoogleApi
 import java.io.{ByteArrayInputStream, File}
 import java.util.concurrent.TimeUnit
+
+import com.google.api.client.json.Json
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.Actions._
@@ -84,7 +86,9 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
   private def getPetAccessTokenFromSam(userEmail: String, googleProject: String): String = {
     val samAPI = googleApi(getAccessTokenUsingPem(leoEmail, leoPem))
     val userPetServiceAccountKey = samAPI.getUserPetServiceAccountKey(googleProject, userEmail)
-    getAccessTokenUsingJson(userPetServiceAccountKey)
+    logger.info("ACCOUNT KEY:" + userPetServiceAccountKey.toString)
+    userPetServiceAccountKey.toString
+   // getAccessTokenUsingJson(userPetServiceAccountKey)
   }
 
   //"Fast" lookup of pet's access token, using the cache.
