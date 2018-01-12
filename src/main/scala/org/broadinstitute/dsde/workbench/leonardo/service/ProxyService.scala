@@ -74,7 +74,6 @@ class ProxyService(proxyConfig: ProxyConfig,
       if (!hasViewPermission) {
         throw ClusterNotFoundException(googleProject, clusterName)
       } else if (!hasRequiredPermission) {
-        logger.info("auth check failed: hasRequiredPermission:" + hasRequiredPermission.toString)
         throw AuthorizationError(Option(userInfo.userEmail))
       } else {
         ()

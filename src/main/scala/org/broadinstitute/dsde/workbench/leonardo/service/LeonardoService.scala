@@ -7,6 +7,8 @@ import java.io.File
 
 import cats.data.OptionT
 import cats.implicits._
+import com.typesafe.config.ConfigFactory
+import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
@@ -62,8 +64,16 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val authProvider: LeoAuthProvider,
                       protected val serviceAccountProvider: ServiceAccountProvider)
                      (implicit val executionContext: ExecutionContext) extends LazyLogging {
+
   private val bucketPathMaxLength = 1024
   private val includeDeletedKey = "includeDeleted"
+
+  val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
+  val whitelist = config.as[(Set[String])]("whitelist").map(_.toLowerCase)
+
+  protected def checkWhitelist(userEmail: WorkbenchEmail): Future[Boolean] = {
+    Future.successful(whitelist contains userEmail.value.toLowerCase)
+  }
 
   // Register this instance with the cluster monitor supervisor so our cluster monitor can potentially delete and recreate clusters
   clusterMonitorSupervisor ! RegisterLeoService(this)
@@ -86,6 +96,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           throw ClusterNotFoundException(cluster.googleProject, cluster.clusterName)
       case true => ()
     }
+  }
+
+  def isWhitelisted(userInfo: UserInfo): Future[Unit] = {
+    checkProjectPermission(userInfo.userEmail, ListClusters, GoogleProject("dummy"))
   }
 
   def createCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
