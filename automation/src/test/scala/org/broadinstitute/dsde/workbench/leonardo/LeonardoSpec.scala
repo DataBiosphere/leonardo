@@ -18,12 +18,12 @@ import org.openqa.selenium.WebDriver
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.selenium.WebBrowser
 import org.scalatest.time.{Minutes, Seconds, Span}
-import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers, ParallelTestExecution}
+import org.scalatest.{FreeSpec, Matchers, ParallelTestExecution}
 
 import scala.util.control.NonFatal
 import scala.util.{Random, Try}
 
-class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelTestExecution with BeforeAndAfterAll
+class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelTestExecution
   with WebBrowser with WebBrowserSpec with LocalFileUtil with ScalaFutures {
 
   implicit override val patienceConfig: PatienceConfig = PatienceConfig(timeout = scaled(Span(5, Seconds)))
@@ -35,16 +35,6 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
   // kudos to whoever named this Patience
   val clusterPatience = PatienceConfig(timeout = scaled(Span(15, Minutes)), interval = scaled(Span(20, Seconds)))
   val localizePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
-
-  // simultaneous requests by the same user to create their pet in Sam can cause contention
-  // but this is not a realistic production scenario
-  // so we avoid this by pre-creating
-
-  override def beforeAll(): Unit = {
-    // ensure pet is initialized in test env
-    Sam.user.petServiceAccountEmail(project)(ronAuthToken)
-    Sam.user.petServiceAccountEmail(project)(hermioneAuthToken)
-  }
 
   val project = GoogleProject(LeonardoConfig.Projects.default)
   val sa = GoogleServiceAccount(LeonardoConfig.Leonardo.notebooksServiceAccountEmail)
@@ -400,58 +390,33 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       }
     }
 
-    "should put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
-      implicit val token = ronAuthToken
+    "should create a cluster in a different billing project and put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
+      val ownerToken = hermioneAuthToken
 
-      /*
-       * Pre-conditions: pet service account exists in this Google project and in Sam
-       */
-      val (petName, petEmail) = getAndVerifyPet(project)
+      withNewBillingProject { newProject =>
 
-      /*
-       * Create a cluster
-       */
-      withNewCluster(project) { cluster =>
-        // cluster should have been created with the pet service account
-        cluster.serviceAccountInfo.clusterServiceAccount shouldBe Some(petEmail)
-        cluster.serviceAccountInfo.notebookServiceAccount shouldBe None
+        implicit val token = ronAuthToken
+        // Pre-conditions: pet service account exists in this Google project and in Sam
+        val (petName, petEmail) = getAndVerifyPet(newProject)
 
-        withNewNotebook(cluster) { notebookPage =>
-          // should not have notebook credentials because Leo is not configured to use a notebook service account
-          verifyNoNotebookCredentials(notebookPage)
-        }
-      }
+        // Create a cluster
 
-      /*
-       * Post-conditions: pet should still exist in this Google project
-       */
-      val googlePetEmail2 = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
-      googlePetEmail2 shouldBe Some(petEmail)
-    }
-
-
-    "should create a cluster in a different billing project" in withWebDriver { implicit driver =>
-      // need to be project owner for this test
-      implicit val token = hermioneAuthToken
-
-      /*
-       * Create a cluster in a different billing project
-       */
-      withNewBillingProject { billingProject =>
-        withNewCluster(billingProject) { cluster =>
+        withNewCluster(newProject) { cluster =>
           // cluster should have been created with the pet service account
-          // Can't actually verify this against a Google IAM call since the QA
-          // service account doesn't have IAM permissions in other billing projects.
-          cluster.serviceAccountInfo.clusterServiceAccount shouldBe 'defined
+          cluster.serviceAccountInfo.clusterServiceAccount shouldBe Some(petEmail)
           cluster.serviceAccountInfo.notebookServiceAccount shouldBe None
 
-          // Verify pet credentials from a notebook
           withNewNotebook(cluster) { notebookPage =>
             // should not have notebook credentials because Leo is not configured to use a notebook service account
             verifyNoNotebookCredentials(notebookPage)
           }
         }
-      }
+
+        // Post-conditions: pet should still exist in this Google project
+
+        val googlePetEmail2 = googleIamDAO.findServiceAccount(newProject, petName).futureValue.map(_.email)
+        googlePetEmail2 shouldBe Some(petEmail)
+      }(ownerToken)
     }
 
     "should do cross domain cookie auth" in withWebDriver { implicit driver =>
