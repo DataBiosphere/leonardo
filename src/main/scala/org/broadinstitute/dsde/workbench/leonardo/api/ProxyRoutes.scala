@@ -89,7 +89,9 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport { self: LazyLoggin
         case Some(cookie) => provide(cookie.value)
 
         // Not found in cookie or Authorization header, fail
-        case None => failWith(AuthorizationError())
+        case None => {
+          logger.info("cookie not present")
+          failWith(AuthorizationError())}
       }
     }
   }
