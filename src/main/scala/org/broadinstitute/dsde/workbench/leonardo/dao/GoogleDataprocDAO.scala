@@ -229,8 +229,8 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
 
       // This gives us Spark 2.0.2. See:
       //   https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-versions
-      // Dataproc supports Spark 2.2.0, but there are no pre-packaged Hail distributions for that. See:
-      //   https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-versions
+      // Dataproc supports Spark 2.2.0, but there are no pre-packaged Hail distributions past 2.1.0. See:
+      //   https://hail.is/docs/stable/getting_started.html
       .setImageVersion("1.1")
   }
 

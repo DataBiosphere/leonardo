@@ -1,23 +1,23 @@
 # adapted from https://hub.docker.com/r/jupyter/base-notebook/ AKA https://github.com/jupyter/docker-stacks/tree/master/base-notebook
 
-# Debian Jessie debootstrap from 2017-02-27
-# https://github.com/docker-library/official-images/commit/aa5973d0c918c70c035ec0746b8acaec3a4d7777
-FROM debian@sha256:52af198afd8c264f1035206ca66a5c48e602afb32dc912ebf9e9478134601ec4
-#FROM openjdk:8
+FROM debian:jessie
 
 USER root
 
 ENV DEBIAN_FRONTEND noninteractive
 ENV DEBIAN_REPO http://cdn-fastly.deb.debian.org
 
-ENV JAVA_VER jdk1.8.0_152
-ENV JAVA_TGZ jdk-8u152-linux-x64.tar.gz
-ENV JAVA_URL http://download.oracle.com/otn-pub/java/jdk/8u152-b16/aa0333dd3019491ca4f6ddbe78cdb6d0/$JAVA_TGZ
+ENV JAVA_VER jdk1.8.0_161
+ENV JAVA_TGZ jdk-8u161-linux-x64.tar.gz
+ENV JAVA_URL http://download.oracle.com/otn-pub/java/jdk/8u161-b12/2f38c3b165be4555a1fa6e98c45e0808/$JAVA_TGZ
 ENV JAVA_HOME /usr/lib/jdk/$JAVA_VER
 
 # mount this from the outside
+# note Dataproc supports Spark 2.2.0, but there are no pre-packaged Hail distributions past Spark 2.1.0. See:
+# https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-versions
+# https://hail.is/docs/stable/getting_started.html
 ENV SPARK_VER 2.0.2
-ENV SPARK_HOME=/etc/spark
+ENV SPARK_HOME=/usr/lib/spark
 
 # result of `gsutil cat gs://hail-common/builds/0.1/latest-hash-spark-2.0.2.txt` on 11 January 2018
 ENV HAILHASH 5c275cc216e1
@@ -25,10 +25,6 @@ ENV HAILJAR hail-0.1-$HAILHASH-Spark-$SPARK_VER.jar
 ENV HAILPYTHON hail-0.1-$HAILHASH.zip
 ENV HAILZIP Hail-0.1-$HAILHASH-Spark-$SPARK_VER.zip
 ENV HAIL_HOME /etc/hail
-
-# YARN configuration required by DataProc Spark
-# mount this from outside
-ENV HADOOP_CONF_DIR /etc/hadoop/conf
 
 ENV USER jupyter-user
 ENV UID 1000
@@ -82,12 +78,12 @@ RUN export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" \
  && update-alternatives --install /usr/bin/javac javac $JAVA_HOME/bin/javac 100 \
  && rm $JAVA_TGZ \
 
- # Spark
-# && wget $SPARK_URL && mkdir /spark && tar -zxf $SPARK_TGZ -C /spark \
-# && cd $SPARK_HOME && ./build/mvn -Pyarn -DskipTests clean package && cd - \
-# && rm $SPARK_TGZ \
-# # Needed to access gs:// files in Spark/Hail
-# && wget -q https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-latest-hadoop2.jar -O $SPARK_HOME/gcs-connector.jar \
+ # Spark/Hadoop
+ # Make empty conf dirs for the update-alternatives commands; they will be mounted from the Dataproc VM
+ && mkdir -p /etc/spark/conf.dist \
+ && update-alternatives --install /etc/spark/conf spark-conf /etc/spark/conf.dist 100 \
+ && mkdir -p /etc/hadoop/conf.empty \
+ && update-alternatives --install /etc/hadoop/conf hadoop-conf /etc/hadoop/conf.empty 100 \
 
  # Hail
  && mkdir $HAIL_HOME && cd $HAIL_HOME \
@@ -118,14 +114,14 @@ RUN export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" \
  && pip install matplotlib-venn \
  && pip install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py"
 
-
-#ADD spark-defaults.conf.template $SPARK_HOME/conf/
-# Spark defaults conf find and replace [HAILHASH] with the hash
-#RUN sed "s|\[HAILHASH\]|$HAILHASH|g" $SPARK_HOME/conf/spark-defaults.conf.template > $SPARK_HOME/conf/spark-defaults.conf
+ADD spark_install_hail.sh $HAIL_HOME/
 ADD jupyter_notebook_config.py $JUPYTER_HOME/
 ADD jupyter_localize_extension.py $JUPYTER_HOME/custom/
 ADD jupyter_install_notebook_extension.sh $JUPYTER_HOME/
-RUN chown -R $USER:users $JUPYTER_HOME
+
+RUN chown -R $USER:users $JUPYTER_HOME \
+  && chmod +x $JUPYTER_HOME/jupyter_install_notebook_extension.sh \
+  && chmod +x $HAIL_HOME/spark_install_hail.sh
 
 USER $USER
 WORKDIR $HOME

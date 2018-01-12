@@ -1,31 +1,40 @@
-proxy:
-  container_name: "${PROXY_SERVER_NAME}"
-  image: "${PROXY_DOCKER_IMAGE}"
-  net: host
-  volumes:
-    - /certs/jupyter-server.crt:/etc/ssl/certs/server.crt:ro
-    - /certs/jupyter-server.key:/etc/ssl/private/server.key:ro
-    - /certs/rootCA.pem:/etc/ssl/certs/ca-bundle.crt:ro
-    - /etc/cluster-site.conf:/etc/apache2/sites-enabled/site.conf
-    - /auth_openidc.conf:/etc/apache2/mods-enabled/auth_openidc.conf
-  restart: always
-  environment:
-    HTTPD_PORT: '80'
-    SSL_HTTPD_PORT: '443'
+version: '2'
+services:
+  proxy:
+    container_name: "${PROXY_SERVER_NAME}"
+    image: "${PROXY_DOCKER_IMAGE}"
+    network_mode: host
+    volumes:
+      - /certs/jupyter-server.crt:/etc/ssl/certs/server.crt:ro
+      - /certs/jupyter-server.key:/etc/ssl/private/server.key:ro
+      - /certs/rootCA.pem:/etc/ssl/certs/ca-bundle.crt:ro
+      - /etc/cluster-site.conf:/etc/apache2/sites-enabled/site.conf
+      - /auth_openidc.conf:/etc/apache2/mods-enabled/auth_openidc.conf
+    restart: always
+    environment:
+      HTTPD_PORT: '80'
+      SSL_HTTPD_PORT: '443'
 
-jupyter:
-  container_name: "${JUPYTER_SERVER_NAME}"
-  image: "${JUPYTER_DOCKER_IMAGE}"
-  net: host
-  volumes:
-    - /work:/home/user/work
-    - /usr/lib/hadoop:/etc/hadoop
-    - /usr/lib/spark:/etc/spark
-    - /usr/bin/pyspark:/usr/bin/pyspark
-    - /hadoop_gcs_connector_metadata_cache:/hadoop_gcs_connector_metadata_cache
-  restart: always
-  environment:
-    GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
-    CLUSTER_NAME: "${CLUSTER_NAME}"
-  env_file:
-    - /etc/google_application_credentials.env
+  jupyter:
+    container_name: "${JUPYTER_SERVER_NAME}"
+    image: "${JUPYTER_DOCKER_IMAGE}"
+    network_mode: host
+    volumes:
+      - /work:/home/user/work
+      - /usr/lib/bigtop-utils:/usr/lib/bigtop-utils
+      - /usr/lib/hadoop:/usr/lib/hadoop
+      - /usr/lib/hadoop-hdfs:/usr/lib/hadoop-hdfs
+      - /usr/lib/hadoop-mapreduce:/usr/lib/hadoop-mapreduce
+      - /usr/lib/hadoop-yarn:/usr/lib/hadoop-yarn
+      - /etc/hadoop:/etc/hadoop
+      - /usr/lib/spark:/usr/lib/spark
+      - /etc/spark:/etc/spark
+      - /usr/bin/pyspark:/usr/bin/pyspark
+      - /hadoop:/hadoop
+      - /hadoop_gcs_connector_metadata_cache:/hadoop_gcs_connector_metadata_cache
+    restart: always
+    environment:
+      GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
+      CLUSTER_NAME: "${CLUSTER_NAME}"
+    env_file:
+      - /etc/google_application_credentials.env

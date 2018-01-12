@@ -157,7 +157,7 @@ class ClusterMonitorActor(val cluster: Cluster,
   private def handleFailedCluster(errorDetails: ClusterErrorDetails): Future[ClusterMonitorMessage] = {
     val deleteFuture = Future.sequence(Seq(
       // Delete the cluster in Google
-//      gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName),
+      gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName),
       // Remove the service account key in Google, if present.
       // Only happens if the cluster was NOT created with the pet service account.
       removeServiceAccountKey
