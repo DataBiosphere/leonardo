@@ -19,11 +19,10 @@ jupyter:
   net: host
   volumes:
     - /work:/home/user/work
-    - /etc/hadoop/conf:/etc/hadoop/conf
+    - /usr/lib/hadoop:/etc/hadoop
+    - /usr/lib/spark:/etc/spark
+    - /usr/bin/pyspark:/usr/bin/pyspark
     - /hadoop_gcs_connector_metadata_cache:/hadoop_gcs_connector_metadata_cache
-    - /etc/install-jupyter-extension.sh:/etc/install-jupyter-extension.sh
-    - /etc/custom.js:/home/jupyter-user/.jupyter/custom/custom.js
-    - /etc/google_sign_in.js:/home/jupyter-user/.jupyter/custom/google_sign_in.js
   restart: always
   environment:
     GOOGLE_PROJECT: "${GOOGLE_PROJECT}"

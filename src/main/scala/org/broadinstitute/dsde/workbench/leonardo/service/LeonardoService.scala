@@ -316,7 +316,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val resourcesToUpload = List(
       clusterResourcesConfig.clusterDockerCompose,
       clusterResourcesConfig.jupyterProxySiteConf,
-      clusterResourcesConfig.jupyterInstallExtensionScript,
       clusterResourcesConfig.jupyterCustomJs)
 
     // Uploads the service account private key to the init bucket, if defined.

@@ -239,7 +239,6 @@ object ClusterInitValues {
       GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.jupyterProxySiteConf.string)).toUri,
       dataprocConfig.jupyterServerName,
       proxyConfig.proxyServerName,
-      GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.jupyterInstallExtensionScript.string)).toUri,
       clusterRequest.jupyterExtensionUri.map(_.toUri).getOrElse(""),
       serviceAccountKey.map(_ => GcsPath(initBucketName, GcsRelativePath(serviceAccountCredentialsFilename)).toUri).getOrElse(""),
       GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.jupyterCustomJs.string)).toUri,
@@ -261,7 +260,6 @@ case class ClusterInitValues(googleProject: String,
                              jupyterProxySiteConf: String,
                              jupyterServerName: String,
                              proxyServerName: String,
-                             jupyterInstallExtensionScript: String,
                              jupyterExtensionUri: String,
                              jupyterServiceAccountCredentials: String,
                              jupyterCustomJsUri: String,
@@ -365,6 +363,6 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val serviceAccountInfoFormat = jsonFormat2(ServiceAccountInfo.apply)
   implicit val clusterFormat = jsonFormat14(Cluster.apply)
   implicit val clusterRequestFormat = jsonFormat3(ClusterRequest)
-  implicit val clusterInitValuesFormat = jsonFormat17(ClusterInitValues.apply)
+  implicit val clusterInitValuesFormat = jsonFormat16(ClusterInitValues.apply)
   implicit val defaultLabelsFormat = jsonFormat6(DefaultLabels.apply)
 }
