@@ -71,8 +71,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
   val whitelist = config.as[(Set[String])]("whitelist").map(_.toLowerCase)
 
-  protected def checkWhitelist(userEmail: WorkbenchEmail): Future[Boolean] = {
-    Future.successful(whitelist contains userEmail.value.toLowerCase)
+
+  def isWhitelisted(userInfo: UserInfo): Future[Boolean] = {
+    Future.successful(whitelist contains userInfo.userEmail.value.toLowerCase)
   }
 
   // Register this instance with the cluster monitor supervisor so our cluster monitor can potentially delete and recreate clusters
@@ -96,10 +97,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           throw ClusterNotFoundException(cluster.googleProject, cluster.clusterName)
       case true => ()
     }
-  }
-
-  def isWhitelisted(userInfo: UserInfo): Future[Unit] = {
-    checkProjectPermission(userInfo.userEmail, ListClusters, GoogleProject("dummy"))
   }
 
   def createCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
