@@ -74,6 +74,8 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
   private def getAccessTokenUsingJson(saKey: String) : String = {
     //val decodedStr = new String(Base64.getDecoder().decode(saKey.getPrivateKeyData))
     val keyStream = new ByteArrayInputStream(saKey.getBytes)
+    logger.info(s"SA KEY: $saKey")
+    logger.info(s"SA KEY Bytes: ${saKey.getBytes}")
     val credential = ServiceAccountCredentials.fromStream(keyStream).createScoped(saScopes.asJava)
     credential.refreshAccessToken.getTokenValue
   }
