@@ -89,7 +89,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     logger.info("ACCOUNT KEY:" + userPetServiceAccountKey.asInstanceOf[java.util.Map[String,String]])
     logger.info("ACCOUNT KEY:" + userPetServiceAccountKey.asInstanceOf[java.util.Map[String,String]].asScala)
     logger.info("ACCOUNT KEY STRING:" + userPetServiceAccountKey.asInstanceOf[java.util.Map[String,String]].asScala.toString)
-    getAccessTokenUsingJson(userPetServiceAccountKey.asInstanceOf[java.util.Map[String,String]].asScala.toString)
+    getAccessTokenUsingJson(userPetServiceAccountKey.asInstanceOf[java.util.Map[String,String]].asScala.toJson.toString)
   }
 
   //"Fast" lookup of pet's access token, using the cache.
