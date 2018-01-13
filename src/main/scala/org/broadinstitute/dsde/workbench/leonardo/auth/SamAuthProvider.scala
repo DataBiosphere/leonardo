@@ -86,10 +86,10 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
   private def getPetAccessTokenFromSam(userEmail: String, googleProject: String): String = {
     val samAPI = googleApi(getAccessTokenUsingPem(leoEmail, leoPem))
     val userPetServiceAccountKey = samAPI.getUserPetServiceAccountKey(googleProject, userEmail)
-    logger.info("ACCOUNT KEY:" + userPetServiceAccountKey.asInstanceOf[Map[String,String]].toJson.toString)
-    logger.info("ACCOUNT KEY:" + userPetServiceAccountKey.asInstanceOf[Map[String,String]].toJson)
-    logger.info("ACCOUNT KEY STRING:" + userPetServiceAccountKey.asInstanceOf[Map[String,String]].toJson.toString)
-    getAccessTokenUsingJson(userPetServiceAccountKey.asInstanceOf[Map[String,String]].toJson.toString)
+    logger.info("ACCOUNT KEY:" + userPetServiceAccountKey.asInstanceOf[java.util.Map[String,String]])
+    logger.info("ACCOUNT KEY:" + userPetServiceAccountKey.asInstanceOf[java.util.Map[String,String]].asScala)
+    logger.info("ACCOUNT KEY STRING:" + userPetServiceAccountKey.asInstanceOf[java.util.Map[String,String]].asScala.toString)
+    getAccessTokenUsingJson(userPetServiceAccountKey.asInstanceOf[java.util.Map[String,String]].asScala.toString)
   }
 
   //"Fast" lookup of pet's access token, using the cache.
