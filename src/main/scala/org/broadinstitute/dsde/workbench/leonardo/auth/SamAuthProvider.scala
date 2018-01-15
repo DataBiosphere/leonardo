@@ -12,9 +12,10 @@ import io.swagger.client.ApiClient
 import io.swagger.client.api.ResourcesApi
 import io.swagger.client.api.GoogleApi
 import java.io.{ByteArrayInputStream, File}
+import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import java.util.concurrent.TimeUnit
+import spray.json.JsObject
 import spray.json._
-import spray.json.DefaultJsonProtocol._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.Actions._
@@ -77,7 +78,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     //val decodedStr = new String(Base64.getDecoder().decode(saKey.getPrivateKeyData))
     val keyStream = new ByteArrayInputStream(saKey.getBytes)
     logger.info(s"SA KEY: $saKey")
-    logger.info(s"SA KEY Bytes: ${saKey.getBytes}")
+//    logger.info(s"SA KEY Bytes: ${saKey.getBytes}")
     val credential = ServiceAccountCredentials.fromStream(keyStream).createScoped(saScopes.asJava)
     credential.refreshAccessToken.getTokenValue
   }
@@ -86,10 +87,26 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
   private def getPetAccessTokenFromSam(userEmail: String, googleProject: String): String = {
     val samAPI = googleApi(getAccessTokenUsingPem(leoEmail, leoPem))
     val userPetServiceAccountKey = samAPI.getUserPetServiceAccountKey(googleProject, userEmail)
-    logger.info("ACCOUNT KEY:" + userPetServiceAccountKey.asInstanceOf[java.util.Map[String,String]])
-    logger.info("ACCOUNT KEY:" + userPetServiceAccountKey.asInstanceOf[java.util.Map[String,String]].asScala)
-    logger.info("ACCOUNT KEY STRING:" + userPetServiceAccountKey.asInstanceOf[java.util.Map[String,String]].asScala.toString)
-    getAccessTokenUsingJson(userPetServiceAccountKey.asInstanceOf[java.util.Map[String,String]].asScala.toJson.toString)
+    val keyMap =userPetServiceAccountKey.asInstanceOf[JsObject]
+    logger.info("JSOBJECT TO STRING: ", keyMap.toString)
+    logger.info("JSOBJECT PRETTY PRINT: ", keyMap.prettyPrint)
+
+    logger.info("JSOBJECT TO JSON TO STRING: ", keyMap.toJson.toString)
+    logger.info("JSOBJECT TO JSON PRETTY PRINT", keyMap.toJson.prettyPrint)
+
+
+   //val keyMap = userPetServiceAccountKey.asInstanceOf[java.util.Map[String,String]]
+//
+//    logger.info("CLASS:", keyMap.getClass)
+//    logger.info(userPetServiceAccountKey.toString())
+//    logger.info("ACCOUNT KEY:", userPetServiceAccountKey.asInstanceOf[java.util.Map[String,String]])
+//    logger.info("ACCOUNT KEY AS SCALA:", userPetServiceAccountKey.asInstanceOf[java.util.Map[String,String]].asScala)
+//    logger.info("ACCOUNT KEY AS SCALA JSON:", userPetServiceAccountKey.asInstanceOf[java.util.Map[String,String]].asScala.toJson)
+//    logger.info("ACCOUNT KEY AS SCALA STRING JSON:", userPetServiceAccountKey.asInstanceOf[java.util.Map[String,String]].asScala.toJson.toString)
+//    logger.info("ACCOUNT KEY AS SCALA STRING JSON:", userPetServiceAccountKey.asInstanceOf[java.util.Map[String,String]].asScala.toJson.prettyPrint)
+//    logger.info("ACCOUNT KEY AS SCALA STRING JSON:", userPetServiceAccountKey.asInstanceOf[java.util.Map[String,String]].asScala.toJson.asJsObject.prettyPrint)
+    //getAccessTokenUsingJson(userPetServiceAccountKey.asInstanceOf[java.util.Map[String,String]].toJson.toString)
+    getAccessTokenUsingJson(keyMap.toJson.prettyPrint)
   }
 
   //"Fast" lookup of pet's access token, using the cache.
