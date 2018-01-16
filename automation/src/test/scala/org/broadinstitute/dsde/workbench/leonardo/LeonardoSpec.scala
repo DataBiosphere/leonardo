@@ -36,7 +36,6 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
   val clusterPatience = PatienceConfig(timeout = scaled(Span(15, Minutes)), interval = scaled(Span(20, Seconds)))
   val localizePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
 
-  val project = GoogleProject(LeonardoConfig.Projects.default)
   val sa = GoogleServiceAccount(LeonardoConfig.Leonardo.notebooksServiceAccountEmail)
   val swatTestBucket = "gs://leonardo-swat-test-bucket-do-not-delete"
   val incorrectJupyterExtensionUri = swatTestBucket + "/"
@@ -196,7 +195,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
   }
 
   def withNewBillingProject[T](testCode: GoogleProject => T)(implicit token: AuthToken): T = {
-    val billingProject = GoogleProject("leonardo-billing-spec" + makeRandomId())
+    val billingProject = GoogleProject("leonardo-billing-spec-" + makeRandomId())
     // Create billing project and run test code
     val testResult: Try[T] = Try {
       logger.info(s"Creating billing project: $billingProject")
@@ -267,37 +266,49 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     }
 
     "should create, monitor, and delete a cluster" in {
-      implicit val token = ronAuthToken
-      withNewCluster(project) { _ =>
-        // no-op; just verify that it launches
-      }
+      val ownerToken = hermioneAuthToken
+      withNewBillingProject { project =>
+        implicit val token = ronAuthToken
+        withNewCluster(project) { _ =>
+          // no-op; just verify that it launches
+        }
+      }(ownerToken)
     }
 
     "should error on cluster create and delete the cluster" in {
-      implicit val token = ronAuthToken
-      withNewErroredCluster(project) { _ =>
-        // no-op; just verify that it launches
-      }
+      val ownerToken = hermioneAuthToken
+      withNewBillingProject { project =>
+        implicit val token = ronAuthToken
+        withNewErroredCluster(project) { _ =>
+          // no-op; just verify that it launches
+        }
+      }(ownerToken)
     }
 
     "should open the notebooks list page" in withWebDriver { implicit driver =>
-      implicit val token = ronAuthToken
-      withNewCluster(project) { cluster =>
-        withNotebooksListPage(cluster) { _ =>
-          // no-op; just verify that it opens
+      val ownerToken = hermioneAuthToken
+      withNewBillingProject { project =>
+        implicit val token = ronAuthToken
+        withNewCluster(project) { cluster =>
+          withNotebooksListPage(cluster) { _ =>
+            // no-op; just verify that it opens
+          }
         }
-      }
+      }(ownerToken)
     }
 
     "should upload a notebook to Jupyter" in withWebDriver { implicit driver =>
-      implicit val token = ronAuthToken
-      val file = ResourceFile("diff-tests/import-hail.ipynb")
+      val ownerToken = hermioneAuthToken
+      withNewBillingProject { project =>
+        implicit val token = ronAuthToken
+        val file = ResourceFile("diff-tests/import-hail.ipynb")
 
-      withNewCluster(project) { cluster =>
-        withNotebookUpload(cluster, file) { _ =>
-          // no-op; just verify that it uploads
+        withNewCluster(project) { cluster =>
+          withNotebookUpload(cluster, file) { _ =>
+            // no-op; just verify that it uploads
+          }
         }
-      }
+      }(ownerToken)
     }
 
     val fileName: String = "import-hail.ipynb"
@@ -309,14 +320,17 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     downFile.mkdirs()
 
     "should verify notebook execution" in withWebDriver(downloadDir) { implicit driver =>
-      implicit val token = ronAuthToken
+      val ownerToken = hermioneAuthToken
+      withNewBillingProject { project =>
+        implicit val token = ronAuthToken
 
-      withNewCluster(project) { cluster =>
-        withNotebookUpload(cluster, upFile) { notebook =>
-          notebook.runAllCells(60)  // wait 60 sec for Kernel to init and Hail to load
-          notebook.download()
+        withNewCluster(project) { cluster =>
+          withNotebookUpload(cluster, upFile) { notebook =>
+            notebook.runAllCells(60) // wait 60 sec for Kernel to init and Hail to load
+            notebook.download()
+          }
         }
-      }
+      }(ownerToken)
 
       // move the file to a unique location so it won't interfere with other tests
       val uniqueDownFile = new File(downloadDir, s"import-hail-${Instant.now().toString}.ipynb")
@@ -329,65 +343,75 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     }
 
     "should execute cells" in withWebDriver { implicit driver =>
-      implicit val token = ronAuthToken
-      withNewCluster(project) { cluster =>
-        withNewNotebook(cluster) { notebookPage =>
-          notebookPage.executeCell("1+1") shouldBe Some("2")
-          notebookPage.executeCell("2*3") shouldBe Some("6")
-          notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
+      val ownerToken = hermioneAuthToken
+      withNewBillingProject { project =>
+        implicit val token = ronAuthToken
+        withNewCluster(project) { cluster =>
+          withNewNotebook(cluster) { notebookPage =>
+            notebookPage.executeCell("1+1") shouldBe Some("2")
+            notebookPage.executeCell("2*3") shouldBe Some("6")
+            notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
+          }
         }
-      }
+      }(ownerToken)
     }
 
     "should localize files" in withWebDriver { implicit driver =>
-      implicit val token = ronAuthToken
-      val file = ResourceFile("diff-tests/import-hail.ipynb")
+      val ownerToken = hermioneAuthToken
+      withNewBillingProject { project =>
+        implicit val token = ronAuthToken
+        val file = ResourceFile("diff-tests/import-hail.ipynb")
 
-      withNewCluster(project) { cluster =>
-        withFileUpload(cluster, file) { _ =>
-          //good data
-          val goodLocalize = Map(
-            "test.rtf" -> s"$swatTestBucket/test.rtf"
-            //TODO: create a bucket and upload to there
-            //"gs://new_bucket/import-hail.ipynb" -> "import-hail.ipynb"
-          )
+        withNewCluster(project) { cluster =>
+          withFileUpload(cluster, file) { _ =>
+            //good data
+            val goodLocalize = Map(
+              "test.rtf" -> s"$swatTestBucket/test.rtf"
+              //TODO: create a bucket and upload to there
+              //"gs://new_bucket/import-hail.ipynb" -> "import-hail.ipynb"
+            )
 
-          eventually {
-            Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, goodLocalize)
-            //the following line will barf with an exception if the file isn't there; that's enough
-            Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "test.rtf", includeContent = false)
-          } (localizePatience)
+            eventually {
+              Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, goodLocalize)
+              //the following line will barf with an exception if the file isn't there; that's enough
+              Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "test.rtf", includeContent = false)
+            }(localizePatience)
 
 
-          val localizationLog = Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "localization.log")
-          localizationLog.content shouldBe defined
-          localizationLog.content.get shouldNot include("Exception")
+            val localizationLog = Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "localization.log")
+            localizationLog.content shouldBe defined
+            localizationLog.content.get shouldNot include("Exception")
 
-          //bad data
-          val badLocalize = Map("file.out" -> "gs://nobuckethere")
-          Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, badLocalize)
-          val localizationLogAgain = Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "localization.log")
-          localizationLogAgain.content shouldBe defined
-          localizationLogAgain.content.get should include("Exception")
+            //bad data
+            val badLocalize = Map("file.out" -> "gs://nobuckethere")
+            Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, badLocalize)
+            val localizationLogAgain = Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "localization.log")
+            localizationLogAgain.content shouldBe defined
+            localizationLogAgain.content.get should include("Exception")
+          }
         }
-      }
+      }(ownerToken)
     }
 
     "should import AoU library" in withWebDriver { implicit driver =>
-      implicit val token = ronAuthToken
-      withNewCluster(project) { cluster =>
-        withNewNotebook(cluster) { notebookPage =>
-          val importAoU = """import sys
-                            |import aou_workbench_client
-                            |modulename = 'aou_workbench_client'
-                            |if modulename not in sys.modules:
-                            |    print 'You have not imported the {} module'.format(modulename)
-                            |else:
-                            |    print 'AoU library installed'""".stripMargin
+      val ownerToken = hermioneAuthToken
+      withNewBillingProject { project =>
+        implicit val token = ronAuthToken
+        withNewCluster(project) { cluster =>
+          withNewNotebook(cluster) { notebookPage =>
+            val importAoU =
+              """import sys
+                |import aou_workbench_client
+                |modulename = 'aou_workbench_client'
+                |if modulename not in sys.modules:
+                |    print 'You have not imported the {} module'.format(modulename)
+                |else:
+                |    print 'AoU library installed'""".stripMargin
 
-          notebookPage.executeCell(importAoU) shouldBe Some("AoU library installed")
+            notebookPage.executeCell(importAoU) shouldBe Some("AoU library installed")
+          }
         }
-      }
+      }(ownerToken)
     }
 
     "should create a cluster in a different billing project and put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
@@ -420,33 +444,35 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     }
 
     "should do cross domain cookie auth" in withWebDriver { implicit driver =>
-      implicit val token = ronAuthToken
-      withNewCluster(project) { cluster =>
-        withDummyClientPage(cluster) { dummyClientPage =>
-          // opens the notebook list page without setting a cookie
-          val notebooksListPage = dummyClientPage.openNotebook
-          val notebookPage = notebooksListPage.newNotebook
-          // execute some cells to make sure it works
-          notebookPage.executeCell("1+1") shouldBe Some("2")
-          notebookPage.executeCell("2*3") shouldBe Some("6")
-          notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
+      val ownerToken = hermioneAuthToken
+      withNewBillingProject { project =>
+        implicit val token = ronAuthToken
+        withNewCluster(project) { cluster =>
+          withDummyClientPage(cluster) { dummyClientPage =>
+            // opens the notebook list page without setting a cookie
+            val notebooksListPage = dummyClientPage.openNotebook
+            val notebookPage = notebooksListPage.newNotebook
+            // execute some cells to make sure it works
+            notebookPage.executeCell("1+1") shouldBe Some("2")
+            notebookPage.executeCell("2*3") shouldBe Some("6")
+            notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
+          }
         }
-      }
+      }(ownerToken)
     }
 
     "should allow BigQuerying in a new billing project" in withWebDriver { implicit driver =>
       val ownerToken = hermioneAuthToken
-
-      withNewBillingProject { projectName =>
+      withNewBillingProject { project =>
 
         // project owners have the bigquery role automatically, so this also tests granting it to users
 
         val ronEmail = LeonardoConfig.Users.ron.email
-        Orchestration.billing.addUserToBillingProject(projectName.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(ownerToken)
-        Orchestration.billing.addGoogleRoleToBillingProjectUser(projectName.value, ronEmail, "bigquery.jobUser")(ownerToken)
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(ownerToken)
+        Orchestration.billing.addGoogleRoleToBillingProjectUser(project.value, ronEmail, "bigquery.jobUser")(ownerToken)
 
         implicit val leoToken: AuthToken = ronAuthToken
-        withNewCluster(projectName) { cluster =>
+        withNewCluster(project) { cluster =>
           withNewNotebook(cluster) { notebookPage =>
             val query = """! bq query --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
             val expectedResult = """[{"scullion_count":"2"}]""".stripMargin
