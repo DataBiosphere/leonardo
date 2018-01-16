@@ -3,10 +3,11 @@ package org.broadinstitute.dsde.workbench.leonardo.auth
 
 import com.typesafe.config.Config
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, LeoAuthProvider, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.NotebookClusterAction
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.ProjectAction
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -24,7 +25,7 @@ class WhitelistAuthProvider(authConfig: Config, serviceAccountProvider: ServiceA
     * @param googleProject The Google project to check in
     * @return If the given user has permissions in this project to perform the specified action.
     */
-  def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectAction, googleProject: String)(implicit executionContext: ExecutionContext): Future[Boolean]  = {
+  def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean]  = {
     checkWhitelist(userEmail)
   }
 
@@ -34,7 +35,7 @@ class WhitelistAuthProvider(authConfig: Config, serviceAccountProvider: ServiceA
     * @param clusterName The user-provided name of the Dataproc cluster
     * @return If the userEmail has permission on this individual notebook cluster to perform this action
     */
-  def hasNotebookClusterPermission(userEmail: WorkbenchEmail, action: NotebookClusterAction, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Boolean]  = {
+  def hasNotebookClusterPermission(userEmail: WorkbenchEmail, action: NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean]  = {
     checkWhitelist(userEmail)
   }
 
@@ -50,7 +51,7 @@ class WhitelistAuthProvider(authConfig: Config, serviceAccountProvider: ServiceA
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterCreated(userEmail: WorkbenchEmail, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = Future.successful(())
+  def notifyClusterCreated(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = Future.successful(())
 
   /**
     * Leo calls this method to notify the auth provider that a notebook cluster has been destroyed.
@@ -62,5 +63,5 @@ class WhitelistAuthProvider(authConfig: Config, serviceAccountProvider: ServiceA
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterDeleted(userEmail: WorkbenchEmail, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = Future.successful(())
+  def notifyClusterDeleted(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = Future.successful(())
 }

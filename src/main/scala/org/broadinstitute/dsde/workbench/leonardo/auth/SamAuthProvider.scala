@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth
 
 import akka.http.scaladsl.model.StatusCodes
-import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
+import com.google.api.client.googleapis.auth.oauth2.{GoogleCredential, GooglePublicKeysManager}
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import com.google.api.client.json.jackson2.JacksonFactory
 import com.google.api.services.plus.PlusScopes
@@ -14,6 +14,7 @@ import io.swagger.client.api.ResourcesApi
 import io.swagger.client.api.GoogleApi
 import java.io.{ByteArrayInputStream, File}
 import java.util.concurrent.TimeUnit
+
 import com.google.gson.Gson
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -22,10 +23,12 @@ import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import net.ceedubs.ficus.Ficus._
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
 
-case class UserEmailAndProject(userEmail: String, googleProject: String)
+case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)
 
 case class NotebookActionError(action: Action) extends
   LeoException(s"${action.toString} was not recognized", StatusCodes.NotFound)
@@ -80,15 +83,15 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
   }
 
   //"Slow" lookup of pet's access token. The cache calls this when it needs to.
-  private def getPetAccessTokenFromSam(userEmail: String, googleProject: String): String = {
+  private def getPetAccessTokenFromSam(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = {
     val samAPI = googleApi(getAccessTokenUsingPem(leoEmail, leoPem))
-    val userPetServiceAccountKey = samAPI.getUserPetServiceAccountKey(googleProject, userEmail)
+    val userPetServiceAccountKey = samAPI.getUserPetServiceAccountKey(googleProject.value, userEmail.value)
     val keyTreeMap = userPetServiceAccountKey.asInstanceOf[LinkedTreeMap[String,String]]
     getAccessTokenUsingJson(new Gson().toJsonTree(keyTreeMap).toString)
   }
 
   //"Fast" lookup of pet's access token, using the cache.
-  private def getCachedPetAccessToken(userEmail: String, googleProject: String): String = {
+  private def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = {
     petTokenCache.get(UserEmailAndProject(userEmail, googleProject))
   }
 
@@ -101,8 +104,8 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
   }
 
   //A resources API as the given user's pet SA
-  private[auth] def resourcesApiAsPet(userEmail: WorkbenchEmail, googleProject: String): ResourcesApi = {
-    resourcesApi(getCachedPetAccessToken(userEmail.value, googleProject))
+  private[auth] def resourcesApiAsPet(userEmail: WorkbenchEmail, googleProject: GoogleProject): ResourcesApi = {
+    resourcesApi(getCachedPetAccessToken(userEmail, googleProject))
   }
 
   private[auth] def googleApi(accessToken: String): GoogleApi = {
@@ -113,37 +116,24 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
   }
 
 
-  protected def getClusterResourceId(googleProject: String, clusterName: String): String = {
-    googleProject + "_" + clusterName
+  protected def getClusterResourceId(googleProject: GoogleProject, clusterName: ClusterName): String = {
+    googleProject.value + "_" + clusterName
   }
 
   //gets the string we want for each type of action - definitely NOT how we want to do this in the long run
-  protected def getProjectActionString(action: Action): String = {
-    action match {
-      case projectAction: ProjectAction => getProjectActionString(projectAction)
-      case notebookClusterAction: NotebookClusterAction => getNotebookClusterActionString(notebookClusterAction)
-    }
+  protected def getActionString(action: Action): String = {
+    actionMap.getOrElse(action, throw NotebookActionError(action))
   }
 
-  protected def getProjectActionString(action: ProjectAction): String = {
-    action match {
-      case CreateClusters => "launch_notebook_cluster"
-      case ListClusters => "list_notebook_cluster"
-      case SyncDataToClusters => "sync_notebook_cluster"
-      case DeleteClusters => "delete_notebook_cluster"
-      case _ => throw NotebookActionError(action)
-    }
-  }
-
-  protected def getNotebookClusterActionString(action: NotebookClusterAction): String = {
-    action match {
-      case GetClusterStatus => "status"
-      case ConnectToCluster => "connect"
-      case SyncDataToCluster => "sync"
-      case DeleteCluster => "delete"
-      case _ => throw NotebookActionError(action)
-    }
-  }
+  private def actionMap: Map[Action, String] = Map(
+    CreateClusters -> "launch_notebook_cluster",
+    ListClusters -> "list_notebook_cluster",
+    SyncDataToClusters -> "sync_notebook_cluster",
+    DeleteClusters -> "delete_notebook_cluster",
+    GetClusterStatus -> "status",
+    ConnectToCluster -> "connect",
+    SyncDataToCluster -> "sync",
+    DeleteCluster -> "delete")
 
   /**
     * @param userEmail The user in question
@@ -151,8 +141,8 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @param googleProject The Google project to check in
     * @return If the given user has permissions in this project to perform the specified action.
     */
-  def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: String)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-    Future{ resourcesApiAsPet(userEmail, googleProject).resourceAction(billingProjectResourceTypeName, googleProject, getProjectActionString(action)) }
+  def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+    Future{ resourcesApiAsPet(userEmail, googleProject).resourceAction(billingProjectResourceTypeName, googleProject.value, getActionString(action)) }
   }
 
   /**
@@ -165,17 +155,17 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return If the userEmail has permission on this individual notebook cluster to perform this action
     */
-  def hasNotebookClusterPermission(userEmail: WorkbenchEmail, action: NotebookClusterActions.NotebookClusterAction, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  def hasNotebookClusterPermission(userEmail: WorkbenchEmail, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     // get the id for the cluster resource
     val clusterResourceId = getClusterResourceId(googleProject, clusterName)
 
     // if action is connect, check only cluster resource. If action is anything else, either cluster or project must be true
     Future {
-      val notebookAction = resourcesApiAsPet(userEmail, googleProject).resourceAction(notebookClusterResourceTypeName, clusterResourceId, getNotebookClusterActionString(action))
+      val notebookAction = resourcesApiAsPet(userEmail, googleProject).resourceAction(notebookClusterResourceTypeName, clusterResourceId, getActionString(action))
       if (action == ConnectToCluster) {
         notebookAction
       } else {
-        notebookAction || resourcesApiAsPet(userEmail, googleProject).resourceAction(billingProjectResourceTypeName, googleProject, getNotebookClusterActionString(action))
+        notebookAction || resourcesApiAsPet(userEmail, googleProject).resourceAction(billingProjectResourceTypeName, googleProject.value, getActionString(action))
       }
     }
   }
@@ -193,7 +183,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterCreated(userEmail: WorkbenchEmail, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  def notifyClusterCreated(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
     val clusterResourceId = getClusterResourceId(googleProject, clusterName)
     // Add the cluster resource with the user as owner
     Future { resourcesApiAsPet(userEmail, googleProject).createResource(notebookClusterResourceTypeName, clusterResourceId) }
@@ -209,7 +199,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterDeleted(userEmail: WorkbenchEmail, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  def notifyClusterDeleted(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
     // get the id for the cluster resource
     val clusterResourceId = getClusterResourceId(googleProject, clusterName)
     // delete the resource
