@@ -48,11 +48,11 @@ object Boot extends App with LazyLogging {
 
     val serviceAccountProviderClass = config.as[String]("serviceAccounts.providerClass")
     val serviceAccountConfig = config.getConfig("serviceAccounts.config")
-    val serviceAccountProvider = constructProvider[ServiceAccountProvider](serviceAccountProviderClass, serviceAccountConfig)
+    val serviceAccountProvider = constructServiceAccountProvider(serviceAccountProviderClass, serviceAccountConfig)
 
     val authProviderClass = config.as[String]("auth.providerClass")
     val authConfig = config.getConfig("auth.providerConfig")
-    val authProvider = constructProvider[LeoAuthProvider](authProviderClass, authConfig, serviceAccountProvider)
+    val authProvider = constructLeoAuthProvider(authProviderClass, authConfig, serviceAccountProvider)
 
     // we need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")
@@ -85,20 +85,34 @@ object Boot extends App with LazyLogging {
       }
   }
 
-  private def constructProvider[T](className: String, config: Config): T = {
+  private def constructServiceAccountProvider(className: String, config: Config): ServiceAccountProvider = {
     Class.forName(className)
       .getConstructor(classOf[Config])
       .newInstance(config)
-      .asInstanceOf[T]
+      .asInstanceOf[ServiceAccountProvider]
   }
 
-
-  private def constructProvider[T](className: String,  config: Config, serviceAccountProvider: ServiceAccountProvider): T = {
+  private def constructLeoAuthProvider(className: String,  config: Config, serviceAccountProvider: ServiceAccountProvider): LeoAuthProvider = {
     Class.forName(className)
       .getConstructor(classOf[Config], classOf[ServiceAccountProvider])
       .newInstance(config, serviceAccountProvider)
-      .asInstanceOf[T]
+      .asInstanceOf[LeoAuthProvider]
   }
+
+//  private def constructProvider[T](className: String, config: Config): T = {
+//    Class.forName(className)
+//      .getConstructor(classOf[Config])
+//      .newInstance(config)
+//      .asInstanceOf[T]
+//  }
+//
+//
+//  private def constructProvider[T](className: String,  config: Config, serviceAccountProvider: ServiceAccountProvider): T = {
+//    Class.forName(className)
+//      .getConstructor(classOf[Config], classOf[ServiceAccountProvider])
+//      .newInstance(config, serviceAccountProvider)
+//      .asInstanceOf[T]
+//  }
 
   private def startClusterMonitors(dbRef: DbReference, clusterMonitor: ActorRef)(implicit executionContext: ExecutionContext) = {
     dbRef.inTransaction { dataAccess =>
