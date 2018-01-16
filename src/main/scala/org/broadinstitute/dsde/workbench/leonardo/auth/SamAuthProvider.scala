@@ -32,6 +32,7 @@ case class NotebookActionError(action: Action) extends
 
 
 class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(authConfig, serviceAccountProvider) with LazyLogging {
+
   private val notebookClusterResourceTypeName = "notebook-cluster"
   private val billingProjectResourceTypeName = "billing-project"
 

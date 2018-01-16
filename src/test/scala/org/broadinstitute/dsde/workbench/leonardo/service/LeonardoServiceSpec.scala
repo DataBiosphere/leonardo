@@ -51,12 +51,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
     iamDAO = new MockGoogleIamDAO
     samDAO = new MockSamDAO
-
+1
     // TODO look into parameterized tests so both provider impls can both be tested
     //serviceAccountProvider = new MockPetServiceAccountProvider(configFactory.getConfig("serviceAccounts.config"))
     serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(configFactory.getConfig("serviceAccounts.config"))
 
-    authProvider = new WhitelistAuthProvider(configFactory.getConfig("auth.whitelistProviderConfig"), serviceAccountProvider)
+    authProvider = new WhitelistAuthProvider(configFactory.getConfig("auth.SamAuthProvider"), serviceAccountProvider)
 
     leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider)
   }
