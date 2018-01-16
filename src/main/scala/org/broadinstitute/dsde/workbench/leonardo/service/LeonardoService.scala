@@ -62,14 +62,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val dbRef: DbReference,
                       protected val clusterMonitorSupervisor: ActorRef,
                       protected val authProvider: LeoAuthProvider,
-                      protected val serviceAccountProvider: ServiceAccountProvider)
+                      protected val serviceAccountProvider: ServiceAccountProvider,
+                      protected val whitelist: Set[String])
                      (implicit val executionContext: ExecutionContext) extends LazyLogging {
 
   private val bucketPathMaxLength = 1024
   private val includeDeletedKey = "includeDeleted"
 
-  val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
-  val whitelist = config.as[(Set[String])]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
 
   def isWhitelisted(userInfo: UserInfo): Future[Boolean] = {
     Future.successful(whitelist contains userInfo.userEmail.value.toLowerCase)
