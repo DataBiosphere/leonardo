@@ -69,8 +69,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private val includeDeletedKey = "includeDeleted"
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
-  val whitelist = config.as[(Set[String])]("whitelist").map(_.toLowerCase)
-
+  val whitelist = config.as[(Set[String])]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
 
   def isWhitelisted(userInfo: UserInfo): Future[Boolean] = {
     Future.successful(whitelist contains userInfo.userEmail.value.toLowerCase)
