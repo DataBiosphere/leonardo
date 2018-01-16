@@ -37,6 +37,7 @@ object Boot extends App with LazyLogging {
     System.setProperty("sun.net.spi.nameservice.provider.2", "default")
 
     val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
+    val whitelist = config.as[(Set[String])]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
     val dataprocConfig = config.as[DataprocConfig]("dataproc")
     val proxyConfig = config.as[ProxyConfig]("proxy")
     val swaggerConfig = config.as[SwaggerConfig]("swagger")
@@ -70,7 +71,7 @@ object Boot extends App with LazyLogging {
     val samDAO = new HttpSamDAO(samConfig.server)
     val clusterDnsCache = system.actorOf(ClusterDnsCache.props(proxyConfig, dbRef))
     val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO, googleIamDAO, dbRef, clusterDnsCache))
-    val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, googleIamDAO, dbRef, clusterMonitorSupervisor, authProvider, serviceAccountProvider)
+    val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, googleIamDAO, dbRef, clusterMonitorSupervisor, authProvider, serviceAccountProvider, whitelist)
     val proxyService = new ProxyService(proxyConfig, gdDAO, dbRef, clusterDnsCache, authProvider)
     val statusService = new StatusService(gdDAO, samDAO, dbRef, dataprocConfig)
     val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with StandardUserInfoDirectives

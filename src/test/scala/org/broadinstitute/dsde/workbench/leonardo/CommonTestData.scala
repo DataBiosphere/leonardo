@@ -6,7 +6,7 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
-import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetsPerProjectServiceAccountProvider, WhitelistAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetsPerProjectServiceAccountProvider, SamAuthProvider, WhitelistAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterName
@@ -29,6 +29,7 @@ trait CommonTestData { this: ScalaFutures =>
   val serviceAccountKey = ServiceAccountKey(ServiceAccountKeyId("123"), ServiceAccountPrivateKeyData("abcdefg"), Some(Instant.now), Some(Instant.now.plusSeconds(300)))
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
+  val whitelist = config.as[(Set[String])]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
   val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
@@ -43,7 +44,8 @@ trait CommonTestData { this: ScalaFutures =>
   //val serviceAccountProvider = new MockPetServiceAccountProvider(config.getConfig("serviceAccounts.config"))
   val serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(config.getConfig("serviceAccounts.config"))
 
-  val whitelistAuthProvider = new WhitelistAuthProvider(config.getConfig("auth.whitelistProviderConfig"), serviceAccountProvider)
+  //val whitelistAuthProvider = new WhitelistAuthProvider(config.getConfig("auth.whitelistProviderConfig"), serviceAccountProvider)
+  val samAuthProvider = new SamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider)
 
   val samDAO = new MockSamDAO
 
