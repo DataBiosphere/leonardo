@@ -51,6 +51,21 @@ abstract class LeoAuthProvider(authConfig: Config, serviceAccountProvider: Servi
   }
 
   /**
+    * When listing clusters, Leo will perform a GROUP BY on google projects and call this function once per google project.
+    * If you have an implementation such that users, even in some cases, can see all clusters in a google project, overriding
+    * this function may lead to significant performance improvements.
+    * For any projects where this function call returns Future.successful(false), Leo will then call hasNotebookClusterPermission
+    * for every cluster in that project, passing in action = GetClusterStatus.
+    *
+    * @param userInfo The user in question
+    * @param googleProject A Google project
+    * @return If the given user can see all clusters in this project
+    */
+  def canSeeAllClustersInProject(userInfo: UserInfo, googleProject: String): Future[Boolean] = {
+    Future.successful(false)
+  }
+
+  /**
     * Leo calls this method to verify if the user has permission to perform the given action on a specific notebook cluster.
     * It may call this method passing in a cluster that doesn't exist. Return Future.successful(false) if so.
     *
