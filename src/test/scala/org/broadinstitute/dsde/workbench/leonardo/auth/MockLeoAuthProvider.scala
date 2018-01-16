@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.auth
 import com.typesafe.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -13,11 +14,11 @@ class MockLeoAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAcc
   val clusterPermissions: Map[NotebookClusterActions.NotebookClusterAction, Boolean] =
     (NotebookClusterActions.allActions map (action => action -> authConfig.getBoolean(action.toString) )).toMap
 
-  def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: String)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     Future.successful(projectPermissions(action))
   }
 
-  def hasNotebookClusterPermission(userEmail: WorkbenchEmail, action: NotebookClusterActions.NotebookClusterAction, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  def hasNotebookClusterPermission(userEmail: WorkbenchEmail, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     Future.successful(clusterPermissions(action))
   }
 
@@ -28,7 +29,7 @@ class MockLeoAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAcc
       Future.failed(new RuntimeException("boom"))
   }
 
-  def notifyClusterCreated(userEmail: WorkbenchEmail, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = notifyInternal
+  def notifyClusterCreated(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = notifyInternal
 
-  def notifyClusterDeleted(userEmail: WorkbenchEmail, googleProject: String, clusterName: String)(implicit executionContext: ExecutionContext): Future[Unit] = notifyInternal
+  def notifyClusterDeleted(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = notifyInternal
 }
