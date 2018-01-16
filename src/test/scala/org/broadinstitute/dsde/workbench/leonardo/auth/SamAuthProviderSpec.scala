@@ -5,7 +5,7 @@ import org.scalatest.FlatSpec
 import org.scalatest.concurrent.ScalaFutures
 
 class SamAuthProviderSpec extends FlatSpec with CommonTestData with ScalaFutures {
-  private val samAuth = new SamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider)
+  private val samAuth = new SamAuthProvider(config.getConfig("org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider"), serviceAccountProvider)
 
   "SamAuthProvider" should "construct a sane resourcesApi" in {
     val resourcesAPI = samAuth.resourcesApiAsPet(defaultUserInfo.userEmail, project.value)
