@@ -7,6 +7,7 @@ import com.google.api.client.json.jackson2.JacksonFactory
 import com.google.api.services.plus.PlusScopes
 import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.common.cache.{CacheBuilder, CacheLoader}
+import com.google.gson.internal.LinkedTreeMap
 import com.typesafe.config.Config
 import io.swagger.client.ApiClient
 import io.swagger.client.api.ResourcesApi
@@ -21,8 +22,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import net.ceedubs.ficus.Ficus._
-import com.google.gson.internal.LinkedTreeMap
-
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -117,8 +116,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     googleProject + "_" + clusterName
   }
 
-  //gets the string we want for each type of action - definitely NOT how we want to do this - probably put this is in a config and have ProjectAction
-  // and NotebookClusterAction have a toString method. Doing it this way to test stuff quickly
+  //gets the string we want for each type of action - definitely NOT how we want to do this in the long run
   protected def getProjectActionString(action: Action): String = {
     action match {
       case projectAction: ProjectAction => getProjectActionString(projectAction)
