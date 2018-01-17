@@ -100,21 +100,6 @@ object Boot extends App with LazyLogging {
       .asInstanceOf[LeoAuthProvider]
   }
 
-//  private def constructProvider[T](className: String, config: Config): T = {
-//    Class.forName(className)
-//      .getConstructor(classOf[Config])
-//      .newInstance(config)
-//      .asInstanceOf[T]
-//  }
-//
-//
-//  private def constructProvider[T](className: String,  config: Config, serviceAccountProvider: ServiceAccountProvider): T = {
-//    Class.forName(className)
-//      .getConstructor(classOf[Config], classOf[ServiceAccountProvider])
-//      .newInstance(config, serviceAccountProvider)
-//      .asInstanceOf[T]
-//  }
-
   private def startClusterMonitors(dbRef: DbReference, clusterMonitor: ActorRef)(implicit executionContext: ExecutionContext) = {
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.listMonitored
