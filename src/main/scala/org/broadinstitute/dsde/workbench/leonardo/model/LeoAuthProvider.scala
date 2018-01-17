@@ -46,7 +46,7 @@ abstract class LeoAuthProvider(authConfig: Config, serviceAccountProvider: Servi
     * @param googleProject A Google project
     * @return If the given user can see all clusters in this project
     */
-  def canSeeAllClustersInProject(userEmail: WorkbenchEmail, googleProject: GoogleProject): Future[Boolean] = {
+  def canSeeAllClustersInProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     Future.successful(false)
   }
 

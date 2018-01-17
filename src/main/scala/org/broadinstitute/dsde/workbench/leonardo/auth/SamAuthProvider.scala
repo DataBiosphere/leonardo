@@ -155,8 +155,8 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @param googleProject A Google project
     * @return If the given user can see all clusters in this project
     */
- override def canSeeAllClustersInProject(userEmail: WorkbenchEmail, googleProject: GoogleProject): Future[Boolean] = {
-    hasProjectPermission(userEmail, "list_notebook_cluster",googleProject)
+ override def canSeeAllClustersInProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+    hasProjectPermission(userEmail, "list_notebook_cluster", googleProject)
   }
 
   def hasProjectPermission(userEmail: WorkbenchEmail, action: String, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
