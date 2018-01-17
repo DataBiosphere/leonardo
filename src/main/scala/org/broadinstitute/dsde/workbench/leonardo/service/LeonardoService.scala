@@ -205,6 +205,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     for {
       paramMap <- processListClustersParameters(params)
       clusterList <- dbRef.inTransaction { da => da.clusterQuery.listByLabels(paramMap._1, paramMap._2) }
+      //LeoAuthProviders can override canSeeAllClustersInProject if they have a speedy implementation, e.g. "you're a
+      //project owner so of course you do". In order to use it, we first group our list of clusters by project, and
+      //call canSeeAllClustersInProject once per project. If the answer is "no" for a given project, we check each
+      //cluster in that project individually.
       clustersByProject = clusterList.groupBy(_.googleProject)
       visibleClusters <- clustersByProject.toList.flatTraverse[Future, Cluster] { case (googleProject, clusters) =>
         val clusterList = clusters.toList
