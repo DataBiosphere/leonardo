@@ -194,12 +194,14 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     testResult.get
   }
 
-  def withNewBillingProject[T](testCode: GoogleProject => T)(implicit token: AuthToken): T = {
+  def withNewBillingProject[T](testCode: GoogleProject => T): T = {
+    val ownerToken: AuthToken = hermioneAuthToken
     val billingProject = GoogleProject("leonardo-billing-spec-" + makeRandomId())
+
     // Create billing project and run test code
     val testResult: Try[T] = Try {
       logger.info(s"Creating billing project: $billingProject")
-      Orchestration.billing.createBillingProject(billingProject.value, WorkbenchConfig.Projects.billingAccountId)
+      Orchestration.billing.createBillingProject(billingProject.value, WorkbenchConfig.Projects.billingAccountId)(ownerToken)
       testCode(billingProject)
     }
     // Clean up billing project
@@ -266,27 +268,24 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     }
 
     "should create, monitor, and delete a cluster" in {
-      val ownerToken = hermioneAuthToken
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
         withNewCluster(project) { _ =>
           // no-op; just verify that it launches
         }
-      }(ownerToken)
+      }
     }
 
     "should error on cluster create and delete the cluster" in {
-      val ownerToken = hermioneAuthToken
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
         withNewErroredCluster(project) { _ =>
           // no-op; just verify that it launches
         }
-      }(ownerToken)
+      }
     }
 
     "should open the notebooks list page" in withWebDriver { implicit driver =>
-      val ownerToken = hermioneAuthToken
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
         withNewCluster(project) { cluster =>
@@ -294,11 +293,10 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
             // no-op; just verify that it opens
           }
         }
-      }(ownerToken)
+      }
     }
 
     "should upload a notebook to Jupyter" in withWebDriver { implicit driver =>
-      val ownerToken = hermioneAuthToken
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
         val file = ResourceFile("diff-tests/import-hail.ipynb")
@@ -308,7 +306,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
             // no-op; just verify that it uploads
           }
         }
-      }(ownerToken)
+      }
     }
 
     val fileName: String = "import-hail.ipynb"
@@ -320,7 +318,6 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     downFile.mkdirs()
 
     "should verify notebook execution" in withWebDriver(downloadDir) { implicit driver =>
-      val ownerToken = hermioneAuthToken
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
 
@@ -330,7 +327,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
             notebook.download()
           }
         }
-      }(ownerToken)
+      }
 
       // move the file to a unique location so it won't interfere with other tests
       val uniqueDownFile = new File(downloadDir, s"import-hail-${Instant.now().toString}.ipynb")
@@ -343,7 +340,6 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     }
 
     "should execute cells" in withWebDriver { implicit driver =>
-      val ownerToken = hermioneAuthToken
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
         withNewCluster(project) { cluster =>
@@ -353,11 +349,10 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
             notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
           }
         }
-      }(ownerToken)
+      }
     }
 
     "should localize files" in withWebDriver { implicit driver =>
-      val ownerToken = hermioneAuthToken
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
         val file = ResourceFile("diff-tests/import-hail.ipynb")
@@ -390,11 +385,10 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
             localizationLogAgain.content.get should include("Exception")
           }
         }
-      }(ownerToken)
+      }
     }
 
     "should import AoU library" in withWebDriver { implicit driver =>
-      val ownerToken = hermioneAuthToken
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
         withNewCluster(project) { cluster =>
@@ -411,12 +405,10 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
             notebookPage.executeCell(importAoU) shouldBe Some("AoU library installed")
           }
         }
-      }(ownerToken)
+      }
     }
 
     "should create a cluster in a different billing project and put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
-      val ownerToken = hermioneAuthToken
-
       withNewBillingProject { newProject =>
 
         implicit val token = ronAuthToken
@@ -440,11 +432,10 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
         val googlePetEmail2 = googleIamDAO.findServiceAccount(newProject, petName).futureValue.map(_.email)
         googlePetEmail2 shouldBe Some(petEmail)
-      }(ownerToken)
+      }
     }
 
     "should do cross domain cookie auth" in withWebDriver { implicit driver =>
-      val ownerToken = hermioneAuthToken
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
         withNewCluster(project) { cluster =>
@@ -458,16 +449,16 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
             notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
           }
         }
-      }(ownerToken)
+      }
     }
 
     "should allow BigQuerying in a new billing project" in withWebDriver { implicit driver =>
-      val ownerToken = hermioneAuthToken
       withNewBillingProject { project =>
 
         // project owners have the bigquery role automatically, so this also tests granting it to users
 
         val ronEmail = LeonardoConfig.Users.ron.email
+        val ownerToken = hermioneAuthToken
         Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(ownerToken)
         Orchestration.billing.addGoogleRoleToBillingProjectUser(project.value, ronEmail, "bigquery.jobUser")(ownerToken)
 
@@ -482,7 +473,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
             result should include(expectedResult)
           }
         }
-      }(ownerToken)
+      }
     }
 
   }
