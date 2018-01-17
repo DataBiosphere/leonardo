@@ -4,12 +4,19 @@ import com.typesafe.config.Config
 import com.typesafe.scalalogging.LazyLogging
 import net.ceedubs.ficus.Ficus._
 import java.io.File
+
+import akka.http.scaladsl.model.StatusCodes
+import org.broadinstitute.dsde.workbench.leonardo.model.Actions.Action
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
+import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.CreateClusters
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+
 import scala.concurrent.{ExecutionContext, Future}
 
+case class NotebookActionError(action: Action) extends
+  LeoException(s"${action.toString} was not recognized", StatusCodes.NotFound)
 
 class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(authConfig, serviceAccountProvider) with LazyLogging {
 
@@ -17,6 +24,29 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
   //Leo SA details -- needed to get pet keyfiles
   private val (leoEmail, leoPem) : (WorkbenchEmail, File) = serviceAccountProvider.getLeoServiceAccountAndKey
   val samAPI = new SwaggerSamClient(authConfig.as[String]("samServer"), authConfig.getInt("cacheExpiryTime"), authConfig.getInt("cacheMaxSize"), leoEmail, leoPem)
+
+  //gets the string we want for each type of action - definitely NOT how we want to do this in the long run
+  protected def getProjectActionString(action: Action): String = {
+    projectActionMap.getOrElse(action, throw NotebookActionError(action))
+  }
+
+  //gets the string we want for each type of action - definitely NOT how we want to do this in the long run
+  protected def getNotebookActionString(action: Action): String = {
+    notebookActionMap.getOrElse(action, throw NotebookActionError(action))
+  }
+
+  private def projectActionMap: Map[Action, String] = Map(
+    //list_notebook_cluster
+    CreateClusters -> "launch_notebook_cluster",
+    SyncDataToCluster -> "sync_notebook_cluster",
+    DeleteCluster -> "delete_notebook_cluster")
+
+
+  private def notebookActionMap: Map[Action, String] = Map(
+    GetClusterStatus -> "status",
+    ConnectToCluster -> "connect",
+    SyncDataToCluster -> "sync",
+    DeleteCluster -> "delete")
 
 
   /**
@@ -26,7 +56,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @return If the given user has permissions in this project to perform the specified action.
     */
   def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-    Future { samAPI.hasActionOnBillingProjectResource(userEmail,googleProject, action) }
+    Future { samAPI.hasActionOnBillingProjectResource(userEmail,googleProject, getProjectActionString(action)) }
   }
 
 
@@ -43,7 +73,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @return If the given user can see all clusters in this project
     */
  override def canSeeAllClustersInProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-   Future { samAPI.hasActionOnBillingProjectResource(userEmail,googleProject, GetClusterStatus) }
+   Future { samAPI.hasActionOnBillingProjectResource(userEmail,googleProject, "list_notebook_cluster") }
 
    //hasProjectPermission(userEmail, "list_notebook_cluster", googleProject)
   }
@@ -62,11 +92,11 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
   def hasNotebookClusterPermission(userEmail: WorkbenchEmail, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     // if action is connect, check only cluster resource. If action is anything else, either cluster or project must be true
     Future {
-      val notebookAction = samAPI.hasActionOnNotebookClusterResource(userEmail,googleProject,clusterName, action)
+      val notebookAction = samAPI.hasActionOnNotebookClusterResource(userEmail,googleProject,clusterName, getNotebookActionString(action))
       if (action == ConnectToCluster) {
         notebookAction
       } else {
-        val projectAction = samAPI.hasActionOnBillingProjectResource(userEmail,googleProject, action)
+        val projectAction = samAPI.hasActionOnBillingProjectResource(userEmail,googleProject, getProjectActionString(action))
         notebookAction || projectAction   //resourcesApiAsPet(userEmail, googleProject).resourceAction(billingProjectResourceTypeName, googleProject.value, getActionString(action))
       }
     }
