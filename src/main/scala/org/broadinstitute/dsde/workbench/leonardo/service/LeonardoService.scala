@@ -4,7 +4,7 @@ import akka.actor.ActorRef
 import akka.http.scaladsl.model.StatusCodes
 import com.typesafe.scalalogging.LazyLogging
 import java.io.File
-
+import scala.collection.Map
 import cats.data.OptionT
 import cats.implicits._
 import com.typesafe.config.ConfigFactory
@@ -193,22 +193,45 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } else Future.successful(())
   }
 
+
   def listClusters(userInfo: UserInfo, params: LabelMap): Future[Seq[Cluster]] = {
     for {
       paramMap <- processListClustersParameters(params)
       clusterList <- dbRef.inTransaction { da => da.clusterQuery.listByLabels(paramMap._1, paramMap._2) }
+      clustersByProject: Map[GoogleProject, Seq[Cluster]] = clusterList.groupBy(_.googleProject)
 
-      //look up permissions for cluster
-      clusterPermissions <- Future.traverse(clusterList) { cluster =>
-        val hasProjectPermission = authProvider.hasProjectPermission(userInfo.userEmail, ListClusters, cluster.googleProject)
-        val hasNotebookPermission = authProvider.hasNotebookClusterPermission(userInfo.userEmail, GetClusterStatus, cluster.googleProject, cluster.clusterName)
-        Future.reduceLeft(List(hasProjectPermission, hasNotebookPermission))(_ || _)
+      visibleClusters <- clustersByProject.toList.flatTraverse[Future, Cluster] { case (googleProject, clusters) =>
+        authProvider.canSeeAllClustersInProject(userInfo.userEmail, googleProject.value) flatMap {
+          case true => Future.successful(clusters.toList)
+          case false => clusters.toList.traverseFilter { cluster =>
+            authProvider.hasNotebookClusterPermission(userInfo.userEmail, GetClusterStatus, cluster.googleProject, cluster.clusterName) map {
+              case false => None
+              case true => Some(cluster)
+            }
+          }
+        }
       }
     } yield {
-      //merge "can we see this cluster" with the cluster and filter out the ones we can't see
-      clusterList zip clusterPermissions filter( _._2 ) map ( _._1 )
+      visibleClusters
     }
   }
+
+//  def listClusters(userInfo: UserInfo, params: LabelMap): Future[Seq[Cluster]] = {
+//    for {
+//      paramMap <- processListClustersParameters(params)
+//      clusterList <- dbRef.inTransaction { da => da.clusterQuery.listByLabels(paramMap._1, paramMap._2) }
+//
+//      //look up permissions for cluster
+//      clusterPermissions <- Future.traverse(clusterList) { cluster =>
+//        val hasProjectPermission = authProvider.hasProjectPermission(userInfo.userEmail, ListClusters, cluster.googleProject)
+//        val hasNotebookPermission = authProvider.hasNotebookClusterPermission(userInfo.userEmail, GetClusterStatus, cluster.googleProject, cluster.clusterName)
+//        Future.reduceLeft(List(hasProjectPermission, hasNotebookPermission))(_ || _)
+//      }
+//    } yield {
+//      //merge "can we see this cluster" with the cluster and filter out the ones we can't see
+//      clusterList zip clusterPermissions filter( _._2 ) map ( _._1 )
+//    }
+//  }
 
   private[service] def getActiveCluster(googleProject: GoogleProject, clusterName: ClusterName, dataAccess: DataAccess): DBIO[Cluster] = {
     dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName) flatMap {
