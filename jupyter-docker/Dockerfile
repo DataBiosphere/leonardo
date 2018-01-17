@@ -4,18 +4,55 @@ FROM debian:jessie
 
 USER root
 
+#######################
+# Prerequisites
+#######################
+
 ENV DEBIAN_FRONTEND noninteractive
 ENV DEBIAN_REPO http://cdn-fastly.deb.debian.org
+
+RUN echo "deb $DEBIAN_REPO/debian jessie main\ndeb $DEBIAN_REPO/debian-security jessie/updates main" > /etc/apt/sources.list \
+ && apt-get update && apt-get -yq dist-upgrade \
+ && apt-get install -yq --no-install-recommends \
+    nano \
+    #note ca-certificates has to be before wget and curl
+    ca-certificates \
+    wget \
+    curl \
+    build-essential \
+    lsb-release \
+
+ # google-cloud-sdk separately because it need lsb-release and other prereqs installed above
+ && export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" \
+ && echo "deb http://packages.cloud.google.com/apt $CLOUD_SDK_REPO main" > /etc/apt/sources.list.d/google-cloud-sdk.list \
+ && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - \
+ && apt-get update \
+ && apt-get install -yq --no-install-recommends \
+    google-cloud-sdk
+
+#######################
+# Java
+#######################
 
 ENV JAVA_VER jdk1.8.0_161
 ENV JAVA_TGZ jdk-8u161-linux-x64.tar.gz
 ENV JAVA_URL http://download.oracle.com/otn-pub/java/jdk/8u161-b12/2f38c3b165be4555a1fa6e98c45e0808/$JAVA_TGZ
 ENV JAVA_HOME /usr/lib/jdk/$JAVA_VER
 
-# mount this from the outside
-# note Dataproc supports Spark 2.2.0, but there are no pre-packaged Hail distributions past Spark 2.1.0. See:
-# https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-versions
-# https://hail.is/docs/stable/getting_started.html
+RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
+ && mkdir -p /usr/lib/jdk && tar -zxf $JAVA_TGZ -C /usr/lib/jdk \
+ && update-alternatives --install /usr/bin/java java $JAVA_HOME/bin/java 100 \
+ && update-alternatives --install /usr/bin/javac javac $JAVA_HOME/bin/javac 100 \
+ && rm $JAVA_TGZ
+
+#######################
+# Spark / Hadoop / Hail
+#######################
+
+# Use Spark 2.0.2 which corresponds to Dataproc 1.1. See:
+#   https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-versions
+# Dataproc supports Spark 2.2.0, but there are no pre-packaged Hail distributions past 2.1.0. See:
+#   https://hail.is/docs/stable/getting_started.html
 ENV SPARK_VER 2.0.2
 ENV SPARK_HOME=/usr/lib/spark
 
@@ -25,6 +62,21 @@ ENV HAILJAR hail-0.1-$HAILHASH-Spark-$SPARK_VER.jar
 ENV HAILPYTHON hail-0.1-$HAILHASH.zip
 ENV HAILZIP Hail-0.1-$HAILHASH-Spark-$SPARK_VER.zip
 ENV HAIL_HOME /etc/hail
+
+# Note Spark and Hadoop are mounted from the outside Dataproc VM.
+# Make empty conf dirs for the update-alternatives commands.
+RUN mkdir -p /etc/spark/conf.dist && mkdir -p /etc/hadoop/conf.empty \
+ && update-alternatives --install /etc/spark/conf spark-conf /etc/spark/conf.dist 100 \
+ && update-alternatives --install /etc/hadoop/conf hadoop-conf /etc/hadoop/conf.empty 100 \
+ && mkdir $HAIL_HOME && cd $HAIL_HOME \
+ && wget http://storage.googleapis.com/hail-common/builds/0.1/jars/$HAILJAR \
+ && wget http://storage.googleapis.com/hail-common/builds/0.1/python/$HAILPYTHON \
+ && wget http://storage.googleapis.com/hail-common/distributions/0.1/$HAILZIP \
+ && cd -
+
+#######################
+# Python / Jupyter
+#######################
 
 ENV USER jupyter-user
 ENV UID 1000
@@ -39,18 +91,7 @@ ENV PYSPARK_DRIVER_PYTHON_OPTS notebook
 ENV PATH $SPARK_HOME:$SPARK_HOME/python:$SPARK_HOME/bin:$HAIL_HOME:$PATH
 ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip:$JUPYTER_HOME/custom
 
-# Prerequisites
-RUN echo "deb $DEBIAN_REPO/debian jessie main\ndeb $DEBIAN_REPO/debian-security jessie/updates main" > /etc/apt/sources.list \
- && apt-get update && apt-get -yq dist-upgrade \
- && apt-get install -yq --no-install-recommends \
-    nano \
-    #note ca-certificates has to be before wget and curl
-    ca-certificates \
-    wget \
-    curl \
-    build-essential \
-    lsb-release \
-
+RUN apt-get install -yq --no-install-recommends \
     python \
     python-dev \
 
@@ -60,40 +101,13 @@ RUN echo "deb $DEBIAN_REPO/debian jessie main\ndeb $DEBIAN_REPO/debian-security 
     python-seaborn \
     python-tk \
     python-numpy \
-    libz-dev
-
-# gsutil separately because it need lsb-release and other prereqs installed above
-RUN export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" \
- && echo "deb http://packages.cloud.google.com/apt $CLOUD_SDK_REPO main" > /etc/apt/sources.list.d/google-cloud-sdk.list \
- && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - \
- && apt-get update \
- && apt-get install -yq --no-install-recommends \
-    google-cloud-sdk \
+    libz-dev \
  && apt-get clean \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
 
-# Java
-RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
- && mkdir -p /usr/lib/jdk && tar -zxf $JAVA_TGZ -C /usr/lib/jdk \
- && update-alternatives --install /usr/bin/java java $JAVA_HOME/bin/java 100 \
- && update-alternatives --install /usr/bin/javac javac $JAVA_HOME/bin/javac 100 \
- && rm $JAVA_TGZ
-
-# Spark / Hadoop / Hail
-# Make empty conf dirs for the update-alternatives commands; they will be mounted from the Dataproc VM
-RUN mkdir -p /etc/spark/conf.dist && mkdir -p /etc/hadoop/conf.empty \
- && update-alternatives --install /etc/spark/conf spark-conf /etc/spark/conf.dist 100 \
- && update-alternatives --install /etc/hadoop/conf hadoop-conf /etc/hadoop/conf.empty 100 \
- && mkdir $HAIL_HOME && cd $HAIL_HOME \
- && wget http://storage.googleapis.com/hail-common/builds/0.1/jars/$HAILJAR \
- && wget http://storage.googleapis.com/hail-common/builds/0.1/python/$HAILPYTHON \
- && wget http://storage.googleapis.com/hail-common/distributions/0.1/$HAILZIP \
- && cd -
-
-# Pips
-# NOTE! not sure why, but this must run before pip installation
-RUN useradd -m -s /bin/bash -N -u $UID $USER \
- # ubuntu's default pip doesn't work well with jupyter
+ # NOTE! not sure why, but this must run before pip installation
+ && useradd -m -s /bin/bash -N -u $UID $USER \
+ # jessie's default pip doesn't work well with jupyter
  && wget https://bootstrap.pypa.io/get-pip.py \
  && python get-pip.py \
 
@@ -111,6 +125,10 @@ RUN useradd -m -s /bin/bash -N -u $UID $USER \
  && pip install fastinterval \
  && pip install matplotlib-venn \
  && pip install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py"
+
+#######################
+# Utilities
+#######################
 
 ADD spark_install_hail.sh $HAIL_HOME/
 ADD jupyter_notebook_config.py $JUPYTER_HOME/
