@@ -19,12 +19,14 @@ import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMa
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted, RegisterLeoService}
 import org.broadinstitute.dsde.workbench.google.gcs._
+import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import slick.dbio.DBIO
 import spray.json._
 
+import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.Source
 import scala.util.control.NonFatal
@@ -95,6 +97,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           throw ClusterNotFoundException(cluster.googleProject, cluster.clusterName)
       case true => ()
     }
+  }
+
+  def isWhitelisted(userInfo: UserInfo): Future[Unit] = {
+    //TODO: Something bogus???
+    Future.successful(())
   }
 
   def createCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
