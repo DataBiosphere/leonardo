@@ -39,6 +39,7 @@ ENV PYSPARK_DRIVER_PYTHON_OPTS notebook
 ENV PATH $SPARK_HOME:$SPARK_HOME/python:$SPARK_HOME/bin:$HAIL_HOME:$PATH
 ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip:$JUPYTER_HOME/custom
 
+# Prerequisites
 RUN echo "deb $DEBIAN_REPO/debian jessie main\ndeb $DEBIAN_REPO/debian-security jessie/updates main" > /etc/apt/sources.list \
  && apt-get update && apt-get -yq dist-upgrade \
  && apt-get install -yq --no-install-recommends \
@@ -69,32 +70,29 @@ RUN export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" \
  && apt-get install -yq --no-install-recommends \
     google-cloud-sdk \
  && apt-get clean \
- && rm -rf /var/lib/apt/lists/* \
+ && rm -rf /var/lib/apt/lists/*
 
- # Java
- && wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
+# Java
+RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
  && mkdir -p /usr/lib/jdk && tar -zxf $JAVA_TGZ -C /usr/lib/jdk \
  && update-alternatives --install /usr/bin/java java $JAVA_HOME/bin/java 100 \
  && update-alternatives --install /usr/bin/javac javac $JAVA_HOME/bin/javac 100 \
- && rm $JAVA_TGZ \
+ && rm $JAVA_TGZ
 
- # Spark/Hadoop
- # Make empty conf dirs for the update-alternatives commands; they will be mounted from the Dataproc VM
- && mkdir -p /etc/spark/conf.dist \
+# Spark / Hadoop / Hail
+# Make empty conf dirs for the update-alternatives commands; they will be mounted from the Dataproc VM
+RUN mkdir -p /etc/spark/conf.dist && mkdir -p /etc/hadoop/conf.empty \
  && update-alternatives --install /etc/spark/conf spark-conf /etc/spark/conf.dist 100 \
- && mkdir -p /etc/hadoop/conf.empty \
  && update-alternatives --install /etc/hadoop/conf hadoop-conf /etc/hadoop/conf.empty 100 \
-
- # Hail
  && mkdir $HAIL_HOME && cd $HAIL_HOME \
  && wget http://storage.googleapis.com/hail-common/builds/0.1/jars/$HAILJAR \
  && wget http://storage.googleapis.com/hail-common/builds/0.1/python/$HAILPYTHON \
  && wget http://storage.googleapis.com/hail-common/distributions/0.1/$HAILZIP \
- && cd - \
+ && cd -
 
- # NOTE! not sure why, but this must run before pip installation
- && useradd -m -s /bin/bash -N -u $UID $USER \
-
+# Pips
+# NOTE! not sure why, but this must run before pip installation
+RUN useradd -m -s /bin/bash -N -u $UID $USER \
  # ubuntu's default pip doesn't work well with jupyter
  && wget https://bootstrap.pypa.io/get-pip.py \
  && python get-pip.py \
@@ -120,8 +118,8 @@ ADD jupyter_localize_extension.py $JUPYTER_HOME/custom/
 ADD jupyter_install_notebook_extension.sh $JUPYTER_HOME/
 
 RUN chown -R $USER:users $JUPYTER_HOME \
-  && chmod +x $JUPYTER_HOME/jupyter_install_notebook_extension.sh \
-  && chmod +x $HAIL_HOME/spark_install_hail.sh
+ && chmod +x $JUPYTER_HOME/jupyter_install_notebook_extension.sh \
+ && chmod +x $HAIL_HOME/spark_install_hail.sh
 
 USER $USER
 WORKDIR $HOME
