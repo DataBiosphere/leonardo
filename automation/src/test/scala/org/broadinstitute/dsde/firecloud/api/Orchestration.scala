@@ -53,7 +53,7 @@ trait Orchestration extends WorkbenchClient with LazyLogging {
       logger.info(s"Creating billing project: $projectName $billingAccount")
       postRequest(apiUrl("api/billing"), Map("projectName" -> projectName, "billingAccount" -> billingAccount))
 
-      retry(10.seconds, 5.minutes)({
+      retry(10.seconds, 10.minutes)({
               val response: String = parseResponse(getRequest(apiUrl("api/profile/billing")))
               val projects: List[Map[String, Object]] = responseAsList(response)
               projects.find((e) =>

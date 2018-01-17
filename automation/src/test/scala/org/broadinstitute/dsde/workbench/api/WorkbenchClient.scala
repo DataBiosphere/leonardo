@@ -20,6 +20,8 @@ trait WorkbenchClient {
   implicit val materializer = ActorMaterializer()
   implicit val ec: ExecutionContextExecutor = system.dispatcher
 
+  val awaitResponseDuration = 1.second
+
   val mapper = new ObjectMapper()
   mapper.registerModule(DefaultScalaModule)
 
@@ -41,11 +43,11 @@ trait WorkbenchClient {
       case true =>
         val byteStringSink: Sink[ByteString, Future[ByteString]] = Sink.fold(ByteString("")) { (z, i) => z.concat(i) }
         val entityFuture = response.entity.dataBytes.runWith(byteStringSink)
-        Await.result(entityFuture, 100.millis).decodeString("UTF-8")
+        Await.result(entityFuture, awaitResponseDuration).decodeString("UTF-8")
       case _ =>
         val byteStringSink: Sink[ByteString, Future[ByteString]] = Sink.fold(ByteString("")) { (z, i) => z.concat(i) }
         val entityFuture = response.entity.dataBytes.runWith(byteStringSink)
-        throw APIException(Await.result(entityFuture, 100.millis).decodeString("UTF-8"))
+        throw APIException(Await.result(entityFuture, awaitResponseDuration).decodeString("UTF-8"))
     }
   }
 
@@ -54,11 +56,11 @@ trait WorkbenchClient {
       case true =>
         val byteStringSink: Sink[ByteString, Future[ByteString]] = Sink.fold(ByteString("")) { (z, i) => z.concat(i) }
         val entityFuture = response.entity.dataBytes.runWith(byteStringSink)
-        Await.result(entityFuture, 100.millis).decodeString("UTF-8")
+        Await.result(entityFuture, awaitResponseDuration).decodeString("UTF-8")
       case _ =>
         val byteStringSink: Sink[ByteString, Future[ByteString]] = Sink.fold(ByteString("")) { (z, i) => z.concat(i) }
         val entityFuture = response.entity.dataBytes.runWith(byteStringSink)
-        throw APIException(Await.result(entityFuture, 100.millis).decodeString("UTF-8"))
+        throw APIException(Await.result(entityFuture, awaitResponseDuration).decodeString("UTF-8"))
     }
   }
 
