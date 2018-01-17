@@ -139,7 +139,28 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @return If the given user has permissions in this project to perform the specified action.
     */
   def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-    Future{ resourcesApiAsPet(userEmail, googleProject).resourceAction(billingProjectResourceTypeName, googleProject.value, getActionString(action)) }
+    hasProjectPermission(userEmail, getActionString(action), googleProject)
+  }
+
+
+
+  /**
+    * When listing clusters, Leo will perform a GROUP BY on google projects and call this function once per google project.
+    * If you have an implementation such that users, even in some cases, can see all clusters in a google project, overriding
+    * this function may lead to significant performance improvements.
+    * For any projects where this function call returns Future.successful(false), Leo will then call hasNotebookClusterPermission
+    * for every cluster in that project, passing in action = GetClusterStatus.
+    *
+    * @param userEmail The user in question
+    * @param googleProject A Google project
+    * @return If the given user can see all clusters in this project
+    */
+ override def canSeeAllClustersInProject(userEmail: WorkbenchEmail, googleProject: GoogleProject): Future[Boolean] = {
+    hasProjectPermission(userEmail, "list_notebook_cluster",googleProject)
+  }
+
+  def hasProjectPermission(userEmail: WorkbenchEmail, action: String, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+    Future{ resourcesApiAsPet(userEmail, googleProject).resourceAction(billingProjectResourceTypeName, googleProject.value, action) }
   }
 
   /**
