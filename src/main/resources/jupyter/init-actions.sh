@@ -28,7 +28,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export PROXY_SERVER_NAME=$(proxyServerName)
     export JUPYTER_DOCKER_IMAGE=$(jupyterDockerImage)
     export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
-    export COMPOSE_API_VERSION=1.18   # This is set because docker and docker-compose don't work together otherwise
 
     JUPYTER_SERVER_CRT=$(jupyterServerCrt)
     JUPYTER_SERVER_KEY=$(jupyterServerKey)
@@ -40,8 +39,30 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_CUSTOM_JS_URI=$(jupyterCustomJsUri)
     JUPYTER_GOOGLE_SIGN_IN_JS_URI=$(jupyterGoogleSignInJsUri)
 
+    # install Docker
+    export DOCKER_CE_VERSION="17.12.0~ce-0~debian"
     apt-get update
-    apt-get install -y -q docker.io
+    apt-get install -y \
+     apt-transport-https \
+     ca-certificates \
+     curl \
+     gnupg2 \
+     software-properties-common
+
+    curl -fsSL https://download.docker.com/linux/$(. /etc/os-release; echo "$ID")/gpg | apt-key add -
+
+    add-apt-repository \
+     "deb [arch=amd64] https://download.docker.com/linux/$(. /etc/os-release; echo "$ID") \
+     $(lsb_release -cs) \
+     stable"
+
+    apt-get update
+    apt-get install -y docker-ce=$DOCKER_CE_VERSION
+
+    # Install docker-compose
+    curl -L https://github.com/docker/compose/releases/download/1.18.0/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
+    sudo chmod +x /usr/local/bin/docker-compose
+
     mkdir /work
     mkdir /certs
     chmod a+wx /work
@@ -58,10 +79,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
     # Make sure the install-jupyter-extension.sh script is executable
     chmod +x /etc/install-jupyter-extension.sh
-
-    # Install docker-compose
-    curl -L https://github.com/docker/compose/releases/download/1.15.0/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
-    sudo chmod +x /usr/local/bin/docker-compose
 
     # Needed because docker-compose can't handle symlinks
     touch /hadoop_gcs_connector_metadata_cache
