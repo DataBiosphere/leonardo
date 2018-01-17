@@ -205,8 +205,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     for {
       paramMap <- processListClustersParameters(params)
       clusterList <- dbRef.inTransaction { da => da.clusterQuery.listByLabels(paramMap._1, paramMap._2) }
-      clustersByProject: Map[GoogleProject, Seq[Cluster]] = clusterList.groupBy(_.googleProject)
-
+      clustersByProject = clusterList.groupBy(_.googleProject)
       visibleClusters <- clustersByProject.toList.flatTraverse[Future, Cluster] { case (googleProject, clusters) =>
         val clusterList = clusters.toList
         authProvider.canSeeAllClustersInProject(userInfo.userEmail, googleProject) flatMap {
@@ -223,23 +222,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       visibleClusters
     }
   }
-
-//  def listClusters(userInfo: UserInfo, params: LabelMap): Future[Seq[Cluster]] = {
-//    for {
-//      paramMap <- processListClustersParameters(params)
-//      clusterList <- dbRef.inTransaction { da => da.clusterQuery.listByLabels(paramMap._1, paramMap._2) }
-//
-//      //look up permissions for cluster
-//      clusterPermissions <- Future.traverse(clusterList) { cluster =>
-//        val hasProjectPermission = authProvider.hasProjectPermission(userInfo.userEmail, ListClusters, cluster.googleProject)
-//        val hasNotebookPermission = authProvider.hasNotebookClusterPermission(userInfo.userEmail, GetClusterStatus, cluster.googleProject, cluster.clusterName)
-//        Future.reduceLeft(List(hasProjectPermission, hasNotebookPermission))(_ || _)
-//      }
-//    } yield {
-//      //merge "can we see this cluster" with the cluster and filter out the ones we can't see
-//      clusterList zip clusterPermissions filter( _._2 ) map ( _._1 )
-//    }
-//  }
 
   private[service] def getActiveCluster(googleProject: GoogleProject, clusterName: ClusterName, dataAccess: DataAccess): DBIO[Cluster] = {
     dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName) flatMap {
