@@ -127,9 +127,6 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
 
   private def actionMap: Map[Action, String] = Map(
     CreateClusters -> "launch_notebook_cluster",
-    ListClusters -> "list_notebook_cluster",
-    SyncDataToClusters -> "sync_notebook_cluster",
-    DeleteClusters -> "delete_notebook_cluster",
     GetClusterStatus -> "status",
     ConnectToCluster -> "connect",
     SyncDataToCluster -> "sync",

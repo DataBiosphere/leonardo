@@ -11,13 +11,13 @@ object Actions {
 }
 
 object ProjectActions {
-  sealed trait ProjectAction extends Product with Serializable
+  sealed trait ProjectAction extends Actions.Action
   case object CreateClusters extends ProjectAction
   val allActions = Seq(CreateClusters)
 }
 
 object NotebookClusterActions {
-  sealed trait NotebookClusterAction extends Product with Serializable
+  sealed trait NotebookClusterAction extends Actions.Action
   case object GetClusterStatus extends NotebookClusterAction
   case object ConnectToCluster extends NotebookClusterAction
   case object SyncDataToCluster extends NotebookClusterAction
@@ -42,11 +42,11 @@ abstract class LeoAuthProvider(authConfig: Config, serviceAccountProvider: Servi
     * For any projects where this function call returns Future.successful(false), Leo will then call hasNotebookClusterPermission
     * for every cluster in that project, passing in action = GetClusterStatus.
     *
-    * @param userInfo The user in question
+    * @param userEmail The user in question
     * @param googleProject A Google project
     * @return If the given user can see all clusters in this project
     */
-  def canSeeAllClustersInProject(userInfo: UserInfo, googleProject: String): Future[Boolean] = {
+  def canSeeAllClustersInProject(userEmail: WorkbenchEmail, googleProject: String): Future[Boolean] = {
     Future.successful(false)
   }
 
