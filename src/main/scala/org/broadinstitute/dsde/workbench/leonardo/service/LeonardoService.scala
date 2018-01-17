@@ -201,7 +201,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       clustersByProject: Map[GoogleProject, Seq[Cluster]] = clusterList.groupBy(_.googleProject)
 
       visibleClusters <- clustersByProject.toList.flatTraverse[Future, Cluster] { case (googleProject, clusters) =>
-        authProvider.canSeeAllClustersInProject(userInfo.userEmail, googleProject.value) flatMap {
+        authProvider.canSeeAllClustersInProject(userInfo.userEmail, googleProject) flatMap {
           case true => Future.successful(clusters.toList)
           case false => clusters.toList.traverseFilter { cluster =>
             authProvider.hasNotebookClusterPermission(userInfo.userEmail, GetClusterStatus, cluster.googleProject, cluster.clusterName) map {
