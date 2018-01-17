@@ -25,7 +25,7 @@ import spray.json._
 
 class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures with OptionValues {
   private val configFactory = ConfigFactory.load()
-  private val whitelist = configFactory.as[(Set[String])]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
+  private val whitelist = configFactory.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
   private val dataprocConfig = configFactory.as[DataprocConfig]("dataproc")
   private val clusterFilesConfig = configFactory.as[ClusterFilesConfig]("clusterFiles")
   private val clusterResourcesConfig = configFactory.as[ClusterResourcesConfig]("clusterResources")
@@ -56,7 +56,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // TODO look into parameterized tests so both provider impls can both be tested
     //serviceAccountProvider = new MockPetServiceAccountProvider(configFactory.getConfig("serviceAccounts.config"))
     serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(configFactory.getConfig("serviceAccounts.config"))
-    authProvider = new WhitelistAuthProvider(configFactory.getConfig("auth.providerConfig.whitelistProviderConfig"),serviceAccountProvider)
+    authProvider = new WhitelistAuthProvider(configFactory.getConfig("auth.whitelistProviderConfig"),serviceAccountProvider)
 
     leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist)
   }

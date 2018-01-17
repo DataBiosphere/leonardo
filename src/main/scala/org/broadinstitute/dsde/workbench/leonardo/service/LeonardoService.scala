@@ -73,7 +73,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
 
   def isWhitelisted(userInfo: UserInfo): Future[Boolean] = {
-    Future.successful(whitelist contains userInfo.userEmail.value.toLowerCase)
+    if( whitelist contains userInfo.userEmail.value.toLowerCase ) {
+      Future.successful(true)
+    } else {
+      Future.failed(new AuthorizationError(Some(userInfo.userEmail)))
+    }
   }
 
   // Register this instance with the cluster monitor supervisor so our cluster monitor can potentially delete and recreate clusters
