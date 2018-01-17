@@ -9,9 +9,8 @@ import scala.concurrent.Future
 
 object ProjectActions {
   sealed trait ProjectAction extends Product with Serializable
-  case object ListClusters extends ProjectAction
   case object CreateClusters extends ProjectAction
-  val allActions = Seq(ListClusters, CreateClusters)
+  val allActions = Seq(CreateClusters)
 }
 
 object NotebookClusterActions {
@@ -32,6 +31,21 @@ abstract class LeoAuthProvider(authConfig: Config) {
     * @return If the given user has permissions in this project to perform the specified action.
     */
   def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: String): Future[Boolean]
+
+  /**
+    * When listing clusters, Leo will perform a GROUP BY on google projects and call this function once per google project.
+    * If you have an implementation such that users, even in some cases, can see all clusters in a google project, overriding
+    * this function may lead to significant performance improvements.
+    * For any projects where this function call returns Future.successful(false), Leo will then call hasNotebookClusterPermission
+    * for every cluster in that project, passing in action = GetClusterStatus.
+    *
+    * @param userInfo The user in question
+    * @param googleProject A Google project
+    * @return If the given user can see all clusters in this project
+    */
+  def canSeeAllClustersInProject(userInfo: UserInfo, googleProject: String): Future[Boolean] = {
+    Future.successful(false)
+  }
 
   /**
     * Leo calls this method to verify if the user has permission to perform the given action on a specific notebook cluster.
