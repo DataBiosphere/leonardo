@@ -57,7 +57,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     //serviceAccountProvider = new MockPetServiceAccountProvider(configFactory.getConfig("serviceAccounts.config"))
     serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(configFactory.getConfig("serviceAccounts.config"))
 
-    authProvider = new SamAuthProvider(configFactory.getConfig("auth.SamAuthProvider"), serviceAccountProvider)
+    authProvider = new SamAuthProvider(configFactory.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider)
 
     leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist)
   }
