@@ -19,12 +19,14 @@ import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMa
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted, RegisterLeoService}
 import org.broadinstitute.dsde.workbench.google.gcs._
+import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import slick.dbio.DBIO
 import spray.json._
 
+import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.Source
 import scala.util.control.NonFatal
@@ -71,7 +73,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
 
   def isWhitelisted(userInfo: UserInfo): Future[Boolean] = {
-    Future.successful(whitelist contains userInfo.userEmail.value.toLowerCase)
+    if( whitelist contains userInfo.userEmail.value.toLowerCase ) {
+      Future.successful(true)
+    } else {
+      Future.failed(new AuthorizationError(Some(userInfo.userEmail)))
+    }
   }
 
   // Register this instance with the cluster monitor supervisor so our cluster monitor can potentially delete and recreate clusters
@@ -198,8 +204,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     for {
       paramMap <- processListClustersParameters(params)
       clusterList <- dbRef.inTransaction { da => da.clusterQuery.listByLabels(paramMap._1, paramMap._2) }
-      clustersByProject: Map[GoogleProject, Seq[Cluster]] = clusterList.groupBy(_.googleProject)
-
+      //LeoAuthProviders can override canSeeAllClustersInProject if they have a speedy implementation, e.g. "you're a
+      //project owner so of course you do". In order to use it, we first group our list of clusters by project, and
+      //call canSeeAllClustersInProject once per project. If the answer is "no" for a given project, we check each
+      //cluster in that project individually.
+      clustersByProject = clusterList.groupBy(_.googleProject)
       visibleClusters <- clustersByProject.toList.flatTraverse[Future, Cluster] { case (googleProject, clusters) =>
         val clusterList = clusters.toList
         authProvider.canSeeAllClustersInProject(userInfo.userEmail, googleProject) flatMap {
@@ -216,23 +225,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       visibleClusters
     }
   }
-
-//  def listClusters(userInfo: UserInfo, params: LabelMap): Future[Seq[Cluster]] = {
-//    for {
-//      paramMap <- processListClustersParameters(params)
-//      clusterList <- dbRef.inTransaction { da => da.clusterQuery.listByLabels(paramMap._1, paramMap._2) }
-//
-//      //look up permissions for cluster
-//      clusterPermissions <- Future.traverse(clusterList) { cluster =>
-//        val hasProjectPermission = authProvider.hasProjectPermission(userInfo.userEmail, ListClusters, cluster.googleProject)
-//        val hasNotebookPermission = authProvider.hasNotebookClusterPermission(userInfo.userEmail, GetClusterStatus, cluster.googleProject, cluster.clusterName)
-//        Future.reduceLeft(List(hasProjectPermission, hasNotebookPermission))(_ || _)
-//      }
-//    } yield {
-//      //merge "can we see this cluster" with the cluster and filter out the ones we can't see
-//      clusterList zip clusterPermissions filter( _._2 ) map ( _._1 )
-//    }
-//  }
 
   private[service] def getActiveCluster(googleProject: GoogleProject, clusterName: ClusterName, dataAccess: DataAccess): DBIO[Cluster] = {
     dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName) flatMap {

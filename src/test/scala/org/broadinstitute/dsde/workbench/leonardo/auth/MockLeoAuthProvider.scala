@@ -4,6 +4,7 @@ import com.typesafe.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import net.ceedubs.ficus.Ficus._
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -13,6 +14,17 @@ class MockLeoAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAcc
     (ProjectActions.allActions map (action => action -> authConfig.getBoolean(action.toString) )).toMap
   val clusterPermissions: Map[NotebookClusterActions.NotebookClusterAction, Boolean] =
     (NotebookClusterActions.allActions map (action => action -> authConfig.getBoolean(action.toString) )).toMap
+
+  val canSeeClustersInAllProjects = authConfig.as[Option[Boolean]]("canSeeClustersInAllProjects").getOrElse(false)
+  val canSeeAllClustersIn = authConfig.as[Option[Seq[String]]]("canSeeAllClustersIn").getOrElse(Seq.empty)
+
+  override def canSeeAllClustersInProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+    if(canSeeClustersInAllProjects) {
+      Future.successful(true)
+    } else {
+      Future.successful( canSeeAllClustersIn.contains(googleProject.value) )
+    }
+  }
 
   def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     Future.successful(projectPermissions(action))

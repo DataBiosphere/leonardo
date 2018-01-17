@@ -10,5 +10,4 @@ class SamAuthProviderSpec extends FlatSpecLike with Matchers with BeforeAndAfter
   private val serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(config.getConfig("serviceAccounts.config"))
   private val samAuthProvider = new SamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider)
 
-
 }
