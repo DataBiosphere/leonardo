@@ -40,6 +40,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
 
   private def projectActionMap: Map[Action, String] = Map(
     //list_notebook_cluster
+    GetClusterStatus -> "list_notebook_cluster",
     CreateClusters -> "launch_notebook_cluster",
     SyncDataToCluster -> "sync_notebook_cluster",
     DeleteCluster -> "delete_notebook_cluster")
