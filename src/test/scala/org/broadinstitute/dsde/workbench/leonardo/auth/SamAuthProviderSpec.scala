@@ -38,9 +38,9 @@ class SamAuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers
   val whitelist = config.as[(Set[String])]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
   private val serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(config.getConfig("serviceAccounts.config"))
   private val mockSwaggerSamClient = new MockSwaggerSamClient()
-  private val samAuthProvider = new SamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider, mockSwaggerSamClient)
-  //  private val samAuthProvider = Mockito.mock(new SamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider).getClass)
-  //  Mockito.when(samAuthProvider.samAPI).thenReturn(mockSwaggerSamClient)
+  //private val samAuthProvider = new SamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider, mockSwaggerSamClient)
+    private val samAuthProvider = Mockito.mock(new SamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider).getClass)
+    Mockito.when(samAuthProvider.samAPI).thenReturn(mockSwaggerSamClient)
 
 
   val gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
