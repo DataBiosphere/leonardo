@@ -14,10 +14,11 @@ import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, Mock
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.mockito.Mockito
+import org.scalatest.mockito.MockitoSugar
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 
-class SamAuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers with BeforeAndAfter with BeforeAndAfterAll with TestComponent with TestProxy with ScalaFutures with OptionValues {
+class SamAuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers with MockitoSugar with BeforeAndAfter with BeforeAndAfterAll with TestComponent with TestProxy with ScalaFutures with OptionValues {
   val project = GoogleProject("dsp-leo-test")
   val name1 = ClusterName("name1")
   val googleProject = project.value
@@ -36,9 +37,13 @@ class SamAuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers
   val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
   val whitelist = config.as[(Set[String])]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
   private val serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(config.getConfig("serviceAccounts.config"))
-  private val samAuthProvider = Mockito.mock(new SamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider).getClass)
+//  private val samAuthProvider = Mockito.mock(new SamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider).getClass)
+//  private val samAuthProvider = mock[SamAuthProvider
   private val mockSwaggerSamClient = new MockSwaggerSamClient()
-  Mockito.when(samAuthProvider.samAPI).thenReturn(mockSwaggerSamClient)
+  private val samAuthProvider = new SamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider, mockSwaggerSamClient)
+  //samAuthProvider.addlistener()
+//  Mockito.when(samAuthProvider.samAPI).thenReturn(mockSwaggerSamClient)
+
 
   val gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
   val iamDAO = new MockGoogleIamDAO
