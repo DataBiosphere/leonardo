@@ -23,7 +23,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
 
   //Leo SA details -- needed to get pet keyfiles
   private val (leoEmail, leoPem) : (WorkbenchEmail, File) = serviceAccountProvider.getLeoServiceAccountAndKey
-  val samAPI = new SwaggerSamClient(authConfig.as[String]("samServer"), authConfig.getInt("cacheExpiryTime"), authConfig.getInt("cacheMaxSize"), leoEmail, leoPem)
+  val samAPI = new SwaggerSamClient(authConfig.getString("samServer"), authConfig.getInt("cacheExpiryTime"), authConfig.getInt("cacheMaxSize"), leoEmail, leoPem)
 
   //gets the string we want for each type of action - definitely NOT how we want to do this in the long run
   protected def getProjectActionString(action: Action): String = {

@@ -42,7 +42,7 @@ trait CommonTestData { this: ScalaFutures =>
   // TODO look into parameterized tests so both provider impls can both be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData
   val serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(config.getConfig("serviceAccounts.config"))
-  val whitelistAuthProvider = new WhitelistAuthProvider(config.getConfig("auth.providerConfig"), serviceAccountProvider)
+  val whitelistAuthProvider = new WhitelistAuthProvider(config.getConfig("auth.whitelistProviderConfig"), serviceAccountProvider)
 
   val samDAO = new MockSamDAO
 
