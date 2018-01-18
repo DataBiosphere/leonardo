@@ -225,7 +225,19 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
     else
       Map.empty
 
-    new SoftwareConfig().setProperties((authProps ++ workerProps).asJava)
+    // Helps with debugging
+    val yarnProps = Map(
+      "yarn:yarn.log-aggregation-enable" -> "true"
+    )
+
+    // Recommended by Hail
+    val sparkProps = Map(
+      "spark:spark.driver.extraJavaOptions" -> "-Xss4M",
+      "spark:spark.executor.extraJavaOptions" -> "-Xss4M"
+    )
+
+
+    new SoftwareConfig().setProperties((authProps ++ workerProps ++ yarnProps ++ sparkProps).asJava)
 
       // This gives us Spark 2.0.2. See:
       //   https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-versions
