@@ -48,12 +48,7 @@ trait CommonTestData { this: ScalaFutures =>
   //val serviceAccountProvider = new MockPetServiceAccountProvider(config.getConfig("serviceAccounts.config"))
   val serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(config.getConfig("serviceAccounts.config"))
 
-  //val whitelistAuthProvider = new WhitelistAuthProvider(config.getConfig("auth.whitelistProviderConfig"), serviceAccountProvider)
-  val samAuthProvider = new SamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider)
-
   val samDAO = new MockSamDAO
-  val gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
-  val iamDAO = new MockGoogleIamDAO
 
   protected def clusterServiceAccount(googleProject: GoogleProject): Option[WorkbenchEmail] = {
     serviceAccountProvider.getClusterServiceAccount(defaultUserInfo, googleProject).futureValue
@@ -62,18 +57,7 @@ trait CommonTestData { this: ScalaFutures =>
   protected def notebookServiceAccount(googleProject: GoogleProject): Option[WorkbenchEmail] = {
     serviceAccountProvider.getNotebookServiceAccount(defaultUserInfo, googleProject).futureValue
   }
-
-  def leoWithAuthProvider(authProvider: LeoAuthProvider): LeonardoService = {
-    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist)
-  }
-
-  def proxyWithAuthProvider(authProvider: LeoAuthProvider): ProxyService = {
-    new MockProxyService(proxyConfig, gdDAO, DbSingleton.ref, authProvider)
-  }
-
-
 }
-
 
 trait GcsPathUtils {
   def gcsPath(str: String): GcsPath = {
