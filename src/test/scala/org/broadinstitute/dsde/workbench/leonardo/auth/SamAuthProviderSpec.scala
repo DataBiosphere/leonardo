@@ -63,8 +63,8 @@ class SamAuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers
 
 
   "should add a notebook-cluster resource with correct actions for the user when a new cluster is created" in isolatedDbTest {
-    mockSwaggerSamClient.billingProjects + ((project, userInfo.userEmail) -> Set("launch_notebook_clusterlaunch_notebook_cluster"))
-
+    mockSwaggerSamClient.billingProjects += (project, userInfo.userEmail) -> Set("launch_notebook_clusterlaunch_notebook_cluster")
+    assert(mockSwaggerSamClient.billingProjects.contains((project, userInfo.userEmail)))
     // check the sam auth provider has no notebook-cluster resource
     mockSwaggerSamClient.notebookClusters shouldBe empty
 

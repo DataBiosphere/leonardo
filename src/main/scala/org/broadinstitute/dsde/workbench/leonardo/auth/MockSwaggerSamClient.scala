@@ -18,11 +18,11 @@ class MockSwaggerSamClient extends SwaggerSamClient("",10, 10, WorkbenchEmail(""
 
 
   override def createNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext) = {
-    notebookClusters + ((googleProject, clusterName, userEmail) -> Set("status", "connect", "sync", "delete", "read_policies"))
+    notebookClusters += (googleProject, clusterName, userEmail) -> Set("status", "connect", "sync", "delete", "read_policies")
   }
 
   override def deleteNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext) = {
-    notebookClusters - ((googleProject, clusterName, userEmail))
+    notebookClusters.remove((googleProject, clusterName, userEmail))
   }
 
   override def hasActionOnBillingProjectResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, action: String)(implicit executionContext: ExecutionContext): Boolean = {
