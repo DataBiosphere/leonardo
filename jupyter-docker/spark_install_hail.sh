@@ -15,6 +15,7 @@ echo "HAILZIP: ${HAILZIP}" >> $LOG
 
 # Render our "extras" with the Hail configs
 cat <<EOT >> ${SPARK_EXTRAS}
+
 ###################
 # required by Hail
 ###################
@@ -34,6 +35,12 @@ spark.executor.extraClassPath ${HAIL_HOME}/${HAILJAR}
 
 spark.sql.files.maxPartitionBytes=100000000000
 spark.sql.files.openCostInBytes=100000000000
+
+spark.driver.maxResultSize=0
+spark.task.maxFailures=20
+spark.kryoserializer.buffer.max=1g
+spark.driver.extraJavaOptions=-Xss4M
+spark.executor.extraJavaOptions=-Xss4M
 EOT
 
 # Append our extras to the Dataproc-provided spark-defaults
