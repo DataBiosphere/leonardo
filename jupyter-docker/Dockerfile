@@ -45,9 +45,9 @@ RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
  && update-alternatives --install /usr/bin/javac javac $JAVA_HOME/bin/javac 100 \
  && rm $JAVA_TGZ
 
-#######################
-# Spark / Hadoop / Hail
-#######################
+##############################
+# Spark / Hadoop / Hive / Hail
+##############################
 
 # Use Spark 2.0.2 which corresponds to Dataproc 1.1. See:
 #   https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-versions
@@ -65,9 +65,10 @@ ENV HAIL_HOME /etc/hail
 
 # Note Spark and Hadoop are mounted from the outside Dataproc VM.
 # Make empty conf dirs for the update-alternatives commands.
-RUN mkdir -p /etc/spark/conf.dist && mkdir -p /etc/hadoop/conf.empty \
+RUN mkdir -p /etc/spark/conf.dist && mkdir -p /etc/hadoop/conf.empty && mkdir -p /etc/hive/conf.dist \
  && update-alternatives --install /etc/spark/conf spark-conf /etc/spark/conf.dist 100 \
  && update-alternatives --install /etc/hadoop/conf hadoop-conf /etc/hadoop/conf.empty 100 \
+ && update-alternatives --install /etc/hive/conf hive-conf /etc/hive/conf.dist 100 \
  && mkdir $HAIL_HOME && cd $HAIL_HOME \
  && wget http://storage.googleapis.com/hail-common/builds/0.1/jars/$HAILJAR \
  && wget http://storage.googleapis.com/hail-common/builds/0.1/python/$HAILPYTHON \

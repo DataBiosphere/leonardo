@@ -26,9 +26,11 @@ services:
       - /usr/lib/hadoop-hdfs:/usr/lib/hadoop-hdfs
       - /usr/lib/hadoop-mapreduce:/usr/lib/hadoop-mapreduce
       - /usr/lib/hadoop-yarn:/usr/lib/hadoop-yarn
+      - /usr/lib/hive:/usr/lib/hive
       - /etc/hadoop:/etc/hadoop
       - /usr/lib/spark:/usr/lib/spark
       - /etc/spark:/etc/spark
+      - /etc/hive:/etc/hive
       - /usr/bin/pyspark:/usr/bin/pyspark
       - /hadoop:/hadoop
       - /hadoop_gcs_connector_metadata_cache:/hadoop_gcs_connector_metadata_cache
