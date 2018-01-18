@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo.auth
 import java.io.{ByteArrayInputStream, File}
 import java.util.concurrent.TimeUnit
 
-import akka.http.scaladsl.model.StatusCodes
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import com.google.api.client.json.jackson2.JacksonFactory
@@ -14,12 +13,12 @@ import com.google.gson.Gson
 import com.google.gson.internal.LinkedTreeMap
 import io.swagger.client.ApiClient
 import io.swagger.client.api.{GoogleApi, ResourcesApi}
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, LeoException}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterName
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.collection.JavaConverters._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 
 case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)

@@ -6,10 +6,14 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
+import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
 import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetsPerProjectServiceAccountProvider, SamAuthProvider, WhitelistAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterName
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockGoogleDataprocDAO, MockSamDAO}
+import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, LeoAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
+import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, MockProxyService, ProxyService}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData}
@@ -48,6 +52,8 @@ trait CommonTestData { this: ScalaFutures =>
   val samAuthProvider = new SamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider)
 
   val samDAO = new MockSamDAO
+  val gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
+  val iamDAO = new MockGoogleIamDAO
 
   protected def clusterServiceAccount(googleProject: GoogleProject): Option[WorkbenchEmail] = {
     serviceAccountProvider.getClusterServiceAccount(defaultUserInfo, googleProject).futureValue
@@ -56,7 +62,18 @@ trait CommonTestData { this: ScalaFutures =>
   protected def notebookServiceAccount(googleProject: GoogleProject): Option[WorkbenchEmail] = {
     serviceAccountProvider.getNotebookServiceAccount(defaultUserInfo, googleProject).futureValue
   }
+
+  def leoWithAuthProvider(authProvider: LeoAuthProvider): LeonardoService = {
+    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist)
+  }
+
+  def proxyWithAuthProvider(authProvider: LeoAuthProvider): ProxyService = {
+    new MockProxyService(proxyConfig, gdDAO, DbSingleton.ref, authProvider)
+  }
+
+
 }
+
 
 trait GcsPathUtils {
   def gcsPath(str: String): GcsPath = {
