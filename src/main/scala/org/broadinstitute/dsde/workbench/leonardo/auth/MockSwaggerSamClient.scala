@@ -27,13 +27,13 @@ class MockSwaggerSamClient extends SwaggerSamClient("",10, 10, WorkbenchEmail(""
 
   override def hasActionOnBillingProjectResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, action: String)(implicit executionContext: ExecutionContext): Boolean = {
     if (billingProjects.contains((googleProject, userEmail)))
-      billingProjects.get((googleProject, userEmail)).contains(action)
+      billingProjects.get((googleProject, userEmail)).get.contains(action)
     else false
   }
 
   override def hasActionOnNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, action: String)(implicit executionContext: ExecutionContext): Boolean = {
     if (notebookClusters.contains((googleProject, clusterName, userEmail)))
-      notebookClusters.get((googleProject, clusterName, userEmail)).contains(action)
+      notebookClusters.get((googleProject, clusterName, userEmail)).get.contains(action)
     else false
   }
 }
