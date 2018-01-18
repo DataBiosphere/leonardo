@@ -37,12 +37,10 @@ class SamAuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers
   val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
   val whitelist = config.as[(Set[String])]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
   private val serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(config.getConfig("serviceAccounts.config"))
-//  private val samAuthProvider = Mockito.mock(new SamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider).getClass)
-//  private val samAuthProvider = mock[SamAuthProvider
   private val mockSwaggerSamClient = new MockSwaggerSamClient()
   private val samAuthProvider = new SamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider, mockSwaggerSamClient)
-  //samAuthProvider.addlistener()
-//  Mockito.when(samAuthProvider.samAPI).thenReturn(mockSwaggerSamClient)
+  //  private val samAuthProvider = Mockito.mock(new SamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider).getClass)
+  //  Mockito.when(samAuthProvider.samAPI).thenReturn(mockSwaggerSamClient)
 
 
   val gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
@@ -65,6 +63,8 @@ class SamAuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers
 
 
   "should add a notebook-cluster resource with correct actions for the user when a new cluster is created" in isolatedDbTest {
+    mockSwaggerSamClient.billingProjects + ((project, userInfo.userEmail) -> Set("launch_notebook_clusterlaunch_notebook_cluster"))
+
     // check the sam auth provider has no notebook-cluster resource
     mockSwaggerSamClient.notebookClusters shouldBe empty
 
