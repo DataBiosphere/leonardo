@@ -186,7 +186,7 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
       .setGceClusterConfig(gceClusterConfig)
       .setInitializationActions(initActions.asJava)
       .setMasterConfig(masterConfig)
-      .setConfigBucket(stagingBucket.toString)
+      .setConfigBucket(stagingBucket.name)
   }
 
   // Expects a Machine Config with master configs defined for a 0 worker cluster and both master and worker
