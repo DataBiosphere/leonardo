@@ -21,6 +21,9 @@ fi
 
 # Only initialize Jupyter docker containers on the master
 if [[ "${ROLE}" == 'Master' ]]; then
+    JUPYTER_HOME=/etc/jupyter
+    JUPYTER_USER_HOME=/home/jupyter-user
+
     # The following values are populated by Leo when a cluster is created.
     export CLUSTER_NAME=$(clusterName)
     export GOOGLE_PROJECT=$(googleProject)
@@ -28,20 +31,40 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export PROXY_SERVER_NAME=$(proxyServerName)
     export JUPYTER_DOCKER_IMAGE=$(jupyterDockerImage)
     export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
-    export COMPOSE_API_VERSION=1.18   # This is set because docker and docker-compose don't work together otherwise
 
     JUPYTER_SERVER_CRT=$(jupyterServerCrt)
     JUPYTER_SERVER_KEY=$(jupyterServerKey)
     JUPYTER_ROOT_CA=$(rootCaPem)
     JUPYTER_DOCKER_COMPOSE=$(jupyterDockerCompose)
     JUPYTER_PROXY_SITE_CONF=$(jupyterProxySiteConf)
-    JUPYTER_INSTALL_EXTENSION_SCRIPT=$(jupyterInstallExtensionScript)
     JUPYTER_EXTENSION_URI=$(jupyterExtensionUri)
     JUPYTER_CUSTOM_JS_URI=$(jupyterCustomJsUri)
     JUPYTER_GOOGLE_SIGN_IN_JS_URI=$(jupyterGoogleSignInJsUri)
 
+    # install Docker
+    export DOCKER_CE_VERSION="17.12.0~ce-0~debian"
     apt-get update
-    apt-get install -y -q docker.io
+    apt-get install -y \
+     apt-transport-https \
+     ca-certificates \
+     curl \
+     gnupg2 \
+     software-properties-common
+
+    curl -fsSL https://download.docker.com/linux/$(. /etc/os-release; echo "$ID")/gpg | apt-key add -
+
+    add-apt-repository \
+     "deb [arch=amd64] https://download.docker.com/linux/$(. /etc/os-release; echo "$ID") \
+     $(lsb_release -cs) \
+     stable"
+
+    apt-get update
+    apt-get install -y docker-ce=$DOCKER_CE_VERSION
+
+    # Install docker-compose
+    curl -L https://github.com/docker/compose/releases/download/1.18.0/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
+    sudo chmod +x /usr/local/bin/docker-compose
+
     mkdir /work
     mkdir /certs
     chmod a+wx /work
@@ -52,16 +75,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
     gsutil cp ${JUPYTER_ROOT_CA} /certs
     gsutil cp ${JUPYTER_PROXY_SITE_CONF} /etc
     gsutil cp ${JUPYTER_DOCKER_COMPOSE} /etc
-    gsutil cp ${JUPYTER_INSTALL_EXTENSION_SCRIPT} /etc
-    gsutil cp ${JUPYTER_CUSTOM_JS_URI} /etc
-    gsutil cp ${JUPYTER_GOOGLE_SIGN_IN_JS_URI} /etc
-
-    # Make sure the install-jupyter-extension.sh script is executable
-    chmod +x /etc/install-jupyter-extension.sh
-
-    # Install docker-compose
-    curl -L https://github.com/docker/compose/releases/download/1.15.0/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
-    sudo chmod +x /usr/local/bin/docker-compose
 
     # Needed because docker-compose can't handle symlinks
     touch /hadoop_gcs_connector_metadata_cache
@@ -76,8 +89,12 @@ if [[ "${ROLE}" == 'Master' ]]; then
       echo "" > /etc/google_application_credentials.env
     fi
 
-    # Run docker-compose
+    # Run docker-compose. This mounts Hadoop, Spark, and other resources inside the docker container.
     docker-compose -f /etc/cluster-docker-compose.yaml up -d
+
+    # Install the Hail additions to Spark conf.
+    # OK to do this after pyspark runs; it needs to happen before the Jupyter kernel starts.
+    docker exec -u root -d ${JUPYTER_SERVER_NAME} /etc/hail/spark_install_hail.sh
 
     # Copy the actual service account JSON file into the Jupyter docker container.
     if [ ! -z ${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} ] ; then
@@ -85,13 +102,27 @@ if [[ "${ROLE}" == 'Master' ]]; then
     fi
 
     # If a Jupyter extension was specified, copy it into the jupyter docker container.
-    # Note: docker-compose doesn't appear to have the ability to execute a command after run, so we do this explicitly with docker exec commands.
-    # See https://github.com/docker/compose/issues/1809
     if [ ! -z ${JUPYTER_EXTENSION_URI} ] ; then
       gsutil cp ${JUPYTER_EXTENSION_URI} /etc
       JUPYTER_EXTENSION_ARCHIVE=`basename ${JUPYTER_EXTENSION_URI}`
-      docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:/etc/${JUPYTER_EXTENSION_ARCHIVE}
-      docker exec -d ${JUPYTER_SERVER_NAME} /etc/install-jupyter-extension.sh /etc/${JUPYTER_EXTENSION_ARCHIVE}
+      docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+      docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/install-jupyter-extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+    fi
+
+    # If a custom.js was specified, copy it into the jupyter docker container.
+    if [ ! -z ${JUPYTER_CUSTOM_JS_URI} ] ; then
+      gsutil cp ${JUPYTER_CUSTOM_JS_URI} /etc
+      JUPYTER_CUSTOM_JS=`basename ${JUPYTER_CUSTOM_JS_URI}`
+      docker exec -d ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
+      docker cp /etc/${JUPYTER_CUSTOM_JS} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
+    fi
+
+    # If a google_sign_in.js was specified, copy it into the jupyter docker container.
+    if [ ! -z ${JUPYTER_GOOGLE_SIGN_IN_JS_URI} ] ; then
+      gsutil cp ${JUPYTER_GOOGLE_SIGN_IN_JS_URI} /etc
+      JUPYTER_GOOGLE_SIGN_IN_JS=`basename ${JUPYTER_GOOGLE_SIGN_IN_JS_URI}`
+      docker exec -d ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
+      docker cp /etc/${JUPYTER_GOOGLE_SIGN_IN_JS} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
     fi
 fi
 

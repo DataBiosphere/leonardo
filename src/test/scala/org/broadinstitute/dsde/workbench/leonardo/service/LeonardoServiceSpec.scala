@@ -72,7 +72,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterFilesConfig.jupyterServerKey.getName,
     clusterFilesConfig.jupyterRootCaPem.getName,
     clusterResourcesConfig.jupyterProxySiteConf.string,
-    clusterResourcesConfig.jupyterInstallExtensionScript.string,
     clusterResourcesConfig.jupyterCustomJs.string,
     clusterResourcesConfig.jupyterGoogleSignInJs.string
   ) ++ (
