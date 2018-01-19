@@ -243,7 +243,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                            clusterName: ClusterName,
                                            clusterRequest: ClusterRequest)
                                           (implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
-    val initBucketName = generateUniqueBucketName(clusterName.string)
+    val initBucketName = generateUniqueBucketName(clusterName.string+"init")
+    val stagingBucketName = generateUniqueBucketName(clusterName.string+"staging")
     for {
       // Validate that the Jupyter extension URI is a valid URI and references a real GCS object
       _ <- validateJupyterExtensionUri(googleProject, clusterRequest.jupyterExtensionUri)
@@ -260,10 +261,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Create the bucket in leo's google project and populate with initialization files.
       // ACLs are granted so the cluster service account can access the bucket at initialization time.
       initBucketPath <- initializeBucket(userEmail, googleProject, clusterName, initBucketName, clusterRequest, serviceAccountInfo, serviceAccountKeyOpt)
+      // Create the staging bucket
+      stagingBucketPath <- gdDAO.createBucket(googleProject, googleProject, stagingBucketName, serviceAccountInfo)
       // Once the bucket is ready, build the cluster
-      cluster <- gdDAO.createCluster(userEmail, googleProject, clusterName, clusterRequest, initBucketName, serviceAccountInfo).andThen { case Failure(_) =>
+      cluster <- gdDAO.createCluster(userEmail, googleProject, clusterName, clusterRequest, initBucketName, serviceAccountInfo, stagingBucketPath).andThen { case Failure(_) =>
         // If cluster creation fails, delete the init bucket asynchronously
         gdDAO.deleteBucket(googleProject, initBucketName)
+        gdDAO.deleteBucket(googleProject, stagingBucketName)
       }
     } yield {
       (cluster, initBucketPath, serviceAccountKeyOpt)
