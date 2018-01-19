@@ -218,7 +218,7 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
         )
     }
 
-    val workerProps: Map[String, String] = if (numWorkers.get == 0) {
+    val dataprocProps: Map[String, String] = if (numWorkers.get == 0) {
       // Set a SoftwareConfig property that makes the cluster have only one node
       Map("dataproc:dataproc.allow.zero.workers" -> "true")
     }
@@ -230,14 +230,8 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
       "yarn:yarn.log-aggregation-enable" -> "true"
     )
 
-    // Recommended by Hail
-    val sparkProps = Map(
-      "spark:spark.driver.extraJavaOptions" -> "-Xss4M",
-      "spark:spark.executor.extraJavaOptions" -> "-Xss4M"
-    )
 
-
-    new SoftwareConfig().setProperties((authProps ++ workerProps ++ yarnProps ++ sparkProps).asJava)
+    new SoftwareConfig().setProperties((authProps ++ dataprocProps ++ yarnProps).asJava)
 
       // This gives us Spark 2.0.2. See:
       //   https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-versions
