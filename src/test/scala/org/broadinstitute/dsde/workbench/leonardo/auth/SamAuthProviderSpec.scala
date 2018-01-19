@@ -2,9 +2,10 @@ package org.broadinstitute.dsde.workbench.leonardo.auth
 
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{Config, ConfigFactory}
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
+import org.broadinstitute.dsde.workbench.leonardo.config
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockGoogleDataprocDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
@@ -37,16 +38,22 @@ class SamAuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers
   val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
   val whitelist = config.as[(Set[String])]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
   private val serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(config.getConfig("serviceAccounts.config"))
-  private val mockSwaggerSamClient = new MockSwaggerSamClient()
-  //private val samAuthProvider = new SamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider, mockSwaggerSamClient)
-    private val samAuthProvider = Mockito.mock(new SamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider).getClass)
-    Mockito.when(samAuthProvider.samAPI).thenReturn(mockSwaggerSamClient)
+ // private val mockSwaggerSamClient = new MockSwaggerSamClient()
+  private val samAuthProvider = new TestSamAuthProvider
+  //samAuthProvider.samAPI = mockSwaggerSamClient
+//  private val samAuthProvider = Mockito.mock(samAuth.getClass)
+//  Mockito.when(samAuthProvider.samAPI).thenReturn(mockSwaggerSamClient)
 
 
   val gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
   val iamDAO = new MockGoogleIamDAO
   val samDAO = new MockSamDAO
  // val tokenCookie = HttpCookiePair("LeoToken", "me")
+
+
+  class TestSamAuthProvider extends SamAuthProvider(config.getConfig("auth.samAuthProviderConfig"),serviceAccountProvider) {
+    override val samClient = new MockSwaggerSamClient()
+  }
 
   override def beforeAll(): Unit = {
     super.beforeAll()

@@ -20,13 +20,12 @@ case class NotebookActionError(action: Action) extends
 
 class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(authConfig, serviceAccountProvider) with LazyLogging {
 
-
   //Leo SA details -- needed to get pet keyfiles
   private val (leoEmail, leoPem) : (WorkbenchEmail, File) = serviceAccountProvider.getLeoServiceAccountAndKey
 
   val samClient = new SwaggerSamClient(authConfig.getString("samServer"), authConfig.getInt("cacheExpiryTime"), authConfig.getInt("cacheMaxSize"), leoEmail, leoPem)
 
-   def samAPI: SwaggerSamClient = samClient
+   //def samAPI: SwaggerSamClient = samClient
 
   //gets the string we want for each type of action - definitely NOT how we want to do this in the long run
   protected def getProjectActionString(action: Action): String = {
