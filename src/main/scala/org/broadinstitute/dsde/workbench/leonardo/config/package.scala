@@ -41,7 +41,6 @@ package object config {
     ClusterResourcesConfig(
       ClusterResource(config.getString("initActionsScript")),
       ClusterResource(config.getString("clusterDockerCompose")),
-      ClusterResource(config.getString("jupyterInstallExtensionScript")),
       ClusterResource(config.getString("proxySiteConf")),
       ClusterResource(config.getString("jupyterCustomJs")),
       ClusterResource(config.getString("jupyterGoogleSignInJs"))
