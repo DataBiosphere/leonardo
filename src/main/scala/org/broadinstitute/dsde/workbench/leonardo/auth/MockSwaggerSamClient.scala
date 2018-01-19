@@ -12,10 +12,8 @@ import scala.concurrent.ExecutionContext
 
 class MockSwaggerSamClient extends SwaggerSamClient("fake/path", 0, 0, WorkbenchEmail("fake-user@example.com"), new File("fake-pem")) {
 
-
   val billingProjects: mutable.Map[(GoogleProject, WorkbenchEmail),  Set[String]] =  new TrieMap()
   val notebookClusters: mutable.Map[(GoogleProject, ClusterName, WorkbenchEmail), Set[String]] = new TrieMap()
-
 
   override def createNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext) = {
     notebookClusters += (googleProject, clusterName, userEmail) -> Set("status", "connect", "sync", "delete", "read_policies")
@@ -26,14 +24,10 @@ class MockSwaggerSamClient extends SwaggerSamClient("fake/path", 0, 0, Workbench
   }
 
   override def hasActionOnBillingProjectResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, action: String)(implicit executionContext: ExecutionContext): Boolean = {
-    if (billingProjects.contains((googleProject, userEmail)))
-      billingProjects.get((googleProject, userEmail)).get.contains(action)
-    else false
+    billingProjects.get((googleProject, userEmail)).get.contains(action)
   }
 
   override def hasActionOnNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, action: String)(implicit executionContext: ExecutionContext): Boolean = {
-    if (notebookClusters.contains((googleProject, clusterName, userEmail)))
-      notebookClusters.get((googleProject, clusterName, userEmail)).get.contains(action)
-    else false
+    notebookClusters.get((googleProject, clusterName, userEmail)).get.contains(action)
   }
 }

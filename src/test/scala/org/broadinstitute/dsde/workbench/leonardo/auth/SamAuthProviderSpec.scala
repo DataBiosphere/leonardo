@@ -1,67 +1,38 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth
 
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import akka.http.scaladsl.model.headers.OAuth2BearerToken
-import com.typesafe.config.ConfigFactory
-import net.ceedubs.ficus.Ficus._
+import com.typesafe.config.Config
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockGoogleDataprocDAO, MockSamDAO}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
+import org.broadinstitute.dsde.workbench.leonardo.dao.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.{DeleteCluster, SyncDataToCluster}
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.CreateClusters
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, ClusterRequest}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
-import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, MockProxyService, TestProxy}
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
+import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, TestProxy}
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.mockito.MockitoSugar
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 
+class TestSamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends SamAuthProvider(authConfig, serviceAccountProvider) {
+  override val samClient = new MockSwaggerSamClient()
+}
 
-class SamAuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers with MockitoSugar with BeforeAndAfter with BeforeAndAfterAll with TestComponent with TestProxy with ScalaFutures with OptionValues {
-  val project = GoogleProject("dsp-leo-test")
-  val name1 = ClusterName("name1")
+class SamAuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers with MockitoSugar with BeforeAndAfter with BeforeAndAfterAll with TestComponent with CommonTestData with TestProxy with ScalaFutures with OptionValues {
   val googleProject = project.value
   val clusterName = name1.string
-  val userInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
-  private val testClusterRequest = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), None)
 
   val routeTest = this
 
-  private val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
-  val dataprocConfig = config.as[DataprocConfig]("dataproc")
-  val proxyConfig = config.as[ProxyConfig]("proxy")
-  val swaggerConfig = config.as[SwaggerConfig]("swagger")
-  val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
-  val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
-  val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
-  val whitelist = config.as[(Set[String])]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
-  private val serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(config.getConfig("serviceAccounts.config"))
-  private val samAuthProvider = new TestSamAuthProvider
+  private val samAuthProvider = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"),serviceAccountProvider)
 
   val gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
   val iamDAO = new MockGoogleIamDAO
-  val samDAO = new MockSamDAO
-
-  class TestSamAuthProvider extends SamAuthProvider(config.getConfig("auth.samAuthProviderConfig"),serviceAccountProvider) {
-    override val samClient = new MockSwaggerSamClient()
-  }
-
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    startProxyServer()
-  }
-
-  override def afterAll(): Unit = {
-    shutdownProxyServer()
-    super.afterAll()
-  }
 
   val leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), samAuthProvider, serviceAccountProvider, whitelist)
-  val proxy = new MockProxyService(proxyConfig, gdDAO, DbSingleton.ref, samAuthProvider)
-
 
   "should add and delete a notebook-cluster resource with correct actions for the user when a cluster is created and then destroyed" in isolatedDbTest {
     samAuthProvider.samClient.billingProjects += (project, userInfo.userEmail) -> Set("launch_notebook_cluster")

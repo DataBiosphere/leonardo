@@ -23,7 +23,7 @@ import scala.concurrent.ExecutionContext
 
 case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)
 
-class SwaggerSamClient(samBasePath: String, cacheExpiryTime: Int, cacheMaxSize: Int,  leoEmail: WorkbenchEmail, leoPem: File) extends SamClient {
+class SwaggerSamClient(samBasePath: String, cacheExpiryTime: Int, cacheMaxSize: Int,  leoEmail: WorkbenchEmail, leoPem: File) {
 
   private val httpTransport = GoogleNetHttpTransport.newTrustedTransport
   private val jsonFactory = JacksonFactory.getDefaultInstance

@@ -94,8 +94,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
       if (action == ConnectToCluster) {
         notebookAction
       } else {
-        val projectAction = samClient.hasActionOnBillingProjectResource(userEmail,googleProject, getProjectActionString(action))
-        notebookAction || projectAction
+        notebookAction || samClient.hasActionOnBillingProjectResource(userEmail,googleProject, getProjectActionString(action))
       }
     }
   }
