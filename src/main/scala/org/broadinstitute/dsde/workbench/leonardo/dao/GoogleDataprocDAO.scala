@@ -232,6 +232,7 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
       // Dataproc 1.1 sets this too high (5586m) which limits the number of Spark jobs that can be run at one time.
       // This has been reduced drastically in Dataproc 1.2. See:
       // https://stackoverflow.com/questions/41185599/spark-default-settings-on-dataproc-especially-spark-yarn-am-memory
+      // GAWB-3080 is open for upgrading to Dataproc 1.2, at which point this line can be removed.
       "spark:spark.yarn.am.memory" -> "640m"
     )
 
