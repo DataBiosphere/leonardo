@@ -33,7 +33,7 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: Int, cacheMaxSize: 
   private val billingProjectResourceTypeName = "billing-project"
 
 
-  private[auth] def googleApi(accessToken: String): GoogleApi = {
+  private[auth] def samGoogleApi(accessToken: String): GoogleApi = {
     val apiClient = new ApiClient()
     apiClient.setAccessToken(accessToken)
     apiClient.setBasePath(samBasePath)
@@ -41,7 +41,7 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: Int, cacheMaxSize: 
   }
 
   //A resources API if you already have a token
-  private[auth] def resourcesApi(accessToken: String): ResourcesApi = {
+  private[auth] def samResourcesApi(accessToken: String): ResourcesApi = {
     val apiClient = new ApiClient()
     apiClient.setAccessToken(accessToken)
     apiClient.setBasePath(samBasePath)
@@ -50,7 +50,7 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: Int, cacheMaxSize: 
 
   //A resources API as the given user's pet SA
   private[auth] def resourcesApiAsPet(userEmail: WorkbenchEmail, googleProject: GoogleProject): ResourcesApi = {
-    resourcesApi(getCachedPetAccessToken(userEmail, googleProject))
+    samResourcesApi(getCachedPetAccessToken(userEmail, googleProject))
   }
 
   //"Fast" lookup of pet's access token, using the cache.
@@ -71,7 +71,7 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: Int, cacheMaxSize: 
 
   //"Slow" lookup of pet's access token. The cache calls this when it needs to.
   private def getPetAccessTokenFromSam(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = {
-    val samAPI = googleApi(getAccessTokenUsingPem(leoEmail, leoPem))
+    val samAPI = samGoogleApi(getAccessTokenUsingPem(leoEmail, leoPem))
     val userPetServiceAccountKey = samAPI.getUserPetServiceAccountKey(googleProject.value, userEmail.value)
     val keyTreeMap = userPetServiceAccountKey.asInstanceOf[LinkedTreeMap[String,String]]
     getAccessTokenUsingJson(new Gson().toJsonTree(keyTreeMap).toString)
