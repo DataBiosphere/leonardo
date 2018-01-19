@@ -218,14 +218,31 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
         )
     }
 
-    val workerProps: Map[String, String] = if (numWorkers.get == 0) {
+    val dataprocProps: Map[String, String] = if (numWorkers.get == 0) {
       // Set a SoftwareConfig property that makes the cluster have only one node
       Map("dataproc:dataproc.allow.zero.workers" -> "true")
     }
     else
       Map.empty
 
-    new SoftwareConfig().setProperties((authProps ++ workerProps).asJava)
+    val yarnProps = Map(
+      // Helps with debugging
+      "yarn:yarn.log-aggregation-enable" -> "true",
+
+      // Dataproc 1.1 sets this too high (5586m) which limits the number of Spark jobs that can be run at one time.
+      // This has been reduced drastically in Dataproc 1.2. See:
+      // https://stackoverflow.com/questions/41185599/spark-default-settings-on-dataproc-especially-spark-yarn-am-memory
+      // GAWB-3080 is open for upgrading to Dataproc 1.2, at which point this line can be removed.
+      "spark:spark.yarn.am.memory" -> "640m"
+    )
+
+    new SoftwareConfig().setProperties((authProps ++ dataprocProps ++ yarnProps).asJava)
+
+      // This gives us Spark 2.0.2. See:
+      //   https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-versions
+      // Dataproc supports Spark 2.2.0, but there are no pre-packaged Hail distributions past 2.1.0. See:
+      //   https://hail.is/docs/stable/getting_started.html
+      .setImageVersion("1.1")
   }
 
   private def getMultiNodeClusterConfig(machineConfig: MachineConfig): ClusterConfig = {
