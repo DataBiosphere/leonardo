@@ -120,8 +120,8 @@ class SamAuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers
     samAuthProvider.hasNotebookClusterPermission(userInfo.userEmail, SyncDataToCluster, project, name1).futureValue shouldBe true
 
     samAuthProvider.hasNotebookClusterPermission(WorkbenchEmail("somecreep@example.com"), SyncDataToCluster, project, name1).futureValue shouldBe false
-    samAuthProvider.hasNotebookClusterPermission(userInfo.userEmail, DeleteCluster, GoogleProject("leo-fake-project"), name1).futureValue shouldBe false
-    samAuthProvider.hasNotebookClusterPermission(userInfo.userEmail, SyncDataToCluster, project, name1).futureValue shouldBe false
+    samAuthProvider.hasNotebookClusterPermission(userInfo.userEmail, DeleteCluster, project, name1).futureValue shouldBe false
+    samAuthProvider.hasNotebookClusterPermission(userInfo.userEmail, SyncDataToCluster, GoogleProject("leo-fake-project"), name1).futureValue shouldBe false
     samAuthProvider.hasNotebookClusterPermission(userInfo.userEmail, SyncDataToCluster, project, ClusterName("fake-cluster")).futureValue shouldBe false
 
     samAuthProvider.samClient.notebookClusters.remove((project, name1, userInfo.userEmail))
@@ -140,7 +140,7 @@ class SamAuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers
   "notifyClusterCreated should create a new cluster resource" in isolatedDbTest {
     samAuthProvider.samClient.notebookClusters shouldBe empty
     samAuthProvider.notifyClusterCreated(userInfo.userEmail, project, name1).futureValue
-    samAuthProvider.samClient.notebookClusters should contain (project, name1, userInfo.userEmail)
+    samAuthProvider.samClient.notebookClusters should contain ((project, name1, userInfo.userEmail) -> Set("connect", "read_policies", "status", "delete", "sync"))
     samAuthProvider.samClient.notebookClusters.remove((project, name1, userInfo.userEmail))
   }
 
@@ -148,7 +148,7 @@ class SamAuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers
     samAuthProvider.samClient.notebookClusters += (project, name1, userInfo.userEmail) -> Set()
 
     samAuthProvider.notifyClusterDeleted(userInfo.userEmail, project, name1).futureValue
-    samAuthProvider.samClient.notebookClusters should not contain (project, name1, userInfo.userEmail)
+    samAuthProvider.samClient.notebookClusters should not contain ((project, name1, userInfo.userEmail) -> Set("connect", "read_policies", "status", "delete", "sync"))
   }
 
 }

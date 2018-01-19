@@ -10,7 +10,7 @@ import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext
 
-class MockSwaggerSamClient extends SwaggerSamClient("",10, 10, WorkbenchEmail(""), new File("")) {
+class MockSwaggerSamClient extends SwaggerSamClient("fake/path", 0, 0, WorkbenchEmail("fake-user@example.com"), new File("fake-pem")) {
 
 
   val billingProjects: mutable.Map[(GoogleProject, WorkbenchEmail),  Set[String]] =  new TrieMap()
