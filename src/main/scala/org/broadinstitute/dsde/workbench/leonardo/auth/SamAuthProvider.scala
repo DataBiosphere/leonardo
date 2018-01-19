@@ -23,7 +23,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
   //Leo SA details -- needed to get pet keyfiles
   private val (leoEmail, leoPem) : (WorkbenchEmail, File) = serviceAccountProvider.getLeoServiceAccountAndKey
 
-  val samClient = new SwaggerSamClient(authConfig.getString("samServer"), authConfig.getInt("cacheExpiryTime"), authConfig.getInt("cacheMaxSize"), leoEmail, leoPem)
+  protected val samClient = new SwaggerSamClient(authConfig.getString("samServer"), authConfig.getInt("cacheExpiryTime"), authConfig.getInt("cacheMaxSize"), leoEmail, leoPem)
 
    //def samAPI: SwaggerSamClient = samClient
 
@@ -59,7 +59,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @return If the given user has permissions in this project to perform the specified action.
     */
   def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-    Future { samAPI.hasActionOnBillingProjectResource(userEmail,googleProject, getProjectActionString(action)) }
+    Future { samClient.hasActionOnBillingProjectResource(userEmail,googleProject, getProjectActionString(action)) }
   }
 
 
@@ -76,7 +76,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @return If the given user can see all clusters in this project
     */
  override def canSeeAllClustersInProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-   Future { samAPI.hasActionOnBillingProjectResource(userEmail,googleProject, "list_notebook_cluster") }
+   Future { samClient.hasActionOnBillingProjectResource(userEmail,googleProject, "list_notebook_cluster") }
 
    //hasProjectPermission(userEmail, "list_notebook_cluster", googleProject)
   }
@@ -95,11 +95,11 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
   def hasNotebookClusterPermission(userEmail: WorkbenchEmail, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     // if action is connect, check only cluster resource. If action is anything else, either cluster or project must be true
     Future {
-      val notebookAction = samAPI.hasActionOnNotebookClusterResource(userEmail,googleProject,clusterName, getNotebookActionString(action))
+      val notebookAction = samClient.hasActionOnNotebookClusterResource(userEmail,googleProject,clusterName, getNotebookActionString(action))
       if (action == ConnectToCluster) {
         notebookAction
       } else {
-        val projectAction = samAPI.hasActionOnBillingProjectResource(userEmail,googleProject, getProjectActionString(action))
+        val projectAction = samClient.hasActionOnBillingProjectResource(userEmail,googleProject, getProjectActionString(action))
         notebookAction || projectAction   //resourcesApiAsPet(userEmail, googleProject).resourceAction(billingProjectResourceTypeName, googleProject.value, getActionString(action))
       }
     }
@@ -120,7 +120,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     */
   def notifyClusterCreated(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
     // Add the cluster resource with the user as owner
-    Future { samAPI.createNotebookClusterResource(userEmail, googleProject, clusterName) }
+    Future { samClient.createNotebookClusterResource(userEmail, googleProject, clusterName) }
   }
 
   /**
@@ -136,6 +136,6 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
   def notifyClusterDeleted(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
     // get the id for the cluster resource
     // delete the resource
-    Future{ samAPI.deleteNotebookClusterResource(userEmail, googleProject, clusterName) }
+    Future{ samClient.deleteNotebookClusterResource(userEmail, googleProject, clusterName) }
   }
 }

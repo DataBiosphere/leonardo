@@ -70,15 +70,14 @@ class SamAuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers
 
 
   "should add a notebook-cluster resource with correct actions for the user when a new cluster is created" in isolatedDbTest {
-    mockSwaggerSamClient.billingProjects += (project, userInfo.userEmail) -> Set("launch_notebook_cluster")
-    assert(mockSwaggerSamClient.billingProjects.contains((project, userInfo.userEmail)))
+    samAuthProvider.samClient.billingProjects += (project, userInfo.userEmail) -> Set("launch_notebook_cluster")
+    assert(samAuthProvider.samClient.billingProjects.contains((project, userInfo.userEmail)))
     // check the sam auth provider has no notebook-cluster resource
-    mockSwaggerSamClient.notebookClusters shouldBe empty
-
-    mockSwaggerSamClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "status") shouldBe false
-    mockSwaggerSamClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "connect") shouldBe false
-    mockSwaggerSamClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "sync") shouldBe false
-    mockSwaggerSamClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "delete") shouldBe false
+    samAuthProvider.samClient.notebookClusters shouldBe empty
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "status") shouldBe false
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "connect") shouldBe false
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "sync") shouldBe false
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "delete") shouldBe false
 
     // create a cluster
     val cluster = leo.createCluster(userInfo,project,name1, testClusterRequest).futureValue
@@ -86,10 +85,10 @@ class SamAuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers
     cluster shouldEqual clusterStatus
 
     // check the resource exists for the user and actions
-    mockSwaggerSamClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "status") shouldBe true
-    mockSwaggerSamClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "connect") shouldBe true
-    mockSwaggerSamClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "sync") shouldBe true
-    mockSwaggerSamClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "delete") shouldBe true
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "status") shouldBe true
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "connect") shouldBe true
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "sync") shouldBe true
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "delete") shouldBe true
 
   }
 
