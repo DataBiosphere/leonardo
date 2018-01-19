@@ -1,23 +1,24 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth
 
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
-import com.typesafe.config.{Config, ConfigFactory}
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
+import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
-import org.broadinstitute.dsde.workbench.leonardo.config
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockGoogleDataprocDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, ClusterRequest, LeoAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.{DeleteCluster, SyncDataToCluster}
+import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.CreateClusters
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, ClusterRequest}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
-import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, MockProxyService, ProxyService, TestProxy}
+import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, MockProxyService, TestProxy}
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.mockito.Mockito
 import org.scalatest.mockito.MockitoSugar
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
+
 
 class SamAuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers with MockitoSugar with BeforeAndAfter with BeforeAndAfterAll with TestComponent with TestProxy with ScalaFutures with OptionValues {
   val project = GoogleProject("dsp-leo-test")
@@ -38,18 +39,11 @@ class SamAuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers
   val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
   val whitelist = config.as[(Set[String])]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
   private val serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(config.getConfig("serviceAccounts.config"))
- // private val mockSwaggerSamClient = new MockSwaggerSamClient()
   private val samAuthProvider = new TestSamAuthProvider
-  //samAuthProvider.samAPI = mockSwaggerSamClient
-//  private val samAuthProvider = Mockito.mock(samAuth.getClass)
-//  Mockito.when(samAuthProvider.samAPI).thenReturn(mockSwaggerSamClient)
-
 
   val gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
   val iamDAO = new MockGoogleIamDAO
   val samDAO = new MockSamDAO
- // val tokenCookie = HttpCookiePair("LeoToken", "me")
-
 
   class TestSamAuthProvider extends SamAuthProvider(config.getConfig("auth.samAuthProviderConfig"),serviceAccountProvider) {
     override val samClient = new MockSwaggerSamClient()
@@ -69,9 +63,8 @@ class SamAuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers
   val proxy = new MockProxyService(proxyConfig, gdDAO, DbSingleton.ref, samAuthProvider)
 
 
-  "should add a notebook-cluster resource with correct actions for the user when a new cluster is created" in isolatedDbTest {
+  "should add and delete a notebook-cluster resource with correct actions for the user when a cluster is created and then destroyed" in isolatedDbTest {
     samAuthProvider.samClient.billingProjects += (project, userInfo.userEmail) -> Set("launch_notebook_cluster")
-    assert(samAuthProvider.samClient.billingProjects.contains((project, userInfo.userEmail)))
     // check the sam auth provider has no notebook-cluster resource
     samAuthProvider.samClient.notebookClusters shouldBe empty
     samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "status") shouldBe false
@@ -90,6 +83,72 @@ class SamAuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers
     samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "sync") shouldBe true
     samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "delete") shouldBe true
 
+    leo.deleteCluster(userInfo, project, name1).futureValue
+
+    samAuthProvider.samClient.notebookClusters shouldBe empty
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "status") shouldBe false
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "connect") shouldBe false
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "sync") shouldBe false
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "delete") shouldBe false
+
+    samAuthProvider.samClient.billingProjects.remove((project, userInfo.userEmail))
+
+  }
+
+  "hasProjectPermission should return true if user has project permissions and false if they do not" in isolatedDbTest {
+    samAuthProvider.samClient.billingProjects += (project, userInfo.userEmail) -> Set("launch_notebook_cluster")
+    samAuthProvider.hasProjectPermission(userInfo.userEmail, CreateClusters, project) shouldBe true
+
+    samAuthProvider.hasProjectPermission(WorkbenchEmail("somecreep@example.com"), CreateClusters, project) shouldBe false
+    samAuthProvider.hasProjectPermission(userInfo.userEmail, CreateClusters, GoogleProject("leo-fake-project")) shouldBe false
+
+    samAuthProvider.samClient.billingProjects.remove((project, userInfo.userEmail))
+  }
+
+  "canSeeAllClustersInProject should return true if user has list permissions on a project and false if they do not" in isolatedDbTest {
+    samAuthProvider.samClient.billingProjects += (project, userInfo.userEmail) -> Set("list_notebook_cluster")
+    samAuthProvider.canSeeAllClustersInProject(userInfo.userEmail, project) shouldBe true
+
+    samAuthProvider.canSeeAllClustersInProject(WorkbenchEmail("somecreep@example.com"), project) shouldBe false
+    samAuthProvider.canSeeAllClustersInProject(userInfo.userEmail,GoogleProject("leo-fake-project")) shouldBe false
+
+    samAuthProvider.samClient.billingProjects.remove((project, userInfo.userEmail))
+  }
+
+  "hasNotebookClusterPermission should return true if user has notebook cluster permissions and false if they do not" in isolatedDbTest {
+    samAuthProvider.samClient.notebookClusters += (project, name1, userInfo.userEmail) -> Set("sync")
+    samAuthProvider.hasNotebookClusterPermission(userInfo.userEmail, SyncDataToCluster, project, name1) shouldBe true
+
+    samAuthProvider.hasNotebookClusterPermission(WorkbenchEmail("somecreep@example.com"), SyncDataToCluster, project, name1) shouldBe false
+    samAuthProvider.hasNotebookClusterPermission(userInfo.userEmail, DeleteCluster, GoogleProject("leo-fake-project"), name1) shouldBe false
+    samAuthProvider.hasNotebookClusterPermission(userInfo.userEmail, SyncDataToCluster, project, name1) shouldBe false
+    samAuthProvider.hasNotebookClusterPermission(userInfo.userEmail, SyncDataToCluster, project, ClusterName("fake-cluster")) shouldBe false
+
+    samAuthProvider.samClient.notebookClusters.remove((project, name1, userInfo.userEmail))
+  }
+
+  "hasNotebookClusterPermission should return true if user does not have notebook cluster permissions but does have project permissions" in isolatedDbTest {
+    samAuthProvider.samClient.billingProjects += (project, userInfo.userEmail) -> Set("sync_notebook_cluster")
+    samAuthProvider.samClient.notebookClusters += (project, name1, userInfo.userEmail) -> Set()
+
+    samAuthProvider.hasNotebookClusterPermission(userInfo.userEmail, SyncDataToCluster, project, name1) shouldBe true
+
+    samAuthProvider.samClient.billingProjects.remove((project, userInfo.userEmail))
+    samAuthProvider.samClient.notebookClusters.remove((project, name1, userInfo.userEmail))
+  }
+
+  "notifyClusterCreated should create a new cluster resource" in isolatedDbTest {
+    samAuthProvider.samClient.notebookClusters shouldBe empty
+    samAuthProvider.notifyClusterCreated(userInfo.userEmail, project, name1)
+    samAuthProvider.samClient.notebookClusters should contain (project, name1, userInfo.userEmail)
+    samAuthProvider.samClient.notebookClusters.remove((project, name1, userInfo.userEmail))
+  }
+
+  "notifyClusterDeleted should delete a cluster resource" in isolatedDbTest {
+    samAuthProvider.samClient.notebookClusters += (project, name1, userInfo.userEmail) -> Set()
+
+    samAuthProvider.notifyClusterDeleted(userInfo.userEmail, project, name1)
+    samAuthProvider.samClient.notebookClusters should not contain (project, name1, userInfo.userEmail)
   }
 
 }

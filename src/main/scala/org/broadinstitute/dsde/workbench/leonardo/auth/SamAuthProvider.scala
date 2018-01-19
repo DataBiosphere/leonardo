@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.{ExecutionContext, Future}
 
-case class NotebookActionError(action: Action) extends
+case class ActionError(action: Action) extends
   LeoException(s"${action.toString} was not recognized", StatusCodes.NotFound)
 
 class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(authConfig, serviceAccountProvider) with LazyLogging {
@@ -25,16 +25,13 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
 
   protected val samClient = new SwaggerSamClient(authConfig.getString("samServer"), authConfig.getInt("cacheExpiryTime"), authConfig.getInt("cacheMaxSize"), leoEmail, leoPem)
 
-   //def samAPI: SwaggerSamClient = samClient
-
   //gets the string we want for each type of action - definitely NOT how we want to do this in the long run
   protected def getProjectActionString(action: Action): String = {
-    projectActionMap.getOrElse(action, throw NotebookActionError(action))
+    projectActionMap.getOrElse(action, throw ActionError(action))
   }
 
-  //gets the string we want for each type of action - definitely NOT how we want to do this in the long run
   protected def getNotebookActionString(action: Action): String = {
-    notebookActionMap.getOrElse(action, throw NotebookActionError(action))
+    notebookActionMap.getOrElse(action, throw ActionError(action))
   }
 
   private def projectActionMap: Map[Action, String] = Map(
@@ -77,8 +74,6 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     */
  override def canSeeAllClustersInProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
    Future { samClient.hasActionOnBillingProjectResource(userEmail,googleProject, "list_notebook_cluster") }
-
-   //hasProjectPermission(userEmail, "list_notebook_cluster", googleProject)
   }
 
 
@@ -100,7 +95,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
         notebookAction
       } else {
         val projectAction = samClient.hasActionOnBillingProjectResource(userEmail,googleProject, getProjectActionString(action))
-        notebookAction || projectAction   //resourcesApiAsPet(userEmail, googleProject).resourceAction(billingProjectResourceTypeName, googleProject.value, getActionString(action))
+        notebookAction || projectAction
       }
     }
   }
@@ -119,7 +114,6 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
   def notifyClusterCreated(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    // Add the cluster resource with the user as owner
     Future { samClient.createNotebookClusterResource(userEmail, googleProject, clusterName) }
   }
 
@@ -134,8 +128,6 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
   def notifyClusterDeleted(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    // get the id for the cluster resource
-    // delete the resource
     Future{ samClient.deleteNotebookClusterResource(userEmail, googleProject, clusterName) }
   }
 }
