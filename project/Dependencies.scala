@@ -14,7 +14,7 @@ object Dependencies {
   val workbenchGoogleV  = "0.11-7ad0aa8"
   val workbenchMetricsV = "0.3-d97f551"
 
-  val samV =  "1.0-b95f074"
+  val samV =  "1.0-c81212f"
 
   val excludeAkkaActor =        ExclusionRule(organization = "com.typesafe.akka", name = "akka-actor_2.12")
   val excludeGuavaJDK5 =        ExclusionRule(organization = "com.google.guava", name = "guava-jdk5")
@@ -57,7 +57,7 @@ object Dependencies {
   val workbenchGoogleTests: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-google" % workbenchGoogleV % "test" classifier "tests" excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel)
   val workbenchMetrics: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-metrics" % workbenchMetricsV excludeAll(excludeWorkbenchUtil)
 
-  val sam:ModuleID = "org.broadinstitute.dsde" %% "sam" % samV
+  val sam:ModuleID = "org.broadinstitute.dsde.sam-client" %% "sam" % samV
 
   val slick: ModuleID =     "com.typesafe.slick" %% "slick"                 % slickV
   val hikariCP: ModuleID =  "com.typesafe.slick" %% "slick-hikaricp"        % slickV
