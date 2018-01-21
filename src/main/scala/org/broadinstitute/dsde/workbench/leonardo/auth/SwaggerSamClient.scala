@@ -11,6 +11,7 @@ import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.google.gson.Gson
 import com.google.gson.internal.LinkedTreeMap
+import com.typesafe.scalalogging.LazyLogging
 import io.swagger.client.ApiClient
 import io.swagger.client.api.{GoogleApi, ResourcesApi}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterName
@@ -23,7 +24,7 @@ import scala.concurrent.ExecutionContext
 
 case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)
 
-class SwaggerSamClient(samBasePath: String, cacheExpiryTime: Int, cacheMaxSize: Int,  leoEmail: WorkbenchEmail, leoPem: File) {
+class SwaggerSamClient(samBasePath: String, cacheExpiryTime: Int, cacheMaxSize: Int,  leoEmail: WorkbenchEmail, leoPem: File) extends LazyLogging {
 
   private val httpTransport = GoogleNetHttpTransport.newTrustedTransport
   private val jsonFactory = JacksonFactory.getDefaultInstance
@@ -73,6 +74,9 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: Int, cacheMaxSize: 
   private def getPetAccessTokenFromSam(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = {
     val samAPI = samGoogleApi(getAccessTokenUsingPem(leoEmail, leoPem))
     val userPetServiceAccountKey = samAPI.getUserPetServiceAccountKey(googleProject.value, userEmail.value)
+    logger.info(userPetServiceAccountKey.toString)
+    logger.info(userPetServiceAccountKey.toString)
+    logger.info(userPetServiceAccountKey.toString)
     val keyTreeMap = userPetServiceAccountKey.asInstanceOf[LinkedTreeMap[String,String]]
     getAccessTokenUsingJson(new Gson().toJsonTree(keyTreeMap).toString)
   }
@@ -105,23 +109,23 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: Int, cacheMaxSize: 
   }
 
 
-  def createNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext) = {
+  def createNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
     resourcesApiAsPet(userEmail, googleProject).createResource(notebookClusterResourceTypeName, getClusterResourceId(googleProject, clusterName))
   }
 
-  def deleteNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext) = {
+  def deleteNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
     resourcesApiAsPet(userEmail, googleProject).deleteResource(notebookClusterResourceTypeName, getClusterResourceId(googleProject, clusterName))
   }
 
-  def hasActionOnBillingProjectResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, action: String)(implicit executionContext: ExecutionContext): Boolean = {
+  def hasActionOnBillingProjectResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, action: String): Boolean = {
     hasActionOnResource(billingProjectResourceTypeName, googleProject.value, userEmail, googleProject, action)
   }
 
-  def hasActionOnNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, action: String)(implicit executionContext: ExecutionContext): Boolean = {
+  def hasActionOnNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, action: String): Boolean = {
     hasActionOnResource(notebookClusterResourceTypeName, getClusterResourceId(googleProject, clusterName), userEmail, googleProject, action)
   }
 
-  private def hasActionOnResource(resourceType: String, resourceName: String, userEmail: WorkbenchEmail, googleProject: GoogleProject, action: String)(implicit executionContext: ExecutionContext): Boolean = {
+  private def hasActionOnResource(resourceType: String, resourceName: String, userEmail: WorkbenchEmail, googleProject: GoogleProject, action: String): Boolean = {
     resourcesApiAsPet(userEmail, googleProject).resourceAction(resourceType, resourceName, action)
   }
 

@@ -6,18 +6,17 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.{ExecutionContext, Future}
 
-object Actions {
-  sealed trait Action extends Product with Serializable
-}
+
+sealed trait LeoAuthAction extends Product with Serializable
 
 object ProjectActions {
-  sealed trait ProjectAction extends Actions.Action
+  sealed trait ProjectAction extends LeoAuthAction
   case object CreateClusters extends ProjectAction
   val allActions = Seq(CreateClusters)
 }
 
 object NotebookClusterActions {
-  sealed trait NotebookClusterAction extends Actions.Action
+  sealed trait NotebookClusterAction extends LeoAuthAction
   case object GetClusterStatus extends NotebookClusterAction
   case object ConnectToCluster extends NotebookClusterAction
   case object SyncDataToCluster extends NotebookClusterAction
@@ -47,21 +46,6 @@ abstract class LeoAuthProvider(authConfig: Config, serviceAccountProvider: Servi
     * @return If the given user can see all clusters in this project
     */
   def canSeeAllClustersInProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-    Future.successful(false)
-  }
-
-  /**
-    * When listing clusters, Leo will perform a GROUP BY on google projects and call this function once per google project.
-    * If you have an implementation such that users, even in some cases, can see all clusters in a google project, overriding
-    * this function may lead to significant performance improvements.
-    * For any projects where this function call returns Future.successful(false), Leo will then call hasNotebookClusterPermission
-    * for every cluster in that project, passing in action = GetClusterStatus.
-    *
-    * @param userEmail The user in question
-    * @param googleProject A Google project
-    * @return If the given user can see all clusters in this project
-    */
-  def canSeeAllClustersInProject(userEmail: WorkbenchEmail, googleProject: String): Future[Boolean] = {
     Future.successful(false)
   }
 

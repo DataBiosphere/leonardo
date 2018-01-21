@@ -15,19 +15,21 @@ class MockSwaggerSamClient extends SwaggerSamClient("fake/path", 0, 0, Workbench
   val billingProjects: mutable.Map[(GoogleProject, WorkbenchEmail),  Set[String]] =  new TrieMap()
   val notebookClusters: mutable.Map[(GoogleProject, ClusterName, WorkbenchEmail), Set[String]] = new TrieMap()
 
-  override def createNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext) = {
+  override def createNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
     notebookClusters += (googleProject, clusterName, userEmail) -> Set("status", "connect", "sync", "delete", "read_policies")
   }
 
-  override def deleteNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext) = {
+  override def deleteNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
     notebookClusters.remove((googleProject, clusterName, userEmail))
   }
 
-  override def hasActionOnBillingProjectResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, action: String)(implicit executionContext: ExecutionContext): Boolean = {
-    billingProjects.contains((googleProject, userEmail)) && billingProjects.get((googleProject, userEmail)).get.contains(action)
+  override def hasActionOnBillingProjectResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, action: String): Boolean = {
+    billingProjects.get((googleProject, userEmail)) //look it up: Option[Set]
+      .map( _.contains(action) ) //open the option to peek the set: Option[Bool]
+      .getOrElse(false) //unpack the resulting option and handle the project never having existed
   }
 
-  override def hasActionOnNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, action: String)(implicit executionContext: ExecutionContext): Boolean = {
+  override def hasActionOnNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, action: String): Boolean = {
     notebookClusters.contains((googleProject, clusterName, userEmail)) && notebookClusters.get((googleProject, clusterName, userEmail)).get.contains(action)
   }
 }

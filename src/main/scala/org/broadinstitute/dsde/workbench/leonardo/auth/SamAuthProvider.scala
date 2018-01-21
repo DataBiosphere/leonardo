@@ -2,11 +2,9 @@ package org.broadinstitute.dsde.workbench.leonardo.auth
 
 import com.typesafe.config.Config
 import com.typesafe.scalalogging.LazyLogging
-import net.ceedubs.ficus.Ficus._
 import java.io.File
 
 import akka.http.scaladsl.model.StatusCodes
-import org.broadinstitute.dsde.workbench.leonardo.model.Actions.Action
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.CreateClusters
@@ -15,8 +13,8 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.{ExecutionContext, Future}
 
-case class ActionError(action: Action) extends
-  LeoException(s"${action.toString} was not recognized", StatusCodes.NotFound)
+case class UnknownLeoAuthAction(action: LeoAuthAction) extends
+  LeoException(s"SamAuthProvider has no mapping for authorization action ${action.toString}, and is therefore probably out of date.", StatusCodes.InternalServerError)
 
 class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(authConfig, serviceAccountProvider) with LazyLogging {
 
@@ -25,24 +23,22 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
 
   protected val samClient = new SwaggerSamClient(authConfig.getString("samServer"), authConfig.getInt("cacheExpiryTime"), authConfig.getInt("cacheMaxSize"), leoEmail, leoPem)
 
-  //gets the string we want for each type of action - definitely NOT how we want to do this in the long run
-  protected def getProjectActionString(action: Action): String = {
-    projectActionMap.getOrElse(action, throw ActionError(action))
+  protected def getProjectActionString(action: LeoAuthAction): String = {
+    projectActionMap.getOrElse(action, throw UnknownLeoAuthAction(action))
   }
 
-  protected def getNotebookActionString(action: Action): String = {
-    notebookActionMap.getOrElse(action, throw ActionError(action))
+  protected def getNotebookActionString(action: LeoAuthAction): String = {
+    notebookActionMap.getOrElse(action, throw UnknownLeoAuthAction(action))
   }
 
-  private def projectActionMap: Map[Action, String] = Map(
-    //list_notebook_cluster
+  val projectActionMap: Map[LeoAuthAction, String] = Map(
     GetClusterStatus -> "list_notebook_cluster",
     CreateClusters -> "launch_notebook_cluster",
     SyncDataToCluster -> "sync_notebook_cluster",
     DeleteCluster -> "delete_notebook_cluster")
 
 
-  private def notebookActionMap: Map[Action, String] = Map(
+  val notebookActionMap: Map[LeoAuthAction, String] = Map(
     GetClusterStatus -> "status",
     ConnectToCluster -> "connect",
     SyncDataToCluster -> "sync",
@@ -55,7 +51,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @param googleProject The Google project to check in
     * @return If the given user has permissions in this project to perform the specified action.
     */
-  def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  override def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     Future { samClient.hasActionOnBillingProjectResource(userEmail,googleProject, getProjectActionString(action)) }
   }
 
@@ -87,14 +83,14 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return If the userEmail has permission on this individual notebook cluster to perform this action
     */
-  def hasNotebookClusterPermission(userEmail: WorkbenchEmail, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  override def hasNotebookClusterPermission(userEmail: WorkbenchEmail, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     // if action is connect, check only cluster resource. If action is anything else, either cluster or project must be true
     Future {
-      val notebookAction = samClient.hasActionOnNotebookClusterResource(userEmail,googleProject,clusterName, getNotebookActionString(action))
+      val hasNotebookAction = samClient.hasActionOnNotebookClusterResource(userEmail,googleProject,clusterName, getNotebookActionString(action))
       if (action == ConnectToCluster) {
-        notebookAction
+        hasNotebookAction
       } else {
-        notebookAction || samClient.hasActionOnBillingProjectResource(userEmail,googleProject, getProjectActionString(action))
+        hasNotebookAction || samClient.hasActionOnBillingProjectResource(userEmail,googleProject, getProjectActionString(action))
       }
     }
   }
@@ -112,7 +108,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterCreated(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  override def notifyClusterCreated(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
     Future { samClient.createNotebookClusterResource(userEmail, googleProject, clusterName) }
   }
 
@@ -126,7 +122,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterDeleted(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  override def notifyClusterDeleted(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
     Future{ samClient.deleteNotebookClusterResource(userEmail, googleProject, clusterName) }
   }
 }

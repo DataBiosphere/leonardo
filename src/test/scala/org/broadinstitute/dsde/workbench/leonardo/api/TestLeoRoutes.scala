@@ -23,7 +23,7 @@ import scala.concurrent.duration._
   */
 trait TestLeoRoutes { this: ScalatestRouteTest with ScalaFutures =>
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
-  val whitelist = config.as[(Set[String])]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
+  val whitelist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")

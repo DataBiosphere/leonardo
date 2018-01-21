@@ -1,6 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth
 
+import akka.actor.ActorSystem
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import akka.testkit.TestKit
 import com.typesafe.config.Config
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
@@ -10,10 +12,9 @@ import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.{
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.CreateClusters
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
-import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, TestProxy}
+import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.scalatest.mockito.MockitoSugar
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 
@@ -21,13 +22,9 @@ class TestSamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAcc
   override val samClient = new MockSwaggerSamClient()
 }
 
-class SamAuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers with MockitoSugar with BeforeAndAfter with BeforeAndAfterAll with TestComponent with CommonTestData with TestProxy with ScalaFutures with OptionValues {
-  val googleProject = project.value
-  val clusterName = name1.string
+class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with FreeSpecLike with Matchers with TestComponent with CommonTestData with ScalaFutures{
 
-  val routeTest = this
-
-  private val samAuthProvider = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"),serviceAccountProvider)
+  def samAuthProvider: TestSamAuthProvider = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"),serviceAccountProvider)
 
   val gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
   val iamDAO = new MockGoogleIamDAO
@@ -43,10 +40,8 @@ class SamAuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers
     samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "sync") shouldBe false
     samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "delete") shouldBe false
 
-    // create a cluster
-    val cluster = leo.createCluster(userInfo,project,name1, testClusterRequest).futureValue
-    val clusterStatus = leo.getActiveClusterDetails(userInfo, project, name1).futureValue
-    cluster shouldEqual clusterStatus
+    // creating a cluster would call notify
+    samAuthProvider.notifyClusterCreated(userInfo.userEmail, project, name1)
 
     // check the resource exists for the user and actions
     samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "status") shouldBe true
@@ -54,7 +49,8 @@ class SamAuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers
     samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "sync") shouldBe true
     samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "delete") shouldBe true
 
-    leo.deleteCluster(userInfo, project, name1).futureValue
+    // deleting a cluster would call notify
+    samAuthProvider.notifyClusterDeleted(userInfo.userEmail, project, name1)
 
     samAuthProvider.samClient.notebookClusters shouldBe empty
     samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "status") shouldBe false

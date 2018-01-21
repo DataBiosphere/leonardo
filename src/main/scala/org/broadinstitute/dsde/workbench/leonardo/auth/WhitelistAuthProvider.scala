@@ -13,7 +13,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 class WhitelistAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(authConfig, serviceAccountProvider) {
 
-  val whitelist = authConfig.as[(Set[String])]("whitelist").map(_.toLowerCase)
+  val whitelist = authConfig.as[Set[String]]("whitelist").map(_.toLowerCase)
 
   protected def checkWhitelist(userEmail: WorkbenchEmail): Future[Boolean] = {
     Future.successful(whitelist contains userEmail.value.toLowerCase)

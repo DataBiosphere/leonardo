@@ -37,7 +37,7 @@ object Boot extends App with LazyLogging {
     System.setProperty("sun.net.spi.nameservice.provider.2", "default")
 
     val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
-    val whitelist = config.as[(Set[String])]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
+    val whitelist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
     val dataprocConfig = config.as[DataprocConfig]("dataproc")
     val proxyConfig = config.as[ProxyConfig]("proxy")
     val swaggerConfig = config.as[SwaggerConfig]("swagger")

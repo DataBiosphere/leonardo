@@ -30,7 +30,7 @@ trait CommonTestData { this: ScalaFutures =>
   val serviceAccountKey = ServiceAccountKey(ServiceAccountKeyId("123"), ServiceAccountPrivateKeyData("abcdefg"), Some(Instant.now), Some(Instant.now.plusSeconds(300)))
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
-  val whitelist = config.as[(Set[String])]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
+  val whitelist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
   val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
