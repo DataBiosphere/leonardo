@@ -38,7 +38,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "delete") shouldBe false
 
     // creating a cluster would call notify
-    samAuthProvider.notifyClusterCreated(userInfo.userEmail, project, name1)
+    samAuthProvider.notifyClusterCreated(userInfo.userEmail, project, name1).futureValue
 
     // check the resource exists for the user and actions
     samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "status") shouldBe true
@@ -47,7 +47,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "delete") shouldBe true
 
     // deleting a cluster would call notify
-    samAuthProvider.notifyClusterDeleted(userInfo.userEmail, project, name1)
+    samAuthProvider.notifyClusterDeleted(userInfo.userEmail, project, name1).futureValue
 
     samAuthProvider.samClient.notebookClusters shouldBe empty
     samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "status") shouldBe false
