@@ -12,7 +12,7 @@ import scala.concurrent.ExecutionContext
 
 class MockSwaggerSamClient extends SwaggerSamClient("fake/path", 0, 0, WorkbenchEmail("fake-user@example.com"), new File("fake-pem")) {
 
-  val billingProjects: mutable.Map[(GoogleProject, WorkbenchEmail),  Set[String]] =  new TrieMap()
+  val billingProjects: mutable.Map[(GoogleProject, WorkbenchEmail), Set[String]] =  new TrieMap()
   val notebookClusters: mutable.Map[(GoogleProject, ClusterName, WorkbenchEmail), Set[String]] = new TrieMap()
 
   override def createNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
@@ -30,6 +30,8 @@ class MockSwaggerSamClient extends SwaggerSamClient("fake/path", 0, 0, Workbench
   }
 
   override def hasActionOnNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, action: String): Boolean = {
-    notebookClusters.contains((googleProject, clusterName, userEmail)) && notebookClusters.get((googleProject, clusterName, userEmail)).get.contains(action)
+    notebookClusters.get((googleProject, clusterName, userEmail))
+      .map( _.contains(action) )
+      .getOrElse(false)
   }
 }
