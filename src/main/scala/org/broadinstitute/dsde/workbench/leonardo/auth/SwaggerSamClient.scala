@@ -75,8 +75,11 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
   //"Slow" lookup of pet's access token. The cache calls this when it needs to.
   private def getPetAccessTokenFromSam(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = {
     val samAPI = samGoogleApi(getAccessTokenUsingPem(leoEmail, leoPem))
+    val psa = samAPI.getPetServiceAccount(googleProject.value)
+    logger.info("PET SERVICE ACCOUNT " + psa)
     val userPetServiceAccountKey = samAPI.getUserPetServiceAccountKey(googleProject.value, userEmail.value)
-    logger.info("SERVICE ACCOUNT KEY" + userPetServiceAccountKey.toString)
+    logger.info("SERVICE ACCOUNT KEY " + userPetServiceAccountKey)
+    logger.info("SERVICE ACCOUNT KEY STRING " + userPetServiceAccountKey.toString)
     val keyTreeMap = userPetServiceAccountKey.asInstanceOf[LinkedTreeMap[String,String]]
     getAccessTokenUsingJson(new Gson().toJsonTree(keyTreeMap).toString)
   }
