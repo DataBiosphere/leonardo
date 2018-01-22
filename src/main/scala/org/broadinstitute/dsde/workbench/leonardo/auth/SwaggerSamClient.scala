@@ -10,19 +10,17 @@ import com.google.api.services.plus.PlusScopes
 import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.google.gson.Gson
-import com.google.gson.internal.LinkedTreeMap
+
 import com.typesafe.scalalogging.LazyLogging
 import io.swagger.client.ApiClient
 import io.swagger.client.api.{GoogleApi, ResourcesApi}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterName
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.util.toScalaDuration
 
 import scala.collection.JavaConverters._
-import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
-
+import scala.util.parsing.json._
 
 case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)
 
@@ -75,18 +73,10 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
   //"Slow" lookup of pet's access token. The cache calls this when it needs to.
   private def getPetAccessTokenFromSam(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = {
     val samAPI = samGoogleApi(getAccessTokenUsingPem(leoEmail, leoPem))
-    val psa = samAPI.getPetServiceAccount(googleProject.value)
-    logger.info("PET SERVICE ACCOUNT " + psa)
-    val petServiceAccountKey = samAPI.getPetServiceAccountKey(googleProject.value)
-    logger.info("LEO SERVICE ACCOUNT KEY " + petServiceAccountKey)
-    logger.info("LEO SERVICE ACCOUNT KEY STRING " + petServiceAccountKey.toString)
     val userPetServiceAccountKey = samAPI.getUserPetServiceAccountKey(googleProject.value, userEmail.value)
     logger.info("USER SERVICE ACCOUNT KEY " + userPetServiceAccountKey)
-    logger.info("USER SERVICE ACCOUNT KEY STRING " + userPetServiceAccountKey.toString)
-    val keyTreeMapString = userPetServiceAccountKey.asInstanceOf[String]
-    logger.info("USER SERVICE ACCOUNT KEY AS INSTANCE OF STRING " + userPetServiceAccountKey)
-    val keyTreeMap = userPetServiceAccountKey.asInstanceOf[LinkedTreeMap[String,String]]
-    getAccessTokenUsingJson(new Gson().toJsonTree(keyTreeMap).toString)
+    //getAccessTokenUsingJson(new Gson().toJsonTree(keyTreeMap).toString)
+    getAccessTokenUsingJson(userPetServiceAccountKey)
   }
 
   //Given a pem, gets an access token
