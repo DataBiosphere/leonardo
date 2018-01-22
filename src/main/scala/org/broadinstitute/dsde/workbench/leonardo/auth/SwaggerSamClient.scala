@@ -9,7 +9,6 @@ import com.google.api.client.json.jackson2.JacksonFactory
 import com.google.api.services.plus.PlusScopes
 import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.common.cache.{CacheBuilder, CacheLoader}
-import com.google.gson.Gson
 
 import com.typesafe.scalalogging.LazyLogging
 import io.swagger.client.ApiClient
@@ -20,8 +19,6 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.FiniteDuration
-import scala.util.parsing.json._
-
 case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)
 
 class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cacheMaxSize: Int, leoEmail: WorkbenchEmail, leoPem: File) extends LazyLogging {
@@ -74,8 +71,6 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
   private def getPetAccessTokenFromSam(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = {
     val samAPI = samGoogleApi(getAccessTokenUsingPem(leoEmail, leoPem))
     val userPetServiceAccountKey = samAPI.getUserPetServiceAccountKey(googleProject.value, userEmail.value)
-    logger.info("USER SERVICE ACCOUNT KEY " + userPetServiceAccountKey)
-    //getAccessTokenUsingJson(new Gson().toJsonTree(keyTreeMap).toString)
     getAccessTokenUsingJson(userPetServiceAccountKey)
   }
 
