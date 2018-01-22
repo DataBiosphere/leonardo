@@ -4,7 +4,7 @@ import java.io.File
 import java.nio.file.Files
 import java.time.Instant
 
-import org.broadinstitute.dsde.firecloud.api.{Orchestration, Rawls, Sam}
+import org.broadinstitute.dsde.workbench.service.{Orchestration, Rawls, Sam}
 import org.broadinstitute.dsde.workbench.api.APIException
 import org.broadinstitute.dsde.workbench.{ResourceFile, WebBrowserSpec}
 import org.broadinstitute.dsde.workbench.config.{AuthToken, WorkbenchConfig}

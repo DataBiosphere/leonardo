@@ -1,9 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import org.broadinstitute.dsde.workbench.config.WorkbenchConfig
+import org.broadinstitute.dsde.workbench.config.Config
 
-object LeonardoConfig extends WorkbenchConfig {
-  private val leonardo = config.getConfig("leonardo")
+object LeonardoConfig extends Config {
+  private val leonardo = Config.config.getConfig("leonardo")
 
   object Leonardo {
     val apiUrl: String = leonardo.getString("apiUrl")
