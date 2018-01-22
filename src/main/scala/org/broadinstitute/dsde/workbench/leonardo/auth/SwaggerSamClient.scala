@@ -17,14 +17,16 @@ import io.swagger.client.api.{GoogleApi, ResourcesApi}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterName
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.util.toScalaDuration
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.FiniteDuration
 
 
 case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)
 
-class SwaggerSamClient(samBasePath: String, cacheExpiryTime: Int, cacheMaxSize: Int,  leoEmail: WorkbenchEmail, leoPem: File) extends LazyLogging {
+class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cacheMaxSize: Int, leoEmail: WorkbenchEmail, leoPem: File) extends LazyLogging {
 
   private val httpTransport = GoogleNetHttpTransport.newTrustedTransport
   private val jsonFactory = JacksonFactory.getDefaultInstance
@@ -60,7 +62,7 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: Int, cacheMaxSize: 
   }
 
   private[leonardo] val petTokenCache = CacheBuilder.newBuilder()
-    .expireAfterWrite(cacheExpiryTime, TimeUnit.MINUTES)
+    .expireAfterWrite(cacheExpiryTime.toMinutes, TimeUnit.MINUTES)
     .maximumSize(cacheMaxSize)
     .build(
       new CacheLoader[UserEmailAndProject, String] {

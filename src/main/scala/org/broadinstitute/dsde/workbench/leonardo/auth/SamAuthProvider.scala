@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.CreateClusters
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.util.toScalaDuration
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -21,7 +22,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
   //Leo SA details -- needed to get pet keyfiles
   private val (leoEmail, leoPem) : (WorkbenchEmail, File) = serviceAccountProvider.getLeoServiceAccountAndKey
 
-  protected val samClient = new SwaggerSamClient(authConfig.getString("samServer"), authConfig.getInt("cacheExpiryTime"), authConfig.getInt("cacheMaxSize"), leoEmail, leoPem)
+  protected val samClient = new SwaggerSamClient(authConfig.getString("samServer"),toScalaDuration(authConfig.getDuration("cacheExpiryTime")), authConfig.getInt("cacheMaxSize"), leoEmail, leoPem)
 
   protected def getProjectActionString(action: LeoAuthAction): String = {
     projectActionMap.getOrElse(action, throw UnknownLeoAuthAction(action))

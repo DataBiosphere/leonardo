@@ -6,11 +6,11 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ClusterName
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
+import scala.concurrent.duration.{FiniteDuration, SECONDS}
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
-import scala.concurrent.ExecutionContext
 
-class MockSwaggerSamClient extends SwaggerSamClient("fake/path", 0, 0, WorkbenchEmail("fake-user@example.com"), new File("fake-pem")) {
+class MockSwaggerSamClient extends SwaggerSamClient("fake/path", new FiniteDuration(1, SECONDS), 0, WorkbenchEmail("fake-user@example.com"), new File("fake-pem")) {
 
   val billingProjects: mutable.Map[(GoogleProject, WorkbenchEmail), Set[String]] =  new TrieMap()
   val notebookClusters: mutable.Map[(GoogleProject, ClusterName, WorkbenchEmail), Set[String]] = new TrieMap()
