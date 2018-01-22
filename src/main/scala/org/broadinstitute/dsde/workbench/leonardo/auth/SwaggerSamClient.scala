@@ -74,7 +74,7 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: Int, cacheMaxSize: 
   private def getPetAccessTokenFromSam(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = {
     val samAPI = samGoogleApi(getAccessTokenUsingPem(leoEmail, leoPem))
     val userPetServiceAccountKey = samAPI.getUserPetServiceAccountKey(googleProject.value, userEmail.value)
-    logger.info(userPetServiceAccountKey.toString)
+    logger.info("SERVICE ACCOUNT KEY" + userPetServiceAccountKey.toString)
     val keyTreeMap = userPetServiceAccountKey.asInstanceOf[LinkedTreeMap[String,String]]
     getAccessTokenUsingJson(new Gson().toJsonTree(keyTreeMap).toString)
   }

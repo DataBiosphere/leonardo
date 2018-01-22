@@ -42,7 +42,7 @@ class ProxyService(proxyConfig: ProxyConfig,
 
   /* Cache for the bearer token and corresponding google user email */
   private[leonardo] val googleTokenCache = CacheBuilder.newBuilder()
-    .expireAfterWrite(proxyConfig.cacheExpiryTime, TimeUnit.MINUTES)
+    .expireAfterWrite(proxyConfig.cacheExpiryTime.toMinutes, TimeUnit.MINUTES)
     .maximumSize(proxyConfig.cacheMaxSize)
     .build(
       new CacheLoader[String, Future[(UserInfo, Instant)]] {
