@@ -7,11 +7,14 @@ object Dependencies {
 
   val workbenchModelV   = "0.8-d97f551"
   val workbenchGoogleV  = "0.10-b95b2c1"
+  //UPDATE THIS WITH FINAL HASH
+  val serviceTestV = "0.1.1-alpha-sam-fb82d4c-SNAP"
 
   val excludeWorkbenchModel =   ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-model_2.11")
 
   val workbenchModel: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-model"  % workbenchModelV
   val workbenchGoogle: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-google" % workbenchGoogleV excludeAll excludeWorkbenchModel
+  val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll excludeWorkbenchModel
 
   val rootDependencies = Seq(
     // proactively pull in latest versions of Jackson libs, instead of relying on the versions
@@ -42,6 +45,7 @@ object Dependencies {
 
     workbenchModel,
     workbenchGoogle,
+    workbenchServiceTest,
 
     // required by workbenchGoogle
     "com.typesafe.akka" %% "akka-http-spray-json" % "10.0.6" % "provided"

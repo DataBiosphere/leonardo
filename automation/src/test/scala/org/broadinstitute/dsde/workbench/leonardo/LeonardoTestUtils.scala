@@ -4,10 +4,11 @@ import java.io.File
 import java.nio.file.Files
 
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.firecloud.api.{Orchestration, Rawls, Sam}
 import org.broadinstitute.dsde.workbench.WebBrowserSpec
+import org.broadinstitute.dsde.workbench.service.{Orchestration, Rawls, Sam}
 import org.broadinstitute.dsde.workbench.api.APIException
-import org.broadinstitute.dsde.workbench.config.{AuthToken, WorkbenchConfig}
+import org.broadinstitute.dsde.workbench.auth.{AuthToken, UserAuthToken}
+import org.broadinstitute.dsde.workbench.config.Config
 import org.broadinstitute.dsde.workbench.dao.Google.googleIamDAO
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
@@ -29,9 +30,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   val incorrectJupyterExtensionUri = swatTestBucket + "/"
 
   // Ron and Hermione are on the dev Leo whitelist.
-  val ronAuthToken = AuthToken(LeonardoConfig.Users.ron)
-  val hermioneAuthToken = AuthToken(LeonardoConfig.Users.hermione)
-  val ronEmail = LeonardoConfig.Users.ron.email
+  val ronAuthToken = UserAuthToken(Config.Users.Students.getUserCredential("ron"))
+  val hermioneAuthToken = UserAuthToken(Config.Users.Students.getUserCredential("hermione"))
 
   val clusterPatience = PatienceConfig(timeout = scaled(Span(15, Minutes)), interval = scaled(Span(20, Seconds)))
   val localizePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
@@ -52,13 +52,13 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     val billingProject = "leonardo-billing-spec-" + makeRandomId()
 
     logger.info(s"Creating billing project: $billingProject")
-    Orchestration.billing.createBillingProject(billingProject, WorkbenchConfig.Projects.billingAccountId)(ownerToken)
+    Orchestration.billing.createBillingProject(billingProject, Config.Projects.billingAccountId)(ownerToken)
 
     GoogleProject(billingProject)
   }
 
   def cleanupBillingProject(billingProject: GoogleProject): Unit = {
-    Try(Rawls.admin.deleteBillingProject(billingProject.value)(AuthToken(LeonardoConfig.Users.dumbledore))).recover { case NonFatal(e) =>
+    Try(Rawls.admin.deleteBillingProject(billingProject.value)(UserAuthToken(Config.Users.Admins.getUserCredential("dumbledore")))).recover { case NonFatal(e) =>
       logger.warn(s"Could not delete billing project $billingProject", e)
     }
   }
