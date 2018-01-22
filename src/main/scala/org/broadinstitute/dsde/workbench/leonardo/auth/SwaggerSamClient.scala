@@ -77,9 +77,12 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
     val samAPI = samGoogleApi(getAccessTokenUsingPem(leoEmail, leoPem))
     val psa = samAPI.getPetServiceAccount(googleProject.value)
     logger.info("PET SERVICE ACCOUNT " + psa)
+    val petServiceAccountKey = samAPI.getPetServiceAccountKey(googleProject.value)
+    logger.info("LEO SERVICE ACCOUNT KEY " + petServiceAccountKey)
+    logger.info("LEO SERVICE ACCOUNT KEY STRING " + petServiceAccountKey.toString)
     val userPetServiceAccountKey = samAPI.getUserPetServiceAccountKey(googleProject.value, userEmail.value)
-    logger.info("SERVICE ACCOUNT KEY " + userPetServiceAccountKey)
-    logger.info("SERVICE ACCOUNT KEY STRING " + userPetServiceAccountKey.toString)
+    logger.info("USER SERVICE ACCOUNT KEY " + userPetServiceAccountKey)
+    logger.info("USER SERVICE ACCOUNT KEY STRING " + userPetServiceAccountKey.toString)
     val keyTreeMap = userPetServiceAccountKey.asInstanceOf[LinkedTreeMap[String,String]]
     getAccessTokenUsingJson(new Gson().toJsonTree(keyTreeMap).toString)
   }
