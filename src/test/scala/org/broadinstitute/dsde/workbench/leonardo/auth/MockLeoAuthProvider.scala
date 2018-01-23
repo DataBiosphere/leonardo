@@ -41,7 +41,7 @@ class MockLeoAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAcc
       Future.failed(new RuntimeException("boom"))
   }
 
-  def notifyClusterCreated(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = notifyInternal
+  def notifyClusterCreated(cluster: Cluster)(implicit executionContext: ExecutionContext): Future[Unit] = notifyInternal
 
-  def notifyClusterDeleted(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = notifyInternal
+  def notifyClusterDeleted(cluster: Cluster)(implicit executionContext: ExecutionContext): Future[Unit] = notifyInternal
 }
