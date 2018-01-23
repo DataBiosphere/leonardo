@@ -8,7 +8,7 @@ object Dependencies {
   val workbenchModelV   = "0.8-d97f551"
   val workbenchGoogleV  = "0.10-b95b2c1"
   //UPDATE THIS WITH FINAL HASH
-  val serviceTestV = "0.1.1-alpha-sam-fb82d4c-SNAP"
+  val serviceTestV = "0.1-ee50739-SNAP"
 
   val excludeWorkbenchModel =   ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-model_2.11")
 

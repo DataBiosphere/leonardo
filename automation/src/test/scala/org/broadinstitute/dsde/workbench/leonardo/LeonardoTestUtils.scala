@@ -4,12 +4,12 @@ import java.io.File
 import java.nio.file.Files
 
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.WebBrowserSpec
-import org.broadinstitute.dsde.workbench.service.{Orchestration, Rawls, Sam}
-import org.broadinstitute.dsde.workbench.api.APIException
-import org.broadinstitute.dsde.workbench.auth.{AuthToken, UserAuthToken}
-import org.broadinstitute.dsde.workbench.config.Config
 import org.broadinstitute.dsde.workbench.dao.Google.googleIamDAO
+import org.broadinstitute.dsde.workbench.auth.{AuthToken, UserAuthToken}
+import org.broadinstitute.dsde.workbench.config.{Config, LeoAuthToken}
+import org.broadinstitute.dsde.workbench.service.{Orchestration, Rawls, Sam}
+import org.broadinstitute.dsde.workbench.service.APIException
+import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -150,6 +150,87 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     val cluster = createAndMonitor(googleProject, name, request)
     cluster.status shouldBe ClusterStatus.Running
     cluster
+
+    val testResult: Try[T] = Try {
+      val cluster = createAndMonitor(googleProject, name, request)
+      cluster.status shouldBe ClusterStatus.Running
+      testCode(cluster)
+    }
+
+    // delete before checking testCode status, which may throw
+    deleteAndMonitor(googleProject, name)
+    testResult.get
+  }
+
+  def withNewErroredCluster[T](googleProject: GoogleProject)(testCode: Cluster => T)(implicit token: AuthToken): T = {
+    val name = ClusterName(s"automation-test-a${makeRandomId()}z")
+    val request = ClusterRequest(Map("foo" -> makeRandomId()), Some(incorrectJupyterExtensionUri))
+    val testResult: Try[T] = Try {
+      val cluster = createAndMonitor(googleProject, name, request)
+      cluster.status shouldBe ClusterStatus.Error
+      testCode(cluster)
+    }
+
+    // delete before checking testCode status, which may throw
+    deleteAndMonitor(googleProject, name)
+    testResult.get
+  }
+
+  def withNotebooksListPage[T](cluster: Cluster)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+    val notebooksListPage = Leonardo.notebooks.get(cluster.googleProject, cluster.clusterName)
+    testCode(notebooksListPage.open)
+  }
+
+  def withFileUpload[T](cluster: Cluster, file: File)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+    withNotebooksListPage(cluster) { notebooksListPage =>
+      notebooksListPage.upload(file)
+      testCode(notebooksListPage)
+    }
+  }
+
+  def withNotebookUpload[T](cluster: Cluster, file: File)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+    withFileUpload(cluster, file) { notebooksListPage =>
+      val notebookPage = notebooksListPage.openNotebook(file)
+      testCode(notebookPage)
+    }
+  }
+
+  def withNewNotebook[T](cluster: Cluster)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+    withNotebooksListPage(cluster) { notebooksListPage =>
+      val notebookPage = notebooksListPage.newNotebook
+      testCode(notebookPage)
+    }
+  }
+
+  def withDummyClientPage[T](cluster: Cluster)(testCode: DummyClientPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+    // start a server to load the dummy client page
+    val bindingFuture = Leonardo.dummyClient.startServer
+    val testResult = Try {
+      val dummyClientPage = Leonardo.dummyClient.get(cluster.googleProject, cluster.clusterName)
+      testCode(dummyClientPage)
+    }
+    // stop the server
+    Leonardo.dummyClient.stopServer(bindingFuture)
+    testResult.get
+  }
+
+  def withNewBillingProject[T](testCode: GoogleProject => T): T = {
+    val ownerToken: AuthToken = hermioneAuthToken
+    val billingProject = GoogleProject("leonardo-billing-spec-" + makeRandomId())
+
+    // Create billing project and run test code
+    val testResult: Try[T] = Try {
+      logger.info(s"Creating billing project: $billingProject")
+      Orchestration.billing.createBillingProject(billingProject.value, Config.Projects.billingAccountId)(ownerToken)
+      testCode(billingProject)
+    }
+    // Clean up billing project
+    Try(Rawls.admin.deleteBillingProject(billingProject.value)(UserAuthToken(Config.Users.admin))).recover { case NonFatal(e) =>
+      logger.warn(s"Could not delete billing project $billingProject", e)
+    }
+    // Return the test result, or throw error
+    testResult.get
+>>>>>>> 82e17c1... auth token for leo, other deletions, tweaks:automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/LeonardoSpec.scala
   }
 
   def verifyNotebookCredentials(notebookPage: NotebookPage, expectedEmail: WorkbenchEmail): Unit = {
@@ -191,7 +272,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   }
 
   def getAndVerifyPet(project: GoogleProject)(implicit token: AuthToken): (ServiceAccountName, WorkbenchEmail) = {
-    val samPetEmail = Sam.user.petServiceAccountEmail(project)
+    val samPetEmail = Sam.user.petServiceAccountEmail(project.value)
     val userStatus = Sam.user.status().get
     val petName = Sam.petName(userStatus.userInfo)
     val googlePetEmail = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
