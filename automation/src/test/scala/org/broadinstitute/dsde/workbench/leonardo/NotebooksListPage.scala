@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.io.File
 
-import org.broadinstitute.dsde.workbench.config.AuthToken
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.openqa.selenium.WebDriver
 
 class NotebooksListPage(override val url: String)(override implicit val authToken: AuthToken, override implicit val webDriver: WebDriver)

@@ -4,10 +4,12 @@ import java.io.File
 import java.nio.file.Files
 import java.time.Instant
 
+import org.broadinstitute.dsde.workbench.auth.{AuthToken, UserAuthToken}
+import org.broadinstitute.dsde.workbench.config.{Config, LeoAuthToken}
 import org.broadinstitute.dsde.workbench.service.{Orchestration, Rawls, Sam}
-import org.broadinstitute.dsde.workbench.api.APIException
-import org.broadinstitute.dsde.workbench.{ResourceFile, WebBrowserSpec}
-import org.broadinstitute.dsde.workbench.config.{AuthToken, WorkbenchConfig}
+import org.broadinstitute.dsde.workbench.service.APIException
+import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
+import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.util.LocalFileUtil
@@ -29,8 +31,8 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
   implicit override val patienceConfig: PatienceConfig = PatienceConfig(timeout = scaled(Span(5, Seconds)))
 
   // Ron and Hermione are on the dev Leo whitelist.
-  val ronAuthToken = AuthToken(LeonardoConfig.Users.ron)
-  val hermioneAuthToken = AuthToken(LeonardoConfig.Users.hermione)
+  val ronAuthToken = UserAuthToken(Config.Users.Students.getUserCredential("ron"))
+  val hermioneAuthToken = UserAuthToken(Config.Users.Students.getUserCredential("hermione"))
 
   // kudos to whoever named this Patience
   val clusterPatience = PatienceConfig(timeout = scaled(Span(15, Minutes)), interval = scaled(Span(20, Seconds)))
@@ -201,11 +203,11 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     // Create billing project and run test code
     val testResult: Try[T] = Try {
       logger.info(s"Creating billing project: $billingProject")
-      Orchestration.billing.createBillingProject(billingProject.value, WorkbenchConfig.Projects.billingAccountId)(ownerToken)
+      Orchestration.billing.createBillingProject(billingProject.value, Config.Projects.billingAccountId)(ownerToken)
       testCode(billingProject)
     }
     // Clean up billing project
-    Try(Rawls.admin.deleteBillingProject(billingProject.value)(AuthToken(LeonardoConfig.Users.dumbledore))).recover { case NonFatal(e) =>
+    Try(Rawls.admin.deleteBillingProject(billingProject.value)(UserAuthToken(Config.Users.admin))).recover { case NonFatal(e) =>
       logger.warn(s"Could not delete billing project $billingProject", e)
     }
     // Return the test result, or throw error
@@ -251,7 +253,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
   }
 
   def getAndVerifyPet(project: GoogleProject)(implicit token: AuthToken): (ServiceAccountName, WorkbenchEmail) = {
-    val samPetEmail = Sam.user.petServiceAccountEmail(project)
+    val samPetEmail = Sam.user.petServiceAccountEmail(project.value)
     val userStatus = Sam.user.status().get
     val petName = Sam.petName(userStatus.userInfo)
     val googlePetEmail = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
@@ -457,7 +459,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
         // project owners have the bigquery role automatically, so this also tests granting it to users
 
-        val ronEmail = LeonardoConfig.Users.ron.email
+        val ronEmail = Config.Users.Students.getUserCredential("ron").email
         val ownerToken = hermioneAuthToken
         Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(ownerToken)
         Orchestration.billing.addGoogleRoleToBillingProjectUser(project.value, ronEmail, "bigquery.jobUser")(ownerToken)
