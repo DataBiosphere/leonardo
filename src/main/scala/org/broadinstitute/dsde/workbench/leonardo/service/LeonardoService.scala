@@ -140,7 +140,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           case Failure(_) =>
             //make a dummy cluster with the details
             val clusterToDelete = Cluster.createDummyForDeletion(clusterRequest, userEmail, clusterName, googleProject, serviceAccountInfo)
-            internalDeleteCluster(userEmail, clusterToDelete) //don't wait for it
+            internalDeleteCluster(clusterToDelete) //don't wait for it
           case Success(_) => //no-op
         }
         clusterFuture
@@ -169,12 +169,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually destroy it
       _ <- checkClusterPermission(userInfo,  DeleteCluster, cluster, throw401 = true)
 
-      _ <- internalDeleteCluster(userInfo.userEmail, cluster)
+      _ <- internalDeleteCluster(cluster)
     } yield { () }
   }
 
   //NOTE: This function MUST ALWAYS complete ALL steps. i.e. if deleting thing1 fails, it must still proceed to delete thing2
-  def internalDeleteCluster(userEmail: WorkbenchEmail, cluster: Cluster): Future[Unit] = {
+  def internalDeleteCluster(cluster: Cluster): Future[Unit] = {
     if (cluster.status.isDeletable) {
       for {
         // Delete the notebook service account key in Google, if present
