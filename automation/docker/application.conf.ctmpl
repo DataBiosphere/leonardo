@@ -67,6 +67,13 @@ users {
   neville = "neville.temp@{{template "USER_DOMAIN"}}"
 }
 
+methods {
+  testMethod = "DO_NOT_CHANGE_test_method"
+  testMethodConfig = "DO_NOT_CHANGE_test1_config"
+  methodConfigNamespace = "automationmethods"
+  snapshotID = 1
+}
+
 chromeSettings {
   chromedriverHost = "http://hub:4444/wd/hub"
   chromedriverPath = "/usr/local/bin/chromedriver"
