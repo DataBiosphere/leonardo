@@ -243,8 +243,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                            clusterName: ClusterName,
                                            clusterRequest: ClusterRequest)
                                           (implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
-    val initBucketName = generateUniqueBucketName(clusterName.string+"init")
-    val stagingBucketName = generateUniqueBucketName(clusterName.string+"staging")
+    val initBucketName = generateUniqueBucketName(clusterName.string+"-init")
+    val stagingBucketName = generateUniqueBucketName(clusterName.string+"-staging")
     for {
       // Validate that the Jupyter extension URI is a valid URI and references a real GCS object
       _ <- validateJupyterExtensionUri(googleProject, clusterRequest.jupyterExtensionUri)
@@ -262,7 +262,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // ACLs are granted so the cluster service account can access the bucket at initialization time.
       initBucketPath <- initializeBucket(userEmail, googleProject, clusterName, initBucketName, clusterRequest, serviceAccountInfo, serviceAccountKeyOpt)
       // Create the staging bucket
-      stagingBucketPath <- gdDAO.createBucket(googleProject, googleProject, stagingBucketName, serviceAccountInfo)
+      stagingBucketPath <- gdDAO.createStagingBucket(googleProject, googleProject, stagingBucketName, serviceAccountInfo, userEmail)
       // Once the bucket is ready, build the cluster
       cluster <- gdDAO.createCluster(userEmail, googleProject, clusterName, clusterRequest, initBucketName, serviceAccountInfo, stagingBucketPath).andThen { case Failure(_) =>
         // If cluster creation fails, delete the init bucket asynchronously
@@ -316,7 +316,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     for {
       // Note the bucket is created in Leo's project, not the cluster's project.
       // ACLs are granted so the cluster's service account can access the bucket at initialization time.
-      _ <- gdDAO.createBucket(dataprocConfig.leoGoogleProject, googleProject, initBucketName, serviceAccountInfo)
+      _ <- gdDAO.createInitBucket(dataprocConfig.leoGoogleProject, googleProject, initBucketName, serviceAccountInfo)
       _ <- initializeBucketObjects(userEmail, googleProject, clusterName, initBucketName, clusterRequest, notebookServiceAccountKeyOpt)
     } yield { initBucketName }
   }

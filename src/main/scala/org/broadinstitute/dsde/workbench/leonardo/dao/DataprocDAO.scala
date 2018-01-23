@@ -23,7 +23,9 @@ trait DataprocDAO {
    * The bucketGoogleProject is the project the bucket resides in; the clusterGoogleProject is needed to set the
    * appropriate ACLs on the bucket.
    */
-  def createBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[GcsBucketName]
+  def createInitBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[GcsBucketName]
+
+  def createStagingBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo, creator: WorkbenchEmail): Future[GcsBucketName]
 
   def uploadToBucket(googleProject: GoogleProject, bucketPath: GcsPath, content: File): Future[Unit]
 

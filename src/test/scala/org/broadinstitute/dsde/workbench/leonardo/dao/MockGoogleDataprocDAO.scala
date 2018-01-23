@@ -70,7 +70,14 @@ class MockGoogleDataprocDAO(protected val dataprocConfig: DataprocConfig, protec
     Future.successful(())
   }
 
-  override def createBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[GcsBucketName] = {
+  override def createInitBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[GcsBucketName] = {
+    if (!buckets.contains(bucketName)) {
+      buckets += bucketName
+    }
+    Future.successful(bucketName)
+  }
+
+  override def createStagingBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo, creator: WorkbenchEmail): Future[GcsBucketName] = {
     if (!buckets.contains(bucketName)) {
       buckets += bucketName
     }
