@@ -439,7 +439,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     }
 
     "should create a cluster in a different billing project and put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
-      withNewBillingProject { newProject =>
+      withNewBillingProject { project =>
 
         implicit val token = ronAuthToken
 
@@ -447,11 +447,11 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
         val ownerToken = hermioneAuthToken
         Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(ownerToken)
         // Pre-conditions: pet service account exists in this Google project and in Sam
-        val (petName, petEmail) = getAndVerifyPet(newProject)
+        val (petName, petEmail) = getAndVerifyPet(project)
 
         // Create a cluster
 
-        withNewCluster(newProject) { cluster =>
+        withNewCluster(project) { cluster =>
           // cluster should have been created with the pet service account
           cluster.serviceAccountInfo.clusterServiceAccount shouldBe Some(petEmail)
           cluster.serviceAccountInfo.notebookServiceAccount shouldBe None
@@ -464,7 +464,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
         // Post-conditions: pet should still exist in this Google project
 
-        val googlePetEmail2 = googleIamDAO.findServiceAccount(newProject, petName).futureValue.map(_.email)
+        val googlePetEmail2 = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
         googlePetEmail2 shouldBe Some(petEmail)
       }
     }
