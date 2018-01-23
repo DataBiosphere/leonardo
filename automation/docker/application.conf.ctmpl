@@ -61,6 +61,8 @@ users {
   george = "george.authdomain@{{template "USER_DOMAIN"}}"
   bill = "bill.authdomain@{{template "USER_DOMAIN"}}"
 
+  userDataPath = "{{$dir}}/src/test/resources/users.json"
+
   # following users only used to test user creation
   luna = "luna.temp@{{template "USER_DOMAIN"}}"
   lunaSubjectId = "{{if or (eq $environment "dev") (eq $environment "alpha")}}111010567286567716739{{else if eq $environment "qa"}}117891551413045861932{{else}}[undefined]{{end}}"
