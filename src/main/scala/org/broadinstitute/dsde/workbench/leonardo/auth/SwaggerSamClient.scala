@@ -48,13 +48,11 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
 
   //A resources API as the given user's pet SA
   private[auth] def resourcesApiAsPet(userEmail: WorkbenchEmail, googleProject: GoogleProject): ResourcesApi = {
-    logger.info("get the samResourcesApi!")
     samResourcesApi(getCachedPetAccessToken(userEmail, googleProject))
   }
 
   //"Fast" lookup of pet's access token, using the cache.
   private def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = {
-    logger.info(s"get the cached token for ${userEmail.value}")
     petTokenCache.get(UserEmailAndProject(userEmail, googleProject))
   }
 
@@ -64,9 +62,7 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
     .build(
       new CacheLoader[UserEmailAndProject, String] {
         def load(userEmailAndProject: UserEmailAndProject) = {
-          logger.info(s"IN THE CACHE!!! ${userEmailAndProject.googleProject} + ${userEmailAndProject.userEmail}")
           val token = getPetAccessTokenFromSam(userEmailAndProject.userEmail, userEmailAndProject.googleProject)
-          logger.info("TOKEN THINGY: " + token)
           token
         }
       }
@@ -74,7 +70,6 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
 
   //"Slow" lookup of pet's access token. The cache calls this when it needs to.
   private def getPetAccessTokenFromSam(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = {
-    logger.info(s"LOOK UP ACCESS TOKEN FROM SAM for ${userEmail.value} IN ${googleProject.value}")
     val samAPI = samGoogleApi(getAccessTokenUsingPem(leoEmail, leoPem))
     val userPetServiceAccountKey = samAPI.getUserPetServiceAccountKey(googleProject.value, userEmail.value)
     getAccessTokenUsingJson(userPetServiceAccountKey)
@@ -109,7 +104,6 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
 
 
   def createNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
-    logger.info("we're creating a notebook-cluster! ")
     resourcesApiAsPet(userEmail, googleProject).createResource(notebookClusterResourceTypeName, getClusterResourceId(googleProject, clusterName))
   }
 
@@ -118,17 +112,14 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
   }
 
   def hasActionOnBillingProjectResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, action: String): Boolean = {
-    logger.info(s"CAN ${userEmail.value} DO $action ON PROJECT ${googleProject.value}?")
     hasActionOnResource(billingProjectResourceTypeName, googleProject.value, userEmail, googleProject, action)
   }
 
   def hasActionOnNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, action: String): Boolean = {
-    logger.info(s"CAN ${userEmail.value} DO $action ON CLUSTER ${clusterName.string}?")
     hasActionOnResource(notebookClusterResourceTypeName, getClusterResourceId(googleProject, clusterName), userEmail, googleProject, action)
   }
 
   private def hasActionOnResource(resourceType: String, resourceName: String, userEmail: WorkbenchEmail, googleProject: GoogleProject, action: String): Boolean = {
-    logger.info("CAN WE??")
     resourcesApiAsPet(userEmail, googleProject).resourceAction(resourceType, resourceName, action)
   }
 
