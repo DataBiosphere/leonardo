@@ -125,8 +125,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       case None =>
         val augmentedClusterRequest = addClusterDefaultLabels(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
         val clusterFuture = for {
-          // Notify the auth provider that the cluster has been created
-          _ <- authProvider.notifyClusterCreated(userEmail, googleProject, clusterName)
           // Create the cluster in Google
           (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest)
           // Save the cluster in the database
@@ -186,7 +184,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         // Change the cluster status to Deleting in the database
         _ <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.googleId))
         // Notify the auth provider of cluster deletion
-        _ <- authProvider.notifyClusterDeleted(userEmail, cluster.googleProject, cluster.clusterName)
+        _ <- authProvider.notifyClusterDeleted(cluster.creator, cluster.googleProject, cluster.clusterName)
       } yield {
         // Notify the cluster monitor supervisor of cluster deletion.
         // This will kick off polling until the cluster is actually deleted in Google.
