@@ -270,6 +270,10 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     "should create, monitor, and delete a cluster" in {
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
+        val ronEmail = LeonardoConfig.Users.ron.email
+        val ownerToken = hermioneAuthToken
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(ownerToken)
+
         withNewCluster(project) { _ =>
           // no-op; just verify that it launches
         }
@@ -279,6 +283,10 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     "should error on cluster create and delete the cluster" in {
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
+        val ronEmail = LeonardoConfig.Users.ron.email
+        val ownerToken = hermioneAuthToken
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(ownerToken)
+
         withNewErroredCluster(project) { _ =>
           // no-op; just verify that it launches
         }
@@ -288,6 +296,10 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     "should open the notebooks list page" in withWebDriver { implicit driver =>
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
+        val ronEmail = LeonardoConfig.Users.ron.email
+        val ownerToken = hermioneAuthToken
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(ownerToken)
+
         withNewCluster(project) { cluster =>
           withNotebooksListPage(cluster) { _ =>
             // no-op; just verify that it opens
@@ -299,6 +311,10 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     "should upload a notebook to Jupyter" in withWebDriver { implicit driver =>
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
+        val ronEmail = LeonardoConfig.Users.ron.email
+        val ownerToken = hermioneAuthToken
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(ownerToken)
+
         val file = ResourceFile("diff-tests/import-hail.ipynb")
 
         withNewCluster(project) { cluster =>
@@ -320,6 +336,9 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     "should verify notebook execution" in withWebDriver(downloadDir) { implicit driver =>
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
+        val ronEmail = LeonardoConfig.Users.ron.email
+        val ownerToken = hermioneAuthToken
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(ownerToken)
 
         withNewCluster(project) { cluster =>
           withNotebookUpload(cluster, upFile) { notebook =>
@@ -342,6 +361,10 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     "should execute cells" in withWebDriver { implicit driver =>
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
+        val ronEmail = LeonardoConfig.Users.ron.email
+        val ownerToken = hermioneAuthToken
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(ownerToken)
+
         withNewCluster(project) { cluster =>
           withNewNotebook(cluster) { notebookPage =>
             notebookPage.executeCell("1+1") shouldBe Some("2")
@@ -355,6 +378,10 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     "should localize files" in withWebDriver { implicit driver =>
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
+
+        val ronEmail = LeonardoConfig.Users.ron.email
+        val ownerToken = hermioneAuthToken
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(ownerToken)
         val file = ResourceFile("diff-tests/import-hail.ipynb")
 
         withNewCluster(project) { cluster =>
@@ -391,6 +418,9 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     "should import AoU library" in withWebDriver { implicit driver =>
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
+        val ronEmail = LeonardoConfig.Users.ron.email
+        val ownerToken = hermioneAuthToken
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(ownerToken)
         withNewCluster(project) { cluster =>
           withNewNotebook(cluster) { notebookPage =>
             val importAoU =
@@ -412,6 +442,10 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
       withNewBillingProject { newProject =>
 
         implicit val token = ronAuthToken
+
+        val ronEmail = LeonardoConfig.Users.ron.email
+        val ownerToken = hermioneAuthToken
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(ownerToken)
         // Pre-conditions: pet service account exists in this Google project and in Sam
         val (petName, petEmail) = getAndVerifyPet(newProject)
 
@@ -438,6 +472,9 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     "should do cross domain cookie auth" in withWebDriver { implicit driver =>
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
+        val ronEmail = LeonardoConfig.Users.ron.email
+        val ownerToken = hermioneAuthToken
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(ownerToken)
         withNewCluster(project) { cluster =>
           withDummyClientPage(cluster) { dummyClientPage =>
             // opens the notebook list page without setting a cookie

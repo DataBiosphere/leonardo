@@ -53,6 +53,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @return If the given user has permissions in this project to perform the specified action.
     */
   override def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+    logger.info("we're in sam auth provider! hasprojectpermission")
     Future { samClient.hasActionOnBillingProjectResource(userEmail,googleProject, getProjectActionString(action)) }
   }
 
@@ -110,6 +111,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
   override def notifyClusterCreated(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
+    logger.info("we're in sam auth provider! notifyClusterCreated")
     Future { samClient.createNotebookClusterResource(userEmail, googleProject, clusterName) }
   }
 
@@ -124,6 +126,7 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
   override def notifyClusterDeleted(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
+    logger.info("we're in sam auth provider! notifyClusterDeleted")
     Future{ samClient.deleteNotebookClusterResource(userEmail, googleProject, clusterName) }
   }
 }
