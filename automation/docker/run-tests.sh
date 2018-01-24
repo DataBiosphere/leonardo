@@ -91,9 +91,9 @@ if [ "$DOCKERHOST" != "" ]; then
     HOST_MAPPING="--add-host=firecloud-fiab.dsde-${ENV}.broadinstitute.org:${DOCKERHOST} --add-host=firecloud-orchestration-fiab.dsde-${ENV}.broadinstitute.org:${DOCKERHOST} --add-host=rawls-fiab.dsde-${ENV}.broadinstitute.org:${DOCKERHOST} --add-host=thurloe-fiab.dsde-${ENV}.broadinstitute.org:${DOCKERHOST} --add-host=sam-fiab.dsde-${ENV}.broadinstitute.org:${DOCKERHOST} --add-host=leonardo-fiab.dsde-${ENV}.broadinstitute.org:${DOCKERHOST} -e SLACK_API_TOKEN=$SLACK_API_TOKEN -e BUILD_NUMBER=$BUILD_NUMBER -e SLACK_CHANNEL=${SLACK_CHANNEL}"
 fi
 
-TEST_ENTRYPOINT="test"
+TEST_ENTRYPOINT="testOnly *Leonardo*"
 if [ $ENV = "prod" ]; then
-    TEST_ENTRYPOINT="test"
+    TEST_ENTRYPOINT="testOnly *Leonardo*"
 fi
 echo $TEST_ENTRYPOINT
 
@@ -104,6 +104,7 @@ docker run -e DOCKERHOST=$DOCKERHOST \
     -P --rm -t -e CHROME_URL="http://hub:4444/" ${HOST_MAPPING} \
     -v $WORKING_DIR/target/application.conf:/app/src/test/resources/application.conf \
     -v $WORKING_DIR/target/firecloud-account.pem:/app/src/test/resources/firecloud-account.pem \
+    -v $WORKING_DIR/target/users.json:/app/src/test/resources/users.json \
     -v $WORKING_DIR/target:/app/target \
     -v $WORKING_DIR/chrome/downloads:/app/chrome/downloads \
     -v $WORKING_DIR/failure_screenshots:/app/failure_screenshots \

@@ -6,7 +6,7 @@ Note: Leonardo integration tests are not currently web-based but may fail due to
 
 `./render-local-env.sh $PWD $(cat ~/.vault-token) dev`
 
-`sbt -Djsse.enableSNIExtension=false -Dheadless=false test`
+`sbt -Djsse.enableSNIExtension=false -Dheadless=false "testOnly *Leonardo*"`
 
 IntelliJ
 - Edit Configurations -> Defaults -> ScalaTest

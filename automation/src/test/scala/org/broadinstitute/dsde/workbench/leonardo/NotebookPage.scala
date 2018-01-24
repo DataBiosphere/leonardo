@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.apache.commons.text.StringEscapeUtils
-import org.broadinstitute.dsde.workbench.config.AuthToken
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.openqa.selenium.{By, WebDriver, WebElement}
 import org.openqa.selenium.interactions.Actions
 
@@ -15,7 +15,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   // selects all menus from the header bar
   lazy val menus: Query = cssSelector("[class='dropdown-toggle']")
 
-  // menu elements
+  // "File" and "Cell" menus
 
   lazy val fileMenu: Element = {
     findAll(menus).filter { e => e.text == "File" }.toList.head
@@ -23,10 +23,6 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
 
   lazy val cellMenu: Element = {
     findAll(menus).filter { e => e.text == "Cell" }.toList.head
-  }
-
-  lazy val kernelMenu: Element = {
-    findAll(menus).filter { e => e.text == "Kernel" }.toList.head
   }
 
   // selects all submenus which appear in dropdowns after clicking a main menu header
@@ -46,12 +42,6 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   // Run Cell toolbar button
   lazy val runCellButton: Query = cssSelector("[title='Run']")
 
-  // Kernel -> Shutdown
-  lazy val shutdownKernelSelection: Query = cssSelector("[id='shutdown_kernel']")
-
-  // Jupyter asks: Are you sure you want to shutdown the kernel?
-  lazy val shutdownKernelConfirmationSelection: Query = cssSelector("[class='btn btn-default btn-sm btn-danger']")
-
   // selects the numbered left-side cell prompts
   lazy val prompts: Query = cssSelector("[class='prompt input_prompt']")
 
@@ -59,9 +49,6 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   def cellsAreRunning: Boolean = {
     findAll(prompts).exists { e => e.text == "In [*]:" }
   }
-
-  // can we see that the kernel connection has terminated?
-  lazy val kernelTerminatedModalBody: Query = cssSelector("[class='modal-body']")
 
   def runAllCells(timeoutSeconds: Long): Unit = {
     click on cellMenu
@@ -96,12 +83,5 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     click on runCellButton
     await condition (!cellsAreRunning, timeoutSeconds)
     cellOutput(cell)
-  }
-
-  def shutdownKernel(): Unit = {
-    click on kernelMenu
-    click on (await enabled shutdownKernelSelection)
-    click on (await enabled shutdownKernelConfirmationSelection)
-    await enabled kernelTerminatedModalBody
   }
 }

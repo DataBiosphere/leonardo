@@ -2,10 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.io.File
 
-import org.broadinstitute.dsde.workbench.config.AuthToken
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.openqa.selenium.WebDriver
-
-import scala.util.Try
 
 class NotebooksListPage(override val url: String)(override implicit val authToken: AuthToken, override implicit val webDriver: WebDriver)
   extends JupyterPage {
@@ -22,23 +20,17 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
     click on (await enabled finishUploadButton)
   }
 
-  def withOpenNotebook[T](file: File)(testCode: NotebookPage => T): T = {
+  def openNotebook(file: File): NotebookPage = {
     await enabled text(file.getName)
-    val notebookPage = new NotebookPage(url + "/notebooks/" + file.getName).open
-    val result = Try { testCode(notebookPage) }
-    notebookPage.shutdownKernel()
-    result.get
+    new NotebookPage(url + "/notebooks/" + file.getName).open
   }
 
-  def withNewNotebook[T](testCode: NotebookPage => T): T = {
+  def newNotebook: NotebookPage = {
     switchToNewTab {
       click on (await enabled newButton)
       click on (await enabled python2Link)
     }
     // Not calling NotebookPage.open() as it should already be opened
-    val notebookPage = new NotebookPage(currentUrl)
-    val result = Try { testCode(notebookPage) }
-    notebookPage.shutdownKernel()
-    result.get
+    new NotebookPage(currentUrl)
   }
 }
