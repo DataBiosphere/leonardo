@@ -6,8 +6,6 @@ import org.scalatest.{FreeSpec, ParallelTestExecution}
 import org.scalatest.time.{Seconds, Span}
 
 class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with ParallelTestExecution {
-  implicit override val patienceConfig: PatienceConfig = PatienceConfig(timeout = scaled(Span(5, Seconds)))
-
   "Leonardo clusters" - {
 
     "should create, monitor, and delete a cluster" in {

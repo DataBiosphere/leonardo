@@ -12,8 +12,6 @@ import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 
 class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with BeforeAndAfterAll {
-  implicit override val patienceConfig: PatienceConfig = PatienceConfig(timeout = scaled(Span(5, Seconds)))
-
   /*
    * This class creates a cluster in a new billing project and runs all tests inside the same cluster.
    */
@@ -21,6 +19,8 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
   var ronCluster : Cluster = _
 
   implicit val ronToken: AuthToken = ronAuthToken
+
+  override implicit val patience: PatienceConfig = localizePatience
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -89,7 +89,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
           Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, goodLocalize)
           //the following line will barf with an exception if the file isn't there; that's enough
           Leonardo.notebooks.getContentItem(ronCluster.googleProject, ronCluster.clusterName, "test.rtf", includeContent = false)
-        }(localizePatience)
+        }
 
 
         val localizationLog = Leonardo.notebooks.getContentItem(ronCluster.googleProject, ronCluster.clusterName, "localization.log")
