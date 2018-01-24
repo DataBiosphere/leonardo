@@ -74,7 +74,7 @@ package object config {
       config.getString("jupyterProtocol"),
       config.getString("jupyterDomain"),
       toScalaDuration(config.getDuration("dnsPollPeriod")),
-      config.getLong("cacheExpiryTime"),
+      toScalaDuration(config.getDuration("cacheExpiryTime")),
       config.getInt("cacheMaxSize")
     )
   }
