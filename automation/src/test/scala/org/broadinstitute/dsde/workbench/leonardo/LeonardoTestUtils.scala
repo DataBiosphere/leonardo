@@ -26,8 +26,6 @@ import scala.util.control.NonFatal
 trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures {
   this: Suite =>
 
-  implicit val patience: PatienceConfig = clusterPatience
-
   val swatTestBucket = "gs://leonardo-swat-test-bucket-do-not-delete"
   val incorrectJupyterExtensionUri = swatTestBucket + "/"
 
@@ -125,6 +123,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     clusterCheck(Leonardo.cluster.get(googleProject, clusterName), clusterRequest.labels, googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest.jupyterExtensionUri)
 
     // wait for "Running" or error (fail fast)
+    implicit val patienceConfig: PatienceConfig = clusterPatience
     val actualCluster = eventually {
       clusterCheck(Leonardo.cluster.get(googleProject, clusterName), clusterRequest.labels, googleProject, clusterName, Seq(ClusterStatus.Running, ClusterStatus.Error), clusterRequest.jupyterExtensionUri)
     }
@@ -144,6 +143,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
 
     // wait until not found or in "Deleted" state
+    implicit val patienceConfig: PatienceConfig = clusterPatience
     eventually {
       val statusOpt = Leonardo.cluster.listIncludingDeleted().find(_.clusterName == clusterName).map(_.status)
       statusOpt getOrElse ClusterStatus.Deleted shouldBe ClusterStatus.Deleted

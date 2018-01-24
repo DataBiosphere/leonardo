@@ -20,8 +20,6 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
 
   implicit val ronToken: AuthToken = ronAuthToken
 
-  override implicit val patience: PatienceConfig = localizePatience
-
   override def beforeAll(): Unit = {
     super.beforeAll()
 
@@ -85,6 +83,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
           //"gs://new_bucket/import-hail.ipynb" -> "import-hail.ipynb"
         )
 
+        implicit val patienceConfig: PatienceConfig = localizePatience
         eventually {
           Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, goodLocalize)
           //the following line will barf with an exception if the file isn't there; that's enough
