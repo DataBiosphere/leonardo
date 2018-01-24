@@ -134,7 +134,6 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
 
     "should allow BigQuerying in a new billing project" in withWebDriver { implicit driver =>
       // project owners have the bigquery role automatically, so this also tests granting it to users
-      val ronEmail = Config.config.getString("notebookswhitelisted.ron")
       val ownerToken = hermioneAuthToken
       Orchestration.billing.addGoogleRoleToBillingProjectUser(billingProject.value, ronEmail, "bigquery.jobUser")(ownerToken)
 
