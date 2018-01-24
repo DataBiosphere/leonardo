@@ -196,13 +196,12 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
   }
 
   def withNewBillingProject[T](testCode: GoogleProject => T): T = {
-    val ownerToken: AuthToken = hermioneAuthToken
     val billingProject = GoogleProject("leonardo-billing-spec-" + makeRandomId())
 
     // Create billing project and run test code
     val testResult: Try[T] = Try {
       logger.info(s"Creating billing project: $billingProject")
-      Orchestration.billing.createBillingProject(billingProject.value, WorkbenchConfig.Projects.billingAccountId)(ownerToken)
+      Orchestration.billing.createBillingProject(billingProject.value, WorkbenchConfig.Projects.billingAccountId)(hermioneAuthToken)
       testCode(billingProject)
     }
     // Clean up billing project
@@ -472,7 +471,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
         // project owners have the bigquery role automatically, so this also tests granting it to users
 
-        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(ownerToken)
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
         Orchestration.billing.addGoogleRoleToBillingProjectUser(project.value, ronEmail, "bigquery.jobUser")(hermioneAuthToken)
 
         implicit val leoToken: AuthToken = ronAuthToken
