@@ -3,9 +3,10 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.io.File
 import java.time.Instant
 
-import org.broadinstitute.dsde.firecloud.api.Orchestration
+import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.broadinstitute.dsde.workbench.ResourceFile
-import org.broadinstitute.dsde.workbench.config.AuthToken
+import org.broadinstitute.dsde.workbench.auth.AuthToken
+import org.broadinstitute.dsde.workbench.config.Config
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
@@ -134,7 +135,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
 
     "should allow BigQuerying in a new billing project" in withWebDriver { implicit driver =>
       // project owners have the bigquery role automatically, so this also tests granting it to users
-      val ronEmail = LeonardoConfig.Users.ron.email
+      val ronEmail = Config.config.getString("notebookswhitelisted.ron")
       val ownerToken = hermioneAuthToken
       Orchestration.billing.addGoogleRoleToBillingProjectUser(billingProject.value, ronEmail, "bigquery.jobUser")(ownerToken)
 

@@ -32,6 +32,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   // Ron and Hermione are on the dev Leo whitelist.
   val ronAuthToken = UserAuthToken(Config.Users.Students.getUserCredential("ron"))
   val hermioneAuthToken = UserAuthToken(Config.Users.Students.getUserCredential("hermione"))
+  val ronEmail = Config.config.getString("notebookswhitelisted.ron")
 
   val clusterPatience = PatienceConfig(timeout = scaled(Span(15, Minutes)), interval = scaled(Span(20, Seconds)))
   val localizePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
@@ -150,87 +151,6 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     val cluster = createAndMonitor(googleProject, name, request)
     cluster.status shouldBe ClusterStatus.Running
     cluster
-
-    val testResult: Try[T] = Try {
-      val cluster = createAndMonitor(googleProject, name, request)
-      cluster.status shouldBe ClusterStatus.Running
-      testCode(cluster)
-    }
-
-    // delete before checking testCode status, which may throw
-    deleteAndMonitor(googleProject, name)
-    testResult.get
-  }
-
-  def withNewErroredCluster[T](googleProject: GoogleProject)(testCode: Cluster => T)(implicit token: AuthToken): T = {
-    val name = ClusterName(s"automation-test-a${makeRandomId()}z")
-    val request = ClusterRequest(Map("foo" -> makeRandomId()), Some(incorrectJupyterExtensionUri))
-    val testResult: Try[T] = Try {
-      val cluster = createAndMonitor(googleProject, name, request)
-      cluster.status shouldBe ClusterStatus.Error
-      testCode(cluster)
-    }
-
-    // delete before checking testCode status, which may throw
-    deleteAndMonitor(googleProject, name)
-    testResult.get
-  }
-
-  def withNotebooksListPage[T](cluster: Cluster)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
-    val notebooksListPage = Leonardo.notebooks.get(cluster.googleProject, cluster.clusterName)
-    testCode(notebooksListPage.open)
-  }
-
-  def withFileUpload[T](cluster: Cluster, file: File)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
-    withNotebooksListPage(cluster) { notebooksListPage =>
-      notebooksListPage.upload(file)
-      testCode(notebooksListPage)
-    }
-  }
-
-  def withNotebookUpload[T](cluster: Cluster, file: File)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
-    withFileUpload(cluster, file) { notebooksListPage =>
-      val notebookPage = notebooksListPage.openNotebook(file)
-      testCode(notebookPage)
-    }
-  }
-
-  def withNewNotebook[T](cluster: Cluster)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
-    withNotebooksListPage(cluster) { notebooksListPage =>
-      val notebookPage = notebooksListPage.newNotebook
-      testCode(notebookPage)
-    }
-  }
-
-  def withDummyClientPage[T](cluster: Cluster)(testCode: DummyClientPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
-    // start a server to load the dummy client page
-    val bindingFuture = Leonardo.dummyClient.startServer
-    val testResult = Try {
-      val dummyClientPage = Leonardo.dummyClient.get(cluster.googleProject, cluster.clusterName)
-      testCode(dummyClientPage)
-    }
-    // stop the server
-    Leonardo.dummyClient.stopServer(bindingFuture)
-    testResult.get
-  }
-
-  def withNewBillingProject[T](testCode: GoogleProject => T): T = {
-    val ownerToken: AuthToken = hermioneAuthToken
-    val billingProject = GoogleProject("leonardo-billing-spec-" + makeRandomId())
-
-    // Create billing project and run test code
-    val testResult: Try[T] = Try {
-      logger.info(s"Creating billing project: $billingProject")
-      Orchestration.billing.createBillingProject(billingProject.value, Config.Projects.billingAccountId)(ownerToken)
-      testCode(billingProject)
-    }
-    // Clean up billing project
-    Try(Rawls.admin.deleteBillingProject(billingProject.value)(UserAuthToken(Config.Users.admin))).recover { case NonFatal(e) =>
-      logger.warn(s"Could not delete billing project $billingProject", e)
-    }
-    // Return the test result, or throw error
-    testResult.get
->>>>>>> 82e17c1... auth token for leo, other deletions, tweaks:automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/LeonardoSpec.scala
   }
 
   def verifyNotebookCredentials(notebookPage: NotebookPage, expectedEmail: WorkbenchEmail): Unit = {
