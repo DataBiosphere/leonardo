@@ -339,20 +339,21 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
     val clusterServiceAccountEntityStringFuture: Future[String] = getClusterServiceAccountEntity(clusterGoogleProject, serviceAccountInfo)
 
     logger.info(s"the creator is :: ${creator.value}")
+    logger.info(s"the leoServiceAccountEntityString is :: ${leoServiceAccountEntityString}")
 
     clusterServiceAccountEntityStringFuture.flatMap { clusterServiceAccountEntityString =>
       //Add the Leo SA and the cluster's SA to the ACL list for the bucket
       val bucketAcls = List(
         createBucketAcl(leoServiceAccountEntityString,"OWNER"),
-        createBucketAcl(clusterServiceAccountEntityString,"READER")
-        //createBucketAcl(creator.value,"READER")
+        createBucketAcl(clusterServiceAccountEntityString,"READER"),
+        createBucketAcl(s"user-${creator.value}","READER")
       )
 
       //Bucket ACL != the ACL given to individual objects inside the bucket
       val defObjectAcls = List(
         createDefaultObjectAcl(leoServiceAccountEntityString, "OWNER"),
-        createDefaultObjectAcl(clusterServiceAccountEntityString, "READER")
-//        createDefaultObjectAcl(creator.value,"READER")
+        createDefaultObjectAcl(clusterServiceAccountEntityString, "READER"),
+        createDefaultObjectAcl(s"user-${creator.value}","READER")
       )
 
       // Create the bucket object
