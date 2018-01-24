@@ -4,7 +4,7 @@ import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.ws.{TextMessage, WebSocketRequest}
-import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
+import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.HttpMethods._
 import akka.stream.scaladsl.{Keep, Sink, Source}
@@ -18,14 +18,12 @@ import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll, FlatSpec, Matchers}
 
 import scala.collection.immutable
-import scala.concurrent.duration._
 
 /**
   * Created by rtitle on 8/10/17.
   */
 class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with BeforeAndAfter with ScalatestRouteTest with ScalaFutures with TestLeoRoutes with TestProxy with TestComponent with GcsPathUtils {
-  implicit val patience = PatienceConfig(timeout = scaled(Span(30, Seconds)))
-  implicit val routeTimeout = RouteTestTimeout(10 seconds)
+  implicit val patience = PatienceConfig(timeout = scaled(Span(10, Seconds)))
 
   val clusterName = "test"
   val googleProject = "dsp-leo-test"

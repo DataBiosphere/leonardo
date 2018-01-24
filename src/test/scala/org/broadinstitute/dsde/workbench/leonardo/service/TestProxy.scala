@@ -9,16 +9,18 @@ import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import akka.http.scaladsl.testkit.RouteTest
+import akka.http.scaladsl.testkit.{RouteTest}
 import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
 import akka.stream.scaladsl.{Flow, Sink, Source}
+import org.broadinstitute.dsde.workbench.leonardo.api.LeoRoutes
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.service.TestProxy.Data
-import org.scalatest.concurrent.ScalaFutures
 import spray.json.DefaultJsonProtocol._
 import spray.json.RootJsonFormat
 
-trait TestProxy { this: ScalaFutures =>
+import scala.concurrent.Future
+
+trait TestProxy {
   val googleProject: String
   val clusterName: String
   val proxyConfig: ProxyConfig
@@ -27,7 +29,7 @@ trait TestProxy { this: ScalaFutures =>
   import routeTest._
 
   // The backend server behind the proxy
-  var serverBinding: ServerBinding = _
+  var bindingFuture: Future[ServerBinding] = _
 
   def startProxyServer() = {
     val password = "leo-test".toCharArray
@@ -48,11 +50,11 @@ trait TestProxy { this: ScalaFutures =>
     sslContext.init(keyManagerFactory.getKeyManagers, tmf.getTrustManagers, new SecureRandom)
     val https: HttpsConnectionContext = ConnectionContext.https(sslContext)
 
-    serverBinding = Http().bindAndHandle(backendRoute, "0.0.0.0", proxyConfig.jupyterPort, https).futureValue
+    bindingFuture = Http().bindAndHandle(backendRoute, "0.0.0.0", proxyConfig.jupyterPort, https)
   }
 
   def shutdownProxyServer() = {
-    serverBinding.unbind().futureValue
+    bindingFuture.flatMap(_.unbind())
   }
 
   // The backend route (i.e. the route behind the proxy)

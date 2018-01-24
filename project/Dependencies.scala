@@ -14,8 +14,6 @@ object Dependencies {
   val workbenchGoogleV  = "0.11-7ad0aa8"
   val workbenchMetricsV = "0.3-d97f551"
 
-  val samV =  "1.0-5cdffb4"
-
   val excludeAkkaActor =        ExclusionRule(organization = "com.typesafe.akka", name = "akka-actor_2.12")
   val excludeGuavaJDK5 =        ExclusionRule(organization = "com.google.guava", name = "guava-jdk5")
   val excludeWorkbenchUtil =    ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-util_2.12")
@@ -44,7 +42,6 @@ object Dependencies {
 
   val googleDataproc: ModuleID =    "com.google.apis"     % "google-api-services-dataproc" % s"v1-rev53-$googleV" excludeAll(excludeGuavaJDK5)
   val googleRpc: ModuleID = "io.grpc" % "grpc-core" % "1.5.0"
-  val googleOAuth2: ModuleID = "com.google.auth" % "google-auth-library-oauth2-http" % "0.9.0"
 
   val scalaTest: ModuleID = "org.scalatest" %% "scalatest"    % scalaTestV % "test"
   val mockito: ModuleID =   "org.mockito"    % "mockito-core" % "2.7.22"   % "test"
@@ -56,8 +53,6 @@ object Dependencies {
   val workbenchGoogle: ModuleID =    "org.broadinstitute.dsde.workbench" %% "workbench-google"  % workbenchGoogleV excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics)
   val workbenchGoogleTests: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-google" % workbenchGoogleV % "test" classifier "tests" excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel)
   val workbenchMetrics: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-metrics" % workbenchMetricsV excludeAll(excludeWorkbenchUtil)
-
-  val sam:ModuleID = "org.broadinstitute.dsde.sam-client" %% "sam" % samV
 
   val slick: ModuleID =     "com.typesafe.slick" %% "slick"                 % slickV
   val hikariCP: ModuleID =  "com.typesafe.slick" %% "slick-hikaricp"        % slickV
@@ -89,7 +84,6 @@ object Dependencies {
 
     googleDataproc,
     googleRpc,
-    googleOAuth2,
 
     scalaTest,
     mockito,
@@ -103,7 +97,6 @@ object Dependencies {
     workbenchModel,
     workbenchGoogle,
     workbenchGoogleTests,
-    workbenchMetrics,
-    sam
+    workbenchMetrics
   )
 }
