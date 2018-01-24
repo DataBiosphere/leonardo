@@ -37,6 +37,7 @@ object Boot extends App with LazyLogging {
     System.setProperty("sun.net.spi.nameservice.provider.2", "default")
 
     val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
+    val whitelist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
     val dataprocConfig = config.as[DataprocConfig]("dataproc")
     val proxyConfig = config.as[ProxyConfig]("proxy")
     val swaggerConfig = config.as[SwaggerConfig]("swagger")
@@ -46,11 +47,13 @@ object Boot extends App with LazyLogging {
     val monitorConfig = config.as[MonitorConfig]("monitor")
     val samConfig = config.as[SamConfig]("sam")
 
-    val authProviderClass = config.as[String]("auth.providerClass")
-    val authConfig = config.getConfig("auth.providerConfig")
-
     val serviceAccountProviderClass = config.as[String]("serviceAccounts.providerClass")
     val serviceAccountConfig = config.getConfig("serviceAccounts.config")
+    val serviceAccountProvider = constructServiceAccountProvider(serviceAccountProviderClass, serviceAccountConfig)
+
+    val authProviderClass = config.as[String]("auth.providerClass")
+    val authConfig = config.getConfig("auth.providerConfig")
+    val authProvider = constructLeoAuthProvider(authProviderClass, authConfig, serviceAccountProvider)
 
     // we need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")
@@ -62,16 +65,13 @@ object Boot extends App with LazyLogging {
       dbRef.database.close()
     }
 
-    val authProvider = constructProvider[LeoAuthProvider](authProviderClass, authConfig)
-    val serviceAccountProvider = constructProvider[ServiceAccountProvider](serviceAccountProviderClass, serviceAccountConfig)
-
     val (leoServiceAccountEmail, leoServiceAccountPemFile) = serviceAccountProvider.getLeoServiceAccountAndKey
     val gdDAO = new GoogleDataprocDAO(leoServiceAccountEmail, leoServiceAccountPemFile, dataprocConfig, proxyConfig, clusterDefaultsConfig, clusterFilesConfig, clusterResourcesConfig)
     val googleIamDAO = new HttpGoogleIamDAO(leoServiceAccountEmail.value, leoServiceAccountPemFile.getAbsolutePath, dataprocConfig.applicationName, "google")
     val samDAO = new HttpSamDAO(samConfig.server)
     val clusterDnsCache = system.actorOf(ClusterDnsCache.props(proxyConfig, dbRef))
     val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO, googleIamDAO, dbRef, clusterDnsCache))
-    val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, googleIamDAO, dbRef, clusterMonitorSupervisor, authProvider, serviceAccountProvider)
+    val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, googleIamDAO, dbRef, clusterMonitorSupervisor, authProvider, serviceAccountProvider, whitelist)
     val proxyService = new ProxyService(proxyConfig, gdDAO, dbRef, clusterDnsCache, authProvider)
     val statusService = new StatusService(gdDAO, samDAO, dbRef, dataprocConfig)
     val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with StandardUserInfoDirectives
@@ -86,11 +86,18 @@ object Boot extends App with LazyLogging {
       }
   }
 
-  private def constructProvider[T](className: String, config: Config): T = {
+  private def constructServiceAccountProvider(className: String, config: Config): ServiceAccountProvider = {
     Class.forName(className)
       .getConstructor(classOf[Config])
       .newInstance(config)
-      .asInstanceOf[T]
+      .asInstanceOf[ServiceAccountProvider]
+  }
+
+  private def constructLeoAuthProvider(className: String,  config: Config, serviceAccountProvider: ServiceAccountProvider): LeoAuthProvider = {
+    Class.forName(className)
+      .getConstructor(classOf[Config], classOf[ServiceAccountProvider])
+      .newInstance(config, serviceAccountProvider)
+      .asInstanceOf[LeoAuthProvider]
   }
 
   private def startClusterMonitors(dbRef: DbReference, clusterMonitor: ActorRef)(implicit executionContext: ExecutionContext) = {
