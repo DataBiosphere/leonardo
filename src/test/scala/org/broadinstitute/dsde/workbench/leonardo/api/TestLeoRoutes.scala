@@ -23,6 +23,7 @@ import scala.concurrent.duration._
   */
 trait TestLeoRoutes { this: ScalatestRouteTest with ScalaFutures =>
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
+  val whitelist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
@@ -32,15 +33,16 @@ trait TestLeoRoutes { this: ScalatestRouteTest with ScalaFutures =>
   val mockSamDAO = new MockSamDAO
   val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
-  val whitelistAuthProvider = new WhitelistAuthProvider(config.getConfig("auth.providerConfig"))
 
   // TODO look into parameterized tests so both provider impls can both be tested
   //val serviceAccountProvider = new MockPetServiceAccountProvider(config.getConfig("serviceAccounts.config"))
   val serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(config.getConfig("serviceAccounts.config"))
 
+  val whitelistAuthProvider = new WhitelistAuthProvider(config.getConfig("auth.whitelistProviderConfig"), serviceAccountProvider)
+
   // Route tests don't currently do cluster monitoring, so use NoopActor
   val clusterMonitorSupervisor = system.actorOf(NoopActor.props)
-  val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, mockGoogleDataprocDAO, mockGoogleIamDAO, DbSingleton.ref, clusterMonitorSupervisor, whitelistAuthProvider, serviceAccountProvider)
+  val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, mockGoogleDataprocDAO, mockGoogleIamDAO, DbSingleton.ref, clusterMonitorSupervisor, whitelistAuthProvider, serviceAccountProvider, whitelist)
   val proxyService = new MockProxyService(proxyConfig, mockGoogleDataprocDAO, DbSingleton.ref, whitelistAuthProvider)
   val statusService = new StatusService(mockGoogleDataprocDAO, mockSamDAO, DbSingleton.ref, dataprocConfig, pollInterval = 1.second)
   val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)

@@ -31,6 +31,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
   // Ron and Hermione are on the dev Leo whitelist.
   val ronAuthToken = AuthToken(LeonardoConfig.Users.ron)
   val hermioneAuthToken = AuthToken(LeonardoConfig.Users.hermione)
+  val ronEmail = LeonardoConfig.Users.ron.email
 
   // kudos to whoever named this Patience
   val clusterPatience = PatienceConfig(timeout = scaled(Span(15, Minutes)), interval = scaled(Span(20, Seconds)))
@@ -195,13 +196,12 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
   }
 
   def withNewBillingProject[T](testCode: GoogleProject => T): T = {
-    val ownerToken: AuthToken = hermioneAuthToken
     val billingProject = GoogleProject("leonardo-billing-spec-" + makeRandomId())
 
     // Create billing project and run test code
     val testResult: Try[T] = Try {
       logger.info(s"Creating billing project: $billingProject")
-      Orchestration.billing.createBillingProject(billingProject.value, WorkbenchConfig.Projects.billingAccountId)(ownerToken)
+      Orchestration.billing.createBillingProject(billingProject.value, WorkbenchConfig.Projects.billingAccountId)(hermioneAuthToken)
       testCode(billingProject)
     }
     // Clean up billing project
@@ -270,6 +270,8 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     "should create, monitor, and delete a cluster" in {
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+
         withNewCluster(project) { _ =>
           // no-op; just verify that it launches
         }
@@ -279,6 +281,8 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     "should error on cluster create and delete the cluster" in {
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+
         withNewErroredCluster(project) { _ =>
           // no-op; just verify that it launches
         }
@@ -288,6 +292,8 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     "should open the notebooks list page" in withWebDriver { implicit driver =>
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+
         withNewCluster(project) { cluster =>
           withNotebooksListPage(cluster) { _ =>
             // no-op; just verify that it opens
@@ -299,6 +305,8 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     "should upload a notebook to Jupyter" in withWebDriver { implicit driver =>
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+
         val file = ResourceFile("diff-tests/import-hail.ipynb")
 
         withNewCluster(project) { cluster =>
@@ -320,6 +328,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     "should verify notebook execution" in withWebDriver(downloadDir) { implicit driver =>
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
 
         withNewCluster(project) { cluster =>
           withNotebookUpload(cluster, upFile) { notebook =>
@@ -342,6 +351,8 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     "should execute cells" in withWebDriver { implicit driver =>
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+
         withNewCluster(project) { cluster =>
           withNewNotebook(cluster) { notebookPage =>
             notebookPage.executeCell("1+1") shouldBe Some("2")
@@ -355,6 +366,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     "should localize files" in withWebDriver { implicit driver =>
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
         val file = ResourceFile("diff-tests/import-hail.ipynb")
 
         withNewCluster(project) { cluster =>
@@ -391,6 +403,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     "should import AoU library" in withWebDriver { implicit driver =>
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
         withNewCluster(project) { cluster =>
           withNewNotebook(cluster) { notebookPage =>
             val importAoU =
@@ -409,15 +422,15 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     }
 
     "should create a cluster in a different billing project and put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
-      withNewBillingProject { newProject =>
-
+      withNewBillingProject { project =>
         implicit val token = ronAuthToken
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
         // Pre-conditions: pet service account exists in this Google project and in Sam
-        val (petName, petEmail) = getAndVerifyPet(newProject)
+        val (petName, petEmail) = getAndVerifyPet(project)
 
         // Create a cluster
 
-        withNewCluster(newProject) { cluster =>
+        withNewCluster(project) { cluster =>
           // cluster should have been created with the pet service account
           cluster.serviceAccountInfo.clusterServiceAccount shouldBe Some(petEmail)
           cluster.serviceAccountInfo.notebookServiceAccount shouldBe None
@@ -430,7 +443,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
         // Post-conditions: pet should still exist in this Google project
 
-        val googlePetEmail2 = googleIamDAO.findServiceAccount(newProject, petName).futureValue.map(_.email)
+        val googlePetEmail2 = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
         googlePetEmail2 shouldBe Some(petEmail)
       }
     }
@@ -438,6 +451,7 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
     "should do cross domain cookie auth" in withWebDriver { implicit driver =>
       withNewBillingProject { project =>
         implicit val token = ronAuthToken
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
         withNewCluster(project) { cluster =>
           withDummyClientPage(cluster) { dummyClientPage =>
             // opens the notebook list page without setting a cookie
@@ -457,10 +471,8 @@ class LeonardoSpec extends FreeSpec with Matchers with Eventually with ParallelT
 
         // project owners have the bigquery role automatically, so this also tests granting it to users
 
-        val ronEmail = LeonardoConfig.Users.ron.email
-        val ownerToken = hermioneAuthToken
-        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(ownerToken)
-        Orchestration.billing.addGoogleRoleToBillingProjectUser(project.value, ronEmail, "bigquery.jobUser")(ownerToken)
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+        Orchestration.billing.addGoogleRoleToBillingProjectUser(project.value, ronEmail, "bigquery.jobUser")(hermioneAuthToken)
 
         implicit val leoToken: AuthToken = ronAuthToken
         withNewCluster(project) { cluster =>

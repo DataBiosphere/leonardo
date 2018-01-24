@@ -42,7 +42,7 @@ class ProxyService(proxyConfig: ProxyConfig,
 
   /* Cache for the bearer token and corresponding google user email */
   private[leonardo] val googleTokenCache = CacheBuilder.newBuilder()
-    .expireAfterWrite(proxyConfig.cacheExpiryTime, TimeUnit.MINUTES)
+    .expireAfterWrite(proxyConfig.cacheExpiryTime.toMinutes, TimeUnit.MINUTES)
     .maximumSize(proxyConfig.cacheMaxSize)
     .build(
       new CacheLoader[String, Future[(UserInfo, Instant)]] {
@@ -68,8 +68,8 @@ class ProxyService(proxyConfig: ProxyConfig,
    */
   private[leonardo] def authCheck(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, notebookAction: NotebookClusterAction): Future[Unit] = {
     for {
-      hasViewPermission <- authProvider.hasNotebookClusterPermission(userInfo, GetClusterStatus, googleProject.value, clusterName.string)
-      hasRequiredPermission <- authProvider.hasNotebookClusterPermission(userInfo, notebookAction, googleProject.value, clusterName.string)
+      hasViewPermission <- authProvider.hasNotebookClusterPermission(userInfo.userEmail, GetClusterStatus, googleProject, clusterName)
+      hasRequiredPermission <- authProvider.hasNotebookClusterPermission(userInfo.userEmail, notebookAction, googleProject, clusterName)
     } yield {
       if (!hasViewPermission) {
         throw ClusterNotFoundException(googleProject, clusterName)
