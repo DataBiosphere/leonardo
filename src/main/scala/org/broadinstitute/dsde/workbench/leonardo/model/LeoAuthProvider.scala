@@ -82,9 +82,10 @@ abstract class LeoAuthProvider(authConfig: Config, serviceAccountProvider: Servi
     * Leo will wait, so be timely!
     *
     * @param userEmail     The email address of the user in question
+    * @param creatorEmail     The email address of the creator of the cluster
     * @param googleProject The Google project the cluster was created in
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterDeleted(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit]
+  def notifyClusterDeleted(userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit]
 }

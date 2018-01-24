@@ -107,8 +107,8 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
     resourcesApiAsPet(userEmail, googleProject).createResource(notebookClusterResourceTypeName, getClusterResourceId(googleProject, clusterName))
   }
 
-  def deleteNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
-    resourcesApiAsPet(userEmail, googleProject).deleteResource(notebookClusterResourceTypeName, getClusterResourceId(googleProject, clusterName))
+  def deleteNotebookClusterResource(creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
+    resourcesApiAsPet(creatorEmail, googleProject).deleteResource(notebookClusterResourceTypeName, getClusterResourceId(googleProject, clusterName))
   }
 
   def hasActionOnBillingProjectResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, action: String): Boolean = {

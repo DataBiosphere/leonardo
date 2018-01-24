@@ -140,7 +140,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           case Failure(_) =>
             //make a dummy cluster with the details
             val clusterToDelete = Cluster.createDummyForDeletion(clusterRequest, userEmail, clusterName, googleProject, serviceAccountInfo)
-            internalDeleteCluster(clusterToDelete) //don't wait for it
+            internalDeleteCluster(userEmail, clusterToDelete) //don't wait for it
           case Success(_) => //no-op
         }
         clusterFuture
@@ -169,12 +169,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually destroy it
       _ <- checkClusterPermission(userInfo,  DeleteCluster, cluster, throw401 = true)
 
-      _ <- internalDeleteCluster(cluster)
+      _ <- internalDeleteCluster(userInfo.userEmail, cluster)
     } yield { () }
   }
 
   //NOTE: This function MUST ALWAYS complete ALL steps. i.e. if deleting thing1 fails, it must still proceed to delete thing2
-  def internalDeleteCluster(cluster: Cluster): Future[Unit] = {
+  def internalDeleteCluster(userEmail: WorkbenchEmail, cluster: Cluster): Future[Unit] = {
     if (cluster.status.isDeletable) {
       for {
         // Delete the notebook service account key in Google, if present
@@ -186,7 +186,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         // Change the cluster status to Deleting in the database
         _ <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.googleId))
         // Notify the auth provider of cluster deletion
-        _ <- authProvider.notifyClusterDeleted(cluster.creator, cluster.googleProject, cluster.clusterName)
+        _ <- authProvider.notifyClusterDeleted(userEmail, cluster.creator, cluster.googleProject, cluster.clusterName)
       } yield {
         // Notify the cluster monitor supervisor of cluster deletion.
         // This will kick off polling until the cluster is actually deleted in Google.
