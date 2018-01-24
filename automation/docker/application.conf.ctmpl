@@ -59,6 +59,13 @@ methods {
 
 users {
   notSoSecretPassword = "{{$users.Data.automation_users_passwd}}"
+  userDataPath = "{{$dir}}/src/test/resources/users.json"
+
+  # TODO: these settings only apply to UI but are required by workbench-libs
+
+  tempSubjectId = "{{if or (eq $environment "dev") (eq $environment "alpha")}}111010567286567716739{{else if eq $environment "qa"}}117891551413045861932{{else}}[undefined]{{end}}"
+  smoketestpassword = "{{$users.Data.users_passwd}}"
+  smoketestuser = {{if eq $environment "prod"}}"b.adm.firec@gmail.com"{{else}}"hermione.owner@{{template "USER_DOMAIN"}}"{{end}}
 
   dumbledore = "dumbledore.admin@{{template "USER_DOMAIN"}}"
   voldemort = "voldemort.admin@{{template "USER_DOMAIN"}}"
@@ -82,6 +89,7 @@ chromeSettings {
   chromedriverHost = "http://hub:4444/wd/hub"
   chromedriverPath = "/usr/local/bin/chromedriver"
 }
+{{end}}
 {{end}}
 {{end}}
 {{end}}
