@@ -77,6 +77,10 @@
     "hermione": "hermione.owner@test.firecloud.org",
     "ron": "ron.weasley@test.firecloud.org"
   }
+   "campaignManagers": {
+      "dumbledore": "dumbledore.admin@test.firecloud.org",
+      "voldemort": "voldemort.admin@test.firecloud.org"
+    }
 }
 {{end}}
 {{end}}
