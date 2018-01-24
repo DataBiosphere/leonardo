@@ -136,7 +136,6 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       // project owners have the bigquery role automatically, so this also tests granting it to users
       val ronEmail = LeonardoConfig.Users.ron.email
       val ownerToken = hermioneAuthToken
-      Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(ownerToken)
       Orchestration.billing.addGoogleRoleToBillingProjectUser(billingProject.value, ronEmail, "bigquery.jobUser")(ownerToken)
 
       withNewNotebook(ronCluster) { notebookPage =>
