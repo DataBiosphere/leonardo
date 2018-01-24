@@ -47,7 +47,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "delete") shouldBe true
 
     // deleting a cluster would call notify
-    samAuthProvider.notifyClusterDeleted(userInfo.userEmail, project, name1).futureValue
+    samAuthProvider.notifyClusterDeleted(userInfo.userEmail, userInfo.userEmail, project, name1).futureValue
 
     samAuthProvider.samClient.notebookClusters shouldBe empty
     samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "status") shouldBe false
@@ -122,7 +122,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     val samAuthProvider = getSamAuthProvider
     samAuthProvider.samClient.notebookClusters += (project, name1, userInfo.userEmail) -> Set()
 
-    samAuthProvider.notifyClusterDeleted(userInfo.userEmail, project, name1).futureValue
+    samAuthProvider.notifyClusterDeleted(userInfo.userEmail, userInfo.userEmail, project, name1).futureValue
     samAuthProvider.samClient.notebookClusters should not contain ((project, name1, userInfo.userEmail) -> Set("connect", "read_policies", "status", "delete", "sync"))
   }
 

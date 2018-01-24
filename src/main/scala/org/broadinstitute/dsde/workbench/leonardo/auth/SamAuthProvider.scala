@@ -104,13 +104,13 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * Returning a failed Future will prevent the cluster from being created, and will call notifyClusterDeleted for the same cluster.
     * Leo will wait, so be timely!
     *
-    * @param userEmail     The email address of the user in question
+    * @param creatorEmail     The email address of the user in question
     * @param googleProject The Google project the cluster was created in
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  override def notifyClusterCreated(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    Future { samClient.createNotebookClusterResource(userEmail, googleProject, clusterName) }
+  override def notifyClusterCreated(creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
+    Future { samClient.createNotebookClusterResource(creatorEmail, googleProject, clusterName) }
   }
 
   /**
