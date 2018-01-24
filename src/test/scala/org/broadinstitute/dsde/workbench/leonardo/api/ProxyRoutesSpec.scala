@@ -51,6 +51,7 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
 
   "ProxyRoutes" should "listen on /notebooks/{project}/{name}/..." in {
     Get(s"/notebooks/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+      println(s"got response $response and status $status")
       handled shouldBe true
       status shouldEqual StatusCodes.OK
       validateCors()
