@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-SBT_CMD=${1-"testOnly *Leonardo*"}
+SBT_CMD=${1-"test"}
 echo $SBT_CMD
 
 set -o pipefail
