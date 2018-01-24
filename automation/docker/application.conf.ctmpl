@@ -46,6 +46,7 @@ gcs {
   billingAccountId = "billingAccounts/00708C-45D19D-27AAFA"
   trialBillingPemFile = "{{$dir}}/src/test/resources/trial-billing-account.pem"
   trialBillingPemFileClientId = "{{$trialBillingPemSecrets.Data.client_email}}"
+  smoketestsProject = {{if eq $environment "prod"}}"broad-dsde-{{$environment}}-smoketests"{{else}}"broad-dsde-{{$environment}}"{{end}}
 
   appsDomain = {{if eq $environment "qa"}}"quality.firecloud.org"{{else}}"{{$environment}}.test.firecloud.org"{{end}}
 }
