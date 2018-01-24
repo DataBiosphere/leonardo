@@ -6,7 +6,7 @@ import java.nio.file.Files
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.dao.Google.googleIamDAO
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, UserAuthToken}
-import org.broadinstitute.dsde.workbench.config.{Config, LeoAuthToken}
+import org.broadinstitute.dsde.workbench.config.{Config, Credentials, LeoAuthToken}
 import org.broadinstitute.dsde.workbench.service.{Orchestration, Rawls, Sam}
 import org.broadinstitute.dsde.workbench.service.APIException
 import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
@@ -29,10 +29,13 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   val swatTestBucket = "gs://leonardo-swat-test-bucket-do-not-delete"
   val incorrectJupyterExtensionUri = swatTestBucket + "/"
 
-  // Ron and Hermione are on the dev Leo whitelist.
-  val ronAuthToken = UserAuthToken(Config.Users.Students.getUserCredential("ron"))
-  val hermioneAuthToken = UserAuthToken(Config.Users.Students.getUserCredential("hermione"))
-  val ronEmail = Config.config.getString("notebookswhitelisted.ron")
+  // Ron and Hermione are on the dev Leo whitelist, and Hermione is a Project Owner
+  lazy val ronCreds: Credentials = Config.Users.NotebooksWhitelisted.getUserCredential("ron")
+  lazy val hermioneCreds: Credentials = Config.Users.NotebooksWhitelisted.getUserCredential("hermione")
+
+  lazy val ronAuthToken = UserAuthToken(ronCreds)
+  lazy val hermioneAuthToken = UserAuthToken(hermioneCreds)
+  lazy val ronEmail = ronCreds.email
 
   val clusterPatience = PatienceConfig(timeout = scaled(Span(15, Minutes)), interval = scaled(Span(20, Seconds)))
   val localizePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
