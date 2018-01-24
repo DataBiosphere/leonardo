@@ -104,11 +104,13 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * Returning a failed Future will prevent the cluster from being created, and will call notifyClusterDeleted for the same cluster.
     * Leo will wait, so be timely!
     *
-    * @param cluster        The Dataproc cluster
+    * @param userEmail     The email address of the user in question
+    * @param googleProject The Google project the cluster was created in
+    * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  override def notifyClusterCreated(cluster: Cluster)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    Future { samClient.createNotebookClusterResource(cluster.creator, cluster.googleProject, cluster.clusterName) }
+  def notifyClusterCreated(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
+    Future { samClient.createNotebookClusterResource(userEmail, googleProject, clusterName) }
   }
 
   /**
@@ -116,10 +118,12 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * The returned future should complete once the provider has finished doing any associated work.
     * Leo will wait, so be timely!
     *
-    * @param cluster        The Dataproc cluster
+    * @param userEmail     The email address of the user in question
+    * @param googleProject The Google project the cluster was created in
+    * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  override def notifyClusterDeleted(cluster: Cluster)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    Future{ samClient.deleteNotebookClusterResource(cluster.creator, cluster.googleProject, cluster.clusterName) }
+  def notifyClusterDeleted(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
+    Future{ samClient.deleteNotebookClusterResource(userEmail, googleProject, clusterName) }
   }
 }

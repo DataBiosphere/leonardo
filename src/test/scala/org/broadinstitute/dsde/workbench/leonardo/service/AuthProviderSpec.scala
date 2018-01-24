@@ -122,8 +122,8 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       leo.deleteCluster(userInfo, project, name1).futureValue
 
       //verify we correctly notified the auth provider
-      verify(spyProvider).notifyClusterCreated(cluster1)
-      verify(spyProvider).notifyClusterDeleted(cluster1)
+      verify(spyProvider).notifyClusterCreated(userEmail, project, name1)
+      verify(spyProvider).notifyClusterDeleted(userEmail, project, name1)
     }
 
     "should not let you do things if the auth provider says no" in isolatedDbTest {
@@ -163,8 +163,8 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       clusterNotFoundAgain shouldBe a [ClusterNotFoundException]
 
       //verify we never notified the auth provider of clusters happening because they didn't
-      verify(spyProvider, Mockito.never).notifyClusterCreated(c1)
-      verify(spyProvider, Mockito.never).notifyClusterDeleted(c1)
+      verify(spyProvider, Mockito.never).notifyClusterCreated(userEmail, project, name1)
+      verify(spyProvider, Mockito.never).notifyClusterDeleted(userEmail, project, name1)
     }
 
     "should give you a 401 if you can see a cluster's details but can't do the more specific action" in isolatedDbTest {
@@ -200,8 +200,8 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       clusterDestroyException shouldBe a [AuthorizationError]
 
       //verify we never notified the auth provider of clusters happening because they didn't
-      verify(spyProvider, Mockito.never).notifyClusterCreated(c1)
-      verify(spyProvider, Mockito.never).notifyClusterDeleted(c1)
+      verify(spyProvider, Mockito.never).notifyClusterCreated(userEmail, project, name1)
+      verify(spyProvider, Mockito.never).notifyClusterDeleted(userEmail, project, name1)
     }
 
     "should not create a cluster if auth provider notifyClusterCreated returns failure" in isolatedDbTest {
@@ -218,6 +218,9 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
 
       // check that the cluster does not exist
       gdDAO.clusters should not contain key (name1)
+
+      verify(spyProvider).notifyClusterCreated(userEmail, project, name1)
+      verify(spyProvider).notifyClusterDeleted(userEmail, project, name1)
     }
 
     "should use optimized canSeeAllClustersInProject in listClusters where appropriate" in isolatedDbTest {

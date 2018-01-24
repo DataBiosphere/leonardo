@@ -46,18 +46,22 @@ class WhitelistAuthProvider(authConfig: Config, serviceAccountProvider: ServiceA
     * The returned future should complete once the provider has finished doing any associated work.
     * Leo will wait, so be timely!
     *
-    * @param cluster   The Dataproc cluster
+    * @param userEmail     The email address of the user in question
+    * @param googleProject The Google project the cluster was created in
+    * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterCreated(cluster: Cluster)(implicit executionContext: ExecutionContext): Future[Unit] = Future.successful(())
+  def notifyClusterCreated(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = Future.successful(())
 
   /**
     * Leo calls this method to notify the auth provider that a notebook cluster has been destroyed.
     * The returned future should complete once the provider has finished doing any associated work.
     * Leo will wait, so be timely!
     *
-    * @param cluster       The Dataproc cluster
+    * @param userEmail     The email address of the user in question
+    * @param googleProject The Google project the cluster was created in
+    * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterDeleted(cluster: Cluster)(implicit executionContext: ExecutionContext): Future[Unit] = Future.successful(())
+  def notifyClusterDeleted(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = Future.successful(())
 }
