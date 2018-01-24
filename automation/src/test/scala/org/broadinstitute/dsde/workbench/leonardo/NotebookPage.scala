@@ -49,7 +49,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   // Kernel -> Shutdown
   lazy val shutdownKernelSelection: Query = cssSelector("[id='shutdown_kernel']")
 
-  // Kernel -> Shutdown
+  // Jupyter asks: Are you sure you want to shutdown the kernel?
   lazy val shutdownKernelConfirmationSelection: Query = cssSelector("[class='btn btn-default btn-sm btn-danger']")
 
   // selects the numbered left-side cell prompts
