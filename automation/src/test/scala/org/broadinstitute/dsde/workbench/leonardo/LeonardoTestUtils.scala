@@ -39,6 +39,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   val clusterPatience = PatienceConfig(timeout = scaled(Span(15, Minutes)), interval = scaled(Span(20, Seconds)))
   val localizePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
+  val saPatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
 
   // TODO: show diffs as screenshot or other test output?
   def compareFilesExcludingIPs(left: File, right: File): Unit = {
@@ -200,6 +201,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     val samPetEmail = Sam.user.petServiceAccountEmail(project.value)
     val userStatus = Sam.user.status().get
     val petName = Sam.petName(userStatus.userInfo)
+    implicit val patienceConfig: PatienceConfig = saPatience
     val googlePetEmail = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
     googlePetEmail shouldBe Some(samPetEmail)
     (petName, samPetEmail)

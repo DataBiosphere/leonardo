@@ -51,6 +51,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
 
         // Post-conditions: pet should still exist in this Google project
 
+        implicit val patienceConfig: PatienceConfig = saPatience
         val googlePetEmail2 = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
         googlePetEmail2 shouldBe Some(petEmail)
       }
