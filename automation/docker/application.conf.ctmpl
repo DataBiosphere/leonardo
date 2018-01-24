@@ -6,6 +6,7 @@
 {{with $trialBillingPemSecrets := vault (printf "secret/dsde/firecloud/%s/common/trial-billing-account.pem" $environment)}}
 {{with $users := vault (printf "secret/dsde/firecloud/%s/common/users" $environment)}}
 {{with $secrets := vault (printf "secret/dsde/firecloud/%s/common/secrets" $environment)}}
+{{with $leoServiceAccount := vault (printf "secret/dsde/firecloud/%s/leonardo/leonardo-swagger-account.json" $environment)}}
 
 fireCloud {
   baseUrl = {{if eq $local_ui "true"}}"http://local.broadinstitute.org/"{{else if eq $environment "alpha"}}"https://firecloud.dsde-alpha.broadinstitute.org/"{{else if eq $environment "prod"}}"https://portal.firecloud.org/"{{else}}"https://firecloud-fiab.dsde-{{$environment}}.broadinstitute.org:22443/"{{end}}
@@ -28,27 +29,25 @@ fireCloud {
   fireCloudId = "{{$secrets.Data.firecloud_id}}"
 }
 
+leonardo {
+  {{if eq $environment "alpha"}}
+  apiUrl = "https://leonardo.dsde-alpha.broadinstitute.org/"
+  {{else}}
+  apiUrl = "https://leonardo-fiab.dsde-{{$environment}}.broadinstitute.org:30443/"
+  {{end}}
+  notebooksServiceAccountEmail = "{{$leoServiceAccount.Data.web.client_email}}"
+}
+
 gcs {
-  appsDomain = {{if eq $environment "prod"}}"firecloud.org"{{else if eq $environment "qa"}}"quality.firecloud.org"{{else}}"{{$environment}}.test.firecloud.org"{{end}}
-  qaEmail = "{{$users.Data.service_acct_email}}"
   serviceProject = "broad-dsde-{{$environment}}"
-  smoketestsProject = {{if eq $environment "prod"}}"broad-dsde-{{$environment}}-smoketests"{{else}}"broad-dsde-{{$environment}}"{{end}}
+  qaEmail = "{{$users.Data.service_acct_email}}"
   qaPemFile = "{{$dir}}/src/test/resources/firecloud-account.pem"
+  billingAccount = "Broad Institute - 8201528"
+  billingAccountId = "billingAccounts/00708C-45D19D-27AAFA"
   trialBillingPemFile = "{{$dir}}/src/test/resources/trial-billing-account.pem"
   trialBillingPemFileClientId = "{{$trialBillingPemSecrets.Data.client_email}}"
 
-  billingAccount = "Broad Institute - 8201528"
-  billingAccountId = "billingAccounts/00708C-45D19D-27AAFA"
-}
-
-users {
-  notSoSecretPassword = "{{$users.Data.automation_users_passwd}}"
-  tempSubjectId = "{{if or (eq $environment "dev") (eq $environment "alpha")}}111010567286567716739{{else if eq $environment "qa"}}117891551413045861932{{else}}[undefined]{{end}}"
-
-  userDataPath = "{{$dir}}/src/test/resources/users.json"
-  # for smoketests
-  smoketestpassword = "{{$users.Data.users_passwd}}"
-  smoketestuser = {{if eq $environment "prod"}}"b.adm.firec@gmail.com"{{else}}"hermione.owner@{{template "USER_DOMAIN"}}"{{end}}
+  appsDomain = {{if eq $environment "qa"}}"quality.firecloud.org"{{else}}"{{$environment}}.test.firecloud.org"{{end}}
 }
 
 methods {
@@ -56,6 +55,27 @@ methods {
   testMethodConfig = "DO_NOT_CHANGE_test1_config"
   methodConfigNamespace = "automationmethods"
   snapshotID = 1
+}
+
+users {
+  notSoSecretPassword = "{{$users.Data.automation_users_passwd}}"
+
+  dumbledore = "dumbledore.admin@{{template "USER_DOMAIN"}}"
+  voldemort = "voldemort.admin@{{template "USER_DOMAIN"}}"
+  snape = "snape.curator@{{template "USER_DOMAIN"}}"
+  mcgonagall = "mcgonagall.curator@{{template "USER_DOMAIN"}}"
+  hermione = "hermione.owner@{{template "USER_DOMAIN"}}"
+  harry = "harry.potter@{{template "USER_DOMAIN"}}"
+  ron = "ron.weasley@{{template "USER_DOMAIN"}}"
+  draco = "draco.malfoy@{{template "USER_DOMAIN"}}"
+  fred = "fred.authdomain@{{template "USER_DOMAIN"}}"
+  george = "george.authdomain@{{template "USER_DOMAIN"}}"
+  bill = "bill.authdomain@{{template "USER_DOMAIN"}}"
+
+  # following users only used to test user creation
+  luna = "luna.temp@{{template "USER_DOMAIN"}}"
+  lunaSubjectId = "{{if or (eq $environment "dev") (eq $environment "alpha")}}111010567286567716739{{else if eq $environment "qa"}}117891551413045861932{{else}}[undefined]{{end}}"
+  neville = "neville.temp@{{template "USER_DOMAIN"}}"
 }
 
 chromeSettings {
