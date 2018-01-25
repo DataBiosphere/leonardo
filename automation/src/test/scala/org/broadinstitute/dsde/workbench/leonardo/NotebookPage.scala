@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.apache.commons.text.StringEscapeUtils
-import org.broadinstitute.dsde.workbench.config.AuthToken
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.openqa.selenium.{By, WebDriver, WebElement}
 import org.openqa.selenium.interactions.Actions
 

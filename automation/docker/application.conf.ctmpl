@@ -3,6 +3,7 @@
 {{with $environment := env "ENVIRONMENT"}}
 {{with $dir := env "ROOT_DIR"}}
 {{with $local_ui := env "LOCAL_UI"}}
+{{with $trialBillingPemSecrets := vault (printf "secret/dsde/firecloud/%s/common/trial-billing-account.pem" $environment)}}
 {{with $users := vault (printf "secret/dsde/firecloud/%s/common/users" $environment)}}
 {{with $secrets := vault (printf "secret/dsde/firecloud/%s/common/secrets" $environment)}}
 {{with $leoServiceAccount := vault (printf "secret/dsde/firecloud/%s/leonardo/leonardo-swagger-account.json" $environment)}}
@@ -43,11 +44,29 @@ gcs {
   qaPemFile = "{{$dir}}/src/test/resources/firecloud-account.pem"
   billingAccount = "Broad Institute - 8201528"
   billingAccountId = "billingAccounts/00708C-45D19D-27AAFA"
+  trialBillingPemFile = "{{$dir}}/src/test/resources/trial-billing-account.pem"
+  trialBillingPemFileClientId = "{{$trialBillingPemSecrets.Data.client_email}}"
+  smoketestsProject = {{if eq $environment "prod"}}"broad-dsde-{{$environment}}-smoketests"{{else}}"broad-dsde-{{$environment}}"{{end}}
+
   appsDomain = {{if eq $environment "qa"}}"quality.firecloud.org"{{else}}"{{$environment}}.test.firecloud.org"{{end}}
+}
+
+methods {
+  testMethod = "DO_NOT_CHANGE_test_method"
+  testMethodConfig = "DO_NOT_CHANGE_test1_config"
+  methodConfigNamespace = "automationmethods"
+  snapshotID = 1
 }
 
 users {
   notSoSecretPassword = "{{$users.Data.automation_users_passwd}}"
+  userDataPath = "{{$dir}}/src/test/resources/users.json"
+
+  # TODO: these settings only apply to UI but are required by workbench-libs
+
+  tempSubjectId = "{{if or (eq $environment "dev") (eq $environment "alpha")}}111010567286567716739{{else if eq $environment "qa"}}117891551413045861932{{else}}[undefined]{{end}}"
+  smoketestpassword = "{{$users.Data.users_passwd}}"
+  smoketestuser = {{if eq $environment "prod"}}"b.adm.firec@gmail.com"{{else}}"hermione.owner@{{template "USER_DOMAIN"}}"{{end}}
 
   dumbledore = "dumbledore.admin@{{template "USER_DOMAIN"}}"
   voldemort = "voldemort.admin@{{template "USER_DOMAIN"}}"
@@ -71,6 +90,7 @@ chromeSettings {
   chromedriverHost = "http://hub:4444/wd/hub"
   chromedriverPath = "/usr/local/bin/chromedriver"
 }
+{{end}}
 {{end}}
 {{end}}
 {{end}}
