@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.firecloud.page.methodrepo
 
-import org.broadinstitute.dsde.firecloud.config.FireCloudConfig
+import org.broadinstitute.dsde.workbench.config.{Config => FireCloudConfig}
 import org.broadinstitute.dsde.firecloud.page.{AuthenticatedPage, MessageModal}
 import org.broadinstitute.dsde.workbench.page.PageUtil
 import org.openqa.selenium.WebDriver

@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.firecloud.page.workspaces.methodconfigs
 
-import org.broadinstitute.dsde.firecloud.config.FireCloudConfig
+import org.broadinstitute.dsde.workbench.config.{Config => FireCloudConfig}
 import org.broadinstitute.dsde.firecloud.page.workspaces.WorkspacePage
 import org.broadinstitute.dsde.firecloud.page.workspaces.monitor.SubmissionDetailsPage
 import org.broadinstitute.dsde.firecloud.page.{ErrorModal, FireCloudView, Table}

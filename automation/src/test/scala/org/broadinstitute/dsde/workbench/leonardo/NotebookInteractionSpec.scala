@@ -3,16 +3,15 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.io.File
 import java.time.Instant
 
-import org.broadinstitute.dsde.firecloud.api.Orchestration
+import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.broadinstitute.dsde.workbench.ResourceFile
-import org.broadinstitute.dsde.workbench.config.AuthToken
+import org.broadinstitute.dsde.workbench.auth.AuthToken
+import org.broadinstitute.dsde.workbench.config.Config
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 
 class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with BeforeAndAfterAll {
-  implicit override val patienceConfig: PatienceConfig = PatienceConfig(timeout = scaled(Span(5, Seconds)))
-
   /*
    * This class creates a cluster in a new billing project and runs all tests inside the same cluster.
    */
@@ -84,11 +83,12 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
           //"gs://new_bucket/import-hail.ipynb" -> "import-hail.ipynb"
         )
 
+        implicit val patienceConfig: PatienceConfig = localizePatience
         eventually {
           Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, goodLocalize)
           //the following line will barf with an exception if the file isn't there; that's enough
           Leonardo.notebooks.getContentItem(ronCluster.googleProject, ronCluster.clusterName, "test.rtf", includeContent = false)
-        }(localizePatience)
+        }
 
 
         val localizationLog = Leonardo.notebooks.getContentItem(ronCluster.googleProject, ronCluster.clusterName, "localization.log")
@@ -134,7 +134,6 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
 
     "should allow BigQuerying in a new billing project" in withWebDriver { implicit driver =>
       // project owners have the bigquery role automatically, so this also tests granting it to users
-      val ronEmail = LeonardoConfig.Users.ron.email
       val ownerToken = hermioneAuthToken
       Orchestration.billing.addGoogleRoleToBillingProjectUser(billingProject.value, ronEmail, "bigquery.jobUser")(ownerToken)
 

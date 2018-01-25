@@ -4,11 +4,12 @@ import java.io.File
 import java.nio.file.Files
 
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.firecloud.api.{Orchestration, Rawls, Sam}
-import org.broadinstitute.dsde.workbench.WebBrowserSpec
-import org.broadinstitute.dsde.workbench.api.APIException
-import org.broadinstitute.dsde.workbench.config.{AuthToken, WorkbenchConfig}
 import org.broadinstitute.dsde.workbench.dao.Google.googleIamDAO
+import org.broadinstitute.dsde.workbench.auth.{AuthToken, UserAuthToken}
+import org.broadinstitute.dsde.workbench.config.{Config, Credentials, LeoAuthToken}
+import org.broadinstitute.dsde.workbench.service.{Orchestration, Rawls, Sam}
+import org.broadinstitute.dsde.workbench.service.APIException
+import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -28,13 +29,17 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   val swatTestBucket = "gs://leonardo-swat-test-bucket-do-not-delete"
   val incorrectJupyterExtensionUri = swatTestBucket + "/"
 
-  // Ron and Hermione are on the dev Leo whitelist.
-  val ronAuthToken = AuthToken(LeonardoConfig.Users.ron)
-  val hermioneAuthToken = AuthToken(LeonardoConfig.Users.hermione)
-  val ronEmail = LeonardoConfig.Users.ron.email
+  // Ron and Hermione are on the dev Leo whitelist, and Hermione is a Project Owner
+  lazy val ronCreds: Credentials = Config.Users.NotebooksWhitelisted.getUserCredential("ron")
+  lazy val hermioneCreds: Credentials = Config.Users.NotebooksWhitelisted.getUserCredential("hermione")
+
+  lazy val ronAuthToken = UserAuthToken(ronCreds)
+  lazy val hermioneAuthToken = UserAuthToken(hermioneCreds)
+  lazy val ronEmail = ronCreds.email
 
   val clusterPatience = PatienceConfig(timeout = scaled(Span(15, Minutes)), interval = scaled(Span(20, Seconds)))
   val localizePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
+  val saPatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
 
   // TODO: show diffs as screenshot or other test output?
   def compareFilesExcludingIPs(left: File, right: File): Unit = {
@@ -52,13 +57,13 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     val billingProject = "leonardo-billing-spec-" + makeRandomId()
 
     logger.info(s"Creating billing project: $billingProject")
-    Orchestration.billing.createBillingProject(billingProject, WorkbenchConfig.Projects.billingAccountId)(ownerToken)
+    Orchestration.billing.createBillingProject(billingProject, Config.Projects.billingAccountId)(ownerToken)
 
     GoogleProject(billingProject)
   }
 
   def cleanupBillingProject(billingProject: GoogleProject): Unit = {
-    Try(Rawls.admin.deleteBillingProject(billingProject.value)(AuthToken(LeonardoConfig.Users.dumbledore))).recover { case NonFatal(e) =>
+    Try(Rawls.admin.deleteBillingProject(billingProject.value)(UserAuthToken(Config.Users.Admins.getUserCredential("dumbledore")))).recover { case NonFatal(e) =>
       logger.warn(s"Could not delete billing project $billingProject", e)
     }
   }
@@ -119,9 +124,10 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     clusterCheck(Leonardo.cluster.get(googleProject, clusterName), clusterRequest.labels, googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest.jupyterExtensionUri)
 
     // wait for "Running" or error (fail fast)
+    implicit val patienceConfig: PatienceConfig = clusterPatience
     val actualCluster = eventually {
       clusterCheck(Leonardo.cluster.get(googleProject, clusterName), clusterRequest.labels, googleProject, clusterName, Seq(ClusterStatus.Running, ClusterStatus.Error), clusterRequest.jupyterExtensionUri)
-    } (clusterPatience)
+    }
 
     actualCluster
   }
@@ -138,10 +144,11 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
 
     // wait until not found or in "Deleted" state
+    implicit val patienceConfig: PatienceConfig = clusterPatience
     eventually {
       val statusOpt = Leonardo.cluster.listIncludingDeleted().find(_.clusterName == clusterName).map(_.status)
       statusOpt getOrElse ClusterStatus.Deleted shouldBe ClusterStatus.Deleted
-    } (clusterPatience)
+    }
   }
 
   def createNewCluster(googleProject: GoogleProject)(implicit token: AuthToken): Cluster = {
@@ -191,9 +198,10 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   }
 
   def getAndVerifyPet(project: GoogleProject)(implicit token: AuthToken): (ServiceAccountName, WorkbenchEmail) = {
-    val samPetEmail = Sam.user.petServiceAccountEmail(project)
+    val samPetEmail = Sam.user.petServiceAccountEmail(project.value)
     val userStatus = Sam.user.status().get
     val petName = Sam.petName(userStatus.userInfo)
+    implicit val patienceConfig: PatienceConfig = saPatience
     val googlePetEmail = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
     googlePetEmail shouldBe Some(samPetEmail)
     (petName, samPetEmail)

@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.io.File
 
-import org.broadinstitute.dsde.workbench.config.AuthToken
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.openqa.selenium.WebDriver
 
 import scala.util.Try

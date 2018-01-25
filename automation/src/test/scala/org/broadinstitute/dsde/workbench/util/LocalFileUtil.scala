@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.util
 
 import java.io.File
 import java.nio.file.Files
+import org.broadinstitute.dsde.workbench.service.test.WebBrowserUtil
 
 import org.openqa.selenium.WebDriver
 

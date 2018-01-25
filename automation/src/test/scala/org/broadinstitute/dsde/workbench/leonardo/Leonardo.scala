@@ -7,8 +7,9 @@ import java.util.UUID
 import akka.http.scaladsl.model.headers.{Cookie, HttpCookiePair}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.ResourceFile
-import org.broadinstitute.dsde.workbench.api.WorkbenchClient
-import org.broadinstitute.dsde.workbench.config.AuthToken
+import org.broadinstitute.dsde.workbench.service.RestClient
+import org.broadinstitute.dsde.workbench.auth.AuthToken
+import org.broadinstitute.dsde.workbench.config.LeoAuthToken
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -21,7 +22,7 @@ import scala.io.Source
 /**
   * Leonardo API service client.
   */
-object Leonardo extends WorkbenchClient with LazyLogging {
+object Leonardo extends RestClient with LazyLogging {
 
   private val url = LeonardoConfig.Leonardo.apiUrl
 
@@ -177,13 +178,13 @@ object Leonardo extends WorkbenchClient with LazyLogging {
           parameter('token.as[String]) { token =>
             complete {
               logger.info(s"Serving dummy client for $googleProject/$clusterName")
-              HttpEntity(ContentTypes.`text/html(UTF-8)`, getContent(GoogleProject(googleProject), ClusterName(clusterName), AuthToken(token)))
+              HttpEntity(ContentTypes.`text/html(UTF-8)`, getContent(GoogleProject(googleProject), ClusterName(clusterName), LeoAuthToken(token)))
             }
           }
         }
       }
 
-    private def getContent(googleProject: GoogleProject, clusterName: ClusterName, token: AuthToken) = {
+    private def getContent(googleProject: GoogleProject, clusterName: ClusterName, token: LeoAuthToken) = {
       val resourceFile = ResourceFile("dummy-notebook-client.html")
       val raw = Source.fromFile(resourceFile).mkString
       val replacementMap = Map(
