@@ -4,10 +4,11 @@ import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.model.{NotebookClusterActions, ProjectActions}
+import org.broadinstitute.dsde.workbench.leonardo.service.ClusterNotFoundException
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll, FlatSpecLike, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -33,12 +34,12 @@ class LeoAuthProviderHelperSpec extends TestKit(ActorSystem("leonardotest")) wit
   it should "pass through LeoExceptions" in {
     val mockProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), serviceAccountProvider) {
       override def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-        Future.failed(SamApiException(404))
+        Future.failed(ClusterNotFoundException(googleProject, name1))
       }
     }
 
     val helper = LeoAuthProviderHelper(mockProvider, config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider)
-    helper.hasProjectPermission(userEmail, ProjectActions.CreateClusters, project).failed.futureValue shouldBe a [SamApiException]
+    helper.hasProjectPermission(userEmail, ProjectActions.CreateClusters, project).failed.futureValue shouldBe a [ClusterNotFoundException]
   }
 
   it should "map non-LeoExceptions to LeoExceptions" in {
