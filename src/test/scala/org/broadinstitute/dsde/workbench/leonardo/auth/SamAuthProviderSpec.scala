@@ -31,7 +31,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
   val gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
   val iamDAO = new MockGoogleIamDAO
 
-  "should add and delete a notebook-cluster resource with correct actions for the user when a cluster is created and then destroyed" in isolatedDbTest {
+  "should add (but not delete) a notebook-cluster resource with correct actions for the user when a cluster is created and then destroyed" in isolatedDbTest {
     val samAuthProvider = getSamAuthProvider
 
     samAuthProvider.samClient.billingProjects += (project, userInfo.userEmail) -> Set("launch_notebook_cluster")
@@ -54,11 +54,11 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     // deleting a cluster would call notify
     samAuthProvider.notifyClusterDeleted(userInfo.userEmail, userInfo.userEmail, project, name1).futureValue
 
-    samAuthProvider.samClient.notebookClusters shouldBe empty
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "status") shouldBe false
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "connect") shouldBe false
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "sync") shouldBe false
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "delete") shouldBe false
+    // but does not delete the resource
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "status") shouldBe true
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "connect") shouldBe true
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "sync") shouldBe true
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo.userEmail, project, name1, "delete") shouldBe true
 
     samAuthProvider.samClient.billingProjects.remove((project, userInfo.userEmail))
 
