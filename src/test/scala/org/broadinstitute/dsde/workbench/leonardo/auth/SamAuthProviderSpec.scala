@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.auth
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import com.typesafe.config.Config
+import io.swagger.client.ApiException
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockGoogleDataprocDAO
@@ -19,8 +20,13 @@ class TestSamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAcc
   override val samClient = new MockSwaggerSamClient()
 }
 
-class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with FreeSpecLike with Matchers with TestComponent with CommonTestData with ScalaFutures {
+class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with FreeSpecLike with Matchers with TestComponent with CommonTestData with ScalaFutures with BeforeAndAfterAll {
 
+  override def afterAll(): Unit = {
+    TestKit.shutdownActorSystem(system)
+    super.afterAll()
+  }
+  
   private def getSamAuthProvider: TestSamAuthProvider = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"),serviceAccountProvider)
 
   val gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
@@ -124,6 +130,18 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
 
     samAuthProvider.notifyClusterDeleted(userInfo.userEmail, userInfo.userEmail, project, name1).futureValue
     samAuthProvider.samClient.notebookClusters should not contain ((project, name1, userInfo.userEmail) -> Set("connect", "read_policies", "status", "delete", "sync"))
+  }
+
+  "should catch swagger ApiExceptions and turn them into SamApiExceptions" in isolatedDbTest {
+    val throwingSamClient = new MockSwaggerSamClient {
+      override def hasActionOnBillingProjectResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, action: String): Boolean = {
+        throw new ApiException(500, "internal error")
+      }
+    }
+    val authProvider = new SamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider) {
+      override val samClient = throwingSamClient
+    }
+    authProvider.hasProjectPermission(userInfo.userEmail, CreateClusters, project).failed.futureValue shouldBe a [SamApiException]
   }
 
 }

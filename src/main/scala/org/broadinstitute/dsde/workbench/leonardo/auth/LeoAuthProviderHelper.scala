@@ -19,7 +19,11 @@ object LeoAuthProviderHelper {
       .newInstance(config, serviceAccountProvider)
       .asInstanceOf[LeoAuthProvider]
 
-    new LeoAuthProviderHelper(authProvider, config, serviceAccountProvider)
+    apply(authProvider, config, serviceAccountProvider)
+  }
+
+  def apply(wrappedAuthProvider: LeoAuthProvider, config: Config, serviceAccountProvider: ServiceAccountProvider): LeoAuthProvider = {
+    new LeoAuthProviderHelper(wrappedAuthProvider, config, serviceAccountProvider)
   }
 }
 
@@ -28,7 +32,7 @@ object LeoAuthProviderHelper {
   */
 class LeoAuthProviderHelper(wrappedAuthProvider: LeoAuthProvider, authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(authConfig, serviceAccountProvider) {
 
-  private def safeCall[T](future: => Future[T]): Future[T] = {
+  private def safeCall[T](future: => Future[T])(implicit executionContext: ExecutionContext): Future[T] = {
     future.recover {
       case e: LeoException => throw e
       case NonFatal(_) => throw AuthProviderException(wrappedAuthProvider.getClass.getSimpleName)

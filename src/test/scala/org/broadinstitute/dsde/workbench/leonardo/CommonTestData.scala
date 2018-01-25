@@ -17,6 +17,8 @@ import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData}
 import org.scalatest.concurrent.ScalaFutures
 
+import scala.concurrent.ExecutionContext
+
 // values common to multiple tests, to reduce boilerplate
 
 trait CommonTestData { this: ScalaFutures =>
@@ -53,11 +55,11 @@ trait CommonTestData { this: ScalaFutures =>
 
   val samDAO = new MockSamDAO
 
-  protected def clusterServiceAccount(googleProject: GoogleProject): Option[WorkbenchEmail] = {
+  protected def clusterServiceAccount(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Option[WorkbenchEmail] = {
     serviceAccountProvider.getClusterServiceAccount(defaultUserInfo, googleProject).futureValue
   }
 
-  protected def notebookServiceAccount(googleProject: GoogleProject): Option[WorkbenchEmail] = {
+  protected def notebookServiceAccount(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Option[WorkbenchEmail] = {
     serviceAccountProvider.getNotebookServiceAccount(defaultUserInfo, googleProject).futureValue
   }
 }

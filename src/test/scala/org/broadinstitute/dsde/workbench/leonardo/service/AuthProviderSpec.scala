@@ -252,7 +252,5 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       verify(spyProvider).canSeeAllClustersInProject(userInfo.userEmail, visibleClusterProject)
       verify(spyProvider, Mockito.never).hasNotebookClusterPermission(userInfo.userEmail, GetClusterStatus, visibleClusterProject, visibleClusterName)
     }
-
-
   }
 }

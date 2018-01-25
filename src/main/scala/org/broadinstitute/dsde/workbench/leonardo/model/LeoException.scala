@@ -15,15 +15,3 @@ abstract class LeoException(
     ErrorReport(Option(getMessage).getOrElse(""), Some(statusCode), Seq(), Seq(), Some(this.getClass))
   }
 }
-
-object LeoException {
-  implicit class RecoverToLeoExceptionSupport[A](future: Future[A]) {
-    def recoverToLeoException(pf: PartialFunction[Throwable, Nothing] = PartialFunction.empty, default: => LeoException): Future[A] = {
-      val x: PartialFunction[LeoException, Nothing] = { case e: LeoException => throw e }
-
-      future.recover { e =>
-        val x = x.applyOrElse(e, default)
-      }
-    }
-  }
-}
