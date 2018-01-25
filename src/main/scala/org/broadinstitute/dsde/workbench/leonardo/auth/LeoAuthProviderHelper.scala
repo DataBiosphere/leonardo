@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.auth
 
 import akka.http.scaladsl.model.StatusCodes
 import com.typesafe.config.Config
+import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -30,12 +31,15 @@ object LeoAuthProviderHelper {
   }
 }
 
-class LeoAuthProviderHelper(wrappedAuthProvider: LeoAuthProvider, authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(authConfig, serviceAccountProvider) {
+class LeoAuthProviderHelper(wrappedAuthProvider: LeoAuthProvider, authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(authConfig, serviceAccountProvider) with LazyLogging {
 
   private def safeCall[T](future: => Future[T])(implicit executionContext: ExecutionContext): Future[T] = {
     future.recover {
       case e: LeoException => throw e
-      case NonFatal(_) => throw AuthProviderException(wrappedAuthProvider.getClass.getSimpleName)
+      case NonFatal(e) =>
+        val wrappedClassName = wrappedAuthProvider.getClass.getSimpleName
+        logger.error(s"Auth provider $wrappedClassName throw an exception", e)
+        throw AuthProviderException(wrappedClassName)
     }
   }
 
