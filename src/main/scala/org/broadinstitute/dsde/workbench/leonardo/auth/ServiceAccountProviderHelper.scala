@@ -12,20 +12,24 @@ import scala.util.control.NonFatal
 case class ServiceAccountProviderException(serviceAccountProviderClassName: String)
   extends LeoException(s"Call to $serviceAccountProviderClassName service account provider failed", StatusCodes.InternalServerError)
 
+/**
+  * Wraps a ServiceAccountProvider and provides error handling so provider-thrown errors don't bubble up our app.
+  */
 object ServiceAccountProviderHelper {
-  def create(className: String, config: Config): ServiceAccountProvider = {
+  def apply(wrappedServiceAccountProvider: ServiceAccountProvider, config: Config): ServiceAccountProviderHelper = {
+    new ServiceAccountProviderHelper(wrappedServiceAccountProvider, config)
+  }
+
+  def create(className: String, config: Config): ServiceAccountProviderHelper = {
     val serviceAccountProvider = Class.forName(className)
       .getConstructor(classOf[Config])
       .newInstance(config)
       .asInstanceOf[ServiceAccountProvider]
 
-    new ServiceAccountProviderHelper(serviceAccountProvider, config)
+    ServiceAccountProviderHelper(serviceAccountProvider, config)
   }
 }
 
-/**
-  * Wraps a ServiceAccountProvider and provides error handling so provider-thrown errors don't bubble up our app.
-  */
 class ServiceAccountProviderHelper(wrappedServiceAccountProvider: ServiceAccountProvider, config: Config) extends ServiceAccountProvider(config) {
 
   private def safeCall[T](future: => Future[T])(implicit executionContext: ExecutionContext): Future[T] = {

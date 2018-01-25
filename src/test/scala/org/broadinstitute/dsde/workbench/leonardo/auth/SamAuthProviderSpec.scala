@@ -26,7 +26,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     TestKit.shutdownActorSystem(system)
     super.afterAll()
   }
-  
+
   private def getSamAuthProvider: TestSamAuthProvider = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"),serviceAccountProvider)
 
   val gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)

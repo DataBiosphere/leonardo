@@ -12,8 +12,15 @@ import scala.util.control.NonFatal
 case class AuthProviderException(authProviderClassName: String)
   extends LeoException(s"Call to $authProviderClassName auth provider failed", StatusCodes.InternalServerError)
 
+/**
+  * Wraps a LeoAuthProvider and provides error handling so provider-thrown errors don't bubble up our app.
+  */
 object LeoAuthProviderHelper {
-  def create(className: String, config: Config, serviceAccountProvider: ServiceAccountProvider): LeoAuthProvider = {
+  def apply(wrappedAuthProvider: LeoAuthProvider, config: Config, serviceAccountProvider: ServiceAccountProvider): LeoAuthProviderHelper = {
+    new LeoAuthProviderHelper(wrappedAuthProvider, config, serviceAccountProvider)
+  }
+
+  def create(className: String, config: Config, serviceAccountProvider: ServiceAccountProvider): LeoAuthProviderHelper = {
     val authProvider = Class.forName(className)
       .getConstructor(classOf[Config], classOf[ServiceAccountProvider])
       .newInstance(config, serviceAccountProvider)
@@ -21,15 +28,8 @@ object LeoAuthProviderHelper {
 
     apply(authProvider, config, serviceAccountProvider)
   }
-
-  def apply(wrappedAuthProvider: LeoAuthProvider, config: Config, serviceAccountProvider: ServiceAccountProvider): LeoAuthProvider = {
-    new LeoAuthProviderHelper(wrappedAuthProvider, config, serviceAccountProvider)
-  }
 }
 
-/**
-  * Wraps a LeoAuthProvider and provides error handling so provider-thrown errors don't bubble up our app.
-  */
 class LeoAuthProviderHelper(wrappedAuthProvider: LeoAuthProvider, authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(authConfig, serviceAccountProvider) {
 
   private def safeCall[T](future: => Future[T])(implicit executionContext: ExecutionContext): Future[T] = {

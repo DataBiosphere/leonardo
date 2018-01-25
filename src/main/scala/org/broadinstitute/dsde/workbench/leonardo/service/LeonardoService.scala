@@ -4,7 +4,6 @@ import akka.actor.ActorRef
 import akka.http.scaladsl.model.StatusCodes
 import com.typesafe.scalalogging.LazyLogging
 import java.io.File
-
 import scala.collection.Map
 import cats.data.OptionT
 import cats.implicits._
@@ -49,9 +48,6 @@ case class ParseLabelsException(labelString: String)
 
 case class IllegalLabelKeyException(labelKey: String)
   extends LeoException(s"Labels cannot have a key of '$labelKey'", StatusCodes.NotAcceptable)
-
-case class AuthProviderException(authProviderClassName: String)
-  extends LeoException(s"Call to $authProviderClassName auth provider failed", StatusCodes.InternalServerError)
 
 class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val clusterFilesConfig: ClusterFilesConfig,

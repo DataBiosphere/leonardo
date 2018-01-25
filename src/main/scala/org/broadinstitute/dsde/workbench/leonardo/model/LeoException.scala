@@ -5,8 +5,6 @@ import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchException,
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 import org.broadinstitute.dsde.workbench.model.ErrorReport._
 
-import scala.concurrent.Future
-
 abstract class LeoException(
                         val message: String = null,
                         val statusCode: StatusCode = StatusCodes.InternalServerError,
