@@ -143,8 +143,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       case e: Exception => throw e
     }
 
-    // confirm that Deleting cluster is still gettable
-    Leonardo.cluster.get(googleProject, clusterName).status shouldBe ClusterStatus.Deleting
+    // confirm that we can still list the Deleting cluster
+    Leonardo.cluster.listIncludingDeleted().find(_.clusterName == clusterName).map(_.status) shouldBe Some(ClusterStatus.Deleting)
 
     // wait until not found or in "Deleted" state
     implicit val patienceConfig: PatienceConfig = clusterPatience
