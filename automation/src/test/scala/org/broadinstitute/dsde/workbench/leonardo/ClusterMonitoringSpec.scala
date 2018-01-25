@@ -1,13 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import org.broadinstitute.dsde.firecloud.api.Orchestration
+import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.broadinstitute.dsde.workbench.dao.Google.googleIamDAO
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 import org.scalatest.time.{Seconds, Span}
 
 class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with ParallelTestExecution {
-  implicit override val patienceConfig: PatienceConfig = PatienceConfig(timeout = scaled(Span(5, Seconds)))
-
   "Leonardo clusters" - {
 
     "should create, monitor, and delete a cluster" in {
@@ -53,6 +51,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
 
         // Post-conditions: pet should still exist in this Google project
 
+        implicit val patienceConfig: PatienceConfig = saPatience
         val googlePetEmail2 = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
         googlePetEmail2 shouldBe Some(petEmail)
       }
