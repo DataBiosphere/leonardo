@@ -15,4 +15,6 @@ trait SamDAO {
   def getStatus(): Future[StatusCheckResponse]
 
   def getPetServiceAccountForProject(userInfo: UserInfo, googleProject: GoogleProject): Future[WorkbenchEmail]
+
+  def getProxyGroupForUser(userEmail: WorkbenchEmail, userInfo: UserInfo) : Future[WorkbenchEmail]
 }

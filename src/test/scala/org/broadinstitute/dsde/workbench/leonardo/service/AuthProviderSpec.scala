@@ -9,6 +9,7 @@ import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import com.typesafe.config.ConfigFactory
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
+import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
 import org.broadinstitute.dsde.workbench.leonardo.GcsPathUtils
 import org.broadinstitute.dsde.workbench.leonardo.auth.{MockLeoAuthProvider, MockPetsPerProjectServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
@@ -67,7 +68,9 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"),
-    jupyterExtensionUri = None)
+    jupyterExtensionUri = None,
+    stagingBucket = Some(GcsBucketName("testStagingBucket1")))
+
 
   val gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
   val iamDAO = new MockGoogleIamDAO

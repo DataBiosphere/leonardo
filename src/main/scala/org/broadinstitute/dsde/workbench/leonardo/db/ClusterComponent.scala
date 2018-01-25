@@ -25,7 +25,9 @@ case class ClusterRecord(id: Long,
                          jupyterExtensionUri: Option[String],
                          initBucket: String,
                          machineConfig: MachineConfigRecord,
-                         serviceAccountInfo: ServiceAccountInfoRecord)
+                         serviceAccountInfo: ServiceAccountInfoRecord,
+                         stagingBucket: Option[String]
+                        )
 
 case class MachineConfigRecord(numberOfWorkers: Int,
                                masterMachineType: String,
@@ -67,6 +69,7 @@ trait ClusterComponent extends LeoComponent {
     def jupyterExtensionUri =         column[Option[String]]    ("jupyterExtensionUri",   O.Length(1024))
     def initBucket =                  column[String]            ("initBucket",            O.Length(1024))
     def serviceAccountKeyId =         column[Option[String]]    ("serviceAccountKeyId",   O.Length(254))
+    def stagingBucket =               column[Option[String]]    ("stagingBucket",         O.Length(254))
 
     def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName), unique = true)
 
@@ -78,22 +81,23 @@ trait ClusterComponent extends LeoComponent {
       id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
       createdDate, destroyedDate, jupyterExtensionUri, initBucket,
       (numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers),
-      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId)
+      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket
     ).shaped <> ({
       case (id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
-            createdDate, destroyedDate, jupyterExtensionUri, initBucket, machineConfig, serviceAccountInfo) =>
+            createdDate, destroyedDate, jupyterExtensionUri, initBucket, machineConfig, serviceAccountInfo, stagingBucket) =>
         ClusterRecord(
           id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
           createdDate, destroyedDate, jupyterExtensionUri, initBucket,
           MachineConfigRecord.tupled.apply(machineConfig),
-          ServiceAccountInfoRecord.tupled.apply(serviceAccountInfo))
+          ServiceAccountInfoRecord.tupled.apply(serviceAccountInfo),
+          stagingBucket)
     }, { c: ClusterRecord =>
       def mc(_mc: MachineConfigRecord) = MachineConfigRecord.unapply(_mc).get
       def sa(_sa: ServiceAccountInfoRecord) = ServiceAccountInfoRecord.unapply(_sa).get
       Some((
         c.id, c.clusterName, c.googleId, c.googleProject, c.operationName, c.status, c.hostIp, c.creator,
         c.createdDate, c.destroyedDate, c.jupyterExtensionUri, c.initBucket,
-        mc(c.machineConfig), sa(c.serviceAccountInfo)
+        mc(c.machineConfig), sa(c.serviceAccountInfo), c.stagingBucket
       ))
     })
   }
@@ -274,7 +278,8 @@ trait ClusterComponent extends LeoComponent {
           cluster.serviceAccountInfo.clusterServiceAccount.map(_.value),
           cluster.serviceAccountInfo.notebookServiceAccount.map(_.value),
           serviceAccountKeyId.map(_.value)
-        )
+        ),
+        cluster.stagingBucket.map(_.name)
       )
     }
 
@@ -320,7 +325,8 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.createdDate.toInstant,
         getDestroyedDate(clusterRecord.destroyedDate),
         labels,
-        clusterRecord.jupyterExtensionUri flatMap { GcsPath.parse(_).toOption }
+        clusterRecord.jupyterExtensionUri flatMap { GcsPath.parse(_).toOption },
+        clusterRecord.stagingBucket map GcsBucketName
       )
     }
 

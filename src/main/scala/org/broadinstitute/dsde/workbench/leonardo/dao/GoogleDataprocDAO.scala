@@ -140,7 +140,7 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
   override def createCluster(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo, stagingBucket: GcsBucketName)(implicit executionContext: ExecutionContext): Future[LeoCluster] = {
     buildCluster(googleProject, clusterName, clusterRequest, initBucketName, clusterDefaultsConfig, serviceAccountInfo, stagingBucket).map { operation =>
       //Make a Leo cluster from the Google operation details
-      LeoCluster.create(clusterRequest, userEmail, clusterName, googleProject, getOperationUUID(operation), OperationName(operation.getName), serviceAccountInfo, clusterDefaultsConfig)
+      LeoCluster.create(clusterRequest, userEmail, clusterName, googleProject, getOperationUUID(operation), OperationName(operation.getName), serviceAccountInfo, clusterDefaultsConfig, stagingBucket)
     }
   }
 
@@ -336,6 +336,7 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
     // The Leo service account
     val leoServiceAccountEntityString = s"user-${leoServiceAccountEmail.value}"
 
+    val creatorEmailEntityString = s"user-${creator.value}"
     val clusterServiceAccountEntityStringFuture: Future[String] = getClusterServiceAccountEntity(clusterGoogleProject, serviceAccountInfo)
 
     logger.info(s"the creator is :: ${creator.value}")
@@ -346,14 +347,14 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
       val bucketAcls = List(
         createBucketAcl(leoServiceAccountEntityString,"OWNER"),
         createBucketAcl(clusterServiceAccountEntityString,"READER"),
-        createBucketAcl(s"user-${creator.value}","READER")
+        createBucketAcl(creatorEmailEntityString,"READER")
       )
 
       //Bucket ACL != the ACL given to individual objects inside the bucket
       val defObjectAcls = List(
         createDefaultObjectAcl(leoServiceAccountEntityString, "OWNER"),
         createDefaultObjectAcl(clusterServiceAccountEntityString, "READER"),
-        createDefaultObjectAcl(s"user-${creator.value}","READER")
+        createDefaultObjectAcl(creatorEmailEntityString,"READER")
       )
 
       // Create the bucket object

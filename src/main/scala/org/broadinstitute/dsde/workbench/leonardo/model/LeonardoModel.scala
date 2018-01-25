@@ -90,7 +90,9 @@ object Cluster {
              googleId: UUID,
              operationName: OperationName,
              serviceAccountInfo: ServiceAccountInfo,
-             clusterDefaultsConfig: ClusterDefaultsConfig): Cluster = {
+             clusterDefaultsConfig: ClusterDefaultsConfig,
+             stagingBucket: GcsBucketName
+            ): Cluster = {
     Cluster(
         clusterName = clusterName,
         googleId = googleId,
@@ -105,7 +107,8 @@ object Cluster {
         createdDate = Instant.now(),
         destroyedDate = None,
         labels = clusterRequest.labels,
-        jupyterExtensionUri = clusterRequest.jupyterExtensionUri
+        jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
+        stagingBucket = Some(stagingBucket)
       )
   }
 
@@ -113,7 +116,8 @@ object Cluster {
                              userEmail: WorkbenchEmail,
                              clusterName: ClusterName,
                              googleProject: GoogleProject,
-                             serviceAccountInfo: ServiceAccountInfo): Cluster = {
+                             serviceAccountInfo: ServiceAccountInfo
+                            ): Cluster = {
     Cluster(
       clusterName = clusterName,
       googleId = UUID.randomUUID,
@@ -128,7 +132,8 @@ object Cluster {
       createdDate = Instant.now(),
       destroyedDate = None,
       labels = clusterRequest.labels,
-      jupyterExtensionUri = clusterRequest.jupyterExtensionUri
+      jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
+      stagingBucket = None
     )
   }
 
@@ -159,7 +164,8 @@ case class Cluster(clusterName: ClusterName,
                    createdDate: Instant,
                    destroyedDate: Option[Instant],
                    labels: LabelMap,
-                   jupyterExtensionUri: Option[GcsPath]) {
+                   jupyterExtensionUri: Option[GcsPath],
+                   stagingBucket:Option[GcsBucketName]) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.string}"
 }
 
@@ -361,7 +367,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val firewallRuleNameFormat = StringValueClassFormat(FirewallRuleName, FirewallRuleName.unapply)
   implicit val machineConfigFormat = jsonFormat7(MachineConfig.apply)
   implicit val serviceAccountInfoFormat = jsonFormat2(ServiceAccountInfo.apply)
-  implicit val clusterFormat = jsonFormat14(Cluster.apply)
+  implicit val clusterFormat = jsonFormat15(Cluster.apply)
   implicit val clusterRequestFormat = jsonFormat3(ClusterRequest)
   implicit val clusterInitValuesFormat = jsonFormat16(ClusterInitValues.apply)
   implicit val defaultLabelsFormat = jsonFormat6(DefaultLabels.apply)

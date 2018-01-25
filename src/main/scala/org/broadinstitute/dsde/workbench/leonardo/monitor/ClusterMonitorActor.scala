@@ -169,6 +169,10 @@ class ClusterMonitorActor(val cluster: Cluster,
       if (shouldRecreateCluster(errorDetails.code, errorDetails.message)) {
         // Update the database record to Deleting, shutdown this actor, and register a callback message
         // to the supervisor telling it to recreate the cluster.
+        cluster.stagingBucket match {
+          case Some(stagingBucketName) => gdDAO.deleteBucket(cluster.googleProject, stagingBucketName)
+          case _ => Future.successful(())
+        }
         logger.info(s"Cluster ${cluster.projectNameString} is in an error state with $errorDetails. Attempting to recreate...")
         dbRef.inTransaction { dataAccess =>
           dataAccess.clusterQuery.markPendingDeletion(cluster.googleId)
