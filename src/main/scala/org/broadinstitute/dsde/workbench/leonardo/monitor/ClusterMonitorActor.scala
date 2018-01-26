@@ -28,8 +28,8 @@ object ClusterMonitorActor {
   /**
     * Creates a Props object used for creating a {{{ClusterMonitorActor}}}.
     */
-  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: DataprocDAO, googleIamDAO: GoogleIamDAO, dbRef: DbReference, clusterDnsCache: ActorRef): Props =
-    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, gdDAO, googleIamDAO, dbRef, clusterDnsCache))
+  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: DataprocDAO, googleIamDAO: GoogleIamDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider): Props =
+    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, gdDAO, googleIamDAO, dbRef, clusterDnsCache, authProvider))
 
   // ClusterMonitorActor messages:
 
@@ -57,7 +57,8 @@ class ClusterMonitorActor(val cluster: Cluster,
                           val gdDAO: DataprocDAO,
                           val googleIamDAO: GoogleIamDAO,
                           val dbRef: DbReference,
-                          val clusterDnsCache: ActorRef) extends Actor with LazyLogging {
+                          val clusterDnsCache: ActorRef,
+                          val authProvider: LeoAuthProvider) extends Actor with LazyLogging {
   import context._
 
   override def preStart(): Unit = {
@@ -193,15 +194,20 @@ class ClusterMonitorActor(val cluster: Cluster,
   }
 
   /**
-    * Handles a dataproc cluster which has been deleted. We update the status to Deleted in the database,
+    * Handles a dataproc cluster which has been deleted.
+    * We update the status to Deleted in the database, notify the auth provider,
     * and shut down this actor.
     * @return error or ShutdownActor
     */
   private def handleDeletedCluster(): Future[ClusterMonitorMessage] = {
     logger.info(s"Cluster ${cluster.projectNameString} has been deleted.")
-    dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.completeDeletion(cluster.googleId, cluster.clusterName)
-    }.map(_ => ShutdownActor())
+
+    for {
+      _ <- dbRef.inTransaction { dataAccess =>
+        dataAccess.clusterQuery.completeDeletion(cluster.googleId, cluster.clusterName)
+      }
+      _ <- authProvider.notifyClusterDeleted(cluster.creator, cluster.creator, cluster.googleProject, cluster.clusterName)
+    } yield ShutdownActor()
   }
 
   /**
