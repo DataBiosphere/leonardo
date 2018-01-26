@@ -207,7 +207,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       visibleClusters <- clustersByProject.toList.flatTraverse[Future, Cluster] { case (googleProject, clusters) =>
         val clusterList = clusters.toList
         authProvider.canSeeAllClustersInProject(userInfo.userEmail, googleProject).recover { case NonFatal(e) =>
-          logger.warn(s"Sam returned an exception for resource ${googleProject.value}. Filtering out from list results.", e)
+          logger.warn(s"The auth provider returned an exception for resource ${googleProject.value}. Filtering out from list results.", e)
           false
         } flatMap {
           case true => Future.successful(clusterList)
@@ -216,7 +216,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
               case false => None
               case true => Some(cluster)
             } recover { case NonFatal(e) =>
-              logger.warn(s"Sam returned an exception for resource ${googleProject.value}/${cluster.clusterName.string}. Filtering out from list results.", e)
+              logger.warn(s"The auth provider returned an exception for resource ${googleProject.value}/${cluster.clusterName.string}. Filtering out from list results.", e)
               None
             }
           }

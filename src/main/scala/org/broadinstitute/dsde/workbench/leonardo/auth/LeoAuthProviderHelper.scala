@@ -34,13 +34,15 @@ object LeoAuthProviderHelper {
 class LeoAuthProviderHelper(wrappedAuthProvider: LeoAuthProvider, authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(authConfig, serviceAccountProvider) with LazyLogging {
 
   private def safeCall[T](future: => Future[T])(implicit executionContext: ExecutionContext): Future[T] = {
-    future.recover {
-      case e: LeoException => throw e
+    val exceptionHandler: PartialFunction[Throwable, Future[Nothing]] = {
+      case e: LeoException => Future.failed(e)
       case NonFatal(e) =>
         val wrappedClassName = wrappedAuthProvider.getClass.getSimpleName
         logger.error(s"Auth provider $wrappedClassName throw an exception", e)
-        throw AuthProviderException(wrappedClassName)
+        Future.failed(AuthProviderException(wrappedClassName))
     }
+
+    try { future.recoverWith(exceptionHandler) } catch exceptionHandler
   }
 
   override def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {

@@ -27,20 +27,22 @@ object ServiceAccountProviderHelper {
       .newInstance(config)
       .asInstanceOf[ServiceAccountProvider]
 
-    ServiceAccountProviderHelper(serviceAccountProvider, config)
+    apply(serviceAccountProvider, config)
   }
 }
 
 class ServiceAccountProviderHelper(wrappedServiceAccountProvider: ServiceAccountProvider, config: Config) extends ServiceAccountProvider(config) with LazyLogging {
 
   private def safeCall[T](future: => Future[T])(implicit executionContext: ExecutionContext): Future[T] = {
-    future.recover {
-      case e: LeoException => throw e
+    val exceptionHandler: PartialFunction[Throwable, Future[Nothing]] = {
+      case e: LeoException => Future.failed(e)
       case NonFatal(e) =>
         val wrappedClassName = wrappedServiceAccountProvider.getClass.getSimpleName
         logger.error(s"Service account provider $wrappedClassName throw an exception", e)
-        throw ServiceAccountProviderException(wrappedClassName)
+        Future.failed(ServiceAccountProviderException(wrappedClassName))
     }
+
+    try { future.recoverWith(exceptionHandler) } catch exceptionHandler
   }
 
   override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
