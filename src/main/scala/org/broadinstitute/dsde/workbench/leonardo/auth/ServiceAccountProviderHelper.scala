@@ -42,6 +42,7 @@ class ServiceAccountProviderHelper(wrappedServiceAccountProvider: ServiceAccount
         Future.failed(ServiceAccountProviderException(wrappedClassName))
     }
 
+    // recover from failed futures AND catch thrown exceptions
     try { future.recoverWith(exceptionHandler) } catch exceptionHandler
   }
 
