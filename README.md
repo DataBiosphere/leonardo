@@ -6,20 +6,20 @@ Leo provisions Spark clusters through [Google Dataproc](https://cloud.google.com
 
 For more information and an overview, see the [wiki](https://github.com/broadinstitute/leonardo/wiki).
 
-Swagger UI: https://notebooks.firecloud.org/
+Swagger API documentation: https://notebooks.firecloud.org/
 
 ## Project status
 This project is under active development. It is not yet ready for independent production deployment. See the [roadmap](https://github.com/DataBiosphere/leonardo/wiki#roadmap) section of the wiki for details.
 
 ## Configurability
 
-Documentation on how to configure Leo is Coming Soon™. Until then, a brief overview: there are two points at which Leonardo ~~is~~ will be pluggable.
+Documentation on how to configure Leo is Coming Soon™. Until then, a brief overview: there are two points at which Leonardo is pluggable.
 
 ### Authorization provider
 
 Leo provides two modes of authorization out of the box:
 1. By whitelist
-2. Through [Sam](github.com/broadinstitute/sam), the Workbench IAM service (Coming Soon™)
+2. Through [Sam](github.com/broadinstitute/sam), the Workbench IAM service
 
 Users wanting to roll their own authorization mechanism can do so by subclassing `LeoAuthProvider` and setting up the Leo configuration file appropriately.
 
@@ -31,7 +31,7 @@ There are (up to) three service accounts used in the process of spinning up a no
 2. The service account _passed_ to [dataproc clusters create](https://cloud.google.com/sdk/gcloud/reference/dataproc/clusters/create) via the `--service-account` parameter, whose credentials will be used to set up the instance and localized into the [GCE metadata server](https://cloud.google.com/compute/docs/storing-retrieving-metadata)
 3. The service account that will be localized into the user environment and returned when any application asks [for application default credentials](https://developers.google.com/identity/protocols/application-default-credentials).
 
-Currently, Leo expects to use its own SA for #1, and the same per-user project-specific SA for #2 and #3, which it fetches from [Sam](github.com/broadinstitute/sam). We are in the process of making these user-definable via a `ServiceAccountProvider` interface.
+Currently, Leo uses its own SA for #1, and the same per-user project-specific SA for #2 and #3, which it fetches from [Sam](github.com/broadinstitute/sam). Users wanting to roll their own service account provision mechanism by subclassing `ServiceAccountProvider` and setting up the Leo configuration file appropriately.
 
 ## Building and running Leonardo
 Clone the repo.
