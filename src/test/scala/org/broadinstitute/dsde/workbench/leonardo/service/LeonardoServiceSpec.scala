@@ -265,7 +265,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should not contain key (clusterName)
 
     // create the cluster
-    val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, clusterName, testClusterRequest).futureValue
+    val clusterCreateResponse = leoForTest.createCluster(defaultUserInfo, googleProject, clusterName, testClusterRequest).futureValue
 
     // check that the cluster was created
     gdDAO.clusters should contain key (clusterName)
@@ -277,7 +277,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
 
     // delete the cluster
-    leo.deleteCluster(defaultUserInfo, googleProject, clusterName).futureValue
+    leoForTest.deleteCluster(defaultUserInfo, googleProject, clusterName).futureValue
 
     // check that  the cluster no longer exists
     gdDAO.clusters should not contain key (clusterName)
