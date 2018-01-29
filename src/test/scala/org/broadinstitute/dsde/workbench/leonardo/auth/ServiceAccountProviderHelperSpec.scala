@@ -28,6 +28,8 @@ class ServiceAccountProviderHelperSpec extends TestKit(ActorSystem("leonardotest
     helper.getNotebookServiceAccount(userInfo, project).futureValue shouldBe serviceAccountProvider.getNotebookServiceAccount(userInfo, project).futureValue
   }
 
+  // The next 3 tests verify that an exception thrown in ServiceAccountProvider gets translated to LeoException in ServiceAccountProviderHelper
+
   it should "pass through LeoExceptions" in {
     val mockProvider = new MockPetsPerProjectServiceAccountProvider(config.getConfig("serviceAccounts.config")) {
       override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {

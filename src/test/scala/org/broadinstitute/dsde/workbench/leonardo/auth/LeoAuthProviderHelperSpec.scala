@@ -31,6 +31,8 @@ class LeoAuthProviderHelperSpec extends TestKit(ActorSystem("leonardotest")) wit
     helper.hasNotebookClusterPermission(userEmail, NotebookClusterActions.ConnectToCluster, project, name1).futureValue shouldBe true
   }
 
+  // The next 3 tests verify that an exception thrown in LeoAuthProvider gets translated to LeoException in LeoAuthProviderHelper
+
   it should "pass through LeoExceptions" in {
     val mockProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), serviceAccountProvider) {
       override def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
