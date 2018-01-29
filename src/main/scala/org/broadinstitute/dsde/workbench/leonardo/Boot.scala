@@ -3,16 +3,17 @@ package org.broadinstitute.dsde.workbench.leonardo
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.LazyLogging
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.HttpGoogleIamDAO
 import org.broadinstitute.dsde.workbench.leonardo.api.{LeoRoutes, StandardUserInfoDirectives}
+import org.broadinstitute.dsde.workbench.leonardo.auth.{LeoAuthProviderHelper, ServiceAccountProviderHelper}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{GoogleDataprocDAO, HttpSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SamConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterStatus, LeoAuthProvider, ServiceAccountProvider}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
@@ -49,11 +50,11 @@ object Boot extends App with LazyLogging {
 
     val serviceAccountProviderClass = config.as[String]("serviceAccounts.providerClass")
     val serviceAccountConfig = config.getConfig("serviceAccounts.config")
-    val serviceAccountProvider = constructServiceAccountProvider(serviceAccountProviderClass, serviceAccountConfig)
+    val serviceAccountProvider = ServiceAccountProviderHelper.create(serviceAccountProviderClass, serviceAccountConfig)
 
     val authProviderClass = config.as[String]("auth.providerClass")
     val authConfig = config.getConfig("auth.providerConfig")
-    val authProvider = constructLeoAuthProvider(authProviderClass, authConfig, serviceAccountProvider)
+    val authProvider = LeoAuthProviderHelper.create(authProviderClass, authConfig, serviceAccountProvider)
 
     // we need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")
@@ -84,20 +85,6 @@ object Boot extends App with LazyLogging {
           logger.error("FATAL - failure starting http server", t)
           throw t
       }
-  }
-
-  private def constructServiceAccountProvider(className: String, config: Config): ServiceAccountProvider = {
-    Class.forName(className)
-      .getConstructor(classOf[Config])
-      .newInstance(config)
-      .asInstanceOf[ServiceAccountProvider]
-  }
-
-  private def constructLeoAuthProvider(className: String,  config: Config, serviceAccountProvider: ServiceAccountProvider): LeoAuthProvider = {
-    Class.forName(className)
-      .getConstructor(classOf[Config], classOf[ServiceAccountProvider])
-      .newInstance(config, serviceAccountProvider)
-      .asInstanceOf[LeoAuthProvider]
   }
 
   private def startClusterMonitors(dbRef: DbReference, clusterMonitor: ActorRef)(implicit executionContext: ExecutionContext) = {

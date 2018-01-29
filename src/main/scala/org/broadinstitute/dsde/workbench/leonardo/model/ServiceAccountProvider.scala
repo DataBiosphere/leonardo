@@ -6,7 +6,7 @@ import com.typesafe.config.Config
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 /**
   * Provides service accounts needed by Leo.
@@ -42,7 +42,7 @@ abstract class ServiceAccountProvider(config: Config) {
     * @param googleProject the Google project the cluster is created in
     * @return service account email
     */
-  def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject): Future[Option[WorkbenchEmail]]
+  def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]]
 
   /**
     * Optional. The service account email that will be localized into the user environment
@@ -56,5 +56,5 @@ abstract class ServiceAccountProvider(config: Config) {
     * @param googleProject the Google project the cluster is created in
     * @return service account email
     */
-  def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject): Future[Option[WorkbenchEmail]]
+  def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]]
 }
