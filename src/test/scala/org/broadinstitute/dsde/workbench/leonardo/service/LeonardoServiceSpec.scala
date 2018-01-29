@@ -26,7 +26,7 @@ import org.scalatest.concurrent.ScalaFutures
 import spray.json._
 import org.mockito.Mockito._
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures with OptionValues with VCMockitoMatchers {
   private val configFactory = ConfigFactory.load()
