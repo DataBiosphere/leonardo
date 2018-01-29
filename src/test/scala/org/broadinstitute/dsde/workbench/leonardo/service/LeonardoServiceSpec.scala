@@ -407,7 +407,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // create the cluster
     val response = leo.createCluster(defaultUserInfo, googleProject, clusterName, testClusterRequest.copy(jupyterExtensionUri = Some(jupyterExtensionUri))).failed.futureValue
 
-    response shouldBe a [JupyterExtensionException]
+    response shouldBe a [BucketObjectException]
   }
 
   it should "throw a JupyterExtensionException when the jupyterExtensionUri does not point to a GCS object" in isolatedDbTest {
@@ -416,7 +416,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // create the cluster
     val response = leo.createCluster(defaultUserInfo, googleProject, clusterName, testClusterRequest.copy(jupyterExtensionUri = Some(jupyterExtensionUri))).failed.futureValue
 
-    response shouldBe a [JupyterExtensionException]
+    response shouldBe a [BucketObjectException]
   }
 
   it should "list no clusters" in isolatedDbTest {

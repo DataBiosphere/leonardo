@@ -40,6 +40,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_EXTENSION_URI=$(jupyterExtensionUri)
     JUPYTER_CUSTOM_JS_URI=$(jupyterCustomJsUri)
     JUPYTER_GOOGLE_SIGN_IN_JS_URI=$(jupyterGoogleSignInJsUri)
+    JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
 
     # install Docker
     export DOCKER_CE_VERSION="17.12.0~ce-0~debian"
@@ -108,6 +109,17 @@ if [[ "${ROLE}" == 'Master' ]]; then
       docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
       docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/install-jupyter-extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
     fi
+
+
+    # If a Jupyter user script was specified, copy it into the jupyter docker container.
+    if [ ! -z ${JUPYTER_USER_SCRIPT_URI} ] ; then
+      gsutil cp ${JUPYTER_USER_SCRIPT_URI} /etc
+      JUPYTER_USER_SCRIPT_ARCHIVE=`basename ${JUPYTER_USER_SCRIPT_URI}`
+      docker cp /etc/${JUPYTER_USER_SCRIPT_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
+      # Call user-provided bash script here - unsure if we want to do this before installing spark?
+      docker exec -u root -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
+    fi
+
 
     # If a custom.js was specified, copy it into the jupyter docker container.
     if [ ! -z ${JUPYTER_CUSTOM_JS_URI} ] ; then

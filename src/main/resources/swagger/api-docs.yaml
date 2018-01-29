@@ -501,6 +501,12 @@ definitions:
           The archive must be in tar.gz format, must not include a parent directory, and
           must have an entry point named 'main'. For more information on notebook extensions,
           see http://jupyter-notebook.readthedocs.io/en/latest/extending/frontend_extensions.html.
+      jupyterUserScriptUri:
+        type: string
+        description: |
+          Optional bucket URI to an archive containing a bash script the user wishes to run on inside their jupyter docker.
+          The archive must be in .sh format, must not include a parent directory, and
+          must have an entry point named 'main'.
       machineConfig:
         description: The machine configurations for the master and worker nodes
         $ref: '#/definitions/MachineConfig'

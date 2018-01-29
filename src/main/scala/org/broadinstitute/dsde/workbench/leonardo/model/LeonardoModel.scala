@@ -108,6 +108,7 @@ object Cluster {
         destroyedDate = None,
         labels = clusterRequest.labels,
         jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
+        jupyterUserScript = clusterRequest.jupyterUserScript,
         stagingBucket = Some(stagingBucket)
       )
   }
@@ -133,6 +134,7 @@ object Cluster {
       destroyedDate = None,
       labels = clusterRequest.labels,
       jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
+      jupyterUserScript = clusterRequest.jupyterUserScript,
       stagingBucket = None
     )
   }
@@ -149,7 +151,8 @@ case class DefaultLabels(clusterName: ClusterName,
                          creator: WorkbenchEmail,
                          clusterServiceAccount: Option[WorkbenchEmail],
                          notebookServiceAccount: Option[WorkbenchEmail],
-                         notebookExtension: Option[GcsPath])
+                         notebookExtension: Option[GcsPath],
+                         notebookUserScript: Option[GcsPath])
 
 case class Cluster(clusterName: ClusterName,
                    googleId: UUID,
@@ -165,6 +168,7 @@ case class Cluster(clusterName: ClusterName,
                    destroyedDate: Option[Instant],
                    labels: LabelMap,
                    jupyterExtensionUri: Option[GcsPath],
+                   jupyterUserScript: Option[GcsPath],
                    stagingBucket:Option[GcsBucketName]) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.string}"
 }
@@ -222,6 +226,7 @@ case class ServiceAccountInfo(clusterServiceAccount: Option[WorkbenchEmail],
 
 case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[GcsPath] = None,
+                          jupyterUserScript: Option[GcsPath] = None,
                           machineConfig: Option[MachineConfig] = None
                          )
 
@@ -246,6 +251,7 @@ object ClusterInitValues {
       dataprocConfig.jupyterServerName,
       proxyConfig.proxyServerName,
       clusterRequest.jupyterExtensionUri.map(_.toUri).getOrElse(""),
+      clusterRequest.jupyterUserScript.map(_.toUri).getOrElse(""),
       serviceAccountKey.map(_ => GcsPath(initBucketName, GcsRelativePath(serviceAccountCredentialsFilename)).toUri).getOrElse(""),
       GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.jupyterCustomJs.string)).toUri,
       GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.jupyterGoogleSignInJs.string)).toUri,
@@ -267,6 +273,7 @@ case class ClusterInitValues(googleProject: String,
                              jupyterServerName: String,
                              proxyServerName: String,
                              jupyterExtensionUri: String,
+                             jupyterUserScript: String,
                              jupyterServiceAccountCredentials: String,
                              jupyterCustomJsUri: String,
                              jupyterGoogleSignInJsUri: String,
@@ -367,8 +374,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val firewallRuleNameFormat = StringValueClassFormat(FirewallRuleName, FirewallRuleName.unapply)
   implicit val machineConfigFormat = jsonFormat7(MachineConfig.apply)
   implicit val serviceAccountInfoFormat = jsonFormat2(ServiceAccountInfo.apply)
-  implicit val clusterFormat = jsonFormat15(Cluster.apply)
-  implicit val clusterRequestFormat = jsonFormat3(ClusterRequest)
-  implicit val clusterInitValuesFormat = jsonFormat16(ClusterInitValues.apply)
-  implicit val defaultLabelsFormat = jsonFormat6(DefaultLabels.apply)
+  implicit val clusterFormat = jsonFormat16(Cluster.apply)
+  implicit val clusterRequestFormat = jsonFormat4(ClusterRequest)
+  implicit val clusterInitValuesFormat = jsonFormat17(ClusterInitValues.apply)
+  implicit val defaultLabelsFormat = jsonFormat7(DefaultLabels.apply)
 }

@@ -45,8 +45,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"),
     None,
-    Some(GcsBucketName("testStagingBucket1"))
-  )
+    None,
+    Some(GcsBucketName("testStagingBucket1")))
 
   val deletingCluster = Cluster(
     clusterName = name2,
@@ -63,6 +63,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"),
     jupyterExtensionUri = jupyterExtensionUri,
+    jupyterUserScript = jupyterUserScript,
     Some(GcsBucketName("testStagingBucket1"))
   )
 

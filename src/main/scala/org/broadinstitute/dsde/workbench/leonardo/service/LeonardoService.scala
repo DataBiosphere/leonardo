@@ -40,7 +40,7 @@ case class ClusterAlreadyExistsException(googleProject: GoogleProject, clusterNa
 case class InitializationFileException(googleProject: GoogleProject, clusterName: ClusterName, errorMessage: String)
   extends LeoException(s"Unable to process initialization files for ${googleProject.value}/${clusterName.string}. Returned message: $errorMessage", StatusCodes.Conflict)
 
-case class JupyterExtensionException(gcsUri: GcsPath)
+case class BucketObjectException(gcsUri: GcsPath)
   extends LeoException(s"Jupyter extension URI is invalid or unparseable: ${gcsUri.toUri}", StatusCodes.BadRequest)
 
 case class ParseLabelsException(labelString: String)
@@ -248,8 +248,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val initBucketName = generateUniqueBucketName(clusterName.string+"-init")
     val stagingBucketName = generateUniqueBucketName(clusterName.string+"-staging")
     for {
-      // Validate that the Jupyter extension URI is a valid URI and references a real GCS object
-      _ <- validateJupyterExtensionUri(googleProject, clusterRequest.jupyterExtensionUri)
+      // Validate that the Jupyter extension URI and Jupyter user script URI are valid URIs and reference real GCS objects
+      _ <- validateBucketObjectUri(googleProject, clusterRequest.jupyterExtensionUri)
+      _ <- validateBucketObjectUri(googleProject, clusterRequest.jupyterUserScript)
       // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
       _ <- gdDAO.updateFirewallRule(googleProject)
       // Generate a service account key for the notebook service account (if present) to localize on the cluster.
@@ -301,16 +302,16 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } getOrElse Future.successful(())
   }
 
-  private[service] def validateJupyterExtensionUri(googleProject: GoogleProject, gcsUriOpt: Option[GcsPath])(implicit executionContext: ExecutionContext): Future[Unit] = {
+  private[service] def validateBucketObjectUri(googleProject: GoogleProject, gcsUriOpt: Option[GcsPath])(implicit executionContext: ExecutionContext): Future[Unit] = {
     gcsUriOpt match {
       case None => Future.successful(())
       case Some(gcsPath) =>
         if (gcsPath.toUri.length > bucketPathMaxLength) {
-          throw JupyterExtensionException(gcsPath)
+          throw BucketObjectException(gcsPath)
         }
         gdDAO.bucketObjectExists(googleProject, gcsPath).map {
           case true => ()
-          case false => throw JupyterExtensionException(gcsPath)
+          case false => throw BucketObjectException(gcsPath)
         }
     }
   }
@@ -433,7 +434,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private[service] def addClusterDefaultLabels(serviceAccountInfo: ServiceAccountInfo, googleProject: GoogleProject, clusterName: ClusterName, creator: WorkbenchEmail, clusterRequest: ClusterRequest): ClusterRequest = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultLabels(clusterName, googleProject, creator,
-      serviceAccountInfo.clusterServiceAccount, serviceAccountInfo.notebookServiceAccount, clusterRequest.jupyterExtensionUri)
+      serviceAccountInfo.clusterServiceAccount, serviceAccountInfo.notebookServiceAccount, clusterRequest.jupyterExtensionUri, clusterRequest.jupyterUserScript)
       .toJson.asJsObject.fields.mapValues(labelValue => labelValue.convertTo[String])
     // combine default and given labels
     val allLabels = clusterRequest.labels ++ defaultLabels
