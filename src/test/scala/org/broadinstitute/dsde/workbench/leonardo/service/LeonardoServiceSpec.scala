@@ -10,6 +10,7 @@ import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
+import org.broadinstitute.dsde.workbench.leonardo.VCMockitoMatchers
 import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetsPerProjectServiceAccountProvider, WhitelistAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, MockGoogleDataprocDAO, MockSamDAO}
@@ -19,13 +20,15 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
 import org.broadinstitute.dsde.workbench.model._
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData}
+import org.mockito.Mockito.{never, verify}
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import spray.json._
+import org.mockito.Mockito._
+import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
+import scala.concurrent.ExecutionContext
 
-import scala.concurrent.{ExecutionContext, Future}
-
-class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures with OptionValues {
+class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures with OptionValues with VCMockitoMatchers {
   private val configFactory = ConfigFactory.load()
   private val whitelist = configFactory.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
   private val dataprocConfig = configFactory.as[DataprocConfig]("dataproc")
@@ -254,6 +257,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "delete a cluster" in isolatedDbTest {
+    // need a specialized LeonardoService for this test, so we can spy on its authProvider
+    val spyProvider: LeoAuthProvider = spy(authProvider)
+    val leoForTest = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), spyProvider, serviceAccountProvider, whitelist)
+
     // check that the cluster does not exist
     gdDAO.clusters should not contain key (clusterName)
 
@@ -275,6 +282,13 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // check that  the cluster no longer exists
     gdDAO.clusters should not contain key (clusterName)
     iamDAO.serviceAccountKeys should not contain key (samDAO.serviceAccount)
+
+    // the cluster has transitioned to the Deleting state (Cluster Monitor will later transition it to Deleted)
+
+    dbFutureValue { _.clusterQuery.getClusterByName(googleProject, clusterName) }.map(_.status) shouldBe Some(ClusterStatus.Deleting)
+
+    // the auth provider should have not yet been notified of deletion
+    verify(spyProvider, never).notifyClusterDeleted(mockitoEq(defaultUserInfo.userEmail), mockitoEq(defaultUserInfo.userEmail), mockitoEq(googleProject), vcEq(clusterName))(any[ExecutionContext])
   }
 
   it should "delete a cluster that has status Error" in isolatedDbTest {
