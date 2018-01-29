@@ -28,8 +28,8 @@ import scala.io.Source
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success}
 
-case class AuthorizationError(email: Option[WorkbenchEmail] = None) extends
-  LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is unauthorized", StatusCodes.Unauthorized)
+case class AuthorizationError(email: Option[WorkbenchEmail] = None)
+  extends LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is unauthorized", StatusCodes.Unauthorized)
 
 case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: ClusterName)
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.string} not found", StatusCodes.NotFound)
@@ -48,7 +48,6 @@ case class ParseLabelsException(labelString: String)
 
 case class IllegalLabelKeyException(labelKey: String)
   extends LeoException(s"Labels cannot have a key of '$labelKey'", StatusCodes.NotAcceptable)
-
 
 class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val clusterFilesConfig: ClusterFilesConfig,
@@ -207,12 +206,18 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       clustersByProject = clusterList.groupBy(_.googleProject)
       visibleClusters <- clustersByProject.toList.flatTraverse[Future, Cluster] { case (googleProject, clusters) =>
         val clusterList = clusters.toList
-        authProvider.canSeeAllClustersInProject(userInfo.userEmail, googleProject) flatMap {
+        authProvider.canSeeAllClustersInProject(userInfo.userEmail, googleProject).recover { case NonFatal(e) =>
+          logger.warn(s"The auth provider returned an exception calling canSeeAllClustersInProject for resource ${googleProject.value}. Filtering out this project from list results.", e)
+          false
+        } flatMap {
           case true => Future.successful(clusterList)
           case false => clusterList.traverseFilter { cluster =>
             authProvider.hasNotebookClusterPermission(userInfo.userEmail, GetClusterStatus, cluster.googleProject, cluster.clusterName) map {
               case false => None
               case true => Some(cluster)
+            } recover { case NonFatal(e) =>
+              logger.warn(s"The auth provider returned an exception for resource ${googleProject.value}/${cluster.clusterName.string}. Filtering out from list results.", e)
+              None
             }
           }
         }

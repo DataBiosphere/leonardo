@@ -23,6 +23,8 @@ import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import spray.json._
 
+import scala.concurrent.{ExecutionContext, Future}
+
 class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures with OptionValues {
   private val configFactory = ConfigFactory.load()
   private val whitelist = configFactory.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
@@ -484,6 +486,32 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.listClusters(defaultUserInfo, Map("_labels" -> "foo=bar,bam")).failed.futureValue shouldBe a [ParseLabelsException]
     leo.listClusters(defaultUserInfo, Map("_labels" -> "bogus")).failed.futureValue shouldBe a [ParseLabelsException]
     leo.listClusters(defaultUserInfo, Map("_labels" -> "a,b")).failed.futureValue shouldBe a [ParseLabelsException]
+  }
+
+  it should "filter out auth provider exceptions from list clusters" in isolatedDbTest {
+    // create a couple clusters
+    val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
+    val cluster1 = leo.createCluster(defaultUserInfo, googleProject, clusterName1, testClusterRequest).futureValue
+
+    val clusterName2 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
+    val cluster2 = leo.createCluster(defaultUserInfo, googleProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
+
+    // provider fails on cluster2, succeeds on cluster1
+    val newAuthProvider = new WhitelistAuthProvider(configFactory.getConfig("auth.whitelistProviderConfig"),serviceAccountProvider) {
+      override def hasNotebookClusterPermission(userEmail: WorkbenchEmail, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+        if (clusterName == clusterName1) {
+          super.hasNotebookClusterPermission(userEmail, action, googleProject, clusterName)
+        } else {
+          Future.failed(new RuntimeException)
+        }
+      }
+    }
+
+    // make a new LeoService
+    val newLeo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), newAuthProvider, serviceAccountProvider, whitelist)
+
+    // list clusters should only return cluster1
+    newLeo.listClusters(defaultUserInfo, Map.empty).futureValue shouldBe Seq(cluster1)
   }
 
   it should "delete the init bucket if cluster creation fails" in isolatedDbTest {
