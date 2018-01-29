@@ -6,7 +6,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 /**
   * Created by rtitle on 12/4/17.
@@ -15,12 +15,12 @@ class MockPetServiceAccountProvider(config: Config) extends ServiceAccountProvid
   private val mockSamDAO = new MockSamDAO
   private implicit val ec = scala.concurrent.ExecutionContext.global
 
-  override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
+  override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
     // Pretend we're using the compute engine default SA
     Future.successful(None)
   }
 
-  override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
+  override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
     // Pretend we're asking Sam for the pet
     mockSamDAO.getPetServiceAccountForProject(userInfo, googleProject).map(Option(_))
   }

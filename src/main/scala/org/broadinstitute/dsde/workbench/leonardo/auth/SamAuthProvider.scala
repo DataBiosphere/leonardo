@@ -14,8 +14,8 @@ import org.broadinstitute.dsde.workbench.util.toScalaDuration
 
 import scala.concurrent.{ExecutionContext, Future}
 
-case class UnknownLeoAuthAction(action: LeoAuthAction) extends
-  LeoException(s"SamAuthProvider has no mapping for authorization action ${action.toString}, and is therefore probably out of date.", StatusCodes.InternalServerError)
+case class UnknownLeoAuthAction(action: LeoAuthAction)
+  extends LeoException(s"SamAuthProvider has no mapping for authorization action ${action.toString}, and is therefore probably out of date.", StatusCodes.InternalServerError)
 
 class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(authConfig, serviceAccountProvider) with LazyLogging {
 
@@ -53,7 +53,9 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @return If the given user has permissions in this project to perform the specified action.
     */
   override def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-    Future { samClient.hasActionOnBillingProjectResource(userEmail,googleProject, getProjectActionString(action)) }
+    Future {
+      samClient.hasActionOnBillingProjectResource(userEmail,googleProject, getProjectActionString(action))
+    }
   }
 
 
@@ -69,8 +71,10 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @param googleProject A Google project
     * @return If the given user can see all clusters in this project
     */
- override def canSeeAllClustersInProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-   Future { samClient.hasActionOnBillingProjectResource(userEmail,googleProject, "list_notebook_cluster") }
+  override def canSeeAllClustersInProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+    Future {
+      samClient.hasActionOnBillingProjectResource(userEmail,googleProject, "list_notebook_cluster")
+    }
   }
 
 
@@ -110,7 +114,9 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
   override def notifyClusterCreated(creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    Future { samClient.createNotebookClusterResource(creatorEmail, googleProject, clusterName) }
+    Future {
+      samClient.createNotebookClusterResource(creatorEmail, googleProject, clusterName)
+    }
   }
 
   /**
@@ -125,6 +131,8 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
   override def notifyClusterDeleted(userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    Future{ samClient.deleteNotebookClusterResource(creatorEmail, googleProject, clusterName) }
+    Future {
+      samClient.deleteNotebookClusterResource(creatorEmail, googleProject, clusterName)
+    }
   }
 }
