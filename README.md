@@ -2,7 +2,7 @@
 
 # Leonardo
 
-Leo provisions Spark clusters through [Google Dataproc](https://cloud.google.com/dataproc/) and installs [Jupyter notebooks](http://jupyter.org/) and [Hail](https://hail.is/) on them. It can also proxy end-user connections to the Jupyter interface in order to provide authorization for particular users.
+Leonardo provisions Spark clusters through [Google Dataproc](https://cloud.google.com/dataproc/) and installs [Jupyter notebooks](http://jupyter.org/) and [Hail](https://hail.is/) on them. It can also proxy end-user connections to the Jupyter interface in order to provide authorization for particular users.
 
 For more information and an overview, see the [wiki](https://github.com/broadinstitute/leonardo/wiki).
 
