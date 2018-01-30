@@ -68,7 +68,7 @@ trait ClusterComponent extends LeoComponent {
     def createdDate =                 column[Timestamp]         ("createdDate",           O.SqlType("TIMESTAMP(6)"))
     def destroyedDate =               column[Timestamp]         ("destroyedDate",         O.SqlType("TIMESTAMP(6)"))
     def jupyterExtensionUri =         column[Option[String]]    ("jupyterExtensionUri",   O.Length(1024))
-    def jupyterUserScript =           column[Option[String]]    ("jupyterUserScript",     O.Length(1024))
+    def jupyterUserScriptUri =        column[Option[String]]    ("jupyterUserScriptUri",     O.Length(1024))
     def initBucket =                  column[String]            ("initBucket",            O.Length(1024))
     def serviceAccountKeyId =         column[Option[String]]    ("serviceAccountKeyId",   O.Length(254))
     def stagingBucket =               column[Option[String]]    ("stagingBucket",         O.Length(254))
@@ -81,15 +81,15 @@ trait ClusterComponent extends LeoComponent {
     // So we split ClusterRecord into multiple case classes and bind them to slick in the following way.
     def * = (
       id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
-      createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScript, initBucket,
+      createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
       (numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers),
       (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket
     ).shaped <> ({
       case (id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
-            createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScript, initBucket, machineConfig, serviceAccountInfo, stagingBucket) =>
+            createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket, machineConfig, serviceAccountInfo, stagingBucket) =>
         ClusterRecord(
           id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
-          createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScript, initBucket,
+          createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
           MachineConfigRecord.tupled.apply(machineConfig),
           ServiceAccountInfoRecord.tupled.apply(serviceAccountInfo),
           stagingBucket)
