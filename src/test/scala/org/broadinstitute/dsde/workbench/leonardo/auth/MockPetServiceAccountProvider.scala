@@ -26,11 +26,11 @@ class MockPetServiceAccountProvider(config: Config) extends ServiceAccountProvid
     mockSamDAO.getPetServiceAccountForProject(userInfo, googleProject).map(Option(_))
   }
 
-  override def listUsersStagingBucketReaders(userEmail: WorkbenchEmail): Future[List[WorkbenchEmail]] = {
+  override def listUsersStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {
     Future(List.empty[WorkbenchEmail])
   }
 
-  override def listGroupsStagingBucketReaders(userEmail: WorkbenchEmail): Future[List[WorkbenchEmail]] = {
+  override def listGroupsStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {
     Future(mockSamClient.getUserProxyFromSam(userEmail))
   }
 

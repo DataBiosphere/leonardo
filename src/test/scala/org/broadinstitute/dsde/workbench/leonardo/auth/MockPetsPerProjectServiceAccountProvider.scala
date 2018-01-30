@@ -25,11 +25,11 @@ class MockPetsPerProjectServiceAccountProvider(config: Config) extends ServiceAc
     Future(None)
   }
 
-  def listGroupsStagingBucketReaders(userEmail: WorkbenchEmail): scala.concurrent.Future[List[WorkbenchEmail]] = {
+  def listGroupsStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): scala.concurrent.Future[List[WorkbenchEmail]] = {
     Future.successful(List.empty[WorkbenchEmail])
   }
 
-  def listUsersStagingBucketReaders(userEmail: WorkbenchEmail): scala.concurrent.Future[List[WorkbenchEmail]] = {
+  def listUsersStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): scala.concurrent.Future[List[WorkbenchEmail]] = {
     Future(mockSwaggerSamClient.getUserProxyFromSam(userEmail))
   }
 }

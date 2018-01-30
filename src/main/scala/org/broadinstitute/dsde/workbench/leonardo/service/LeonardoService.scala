@@ -190,9 +190,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           case Some(stagingBucket) => gdDAO.deleteBucket(cluster.googleProject, stagingBucket)
           case _ => Future.successful(())
         }
-        // Notify the auth provider of cluster deletion
-        _ <- authProvider.notifyClusterDeleted(userEmail, cluster.creator, cluster.googleProject, cluster.clusterName)
-
       } yield {
         // Notify the cluster monitor supervisor of cluster deletion.
         // This will kick off polling until the cluster is actually deleted in Google.
