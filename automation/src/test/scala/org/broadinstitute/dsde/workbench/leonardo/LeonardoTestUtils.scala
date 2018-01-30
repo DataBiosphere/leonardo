@@ -151,10 +151,11 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
   }
 
-  def createNewCluster(googleProject: GoogleProject)(implicit token: AuthToken): Cluster = {
-    val name = ClusterName(s"automation-test-a${makeRandomId().toLowerCase}z")
+  def randomClusterName: ClusterName = ClusterName(s"automation-test-a${makeRandomId().toLowerCase}z")
+
+  def createNewCluster(googleProject: GoogleProject, clusterName: ClusterName = randomClusterName)(implicit token: AuthToken): Cluster = {
     val request = ClusterRequest(Map("foo" -> makeRandomId()))
-    val cluster = createAndMonitor(googleProject, name, request)
+    val cluster = createAndMonitor(googleProject, clusterName, request)
     cluster.status shouldBe ClusterStatus.Running
     cluster
   }
@@ -207,8 +208,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     (petName, samPetEmail)
   }
 
-  def withNewCluster[T](googleProject: GoogleProject)(testCode: Cluster => T)(implicit token: AuthToken): T = {
-    val cluster = createNewCluster(googleProject)
+  def withNewCluster[T](googleProject: GoogleProject, clusterName: ClusterName = randomClusterName)(testCode: Cluster => T)(implicit token: AuthToken): T = {
+    val cluster = createNewCluster(googleProject, clusterName)
     val testResult: Try[T] = Try {
       testCode(cluster)
     }
