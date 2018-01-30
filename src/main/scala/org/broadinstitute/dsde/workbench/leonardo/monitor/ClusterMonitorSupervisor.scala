@@ -7,13 +7,13 @@ import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest}
+import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, LeoAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 
 object ClusterMonitorSupervisor {
-  def props(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: DataprocDAO, googleIamDAO: GoogleIamDAO, dbRef: DbReference, clusterDnsCache: ActorRef): Props =
-    Props(new ClusterMonitorSupervisor(monitorConfig, dataprocConfig, gdDAO, googleIamDAO, dbRef, clusterDnsCache))
+  def props(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: DataprocDAO, googleIamDAO: GoogleIamDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider): Props =
+    Props(new ClusterMonitorSupervisor(monitorConfig, dataprocConfig, gdDAO, googleIamDAO, dbRef, clusterDnsCache, authProvider))
 
   sealed trait ClusterSupervisorMessage
   case class RegisterLeoService(service: LeonardoService) extends ClusterSupervisorMessage
@@ -22,7 +22,7 @@ object ClusterMonitorSupervisor {
   case class RecreateCluster(cluster: Cluster) extends ClusterSupervisorMessage
 }
 
-class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: DataprocDAO, googleIamDAO: GoogleIamDAO, dbRef: DbReference, clusterDnsCache: ActorRef) extends Actor with LazyLogging {
+class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: DataprocDAO, googleIamDAO: GoogleIamDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider) extends Actor with LazyLogging {
   import context.dispatcher
 
   var leoService: LeonardoService = _
@@ -55,7 +55,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
   }
 
   def createChildActor(cluster: Cluster): ActorRef = {
-    context.actorOf(ClusterMonitorActor.props(cluster, monitorConfig, dataprocConfig, gdDAO, googleIamDAO, dbRef, clusterDnsCache))
+    context.actorOf(ClusterMonitorActor.props(cluster, monitorConfig, dataprocConfig, gdDAO, googleIamDAO, dbRef, clusterDnsCache, authProvider))
   }
 
   def startClusterMonitorActor(cluster: Cluster, recreate: Boolean = false): Unit = {

@@ -19,7 +19,7 @@ services:
 
 
   chrome:
-    image: selenium/node-chrome
+    image: selenium/node-chrome:3.8.1-erbium
     depends_on:
       - hub
     links:
