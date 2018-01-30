@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dummy Notebook Client</title>
+    <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+    <script type="text/javascript">
+        // constants templated in by swat test
+        var leoBaseUrl = $(leoBaseUrl);
+        var googleProject = $(googleProject);
+        var clusterName = $(clusterName);
+        var token = $(token);
+        var googleClientId = $(googleClientId);
+
+        // example:
+        //var leoBaseUrl = 'https://leonardo-fiab.dsde-dev.broadinstitute.org:30443/';
+        //var googleProject = 'broad-dsde-dev';
+        //var clusterName = 'rt-test';
+        //var token = 'ya29.GmI4BS1mINzvfQATrLnU9XR2x68P-DBmAIDMFKlhwBtkDaOHmuQiyJNHA5fUIV-h4uTAs4g588idC07_HA8TcHZVKA4eum62NY74XmPLa3czIniQgk_mahtMSYkunUV2GOeLyw';
+        //var googleClientId = '806222273987-nqg84hiihmlc6s060tvm6respv1l6utm.apps.googleusercontent.com';
+
+        var leoNotebookUrl = leoBaseUrl + 'notebooks/' + googleProject + '/' + clusterName;
+        var leoSetCookieUrl = leoNotebookUrl + '/setCookie';
+
+        $(function() {
+            // hijack the anchor tag click handler
+            $('a').click(function (event) {
+                event.preventDefault();
+                // make an AJAX call to Leo setCookie, passing in an Authorization header
+                $.ajax({
+                    url: leoSetCookieUrl,
+                    headers: {
+                        "Authorization": "Bearer " + token
+                    },
+                    async: false,
+                    xhrFields: {
+                        withCredentials: true
+                    },
+                    crossDomain: true,
+                    success: function(response) {
+                        // on success, open the notebook content in a new tab
+                        var notebook = window.open(leoNotebookUrl, '_blank');
+
+                        // postMessage handshake with the notebook extension
+                        window.addEventListener("message", function(e) {
+                            console.info("Received message " + e.data.type);
+                            if (e.origin !== leoBaseUrl)
+                                return;
+                            if (e.data.type !== 'bootstrap-auth.request')
+                                return;
+                            notebook.postMessage({
+                                "type": "bootstrap-auth.response",
+                                "body": {
+                                    "googleClientId": googleClientId
+                                }
+                            }, leoBaseUrl);
+                        });
+                    }
+                });
+                return false; // for good measure
+            });
+        });
+    </script>
+</head>
+<body>
+    <h2>Notebook Client</h2>
+    <a id="notebook" href="#">Open Notebook</a>
+</body>
+</html>

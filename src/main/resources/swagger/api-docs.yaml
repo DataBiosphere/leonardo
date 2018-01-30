@@ -1,0 +1,573 @@
+swagger: '2.0'
+info:
+  title: Leonardo
+  description: |
+    Workbench notebooks service.
+  version: '0.1'
+  license:
+    name: BSD
+    url: 'http://opensource.org/licenses/BSD-3-Clause'
+  termsOfService: 'https://github.com/broadinstitute/leonardo'
+basePath: /
+produces:
+  - application/json
+tags:
+  - name: test
+    description: Test API
+  - name: cluster
+    description: Clusters API
+  - name: notebooks
+    description: Notebooks API
+  - name: status
+    description: Status API
+
+security:
+  - googleoauth:
+      - openid
+      - email
+      - profile
+
+securityDefinitions:
+  googleoauth:
+    type: oauth2
+    authorizationUrl: 'https://accounts.google.com/o/oauth2/auth'
+    flow: implicit
+    scopes:
+      openid: open id authorization
+      email: email authorization
+      profile: profile authorization
+
+##########################################################################################
+## PATHS
+##########################################################################################
+paths:
+
+  '/ping':
+    get:
+      summary: Ping
+      responses:
+        '200':
+          description: Pong
+        '500':
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/ErrorReport'
+      operationId: ping
+      tags:
+        - test
+
+  '/status':
+    get:
+      summary: Gets system status
+      responses:
+        '200':
+          description: 'System ok'
+          schema:
+            $ref: '#/definitions/SystemStatus'
+        '500':
+          description: 'One or more subsystems down'
+          schema:
+            $ref: '#/definitions/SystemStatus'
+      operationId: getSystemStatus
+      tags:
+        - status
+      security: [] # no security
+
+  '/api/clusters':
+    get:
+      summary: List all active clusters
+      description: List all active clusters, optionally filtering on a set of labels
+      operationId: listClusters
+      tags:
+        - cluster
+      parameters:
+        - in: query
+          name: _labels
+          description: |
+            Optional label key-value pairs to filter results by. Example: key1=val1,key2=val2.
+
+            Note: this string format is a workaround because Swagger doesn't support free-form
+            query string parameters. The recommended way to use this endpoint is to specify the
+            labels as top-level query string parameters. For instance: GET /api/clusters?key1=val1&key2=val2.
+          required: false
+          type: string
+        - in: query
+          name: includeDeleted
+          description: Optional filter that includes any clusters with a Deleted status.
+          required: false
+          type: boolean
+          default: false
+      responses:
+        '200':
+          description: List of clusters
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Cluster'
+        '400':
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '500':
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/ErrorReport'
+      security:
+        - googleoauth:
+            - openid
+            - email
+            - profile
+
+  '/api/cluster/{googleProject}/{clusterName}':
+    get:
+      summary: Get details of a Dataproc cluster
+      description: Returns information about an existing Dataproc cluster managed by Leo. Poll this to find out when your cluster has finished starting up.
+      operationId: getCluster
+      tags:
+        - cluster
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          type: string
+        - in: path
+          name: clusterName
+          description: clusterName
+          required: true
+          type: string
+      responses:
+        '200':
+          description: Cluster found, here are the details
+          schema:
+            $ref: '#/definitions/Cluster'
+        '404':
+          description: Cluster not found
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '500':
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/ErrorReport'
+      security:
+        - googleoauth:
+            - openid
+            - email
+            - profile
+    put:
+      summary: Creates a new Dataproc cluster in the given project with the given name
+      description: Default labels clusterName, googleProject, serviceAccount, and notebookExtension cannot be overridden.
+      operationId: createCluster
+      tags:
+        - cluster
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          type: string
+        - in: path
+          name: clusterName
+          description: clusterName
+          required: true
+          type: string
+        - in: body
+          description: Request for new cluster
+          name: clusterRequest
+          required: true
+          schema:
+            $ref: '#/definitions/ClusterRequest'
+      responses:
+        '200':
+          description: Cluster creation successful
+          schema:
+            $ref: '#/definitions/Cluster'
+        '400':
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '500':
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/ErrorReport'
+      security:
+        - googleoauth:
+            - openid
+            - email
+            - profile
+    delete:
+      summary: Deletes an existing Dataproc cluster in the given project
+      description: deletes a Dataproc cluster
+      operationId: deleteCluster
+      tags:
+        - cluster
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          type: string
+        - in: path
+          name: clusterName
+          description: clusterName
+          required: true
+          type: string
+      responses:
+        '202':
+          description: Cluster deletion request accepted
+        '404':
+          description: Cluster not found
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '500':
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/ErrorReport'
+
+  '/notebooks/{googleProject}/{clusterName}':
+    get:
+      summary: Access Jupyter notebooks on a Dataproc cluster
+      description: |
+        This URI supports all HTTP methods, not just GET as implied by this Swagger.
+        Proxies all requests through to the Jupyter notebook server running on the given cluster.
+      operationId: proxyCluster
+      tags:
+        - notebooks
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          type: string
+        - in: path
+          name: clusterName
+          description: clusterName
+          required: true
+          type: string
+      responses:
+        '200':
+          description: Proxy connection successful
+        '401':
+          description: Proxy connection unauthorized
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '404':
+          description: Cluster not found
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '420':
+          description: Cluster not ready
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '500':
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/ErrorReport'
+  '/notebooks/{googleProject}/{clusterName}/api/localize':
+    post:
+      summary: Localize files to/from a Jupyter notebook server
+      description: |
+        Sends a command to a Jupyter notebook server to localize files between the server and GCS.
+        This operation will happen asynchronously; output, including any errors, will appear in `localization.log` in the working directory of the Jupyter notebook server.
+      operationId: proxyLocalize
+      tags:
+        - notebooks
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          type: string
+        - in: path
+          name: clusterName
+          description: clusterName
+          required: true
+          type: string
+        - in: body
+          description: |
+            JSON object. Keys represent destinations, values represent sources.
+            Paths will be quoted, intermediate local directories made, and then sent to [gsutil cp](https://cloud.google.com/storage/docs/gsutil/commands/cp).
+            Note that duplicate keys will lead to unexpected behaviour, so specify the destination filename explicitly if you want to localize multiple files to the same directory.
+          name: filesToLocalize
+          required: true
+          schema:
+            type: object
+            description:
+            example:
+              "/local/file/system/file.txt" : "gs://somebucket/file.txt"
+              "/localize/entire/directory" : "gs://somebucket/*"
+              "gs://upload/to/this/bucketdir" : "/this/local/file.txt"
+      responses:
+        '200':
+          description: Proxy connection successful
+        '400':
+          description: "Bad request. Your POST body is probably malformed: it should be a string/string JSON object."
+        '401':
+          description: Proxy connection unauthorized
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '404':
+          description: Cluster not found
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '420':
+          description: Cluster not ready
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '500':
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/ErrorReport'
+
+  '/notebooks/{googleProject}/{clusterName}/setCookie':
+    get:
+      summary: Sets a browser cookie needed to authorize connections to a Jupyter notebook
+      description: |
+        If using Google token-based authorization to a Jupyter notebook, the Leo proxy accepts a
+        Google token passed as a cookie value. This endpoint facilitates setting that cookie.
+        It accepts a bearer token in an Authorization header and responds with a Set-Cookie header.
+      operationId: setCookie
+      tags:
+        - notebooks
+      parameters:
+        - in: path
+          name: googleProject
+          required: true
+          type: string
+        - in: path
+          name: clusterName
+          description: clusterName
+          required: true
+          type: string
+      responses:
+        '200':
+          description: Successfully set a cookie
+        '401':
+          description: Proxy connection unauthorized
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '404':
+          description: Cluster not found
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '500':
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/ErrorReport'
+
+  '/notebooks/invalidateToken':
+    get:
+      summary: Invalidates a token
+      description: |
+        If using Google token-based auth, call this endpoint when a user's Google token is invalidated
+        (e.g. when logging out of the application). This ensures that the token is also invalidated in Leo
+        and that the user's proxied notebook connections stop working.
+      operationId: invalidateToken
+      tags:
+        - notebooks
+      responses:
+        '200':
+          description: Successfully invalidated a token
+        '500':
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/ErrorReport'
+
+##########################################################################################
+## DEFINITIONS
+##########################################################################################
+definitions:
+  ClusterStatus:
+    type: string
+    enum: &CLUSTERSTATUS
+      - Creating
+      - Running
+      - Updating
+      - Error
+      - Deleting
+      - Deleted
+      - Unknown
+
+  ErrorReport:
+    description: ''
+    required:
+      - source
+      - message
+      - causes
+      - stackTrace
+    properties:
+      source:
+        type: string
+        description: service causing error
+      message:
+        type: string
+        description: what went wrong
+      exceptionClass:
+        type: string
+        description: class of exception thrown
+      statusCode:
+        type: integer
+        description: HTTP status code
+      causes:
+        type: array
+        description: errors triggering this one
+        items:
+          $ref: '#/definitions/ErrorReport'
+      stackTrace:
+        type: array
+        description: stack trace
+        items:
+          $ref: '#/definitions/StackTraceElement'
+
+  StackTraceElement:
+    description: ''
+    required:
+      - className
+      - methodName
+      - fileName
+      - lineNumber
+    properties:
+      className:
+        type: string
+        description: class name
+      methodName:
+        type: string
+        description: method name
+      fileName:
+        type: string
+        description: source file name
+      lineNumber:
+        type: integer
+        description: line number
+
+  Cluster:
+    description: ''
+    required:
+      - clusterName
+      - googleId
+      - googleProject
+      - googleServiceAccount
+      - machineConfig
+      - operationName
+      - status
+      - createdDate
+      - labels
+    properties:
+      clusterName:
+        type: string
+        description: The user-supplied name for the cluster
+      googleId:
+        type: string
+        description: Google's UUID for the cluster
+      googleProject:
+        type: string
+        description: The Google Project used to create the cluster
+      googleServiceAccount:
+        type: string
+        description: The Google Service Account used to create the cluster
+      machineConfig:
+        description: The machine configurations for the master and worker nodes
+        $ref: '#/definitions/MachineConfig'
+      operationName:
+        type: string
+        description: Google's operation ID for the cluster
+      status:
+        type: string
+        enum: *CLUSTERSTATUS
+        description: The current state of the cluster
+      hostIp:
+        type: string
+        description: The IP address of the cluster master node
+      createdDate:
+        type: string
+        description: The date and time the cluster was created, in ISO-8601 format
+      destroyedDate:
+        type: string
+        description: The date and time the cluster was destroyed, in ISO-8601 format
+      labels:
+        type: object
+        description: The labels to be placed on the cluster. Of type Map[String,String]
+
+  ClusterRequest:
+    description: ''
+    properties:
+      labels:
+        type: object
+        description: The labels to be placed on the cluster. Of type Map[String,String]
+      jupyterExtensionUri:
+        type: string
+        description: |
+          Optional bucket URI to an archive containing Jupyter notebook extension files.
+          The archive must be in tar.gz format, must not include a parent directory, and
+          must have an entry point named 'main'. For more information on notebook extensions,
+          see http://jupyter-notebook.readthedocs.io/en/latest/extending/frontend_extensions.html.
+      machineConfig:
+        description: The machine configurations for the master and worker nodes
+        $ref: '#/definitions/MachineConfig'
+
+  MachineConfig:
+    description: 'The configuration for a single Dataproc cluster'
+    properties:
+      numberOfWorkers:
+        type: integer
+        description: |
+          Optional, number of workers in the cluster. Can be 0 (default), 2 or more. Google Dataproc does not allow 1 worker.
+      masterMachineType:
+        type: string
+        description: |
+          Optional, the machine type determines the number of CPUs and memory for the master node. For example "n1-standard-16"
+          or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
+          see https://cloud.google.com/compute/docs/machine-types
+      masterDiskSize:
+        type: integer
+        description: |
+          Optional, the size of the disk on the master node. Minimum size is 100GB. If unspecified, default size is 500GB.
+      workerMachineType:
+        type: string
+        description: |
+          Optional, the machine type determines the number of CPUs and memory for the worker nodes. For example "n1-standard-16"
+          or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
+          see https://cloud.google.com/compute/docs/machine-types. Ignored if numberOfWorkers is 0.
+      workerDiskSize:
+        type: integer
+        description: |
+          Optional, the size of the disk on the master node. Minimum size is 100GB. If unspecified, default size is 500GB.
+          Ignored if numberOfWorkers is 0.
+      numberOfWorkerLocalSSDs:
+        type: integer
+        description: |
+          Optional, the number of local solid state disks for workers. If unspecified, the default number is 0.
+          Ignored if numberOfWorkers is 0.
+      numberOfPreemptibleWorkers:
+        type: integer
+        description: |
+          Optional, the number of preemptible workers. If unspecified, the default number is 0. Ignored if numberOfWorkers is 0.
+          For more information, see https://cloud.google.com/compute/docs/instances/preemptible
+
+  SubsystemStatus:
+    description: status of a subsystem Leonardo depends on
+    type: object
+    required:
+      - ok
+    properties:
+      ok:
+        type: boolean
+        description: whether this system is up or down from Leonardo's point of view
+      messages:
+        type: array
+        items:
+          type: string
+
+  SystemStatus:
+    description: status of each subsystem Leonardo depends on
+    type: object
+    required:
+      - ok
+      - systems
+    properties:
+      ok:
+        type: boolean
+        description: true if everything is ok, false if anything is amiss
+      systems:
+        type: object
+        description: Map[String, SubsystemStatus]

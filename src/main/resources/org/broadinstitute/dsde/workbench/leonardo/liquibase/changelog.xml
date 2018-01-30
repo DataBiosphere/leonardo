@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <include file="changesets/20170811_cluster.xml" relativeToChangelogFile="true"/>
+    <include file="changesets/20170811_label.xml" relativeToChangelogFile="true"/>
+    <include file="changesets/20170811_cluster-unique-key.xml" relativeToChangelogFile="true"/>
+    <include file="changesets/20170811_cluster-googleId-unique-key.xml" relativeToChangelogFile="true"/>
+    <include file="changesets/20170901_cluster-createdDate-default.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20170918_cluster-jupyterExtensionUri-column.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20171002_cluster-init-bucket-column.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20171010_cluster_unique_index.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20171011_cluster_destroyedDate_not_null.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20171026_configurable_clusters.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20171101_cluster-serviceAccountKeyId.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20171129_cluster-creator.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20171205_cluster-split-up-service-accounts.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20171218_cluster_indexes_serviceAccount_and_status.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20171230_remove_googlebucket.xml" relativeToChangelogFile="true" />
+</databaseChangeLog>
