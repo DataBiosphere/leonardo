@@ -45,7 +45,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
         val clusterRequest = ClusterRequest(
           cluster.labels,
           cluster.jupyterExtensionUri,
-          cluster.jupyterUserScript,
+          cluster.jupyterUserScriptUri,
           Some(cluster.machineConfig))
         leoService.internalCreateCluster(cluster.creator, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest).failed.foreach { e =>
           logger.error("Error occurred recreating cluster", e)

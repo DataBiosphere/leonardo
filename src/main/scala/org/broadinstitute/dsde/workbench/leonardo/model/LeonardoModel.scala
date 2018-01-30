@@ -108,7 +108,7 @@ object Cluster {
         destroyedDate = None,
         labels = clusterRequest.labels,
         jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
-        jupyterUserScript = clusterRequest.jupyterUserScript,
+        jupyterUserScriptUri = clusterRequest.jupyterUserScriptUri,
         stagingBucket = Some(stagingBucket)
       )
   }
@@ -134,7 +134,7 @@ object Cluster {
       destroyedDate = None,
       labels = clusterRequest.labels,
       jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
-      jupyterUserScript = clusterRequest.jupyterUserScript,
+      jupyterUserScriptUri = clusterRequest.jupyterUserScriptUri,
       stagingBucket = None
     )
   }
@@ -168,7 +168,7 @@ case class Cluster(clusterName: ClusterName,
                    destroyedDate: Option[Instant],
                    labels: LabelMap,
                    jupyterExtensionUri: Option[GcsPath],
-                   jupyterUserScript: Option[GcsPath],
+                   jupyterUserScriptUri: Option[GcsPath],
                    stagingBucket:Option[GcsBucketName]) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.string}"
 }
@@ -226,7 +226,7 @@ case class ServiceAccountInfo(clusterServiceAccount: Option[WorkbenchEmail],
 
 case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[GcsPath] = None,
-                          jupyterUserScript: Option[GcsPath] = None,
+                          jupyterUserScriptUri: Option[GcsPath] = None,
                           machineConfig: Option[MachineConfig] = None
                          )
 
@@ -251,7 +251,7 @@ object ClusterInitValues {
       dataprocConfig.jupyterServerName,
       proxyConfig.proxyServerName,
       clusterRequest.jupyterExtensionUri.map(_.toUri).getOrElse(""),
-      clusterRequest.jupyterUserScript.map(_.toUri).getOrElse(""),
+      clusterRequest.jupyterUserScriptUri.map(_.toUri).getOrElse(""),
       serviceAccountKey.map(_ => GcsPath(initBucketName, GcsRelativePath(serviceAccountCredentialsFilename)).toUri).getOrElse(""),
       GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.jupyterCustomJs.string)).toUri,
       GcsPath(initBucketName, GcsRelativePath(clusterResourcesConfig.jupyterGoogleSignInJs.string)).toUri,
@@ -273,7 +273,7 @@ case class ClusterInitValues(googleProject: String,
                              jupyterServerName: String,
                              proxyServerName: String,
                              jupyterExtensionUri: String,
-                             jupyterUserScript: String,
+                             jupyterUserScriptUri: String,
                              jupyterServiceAccountCredentials: String,
                              jupyterCustomJsUri: String,
                              jupyterGoogleSignInJsUri: String,

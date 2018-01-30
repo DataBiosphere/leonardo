@@ -63,7 +63,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"),
     jupyterExtensionUri = jupyterExtensionUri,
-    jupyterUserScript = jupyterUserScript,
+    jupyterUserScriptUri = jupyterUserScript,
     Some(GcsBucketName("testStagingBucket1"))
   )
 

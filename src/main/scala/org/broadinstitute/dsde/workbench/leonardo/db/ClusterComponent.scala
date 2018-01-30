@@ -23,7 +23,7 @@ case class ClusterRecord(id: Long,
                          createdDate: Timestamp,
                          destroyedDate: Timestamp,
                          jupyterExtensionUri: Option[String],
-                         jupyterUserScript: Option[String],
+                         jupyterUserScriptUri: Option[String],
                          initBucket: String,
                          machineConfig: MachineConfigRecord,
                          serviceAccountInfo: ServiceAccountInfoRecord,
@@ -98,7 +98,7 @@ trait ClusterComponent extends LeoComponent {
       def sa(_sa: ServiceAccountInfoRecord) = ServiceAccountInfoRecord.unapply(_sa).get
       Some((
         c.id, c.clusterName, c.googleId, c.googleProject, c.operationName, c.status, c.hostIp, c.creator,
-        c.createdDate, c.destroyedDate, c.jupyterExtensionUri, c.jupyterUserScript, c.initBucket,
+        c.createdDate, c.destroyedDate, c.jupyterExtensionUri, c.jupyterUserScriptUri, c.initBucket,
         mc(c.machineConfig), sa(c.serviceAccountInfo), c.stagingBucket
       ))
     })
@@ -266,7 +266,7 @@ trait ClusterComponent extends LeoComponent {
         Timestamp.from(cluster.createdDate),
         Timestamp.from(cluster.destroyedDate.getOrElse(dummyDate)),
         cluster.jupyterExtensionUri map(_.toUri),
-        cluster.jupyterUserScript map(_.toUri),
+        cluster.jupyterUserScriptUri map(_.toUri),
         initBucket,
         MachineConfigRecord(
           cluster.machineConfig.numberOfWorkers.get,   //a cluster should always have numberOfWorkers defined
@@ -329,7 +329,7 @@ trait ClusterComponent extends LeoComponent {
         getDestroyedDate(clusterRecord.destroyedDate),
         labels,
         clusterRecord.jupyterExtensionUri flatMap { GcsPath.parse(_).toOption },
-        clusterRecord.jupyterUserScript flatMap { GcsPath.parse(_).toOption },
+        clusterRecord.jupyterUserScriptUri flatMap { GcsPath.parse(_).toOption },
         clusterRecord.stagingBucket map GcsBucketName
       )
     }

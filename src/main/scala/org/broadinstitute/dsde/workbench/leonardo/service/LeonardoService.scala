@@ -250,7 +250,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     for {
       // Validate that the Jupyter extension URI and Jupyter user script URI are valid URIs and reference real GCS objects
       _ <- validateBucketObjectUri(googleProject, clusterRequest.jupyterExtensionUri)
-      _ <- validateBucketObjectUri(googleProject, clusterRequest.jupyterUserScript)
+      _ <- validateBucketObjectUri(googleProject, clusterRequest.jupyterUserScriptUri)
       // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
       _ <- gdDAO.updateFirewallRule(googleProject)
       // Generate a service account key for the notebook service account (if present) to localize on the cluster.
@@ -434,7 +434,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private[service] def addClusterDefaultLabels(serviceAccountInfo: ServiceAccountInfo, googleProject: GoogleProject, clusterName: ClusterName, creator: WorkbenchEmail, clusterRequest: ClusterRequest): ClusterRequest = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultLabels(clusterName, googleProject, creator,
-      serviceAccountInfo.clusterServiceAccount, serviceAccountInfo.notebookServiceAccount, clusterRequest.jupyterExtensionUri, clusterRequest.jupyterUserScript)
+      serviceAccountInfo.clusterServiceAccount, serviceAccountInfo.notebookServiceAccount, clusterRequest.jupyterExtensionUri, clusterRequest.jupyterUserScriptUri)
       .toJson.asJsObject.fields.mapValues(labelValue => labelValue.convertTo[String])
     // combine default and given labels
     val allLabels = clusterRequest.labels ++ defaultLabels

@@ -30,7 +30,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       destroyedDate = None,
       labels = Map("bam" -> "yes", "vcf" -> "no"),
       jupyterExtensionUri = None,
-      jupyterUserScript = None,
+      jupyterUserScriptUri = None,
       Some(GcsBucketName("testStagingBucket1"))
     )
 
@@ -49,7 +49,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       destroyedDate = None,
       labels = Map.empty,
       jupyterExtensionUri = jupyterExtensionUri,
-      jupyterUserScript = jupyterUserScript,
+      jupyterUserScriptUri = jupyterUserScript,
       Some(GcsBucketName("testStagingBucket2")))
 
     val c3 = Cluster(
@@ -67,7 +67,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       destroyedDate = None,
       labels = Map.empty,
       jupyterExtensionUri = jupyterExtensionUri,
-      jupyterUserScript = jupyterUserScript,
+      jupyterUserScriptUri = jupyterUserScript,
       Some(GcsBucketName("testStagingBucket3")))
 
 
@@ -104,7 +104,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       destroyedDate = None,
       labels = Map.empty,
       jupyterExtensionUri = jupyterExtensionUri,
-      jupyterUserScript = jupyterUserScript,
+      jupyterUserScriptUri = jupyterUserScript,
       Some(GcsBucketName("testStagingBucket4")))
     dbFailure { _.clusterQuery.save(c4, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
 
@@ -126,7 +126,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       destroyedDate = None,
       labels = Map.empty,
       jupyterExtensionUri = jupyterExtensionUri,
-      jupyterUserScript = jupyterUserScript,
+      jupyterUserScriptUri = jupyterUserScript,
       Some(GcsBucketName("testStagingBucket5")))
     dbFailure { _.clusterQuery.save(c5, gcsPath("gs://bucket5"), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
 
@@ -168,7 +168,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       destroyedDate = None,
       labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
       jupyterExtensionUri = None,
-      jupyterUserScript = None,
+      jupyterUserScriptUri = None,
       Some(GcsBucketName("testStagingBucket1")))
 
     val c2 = Cluster(
@@ -186,7 +186,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       destroyedDate = None,
       labels = Map.empty,
       jupyterExtensionUri = jupyterExtensionUri,
-      jupyterUserScript = jupyterUserScript,
+      jupyterUserScriptUri = jupyterUserScript,
       Some(GcsBucketName("testStagingBucket2")))
 
     val c3 = Cluster(
@@ -204,7 +204,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       destroyedDate = None,
       labels = Map("a" -> "b", "bam" -> "yes"),
       jupyterExtensionUri = jupyterExtensionUri,
-      jupyterUserScript = jupyterUserScript,
+      jupyterUserScriptUri = jupyterUserScript,
       Some(GcsBucketName("testStagingBucket3")))
 
     dbFutureValue { _.clusterQuery.save(c1, gcsPath( "gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1
