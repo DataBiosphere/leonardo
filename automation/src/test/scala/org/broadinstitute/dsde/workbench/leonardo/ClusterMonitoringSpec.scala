@@ -8,13 +8,17 @@ import org.scalatest.time.{Seconds, Span}
 class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with ParallelTestExecution {
   "Leonardo clusters" - {
 
-    "should create, monitor, and delete a cluster" in {
+    "should create, monitor, delete, recreate, and re-delete a cluster" in {
       withNewBillingProject { project =>
         Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
         implicit val token = ronAuthToken
-        withNewCluster(project) { _ =>
-          // no-op; just verify that it launches
-        }
+        val nameToReuse = randomClusterName
+
+        // create, monitor, delete once
+        withNewCluster(project, nameToReuse)(_ => ())
+
+        // create, monitor, delete again with same name
+        withNewCluster(project, nameToReuse)(_ => ())
       }
     }
 

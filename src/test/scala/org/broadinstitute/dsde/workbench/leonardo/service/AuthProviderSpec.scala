@@ -123,7 +123,9 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
 
       //verify we correctly notified the auth provider
       verify(spyProvider).notifyClusterCreated(userEmail, project, name1)
-      verify(spyProvider).notifyClusterDeleted(userEmail, userEmail, project, name1)
+
+      // notification of deletion happens only after it has been fully deleted
+      verify(spyProvider, never).notifyClusterDeleted(userEmail, userEmail, project, name1)
     }
 
     "should not let you do things if the auth provider says no" in isolatedDbTest {
@@ -220,7 +222,9 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       gdDAO.clusters should not contain key (name1)
 
       verify(spyProvider).notifyClusterCreated(userEmail, project, name1)
-      verify(spyProvider).notifyClusterDeleted(userEmail, userEmail, project, name1)
+
+      // the auth provider is only notified after deletion is complete
+      verify(spyProvider, never).notifyClusterDeleted(userEmail, userEmail, project, name1)
     }
 
     "should use optimized canSeeAllClustersInProject in listClusters where appropriate" in isolatedDbTest {
