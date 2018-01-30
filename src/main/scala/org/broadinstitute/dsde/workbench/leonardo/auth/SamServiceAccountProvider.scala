@@ -1,7 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth
 
-import java.io.File
-
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import com.typesafe.config.Config
@@ -9,7 +7,6 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import scala.concurrent.duration.FiniteDuration
 
 /**

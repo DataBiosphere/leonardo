@@ -330,7 +330,7 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
     }
   }
 
-  /* Create a bucket in the given google project for the initialization files when creating a cluster */
+  /* Create the staging bucket for the dataproc cluster*/
   override def createStagingBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, stagingBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo, groupStagingAcl: List[WorkbenchEmail], userStagingAcl: List[WorkbenchEmail]): Future[GcsBucketName] = {
 
     // The Leo service account
