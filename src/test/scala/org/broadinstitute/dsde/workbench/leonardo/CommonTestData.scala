@@ -31,7 +31,7 @@ trait CommonTestData { this: ScalaFutures =>
   val testClusterRequest = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), None)
   val serviceAccountEmail = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
   val jupyterExtensionUri = Some(GcsPath(GcsBucketName("extension_bucket"), GcsRelativePath("extension_path")))
-  val jupyterUserScript = Some(GcsPath(GcsBucketName("userScript_bucket"), GcsRelativePath("userScript.sh")))
+  val jupyterUserScriptUri = Some(GcsPath(GcsBucketName("userScript_bucket"), GcsRelativePath("userScript.sh")))
   val serviceAccountKey = ServiceAccountKey(ServiceAccountKeyId("123"), ServiceAccountPrivateKeyData("abcdefg"), Some(Instant.now), Some(Instant.now.plusSeconds(300)))
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
