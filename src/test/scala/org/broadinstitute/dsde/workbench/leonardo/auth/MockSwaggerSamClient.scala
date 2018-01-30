@@ -14,7 +14,7 @@ class MockSwaggerSamClient extends SwaggerSamClient("fake/path", new FiniteDurat
 
   val billingProjects: mutable.Map[(GoogleProject, WorkbenchEmail), Set[String]] =  new TrieMap()
   val notebookClusters: mutable.Map[(GoogleProject, ClusterName, WorkbenchEmail), Set[String]] = new TrieMap()
-  val userProxy = "PROXY_110530393451290928813@dev.test.firecloud.org"
+  val userProxy = "PROXY_1234567890@dev.test.firecloud.org"
 
   override def createNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
     notebookClusters += (googleProject, clusterName, userEmail) -> Set("status", "connect", "sync", "delete", "read_policies")
