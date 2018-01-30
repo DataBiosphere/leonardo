@@ -117,9 +117,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
       JUPYTER_USER_SCRIPT_ARCHIVE=`basename ${JUPYTER_USER_SCRIPT_URI}`
       docker cp /etc/${JUPYTER_USER_SCRIPT_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
       # Call user-provided bash script here - unsure if we want to do this before installing spark?
-      cat /etc/${JUPYTER_USER_SCRIPT_ARCHIVE}
-      cat ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
-      docker exec -u root -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
+#      cat /etc/${JUPYTER_USER_SCRIPT_ARCHIVE}
+#      cat ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
+      docker exec -u root -d ${JUPYTER_SERVER_NAME} .${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
     fi
 
 
