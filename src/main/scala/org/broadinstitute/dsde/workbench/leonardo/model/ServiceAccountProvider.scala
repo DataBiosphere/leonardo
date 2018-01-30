@@ -57,4 +57,8 @@ abstract class ServiceAccountProvider(config: Config) {
     * @return service account email
     */
   def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]]
+
+  def listGroupsStagingBucketReaders(userEmail: WorkbenchEmail): Future[List[WorkbenchEmail]]
+
+  def listUsersStagingBucketReaders(userEmail: WorkbenchEmail): Future[List[WorkbenchEmail]]
 }

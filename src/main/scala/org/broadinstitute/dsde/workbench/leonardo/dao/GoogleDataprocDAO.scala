@@ -331,31 +331,26 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
   }
 
   /* Create a bucket in the given google project for the initialization files when creating a cluster */
-  override def createStagingBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, stagingBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo, creator: WorkbenchEmail): Future[GcsBucketName] = {
+  override def createStagingBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, stagingBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo, groupStagingAcl: List[WorkbenchEmail], userStagingAcl: List[WorkbenchEmail]): Future[GcsBucketName] = {
 
     // The Leo service account
     val leoServiceAccountEntityString = s"user-${leoServiceAccountEmail.value}"
 
-    val creatorEmailEntityString = s"user-${creator.value}"
     val clusterServiceAccountEntityStringFuture: Future[String] = getClusterServiceAccountEntity(clusterGoogleProject, serviceAccountInfo)
-
-    logger.info(s"the creator is :: ${creator.value}")
-    logger.info(s"the leoServiceAccountEntityString is :: ${leoServiceAccountEntityString}")
 
     clusterServiceAccountEntityStringFuture.flatMap { clusterServiceAccountEntityString =>
       //Add the Leo SA and the cluster's SA to the ACL list for the bucket
       val bucketAcls = List(
-        createBucketAcl(leoServiceAccountEntityString,"OWNER"),
         createBucketAcl(clusterServiceAccountEntityString,"READER"),
-        createBucketAcl(creatorEmailEntityString,"READER")
-      )
+      ) ++ groupStagingAcl.map(a => createBucketAcl("group-" + a, "READER")) ++
+        userStagingAcl.map(a => createBucketAcl("user-" + a, "READER"))
 
       //Bucket ACL != the ACL given to individual objects inside the bucket
       val defObjectAcls = List(
-        createDefaultObjectAcl(leoServiceAccountEntityString, "OWNER"),
         createDefaultObjectAcl(clusterServiceAccountEntityString, "READER"),
-        createDefaultObjectAcl(creatorEmailEntityString,"READER")
-      )
+      ) ++ groupStagingAcl.map(a => createDefaultObjectAcl("group-" + a, "READER")) ++
+        userStagingAcl.map(a => createDefaultObjectAcl("user-" + a, "READER"))
+
 
       // Create the bucket object
       val bucket = new Bucket()

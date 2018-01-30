@@ -49,7 +49,8 @@ object Leonardo extends RestClient with LazyLogging {
                                     createdDate: String,
                                     destroyedDate: Option[String],
                                     labels: LabelMap,
-                                    jupyterExtensionUri: Option[String]) {
+                                    jupyterExtensionUri: Option[String],
+                                    stagingBucket: String) {
 
       def toCluster = Cluster(clusterName,
         googleId,
@@ -64,7 +65,9 @@ object Leonardo extends RestClient with LazyLogging {
         Instant.parse(createdDate),
         destroyedDate map Instant.parse,
         labels,
-        jupyterExtensionUri map (parseGcsPath(_).right.get))
+        jupyterExtensionUri map (GcsPath.parse(_).right.get),
+        Some(GcsBucketName(stagingBucket))
+      )
     }
 
     def handleClusterResponse(response: String): Cluster = {

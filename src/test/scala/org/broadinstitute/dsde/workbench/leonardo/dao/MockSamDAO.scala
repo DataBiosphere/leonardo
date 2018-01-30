@@ -22,5 +22,4 @@ class MockSamDAO(ok: Boolean = true) extends SamDAO {
     Future.successful(serviceAccount)
   }
 
-  override def getProxyGroupForUser(userEmail: WorkbenchEmail, userInfo: UserInfo): Future[WorkbenchEmail] = ???
 }

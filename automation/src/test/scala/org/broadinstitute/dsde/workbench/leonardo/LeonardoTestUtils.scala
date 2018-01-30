@@ -108,8 +108,10 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     expectedStatuses should contain (cluster.status)
     cluster.googleProject shouldBe expectedProject
     cluster.clusterName shouldBe expectedName
-    labelCheck(cluster.labels, requestedLabels, expectedName, expectedProject, cluster.creator, notebookExtension)
+    cluster.stagingBucket shouldBe 'defined
+    //googleStorageDAO.checkBucketExists(cluster.stagingBucket.name).futureValue shouldBe true
 
+    labelCheck(cluster.labels, requestedLabels, expectedName, expectedProject, cluster.creator, notebookExtension)
     cluster
   }
 

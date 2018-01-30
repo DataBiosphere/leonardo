@@ -25,7 +25,7 @@ trait DataprocDAO {
    */
   def createInitBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[GcsBucketName]
 
-  def createStagingBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo, creator: WorkbenchEmail): Future[GcsBucketName]
+  def createStagingBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo, groupStagingAcl: List[WorkbenchEmail], userStagingAcl: List[WorkbenchEmail]): Future[GcsBucketName]
 
   def uploadToBucket(googleProject: GoogleProject, bucketPath: GcsPath, content: File): Future[Unit]
 

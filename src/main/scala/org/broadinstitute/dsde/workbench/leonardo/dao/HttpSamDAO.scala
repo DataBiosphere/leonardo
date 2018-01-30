@@ -45,11 +45,6 @@ class HttpSamDAO(val baseSamServiceURL: String)(implicit system: ActorSystem, ma
     executeSamRequestAsUser[WorkbenchEmail](HttpRequest(GET, uri), userInfo)
   }
 
-  override def getProxyGroupForUser(userEmail: WorkbenchEmail, userInfo:UserInfo): Future[WorkbenchEmail] = {
-    val uri = Uri(samServiceURL + s"/api/google/user/proxyGroup/${userEmail.value}")
-    executeSamRequestAsUser[WorkbenchEmail](HttpRequest(GET, uri), userInfo)
-  }
-
   private def authHeader(userInfo: UserInfo): HttpHeader = Authorization(userInfo.accessToken)
 
   // If ignoreError is true, this method will try to unmarshal the response entity to a T, regardless of status code.
