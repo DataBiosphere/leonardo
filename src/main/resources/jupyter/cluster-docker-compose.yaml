@@ -40,5 +40,3 @@ services:
       CLUSTER_NAME: "${CLUSTER_NAME}"
     env_file:
       - /etc/google_application_credentials.env
-    after_success:
-      -
