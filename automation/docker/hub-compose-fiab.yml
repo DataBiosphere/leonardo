@@ -1,7 +1,7 @@
 version: '2'
 services:
   hub:
-    image: selenium/node-hub
+    image: selenium/hub
     ports:
       - "4444:4444"
     extra_hosts:
