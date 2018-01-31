@@ -120,7 +120,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
 #      cat /etc/${JUPYTER_USER_SCRIPT_ARCHIVE}
 #      cat ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
     #  docker exec -it ${JUPYTER_SERVER_NAME} bash
-      docker exec -u root ${JUPYTER_SERVER_NAME} sudo chmod +x ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
+      docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
       docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
     fi
 
