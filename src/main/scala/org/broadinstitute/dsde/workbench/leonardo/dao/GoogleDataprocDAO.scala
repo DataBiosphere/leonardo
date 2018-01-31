@@ -342,12 +342,14 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
       //Add the Leo SA and the cluster's SA to the ACL list for the bucket
       val bucketAcls = List(
         createBucketAcl(clusterServiceAccountEntityString,"READER"),
+        createBucketAcl(leoServiceAccountEntityString,"OWNER")
       ) ++ groupStagingAcl.map(a => createBucketAcl("group-" + a, "READER")) ++
         userStagingAcl.map(a => createBucketAcl("user-" + a, "READER"))
 
       //Bucket ACL != the ACL given to individual objects inside the bucket
       val defObjectAcls = List(
         createDefaultObjectAcl(clusterServiceAccountEntityString, "READER"),
+        createDefaultObjectAcl(leoServiceAccountEntityString,"OWNER")
       ) ++ groupStagingAcl.map(a => createDefaultObjectAcl("group-" + a, "READER")) ++
         userStagingAcl.map(a => createDefaultObjectAcl("user-" + a, "READER"))
 
