@@ -9,6 +9,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 
+import java.time.Duration
+
 /**
   * Created by rtitle on 12/5/17.
   */
@@ -20,8 +22,8 @@ abstract class SamServiceAccountProvider(config: Config) extends ServiceAccountP
 
 
   protected lazy val samConfig = config.as[SamConfig]("sam")
-  protected lazy val cacheExpiryTime = toScalaDuration(config.getConfig("serviceAccounts.config").getConfig("sam").getDuration("cacheExpiryTime"))
-  protected lazy val cacheMaxSize = config.getConfig("serviceAccounts.config").getConfig("sam").as[Int]("cacheMaxSize")
+  protected lazy val cacheExpiryTime = toScalaDuration(Duration.ofMinutes(60))
+  protected lazy val cacheMaxSize = 1000
   protected lazy val (leoEmail, leoPemFile) = getLeoServiceAccountAndKey
   protected lazy val samDAO = new HttpSamDAO(samConfig.server)
   protected lazy val samClient = new SwaggerSamClient(samConfig.server, cacheExpiryTime, cacheMaxSize, leoEmail, leoPemFile)
