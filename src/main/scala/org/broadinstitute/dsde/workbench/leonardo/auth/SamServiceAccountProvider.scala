@@ -7,7 +7,7 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
-import scala.concurrent.duration.FiniteDuration
+import org.broadinstitute.dsde.workbench.util.toScalaDuration
 
 /**
   * Created by rtitle on 12/5/17.
@@ -20,7 +20,7 @@ abstract class SamServiceAccountProvider(config: Config) extends ServiceAccountP
 
 
   protected lazy val samConfig = config.as[SamConfig]("sam")
-  protected lazy val cacheExpiryTime = config.getConfig("serviceAccounts.config").getConfig("sam").as[FiniteDuration]("cacheExpiryTime")
+  protected lazy val cacheExpiryTime = toScalaDuration(config.getConfig("serviceAccounts.config").getConfig("sam").getDuration("cacheExpiryTime"))
   protected lazy val cacheMaxSize = config.getConfig("serviceAccounts.config").getConfig("sam").as[Int]("cacheMaxSize")
   protected lazy val (leoEmail, leoPemFile) = getLeoServiceAccountAndKey
   protected lazy val samDAO = new HttpSamDAO(samConfig.server)
