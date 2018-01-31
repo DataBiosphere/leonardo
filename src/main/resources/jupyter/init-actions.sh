@@ -119,7 +119,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
       # Call user-provided bash script here - unsure if we want to do this before installing spark?
 #      cat /etc/${JUPYTER_USER_SCRIPT_ARCHIVE}
 #      cat ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
-      sudo docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
+      docker exec -it ${JUPYTER_SERVER_NAME} bash
+      docker exec -it ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
     fi
 
 
