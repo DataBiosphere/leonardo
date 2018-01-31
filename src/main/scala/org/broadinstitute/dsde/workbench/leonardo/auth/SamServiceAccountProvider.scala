@@ -22,8 +22,8 @@ abstract class SamServiceAccountProvider(config: Config) extends ServiceAccountP
 
 
   protected lazy val samConfig = config.as[SamConfig]("sam")
-  protected lazy val cacheExpiryTime = toScalaDuration(Duration.ofMinutes(60))
-  protected lazy val cacheMaxSize = 1000
+  protected lazy val cacheExpiryTime = toScalaDuration(config.getConfig("sam").getDuration("cacheExpiryTime"))
+  protected lazy val cacheMaxSize = config.getConfig("sam").as[Int]("cacheMaxSize")
   protected lazy val (leoEmail, leoPemFile) = getLeoServiceAccountAndKey
   protected lazy val samDAO = new HttpSamDAO(samConfig.server)
   protected lazy val samClient = new SwaggerSamClient(samConfig.server, cacheExpiryTime, cacheMaxSize, leoEmail, leoPemFile)
