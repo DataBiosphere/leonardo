@@ -119,9 +119,9 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
     hasActionOnResource(notebookClusterResourceTypeName, getClusterResourceId(googleProject, clusterName), userEmail, googleProject, action)
   }
 
-  def getUserProxyFromSam(userEmail: WorkbenchEmail): List[WorkbenchEmail] = {
+  def getUserProxyFromSam(userEmail: WorkbenchEmail): WorkbenchEmail = {
     val samAPI = samGoogleApi(getAccessTokenUsingPem(leoEmail, leoPem))
-    List(WorkbenchEmail(samAPI.getProxyGroup(userEmail.value)))
+    WorkbenchEmail(samAPI.getProxyGroup(userEmail.value))
   }
 
   private def hasActionOnResource(resourceType: String, resourceName: String, userEmail: WorkbenchEmail, googleProject: GoogleProject, action: String): Boolean = {

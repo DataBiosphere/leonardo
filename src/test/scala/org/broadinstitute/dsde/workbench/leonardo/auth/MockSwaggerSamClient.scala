@@ -36,7 +36,7 @@ class MockSwaggerSamClient extends SwaggerSamClient("fake/path", new FiniteDurat
       .getOrElse(false)
   }
 
-  override def getUserProxyFromSam(userEmail: WorkbenchEmail): List[WorkbenchEmail] = {
-    List(WorkbenchEmail(userProxy))
+  override def getUserProxyFromSam(userEmail: WorkbenchEmail): WorkbenchEmail = {
+    WorkbenchEmail(userProxy)
   }
 }

@@ -31,7 +31,7 @@ class MockPetServiceAccountProvider(config: Config) extends ServiceAccountProvid
   }
 
   override def listGroupsStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {
-    Future(mockSamClient.getUserProxyFromSam(userEmail))
+    Future(mockSamClient.getUserProxyFromSam(userEmail))map(List(_))
   }
 
 }

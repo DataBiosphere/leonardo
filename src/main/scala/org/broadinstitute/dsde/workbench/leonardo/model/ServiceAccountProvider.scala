@@ -58,7 +58,17 @@ abstract class ServiceAccountProvider(config: Config) {
     */
   def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]]
 
+  /**
+    *
+    * @param userEmail the user email for which we need to get a list of groups that will have access to the staging bucket
+    * @return list of groups that will have reader access to a staging bucket
+    */
   def listGroupsStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]]
 
+  /**
+    *
+    * @param userEmail the user email for which we need to get a list of users that will have access to the staging bucket
+    * @return list of users that will have reader access to a staging bucket
+    */
   def listUsersStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]]
 }
