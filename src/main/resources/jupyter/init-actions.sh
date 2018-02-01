@@ -110,17 +110,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
       docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/install-jupyter-extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
     fi
 
-
-    # If a Jupyter user script was specified, copy it into the jupyter docker container.
-    if [ ! -z ${JUPYTER_USER_SCRIPT_URI} ] ; then
-      gsutil cp ${JUPYTER_USER_SCRIPT_URI} /etc
-      JUPYTER_USER_SCRIPT_ARCHIVE=`basename ${JUPYTER_USER_SCRIPT_URI}`
-      docker cp /etc/${JUPYTER_USER_SCRIPT_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
-      docker exec -u root -d ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
-      docker exec -u root -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
-    fi
-
-
     # If a custom.js was specified, copy it into the jupyter docker container.
     if [ ! -z ${JUPYTER_CUSTOM_JS_URI} ] ; then
       gsutil cp ${JUPYTER_CUSTOM_JS_URI} /etc
@@ -136,6 +125,17 @@ if [[ "${ROLE}" == 'Master' ]]; then
       docker exec -d ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
       docker cp /etc/${JUPYTER_GOOGLE_SIGN_IN_JS} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
     fi
+
+    # If a Jupyter user script was specified, copy it into the jupyter docker container.
+    if [ ! -z ${JUPYTER_USER_SCRIPT_URI} ] ; then
+      gsutil cp ${JUPYTER_USER_SCRIPT_URI} /etc
+      JUPYTER_USER_SCRIPT_ARCHIVE=`basename ${JUPYTER_USER_SCRIPT_URI}`
+      docker cp /etc/${JUPYTER_USER_SCRIPT_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
+      docker exec -u root -d ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
+      docker exec -u root -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
+    fi
+
+    docker exec ${JUPYTER_SERVER_NAME} /usr/bin/pyspark
 fi
 
 
