@@ -185,11 +185,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         _ <- gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)
         // Change the cluster status to Deleting in the database
         _ <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.googleId))
-        //Delete the staging bucket
-        _ <- cluster.stagingBucket match {
-          case Some(stagingBucket) => gdDAO.deleteBucket(cluster.googleProject, stagingBucket)
-          case _ => Future.successful(())
-        }
       } yield {
         // Notify the cluster monitor supervisor of cluster deletion.
         // This will kick off polling until the cluster is actually deleted in Google.
@@ -275,9 +270,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       stagingBucketPath <- gdDAO.createStagingBucket(googleProject, googleProject, stagingBucketName, serviceAccountInfo, groupstagingBucketAcl, userstagingBucketAcl)
       // Once the bucket is ready, build the cluster
       cluster <- gdDAO.createCluster(userEmail, googleProject, clusterName, clusterRequest, initBucketName, serviceAccountInfo, stagingBucketPath).andThen { case Failure(_) =>
-        // If cluster creation fails, delete the init bucket asynchronously
-        gdDAO.deleteBucket(googleProject, initBucketName)
-        gdDAO.deleteBucket(googleProject, stagingBucketName)
       }
     } yield {
       (cluster, initBucketPath, serviceAccountKeyOpt)
