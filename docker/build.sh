@@ -61,9 +61,9 @@ function docker_cmd()
             echo "pushing $PROJECT docker image..."
             docker push $REPO:${DOCKER_TAG}
             echo "pushing $PROJECT-tests docker image..."
-            docker push $TESTS_REPO:${DOCKER_TAG}
+            docker push $TESTS_REPO:${DOCKER_TAG_TESTS}
             # pushes the juptyer notebooks docker image that goes on dataproc clusters
-            bash ./jupyter-docker/build.sh push ${DOCKER_TAG_TESTS}
+            bash ./jupyter-docker/build.sh push ${DOCKER_TAG}
         fi
     else
         echo "Not a valid docker option!  Choose either build or push (which includes build)"
