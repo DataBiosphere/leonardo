@@ -21,8 +21,8 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervis
 import org.broadinstitute.dsde.workbench.leonardo.service.ClusterNotReadyException
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.User
-import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Owner
+import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.util.addJitter
 
 import scala.concurrent.Future
@@ -96,7 +96,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       stop(self)
 
     case Failure(e) =>
-      // An error occurred, let the supervisor handle it
+      // An error occurred, let the supervisorL handle it
       logger.error(s"Error occurred monitoring cluster ${cluster.projectNameString}", e)
       throw e
   }

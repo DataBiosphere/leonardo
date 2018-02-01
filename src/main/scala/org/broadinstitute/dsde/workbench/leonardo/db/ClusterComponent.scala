@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google._
+import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKeyId, GcsPath, GcsPathSupport, parseGcsPath}
 
 case class ClusterRecord(id: Long,
                          clusterName: String,
