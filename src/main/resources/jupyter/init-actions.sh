@@ -23,6 +23,7 @@ fi
 if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_HOME=/etc/jupyter
     JUPYTER_USER_HOME=/home/jupyter-user
+    PYSPARK=/usr/bin/pyspark
 
     # The following values are populated by Leo when a cluster is created.
     export CLUSTER_NAME=$(clusterName)
@@ -135,7 +136,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
       docker exec -u root -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
     fi
 
-    docker exec -d ${JUPYTER_SERVER_NAME} /usr/bin/pyspark
+    docker exec -d ${JUPYTER_SERVER_NAME} ${PYSPARK}
 fi
 
 
