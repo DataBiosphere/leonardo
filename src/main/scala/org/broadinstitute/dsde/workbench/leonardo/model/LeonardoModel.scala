@@ -204,6 +204,14 @@ object ClusterInitValues {
 }
 
 object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
+  implicit object URLFormat extends JsonFormat[URL] {
+    def write(obj: URL) = JsString(obj.toString)
+
+    def read(json: JsValue): URL = json match {
+      case JsString(url) => new URL(url)
+      case other => throw DeserializationException("Expected URL, got: " + other)
+    }
+  }
 
   implicit val ClusterRequestFormat = jsonFormat3(ClusterRequest)
 
@@ -216,13 +224,4 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val DefaultLabelsFormat = jsonFormat6(DefaultLabels.apply)
 
   implicit val ClusterInitValuesFormat = jsonFormat16(ClusterInitValues.apply)
-
-  implicit object URLFormat extends JsonFormat[URL] {
-    def write(obj: URL) = JsString(obj.toString)
-
-    def read(json: JsValue): URL = json match {
-      case JsString(url) => new URL(url)
-      case other => throw DeserializationException("Expected URL, got: " + other)
-    }
-  }
 }

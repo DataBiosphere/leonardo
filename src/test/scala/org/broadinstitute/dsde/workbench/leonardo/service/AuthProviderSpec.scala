@@ -12,7 +12,7 @@ import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
 import org.broadinstitute.dsde.workbench.leonardo.GcsPathUtils
 import org.broadinstitute.dsde.workbench.leonardo.auth.{MockLeoAuthProvider, MockPetsPerProjectServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockGoogleDataprocDAO, MockSamDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor

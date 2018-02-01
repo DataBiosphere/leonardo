@@ -1,20 +1,19 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.net.URL
 import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetsPerProjectServiceAccountProvider, WhitelistAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchUserId}
-import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData}
+import org.broadinstitute.dsde.workbench.model.google._
 import org.scalatest.concurrent.ScalaFutures
 
 import scala.concurrent.ExecutionContext
@@ -30,7 +29,7 @@ trait CommonTestData { this: ScalaFutures =>
   val userEmail = WorkbenchEmail("user1@example.com")
   val testClusterRequest = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), None)
   val serviceAccountEmail = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
-  val jupyterExtensionUri = Some(GcsPath(GcsBucketName("extension_bucket"), GcsRelativePath("extension_path")))
+  val jupyterExtensionUri = Some(GcsPath(GcsBucketName("extension_bucket"), GcsObjectName("extension_path")))
   val serviceAccountKey = ServiceAccountKey(ServiceAccountKeyId("123"), ServiceAccountPrivateKeyData("abcdefg"), Some(Instant.now), Some(Instant.now.plusSeconds(300)))
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
@@ -41,11 +40,12 @@ trait CommonTestData { this: ScalaFutures =>
   val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
+  val clusterUrlBase = dataprocConfig.clusterUrlBase
 
   val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
 
   val serviceAccountInfo = new ServiceAccountInfo(Option(WorkbenchEmail("testServiceAccount1@example.com")), Option(WorkbenchEmail("testServiceAccount2@example.com")))
-  val testCluster = new Cluster(name1, new UUID(1, 1), project, serviceAccountInfo, MachineConfig(), Cluster.getClusterUrl(project, name1), OperationName("op"), ClusterStatus.Running, None, userEmail, Instant.now(), None, Map(), Option(GcsPath(GcsBucketName("bucketName"), GcsRelativePath("path"))))
+  val testCluster = new Cluster(name1, new UUID(1, 1), project, serviceAccountInfo, MachineConfig(), Cluster.getClusterUrl("https://leonardo.example.com/", project, name1), OperationName("op"), ClusterStatus.Running, None, userEmail, Instant.now(), None, Map(), Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("path"))))
 
 
   // TODO look into parameterized tests so both provider impls can both be tested
@@ -66,6 +66,6 @@ trait CommonTestData { this: ScalaFutures =>
 
 trait GcsPathUtils {
   def gcsPath(str: String): GcsPath = {
-    GcsPath.parse(str).right.get
+    parseGcsPath(str).right.get
   }
 }

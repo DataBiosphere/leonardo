@@ -7,16 +7,17 @@ import java.util.UUID
 import akka.actor.{ActorRef, ActorSystem, Terminated}
 import akka.testkit.TestKit
 import io.grpc.Status.Code
-import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
-import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils, VCMockitoMatchers}
-import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath}
+import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted}
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKeyId}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject, ServiceAccountKeyId}
 import org.mockito.ArgumentMatchers.{any, anyString, eq => mockitoEq}
 import org.mockito.Mockito._
 import org.scalatest.mockito.MockitoSugar
@@ -35,7 +36,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-    clusterUrl = Cluster.getClusterUrl(project, name1),
+    clusterUrl = Cluster.getClusterUrl(clusterUrlBase, project, name1),
     operationName = OperationName("op1"),
     status = ClusterStatus.Creating,
     hostIp = None,
@@ -51,7 +52,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-    clusterUrl = Cluster.getClusterUrl(project, name2),
+    clusterUrl = Cluster.getClusterUrl(clusterUrlBase, project, name2),
     operationName = OperationName("op1"),
     status = ClusterStatus.Deleting,
     hostIp = None,
@@ -66,10 +67,10 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     super.afterAll()
   }
 
-  def createClusterSupervisor(gdDAO: DataprocDAO, iamDAO: GoogleIamDAO, authProvider: LeoAuthProvider): ActorRef = {
+  def createClusterSupervisor(gdDAO: GoogleDataprocDAO, iamDAO: GoogleIamDAO, storageDAO: GoogleStorageDAO, authProvider: LeoAuthProvider): ActorRef = {
     val cacheActor = system.actorOf(ClusterDnsCache.props(proxyConfig, DbSingleton.ref))
-    val supervisorActor = system.actorOf(TestClusterSupervisorActor.props(dataprocConfig, gdDAO, iamDAO, DbSingleton.ref, cacheActor, testKit, authProvider))
-    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, supervisorActor, whitelistAuthProvider, serviceAccountProvider, whitelist)
+    val supervisorActor = system.actorOf(TestClusterSupervisorActor.props(dataprocConfig, gdDAO, iamDAO, storageDAO, DbSingleton.ref, cacheActor, testKit, authProvider))
+    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, DbSingleton.ref, supervisorActor, whitelistAuthProvider, serviceAccountProvider, "leo", whitelist)
     supervisorActor
   }
 
@@ -82,17 +83,17 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   "ClusterMonitorActor" should "monitor until RUNNING state" in isolatedDbTest {
     dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual creatingCluster
 
-    val gdDAO = mock[DataprocDAO]
+    val gdDAO = mock[GoogleDataprocDAO]
     when {
-      gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
+      gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(ClusterStatus.Running)
 
     when {
-      gdDAO.getClusterMasterInstanceIp(mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
+      gdDAO.getClusterMasterInstanceIp(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(Some(IP("1.2.3.4")))
 
     when {
-      gdDAO.deleteBucket(mockitoEq(dataprocConfig.leoGoogleProject), vcAny(GcsBucketName))(any[ExecutionContext])
+      gdDAO.deleteBucket(mockitoEq(dataprocConfig.leoGoogleProject), any(GcsBucketName))(any[ExecutionContext])
     } thenReturn Future.successful(())
 
     when {
@@ -129,7 +130,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     it should s"monitor $status status" in isolatedDbTest {
       dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual creatingCluster
 
-      val gdDAO = mock[DataprocDAO]
+      val gdDAO = mock[GoogleDataprocDAO]
       when {
         gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
       } thenReturn Future.successful(status)
@@ -160,7 +161,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   it should "keep monitoring in RUNNING state with no IP" in isolatedDbTest {
     dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual creatingCluster
 
-    val dao = mock[DataprocDAO]
+    val dao = mock[GoogleDataprocDAO]
     when {
       dao.getClusterStatus(mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(ClusterStatus.Running)
@@ -194,7 +195,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   it should "keep monitoring in ERROR state with no error code" in isolatedDbTest {
     dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual creatingCluster
 
-    val dao = mock[DataprocDAO]
+    val dao = mock[GoogleDataprocDAO]
     when {
       dao.getClusterStatus(mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(ClusterStatus.Error)
@@ -232,7 +233,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   it should "monitor until ERROR state with no restart" in isolatedDbTest {
     dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual creatingCluster
 
-    val gdDAO = mock[DataprocDAO]
+    val gdDAO = mock[GoogleDataprocDAO]
     when {
       gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(ClusterStatus.Error)
@@ -278,7 +279,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   it should "monitor until DELETED state" in isolatedDbTest {
     dbFutureValue { _.clusterQuery.save(deletingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual deletingCluster
 
-    val dao = mock[DataprocDAO]
+    val dao = mock[GoogleDataprocDAO]
     when {
       dao.getClusterStatus(mockitoEq(deletingCluster.googleProject), vcEq(deletingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(ClusterStatus.Deleted)
@@ -316,7 +317,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   it should "monitor until ERROR state with restart" in isolatedDbTest {
     dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual creatingCluster
 
-    val gdDAO = mock[DataprocDAO]
+    val gdDAO = mock[GoogleDataprocDAO]
     when {
       gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn {
@@ -436,7 +437,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   it should "not restart a deleting cluster" in isolatedDbTest {
     dbFutureValue { _.clusterQuery.save(deletingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual deletingCluster
 
-    val gdDAO = mock[DataprocDAO]
+    val gdDAO = mock[GoogleDataprocDAO]
     when {
       gdDAO.getClusterStatus(mockitoEq(deletingCluster.googleProject), vcEq(deletingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(ClusterStatus.Running)

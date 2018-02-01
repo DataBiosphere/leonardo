@@ -4,9 +4,9 @@ import java.sql.SQLException
 import java.time.Instant
 import java.util.UUID
 
-import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.scalatest.FlatSpecLike
 
@@ -21,7 +21,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name1),
+      clusterUrl = Cluster.getClusterUrl(clusterUrlBase, project, name1),
       operationName = OperationName("op1"),
       status = ClusterStatus.Unknown,
       hostIp = Some(IP("numbers.and.dots")),
@@ -37,7 +37,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name2),
+      clusterUrl = Cluster.getClusterUrl(clusterUrlBase, project, name2),
       operationName = OperationName("op2"),
       status = ClusterStatus.Creating,
       hostIp = None,
@@ -53,7 +53,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
       machineConfig = MachineConfig(Some(3),Some("test-master-machine-type"), Some(500), Some("test-worker-machine-type"), Some(200), Some(2), Some(1)),
-      clusterUrl = Cluster.getClusterUrl(project, name3),
+      clusterUrl = Cluster.getClusterUrl(clusterUrlBase, project, name3),
       operationName = OperationName("op3"),
       status = ClusterStatus.Running,
       hostIp = None,
@@ -88,7 +88,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       googleProject = c1.googleProject,
       serviceAccountInfo = ServiceAccountInfo(None, Some(WorkbenchEmail("something-new@google.com"))),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(c1.googleProject, c1.clusterName),
+      clusterUrl = Cluster.getClusterUrl(clusterUrlBase, c1.googleProject, c1.clusterName),
       operationName = OperationName("op3"),
       status = ClusterStatus.Unknown,
       hostIp = Some(IP("1.2.3.4")),
@@ -108,7 +108,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(None, Some(WorkbenchEmail("something-new@google.com"))),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name5),
+      clusterUrl = Cluster.getClusterUrl(clusterUrlBase, project, name5),
       operationName = OperationName("op4"),
       status = ClusterStatus.Unknown,
       hostIp = Some(IP("1.2.3.4")),
@@ -148,7 +148,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name1),
+      clusterUrl = Cluster.getClusterUrl(clusterUrlBase, project, name1),
       operationName = OperationName("op1"),
       status = ClusterStatus.Unknown,
       hostIp = Some(IP("numbers.and.dots")),
@@ -164,7 +164,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name2),
+      clusterUrl = Cluster.getClusterUrl(clusterUrlBase, project, name2),
       operationName = OperationName("op2"),
       status = ClusterStatus.Running,
       hostIp = None,
@@ -180,7 +180,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name3),
+      clusterUrl = Cluster.getClusterUrl(clusterUrlBase, project, name3),
       operationName = OperationName("op3"),
       status = ClusterStatus.Deleted,
       hostIp = None,

@@ -4,9 +4,9 @@ import java.sql.SQLException
 import java.time.Instant
 import java.util.UUID
 
-import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.scalatest.FlatSpecLike
 
 import scala.util.Random
@@ -20,7 +20,7 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTest
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name1),
+      clusterUrl = Cluster.getClusterUrl(clusterUrlBase, project, name1),
       operationName = OperationName("op1"),
       status = ClusterStatus.Creating,
       hostIp = None,
@@ -36,7 +36,7 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTest
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name2),
+      clusterUrl = Cluster.getClusterUrl(clusterUrlBase, project, name2),
       operationName = OperationName("op2"),
       status = ClusterStatus.Unknown,
       hostIp = Some(IP("sure, this is an IP address")),
