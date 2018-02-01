@@ -16,7 +16,7 @@ class JupyterNameService extends NameService {
   }
 
   override def lookupAllHostAddr(host: String): Array[InetAddress] = {
-    ClusterDnsCache.HostToIp.get(Host(host)).map(ip => Array(InetAddress.getByName(ip.string))).getOrElse {
+    ClusterDnsCache.HostToIp.get(Host(host)).map(ip => Array(InetAddress.getByName(ip.value))).getOrElse {
       throw new UnknownHostException(s"Unknown address: $host")
     }
   }

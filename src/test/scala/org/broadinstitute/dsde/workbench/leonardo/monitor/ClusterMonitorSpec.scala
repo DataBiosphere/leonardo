@@ -10,7 +10,6 @@ import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils, VCMockitoMatchers}
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath}
-import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model._

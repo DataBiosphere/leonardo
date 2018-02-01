@@ -4,7 +4,6 @@ import akka.actor.{ActorRef, Props}
 import akka.testkit.TestKit
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, LeoAuthProvider}
 

@@ -4,7 +4,6 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri.Host
 import akka.stream.ActorMaterializer
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache.{ClusterReady, GetClusterResponse}
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, LeoAuthProvider}

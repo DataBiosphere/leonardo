@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.model
 
 import com.typesafe.config.Config
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
