@@ -504,9 +504,8 @@ definitions:
       jupyterUserScriptUri:
         type: string
         description: |
-          Optional bucket URI to an archive containing a bash script the user wishes to run on inside their jupyter docker.
-          The archive must be in .sh format, must not include a parent directory, and
-          must have an entry point named 'main'.
+          Optional bucket URI to an archive containing a bash script the user wishes to run inside their jupyter docker.
+          The archive must be in .sh format and must not include a parent directory.
       machineConfig:
         description: The machine configurations for the master and worker nodes
         $ref: '#/definitions/MachineConfig'
