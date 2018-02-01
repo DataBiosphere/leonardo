@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao.google
 
-import java.io.File
 import java.time.Instant
 import java.util.UUID
 
@@ -9,7 +8,6 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.data.OptionT
 import cats.implicits._
-import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import com.google.api.client.http.HttpResponseException
 import com.google.api.client.json.jackson2.JacksonFactory
@@ -21,7 +19,8 @@ import com.google.api.services.compute.{Compute, ComputeScopes}
 import com.google.api.services.dataproc.Dataproc
 import com.google.api.services.dataproc.model.{Cluster => DataprocCluster, ClusterConfig => DataprocClusterConfig, ClusterStatus => DataprocClusterStatus, Operation => DataprocOperation, _}
 import com.google.api.services.oauth2.{Oauth2, Oauth2Scopes}
-import org.broadinstitute.dsde.workbench.google.GoogleUtilities
+import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.GoogleCredentialMode
+import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
@@ -32,19 +31,17 @@ import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, Workbe
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
 
-// TODO switch to new constructor scheme when wb-libs #66 is adopted
 class HttpGoogleDataprocDAO(appName: String,
-                            serviceAccountClientId: WorkbenchEmail,
-                            pemFile: File,
+                            googleCredentialMode: GoogleCredentialMode,
                             override val workbenchMetricBaseName: String,
                             defaultNetworkTag: String,
                             defaultRegion: String)
-                           (implicit val system: ActorSystem, val executionContext: ExecutionContext)
-  extends GoogleDataprocDAO with GoogleUtilities {
+                           (implicit override val system: ActorSystem, override val executionContext: ExecutionContext)
+  extends AbstractHttpGoogleDAO(appName, googleCredentialMode, workbenchMetricBaseName) with GoogleDataprocDAO {
 
-  /* override */ implicit val service: GoogleInstrumentedService = GoogleInstrumentedService.Dataproc
+  override implicit val service: GoogleInstrumentedService = GoogleInstrumentedService.Dataproc
 
-  /* override */ val scopes: Seq[String] = Seq(ComputeScopes.CLOUD_PLATFORM)
+  override val scopes: Seq[String] = Seq(ComputeScopes.CLOUD_PLATFORM)
 
   private lazy val oauth2Scopes = List(Oauth2Scopes.USERINFO_EMAIL, Oauth2Scopes.USERINFO_PROFILE)
   private lazy val bigqueryScopes = List(BigqueryScopes.BIGQUERY)
@@ -52,21 +49,11 @@ class HttpGoogleDataprocDAO(appName: String,
   private val httpTransport = GoogleNetHttpTransport.newTrustedTransport
   private val jsonFactory = JacksonFactory.getDefaultInstance
 
-  // TODO remove once wb-libs #66 is adopted
-  private lazy val googleCredential = new GoogleCredential.Builder()
-    .setTransport(httpTransport)
-    .setJsonFactory(jsonFactory)
-    .setServiceAccountId(serviceAccountClientId.value)
-    .setServiceAccountScopes(scopes.asJava)
-    .setServiceAccountPrivateKeyFromPemFile(pemFile)
-    .build
-
   private lazy val dataproc = {
     new Dataproc.Builder(httpTransport, jsonFactory, googleCredential)
       .setApplicationName(appName).build()
   }
 
-  // TODO move out of this DAO
   private lazy val compute = {
     new Compute.Builder(httpTransport, jsonFactory, googleCredential)
       .setApplicationName(appName).build()

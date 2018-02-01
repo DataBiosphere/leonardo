@@ -10,6 +10,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleExceptionSupport._
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
@@ -18,7 +19,9 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
+import org.broadinstitute.dsde.workbench.leonardo.model.google
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted, RegisterLeoService}
+import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.User
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.{Owner, Reader}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
@@ -138,7 +141,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           // Notify the auth provider that the cluster has been created
           _ <- authProvider.notifyClusterCreated(userEmail, googleProject, clusterName)
           // Create the cluster in Google
-          (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest)
+          (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest).handleGoogleException(googleProject, Some(clusterName.value))
           // Save the cluster in the database
           savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, GcsPath(initBucket, GcsObjectName("")), serviceAccountKeyOpt.map(_.id)))
         } yield {
@@ -179,7 +182,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually destroy it
       _ <- checkClusterPermission(userInfo,  DeleteCluster, cluster, throw401 = true)
 
-      _ <- internalDeleteCluster(userInfo.userEmail, cluster)
+      _ <- internalDeleteCluster(userInfo.userEmail, cluster).handleGoogleException(cluster)
     } yield { () }
   }
 
@@ -202,7 +205,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       }
     } else Future.successful(())
   }
-
 
   def listClusters(userInfo: UserInfo, params: LabelMap): Future[Seq[Cluster]] = {
     for {
@@ -340,10 +342,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       leoSa <- OptionT.pure[Future, WorkbenchEmail](leoServiceAccountEmail)
       clusterSa <- OptionT.fromOption[Future](serviceAccountInfo.clusterServiceAccount).orElse(OptionT(gdDAO.getComputeEngineDefaultServiceAccount(googleProject)))
 
-      acls = List(GcsAccessControl(leoSa, Owner), GcsAccessControl(clusterSa, Reader))
+      acls = List(GcsEntity(leoSa, User) -> Owner, GcsEntity(clusterSa, User) -> Reader)
 
-      _ <- OptionT.liftF(Future.traverse(acls)(acl => googleStorageDAO.setBucketAccessControl(initBucketName, acl)))
-      _ <- OptionT.liftF(Future.traverse(acls)(acl => googleStorageDAO.setDefaultObjectAccessControl(initBucketName, acl)))
+      _ <- OptionT.liftF(Future.traverse(acls) { case (entity, role) => googleStorageDAO.setBucketAccessControl(initBucketName, entity, role) })
+      _ <- OptionT.liftF(Future.traverse(acls) { case (entity, role) => googleStorageDAO.setDefaultObjectAccessControl(initBucketName, entity, role) })
     } yield ()
 
     transformed.value.void
@@ -456,7 +458,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private[service] def addClusterDefaultLabels(serviceAccountInfo: ServiceAccountInfo, googleProject: GoogleProject, clusterName: ClusterName, creator: WorkbenchEmail, clusterRequest: ClusterRequest): ClusterRequest = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultLabels(clusterName, googleProject, creator,
-      serviceAccountInfo.clusterServiceAccount, serviceAccountInfo.notebookServiceAccount, clusterRequest.jupyterExtensionUri)
+      serviceAccountInfo.clusterServiceAccount, serviceAccountInfo.notebookServiceAccount, clusterRequest.jupyterExtensionUri.map(_.toUri))
       .toJson.asJsObject.fields.mapValues(labelValue => labelValue.convertTo[String])
     // combine default and given labels
     val allLabels = clusterRequest.labels ++ defaultLabels

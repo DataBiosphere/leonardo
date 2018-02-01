@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
+import java.io.ByteArrayInputStream
+
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import com.typesafe.config.ConfigFactory
@@ -35,6 +37,7 @@ trait TestLeoRoutes { this: ScalatestRouteTest with ScalaFutures =>
   val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO
   val extensionPath = GcsPath(GcsBucketName("bucket"), GcsObjectName("my_extension.tar.gz"))
+  mockGoogleStorageDAO.buckets += extensionPath.bucketName -> Set((extensionPath.objectName, new ByteArrayInputStream("foo".getBytes())))
 
   // TODO look into parameterized tests so both provider impls can both be tested
   //val serviceAccountProvider = new MockPetServiceAccountProvider(config.getConfig("serviceAccounts.config"))

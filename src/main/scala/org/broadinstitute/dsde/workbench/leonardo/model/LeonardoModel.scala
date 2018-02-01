@@ -111,7 +111,7 @@ case class DefaultLabels(clusterName: ClusterName,
                          creator: WorkbenchEmail,
                          clusterServiceAccount: Option[WorkbenchEmail],
                          notebookServiceAccount: Option[WorkbenchEmail],
-                         notebookExtension: Option[GcsPath])
+                         notebookExtension: Option[String])
 
 // Provides ways of combining MachineConfigs with Leo defaults
 object MachineConfigOps {
