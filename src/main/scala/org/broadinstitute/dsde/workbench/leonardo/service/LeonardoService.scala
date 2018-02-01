@@ -41,7 +41,7 @@ case class InitializationFileException(googleProject: GoogleProject, clusterName
   extends LeoException(s"Unable to process initialization files for ${googleProject.value}/${clusterName.string}. Returned message: $errorMessage", StatusCodes.Conflict)
 
 case class BucketObjectException(gcsUri: GcsPath)
-  extends LeoException(s"The provided URI is invalid or unparseable: ${gcsUri.toUri}", StatusCodes.BadRequest)
+  extends LeoException(s"The provided GCS URI is invalid or unparseable: ${gcsUri.toUri}", StatusCodes.BadRequest)
 
 case class ParseLabelsException(labelString: String)
   extends LeoException(s"Could not parse label string: $labelString. Expected format [key1=value1,key2=value2,...]", StatusCodes.BadRequest)
