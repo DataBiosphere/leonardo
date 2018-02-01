@@ -42,6 +42,7 @@ trait CommonTestData { this: ScalaFutures =>
   val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
+  val clusterUrlBase = dataprocConfig.clusterUrlBase
   val serviceAccountsConfig = config.getConfig("serviceAccounts.config")
 
   val singleNodeDefaultMachineConfig = MachineConfig(Some(clusterDefaultsConfig.numberOfWorkers), Some(clusterDefaultsConfig.masterMachineType), Some(clusterDefaultsConfig.masterDiskSize))
@@ -50,26 +51,26 @@ trait CommonTestData { this: ScalaFutures =>
 
 
   val serviceAccountInfo = new ServiceAccountInfo(Option(WorkbenchEmail("testServiceAccount1@example.com")), Option(WorkbenchEmail("testServiceAccount2@example.com")))
-  val testCluster = new Cluster(name1, new UUID(1, 1), project, serviceAccountInfo, MachineConfig(), Cluster.getClusterUrl(project, name1), OperationName("op"), ClusterStatus.Running, None, userEmail, Instant.now(), None, Map(), Option(GcsPath(GcsBucketName("bucketName"), GcsRelativePath("extension"))),Option(GcsPath(GcsBucketName("bucketName"), GcsRelativePath("userScript"))),Some(GcsBucketName("testStagingBucket1")))
+  val testCluster = new Cluster(name1, new UUID(1, 1), project, serviceAccountInfo, MachineConfig(), Cluster.getClusterUrl(project, name1, clusterUrlBase), OperationName("op"), ClusterStatus.Running, None, userEmail, Instant.now(), None, Map(), Option(GcsPath(GcsBucketName("bucketName"), GcsRelativePath("extension"))),Option(GcsPath(GcsBucketName("bucketName"), GcsRelativePath("userScript"))),Some(GcsBucketName("testStagingBucket1")))
 
 
   // TODO look into parameterized tests so both provider impls can both be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData
-  val serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(serviceAccountsConfig)
+  val serviceAccountProvider = new MockPetClusterServiceAccountProvider(serviceAccountsConfig)
   val whitelistAuthProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider)
 
 
   protected def clusterServiceAccount(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Option[WorkbenchEmail] = {
-    serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject).futureValue
+    serviceAccountProvider.getClusterServiceAccount(userInfo.userEmail, googleProject).futureValue
   }
 
   protected def notebookServiceAccount(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Option[WorkbenchEmail] = {
-    serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject).futureValue
+    serviceAccountProvider.getNotebookServiceAccount(userInfo.userEmail, googleProject).futureValue
   }
 }
 
 trait GcsPathUtils {
   def gcsPath(str: String): GcsPath = {
-    GcsPath.parse(str).right.get
+    parseGcsPath(str).right.get
   }
 }

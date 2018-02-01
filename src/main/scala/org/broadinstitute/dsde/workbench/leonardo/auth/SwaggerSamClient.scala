@@ -12,13 +12,13 @@ import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
 import io.swagger.client.ApiClient
 import io.swagger.client.api.{GoogleApi, ResourcesApi}
-import org.broadinstitute.dsde.workbench.leonardo.dao.GoogleProjectNotFoundException
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterName
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.FiniteDuration
+
 case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)
 
 class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cacheMaxSize: Int, leoEmail: WorkbenchEmail, leoPem: File) extends LazyLogging {
@@ -99,7 +99,7 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
 
 
   private def getClusterResourceId(googleProject: GoogleProject, clusterName: ClusterName): String = {
-    googleProject.value + "_" + clusterName.string
+    googleProject.value + "_" + clusterName.value
   }
 
 

@@ -3,13 +3,13 @@ package org.broadinstitute.dsde.workbench.leonardo.auth
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import com.typesafe.config.Config
-import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
+import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
-import org.broadinstitute.dsde.workbench.leonardo.dao.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.{DeleteCluster, SyncDataToCluster}
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.CreateClusters
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterName, ServiceAccountProvider}
+import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest._
@@ -28,7 +28,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
 
   private def getSamAuthProvider: TestSamAuthProvider = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"),serviceAccountProvider)
 
-  val gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
+  val gdDAO = new MockGoogleDataprocDAO
   val iamDAO = new MockGoogleIamDAO
 
   "should add and delete a notebook-cluster resource with correct actions for the user when a cluster is created and then destroyed" in isolatedDbTest {
