@@ -336,22 +336,26 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
     // The Leo service account
     val leoServiceAccountEntityString = s"user-${leoServiceAccountEmail.value}"
 
+    val notebookServiceAccountEntityString = getNotebookServiceAccountEntity(clusterGoogleProject, serviceAccountInfo)
+
     val clusterServiceAccountEntityStringFuture: Future[String] = getClusterServiceAccountEntity(clusterGoogleProject, serviceAccountInfo)
 
-    clusterServiceAccountEntityStringFuture.flatMap { clusterServiceAccountEntityString =>
+    val ServiceAccounts = List(clusterServiceAccountEntityStringFuture,notebookServiceAccountEntityString)
+
+    Future.sequence(ServiceAccounts).flatMap { saList =>
       //Add the Leo SA and the cluster's SA to the ACL list for the bucket
       val bucketAcls = List(
-        createBucketAcl(clusterServiceAccountEntityString,"READER"),
         createBucketAcl(leoServiceAccountEntityString,"OWNER")
       ) ++ groupStagingAcl.map(a => createBucketAcl("group-" + a, "READER")) ++
-        userStagingAcl.map(a => createBucketAcl("user-" + a, "READER"))
+        userStagingAcl.map(a => createBucketAcl("user-" + a, "READER")) ++
+        saList.map(a => createBucketAcl("user-" + a, "READER"))
 
       //Bucket ACL != the ACL given to individual objects inside the bucket
       val defObjectAcls = List(
-        createDefaultObjectAcl(clusterServiceAccountEntityString, "READER"),
         createDefaultObjectAcl(leoServiceAccountEntityString,"OWNER")
       ) ++ groupStagingAcl.map(a => createDefaultObjectAcl("group-" + a, "READER")) ++
-        userStagingAcl.map(a => createDefaultObjectAcl("user-" + a, "READER"))
+        userStagingAcl.map(a => createDefaultObjectAcl("user-" + a, "READER")) ++
+        saList.map(a => createDefaultObjectAcl("user-" + a, "READER"))
 
 
       // Create the bucket object
@@ -368,6 +372,20 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
 
   private def getClusterServiceAccountEntity(clusterGoogleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo) = {
     serviceAccountInfo.clusterServiceAccount match {
+      case Some(serviceAccountEmail) =>
+        // If passing a service account to the create cluster command, grant bucket access to that service account.
+        Future.successful(s"user-${serviceAccountEmail.value}")
+      case None =>
+        // Otherwise, grant bucket access to the Google compute engine default service account.
+        getComputeEngineDefaultServiceAccount(clusterGoogleProject).map {
+          case Some(serviceAccount) => s"user-${serviceAccount.value}"
+          case None => throw GoogleProjectNotFoundException(clusterGoogleProject)
+        }
+    }
+  }
+
+  private def getNotebookServiceAccountEntity(clusterGoogleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo) = {
+    serviceAccountInfo.notebookServiceAccount match {
       case Some(serviceAccountEmail) =>
         // If passing a service account to the create cluster command, grant bucket access to that service account.
         Future.successful(s"user-${serviceAccountEmail.value}")
