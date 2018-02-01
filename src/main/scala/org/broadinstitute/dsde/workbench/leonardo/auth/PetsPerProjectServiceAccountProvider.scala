@@ -21,7 +21,7 @@ class PetsPerProjectServiceAccountProvider(config: Config) extends SamServiceAcc
   }
 
   override def listUsersStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {
-    Future(List.empty[WorkbenchEmail])
+    Future.successful(List.empty[WorkbenchEmail])
   }
 
   override def listGroupsStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {
