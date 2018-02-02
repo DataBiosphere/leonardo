@@ -130,10 +130,10 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # If a Jupyter user script was specified, copy it into the jupyter docker container.
     if [ ! -z ${JUPYTER_USER_SCRIPT_URI} ] ; then
       gsutil cp ${JUPYTER_USER_SCRIPT_URI} /etc
-      JUPYTER_USER_SCRIPT_ARCHIVE=`basename ${JUPYTER_USER_SCRIPT_URI}`
-      docker cp /etc/${JUPYTER_USER_SCRIPT_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
-      docker exec -u root -d ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
-      docker exec -u root -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT_ARCHIVE}
+      JUPYTER_USER_SCRIPT=`basename ${JUPYTER_USER_SCRIPT_URI}`
+      docker cp /etc/${JUPYTER_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
+      docker exec -u root -d ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
+      docker exec -u root -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
     fi
 
     docker exec -d ${JUPYTER_SERVER_NAME} ${PYSPARK}
