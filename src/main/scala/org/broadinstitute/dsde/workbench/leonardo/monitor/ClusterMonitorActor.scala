@@ -21,8 +21,8 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervis
 import org.broadinstitute.dsde.workbench.leonardo.service.ClusterNotReadyException
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.User
-import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Owner
 import org.broadinstitute.dsde.workbench.model.google._
+import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Owner
 import org.broadinstitute.dsde.workbench.util.addJitter
 
 import scala.concurrent.Future
@@ -286,10 +286,12 @@ class ClusterMonitorActor(val cluster: Cluster,
   }
 
   private def setStagingBucketOwnership: Future[Unit] = {
-    def forBothServiceAccounts[T](op: WorkbenchEmail => Future[T]): Future[Unit] = {
-      Future.traverse(Set(cluster.serviceAccountInfo.clusterServiceAccount, cluster.serviceAccountInfo.notebookServiceAccount).flatten) { sa =>
-        op(sa)
-      }.void
+    def forBothServiceAccounts(op: WorkbenchEmail => Future[Unit]): Future[Unit] = {
+      // Note! the following calls should be done in sequence. Google complains if setting ACLs for the same bucket in parallel (e.g. via Future.traverse).
+      for {
+        _ <- cluster.serviceAccountInfo.clusterServiceAccount.map(op).getOrElse(Future.successful(()))
+        _ <- cluster.serviceAccountInfo.notebookServiceAccount.map(op).getOrElse(Future.successful(()))
+      } yield ()
     }
 
     val transformed = for {

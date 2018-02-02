@@ -335,16 +335,24 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   private[service] def initializeBucketAcls(googleProject: GoogleProject, initBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[Unit] = {
-    //Add the Leo SA and the cluster's SA to the ACL list for the bucket
-
     val transformed = for {
       leoSa <- OptionT.pure[Future, WorkbenchEmail](leoServiceAccountEmail)
+      // The init bucket will be accessed by the cluster service account, or the compute engine default service account
       clusterSa <- OptionT.fromOption[Future](serviceAccountInfo.clusterServiceAccount).orElse(OptionT(gdDAO.getComputeEngineDefaultServiceAccount(googleProject)))
 
-      acls = List(GcsEntity(leoSa, User) -> Owner, GcsEntity(clusterSa, User) -> Reader)
+      // Note! the following calls should be done in sequence. Google complains if setting ACLs for the same bucket in parallel (e.g. via Future.traverse).
 
-      _ <- OptionT.liftF(Future.traverse(acls) { case (entity, role) => googleStorageDAO.setBucketAccessControl(initBucketName, entity, role) })
-      _ <- OptionT.liftF(Future.traverse(acls) { case (entity, role) => googleStorageDAO.setDefaultObjectAccessControl(initBucketName, entity, role) })
+      // Leo service account gets Owner access to the init bucket and its objects
+      leoEntity = GcsEntity(leoSa, User)
+      leoRole = Owner
+      _ <- OptionT.liftF(googleStorageDAO.setBucketAccessControl(initBucketName, leoEntity, leoRole))
+      _ <- OptionT.liftF(googleStorageDAO.setDefaultObjectAccessControl(initBucketName, leoEntity, leoRole))
+
+      // Cluster service account gets Reader access to the init bucket and its objects
+      clusterEntity = GcsEntity(clusterSa, User)
+      clusterRole = Reader
+      _ <- OptionT.liftF(googleStorageDAO.setBucketAccessControl(initBucketName, clusterEntity, clusterRole))
+      _ <- OptionT.liftF(googleStorageDAO.setDefaultObjectAccessControl(initBucketName, clusterEntity, clusterRole))
     } yield ()
 
     transformed.value.void
