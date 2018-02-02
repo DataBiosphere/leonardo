@@ -347,16 +347,16 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
       val bucketAcls = List(
         createBucketAcl(leoServiceAccountEntityString,"OWNER")
       ) ++ groupStagingAcl.map(a => createBucketAcl("group-" + a, "READER")) ++
-        userStagingAcl.map(a => createBucketAcl("user-" + a, "READER")) //++
-        //saList.map(a => createBucketAcl("user-" + a, "READER"))
+        userStagingAcl.map(a => createBucketAcl("user-" + a, "READER")) ++
+        saList.map(a => createBucketAcl(a, "READER"))
 
       println("Service account list::" + saList)
       //Bucket ACL != the ACL given to individual objects inside the bucket
       val defObjectAcls = List(
         createDefaultObjectAcl(leoServiceAccountEntityString,"OWNER")
       ) ++ groupStagingAcl.map(a => createDefaultObjectAcl("group-" + a, "READER")) ++
-        userStagingAcl.map(a => createDefaultObjectAcl("user-" + a, "READER")) //++
-        //saList.map(a => createDefaultObjectAcl("user-" + a, "READER"))
+        userStagingAcl.map(a => createDefaultObjectAcl("user-" + a, "READER")) ++
+        saList.map(a => createDefaultObjectAcl(a, "READER"))
 
 
       // Create the bucket object
