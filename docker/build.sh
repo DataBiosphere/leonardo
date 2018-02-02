@@ -88,7 +88,7 @@ while [ "$1" != "" ]; do
 done
 
 # Print help after all flags are parsed successfully
-if PRINT_HELP; then
+if $PRINT_HELP; then
   echo -e "${HELP_TEXT}"
   exit 0
 fi
