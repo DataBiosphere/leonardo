@@ -538,7 +538,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.firewallRules should contain (googleProject, proxyConfig.firewallRuleName)
 
     //staging bucket lives on!
-    gdDAO.buckets.head.name.contains("-init") shouldBe  false
+    gdDAO.buckets.find(bucket=> bucket.name.contains("-init")).size shouldBe  0
   }
 
   it should "tell you if you're whitelisted" in isolatedDbTest {
