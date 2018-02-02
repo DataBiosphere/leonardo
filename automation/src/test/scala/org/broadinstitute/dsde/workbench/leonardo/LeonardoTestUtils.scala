@@ -4,16 +4,16 @@ import java.io.File
 import java.nio.file.Files
 
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.dao.Google.googleIamDAO
+import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, UserAuthToken}
-import org.broadinstitute.dsde.workbench.config.{Config, Credentials, LeoAuthToken}
+import org.broadinstitute.dsde.workbench.config.{Config, Credentials}
 import org.broadinstitute.dsde.workbench.service.{Orchestration, Rawls, Sam}
 import org.broadinstitute.dsde.workbench.service.APIException
 import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountName}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject, ServiceAccountName, generateUniqueBucketName}
 import org.broadinstitute.dsde.workbench.util.LocalFileUtil
 import org.openqa.selenium.WebDriver
 import org.scalatest.{Matchers, Suite}
@@ -40,6 +40,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   val clusterPatience = PatienceConfig(timeout = scaled(Span(15, Minutes)), interval = scaled(Span(20, Seconds)))
   val localizePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
   val saPatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
+  val storagePatience = PatienceConfig(timeout = scaled(Span(10, Seconds)), interval = scaled(Span(1, Seconds)))
 
   // TODO: show diffs as screenshot or other test output?
   def compareFilesExcludingIPs(left: File, right: File): Unit = {
@@ -153,9 +154,10 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   def randomClusterName: ClusterName = ClusterName(s"automation-test-a${makeRandomId().toLowerCase}z")
 
-  def createNewCluster(googleProject: GoogleProject, clusterName: ClusterName = randomClusterName)(implicit token: AuthToken): Cluster = {
-    val request = ClusterRequest(Map("foo" -> makeRandomId()))
-    val cluster = createAndMonitor(googleProject, clusterName, request)
+  def defaultClusterRequest: ClusterRequest = ClusterRequest(Map("foo" -> makeRandomId()))
+
+  def createNewCluster(googleProject: GoogleProject, name: ClusterName = randomClusterName, request: ClusterRequest = defaultClusterRequest)(implicit token: AuthToken): Cluster = {
+    val cluster = createAndMonitor(googleProject, name, request)
     cluster.status shouldBe ClusterStatus.Running
     cluster
   }
@@ -208,8 +210,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     (petName, samPetEmail)
   }
 
-  def withNewCluster[T](googleProject: GoogleProject, clusterName: ClusterName = randomClusterName)(testCode: Cluster => T)(implicit token: AuthToken): T = {
-    val cluster = createNewCluster(googleProject, clusterName)
+  def withNewCluster[T](googleProject: GoogleProject, name: ClusterName = randomClusterName, request: ClusterRequest = defaultClusterRequest)(testCode: Cluster => T)(implicit token: AuthToken): T = {
+    val cluster = createNewCluster(googleProject, name, request)
     val testResult: Try[T] = Try {
       testCode(cluster)
     }
@@ -272,4 +274,18 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     testResult.get
   }
 
+  def withNewGoogleBucket[T](googleProject: GoogleProject)(testCode: GcsBucketName => T): T = {
+    implicit val patienceConfig: PatienceConfig = storagePatience
+
+    // Create google bucket and run test code
+    val bucketName = googleStorageDAO.createBucket(googleProject, generateUniqueBucketName("leo-auto")).futureValue
+    val testResult: Try[T] = Try {
+      testCode(bucketName)
+    }
+    // Clean up
+    googleStorageDAO.deleteBucket(bucketName, recurse = true).futureValue
+
+    // Return the test result, or throw error
+    testResult.get
+  }
 }
