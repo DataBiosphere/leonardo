@@ -28,7 +28,7 @@ import org.mockito.Mockito._
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import scala.concurrent.{ExecutionContext, Future}
 
-class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures with OptionValues with CommonTestData {
+class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures with OptionValues with CommonTestData with VCMockitoMatchers {
 
   private var gdDAO: MockGoogleDataprocDAO = _
   private var iamDAO: MockGoogleIamDAO = _
@@ -260,10 +260,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // the cluster has transitioned to the Deleting state (Cluster Monitor will later transition it to Deleted)
 
-    dbFutureValue { _.clusterQuery.getClusterByName(googleProject, clusterName) }.map(_.status) shouldBe Some(ClusterStatus.Deleting)
+    dbFutureValue { _.clusterQuery.getClusterByName(project, name1) }.map(_.status) shouldBe Some(ClusterStatus.Deleting)
 
     // the auth provider should have not yet been notified of deletion
-    verify(spyProvider, never).notifyClusterDeleted(mockitoEq(defaultUserInfo.userEmail), mockitoEq(defaultUserInfo.userEmail), mockitoEq(googleProject), vcEq(clusterName))(any[ExecutionContext])
+    verify(spyProvider, never).notifyClusterDeleted(mockitoEq(userInfo.userEmail), mockitoEq(userInfo.userEmail), mockitoEq(project), vcEq(name1))(any[ExecutionContext])
   }
 
   it should "delete a cluster that has status Error" in isolatedDbTest {
@@ -478,13 +478,13 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   it should "filter out auth provider exceptions from list clusters" in isolatedDbTest {
     // create a couple clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
-    val cluster1 = leo.createCluster(defaultUserInfo, googleProject, clusterName1, testClusterRequest).futureValue
+    val cluster1 = leo.createCluster(userInfo, project, clusterName1, testClusterRequest).futureValue
 
     val clusterName2 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
-    val cluster2 = leo.createCluster(defaultUserInfo, googleProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
+    val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
     // provider fails on cluster2, succeeds on cluster1
-    val newAuthProvider = new WhitelistAuthProvider(configFactory.getConfig("auth.whitelistProviderConfig"),serviceAccountProvider) {
+    val newAuthProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider) {
       override def hasNotebookClusterPermission(userEmail: WorkbenchEmail, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
         if (clusterName == clusterName1) {
           super.hasNotebookClusterPermission(userEmail, action, googleProject, clusterName)
@@ -498,7 +498,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val newLeo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), newAuthProvider, serviceAccountProvider, whitelist)
 
     // list clusters should only return cluster1
-    newLeo.listClusters(defaultUserInfo, Map.empty).futureValue shouldBe Seq(cluster1)
+    newLeo.listClusters(userInfo, Map.empty).futureValue shouldBe Seq(cluster1)
   }
 
   it should "delete the init bucket if cluster creation fails" in isolatedDbTest {

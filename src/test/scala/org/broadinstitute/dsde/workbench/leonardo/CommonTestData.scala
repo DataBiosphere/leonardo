@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.net.URL
 import java.time.Instant
 import java.util.UUID
 
@@ -10,7 +9,6 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetsPerProjectServiceAccountProvider, WhitelistAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchUserId}
@@ -34,6 +32,7 @@ trait CommonTestData { this: ScalaFutures =>
   val jupyterUserScriptUri = Some(GcsPath(GcsBucketName("userscript_bucket"), GcsRelativePath("userscript.sh")))
   val serviceAccountKey = ServiceAccountKey(ServiceAccountKeyId("123"), ServiceAccountPrivateKeyData("abcdefg"), Some(Instant.now), Some(Instant.now.plusSeconds(300)))
   val initBucketPath = GcsBucketName("bucket-path")
+
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
   val whitelistAuthConfig = config.getConfig("auth.whitelistProviderConfig")
   val whitelist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
