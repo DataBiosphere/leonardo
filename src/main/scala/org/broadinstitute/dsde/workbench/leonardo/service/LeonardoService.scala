@@ -270,6 +270,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       stagingBucketPath <- gdDAO.createStagingBucket(googleProject, googleProject, stagingBucketName, serviceAccountInfo, groupstagingBucketAcl, userstagingBucketAcl)
       // Once the bucket is ready, build the cluster
       cluster <- gdDAO.createCluster(userEmail, googleProject, clusterName, clusterRequest, initBucketName, serviceAccountInfo, stagingBucketPath).andThen { case Failure(_) =>
+        // If cluster creation fails, delete the init bucket asynchronously
+        gdDAO.deleteBucket(googleProject, initBucketName)
       }
     } yield {
       (cluster, initBucketPath, serviceAccountKeyOpt)
