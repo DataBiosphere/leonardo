@@ -96,7 +96,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       stop(self)
 
     case Failure(e) =>
-      // An error occurred, let the supervisorL handle it
+      // An error occurred, let the supervisor handle it
       logger.error(s"Error occurred monitoring cluster ${cluster.projectNameString}", e)
       throw e
   }

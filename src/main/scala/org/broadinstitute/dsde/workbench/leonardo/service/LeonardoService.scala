@@ -67,7 +67,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val clusterMonitorSupervisor: ActorRef,
                       protected val authProvider: LeoAuthProvider,
                       protected val serviceAccountProvider: ServiceAccountProvider,
-                      protected val leoServiceAccountEmail: WorkbenchEmail,
                       protected val whitelist: Set[String])
                      (implicit val executionContext: ExecutionContext) extends LazyLogging {
 
@@ -336,7 +335,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   private[service] def initializeBucketAcls(googleProject: GoogleProject, initBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[Unit] = {
     val transformed = for {
-      leoSa <- OptionT.pure[Future, WorkbenchEmail](leoServiceAccountEmail)
+      leoSa <- OptionT.pure[Future, WorkbenchEmail](serviceAccountProvider.getLeoServiceAccountAndKey._1)
       // The init bucket will be accessed by the cluster service account, or the compute engine default service account
       clusterSa <- OptionT.fromOption[Future](serviceAccountInfo.clusterServiceAccount).orElse(OptionT(gdDAO.getComputeEngineDefaultServiceAccount(googleProject)))
 
