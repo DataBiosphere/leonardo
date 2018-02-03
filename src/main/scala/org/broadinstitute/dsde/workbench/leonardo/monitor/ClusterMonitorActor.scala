@@ -246,10 +246,8 @@ class ClusterMonitorActor(val cluster: Cluster,
       }
     } yield result
 
-    val safeResult = result.handleGoogleException(cluster)
-
     // Recover from Google 404 errors, and assume the cluster is deleted
-    safeResult.recover {
+    result.handleGoogleException(cluster).recover {
       case CallToGoogleApiFailedException(_, _, 404, _) => DeletedCluster
     }
   }

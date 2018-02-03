@@ -274,7 +274,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Once the bucket is ready, build the cluster
       machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
       initScript = GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.initActionsScript.value))
-      cluster <- gdDAO.createCluster(googleProject, clusterName, machineConfig, initScript, serviceAccountInfo.clusterServiceAccount, serviceAccountInfo.notebookServiceAccount.map(_ => s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}")).map { operation =>
+      credentialsFileName = serviceAccountInfo.notebookServiceAccount.map(_ => s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}")
+      cluster <- gdDAO.createCluster(googleProject, clusterName, machineConfig, initScript, serviceAccountInfo.clusterServiceAccount, credentialsFileName).map { operation =>
         Cluster.create(clusterRequest, userEmail, clusterName, googleProject, operation, serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase)
       } andThen { case Failure(_) =>
         // If cluster creation fails, delete the init bucket asynchronously and return the original error
@@ -336,7 +337,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private[service] def initializeBucketAcls(googleProject: GoogleProject, initBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[Unit] = {
     val transformed = for {
       leoSa <- OptionT.pure[Future, WorkbenchEmail](serviceAccountProvider.getLeoServiceAccountAndKey._1)
-      // The init bucket will be accessed by the cluster service account, or the compute engine default service account
+      // The init bucket will be accessed by the cluster service account, or the compute engine default service account by default
       clusterSa <- OptionT.fromOption[Future](serviceAccountInfo.clusterServiceAccount).orElse(OptionT(gdDAO.getComputeEngineDefaultServiceAccount(googleProject)))
 
       // Note! the following calls should be done in sequence. Google complains if setting ACLs for the same bucket in parallel (e.g. via Future.traverse).

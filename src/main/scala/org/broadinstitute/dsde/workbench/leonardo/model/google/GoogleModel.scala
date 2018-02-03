@@ -62,7 +62,7 @@ case class FirewallRulePort(value: String) extends ValueObject
 case class FirewallRuleNetwork(value: String) extends ValueObject
 case class FirewallRule(name: FirewallRuleName, protocol: String = "tcp", ports: List[FirewallRulePort], network: FirewallRuleNetwork, targetTags: List[NetworkTag])
 
-object DataprocJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
+object GoogleJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit object UUIDFormat extends JsonFormat[UUID] {
     def write(obj: UUID) = JsString(obj.toString)
 

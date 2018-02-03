@@ -13,7 +13,7 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.ClusterStatus
-import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocJsonSupport._
+import org.broadinstitute.dsde.workbench.leonardo.model.google.GoogleJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport._
@@ -34,6 +34,7 @@ case class ServiceAccountInfo(clusterServiceAccount: Option[WorkbenchEmail],
                               notebookServiceAccount: Option[WorkbenchEmail])
 
 // The cluster itself
+// Also the API response for "list clusters", "get active cluster"
 case class Cluster(clusterName: ClusterName,
                    googleId: UUID,
                    googleProject: GoogleProject,
@@ -103,8 +104,8 @@ object Cluster {
   }
 
   // TODO it's hacky to re-parse the Leo config in the model object.
-  // It would be better for callers to pass the clusterUrlBase config value to the getClusterUrl method.
-  // The reason we don't do that is the ClusterComponent calls getClusterUrl, which is not aware of leonardo.conf.
+  // It would be better to pass the clusterUrlBase config value to the getClusterUrl method as a parameter.
+  // The reason we can't always do that is getClusterUrl is called by ClusterComponent, which is not aware of leonardo.conf.
   // A possible future solution might be to separate Cluster into an internal representation (backed by the database)
   // and an API-response representation (which may contain additional metadata/fields).
   private lazy val cachedClusterUrlBase: String = {
