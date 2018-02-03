@@ -34,7 +34,7 @@ import scala.concurrent.{ExecutionContext, Future}
 class HttpGoogleDataprocDAO(appName: String,
                             googleCredentialMode: GoogleCredentialMode,
                             override val workbenchMetricBaseName: String,
-                            defaultNetworkTag: String,
+                            defaultNetworkTag: NetworkTag,
                             defaultRegion: String)
                            (implicit override val system: ActorSystem, override val executionContext: ExecutionContext)
   extends AbstractHttpGoogleDAO(appName, googleCredentialMode, workbenchMetricBaseName) with GoogleDataprocDAO {
@@ -170,14 +170,15 @@ class HttpGoogleDataprocDAO(appName: String,
     * VMs with the network tag "leonardo". This rule should only be added once per project.
     * To think about: do we want to remove this rule if a google project no longer has any clusters? */
   private def addFirewallRule(googleProject: GoogleProject, firewallRule: FirewallRule): Future[Unit] = {
-    val allowed = new Allowed().setIPProtocol(firewallRule.protocol).setPorts(firewallRule.ports.map(_.value).asJava)
+    val allowed = new Allowed().setIPProtocol(firewallRule.protocol.value).setPorts(firewallRule.ports.map(_.value).asJava)
+    // note: network not currently used
     val googleFirewall = new Firewall()
       .setName(firewallRule.name.value)
       .setTargetTags(firewallRule.targetTags.map(_.value).asJava)
       .setAllowed(List(allowed).asJava)
-      .setNetwork(firewallRule.network.value)
 
     val request = compute.firewalls().insert(googleProject.value, googleFirewall)
+    logger.info(s"Creating firewall rule with name '${firewallRule.name.value}' in project ${googleProject.value}")
     retryWhen500orGoogleError(() => request).void
   }
 
@@ -202,7 +203,7 @@ class HttpGoogleDataprocDAO(appName: String,
     // Create a GceClusterConfig, which has the common config settings for resources of Google Compute Engine cluster instances,
     // applicable to all instances in the cluster.
     // Set the network tag, which is needed by the firewall rule that allows leo to talk to the cluster
-    val gceClusterConfig = new GceClusterConfig().setTags(List(defaultNetworkTag).asJava)
+    val gceClusterConfig = new GceClusterConfig().setTags(List(defaultNetworkTag.value).asJava)
 
     // Set the cluster service account, if present.
     // This is the service account passed to the create cluster API call.

@@ -75,6 +75,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   private lazy val firewallRule = FirewallRule(
     name = FirewallRuleName(proxyConfig.firewallRuleName),
+    protocol = FirewallRuleProtocol(proxyConfig.jupyterProtocol),
     ports = List(FirewallRulePort(proxyConfig.jupyterPort.toString)),
     network = FirewallRuleNetwork(proxyConfig.firewallVPCNetwork),
     targetTags = List(NetworkTag(proxyConfig.networkTag)))

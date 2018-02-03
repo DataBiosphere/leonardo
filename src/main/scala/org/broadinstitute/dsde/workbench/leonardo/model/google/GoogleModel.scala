@@ -60,7 +60,9 @@ case class NetworkTag(value: String) extends ValueObject
 case class FirewallRuleName(value: String) extends ValueObject
 case class FirewallRulePort(value: String) extends ValueObject
 case class FirewallRuleNetwork(value: String) extends ValueObject
-case class FirewallRule(name: FirewallRuleName, protocol: String = "tcp", ports: List[FirewallRulePort], network: FirewallRuleNetwork, targetTags: List[NetworkTag])
+case class FirewallRuleProtocol(value: String) extends ValueObject
+// note: network not currently used
+case class FirewallRule(name: FirewallRuleName, protocol: FirewallRuleProtocol, ports: List[FirewallRulePort], network: FirewallRuleNetwork, targetTags: List[NetworkTag])
 
 object GoogleJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit object UUIDFormat extends JsonFormat[UUID] {
@@ -96,6 +98,7 @@ object GoogleJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val NetworkTagFormat = ValueObjectFormat(NetworkTag)
   implicit val FirewallRuleNameFormat = ValueObjectFormat(FirewallRuleName)
   implicit val FirewallRulePortFormat = ValueObjectFormat(FirewallRulePort)
+  implicit val FirewallRuleProtocolFormat = ValueObjectFormat(FirewallRuleProtocol)
   implicit val FirewallRuleNetworkFormat = ValueObjectFormat(FirewallRuleNetwork)
   implicit val FirewallRuleFormat = jsonFormat5(FirewallRule)
 }
