@@ -105,7 +105,7 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
     // Populate the ProjectNameToHost map with all clusters
     ProjectNameToHost = clusters.map(projectNameToHostEntry).toMap
 
-    logger.debug(s"Saved ${clusters.size} clusters to DNS cache, ${clustersWithIp.size} with IPs")
+    logger.info(s"Saved ${clusters.size} clusters to DNS cache, ${clustersWithIp.size} with IPs")
   }
 
   def processReadyCluster(cluster: Cluster): Either[Throwable, GetClusterResponse] = {
@@ -115,7 +115,7 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
       ClusterDnsCache.HostToIp += hostToIpEntry(cluster)
       ProjectNameToHost += projectNameToHostEntry(cluster)
 
-      logger.debug(s"Saved new cluster ${cluster.projectNameString} to DNS cache with IP ${cluster.hostIp.get.value}")
+      logger.info(s"Saved new cluster ${cluster.projectNameString} to DNS cache with IP ${cluster.hostIp.get.value}")
       Right(ProjectNameToHost(cluster.googleProject, cluster.clusterName))
     }
   }
