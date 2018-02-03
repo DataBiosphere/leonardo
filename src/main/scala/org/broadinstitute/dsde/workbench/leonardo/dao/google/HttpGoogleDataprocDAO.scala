@@ -30,6 +30,7 @@ import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, Workbe
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Try
 
 class HttpGoogleDataprocDAO(appName: String,
                             googleCredentialMode: GoogleCredentialMode,
@@ -97,7 +98,8 @@ class HttpGoogleDataprocDAO(appName: String,
   override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] = {
     val transformed = for {
       cluster <- OptionT(getCluster(googleProject, clusterName))
-      status <- OptionT.pure[Future, ClusterStatus](ClusterStatus.withNameIgnoreCase(cluster.getStatus.getState))
+      status <- OptionT.pure[Future, ClusterStatus](
+        Try(ClusterStatus.withNameIgnoreCase(cluster.getStatus.getState)).toOption.getOrElse(ClusterStatus.Unknown))
     } yield status
 
     transformed.value.map(_.getOrElse(ClusterStatus.Deleted))
@@ -107,8 +109,8 @@ class HttpGoogleDataprocDAO(appName: String,
     val request = dataproc.projects().regions().clusters().list(googleProject.value, defaultRegion)
     // Use OptionT to handle nulls in the Google response
     val transformed = for {
-      result <- OptionT.liftF[Future, ListClustersResponse](retryWhen500orGoogleError(() => executeGoogleRequest(request)))
-      googleClusters <- OptionT.pure[Future, java.util.List[DataprocCluster]](result.getClusters)
+      result <- OptionT(retryWhen500orGoogleError(() => Option(executeGoogleRequest(request))))
+      googleClusters <- OptionT.fromOption[Future](Option(result.getClusters))
     } yield {
       googleClusters.asScala.toList.map(c => UUID.fromString(c.getClusterUuid))
     }
@@ -138,10 +140,12 @@ class HttpGoogleDataprocDAO(appName: String,
   }
 
   def getClusterStagingBucket(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[GcsBucketName]] = {
+    // If an expression might be null, need to use `OptionT.fromOption(Option(expr))`.
+    // `OptionT.pure(expr)` throws a NPE!
     val transformed = for {
       cluster <- OptionT(getCluster(googleProject, clusterName))
-      config <- OptionT.pure[Future, DataprocClusterConfig](cluster.getConfig)
-      bucket <- OptionT.pure[Future, String](config.getConfigBucket)
+      config <- OptionT.fromOption[Future](Option(cluster.getConfig))
+      bucket <- OptionT.fromOption[Future](Option(config.getConfigBucket))
     } yield GcsBucketName(bucket)
 
     transformed.value
@@ -150,8 +154,8 @@ class HttpGoogleDataprocDAO(appName: String,
   override def getClusterErrorDetails(operationName: OperationName): Future[Option[ClusterErrorDetails]] = {
     val errorOpt: OptionT[Future, ClusterErrorDetails] = for {
       operation <- OptionT(getOperation(operationName)) if operation.getDone
-      error <- OptionT.pure[Future, Status] { operation.getError }
-      code <- OptionT.pure[Future, Int] { error.getCode }
+      error <- OptionT.fromOption[Future] { Option(operation.getError) }
+      code <- OptionT.fromOption[Future] { Option(error.getCode) }
     } yield ClusterErrorDetails(code, Option(error.getMessage))
 
     errorOpt.value
