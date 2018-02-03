@@ -106,6 +106,8 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
     ProjectNameToHost = clusters.map(projectNameToHostEntry).toMap
 
     logger.info(s"Saved ${clusters.size} clusters to DNS cache, ${clustersWithIp.size} with IPs")
+    logger.info("ProjectNameToHost map = " + ProjectNameToHost)
+    logger.info("HostToIP map = " + HostToIp)
   }
 
   def processReadyCluster(cluster: Cluster): Either[Throwable, GetClusterResponse] = {
@@ -116,6 +118,8 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
       ProjectNameToHost += projectNameToHostEntry(cluster)
 
       logger.info(s"Saved new cluster ${cluster.projectNameString} to DNS cache with IP ${cluster.hostIp.get.value}")
+      logger.info("ProjectNameToHost map = " + ProjectNameToHost)
+      logger.info("HostToIP map = " + HostToIp)
       Right(ProjectNameToHost(cluster.googleProject, cluster.clusterName))
     }
   }
