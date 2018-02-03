@@ -27,6 +27,7 @@ fireCloud {
   thurloeApiUrl = "https://thurloe-fiab.dsde-{{$environment}}.broadinstitute.org:25443/"
   {{end}}
   fireCloudId = "{{$secrets.Data.firecloud_id}}"
+  tcgaAuthDomain = "TCGA-dbGaP-Authorized"
 }
 
 leonardo {
