@@ -62,7 +62,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-    clusterUrl = Cluster.getClusterUrl(clusterUrlBase, project, name1),
+    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
     operationName = OperationName("op1"),
     status = ClusterStatus.Unknown,
     hostIp = Some(IP("numbers.and.dots")),
@@ -243,7 +243,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
         clusterName = visibleClusterName,
         googleId = UUID.randomUUID(),
         googleProject = visibleClusterProject,
-        clusterUrl = Cluster.getClusterUrl(clusterUrlBase, visibleClusterProject, visibleClusterName))
+        clusterUrl = Cluster.getClusterUrl(visibleClusterProject, visibleClusterName, clusterUrlBase))
       dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), None) }
       dbFutureValue { _.clusterQuery.save(visibleCluster, gcsPath("gs://bucket1"), None) }
 

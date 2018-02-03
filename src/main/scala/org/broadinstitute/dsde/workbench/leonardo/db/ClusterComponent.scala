@@ -312,7 +312,7 @@ trait ClusterComponent extends LeoComponent {
         project,
         serviceAccountInfo,
         machineConfig,
-        Cluster.getClusterUrl("http://leonardo/", project, name),  // TODO
+        Cluster.getClusterUrl(project, name),
         OperationName(clusterRecord.operationName),
         ClusterStatus.withName(clusterRecord.status),
         clusterRecord.hostIp map IP,

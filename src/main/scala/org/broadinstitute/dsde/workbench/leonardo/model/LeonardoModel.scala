@@ -8,6 +8,8 @@ import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.model.StatusCodes
 import cats.Semigroup
 import cats.implicits._
+import com.typesafe.config.ConfigFactory
+import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.ClusterStatus
@@ -65,7 +67,7 @@ object Cluster {
         googleProject = googleProject,
         serviceAccountInfo = serviceAccountInfo,
         machineConfig = machineConfig,
-        clusterUrl = getClusterUrl(clusterUrlBase, googleProject, clusterName),
+        clusterUrl = getClusterUrl(googleProject, clusterName, clusterUrlBase),
         operationName = operation.name,
         status = ClusterStatus.Creating,
         hostIp = None,
@@ -88,7 +90,7 @@ object Cluster {
       googleProject = googleProject,
       serviceAccountInfo = serviceAccountInfo,
       machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, ClusterDefaultsConfig(0, "", 0, "", 0, 0, 0)),
-      clusterUrl = getClusterUrl("https://dummy-cluster/", googleProject, clusterName),
+      clusterUrl = getClusterUrl(googleProject, clusterName),
       operationName = OperationName("dummy-operation"),
       status = ClusterStatus.Creating,
       hostIp = None,
@@ -100,7 +102,18 @@ object Cluster {
     )
   }
 
-  def getClusterUrl(clusterUrlBase: String, googleProject: GoogleProject, clusterName: ClusterName): URL = {
+  // TODO it's hacky to re-parse the Leo config in the model object.
+  // It would be better for callers to pass the clusterUrlBase config value to the getClusterUrl method.
+  // The reason we don't do that is the ClusterComponent calls getClusterUrl, which is not aware of leonardo.conf.
+  // A possible future solution might be to separate Cluster into an internal representation (backed by the database)
+  // and an API-response representation (which may contain additional metadata/fields).
+  private lazy val cachedClusterUrlBase: String = {
+    val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
+    val dataprocConfig = config.as[DataprocConfig]("dataproc")
+    dataprocConfig.clusterUrlBase
+  }
+
+  def getClusterUrl(googleProject: GoogleProject, clusterName: ClusterName, clusterUrlBase: String = cachedClusterUrlBase): URL = {
     new URL(clusterUrlBase + googleProject.value + "/" + clusterName.value)
   }
 }
