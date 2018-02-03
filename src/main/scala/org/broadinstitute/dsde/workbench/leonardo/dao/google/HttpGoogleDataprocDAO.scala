@@ -100,7 +100,7 @@ class HttpGoogleDataprocDAO(appName: String,
       status <- OptionT.pure[Future, ClusterStatus](ClusterStatus.withNameIgnoreCase(cluster.getStatus.getState))
     } yield status
 
-    transformed.value.map(_.getOrElse(ClusterStatus.Unknown))
+    transformed.value.map(_.getOrElse(ClusterStatus.Deleted))
   }
 
   override def listClusters(googleProject: GoogleProject): Future[List[UUID]] = {
