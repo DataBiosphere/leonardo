@@ -159,10 +159,10 @@ class HttpGoogleDataprocDAO(appName: String,
 
   override def updateFirewallRule(googleProject: GoogleProject, firewallRule: FirewallRule): Future[Unit] = {
     val request = compute.firewalls().get(googleProject.value, firewallRule.name.value)
-    retryWhen500orGoogleError(() => request).void.recoverWith {
+    retryWhen500orGoogleError(() => request).recoverWith {
       case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue =>
         addFirewallRule(googleProject, firewallRule)
-    }
+    }.void
   }
 
   /**
