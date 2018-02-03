@@ -121,7 +121,6 @@ class ProxyService(proxyConfig: ProxyConfig,
         }
         responseFuture recover { case e =>
           logger.error("Error occurred in Jupyter proxy", e)
-          e.printStackTrace()
           throw ProxyException(googleProject, clusterName)
         }
       case ClusterNotReady =>
