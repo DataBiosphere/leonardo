@@ -9,10 +9,10 @@ object Dependencies {
   val scalaTestV    = "3.0.1"
   val slickV        = "3.2.1"
 
-  val workbenchUtilV    = "0.3-e5ed156-SNAP"
-  val workbenchModelV   = "0.10-e5ed156-SNAP"
-  val workbenchGoogleV  = "0.15-e5ed156-SNAP"
-  val workbenchMetricsV = "0.3-e5ed156-SNAP"
+  val workbenchUtilV    = "0.3-0e84fbe-SNAP"
+  val workbenchModelV   = "0.10-0e84fbe-SNAP"
+  val workbenchGoogleV  = "0.15-0e84fbe-SNAP"
+  val workbenchMetricsV = "0.3-0e84fbe-SNAP"
 
   val samV =  "1.0-5cdffb4"
 

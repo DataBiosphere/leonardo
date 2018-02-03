@@ -6,9 +6,8 @@ import java.util.UUID
 import scala.language.implicitConversions
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
-import org.broadinstitute.dsde.workbench.google.gcs.GcsPath
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.google._
 
 sealed trait StringValueClass extends Any
 case class ClusterName(string: String) extends AnyVal with StringValueClass
