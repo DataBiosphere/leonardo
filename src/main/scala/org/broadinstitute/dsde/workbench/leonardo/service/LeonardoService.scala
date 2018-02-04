@@ -317,9 +317,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         if (gcsPath.toUri.length > bucketPathMaxLength) {
           throw JupyterExtensionException(gcsPath)
         }
-        googleStorageDAO.getObject(gcsPath.bucketName, gcsPath.objectName).map {
-          case Some(_) => ()
-          case None => throw JupyterExtensionException(gcsPath)
+        googleStorageDAO.objectExists(gcsPath.bucketName, gcsPath.objectName).map {
+          case true => ()
+          case false => throw JupyterExtensionException(gcsPath)
         }
     }
   }
