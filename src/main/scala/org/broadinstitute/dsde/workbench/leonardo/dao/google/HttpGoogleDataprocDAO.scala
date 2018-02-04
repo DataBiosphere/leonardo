@@ -9,6 +9,7 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.data.OptionT
 import cats.implicits._
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
 import com.google.api.client.json.jackson2.JacksonFactory
 import com.google.api.services.bigquery.BigqueryScopes
@@ -90,8 +91,8 @@ class HttpGoogleDataprocDAO(appName: String,
       ()
     } {
       case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => ()
-      case e: HttpResponseException if e.getStatusCode == StatusCodes.BadRequest &&
-        e.getMessage.contains("it has other pending delete operations against it") => ()
+      case e: GoogleJsonResponseException if e.getStatusCode == StatusCodes.BadRequest &&
+        e.getDetails.getMessage.contains("it has other pending delete operations against it") => ()
     }
   }
 
