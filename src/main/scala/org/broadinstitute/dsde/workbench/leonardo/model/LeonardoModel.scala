@@ -227,6 +227,16 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     }
   }
 
+  // Overrides the one from workbench-libs to serialize/deserialize as a URI
+  implicit object GcsPathFormat extends JsonFormat[GcsPath] {
+    def write(obj: GcsPath) = JsString(obj.toUri)
+
+    def read(json: JsValue): GcsPath = json match {
+      case JsString(uri) => parseGcsPath(uri).getOrElse(throw DeserializationException(s"Could not parse bucket URI from: $uri"))
+      case other => throw DeserializationException(s"Expected bucket URI, got: $other")
+    }
+  }
+
   implicit val ClusterRequestFormat = jsonFormat3(ClusterRequest)
 
   implicit val ClusterResourceFormat = ValueObjectFormat(ClusterResource)

@@ -61,7 +61,6 @@ case class FirewallRuleName(value: String) extends ValueObject
 case class FirewallRulePort(value: String) extends ValueObject
 case class FirewallRuleNetwork(value: String) extends ValueObject
 case class FirewallRuleProtocol(value: String) extends ValueObject
-// note: network not currently used
 case class FirewallRule(name: FirewallRuleName, protocol: FirewallRuleProtocol, ports: List[FirewallRulePort], network: FirewallRuleNetwork, targetTags: List[NetworkTag])
 
 object GoogleJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {

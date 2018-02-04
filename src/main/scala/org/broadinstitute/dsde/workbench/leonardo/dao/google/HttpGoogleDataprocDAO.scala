@@ -109,7 +109,7 @@ class HttpGoogleDataprocDAO(appName: String,
     val request = dataproc.projects().regions().clusters().list(googleProject.value, defaultRegion)
     // Use OptionT to handle nulls in the Google response
     val transformed = for {
-      result <- OptionT(retryWhen500orGoogleError(() => Option(executeGoogleRequest(request))))
+      result <- OptionT.liftF(retryWhen500orGoogleError(() => executeGoogleRequest(request)))
       googleClusters <- OptionT.fromOption[Future](Option(result.getClusters))
     } yield {
       googleClusters.asScala.toList.map(c => UUID.fromString(c.getClusterUuid))
@@ -163,7 +163,7 @@ class HttpGoogleDataprocDAO(appName: String,
 
   override def updateFirewallRule(googleProject: GoogleProject, firewallRule: FirewallRule): Future[Unit] = {
     val request = compute.firewalls().get(googleProject.value, firewallRule.name.value)
-    retryWhen500orGoogleError(() => request).recoverWith {
+    retryWhen500orGoogleError(() => executeGoogleRequest(request)).recoverWith {
       case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue =>
         addFirewallRule(googleProject, firewallRule)
     }.void
@@ -175,15 +175,15 @@ class HttpGoogleDataprocDAO(appName: String,
     * To think about: do we want to remove this rule if a google project no longer has any clusters? */
   private def addFirewallRule(googleProject: GoogleProject, firewallRule: FirewallRule): Future[Unit] = {
     val allowed = new Allowed().setIPProtocol(firewallRule.protocol.value).setPorts(firewallRule.ports.map(_.value).asJava)
-    // note: network not currently used
     val googleFirewall = new Firewall()
       .setName(firewallRule.name.value)
+      .setNetwork(firewallRule.network.value)
       .setTargetTags(firewallRule.targetTags.map(_.value).asJava)
       .setAllowed(List(allowed).asJava)
 
     val request = compute.firewalls().insert(googleProject.value, googleFirewall)
     logger.info(s"Creating firewall rule with name '${firewallRule.name.value}' in project ${googleProject.value}")
-    retryWhen500orGoogleError(() => request).void
+    retryWhen500orGoogleError(() => executeGoogleRequest(request)).void
   }
 
   override def getUserInfoAndExpirationFromAccessToken(accessToken: String): Future[(UserInfo, Instant)] = {
