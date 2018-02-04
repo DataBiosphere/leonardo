@@ -163,10 +163,12 @@ class HttpGoogleDataprocDAO(appName: String,
 
   override def updateFirewallRule(googleProject: GoogleProject, firewallRule: FirewallRule): Future[Unit] = {
     val request = compute.firewalls().get(googleProject.value, firewallRule.name.value)
-    retryWhen500orGoogleError(() => executeGoogleRequest(request)).recoverWith {
-      case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue =>
-        addFirewallRule(googleProject, firewallRule)
-    }.void
+    retryWithRecoverWhen500orGoogleError { () =>
+      executeGoogleRequest(request)
+      Future.successful(())
+    } {
+      case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => addFirewallRule(googleProject, firewallRule)
+    } flatten
   }
 
   /**
@@ -175,9 +177,9 @@ class HttpGoogleDataprocDAO(appName: String,
     * To think about: do we want to remove this rule if a google project no longer has any clusters? */
   private def addFirewallRule(googleProject: GoogleProject, firewallRule: FirewallRule): Future[Unit] = {
     val allowed = new Allowed().setIPProtocol(firewallRule.protocol.value).setPorts(firewallRule.ports.map(_.value).asJava)
+    // note: network not used
     val googleFirewall = new Firewall()
       .setName(firewallRule.name.value)
-      .setNetwork(firewallRule.network.value)
       .setTargetTags(firewallRule.targetTags.map(_.value).asJava)
       .setAllowed(List(allowed).asJava)
 
@@ -404,9 +406,9 @@ class HttpGoogleDataprocDAO(appName: String,
 
   private def getProjectNumber(googleProject: GoogleProject): Future[Option[Long]] = {
     val request = cloudResourceManager.projects().get(googleProject.value)
-    retryWhen500orGoogleError(() => executeGoogleRequest(request)).map { project =>
-      Option(project.getProjectId).map(_.toLong)
-    } recover{
+    retryWithRecoverWhen500orGoogleError { () =>
+      Option(executeGoogleRequest(request).getProjectNumber).map(_.toLong)
+    } {
       case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => None
     }
   }
