@@ -5,12 +5,12 @@ import java.sql.Timestamp
 import java.util.UUID
 
 import cats.implicits._
-import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath}
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus.ClusterStatus
-import org.broadinstitute.dsde.workbench.leonardo.model.StringValueClass.LabelMap
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.ClusterStatus
+import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKeyId}
+import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKeyId, GcsPath, GcsPathSupport, parseGcsPath}
 
 case class ClusterRecord(id: Long,
                          clusterName: String,
@@ -133,7 +133,7 @@ trait ClusterComponent extends LeoComponent {
     }
 
     def findByName(project: GoogleProject, name: ClusterName) = {
-      clusterQueryWithLabels.filter { _._1.googleProject === project.value }.filter { _._1.clusterName === name.string }
+      clusterQueryWithLabels.filter { _._1.googleProject === project.value }.filter { _._1.clusterName === name.value }
     }
 
     def getClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
@@ -145,7 +145,7 @@ trait ClusterComponent extends LeoComponent {
     def getActiveClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
       clusterQueryWithLabels
         .filter { _._1.googleProject === project.value }
-        .filter { _._1.clusterName === name.string }
+        .filter { _._1.clusterName === name.value }
         .filter{_._1.destroyedDate === Timestamp.from(dummyDate)}
         .result map { recs =>
           unmarshalClustersWithLabels(recs).headOption
@@ -155,7 +155,7 @@ trait ClusterComponent extends LeoComponent {
     def getDeletingClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
       clusterQueryWithLabels
         .filter { _._1.googleProject === project.value }
-        .filter { _._1.clusterName === name.string }
+        .filter { _._1.clusterName === name.value }
         .filter{_._1.status === ClusterStatus.Deleting.toString}
         .result map { recs =>
         unmarshalClustersWithLabels(recs).headOption
@@ -171,17 +171,17 @@ trait ClusterComponent extends LeoComponent {
     def getInitBucket(project: GoogleProject, name: ClusterName): DBIO[Option[GcsPath]] = {
       clusterQuery
         .filter { _.googleProject === project.value }
-        .filter { _.clusterName === name.string }
+        .filter { _.clusterName === name.value }
         .map(_.initBucket)
         .result map { recs =>
-        recs.headOption.flatMap(GcsPath.parse(_).toOption)
+        recs.headOption.flatMap(head => parseGcsPath(head).toOption)
       }
     }
 
     def getServiceAccountKeyId(project: GoogleProject, name: ClusterName): DBIO[Option[ServiceAccountKeyId]] = {
       clusterQuery
         .filter { _.googleProject === project.value }
-        .filter { _.clusterName === name.string }
+        .filter { _.clusterName === name.value }
         .map(_.serviceAccountKeyId)
         .result
         .map { recs => recs.headOption.flatten.map(ServiceAccountKeyId(_)) }
@@ -200,7 +200,7 @@ trait ClusterComponent extends LeoComponent {
     def setToRunning(googleId: UUID, hostIp: IP): DBIO[Int] = {
       clusterQuery.filter { _.googleId === googleId }
         .map(c => (c.status, c.hostIp))
-        .update((ClusterStatus.Running.toString, Option(hostIp.string)))
+        .update((ClusterStatus.Running.toString, Option(hostIp.value)))
     }
 
     def updateClusterStatus(googleId: UUID, newStatus: ClusterStatus): DBIO[Int] = {
@@ -250,12 +250,12 @@ trait ClusterComponent extends LeoComponent {
     private def marshalCluster(cluster: Cluster, initBucket: String, serviceAccountKeyId: Option[ServiceAccountKeyId]): ClusterRecord = {
       ClusterRecord(
         id = 0,    // DB AutoInc
-        cluster.clusterName.string,
+        cluster.clusterName.value,
         cluster.googleId,
         cluster.googleProject.value,
-        cluster.operationName.string,
+        cluster.operationName.value,
         cluster.status.toString,
-        cluster.hostIp map(_.string),
+        cluster.hostIp map(_.value),
         cluster.creator.value,
         Timestamp.from(cluster.createdDate),
         Timestamp.from(cluster.destroyedDate.getOrElse(dummyDate)),
@@ -320,7 +320,7 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.createdDate.toInstant,
         getDestroyedDate(clusterRecord.destroyedDate),
         labels,
-        clusterRecord.jupyterExtensionUri flatMap { GcsPath.parse(_).toOption }
+        clusterRecord.jupyterExtensionUri flatMap { parseGcsPath(_).toOption }
       )
     }
 

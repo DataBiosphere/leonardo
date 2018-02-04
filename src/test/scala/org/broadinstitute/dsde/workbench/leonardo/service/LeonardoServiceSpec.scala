@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
+import java.io.ByteArrayInputStream
 import java.time.Instant
 import java.util.UUID
 
@@ -8,27 +9,29 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.testkit.TestKit
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
-import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
-import org.broadinstitute.dsde.workbench.leonardo.VCMockitoMatchers
+import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetsPerProjectServiceAccountProvider, WhitelistAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, MockGoogleDataprocDAO, MockSamDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleExceptionSupport.CallToGoogleApiFailedException
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
+import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{NegativeIntegerArgumentInClusterRequestException, OneWorkerSpecifiedInClusterRequestException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
 import org.broadinstitute.dsde.workbench.model._
-import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData}
+import org.broadinstitute.dsde.workbench.model.google._
 import org.mockito.Mockito.{never, verify}
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import spray.json._
 import org.mockito.Mockito._
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
+
 import scala.concurrent.{ExecutionContext, Future}
 
-class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures with OptionValues with VCMockitoMatchers {
+class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures with OptionValues {
   private val configFactory = ConfigFactory.load()
   private val whitelist = configFactory.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
   private val dataprocConfig = configFactory.as[DataprocConfig]("dataproc")
@@ -42,28 +45,32 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   private val petServiceAccount = WorkbenchEmail("petSA@test-domain.iam.gserviceaccount.com")
   private val clusterName = ClusterName("test-cluster")
   private val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
-  private lazy val testClusterRequest = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(gdDAO.extensionPath))
+  private val jupyterExtensionPath = GcsPath(GcsBucketName("extension_bucket"), GcsObjectName("extension_path"))
+  private lazy val testClusterRequest = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(jupyterExtensionPath))
   private lazy val singleNodeDefaultMachineConfig = MachineConfig(Some(clusterDefaultsConfig.numberOfWorkers), Some(clusterDefaultsConfig.masterMachineType), Some(clusterDefaultsConfig.masterDiskSize))
   private val serviceAccountKey = ServiceAccountKey(ServiceAccountKeyId("123"), ServiceAccountPrivateKeyData("abcdefg"), Some(Instant.now), Some(Instant.now.plusSeconds(300)))
 
   private var gdDAO: MockGoogleDataprocDAO = _
   private var iamDAO: MockGoogleIamDAO = _
+  private var storageDAO: MockGoogleStorageDAO = _
   private var samDAO: MockSamDAO = _
   private var leo: LeonardoService = _
   private var authProvider: LeoAuthProvider = _
   private var serviceAccountProvider: ServiceAccountProvider = _
 
   before {
-    gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
+    gdDAO = new MockGoogleDataprocDAO
     iamDAO = new MockGoogleIamDAO
-    samDAO = new MockSamDAO
+    storageDAO = new MockGoogleStorageDAO
+    storageDAO.buckets += jupyterExtensionPath.bucketName -> Set((jupyterExtensionPath.objectName, new ByteArrayInputStream("foo".getBytes())))
 
+    samDAO = new MockSamDAO
     // TODO look into parameterized tests so both provider impls can both be tested
     //serviceAccountProvider = new MockPetServiceAccountProvider(configFactory.getConfig("serviceAccounts.config"))
     serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(configFactory.getConfig("serviceAccounts.config"))
     authProvider = new WhitelistAuthProvider(configFactory.getConfig("auth.whitelistProviderConfig"),serviceAccountProvider)
 
-    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist)
+    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist)
   }
 
   override def afterAll(): Unit = {
@@ -72,17 +79,17 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   lazy val initFiles = List(
-    clusterResourcesConfig.clusterDockerCompose.string,
-    clusterResourcesConfig.initActionsScript.string,
+    clusterResourcesConfig.clusterDockerCompose.value,
+    clusterResourcesConfig.initActionsScript.value,
     clusterFilesConfig.jupyterServerCrt.getName,
     clusterFilesConfig.jupyterServerKey.getName,
     clusterFilesConfig.jupyterRootCaPem.getName,
-    clusterResourcesConfig.jupyterProxySiteConf.string,
-    clusterResourcesConfig.jupyterCustomJs.string,
-    clusterResourcesConfig.jupyterGoogleSignInJs.string
+    clusterResourcesConfig.jupyterProxySiteConf.value,
+    clusterResourcesConfig.jupyterCustomJs.value,
+    clusterResourcesConfig.jupyterGoogleSignInJs.value
   ) ++ (
     notebookServiceAccount(googleProject).map(_ => List(ClusterInitValues.serviceAccountCredentialsFilename)).getOrElse(List.empty)
-  ) map GcsRelativePath
+  ) map(name => GcsObjectName(name))
 
   private def clusterServiceAccount(googleProject: GoogleProject): Option[WorkbenchEmail] = {
     serviceAccountProvider.getClusterServiceAccount(defaultUserInfo, googleProject).futureValue
@@ -104,16 +111,19 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig
 
     // check the firewall rule was created for the project
-    gdDAO.firewallRules should contain (googleProject, proxyConfig.firewallRuleName)
+    gdDAO.firewallRules should contain key (googleProject)
+    gdDAO.firewallRules(googleProject).name.value shouldBe proxyConfig.firewallRuleName
 
-    val bucketArray = gdDAO.buckets.filter(bucket => bucket.name.startsWith(clusterName.string))
+    val bucketArray = storageDAO.buckets.keys.filter(_.value.startsWith(clusterName.value))
 
     // check the bucket was created for the cluster
     bucketArray.size shouldEqual 1
 
+    val bucketObjects = storageDAO.buckets(bucketArray.head).map(_._1).map(objName => GcsPath(bucketArray.head, objName))
+
     // check the init files were added to the bucket
-    initFiles.foreach(initFile => gdDAO.bucketObjects should contain (GcsPath(bucketArray.head, initFile)))
-    gdDAO.bucketObjects should contain theSameElementsAs (initFiles.map(GcsPath(bucketArray.head, _)))
+    initFiles.foreach(initFile => bucketObjects should contain (GcsPath(bucketArray.head, initFile)))
+    bucketObjects should contain theSameElementsAs (initFiles.map(GcsPath(bucketArray.head, _)))
     // a service account key should only have been created if using a notebook service account
     if (notebookServiceAccount(googleProject).isDefined) {
       iamDAO.serviceAccountKeys should contain key(samDAO.serviceAccount)
@@ -259,7 +269,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   it should "delete a cluster" in isolatedDbTest {
     // need a specialized LeonardoService for this test, so we can spy on its authProvider
     val spyProvider: LeoAuthProvider = spy(authProvider)
-    val leoForTest = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), spyProvider, serviceAccountProvider, whitelist)
+    val leoForTest = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), spyProvider, serviceAccountProvider, whitelist)
 
     // check that the cluster does not exist
     gdDAO.clusters should not contain key (clusterName)
@@ -288,7 +298,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     dbFutureValue { _.clusterQuery.getClusterByName(googleProject, clusterName) }.map(_.status) shouldBe Some(ClusterStatus.Deleting)
 
     // the auth provider should have not yet been notified of deletion
-    verify(spyProvider, never).notifyClusterDeleted(mockitoEq(defaultUserInfo.userEmail), mockitoEq(defaultUserInfo.userEmail), mockitoEq(googleProject), vcEq(clusterName))(any[ExecutionContext])
+    verify(spyProvider, never).notifyClusterDeleted(mockitoEq(defaultUserInfo.userEmail), mockitoEq(defaultUserInfo.userEmail), mockitoEq(googleProject), mockitoEq(clusterName))(any[ExecutionContext])
   }
 
   it should "delete a cluster that has status Error" in isolatedDbTest {
@@ -316,36 +326,40 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "initialize bucket with correct files" in isolatedDbTest {
     // Our bucket should not exist
-    gdDAO.buckets should not contain (initBucketPath)
+    storageDAO.buckets should not contain (initBucketPath)
 
     // create the bucket and add files
     leo.initializeBucket(defaultUserInfo.userEmail, googleProject, clusterName, initBucketPath, testClusterRequest, ServiceAccountInfo(None, Some(petServiceAccount)), Some(serviceAccountKey)).futureValue
 
     // our bucket should now exist
-    gdDAO.buckets should contain (initBucketPath)
+    storageDAO.buckets should contain key (initBucketPath)
+
+    val bucketObjects = storageDAO.buckets(initBucketPath).map(_._1).map(objName => GcsPath(initBucketPath, objName))
 
     // check the init files were added to the bucket
-    initFiles.map(initFile => gdDAO.bucketObjects should contain (GcsPath(initBucketPath, initFile)))
+    initFiles.map(initFile => bucketObjects should contain (GcsPath(initBucketPath, initFile)))
 
     // check that the service account key was added to the bucket
-    gdDAO.bucketObjects should contain (GcsPath(initBucketPath, GcsRelativePath(ClusterInitValues.serviceAccountCredentialsFilename)))
+    bucketObjects should contain (GcsPath(initBucketPath, GcsObjectName(ClusterInitValues.serviceAccountCredentialsFilename)))
   }
 
   it should "add bucket objects" in isolatedDbTest {
     // since we're only testing adding the objects, we're directly creating the bucket in the mock DAO
-    gdDAO.buckets += initBucketPath
+    storageDAO.buckets += initBucketPath -> Set.empty
 
     // add all the bucket objects
     leo.initializeBucketObjects(defaultUserInfo.userEmail, googleProject, clusterName, initBucketPath, testClusterRequest, Some(serviceAccountKey)).futureValue
 
     // check that the bucket exists
-    gdDAO.buckets should contain (initBucketPath)
+    storageDAO.buckets should contain key (initBucketPath)
+
+    val bucketObjects = storageDAO.buckets(initBucketPath).map(_._1).map(objName => GcsPath(initBucketPath, objName))
 
     // check the init files were added to the bucket
-    initFiles.map(initFile => gdDAO.bucketObjects should contain (GcsPath(initBucketPath, initFile)))
+    initFiles.map(initFile => bucketObjects should contain (GcsPath(initBucketPath, initFile)))
 
     // check that the service account key was added to the bucket
-    gdDAO.bucketObjects should contain (GcsPath(initBucketPath, GcsRelativePath(ClusterInitValues.serviceAccountCredentialsFilename)))
+    bucketObjects should contain (GcsPath(initBucketPath, GcsObjectName(ClusterInitValues.serviceAccountCredentialsFilename)))
   }
 
   it should "create a firewall rule in a project only once when the first cluster is added" in isolatedDbTest {
@@ -378,11 +392,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val expected =
       s"""|#!/usr/bin/env bash
           |
-          |"${clusterName.string}"
+          |"${clusterName.value}"
           |"${googleProject.value}"
           |"${proxyConfig.jupyterProxyDockerImage}"
-          |"${gdDAO.extensionPath.toUri}"
-          |"${GcsPath(initBucketPath, GcsRelativePath(ClusterInitValues.serviceAccountCredentialsFilename)).toUri}"""".stripMargin
+          |"${jupyterExtensionPath.toUri}"
+          |"${GcsPath(initBucketPath, GcsObjectName(ClusterInitValues.serviceAccountCredentialsFilename)).toUri}"""".stripMargin
 
     result shouldEqual expected
   }
@@ -402,7 +416,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "throw a JupyterExtensionException when the extensionUri is too long" in isolatedDbTest {
-    val jupyterExtensionUri = GcsPath(GcsBucketName("bucket"), GcsRelativePath(Stream.continually('a').take(1025).mkString))
+    val jupyterExtensionUri = GcsPath(GcsBucketName("bucket"), GcsObjectName(Stream.continually('a').take(1025).mkString))
 
     // create the cluster
     val response = leo.createCluster(defaultUserInfo, googleProject, clusterName, testClusterRequest.copy(jupyterExtensionUri = Some(jupyterExtensionUri))).failed.futureValue
@@ -411,7 +425,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "throw a JupyterExtensionException when the jupyterExtensionUri does not point to a GCS object" in isolatedDbTest {
-    val jupyterExtensionUri = GcsPath.parse("gs://bogus/object.tar.gz").right.get
+    val jupyterExtensionUri = parseGcsPath("gs://bogus/object.tar.gz").right.get
 
     // create the cluster
     val response = leo.createCluster(defaultUserInfo, googleProject, clusterName, testClusterRequest.copy(jupyterExtensionUri = Some(jupyterExtensionUri))).failed.futureValue
@@ -522,7 +536,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
 
     // make a new LeoService
-    val newLeo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), newAuthProvider, serviceAccountProvider, whitelist)
+    val newLeo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), newAuthProvider, serviceAccountProvider, whitelist)
 
     // list clusters should only return cluster1
     newLeo.listClusters(defaultUserInfo, Map.empty).futureValue shouldBe Seq(cluster1)
@@ -532,12 +546,13 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // create the cluster
     val clusterCreateResponse = leo.createCluster(defaultUserInfo, googleProject, gdDAO.badClusterName, testClusterRequest).failed.futureValue
 
-    clusterCreateResponse shouldBe a [CallToGoogleApiFailedException]
+    clusterCreateResponse shouldBe a [Exception] // thrown by MockGoogleDataprocDAO
 
     // check the firewall rule was created for the project
-    gdDAO.firewallRules should contain (googleProject, proxyConfig.firewallRuleName)
+    gdDAO.firewallRules should contain key (googleProject)
+    gdDAO.firewallRules(googleProject).name.value shouldBe proxyConfig.firewallRuleName
 
-    gdDAO.buckets shouldBe 'empty
+    (storageDAO.buckets - jupyterExtensionPath.bucketName) shouldBe 'empty
   }
 
   it should "tell you if you're whitelisted" in isolatedDbTest {
