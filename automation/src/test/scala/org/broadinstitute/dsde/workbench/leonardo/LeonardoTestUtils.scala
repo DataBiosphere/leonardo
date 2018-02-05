@@ -12,13 +12,15 @@ import org.broadinstitute.dsde.workbench.service.APIException
 import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, google}
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject, ServiceAccountName, generateUniqueBucketName}
 import org.broadinstitute.dsde.workbench.util.LocalFileUtil
 import org.openqa.selenium.WebDriver
 import org.scalatest.{Matchers, Suite}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Minutes, Seconds, Span}
+import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
+import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 
 import scala.util.{Random, Try}
 import scala.util.control.NonFatal
@@ -40,7 +42,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   val clusterPatience = PatienceConfig(timeout = scaled(Span(15, Minutes)), interval = scaled(Span(20, Seconds)))
   val localizePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
   val saPatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
-  val storagePatience = PatienceConfig(timeout = scaled(Span(10, Seconds)), interval = scaled(Span(1, Seconds)))
+  val storagePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
 
   // TODO: show diffs as screenshot or other test output?
   def compareFilesExcludingIPs(left: File, right: File): Unit = {
@@ -109,8 +111,9 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     cluster.googleProject shouldBe expectedProject
     cluster.clusterName shouldBe expectedName
     cluster.stagingBucket shouldBe 'defined
-    //TODO: Add code to check the bucket against google. This will be done after the updated StageDAO is available
-    //googleStorageDAO.checkBucketExists(cluster.stagingBucket.name).futureValue shouldBe true
+
+    implicit val patienceConfig: PatienceConfig = storagePatience
+    googleStorageDAO.bucketExists(google.GcsBucketName(cluster.stagingBucket.get.name)).futureValue shouldBe true
     labelCheck(cluster.labels, requestedLabels, expectedName, expectedProject, cluster.creator, notebookExtension)
     cluster
   }
