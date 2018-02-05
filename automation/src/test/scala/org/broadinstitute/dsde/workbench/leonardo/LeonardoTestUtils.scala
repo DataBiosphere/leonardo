@@ -274,11 +274,11 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     testResult.get
   }
 
-  def withNewGoogleBucket[T](googleProject: GoogleProject)(testCode: GcsBucketName => T): T = {
+  def withNewGoogleBucket[T](googleProject: GoogleProject, bucketName: GcsBucketName = generateUniqueBucketName("leo-auto"))(testCode: GcsBucketName => T): T = {
     implicit val patienceConfig: PatienceConfig = storagePatience
 
     // Create google bucket and run test code
-    val bucketName = googleStorageDAO.createBucket(googleProject, generateUniqueBucketName("leo-auto")).futureValue
+    googleStorageDAO.createBucket(googleProject, bucketName).futureValue
     val testResult: Try[T] = Try {
       testCode(bucketName)
     }
