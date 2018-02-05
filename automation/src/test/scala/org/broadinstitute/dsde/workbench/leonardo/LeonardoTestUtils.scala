@@ -19,8 +19,6 @@ import org.openqa.selenium.WebDriver
 import org.scalatest.{Matchers, Suite}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Minutes, Seconds, Span}
-import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
-import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 
 import scala.util.{Random, Try}
 import scala.util.control.NonFatal
@@ -113,7 +111,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     cluster.stagingBucket shouldBe 'defined
 
     implicit val patienceConfig: PatienceConfig = storagePatience
-    googleStorageDAO.bucketExists(google.GcsBucketName(cluster.stagingBucket.get.value)).futureValue shouldBe true
+    googleStorageDAO.bucketExists(GcsBucketName(cluster.stagingBucket.get.value)).futureValue shouldBe true
     labelCheck(cluster.labels, requestedLabels, expectedName, expectedProject, cluster.creator, notebookExtension)
     cluster
   }
