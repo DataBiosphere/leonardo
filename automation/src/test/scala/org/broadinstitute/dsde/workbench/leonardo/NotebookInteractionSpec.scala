@@ -6,7 +6,8 @@ import java.time.Instant
 import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsRoles, GoogleProject}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 
 class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with BeforeAndAfterAll {
@@ -147,19 +148,23 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
 
     // requires a new cluster because we want to pass in a user script in the cluster request
     "should allow user to create a cluster with a script" in withWebDriver { implicit driver =>
-      billingProject = createNewBillingProject()
       Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
       val userScriptString = "#!/usr/bin/env bash\n\npip install arrow"
 
-      withNewGoogleBucket(billingProject, GcsBucketName("bucket-name")) { bucket =>
+      withNewGoogleBucket(billingProject, GcsBucketName("bucket-name")) { bucketName =>
         val userScriptFile = new File(downloadDir, s"import-hail-${Instant.now().toString}.ipynb")
-        uploadFileToGoogleBucket(bucket, "user-script.sh", userScriptString)
+        uploadFileToGoogleBucket(bucketName, "user-script.sh", userScriptString)
         val uploadFileName = "gs://bucket/user-script.sh"
+        setBucketAccessControl(bucketName, WorkbenchEmail(ronEmail), GcsRoles.Reader)
 
-        withNewCluster(billingProject, ClusterName("namething"), ClusterRequest(Map(), None, Option(uri))) { cluster =>
-
+        withNewCluster(billingProject, ClusterName("namething"), ClusterRequest(Map(), None, Option(uploadFileName))) { cluster =>
           withNewNotebook(cluster) { notebookPage =>
+            val query = """import arrow"""
+//            val expectedResult = """[{"scullion_count":"2"}]""".stripMargin
 
+            val result = notebookPage.executeCell(query).get
+            result should include("Current status: DONE")
+//            result should include(expectedResult)
           }
         }
       }

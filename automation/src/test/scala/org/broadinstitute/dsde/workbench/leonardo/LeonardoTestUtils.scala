@@ -13,7 +13,8 @@ import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, google}
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsObjectName, GcsPath, GoogleProject, ServiceAccountName, generateUniqueBucketName}
+import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsEntityTypes, GcsObjectName, GcsPath, GoogleProject, ServiceAccountName, generateUniqueBucketName}
 import org.broadinstitute.dsde.workbench.util.LocalFileUtil
 import org.openqa.selenium.WebDriver
 import org.scalatest.{Matchers, Suite}
@@ -298,6 +299,10 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   def uploadFileToGoogleBucket(bucketName: GcsBucketName, fileName: String, file: String) = {
     googleStorageDAO.storeObject(bucketName, GcsObjectName(fileName), file, "media")
+  }
+
+  def setBucketAccessControl(bucketName: GcsBucketName, user: WorkbenchEmail, role: GcsRole) = {
+    googleStorageDAO.setBucketAccessControl(bucketName, GcsEntity(user, GcsEntityTypes.User), role)
   }
 
 
