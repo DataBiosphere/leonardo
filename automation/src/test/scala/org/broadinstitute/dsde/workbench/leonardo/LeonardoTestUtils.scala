@@ -113,7 +113,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     cluster.stagingBucket shouldBe 'defined
 
     implicit val patienceConfig: PatienceConfig = storagePatience
-    googleStorageDAO.bucketExists(google.GcsBucketName(cluster.stagingBucket.get.name)).futureValue shouldBe true
+    googleStorageDAO.bucketExists(google.GcsBucketName(cluster.stagingBucket.get.value)).futureValue shouldBe true
     labelCheck(cluster.labels, requestedLabels, expectedName, expectedProject, cluster.creator, notebookExtension)
     cluster
   }

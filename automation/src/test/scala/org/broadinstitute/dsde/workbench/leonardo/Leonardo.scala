@@ -65,7 +65,7 @@ object Leonardo extends RestClient with LazyLogging {
         Instant.parse(createdDate),
         destroyedDate map Instant.parse,
         labels,
-        jupyterExtensionUri map (GcsPath.parse(_).right.get),
+        jupyterExtensionUri map (parseGcsPath(_).right.get),
         Some(GcsBucketName(stagingBucket))
       )
     }
