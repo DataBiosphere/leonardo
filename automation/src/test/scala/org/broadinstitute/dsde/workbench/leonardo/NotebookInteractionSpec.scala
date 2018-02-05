@@ -6,9 +6,7 @@ import java.time.Instant
 import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.config.Config
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.scalatest.time.{Seconds, Span}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 
 class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with BeforeAndAfterAll {
@@ -147,5 +145,25 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       }
     }
 
+    // requires a new cluster because we want to pass in a user script in the cluster request
+    "should allow user to create a cluster with a script" in withWebDriver { implicit driver =>
+      billingProject = createNewBillingProject()
+      Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+      val userScriptString = "#!/usr/bin/env bash\n\npip install arrow"
+
+      withNewGoogleBucket(billingProject, GcsBucketName("bucket-name")) { bucket =>
+        val userScriptFile = new File(downloadDir, s"import-hail-${Instant.now().toString}.ipynb")
+        uploadFileToGoogleBucket(bucket, "user-script.sh", userScriptString)
+        val uploadFileName = "gs://bucket/user-script.sh"
+
+        withNewCluster(billingProject, ClusterName("namething"), ClusterRequest(Map(), None, Option(uri))) { cluster =>
+
+          withNewNotebook(cluster) { notebookPage =>
+
+          }
+        }
+      }
+
+    }
   }
 }

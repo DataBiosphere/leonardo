@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, google}
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject, ServiceAccountName, generateUniqueBucketName}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsObjectName, GcsPath, GoogleProject, ServiceAccountName, generateUniqueBucketName}
 import org.broadinstitute.dsde.workbench.util.LocalFileUtil
 import org.openqa.selenium.WebDriver
 import org.scalatest.{Matchers, Suite}
@@ -291,4 +291,14 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     // Return the test result, or throw error
     testResult.get
   }
+
+  def uploadFileToGoogleBucket(bucketName: GcsBucketName, fileName: String, file: File) = {
+    googleStorageDAO.storeObject(bucketName, GcsObjectName(fileName), file, "media")
+  }
+
+  def uploadFileToGoogleBucket(bucketName: GcsBucketName, fileName: String, file: String) = {
+    googleStorageDAO.storeObject(bucketName, GcsObjectName(fileName), file, "media")
+  }
+
+
 }

@@ -67,7 +67,8 @@ case class Cluster(clusterName: ClusterName,
                    stagingBucket:Option[GcsBucketName])
 
 case class ClusterRequest(labels: LabelMap = Map(),
-                          jupyterExtensionUri: Option[String] = None)
+                          jupyterExtensionUri: Option[String] = None,
+                          jupyterUserScriptUri: Option[String] = None)
 
 case class DefaultLabels(clusterName: ClusterName,
                          googleProject: GoogleProject,
