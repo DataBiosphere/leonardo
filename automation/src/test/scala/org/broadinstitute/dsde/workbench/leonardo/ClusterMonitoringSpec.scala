@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.broadinstitute.dsde.workbench.dao.Google.googleIamDAO
 import org.scalatest.{FreeSpec, ParallelTestExecution}
-import org.scalatest.time.{Seconds, Span}
 
 class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with ParallelTestExecution {
   "Leonardo clusters" - {

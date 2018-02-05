@@ -6,21 +6,14 @@ import java.util.UUID
 import scala.language.implicitConversions
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
-import org.broadinstitute.dsde.workbench.google.gcs.GcsPath
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 
 sealed trait StringValueClass extends Any
 case class ClusterName(string: String) extends AnyVal with StringValueClass
 case class GoogleServiceAccount(string: String) extends AnyVal with StringValueClass
 case class IP(string: String) extends AnyVal with StringValueClass
 case class OperationName(string: String) extends AnyVal with StringValueClass
-
-/** A GCS relative path */
-case class GcsRelativePath(name: String) extends AnyVal
-
-/** A valid GCS bucket name */
-case class GcsBucketName(name: String) extends AnyVal
 
 case class MachineConfig(numberOfWorkers: Option[Int] = None,
                          masterMachineType: Option[String] = None,
