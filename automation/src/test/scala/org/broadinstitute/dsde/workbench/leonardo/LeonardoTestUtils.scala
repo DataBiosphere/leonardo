@@ -301,7 +301,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     implicit val patienceConfig: PatienceConfig = storagePatience
 
     // Create google bucket and run test code
-    googleStorageDAO.storeObject(bucketName, fileName, file, null).futureValue
+    googleStorageDAO.storeObject(bucketName, fileName, file, "").futureValue
     val testResult: Try[T] = Try {
       testCode(fileName)
     }
