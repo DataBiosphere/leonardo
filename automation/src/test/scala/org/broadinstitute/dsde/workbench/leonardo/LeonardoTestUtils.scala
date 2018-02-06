@@ -27,7 +27,8 @@ import scala.util.control.NonFatal
 trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures {
   this: Suite =>
 
-  val swatTestBucket = "gs://leonardo-swat-test-bucket-do-not-delete"
+  val swatTestBucketName = "leonardo-swat-test-bucket-do-not-delete"
+  val swatTestBucket = s"gs://$swatTestBucketName"
   val incorrectJupyterExtensionUri = swatTestBucket + "/"
 
   // Ron and Hermione are on the dev Leo whitelist, and Hermione is a Project Owner

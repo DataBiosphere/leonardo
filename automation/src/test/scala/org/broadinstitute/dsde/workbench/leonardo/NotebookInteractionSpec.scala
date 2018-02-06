@@ -154,7 +154,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       val userScriptObjectName = "user-script.sh"
       val userScriptUri = s"$swatTestBucket/$userScriptObjectName"
 
-      withNewBucketObject(swatTestBucket, userScriptObjectName, userScriptString, "text/plain") { objectName =>
+      withNewBucketObject(swatTestBucketName, userScriptObjectName, userScriptString, "text/plain") { objectName =>
         withNewCluster(billingProject, clusterName, ClusterRequest(Map(), None, Option(userScriptUri))) { cluster =>
           withNewNotebook(cluster) { notebookPage =>
             notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
