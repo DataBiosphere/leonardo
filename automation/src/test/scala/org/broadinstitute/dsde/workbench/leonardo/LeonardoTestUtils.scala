@@ -293,12 +293,23 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     testResult.get
   }
 
-  def uploadFileToGoogleBucket(bucketName: GcsBucketName, fileName: String, file: File) = {
-    googleStorageDAO.storeObject(bucketName, GcsObjectName(fileName), file, "media")
-  }
+//  def uploadFileToGoogleBucket(bucketName: GcsBucketName, fileName: String, file: File) = {
+//    googleStorageDAO.storeObject(bucketName, GcsObjectName(fileName), file, "media")
+//  }
 
-  def uploadFileToGoogleBucket(bucketName: GcsBucketName, fileName: String, file: String) = {
-    googleStorageDAO.storeObject(bucketName, GcsObjectName(fileName), file, "media")
+  def uploadFileToGoogleBucket[T](bucketName: GcsBucketName, fileName: GcsObjectName, file: String)(testCode: GcsObjectName => T): T = {
+    implicit val patienceConfig: PatienceConfig = storagePatience
+
+    // Create google bucket and run test code
+    googleStorageDAO.storeObject(bucketName, fileName, file, "media").futureValue
+    val testResult: Try[T] = Try {
+      testCode(fileName)
+    }
+    // Clean up
+    googleStorageDAO.removeObject(bucketName, fileName).futureValue
+
+    // Return the test result, or throw error
+    testResult.get
   }
 
   def setBucketAccessControl(bucketName: GcsBucketName, user: WorkbenchEmail, role: GcsRole) = {

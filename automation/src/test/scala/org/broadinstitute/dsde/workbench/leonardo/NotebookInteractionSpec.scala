@@ -7,7 +7,7 @@ import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsRoles, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsRoles, GoogleProject}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 
 class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with BeforeAndAfterAll {
@@ -151,24 +151,19 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
       val userScriptString = "#!/usr/bin/env bash\n\npip install arrow"
 
-      withNewGoogleBucket(billingProject, GcsBucketName("bucket-name")) { bucketName =>
-        val userScriptFile = new File(downloadDir, s"import-hail-${Instant.now().toString}.ipynb")
-        uploadFileToGoogleBucket(bucketName, "user-script.sh", userScriptString)
+      uploadFileToGoogleBucket(GcsBucketName(swatTestBucket), GcsObjectName("user-script.sh"), userScriptString) { objectName =>
         val uploadFileName = "gs://bucket/user-script.sh"
-        setBucketAccessControl(bucketName, WorkbenchEmail(ronEmail), GcsRoles.Reader)
-
         withNewCluster(billingProject, ClusterName("namething"), ClusterRequest(Map(), None, Option(uploadFileName))) { cluster =>
           withNewNotebook(cluster) { notebookPage =>
-            val query = """import arrow"""
-//            val expectedResult = """[{"scullion_count":"2"}]""".stripMargin
-
-            val result = notebookPage.executeCell(query).get
-            result should include("Current status: DONE")
-//            result should include(expectedResult)
+//            val query = """import arrow"""
+//            val result = notebookPage.executeCell(query).get
+//            result should include("Current status: DONE")
+            notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
+            notebookPage.executeCell("""import arrow""").get should include("Current status: DONE")
           }
         }
       }
-
     }
+
   }
 }
