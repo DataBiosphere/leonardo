@@ -3,11 +3,12 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.net.URL
 import java.time.Instant
 import java.util.UUID
+
 import scala.language.implicitConversions
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google._
 
 sealed trait StringValueClass extends Any
 case class ClusterName(string: String) extends AnyVal with StringValueClass
@@ -62,7 +63,8 @@ case class Cluster(clusterName: ClusterName,
                    createdDate: Instant,
                    destroyedDate: Option[Instant],
                    labels: LabelMap,
-                   jupyterExtensionUri: Option[GcsPath])
+                   jupyterExtensionUri: Option[GcsPath],
+                   stagingBucket:Option[GcsBucketName])
 
 case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[String] = None)

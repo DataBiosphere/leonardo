@@ -26,6 +26,7 @@ class ServiceAccountProviderHelperSpec extends TestKit(ActorSystem("leonardotest
     helper.getLeoServiceAccountAndKey shouldBe serviceAccountProvider.getLeoServiceAccountAndKey
     helper.getClusterServiceAccount(userInfo, project).futureValue shouldBe serviceAccountProvider.getClusterServiceAccount(userInfo, project).futureValue
     helper.getNotebookServiceAccount(userInfo, project).futureValue shouldBe serviceAccountProvider.getNotebookServiceAccount(userInfo, project).futureValue
+    helper.listGroupsStagingBucketReaders(userEmail).futureValue shouldBe serviceAccountProvider.listGroupsStagingBucketReaders(userEmail).futureValue
   }
 
   // The next 3 tests verify that an exception thrown in ServiceAccountProvider gets translated to LeoException in ServiceAccountProviderHelper
