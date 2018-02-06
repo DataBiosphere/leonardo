@@ -57,4 +57,16 @@ class ServiceAccountProviderHelper(wrappedServiceAccountProvider: ServiceAccount
       wrappedServiceAccountProvider.getNotebookServiceAccount(userInfo, googleProject)
     }
   }
+
+  override def listGroupsStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {
+    safeCall {
+      wrappedServiceAccountProvider.listGroupsStagingBucketReaders(userEmail)
+    }
+  }
+
+  override def listUsersStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {
+    safeCall {
+      wrappedServiceAccountProvider.listUsersStagingBucketReaders(userEmail)
+    }
+  }
 }

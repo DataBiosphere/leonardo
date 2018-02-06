@@ -21,4 +21,5 @@ class MockSamDAO(ok: Boolean = true) extends SamDAO {
   override def getPetServiceAccountForProject(userInfo: UserInfo, googleProject: GoogleProject): Future[WorkbenchEmail] = {
     Future.successful(serviceAccount)
   }
+
 }
