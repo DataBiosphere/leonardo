@@ -106,7 +106,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // check the firewall rule was created for the project
     gdDAO.firewallRules should contain (googleProject, proxyConfig.firewallRuleName)
 
-    val bucketArray = gdDAO.buckets.filter(bucket => bucket.name.startsWith(clusterName.string))
+    val bucketArray = gdDAO.buckets.filter(bucket => bucket.name.startsWith(clusterName.string+"-init"))
 
     // check the bucket was created for the cluster
     bucketArray.size shouldEqual 1
@@ -537,7 +537,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // check the firewall rule was created for the project
     gdDAO.firewallRules should contain (googleProject, proxyConfig.firewallRuleName)
 
-    gdDAO.buckets shouldBe 'empty
+    //staging bucket lives on!
+    gdDAO.buckets.find(bucket=> bucket.name.contains("-init")).size shouldBe  0
   }
 
   it should "tell you if you're whitelisted" in isolatedDbTest {

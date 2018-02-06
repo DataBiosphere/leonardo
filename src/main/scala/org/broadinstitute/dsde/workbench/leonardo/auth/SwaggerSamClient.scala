@@ -9,10 +9,10 @@ import com.google.api.client.json.jackson2.JacksonFactory
 import com.google.api.services.plus.PlusScopes
 import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.common.cache.{CacheBuilder, CacheLoader}
-
 import com.typesafe.scalalogging.LazyLogging
 import io.swagger.client.ApiClient
 import io.swagger.client.api.{GoogleApi, ResourcesApi}
+import org.broadinstitute.dsde.workbench.leonardo.dao.GoogleProjectNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterName
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -117,6 +117,11 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
 
   def hasActionOnNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, action: String): Boolean = {
     hasActionOnResource(notebookClusterResourceTypeName, getClusterResourceId(googleProject, clusterName), userEmail, googleProject, action)
+  }
+
+  def getUserProxyFromSam(userEmail: WorkbenchEmail): WorkbenchEmail = {
+    val samAPI = samGoogleApi(getAccessTokenUsingPem(leoEmail, leoPem))
+    WorkbenchEmail(samAPI.getProxyGroup(userEmail.value))
   }
 
   private def hasActionOnResource(resourceType: String, resourceName: String, userEmail: WorkbenchEmail, googleProject: GoogleProject, action: String): Boolean = {

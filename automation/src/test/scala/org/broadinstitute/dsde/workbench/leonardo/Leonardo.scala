@@ -12,7 +12,7 @@ import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.config.LeoAuthToken
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject, parseGcsPath}
+import org.broadinstitute.dsde.workbench.model.google._
 import org.openqa.selenium.WebDriver
 
 import scala.concurrent.Future
@@ -49,7 +49,8 @@ object Leonardo extends RestClient with LazyLogging {
                                     createdDate: String,
                                     destroyedDate: Option[String],
                                     labels: LabelMap,
-                                    jupyterExtensionUri: Option[String]) {
+                                    jupyterExtensionUri: Option[String],
+                                    stagingBucket: String) {
 
       def toCluster = Cluster(clusterName,
         googleId,
@@ -64,7 +65,9 @@ object Leonardo extends RestClient with LazyLogging {
         Instant.parse(createdDate),
         destroyedDate map Instant.parse,
         labels,
-        jupyterExtensionUri map (parseGcsPath(_).right.get))
+        jupyterExtensionUri map (parseGcsPath(_).right.get),
+        Some(GcsBucketName(stagingBucket))
+      )
     }
 
     def handleClusterResponse(response: String): Cluster = {

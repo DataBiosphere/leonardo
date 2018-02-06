@@ -20,4 +20,11 @@ class PetsPerProjectServiceAccountProvider(config: Config) extends SamServiceAcc
     Future(None)
   }
 
+  override def listUsersStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {
+    Future.successful(List.empty[WorkbenchEmail])
+  }
+
+  override def listGroupsStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {
+    Future(samClient.getUserProxyFromSam(userEmail)).map(List(_))
+  }
 }

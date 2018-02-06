@@ -44,7 +44,9 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"),
-    None)
+    None,
+    Some(GcsBucketName("testStagingBucket1"))
+  )
 
   val deletingCluster = Cluster(
     clusterName = name2,
@@ -60,7 +62,9 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"),
-    jupyterExtensionUri = jupyterExtensionUri)
+    jupyterExtensionUri = jupyterExtensionUri,
+    Some(GcsBucketName("testStagingBucket1"))
+  )
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
@@ -340,7 +344,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val newClusterId = UUID.randomUUID()
     when {
-      gdDAO.createCluster(mockitoEq(creatingCluster.creator), mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName), any[ClusterRequest], vcAny[GcsBucketName], any[ServiceAccountInfo])(any[ExecutionContext])
+      gdDAO.createCluster(mockitoEq(creatingCluster.creator), mockitoEq(creatingCluster.googleProject), vcEq(creatingCluster.clusterName), any[ClusterRequest], vcAny[GcsBucketName], any[ServiceAccountInfo], vcAny[GcsBucketName])(any[ExecutionContext])
     } thenReturn Future.successful {
       creatingCluster.copy(googleId=newClusterId)
     }
@@ -354,8 +358,13 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(())
 
     when {
-      gdDAO.createBucket(any[GoogleProject], any[GoogleProject], vcAny[GcsBucketName], any[ServiceAccountInfo])
+      gdDAO.createInitBucket(any[GoogleProject], any[GoogleProject], vcAny[GcsBucketName], any[ServiceAccountInfo])
     } thenReturn Future.successful(GcsBucketName("my-bucket"))
+
+    when {
+      gdDAO.createStagingBucket(any[GoogleProject], any[GoogleProject], vcAny[GcsBucketName], any[ServiceAccountInfo], any[List[WorkbenchEmail]], any[List[WorkbenchEmail]])
+    } thenReturn Future.successful(GcsBucketName("my-bucket"))
+
 
     when {
       gdDAO.uploadToBucket(any[GoogleProject], any[GcsPath], any[File])
