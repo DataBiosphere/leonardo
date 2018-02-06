@@ -77,7 +77,8 @@ case class DefaultLabels(clusterName: ClusterName,
                          creator: WorkbenchEmail,
                          clusterServiceAccount: Option[WorkbenchEmail],
                          notebookServiceAccount: Option[WorkbenchEmail],
-                         notebookExtension: Option[String]) {
+                         notebookExtension: Option[String],
+                         notebookUserScript: Option[String]) {
 
   // TODO don't hardcode fields
   def toMap: Map[String, String] = {
