@@ -151,7 +151,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
       val userScriptString = "#!/usr/bin/env bash\n\npip install arrow"
 
-      uploadFileToGoogleBucket(GcsBucketName(swatTestBucket), GcsObjectName("user-script.sh"), userScriptString) { objectName =>
+      uploadFileToGoogleBucket(GcsBucketName(swatTestBucket), GcsObjectName("user-script"), userScriptString, ".sh") { objectName =>
         val uploadFileName = "gs://bucket/user-script.sh"
         withNewCluster(billingProject, ClusterName("namething"), ClusterRequest(Map(), None, Option(uploadFileName))) { cluster =>
           withNewNotebook(cluster) { notebookPage =>

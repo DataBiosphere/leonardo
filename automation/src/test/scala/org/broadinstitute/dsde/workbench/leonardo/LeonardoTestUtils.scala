@@ -297,7 +297,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 //    googleStorageDAO.storeObject(bucketName, GcsObjectName(fileName), file, "media")
 //  }
 
-  def uploadFileToGoogleBucket[T](bucketName: GcsBucketName, fileName: GcsObjectName, file: String)(testCode: GcsObjectName => T): T = {
+  def uploadFileToGoogleBucket[T](bucketName: GcsBucketName, fileName: GcsObjectName, file: String, objectType: String)(testCode: GcsObjectName => T): T = {
     implicit val patienceConfig: PatienceConfig = storagePatience
 
     // Create google bucket and run test code
