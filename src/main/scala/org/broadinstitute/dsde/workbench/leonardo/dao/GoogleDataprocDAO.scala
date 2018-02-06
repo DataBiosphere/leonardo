@@ -137,20 +137,20 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
       .setAllowed(List(allowed).asJava)
   }
 
-  override def createCluster(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo)(implicit executionContext: ExecutionContext): Future[LeoCluster] = {
-    buildCluster(googleProject, clusterName, clusterRequest, initBucketName, clusterDefaultsConfig, serviceAccountInfo).map { operation =>
+  override def createCluster(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo, stagingBucket: GcsBucketName)(implicit executionContext: ExecutionContext): Future[LeoCluster] = {
+    buildCluster(googleProject, clusterName, clusterRequest, initBucketName, clusterDefaultsConfig, serviceAccountInfo, stagingBucket).map { operation =>
       //Make a Leo cluster from the Google operation details
-      LeoCluster.create(clusterRequest, userEmail, clusterName, googleProject, getOperationUUID(operation), OperationName(operation.getName), serviceAccountInfo, clusterDefaultsConfig)
+      LeoCluster.create(clusterRequest, userEmail, clusterName, googleProject, getOperationUUID(operation), OperationName(operation.getName), serviceAccountInfo, clusterDefaultsConfig, stagingBucket)
     }
   }
 
 
   /* Kicks off building the cluster. This will return before the cluster finishes creating. */
-  private def buildCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, clusterDefaultsConfig: ClusterDefaultsConfig, serviceAccountInfo: ServiceAccountInfo)(implicit executionContext: ExecutionContext): Future[DataprocOperation] = {
+  private def buildCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, clusterDefaultsConfig: ClusterDefaultsConfig, serviceAccountInfo: ServiceAccountInfo, stagingBucket: GcsBucketName)(implicit executionContext: ExecutionContext): Future[DataprocOperation] = {
     // Create a Cluster and give it a name and a Cluster Config
     val cluster = new DataprocCluster()
       .setClusterName(clusterName.string)
-      .setConfig(getClusterConfig(googleProject, clusterName, clusterRequest, initBucketName, clusterDefaultsConfig, serviceAccountInfo))
+      .setConfig(getClusterConfig(googleProject, clusterName, clusterRequest, initBucketName, clusterDefaultsConfig, serviceAccountInfo, stagingBucket))
 
     // Create a dataproc create request and give it the google project, a zone, and the Cluster
     val request = dataproc.projects().regions().clusters().create(googleProject.value, dataprocConfig.dataprocDefaultRegion, cluster)
@@ -158,7 +158,7 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
     executeGoogleRequestAsync(googleProject, clusterName.toString, request) // returns a Future[DataprocOperation]
   }
 
-  private def getClusterConfig(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, clusterDefaultsConfig: ClusterDefaultsConfig, serviceAccountInfo: ServiceAccountInfo): ClusterConfig = {
+  private def getClusterConfig(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, initBucketName: GcsBucketName, clusterDefaultsConfig: ClusterDefaultsConfig, serviceAccountInfo: ServiceAccountInfo, stagingBucket:GcsBucketName): ClusterConfig = {
     // Create a GceClusterConfig, which has the common config settings for resources of Google Compute Engine cluster instances,
     // applicable to all instances in the cluster.
     // Set the network tag, which is needed by the firewall rule that allows leo to talk to the cluster
@@ -186,6 +186,7 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
       .setGceClusterConfig(gceClusterConfig)
       .setInitializationActions(initActions.asJava)
       .setMasterConfig(masterConfig)
+      .setConfigBucket(stagingBucket.name)
   }
 
   // Expects a Machine Config with master configs defined for a 0 worker cluster and both master and worker
@@ -295,45 +296,25 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
   }
 
   /* Create a bucket in the given google project for the initialization files when creating a cluster */
-  override def createBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, initBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[GcsBucketName] = {
-    // Create lifecycle rule for the bucket that will delete the bucket after 1 day.
-    //
-    // Note that the init buckets are explicitly deleted by the ClusterMonitor once the cluster
-    // initializes. However we still keep the lifecycle rule as a defensive check to ensure we
-    // don't leak buckets in case something goes wrong.
-    val lifecycleRule = new Lifecycle.Rule()
-      .setAction(new Action().setType("Delete"))
-      .setCondition(new Condition().setAge(1))
-
-    // Create lifecycle for the bucket with a list of rules
-    val lifecycle = new Lifecycle().setRule(List(lifecycleRule).asJava)
+  override def createInitBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, initBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[GcsBucketName] = {
+    val lifecycle = createBucketLifecycle("Delete", 1)
 
     // The Leo service account
     val leoServiceAccountEntityString = s"user-${leoServiceAccountEmail.value}"
 
-    val clusterServiceAccountEntityStringFuture: Future[String] = serviceAccountInfo.clusterServiceAccount match {
-      case Some(serviceAccountEmail) =>
-        // If passing a service account to the create cluster command, grant bucket access to that service account.
-        Future.successful(s"user-${serviceAccountEmail.value}")
-      case None =>
-        // Otherwise, grant bucket access to the Google compute engine default service account.
-        getComputeEngineDefaultServiceAccount(clusterGoogleProject).map {
-          case Some(serviceAccount) => s"user-${serviceAccount.value}"
-          case None => throw GoogleProjectNotFoundException(clusterGoogleProject)
-        }
-    }
+    val clusterServiceAccountEntityStringFuture: Future[String] = getClusterServiceAccountEntity(clusterGoogleProject, serviceAccountInfo)
 
     clusterServiceAccountEntityStringFuture.flatMap { clusterServiceAccountEntityString =>
       //Add the Leo SA and the cluster's SA to the ACL list for the bucket
       val bucketAcls = List(
-        new BucketAccessControl().setEntity(leoServiceAccountEntityString).setRole("OWNER"),
-        new BucketAccessControl().setEntity(clusterServiceAccountEntityString).setRole("READER")
+        createBucketAcl(leoServiceAccountEntityString,"OWNER"),
+        createBucketAcl(clusterServiceAccountEntityString,"READER")
       )
 
       //Bucket ACL != the ACL given to individual objects inside the bucket
       val defObjectAcls = List(
-        new ObjectAccessControl().setEntity(leoServiceAccountEntityString).setRole("OWNER"),
-        new ObjectAccessControl().setEntity(clusterServiceAccountEntityString).setRole("READER")
+        createDefaultObjectAcl(leoServiceAccountEntityString, "OWNER"),
+        createDefaultObjectAcl(clusterServiceAccountEntityString, "READER")
       )
 
       // Create the bucket object
@@ -347,6 +328,98 @@ class GoogleDataprocDAO(protected val leoServiceAccountEmail: WorkbenchEmail,
 
       executeGoogleRequestAsync(bucketGoogleProject, s"Bucket ${initBucketName.toString}", bucketInserter) map { _ => initBucketName }
     }
+  }
+
+  /* Create the staging bucket for the dataproc cluster*/
+  override def createStagingBucket(bucketGoogleProject: GoogleProject, clusterGoogleProject: GoogleProject, stagingBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo, groupStagingAcl: List[WorkbenchEmail], userStagingAcl: List[WorkbenchEmail]): Future[GcsBucketName] = {
+
+    // The Leo service account
+    val leoServiceAccountEntityString = s"user-${leoServiceAccountEmail.value}"
+
+    val notebookServiceAccountEntityString = getNotebookServiceAccountEntity(clusterGoogleProject, serviceAccountInfo)
+
+    val clusterServiceAccountEntityStringFuture: Future[String] = getClusterServiceAccountEntity(clusterGoogleProject, serviceAccountInfo)
+
+    val ServiceAccounts = List(clusterServiceAccountEntityStringFuture,notebookServiceAccountEntityString)
+
+    Future.sequence(ServiceAccounts).flatMap { saList =>
+      //Add the Leo SA and the cluster's SA to the ACL list for the bucket
+      val bucketAcls = List(
+        createBucketAcl(leoServiceAccountEntityString,"OWNER")
+      ) ++ groupStagingAcl.map(a => createBucketAcl("group-" + a, "READER")) ++
+        userStagingAcl.map(a => createBucketAcl("user-" + a, "READER")) ++
+        saList.map(a => createBucketAcl(a, "READER"))
+
+      //Bucket ACL != the ACL given to individual objects inside the bucket
+      val defObjectAcls = List(
+        createDefaultObjectAcl(leoServiceAccountEntityString,"OWNER")
+      ) ++ groupStagingAcl.map(a => createDefaultObjectAcl("group-" + a, "READER")) ++
+        userStagingAcl.map(a => createDefaultObjectAcl("user-" + a, "READER")) ++
+        saList.map(a => createDefaultObjectAcl(a, "READER"))
+
+
+      // Create the bucket object
+      val bucket = new Bucket()
+        .setName(stagingBucketName.name)
+        .setAcl(bucketAcls.asJava)
+        .setDefaultObjectAcl(defObjectAcls.asJava)
+
+      val bucketInserter = storage.buckets().insert(bucketGoogleProject.value, bucket)
+
+      executeGoogleRequestAsync(bucketGoogleProject, s"Bucket ${stagingBucketName.toString}", bucketInserter) map { _ => stagingBucketName }
+    }
+  }
+
+  private def getClusterServiceAccountEntity(clusterGoogleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo) = {
+    serviceAccountInfo.clusterServiceAccount match {
+      case Some(serviceAccountEmail) =>
+        // If passing a service account to the create cluster command, grant bucket access to that service account.
+        Future.successful(s"user-${serviceAccountEmail.value}")
+      case None =>
+        // Otherwise, grant bucket access to the Google compute engine default service account.
+        getComputeEngineDefaultServiceAccount(clusterGoogleProject).map {
+          case Some(serviceAccount) => s"user-${serviceAccount.value}"
+          case None => throw GoogleProjectNotFoundException(clusterGoogleProject)
+        }
+    }
+  }
+
+  private def getNotebookServiceAccountEntity(clusterGoogleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo) = {
+    serviceAccountInfo.notebookServiceAccount match {
+      case Some(serviceAccountEmail) =>
+        // If passing a service account to the create cluster command, grant bucket access to that service account.
+        Future.successful(s"user-${serviceAccountEmail.value}")
+      case None =>
+        // Otherwise, grant bucket access to the Google compute engine default service account.
+        getComputeEngineDefaultServiceAccount(clusterGoogleProject).map {
+          case Some(serviceAccount) => s"user-${serviceAccount.value}"
+          case None => throw GoogleProjectNotFoundException(clusterGoogleProject)
+        }
+    }
+  }
+
+  private def createBucketAcl(entity:String, role:String) = {
+    new BucketAccessControl().setEntity(entity).setRole(role)
+  }
+
+
+  private def createDefaultObjectAcl(entity:String, role:String) = {
+    new ObjectAccessControl().setEntity(entity).setRole(role)
+  }
+
+  private def createBucketLifecycle(lifecycleRuleType:String, age:Int) = {
+    // Create lifecycle rule for the bucket that will delete the bucket after 1 day.
+    //
+    // Note that the init buckets are explicitly deleted by the ClusterMonitor once the cluster
+    // initializes. However we still keep the lifecycle rule as a defensive check to ensure we
+    // don't leak buckets in case something goes wrong.
+    val lifecycleRule = new Lifecycle.Rule()
+      .setAction(new Action().setType(lifecycleRuleType))
+      .setCondition(new Condition().setAge(age))
+
+    // Create lifecycle for the bucket with a list of rules
+    val lifecycle = new Lifecycle().setRule(List(lifecycleRule).asJava)
+    lifecycle
   }
 
   override def deleteBucket(googleProject: GoogleProject, bucketName: GcsBucketName)(implicit executionContext: ExecutionContext): Future[Unit] = {
