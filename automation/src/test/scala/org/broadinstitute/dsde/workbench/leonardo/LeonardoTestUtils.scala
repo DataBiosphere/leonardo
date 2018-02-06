@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.io.File
+import java.io.{ByteArrayInputStream, File}
 import java.nio.file.Files
 
 import com.typesafe.scalalogging.LazyLogging
@@ -301,7 +301,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     implicit val patienceConfig: PatienceConfig = storagePatience
 
     // Create google bucket and run test code
-    googleStorageDAO.storeObject(bucketName, fileName, file, objectType).futureValue
+    googleStorageDAO.storeObject(bucketName, fileName, new ByteArrayInputStream(file.getBytes), objectType).futureValue
     val testResult: Try[T] = Try {
       testCode(fileName)
     }
