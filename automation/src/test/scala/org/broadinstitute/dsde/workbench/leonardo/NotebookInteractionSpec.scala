@@ -163,7 +163,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
         val userScriptUri = s"gs://${bucketName.value}/${userScriptObjectName.value}"
 
         withNewBucketObject(bucketName, userScriptObjectName, userScriptString, "text/plain") { objectName =>
-          val clusterName = ClusterName("userScript-cluster" + makeRandomId())
+          val clusterName = ClusterName("user-script-cluster" + makeRandomId())
 
           withNewCluster(billingProject, clusterName, ClusterRequest(Map(), None, Option(userScriptUri))) { cluster =>
             withNewNotebook(cluster) { notebookPage =>
