@@ -30,7 +30,7 @@ function make_jar()
 
     if [ $EXIT_CODE != 0 ]; then
         echo "Tests/jar build exited with status $EXIT_CODE"
-	exit $EXIT_CODE
+        exit $EXIT_CODE
     fi
 }
 
