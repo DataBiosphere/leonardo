@@ -12,9 +12,9 @@ import org.broadinstitute.dsde.workbench.service.APIException
 import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
-import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, google}
+import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsEntityTypes, GcsObjectName, GcsPath, GoogleProject, ServiceAccountName, generateUniqueBucketName}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsEntityTypes, GcsObjectName, GoogleProject, ServiceAccountName, generateUniqueBucketName}
 import org.broadinstitute.dsde.workbench.util.LocalFileUtil
 import org.openqa.selenium.WebDriver
 import org.scalatest.{Matchers, Suite}
@@ -27,8 +27,7 @@ import scala.util.control.NonFatal
 trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures {
   this: Suite =>
 
-  val swatTestBucketName = "leonardo-swat-test-bucket-do-not-delete"
-  val swatTestBucket = s"gs://$swatTestBucketName"
+  val swatTestBucket = "gs://leonardo-swat-test-bucket-do-not-delete"
   val incorrectJupyterExtensionUri = swatTestBucket + "/"
 
   // Ron and Hermione are on the dev Leo whitelist, and Hermione is a Project Owner
@@ -292,7 +291,6 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     testResult.get
   }
 
-
   def withNewBucketObject[T](bucketName: GcsBucketName, objectName: GcsObjectName, fileContents: String, objectType: String)(testCode: GcsObjectName => T): T = {
     implicit val patienceConfig: PatienceConfig = storagePatience
 
@@ -307,10 +305,5 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     // Return the test result, or throw error
     testResult.get
   }
-
-  def setBucketAccessControl(bucketName: GcsBucketName, user: WorkbenchEmail, role: GcsRole) = {
-    googleStorageDAO.setBucketAccessControl(bucketName, GcsEntity(user, GcsEntityTypes.User), role)
-  }
-
 
 }
