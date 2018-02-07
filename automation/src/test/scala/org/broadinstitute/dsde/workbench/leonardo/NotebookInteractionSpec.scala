@@ -158,7 +158,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
         withNewCluster(billingProject, clusterName, ClusterRequest(Map(), None, Option(userScriptUri))) { cluster =>
           withNewNotebook(cluster) { notebookPage =>
             notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
-            notebookPage.executeCell("""import arrow""").get should include("Current status: DONE")
+            notebookPage.executeCell("""import arrow""")
             notebookPage.executeCell("""arrow.get(727070400)""") shouldBe Some("<Arrow [1993-01-15T04:00:00+00:00]>")
           }
         }
