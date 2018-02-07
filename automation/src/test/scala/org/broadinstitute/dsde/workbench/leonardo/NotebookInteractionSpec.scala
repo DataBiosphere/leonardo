@@ -149,17 +149,28 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
     // requires a new cluster because we want to pass in a user script in the cluster request
     "should allow user to create a cluster with a script" in withWebDriver { implicit driver =>
       Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
-      val clusterName = ClusterName("userscript-cluster" + makeRandomId())
-      val userScriptString = "#!/usr/bin/env bash\n\npip install arrow"
-      val userScriptObjectName = "user-script.sh"
-      val userScriptUri = s"$swatTestBucket/$userScriptObjectName"
 
-      withNewBucketObject(swatTestBucketName, userScriptObjectName, userScriptString, "text/plain") { objectName =>
-        withNewCluster(billingProject, clusterName, ClusterRequest(Map(), None, Option(userScriptUri))) { cluster =>
-          withNewNotebook(cluster) { notebookPage =>
-            notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
-            notebookPage.executeCell("""import arrow""")
-            notebookPage.executeCell("""arrow.get(727070400)""") shouldBe Some("<Arrow [1993-01-15T04:00:00+00:00]>")
+      //a cluster without the user script should not be able to import the arrow library
+      withNewNotebook(ronCluster) { notebookPage =>
+        notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
+        notebookPage.executeCell("""import arrow""").get should include("ImportError: No module named arrow")
+      }
+
+      // create a new bucket, add the user script to the bucket, create a new cluster using the URI of the user script and create a notebook that will check if the user script ran
+      withNewGoogleBucket(billingProject) { bucketName =>
+        val userScriptString = "#!/usr/bin/env bash\n\npip install arrow"
+        val userScriptObjectName = GcsObjectName("user-script.sh")
+        val userScriptUri = s"gs://${bucketName.value}/${userScriptObjectName.value}"
+
+        withNewBucketObject(bucketName, userScriptObjectName, userScriptString, "text/plain") { objectName =>
+          val clusterName = ClusterName("userScript-cluster" + makeRandomId())
+
+          withNewCluster(billingProject, clusterName, ClusterRequest(Map(), None, Option(userScriptUri))) { cluster =>
+            withNewNotebook(cluster) { notebookPage =>
+              notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
+              notebookPage.executeCell("""import arrow""")
+              notebookPage.executeCell("""arrow.get(727070400)""") shouldBe Some("<Arrow [1993-01-15T04:00:00+00:00]>")
+            }
           }
         }
       }

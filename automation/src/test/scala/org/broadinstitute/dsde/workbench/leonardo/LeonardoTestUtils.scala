@@ -293,18 +293,16 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   }
 
 
-  def withNewBucketObject[T](bucketName: String, objectName: String, file: String, objectType: String)(testCode: GcsObjectName => T): T = {
+  def withNewBucketObject[T](bucketName: GcsBucketName, objectName: GcsObjectName, fileContents: String, objectType: String)(testCode: GcsObjectName => T): T = {
     implicit val patienceConfig: PatienceConfig = storagePatience
-    val gcsBucketName = GcsBucketName(bucketName)
-    val gcsObjectName = GcsObjectName(objectName)
 
     // Create google bucket and run test code
-    googleStorageDAO.storeObject(gcsBucketName, gcsObjectName, new ByteArrayInputStream(file.getBytes), objectType).futureValue
+    googleStorageDAO.storeObject(bucketName, objectName, new ByteArrayInputStream(fileContents.getBytes), objectType).futureValue
     val testResult: Try[T] = Try {
-      testCode(gcsObjectName)
+      testCode(objectName)
     }
     // Clean up
-    googleStorageDAO.removeObject(gcsBucketName, gcsObjectName).futureValue
+    googleStorageDAO.removeObject(bucketName, objectName).futureValue
 
     // Return the test result, or throw error
     testResult.get
