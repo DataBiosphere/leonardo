@@ -83,6 +83,7 @@ case class DefaultLabels(clusterName: ClusterName,
   // TODO don't hardcode fields
   def toMap: Map[String, String] = {
     val ext: Map[String, String] = notebookExtension map { ext => Map("notebookExtension" -> ext) } getOrElse Map.empty
+    val userScr: Map[String, String] = notebookUserScript map {ext => Map("notebookUserScript" -> userScr) }  getOrElse Map.empty
     val clusterSa: Map[String, String] = clusterServiceAccount map { sa => Map("clusterServiceAccount" -> sa.value) } getOrElse Map.empty
     val notebookSa: Map[String, String] = notebookServiceAccount map { sa => Map("notebookServiceAccount" -> sa.value) } getOrElse Map.empty
 
@@ -90,7 +91,7 @@ case class DefaultLabels(clusterName: ClusterName,
       "clusterName" -> clusterName.string,
       "googleProject" -> googleProject.value,
       "creator" -> creator.value
-    ) ++ ext ++ clusterSa ++ notebookSa
+    ) ++ ext ++ userScr ++ clusterSa ++ notebookSa
   }
 }
 
