@@ -35,7 +35,7 @@ set -e
 
 # Set default variables used while parsing command line options.
 TARGET="${TARGET:-leonardo}"
-GIT_BRANCH="${GIT_BRANCH:-$(git rev-parse --abbrev-ref HEAD)}"
+GIT_BRANCH="${BRANCH:-$(git rev-parse --abbrev-ref HEAD)}"
 DOCKER_REGISTRY="dockerhub"  # Must be either "dockerhub" or "gcr"
 DOCKER_CMD=""
 ENV=${ENV:-""}  # if env is not set, push an image with branch name
@@ -70,7 +70,7 @@ while [ "$1" != "" ]; do
         -p | --project)
             shift
             echo "project = $1"
-            PROJECT=$1
+            DOCKER_PROJECT=$1
             ;;
         -h | --help)
             PRINT_HELP=true
@@ -95,14 +95,14 @@ fi
 
 # Configure script using arguments.
 if [[ $DOCKER_REGISTRY == "dockerhub" ]]; then
-  PROJECT="${PROJECT:-broadinstitute}"
-  REPO="${PROJECT}"
+  DOCKER_PROJECT="${DOCKER_PROJECT:-broadinstitute}"
+  REPO="${DOCKER_PROJECT}"
   IMAGE="${REPO}/${TARGET}"
   DOCKER_REMOTES_BINARY="docker"
 elif [[ $DOCKER_REGISTRY == "gcr" ]]; then
-  PROJECT="${PROJECT:-$(gcloud config get-value project)}"
+  DOCKER_PROJECT="${DOCKER_PROJECT:-$(gcloud config get-value project)}"
   # Domain scoped project IDs need to be modified to work with GCR.
-  REPO="gcr.io/$(sed "s_:_/_" <<< "${PROJECT}")"
+  REPO="gcr.io/$(sed "s_:_/_" <<< "${DOCKER_PROJECT}")"
   IMAGE="${REPO}/${TARGET}"
   DOCKER_REMOTES_BINARY="gcloud docker --"
 else
@@ -132,7 +132,7 @@ function make_jar()
                           broadinstitute/scala-baseimage \
                           /working/docker/install.sh /working)"
     EXIT_CODE=$?
- 
+
     # stop test db
     bash ./docker/run-mysql.sh stop ${TARGET}
 
@@ -166,7 +166,7 @@ function docker_cmd()
         cd ..
 
         if [ $DOCKER_CMD = "push" ]; then
-            echo "pushing $PROJECT docker image..."
+            echo "pushing $IMAGE docker image..."
             $DOCKER_REMOTES_BINARY push $IMAGE:${DOCKER_TAG}
             echo "pushing $TESTS_IMAGE docker image..."
             $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${DOCKER_TAG_TESTS}
