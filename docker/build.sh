@@ -137,7 +137,8 @@ function make_jar()
     bash ./docker/run-mysql.sh stop ${TARGET}
 
     if [ $EXIT_CODE != 0 ]; then
-	exit $EXIT_CODE
+        echo "Tests/jar build exited with status $EXIT_CODE"
+        exit $EXIT_CODE
     fi
 }
 
