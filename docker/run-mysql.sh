@@ -9,11 +9,23 @@ start() {
 
     # start up mysql
     echo "starting up mysql container..."
-    docker run --name $CONTAINER -e MYSQL_ROOT_PASSWORD=leonardo-test -e MYSQL_USER=leonardo-test -e MYSQL_PASSWORD=leonardo-test -e MYSQL_DATABASE=leotestdb -d -p 3311:3306 mysql/mysql-server:$MYSQL_VERSION
+    docker run --name $CONTAINER \
+               -e MYSQL_ROOT_PASSWORD=leonardo-test \
+               -e MYSQL_USER=leonardo-test \
+               -e MYSQL_PASSWORD=leonardo-test \
+               -e MYSQL_DATABASE=leotestdb \
+               -d \
+               -p 3311:3306 \
+               mysql/mysql-server:$MYSQL_VERSION
 
     # validate mysql
     echo "running mysql validation..."
-    docker run --rm --link $CONTAINER:mysql -v $PWD/docker/sql_validate.sh:/working/sql_validate.sh mysql:$MYSQL_VERSION /working/sql_validate.sh leonardo
+    docker run --rm \
+               --link $CONTAINER:mysql \
+               -v $PWD/docker/sql_validate.sh:/working/sql_validate.sh \
+               mysql:$MYSQL_VERSION \
+               /working/sql_validate.sh leonardo
+
     if [ 0 -eq $? ]; then
         echo "mysql validation succeeded."
     else

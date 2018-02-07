@@ -1,24 +1,36 @@
 #!/usr/bin/env bash
 
-cd jupyter-docker
+# Note: in most cases this script should be invoked by
+# the build script in "leonardo/docker/build.sh".
+
+# Ensure that commands are run from this directory.
+cd "$(dirname "${0}")"
+
+# Get command line options.
+JUPYTER_COMMAND="${1}"
+DOCKER_REPOSITORY="${2}"
+JUPYTER_TAG="${3}"
+
+# Set up docker binary - use gcloud docker if pushing to gcr.
+DOCKER_BINARY="docker"
+if grep -Fq "gcr.io" <<< "${DOCKER_REPOSITORY}" ; then
+	DOCKER_BINARY="gcloud docker --"
+fi
 
 build() {
     echo "building jupyter docker image..."
-    docker build -t broadinstitute/leonardo-notebooks:$JUPYTER_TAG .
+    $DOCKER_BINARY build -t "${DOCKER_REPOSITORY}/leonardo-notebooks:${JUPYTER_TAG}" .
 }
 
 push() {
     echo "pushing jupyter docker image..."
-    docker push broadinstitute/leonardo-notebooks:$JUPYTER_TAG
+    $DOCKER_BINARY push "${DOCKER_REPOSITORY}/leonardo-notebooks:${JUPYTER_TAG}"
 }
 
-JUPYTER_COMMAND=$1
-
-JUPYTER_TAG=$2
-
-if [ $JUPYTER_COMMAND = "build" ]; then
+echo "${JUPYTER_COMMAND}ing the jupyter docker image"
+if [[ $JUPYTER_COMMAND == "build" ]]; then
     build
-elif [ $JUPYTER_COMMAND = "push" ]; then
+elif [[ $JUPYTER_COMMAND == "push" ]]; then
     push
 else
     exit 1
