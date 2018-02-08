@@ -94,7 +94,7 @@ ENV PATH $SPARK_HOME:$SPARK_HOME/python:$SPARK_HOME/bin:$HAIL_HOME:$PATH
 ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip:$JUPYTER_HOME/custom
 
 RUN apt-get install -yq --no-install-recommends \
-    python3 \
+    python2 \
     python-dev \
     liblzo2-dev \
 
