@@ -23,6 +23,7 @@ fi
 if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_HOME=/etc/jupyter
     JUPYTER_USER_HOME=/home/jupyter-user
+    PYSPARK=/usr/bin/pyspark
 
     # The following values are populated by Leo when a cluster is created.
     export CLUSTER_NAME=$(clusterName)
@@ -40,6 +41,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_EXTENSION_URI=$(jupyterExtensionUri)
     JUPYTER_CUSTOM_JS_URI=$(jupyterCustomJsUri)
     JUPYTER_GOOGLE_SIGN_IN_JS_URI=$(jupyterGoogleSignInJsUri)
+    JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
 
     # install Docker
     export DOCKER_CE_VERSION="17.12.0~ce-0~debian"
@@ -124,6 +126,17 @@ if [[ "${ROLE}" == 'Master' ]]; then
       docker exec -d ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
       docker cp /etc/${JUPYTER_GOOGLE_SIGN_IN_JS} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
     fi
+
+    # If a Jupyter user script was specified, copy it into the jupyter docker container.
+    if [ ! -z ${JUPYTER_USER_SCRIPT_URI} ] ; then
+      gsutil cp ${JUPYTER_USER_SCRIPT_URI} /etc
+      JUPYTER_USER_SCRIPT=`basename ${JUPYTER_USER_SCRIPT_URI}`
+      docker cp /etc/${JUPYTER_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
+      docker exec -u root -d ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
+      docker exec -u root -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
+    fi
+
+    docker exec -d ${JUPYTER_SERVER_NAME} ${PYSPARK}
 fi
 
 
