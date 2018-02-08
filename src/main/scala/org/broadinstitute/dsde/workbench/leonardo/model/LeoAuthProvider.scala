@@ -30,8 +30,6 @@ object NotebookClusterActions {
 
 abstract class LeoAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider) {
 
-  protected def getLeoServiceAccountAndKey: (WorkbenchEmail, File) = serviceAccountProvider.getLeoServiceAccountAndKey
-
   /**
     * @param userEmail The user in question
     * @param action The project-level action (above) the user is requesting
@@ -94,4 +92,8 @@ abstract class LeoAuthProvider(authConfig: Config, serviceAccountProvider: Servi
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
   def notifyClusterDeleted(userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit]
+
+  protected def getLeoServiceAccountAndKey: (WorkbenchEmail, File) = {
+    serviceAccountProvider.getLeoServiceAccountAndKey
+  }
 }

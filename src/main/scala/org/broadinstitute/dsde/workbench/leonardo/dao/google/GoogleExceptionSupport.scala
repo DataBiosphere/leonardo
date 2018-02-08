@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import scala.concurrent.{ExecutionContext, Future}
 
 /**
-  * Created by rtitle on 2/1/18.
+  * Adds support for recovering from Google API errors and re-throwing LeoExceptions.
   */
 object GoogleExceptionSupport extends LazyLogging {
 

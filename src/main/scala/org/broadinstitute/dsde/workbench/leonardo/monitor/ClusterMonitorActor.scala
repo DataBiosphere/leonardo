@@ -276,24 +276,6 @@ class ClusterMonitorActor(val cluster: Cluster,
     tea.value.void
   }
 
-//  private def setStagingBucketOwnership: Future[Unit] = {
-//    def forBothServiceAccounts(op: WorkbenchEmail => Future[Unit]): Future[Unit] = {
-//      // Note! the following calls should be done in sequence. Google complains if setting ACLs for the same bucket in parallel (e.g. via Future.traverse).
-//      for {
-//        _ <- cluster.serviceAccountInfo.clusterServiceAccount.map(op).getOrElse(Future.successful(()))
-//        _ <- cluster.serviceAccountInfo.notebookServiceAccount.map(op).getOrElse(Future.successful(()))
-//      } yield ()
-//    }
-//
-//    val transformed = for {
-//      bucket <- OptionT(gdDAO.getClusterStagingBucket(cluster.googleProject, cluster.clusterName))
-//      _ <- OptionT.liftF(forBothServiceAccounts { sa => googleStorageDAO.setBucketAccessControl(bucket, GcsEntity(sa, User), Owner) })
-//      _ <- OptionT.liftF(forBothServiceAccounts { sa => googleStorageDAO.setDefaultObjectAccessControl(bucket, GcsEntity(sa, User), Owner) })
-//    } yield ()
-//
-//    transformed.value.void
-//  }
-
   private def deleteInitBucket: Future[Unit] = {
     // Get the init bucket path for this cluster, then delete the bucket in Google.
     dbRef.inTransaction { dataAccess =>

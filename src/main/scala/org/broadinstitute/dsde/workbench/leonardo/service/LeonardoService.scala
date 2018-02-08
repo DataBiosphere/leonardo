@@ -20,8 +20,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted, RegisterLeoService}
-import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.User
-import org.broadinstitute.dsde.workbench.model.google.GcsRoles.{Owner, Reader}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import slick.dbio.DBIO
@@ -256,8 +254,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                            clusterName: ClusterName,
                                            clusterRequest: ClusterRequest)
                                           (implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
-//    val initBucketName = generateUniqueBucketName(clusterName.value)
-//    val stagingBucketName = generateUniqueBucketName(clusterName.value+"-staging")
     for {
       // Validate that the Jupyter extension URI and Jupyter user script URI are valid URIs and reference real GCS objects
       _ <- validateBucketObjectUri(googleProject, clusterRequest.jupyterExtensionUri)
@@ -276,21 +272,17 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // ACLs are granted so the cluster service account can access the bucket at initialization time.
       initBucket <- bucketService.createInitBucket(googleProject, clusterName, serviceAccountInfo)
       _ <- initializeBucketObjects(userEmail, googleProject, clusterName, initBucket, clusterRequest, serviceAccountKeyOpt)
-      //initBucketPath <- initializeBucket(userEmail, googleProject, clusterName, initBucketName, clusterRequest, serviceAccountInfo, serviceAccountKeyOpt)
-      //Get list of groups to give staging bucket access to
-   //   groupstagingBucketAcl <- serviceAccountProvider.listGroupsStagingBucketReaders(userEmail)
-     // userstagingBucketAcl <- serviceAccountProvider.listUsersStagingBucketReaders(userEmail)
-      // Create the staging bucket
+      // Create the cluster staging bucket. ACLs are granted so the user/pet can access it.
       stagingBucket <- bucketService.createStagingBucket(userEmail, googleProject, clusterName, serviceAccountInfo)
-      //stagingBucketPath <- gdDAO.createStagingBucket(googleProject, googleProject, stagingBucketName, serviceAccountInfo, groupstagingBucketAcl, userstagingBucketAcl)
-      // Once the bucket is ready, build the cluster
+      // Create the cluster
       machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
       initScript = GcsPath(initBucket, GcsObjectName(clusterResourcesConfig.initActionsScript.value))
       credentialsFileName = serviceAccountInfo.notebookServiceAccount.map(_ => s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}")
       cluster <- gdDAO.createCluster(googleProject, clusterName, machineConfig, initScript, serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket).map { operation =>
         Cluster.create(clusterRequest, userEmail, clusterName, googleProject, operation, serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, initBucket)
       } andThen { case Failure(_) =>
-        // If cluster creation fails, delete the init bucket asynchronously and return the original error
+        // If cluster creation fails, delete the init bucket asynchronously and return the original error.
+        // Don't delete the staging bucket so the user can see error logs.
         googleStorageDAO.deleteBucket(initBucket, recurse = true)
       }
     } yield {
@@ -334,41 +326,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         }
     }
   }
-
-//  /* Create a google bucket and populate it with init files */
-//  private[service] def crateInitBucket(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountInfo: ServiceAccountInfo, notebookServiceAccountKeyOpt: Option[ServiceAccountKey]): Future[GcsBucketName] = {
-//    for {
-//      // Note the bucket is created in Leo's project, not the cluster's project.
-//      // ACLs are granted so the cluster's service account can access the bucket at initialization time.
-//      _ <- googleStorageDAO.createBucket(dataprocConfig.leoGoogleProject, initBucketName)
-//      _ <- initializeBucketAcls(googleProject, initBucketName, serviceAccountInfo)
-//      _ <- initializeBucketObjects(userEmail, googleProject, clusterName, initBucketName, clusterRequest, notebookServiceAccountKeyOpt)
-//    } yield initBucketName
-//  }
-
-//  private[service] def initializeBucketAcls(googleProject: GoogleProject, initBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[Unit] = {
-//    val transformed = for {
-//      leoSa <- OptionT.pure[Future, WorkbenchEmail](serviceAccountProvider.getLeoServiceAccountAndKey._1)
-//      // The init bucket will be accessed by the cluster service account, or the compute engine default service account by default
-//      clusterSa <- OptionT.fromOption[Future](serviceAccountInfo.clusterServiceAccount).orElse(OptionT(gdDAO.getComputeEngineDefaultServiceAccount(googleProject)))
-//
-//      // Note! the following calls should be done in sequence. Google complains if setting ACLs for the same bucket in parallel (e.g. via Future.traverse).
-//
-//      // Leo service account gets Owner access to the init bucket and its objects
-//      leoEntity = GcsEntity(leoSa, User)
-//      leoRole = Owner
-//      _ <- OptionT.liftF(googleStorageDAO.setBucketAccessControl(initBucketName, leoEntity, leoRole))
-//      _ <- OptionT.liftF(googleStorageDAO.setDefaultObjectAccessControl(initBucketName, leoEntity, leoRole))
-//
-//      // Cluster service account gets Reader access to the init bucket and its objects
-//      clusterEntity = GcsEntity(clusterSa, User)
-//      clusterRole = Reader
-//      _ <- OptionT.liftF(googleStorageDAO.setBucketAccessControl(initBucketName, clusterEntity, clusterRole))
-//      _ <- OptionT.liftF(googleStorageDAO.setDefaultObjectAccessControl(initBucketName, clusterEntity, clusterRole))
-//    } yield ()
-//
-//    transformed.value.void
-//  }
 
   /* Process the templated cluster init script and put all initialization files in the init bucket */
   private[service] def initializeBucketObjects(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountKey: Option[ServiceAccountKey]): Future[Unit] = {

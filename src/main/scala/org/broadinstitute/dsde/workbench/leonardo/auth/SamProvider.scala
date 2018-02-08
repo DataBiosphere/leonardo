@@ -5,12 +5,11 @@ import java.time.Duration
 
 import com.typesafe.config.Config
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 
 /**
-  * Created by rtitle on 2/7/18.
+  * Common trait for Leo providers which need a SwaggerSamClient.
   */
 trait SamProvider {
   val config: Config

@@ -12,8 +12,6 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetClusterServiceAccountProvider, MockSwaggerSamClient, WhitelistAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleExceptionSupport.CallToGoogleApiFailedException
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
@@ -45,6 +43,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO = new MockGoogleDataprocDAO
     iamDAO = new MockGoogleIamDAO
     storageDAO = new MockGoogleStorageDAO
+    // Pre-populate the juptyer extenion bucket in the mock storage DAO, as it is passed in some requests
     storageDAO.buckets += jupyterExtensionPath.bucketName -> Set((jupyterExtensionPath.objectName, new ByteArrayInputStream("foo".getBytes())))
 
     // TODO look into parameterized tests so both provider impls can both be tested
@@ -90,16 +89,18 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.firewallRules should contain key (googleProject)
     gdDAO.firewallRules(googleProject).name.value shouldBe proxyConfig.firewallRuleName
 
-    val bucketArray = storageDAO.buckets.keys.filter(_.value.startsWith(clusterName.value))
-
     // should have created init and staging buckets
-    bucketArray.size shouldEqual 2
+    val initBucketOpt = storageDAO.buckets.keys.find(_.value.startsWith(clusterName.value+"-init"))
+    initBucketOpt shouldBe 'defined
 
-    val bucketObjects = storageDAO.buckets(bucketArray.head).map(_._1).map(objName => GcsPath(bucketArray.head, objName))
+    val stagingBucketOpt = storageDAO.buckets.keys.find(_.value.startsWith(clusterName.value+"-staging"))
+    stagingBucketOpt shouldBe 'defined
 
-    // check the init files were added to the bucket
-    initFiles.foreach(initFile => bucketObjects should contain (GcsPath(bucketArray.head, initFile)))
-    bucketObjects should contain theSameElementsAs (initFiles.map(GcsPath(bucketArray.head, _)))
+    // check the init files were added to the init bucket
+    val initBucketObjects = storageDAO.buckets(initBucketOpt.get).map(_._1).map(objName => GcsPath(initBucketOpt.get, objName))
+    initFiles.foreach(initFile => initBucketObjects should contain (GcsPath(initBucketOpt.get, initFile)))
+    initBucketObjects should contain theSameElementsAs (initFiles.map(GcsPath(initBucketOpt.get, _)))
+
     // a service account key should only have been created if using a notebook service account
     if (notebookServiceAccount(googleProject).isDefined) {
       iamDAO.serviceAccountKeys should contain key(samClient.serviceAccount)
@@ -107,10 +108,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       iamDAO.serviceAccountKeys should not contain key(samClient.serviceAccount)
     }
 
-    val initBucket = dbFutureValue { dataAccess =>
+    val dbInitBucketOpt = dbFutureValue { dataAccess =>
       dataAccess.clusterQuery.getInitBucket(googleProject, clusterName)
     }
-    initBucket shouldBe 'defined
+    dbInitBucketOpt shouldBe 'defined
   }
 
   it should "create and get a cluster" in isolatedDbTest {
@@ -317,25 +318,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     bucketObjects should contain (GcsPath(bucket, GcsObjectName(ClusterInitValues.serviceAccountCredentialsFilename)))
   }
 
-  it should "add bucket objects" in isolatedDbTest {
-    // since we're only testing adding the objects, we're directly creating the bucket in the mock DAO
-    storageDAO.buckets += initBucketPath -> Set.empty
-
-    // add all the bucket objects
-    leo.initializeBucketObjects(defaultUserInfo.userEmail, googleProject, clusterName, initBucketPath, testClusterRequest, Some(serviceAccountKey)).futureValue
-
-    // check that the bucket exists
-    storageDAO.buckets should contain key (initBucketPath)
-
-    val bucketObjects = storageDAO.buckets(initBucketPath).map(_._1).map(objName => GcsPath(initBucketPath, objName))
-
-    // check the init files were added to the bucket
-    initFiles.map(initFile => bucketObjects should contain (GcsPath(initBucketPath, initFile)))
-
-    // check that the service account key was added to the bucket
-    bucketObjects should contain (GcsPath(initBucketPath, GcsObjectName(ClusterInitValues.serviceAccountCredentialsFilename)))
-  }
-
   it should "create a firewall rule in a project only once when the first cluster is added" in isolatedDbTest {
     val clusterName2 = ClusterName("test-cluster-2")
 
@@ -527,7 +509,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.firewallRules(googleProject).name.value shouldBe proxyConfig.firewallRuleName
 
     //staging bucket lives on!
-    storageDAO.buckets.keys.find(bucket => bucket.value.contains("-init")).size shouldBe  0
+    storageDAO.buckets.keys.find(bucket => bucket.value.contains("-init")).size shouldBe 0
+    storageDAO.buckets.keys.find(bucket => bucket.value.contains("-staging")).size shouldBe 1
   }
 
   it should "tell you if you're whitelisted" in isolatedDbTest {

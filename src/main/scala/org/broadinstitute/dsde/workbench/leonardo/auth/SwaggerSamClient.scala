@@ -51,6 +51,7 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
     samResourcesApi(getCachedPetAccessToken(userEmail, googleProject))
   }
 
+  //A google API as the given user's pet SA
   private[auth] def googleApiAsPet(userEmail: WorkbenchEmail, googleProject: GoogleProject): GoogleApi = {
     samGoogleApi(getCachedPetAccessToken(userEmail, googleProject))
   }

@@ -34,7 +34,7 @@ case class ServiceAccountInfo(clusterServiceAccount: Option[WorkbenchEmail],
                               notebookServiceAccount: Option[WorkbenchEmail])
 
 // The cluster itself
-// Also the API response for "list clusters", "get active cluster"
+// Also the API response for "list clusters" and "get active cluster"
 case class Cluster(clusterName: ClusterName,
                    googleId: UUID,
                    googleProject: GoogleProject,
