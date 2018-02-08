@@ -34,7 +34,8 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
       }
     }
 
-    "should create a cluster in a different billing project and put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
+    // default PetClusterServiceAccountProvider edition
+    "should create a cluster in a different billing project using PetClusterServiceAccountProvider and put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
       withNewBillingProject { project =>
         Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
 
@@ -52,6 +53,36 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
           withNewNotebook(cluster) { notebookPage =>
             // should not have notebook credentials because Leo is not configured to use a notebook service account
             verifyNoNotebookCredentials(notebookPage)
+          }
+        }
+
+        // Post-conditions: pet should still exist in this Google project
+
+        implicit val patienceConfig: PatienceConfig = saPatience
+        val googlePetEmail2 = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
+        googlePetEmail2 shouldBe Some(petEmail)
+      }
+    }
+
+    // PetNotebookServiceAccountProvider edition.  IGNORE.
+    "should create a cluster in a different billing project using PetNotebookServiceAccountProvider and put the pet's credentials on the cluster" ignore withWebDriver { implicit driver =>
+      withNewBillingProject { project =>
+        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+
+        implicit val token = ronAuthToken
+        // Pre-conditions: pet service account exists in this Google project and in Sam
+        val (petName, petEmail) = getAndVerifyPet(project)
+
+        // Create a cluster
+
+        withNewCluster(project) { cluster =>
+          // cluster should have been created with the default cluster account
+          cluster.serviceAccountInfo.clusterServiceAccount shouldBe None
+          cluster.serviceAccountInfo.notebookServiceAccount shouldBe Some(petEmail)
+
+          withNewNotebook(cluster) { notebookPage =>
+            // should have notebook credentials
+            verifyNotebookCredentials(notebookPage, petEmail)
           }
         }
 
