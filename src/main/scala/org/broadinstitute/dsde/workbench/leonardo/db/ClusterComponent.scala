@@ -23,6 +23,7 @@ case class ClusterRecord(id: Long,
                          createdDate: Timestamp,
                          destroyedDate: Timestamp,
                          jupyterExtensionUri: Option[String],
+                         jupyterUserScriptUri: Option[String],
                          initBucket: String,
                          machineConfig: MachineConfigRecord,
                          serviceAccountInfo: ServiceAccountInfoRecord,
@@ -67,6 +68,7 @@ trait ClusterComponent extends LeoComponent {
     def createdDate =                 column[Timestamp]         ("createdDate",           O.SqlType("TIMESTAMP(6)"))
     def destroyedDate =               column[Timestamp]         ("destroyedDate",         O.SqlType("TIMESTAMP(6)"))
     def jupyterExtensionUri =         column[Option[String]]    ("jupyterExtensionUri",   O.Length(1024))
+    def jupyterUserScriptUri =        column[Option[String]]    ("jupyterUserScriptUri",     O.Length(1024))
     def initBucket =                  column[String]            ("initBucket",            O.Length(1024))
     def serviceAccountKeyId =         column[Option[String]]    ("serviceAccountKeyId",   O.Length(254))
     def stagingBucket =               column[Option[String]]    ("stagingBucket",         O.Length(254))
@@ -79,15 +81,15 @@ trait ClusterComponent extends LeoComponent {
     // So we split ClusterRecord into multiple case classes and bind them to slick in the following way.
     def * = (
       id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
-      createdDate, destroyedDate, jupyterExtensionUri, initBucket,
+      createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
       (numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers),
       (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket
     ).shaped <> ({
       case (id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
-            createdDate, destroyedDate, jupyterExtensionUri, initBucket, machineConfig, serviceAccountInfo, stagingBucket) =>
+            createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket, machineConfig, serviceAccountInfo, stagingBucket) =>
         ClusterRecord(
           id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
-          createdDate, destroyedDate, jupyterExtensionUri, initBucket,
+          createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
           MachineConfigRecord.tupled.apply(machineConfig),
           ServiceAccountInfoRecord.tupled.apply(serviceAccountInfo),
           stagingBucket)
@@ -96,7 +98,7 @@ trait ClusterComponent extends LeoComponent {
       def sa(_sa: ServiceAccountInfoRecord) = ServiceAccountInfoRecord.unapply(_sa).get
       Some((
         c.id, c.clusterName, c.googleId, c.googleProject, c.operationName, c.status, c.hostIp, c.creator,
-        c.createdDate, c.destroyedDate, c.jupyterExtensionUri, c.initBucket,
+        c.createdDate, c.destroyedDate, c.jupyterExtensionUri, c.jupyterUserScriptUri, c.initBucket,
         mc(c.machineConfig), sa(c.serviceAccountInfo), c.stagingBucket
       ))
     })
@@ -264,6 +266,7 @@ trait ClusterComponent extends LeoComponent {
         Timestamp.from(cluster.createdDate),
         Timestamp.from(cluster.destroyedDate.getOrElse(dummyDate)),
         cluster.jupyterExtensionUri map(_.toUri),
+        cluster.jupyterUserScriptUri map(_.toUri),
         initBucket,
         MachineConfigRecord(
           cluster.machineConfig.numberOfWorkers.get,   //a cluster should always have numberOfWorkers defined
@@ -326,6 +329,7 @@ trait ClusterComponent extends LeoComponent {
         getDestroyedDate(clusterRecord.destroyedDate),
         labels,
         clusterRecord.jupyterExtensionUri flatMap { GcsPath.parse(_).toOption },
+        clusterRecord.jupyterUserScriptUri flatMap { GcsPath.parse(_).toOption },
         clusterRecord.stagingBucket map GcsBucketName
       )
     }

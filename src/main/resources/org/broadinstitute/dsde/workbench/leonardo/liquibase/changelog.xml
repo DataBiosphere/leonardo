@@ -16,4 +16,5 @@
     <include file="changesets/20171218_cluster_indexes_serviceAccount_and_status.xml" relativeToChangelogFile="true" />
     <include file="changesets/20171230_remove_googlebucket.xml" relativeToChangelogFile="true" />
     <include file="changesets/20180124_cluster-stagingBucket-column.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20180130_cluster-jupyterUserScriptUri-column.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>
