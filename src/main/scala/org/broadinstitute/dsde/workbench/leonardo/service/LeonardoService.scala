@@ -65,7 +65,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val authProvider: LeoAuthProvider,
                       protected val serviceAccountProvider: ServiceAccountProvider,
                       protected val whitelist: Set[String],
-                      protected val bucketService: BucketService)
+                      protected val bucketHelper: BucketHelper)
                      (implicit val executionContext: ExecutionContext) extends LazyLogging {
 
   private val bucketPathMaxLength = 1024
@@ -269,10 +269,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       _ <- addDataprocWorkerRoleToServiceAccount(googleProject, serviceAccountInfo.clusterServiceAccount)
       // Create the bucket in leo's google project and populate with initialization files.
       // ACLs are granted so the cluster service account can access the bucket at initialization time.
-      initBucket <- bucketService.createInitBucket(googleProject, clusterName, serviceAccountInfo)
+      initBucket <- bucketHelper.createInitBucket(googleProject, clusterName, serviceAccountInfo)
       _ <- initializeBucketObjects(userEmail, googleProject, clusterName, initBucket, clusterRequest, serviceAccountKeyOpt)
       // Create the cluster staging bucket. ACLs are granted so the user/pet can access it.
-      stagingBucket <- bucketService.createStagingBucket(userEmail, googleProject, clusterName, serviceAccountInfo)
+      stagingBucket <- bucketHelper.createStagingBucket(userEmail, googleProject, clusterName, serviceAccountInfo)
       // Create the cluster
       machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
       initScript = GcsPath(initBucket, GcsObjectName(clusterResourcesConfig.initActionsScript.value))

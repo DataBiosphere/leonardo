@@ -12,7 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig,
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
-import org.broadinstitute.dsde.workbench.leonardo.service.{BucketService, LeonardoService, MockProxyService, StatusService}
+import org.broadinstitute.dsde.workbench.leonardo.service.{BucketHelper, LeonardoService, MockProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.concurrent.ScalaFutures
@@ -46,8 +46,8 @@ trait TestLeoRoutes { this: ScalatestRouteTest with ScalaFutures =>
 
   // Route tests don't currently do cluster monitoring, so use NoopActor
   val clusterMonitorSupervisor = system.actorOf(NoopActor.props)
-  val bucketService = new BucketService(dataprocConfig, mockGoogleDataprocDAO, mockGoogleStorageDAO, serviceAccountProvider)
-  val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, mockGoogleDataprocDAO, mockGoogleIamDAO, mockGoogleStorageDAO, DbSingleton.ref, clusterMonitorSupervisor, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketService)
+  val bucketHelper = new BucketHelper(dataprocConfig, mockGoogleDataprocDAO, mockGoogleStorageDAO, serviceAccountProvider)
+  val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, mockGoogleDataprocDAO, mockGoogleIamDAO, mockGoogleStorageDAO, DbSingleton.ref, clusterMonitorSupervisor, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper)
   val proxyService = new MockProxyService(proxyConfig, mockGoogleDataprocDAO, DbSingleton.ref, whitelistAuthProvider)
   val statusService = new StatusService(mockGoogleDataprocDAO, mockSamDAO, DbSingleton.ref, dataprocConfig, pollInterval = 1.second)
   val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)

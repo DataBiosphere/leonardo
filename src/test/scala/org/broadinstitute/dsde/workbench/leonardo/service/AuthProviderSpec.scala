@@ -79,7 +79,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
   val storageDAO = new MockGoogleStorageDAO
   val samDAO = new MockSamDAO
   val tokenCookie = HttpCookiePair("LeoToken", "me")
-  val bucketService = new BucketService(dataprocConfig, gdDAO, storageDAO, serviceAccountProvider)
+  val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, storageDAO, serviceAccountProvider)
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -92,7 +92,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
   }
 
   def leoWithAuthProvider(authProvider: LeoAuthProvider): LeonardoService = {
-    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketService)
+    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper)
   }
 
   def proxyWithAuthProvider(authProvider: LeoAuthProvider): ProxyService = {

@@ -34,7 +34,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   private var iamDAO: MockGoogleIamDAO = _
   private var storageDAO: MockGoogleStorageDAO = _
   private var samClient: MockSwaggerSamClient = _
-  private var bucketService: BucketService = _
+  private var bucketHelper: BucketHelper = _
   private var leo: LeonardoService = _
   private var authProvider: LeoAuthProvider = _
   private var serviceAccountProvider: ServiceAccountProvider = _
@@ -52,8 +52,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     samClient = serviceAccountProvider.asInstanceOf[MockPetClusterServiceAccountProvider].mockSwaggerSamClient
     authProvider = new WhitelistAuthProvider(configFactory.getConfig("auth.whitelistProviderConfig"),serviceAccountProvider)
 
-    bucketService = new BucketService(dataprocConfig, gdDAO, storageDAO, serviceAccountProvider)
-    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketService)
+    bucketHelper = new BucketHelper(dataprocConfig, gdDAO, storageDAO, serviceAccountProvider)
+    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper)
   }
 
   override def afterAll(): Unit = {
@@ -246,7 +246,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   it should "delete a cluster" in isolatedDbTest {
     // need a specialized LeonardoService for this test, so we can spy on its authProvider
     val spyProvider: LeoAuthProvider = spy(authProvider)
-    val leoForTest = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), spyProvider, serviceAccountProvider, whitelist, bucketService)
+    val leoForTest = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), spyProvider, serviceAccountProvider, whitelist, bucketHelper)
 
     // check that the cluster does not exist
     gdDAO.clusters should not contain key (clusterName)
@@ -303,7 +303,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "initialize bucket with correct files" in isolatedDbTest {
     // create the bucket and add files
-    val bucket = bucketService.createInitBucket(googleProject, clusterName, ServiceAccountInfo(None, Some(petServiceAccount))).futureValue
+    val bucket = bucketHelper.createInitBucket(googleProject, clusterName, ServiceAccountInfo(None, Some(petServiceAccount))).futureValue
     leo.initializeBucketObjects(defaultUserInfo.userEmail, googleProject, clusterName, bucket, testClusterRequest, Some(serviceAccountKey)).futureValue
 
     // our bucket should now exist
@@ -492,7 +492,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
 
     // make a new LeoService
-    val newLeo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), newAuthProvider, serviceAccountProvider, whitelist, bucketService)
+    val newLeo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), newAuthProvider, serviceAccountProvider, whitelist, bucketHelper)
 
     // list clusters should only return cluster1
     newLeo.listClusters(defaultUserInfo, Map.empty).futureValue shouldBe Seq(cluster1)

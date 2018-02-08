@@ -18,11 +18,11 @@ import scala.concurrent.{ExecutionContext, Future}
 /**
   * Created by rtitle on 2/7/18.
   */
-class BucketService(dataprocConfig: DataprocConfig,
-                    gdDAO: GoogleDataprocDAO,
-                    googleStorageDAO: GoogleStorageDAO,
-                    serviceAccountProvider: ServiceAccountProvider)
-                   (implicit val executionContext: ExecutionContext) extends LazyLogging {
+class BucketHelper(dataprocConfig: DataprocConfig,
+                   gdDAO: GoogleDataprocDAO,
+                   googleStorageDAO: GoogleStorageDAO,
+                   serviceAccountProvider: ServiceAccountProvider)
+                  (implicit val executionContext: ExecutionContext) extends LazyLogging {
 
   /**
     * Creates the dataproc init bucket and sets the necessary ACLs.
