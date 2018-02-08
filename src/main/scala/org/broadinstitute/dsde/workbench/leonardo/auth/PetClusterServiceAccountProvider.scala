@@ -19,4 +19,12 @@ class PetClusterServiceAccountProvider(val config: Config) extends ServiceAccoun
   override def getNotebookServiceAccount(workbenchEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
     Future(None)
   }
+
+  override def listGroupsStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {
+    Future(samClient.getUserProxyFromSam(userEmail)).map(List(_))
+  }
+
+  override def listUsersStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {
+    Future.successful(List.empty)
+  }
 }
