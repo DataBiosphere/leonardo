@@ -281,7 +281,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   private[service] def generateServiceAccountKey(googleProject: GoogleProject, serviceAccountOpt: Option[WorkbenchEmail]): Future[Option[ServiceAccountKey]] = {
     serviceAccountOpt.traverse { serviceAccountEmail =>
-      googleIamDAO.createServiceAccountKey(dataprocConfig.leoGoogleProject, serviceAccountEmail)
+      googleIamDAO.createServiceAccountKey(googleProject, serviceAccountEmail)
     }
   }
 
@@ -290,7 +290,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val tea = for {
       key <- OptionT(dbRef.inTransaction { _.clusterQuery.getServiceAccountKeyId(googleProject, clusterName) })
       serviceAccountEmail <- OptionT.fromOption[Future](serviceAccountOpt)
-      _ <- OptionT.liftF(googleIamDAO.removeServiceAccountKey(dataprocConfig.leoGoogleProject, serviceAccountEmail, key))
+      _ <- OptionT.liftF(googleIamDAO.removeServiceAccountKey(googleProject, serviceAccountEmail, key))
     } yield ()
 
     tea.value.void
