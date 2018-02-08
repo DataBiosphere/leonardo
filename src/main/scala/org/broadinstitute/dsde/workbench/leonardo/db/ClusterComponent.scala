@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKeyId, GcsPath, GcsPathSupport, parseGcsPath}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GcsPathSupport, GoogleProject, ServiceAccountKeyId, parseGcsPath}
 
 case class ClusterRecord(id: Long,
                          clusterName: String,
@@ -282,7 +282,7 @@ trait ClusterComponent extends LeoComponent {
           cluster.serviceAccountInfo.notebookServiceAccount.map(_.value),
           serviceAccountKeyId.map(_.value)
         ),
-        cluster.stagingBucket.map(_.name)
+        cluster.stagingBucket.map(_.value)
       )
     }
 

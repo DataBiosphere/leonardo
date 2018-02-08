@@ -16,7 +16,7 @@ import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 
 class TestSamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends SamAuthProvider(authConfig, serviceAccountProvider)  {
-  override val samClient = new MockSwaggerSamClient()
+  override lazy val samClient = new MockSwaggerSamClient()
 }
 
 class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with FreeSpecLike with Matchers with TestComponent with CommonTestData with ScalaFutures with BeforeAndAfterAll {

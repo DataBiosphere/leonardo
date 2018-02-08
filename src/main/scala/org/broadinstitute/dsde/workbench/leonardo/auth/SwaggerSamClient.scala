@@ -51,6 +51,10 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
     samResourcesApi(getCachedPetAccessToken(userEmail, googleProject))
   }
 
+  private[auth] def googleApiAsPet(userEmail: WorkbenchEmail, googleProject: GoogleProject): GoogleApi = {
+    samGoogleApi(getCachedPetAccessToken(userEmail, googleProject))
+  }
+
   //"Fast" lookup of pet's access token, using the cache.
   private def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = {
     petTokenCache.get(UserEmailAndProject(userEmail, googleProject))
@@ -122,6 +126,10 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
   def getUserProxyFromSam(userEmail: WorkbenchEmail): WorkbenchEmail = {
     val samAPI = samGoogleApi(getAccessTokenUsingPem(leoEmail, leoPem))
     WorkbenchEmail(samAPI.getProxyGroup(userEmail.value))
+  }
+
+  def getPetServiceAccount(userEmail: WorkbenchEmail, googleProject: GoogleProject): WorkbenchEmail = {
+    WorkbenchEmail(googleApiAsPet(userEmail, googleProject).getPetServiceAccount(googleProject.value))
   }
 
   private def hasActionOnResource(resourceType: String, resourceName: String, userEmail: WorkbenchEmail, googleProject: GoogleProject, action: String): Boolean = {

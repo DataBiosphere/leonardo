@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.model
 
+import java.io.File
+
 import com.typesafe.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -27,6 +29,9 @@ object NotebookClusterActions {
 }
 
 abstract class LeoAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider) {
+
+  protected def getLeoServiceAccountAndKey: (WorkbenchEmail, File) = serviceAccountProvider.getLeoServiceAccountAndKey
+
   /**
     * @param userEmail The user in question
     * @param action The project-level action (above) the user is requesting

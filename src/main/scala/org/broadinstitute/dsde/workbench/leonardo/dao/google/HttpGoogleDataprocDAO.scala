@@ -72,10 +72,10 @@ class HttpGoogleDataprocDAO(appName: String,
       .setApplicationName(appName).build()
   }
 
-  override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, machineConfig: MachineConfig, initScript: GcsPath, clusterServiceAccount: Option[WorkbenchEmail], credentialsFileName: Option[String]): Future[Operation] = {
+  override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, machineConfig: MachineConfig, initScript: GcsPath, clusterServiceAccount: Option[WorkbenchEmail], credentialsFileName: Option[String], stagingBucket: GcsBucketName): Future[Operation] = {
     val cluster = new DataprocCluster()
       .setClusterName(clusterName.value)
-      .setConfig(getClusterConfig(machineConfig, initScript, clusterServiceAccount,credentialsFileName))
+      .setConfig(getClusterConfig(machineConfig, initScript, clusterServiceAccount, credentialsFileName, stagingBucket))
 
     val request = dataproc.projects().regions().clusters().create(googleProject.value, defaultRegion, cluster)
 
@@ -206,7 +206,7 @@ class HttpGoogleDataprocDAO(appName: String,
     }
   }
 
-  private def getClusterConfig(machineConfig: MachineConfig, initScript: GcsPath, clusterServiceAccount: Option[WorkbenchEmail], credentialsFileName: Option[String]): DataprocClusterConfig = {
+  private def getClusterConfig(machineConfig: MachineConfig, initScript: GcsPath, clusterServiceAccount: Option[WorkbenchEmail], credentialsFileName: Option[String], stagingBucket: GcsBucketName): DataprocClusterConfig = {
     // Create a GceClusterConfig, which has the common config settings for resources of Google Compute Engine cluster instances,
     // applicable to all instances in the cluster.
     // Set the network tag, which is needed by the firewall rule that allows leo to talk to the cluster
@@ -232,6 +232,7 @@ class HttpGoogleDataprocDAO(appName: String,
       .setGceClusterConfig(gceClusterConfig)
       .setInitializationActions(initActions.asJava)
       .setMasterConfig(masterConfig)
+      .setConfigBucket(stagingBucket.value)
   }
 
   // Expects a Machine Config with master configs defined for a 0 worker cluster and both master and worker

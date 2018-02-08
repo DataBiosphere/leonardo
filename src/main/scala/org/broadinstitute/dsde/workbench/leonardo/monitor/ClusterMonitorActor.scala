@@ -18,11 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterDeleted
-import org.broadinstitute.dsde.workbench.leonardo.service.ClusterNotReadyException
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.User
-import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Owner
+import org.broadinstitute.dsde.workbench.leonardo.service.{BucketService, ClusterNotReadyException}
 import org.broadinstitute.dsde.workbench.util.addJitter
 
 import scala.concurrent.Future
@@ -134,9 +130,6 @@ class ClusterMonitorActor(val cluster: Cluster,
       // Remove credentials from instance metadata.
       // Only happens if an notebook service account was used.
       _ <- removeCredentialsFromMetadata
-      // Add Staging Bucket ACLs to the notebook service account.
-      // Only happens if an notebook service account was localized onto the cluster.
-      _ <- setStagingBucketOwnership
       // Ensure the cluster is ready for proxying but updating the IP -> DNS cache
       _ <- ensureClusterReadyForProxying(publicIp)
       // update DB after auth futures finish
@@ -283,23 +276,23 @@ class ClusterMonitorActor(val cluster: Cluster,
     tea.value.void
   }
 
-  private def setStagingBucketOwnership: Future[Unit] = {
-    def forBothServiceAccounts(op: WorkbenchEmail => Future[Unit]): Future[Unit] = {
-      // Note! the following calls should be done in sequence. Google complains if setting ACLs for the same bucket in parallel (e.g. via Future.traverse).
-      for {
-        _ <- cluster.serviceAccountInfo.clusterServiceAccount.map(op).getOrElse(Future.successful(()))
-        _ <- cluster.serviceAccountInfo.notebookServiceAccount.map(op).getOrElse(Future.successful(()))
-      } yield ()
-    }
-
-    val transformed = for {
-      bucket <- OptionT(gdDAO.getClusterStagingBucket(cluster.googleProject, cluster.clusterName))
-      _ <- OptionT.liftF(forBothServiceAccounts { sa => googleStorageDAO.setBucketAccessControl(bucket, GcsEntity(sa, User), Owner) })
-      _ <- OptionT.liftF(forBothServiceAccounts { sa => googleStorageDAO.setDefaultObjectAccessControl(bucket, GcsEntity(sa, User), Owner) })
-    } yield ()
-
-    transformed.value.void
-  }
+//  private def setStagingBucketOwnership: Future[Unit] = {
+//    def forBothServiceAccounts(op: WorkbenchEmail => Future[Unit]): Future[Unit] = {
+//      // Note! the following calls should be done in sequence. Google complains if setting ACLs for the same bucket in parallel (e.g. via Future.traverse).
+//      for {
+//        _ <- cluster.serviceAccountInfo.clusterServiceAccount.map(op).getOrElse(Future.successful(()))
+//        _ <- cluster.serviceAccountInfo.notebookServiceAccount.map(op).getOrElse(Future.successful(()))
+//      } yield ()
+//    }
+//
+//    val transformed = for {
+//      bucket <- OptionT(gdDAO.getClusterStagingBucket(cluster.googleProject, cluster.clusterName))
+//      _ <- OptionT.liftF(forBothServiceAccounts { sa => googleStorageDAO.setBucketAccessControl(bucket, GcsEntity(sa, User), Owner) })
+//      _ <- OptionT.liftF(forBothServiceAccounts { sa => googleStorageDAO.setDefaultObjectAccessControl(bucket, GcsEntity(sa, User), Owner) })
+//    } yield ()
+//
+//    transformed.value.void
+//  }
 
   private def deleteInitBucket: Future[Unit] = {
     // Get the init bucket path for this cluster, then delete the bucket in Google.

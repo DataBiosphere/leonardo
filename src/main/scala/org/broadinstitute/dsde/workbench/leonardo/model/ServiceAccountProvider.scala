@@ -38,11 +38,11 @@ abstract class ServiceAccountProvider(config: Config) {
     * (https://cloud.google.com/compute/docs/access/service-accounts#compute_engine_default_service_account)
     * is used instead.
     *
-    * @param userInfo the user who is making the Leo request
+    * @param workbenchEmail the user who is making the Leo request
     * @param googleProject the Google project the cluster is created in
     * @return service account email
     */
-  def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]]
+  def getClusterServiceAccount(workbenchEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]]
 
   /**
     * Optional. The service account email that will be localized into the user environment
@@ -52,11 +52,11 @@ abstract class ServiceAccountProvider(config: Config) {
     * If not present, application default credentials will return the service account in
     * instance metadata, i.e. the service account returned by [getClusterServiceAccount].
     *
-    * @param userInfo the user who is making the Leo request
+    * @param workbenchEmail the user who is making the Leo request
     * @param googleProject the Google project the cluster is created in
     * @return service account email
     */
-  def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]]
+  def getNotebookServiceAccount(workbenchEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]]
 
   /**
     *
