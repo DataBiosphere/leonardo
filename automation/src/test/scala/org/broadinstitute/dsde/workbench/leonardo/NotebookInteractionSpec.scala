@@ -6,9 +6,7 @@ import java.time.Instant
 import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.config.Config
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.scalatest.time.{Seconds, Span}
+import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GoogleProject}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 
 class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with BeforeAndAfterAll {
@@ -144,6 +142,36 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
         val result = notebookPage.executeCell(query).get
         result should include("Current status: DONE")
         result should include(expectedResult)
+      }
+    }
+
+    // requires a new cluster because we want to pass in a user script in the cluster request
+    "should allow user to create a cluster with a script" in withWebDriver { implicit driver =>
+      Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+
+      //a cluster without the user script should not be able to import the arrow library
+      withNewNotebook(ronCluster) { notebookPage =>
+        notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
+        notebookPage.executeCell("""import arrow""").get should include("ImportError: No module named arrow")
+      }
+
+      // create a new bucket, add the user script to the bucket, create a new cluster using the URI of the user script and create a notebook that will check if the user script ran
+      withNewGoogleBucket(billingProject) { bucketName =>
+        val userScriptString = "#!/usr/bin/env bash\n\npip install arrow"
+        val userScriptObjectName = GcsObjectName("user-script.sh")
+        val userScriptUri = s"gs://${bucketName.value}/${userScriptObjectName.value}"
+
+        withNewBucketObject(bucketName, userScriptObjectName, userScriptString, "text/plain") { objectName =>
+          val clusterName = ClusterName("user-script-cluster" + makeRandomId())
+
+          withNewCluster(billingProject, clusterName, ClusterRequest(Map(), None, Option(userScriptUri))) { cluster =>
+            withNewNotebook(cluster) { notebookPage =>
+              notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
+              notebookPage.executeCell("""import arrow""")
+              notebookPage.executeCell("""arrow.get(727070400)""") shouldBe Some("<Arrow [1993-01-15T04:00:00+00:00]>")
+            }
+          }
+        }
       }
     }
 

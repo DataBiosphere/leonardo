@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.io.File
+import java.io.{ByteArrayInputStream, File}
 import java.nio.file.Files
 
 import com.typesafe.scalalogging.LazyLogging
@@ -12,8 +12,9 @@ import org.broadinstitute.dsde.workbench.service.APIException
 import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
-import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, google}
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject, ServiceAccountName, generateUniqueBucketName}
+import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsEntityTypes, GcsObjectName, GoogleProject, ServiceAccountName, generateUniqueBucketName}
 import org.broadinstitute.dsde.workbench.util.LocalFileUtil
 import org.openqa.selenium.WebDriver
 import org.scalatest.{Matchers, Suite}
@@ -83,27 +84,25 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   }
 
   def labelCheck(seen: LabelMap,
-                 requestedLabels: LabelMap,
                  clusterName: ClusterName,
                  googleProject: GoogleProject,
                  creator: WorkbenchEmail,
-                 notebookExtension: Option[String] = None): Unit = {
+                 clusterRequest: ClusterRequest): Unit = {
 
     // we don't actually know the SA because it's the pet
     // set a dummy here and then remove it from the comparison
 
     val dummyPetSa = WorkbenchEmail("dummy")
-    val expected = requestedLabels ++ DefaultLabels(clusterName, googleProject, creator, Some(dummyPetSa), None, notebookExtension).toMap
+    val expected = clusterRequest.labels ++ DefaultLabels(clusterName, googleProject, creator, Some(dummyPetSa), None, clusterRequest.jupyterExtensionUri, clusterRequest.jupyterUserScriptUri).toMap
 
     (seen - "clusterServiceAccount") shouldBe (expected - "clusterServiceAccount")
   }
 
   def clusterCheck(cluster: Cluster,
-                   requestedLabels: Map[String, String],
                    expectedProject: GoogleProject,
                    expectedName: ClusterName,
                    expectedStatuses: Iterable[ClusterStatus],
-                   notebookExtension: Option[String] = None): Cluster = {
+                   clusterRequest: ClusterRequest): Cluster = {
 
     expectedStatuses should contain (cluster.status)
     cluster.googleProject shouldBe expectedProject
@@ -112,7 +111,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
     implicit val patienceConfig: PatienceConfig = storagePatience
     googleStorageDAO.bucketExists(GcsBucketName(cluster.stagingBucket.get.value)).futureValue shouldBe true
-    labelCheck(cluster.labels, requestedLabels, expectedName, expectedProject, cluster.creator, notebookExtension)
+    labelCheck(cluster.labels, expectedName, expectedProject, cluster.creator, clusterRequest)
     cluster
   }
 
@@ -122,15 +121,15 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     Thread sleep Random.nextInt(30000)
 
     val cluster = Leonardo.cluster.create(googleProject, clusterName, clusterRequest)
-    clusterCheck(cluster, clusterRequest.labels, googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest.jupyterExtensionUri)
+    clusterCheck(cluster, googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest)
 
     // verify with get()
-    clusterCheck(Leonardo.cluster.get(googleProject, clusterName), clusterRequest.labels, googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest.jupyterExtensionUri)
+    clusterCheck(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest)
 
     // wait for "Running" or error (fail fast)
     implicit val patienceConfig: PatienceConfig = clusterPatience
     val actualCluster = eventually {
-      clusterCheck(Leonardo.cluster.get(googleProject, clusterName), clusterRequest.labels, googleProject, clusterName, Seq(ClusterStatus.Running, ClusterStatus.Error), clusterRequest.jupyterExtensionUri)
+      clusterCheck(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName, Seq(ClusterStatus.Running, ClusterStatus.Error), clusterRequest)
     }
 
     actualCluster
@@ -291,4 +290,20 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     // Return the test result, or throw error
     testResult.get
   }
+
+  def withNewBucketObject[T](bucketName: GcsBucketName, objectName: GcsObjectName, fileContents: String, objectType: String)(testCode: GcsObjectName => T): T = {
+    implicit val patienceConfig: PatienceConfig = storagePatience
+
+    // Create google bucket and run test code
+    googleStorageDAO.storeObject(bucketName, objectName, new ByteArrayInputStream(fileContents.getBytes), objectType).futureValue
+    val testResult: Try[T] = Try {
+      testCode(objectName)
+    }
+    // Clean up
+    googleStorageDAO.removeObject(bucketName, objectName).futureValue
+
+    // Return the test result, or throw error
+    testResult.get
+  }
+
 }
