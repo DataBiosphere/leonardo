@@ -1,7 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
-import java.util.concurrent.Executor
-
 import cats.data.OptionT
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
@@ -78,13 +76,6 @@ class BucketService(dataprocConfig: DataprocConfig,
   }
 
   private def setBucketAcls(bucketName: GcsBucketName, readers: List[GcsEntity], owners: List[GcsEntity]): Future[Unit] = {
-    // NOTE: Google gets confused if you try to update ACLs for different users in parallel on the same bucket.
-    // Therefore we define a synchronous execution context for this method only.
-    // Even though we're using futures, there will be only 1 thread running these Google operations.
-    implicit val synchronousExecutionContext = ExecutionContext.fromExecutor(new Executor {
-      def execute(task: Runnable) = task.run()
-    })
-
     def setBucketAndDefaultAcls(entity: GcsEntity, role: GcsRole) = {
       for {
         _ <- googleStorageDAO.setBucketAccessControl(bucketName, entity, role)
@@ -92,9 +83,17 @@ class BucketService(dataprocConfig: DataprocConfig,
       } yield ()
     }
 
+    def flatMapList(entities: List[GcsEntity], role: GcsRole): Future[Unit] = {
+      entities match {
+        case Nil => Future.successful(())
+        case head :: tail =>
+          setBucketAndDefaultAcls(head, role).flatMap(_ => flatMapList(tail, role))
+      }
+    }
+
     for {
-      _ <- Future.traverse(readers) { setBucketAndDefaultAcls(_, Reader) }
-      _ <- Future.traverse(owners) { setBucketAndDefaultAcls(_, Owner) }
+      _ <- flatMapList(readers, Reader)
+      _ <- flatMapList(owners, Owner)
     } yield ()
   }
 
