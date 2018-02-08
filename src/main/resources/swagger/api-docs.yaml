@@ -505,7 +505,6 @@ definitions:
         type: string
         description: |
           Optional bucket URI to a bash script the user wishes to run inside their jupyter docker.
-          The script must be in .sh format and must not include a parent directory.
       machineConfig:
         description: The machine configurations for the master and worker nodes
         $ref: '#/definitions/MachineConfig'
