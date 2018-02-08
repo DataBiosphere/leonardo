@@ -29,6 +29,7 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTest
       destroyedDate = Option(Instant.now()),
       labels = Map.empty,
       jupyterExtensionUri = jupyterExtensionUri,
+      jupyterUserScriptUri = jupyterUserScriptUri,
       Some(GcsBucketName("testStagingBucket1")))
 
     val c2 = Cluster(
@@ -45,6 +46,7 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTest
       createdDate = Instant.now(),
       destroyedDate = None,
       labels = Map.empty,
+      None,
       None,
       Some(GcsBucketName("testStagingBucket2")))
 

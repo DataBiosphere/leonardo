@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.net.URL
 import java.time.Instant
 import java.util.UUID
 
@@ -10,7 +9,6 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.gcs.{GcsBucketName, GcsPath, GcsRelativePath}
 import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetsPerProjectServiceAccountProvider, WhitelistAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchUserId}
@@ -26,14 +24,17 @@ trait CommonTestData { this: ScalaFutures =>
   val name2 = ClusterName("name2")
   val name3 = ClusterName("name3")
   val project = GoogleProject("dsp-leo-test")
-  val userInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
   val userEmail = WorkbenchEmail("user1@example.com")
-  val testClusterRequest = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), None)
+  val userInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), userEmail, 0)
+  val petServiceAccount = WorkbenchEmail("petSA@test-domain.iam.gserviceaccount.com")
   val serviceAccountEmail = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
   val jupyterExtensionUri = Some(GcsPath(GcsBucketName("extension_bucket"), GcsRelativePath("extension_path")))
+  val jupyterUserScriptUri = Some(GcsPath(GcsBucketName("userscript_bucket"), GcsRelativePath("userscript.sh")))
   val serviceAccountKey = ServiceAccountKey(ServiceAccountKeyId("123"), ServiceAccountPrivateKeyData("abcdefg"), Some(Instant.now), Some(Instant.now.plusSeconds(300)))
+  val initBucketPath = GcsBucketName("bucket-path")
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
+  val whitelistAuthConfig = config.getConfig("auth.whitelistProviderConfig")
   val whitelist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
   val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
@@ -41,26 +42,29 @@ trait CommonTestData { this: ScalaFutures =>
   val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
+  val serviceAccountsConfig = config.getConfig("serviceAccounts.config")
 
-  val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
+  val singleNodeDefaultMachineConfig = MachineConfig(Some(clusterDefaultsConfig.numberOfWorkers), Some(clusterDefaultsConfig.masterMachineType), Some(clusterDefaultsConfig.masterDiskSize))
+  val testClusterRequest = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), None)
+  val testClusterRequestWithExtensionAndScript = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), jupyterExtensionUri, jupyterUserScriptUri)
+
 
   val serviceAccountInfo = new ServiceAccountInfo(Option(WorkbenchEmail("testServiceAccount1@example.com")), Option(WorkbenchEmail("testServiceAccount2@example.com")))
-  val testCluster = new Cluster(name1, new UUID(1, 1), project, serviceAccountInfo, MachineConfig(), Cluster.getClusterUrl(project, name1), OperationName("op"), ClusterStatus.Running, None, userEmail, Instant.now(), None, Map(), Option(GcsPath(GcsBucketName("bucketName"), GcsRelativePath("path"))),Some(GcsBucketName("testStagingBucket1")))
+  val testCluster = new Cluster(name1, new UUID(1, 1), project, serviceAccountInfo, MachineConfig(), Cluster.getClusterUrl(project, name1), OperationName("op"), ClusterStatus.Running, None, userEmail, Instant.now(), None, Map(), Option(GcsPath(GcsBucketName("bucketName"), GcsRelativePath("extension"))),Option(GcsPath(GcsBucketName("bucketName"), GcsRelativePath("userScript"))),Some(GcsBucketName("testStagingBucket1")))
 
 
   // TODO look into parameterized tests so both provider impls can both be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData
-  val serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(config.getConfig("serviceAccounts.config"))
-  val whitelistAuthProvider = new WhitelistAuthProvider(config.getConfig("auth.whitelistProviderConfig"), serviceAccountProvider)
+  val serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(serviceAccountsConfig)
+  val whitelistAuthProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider)
 
-  val samDAO = new MockSamDAO
 
   protected def clusterServiceAccount(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Option[WorkbenchEmail] = {
-    serviceAccountProvider.getClusterServiceAccount(defaultUserInfo, googleProject).futureValue
+    serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject).futureValue
   }
 
   protected def notebookServiceAccount(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Option[WorkbenchEmail] = {
-    serviceAccountProvider.getNotebookServiceAccount(defaultUserInfo, googleProject).futureValue
+    serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject).futureValue
   }
 }
 
