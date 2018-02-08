@@ -307,7 +307,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       // We want to ensure that _only_ the notebook service account is used;
       // users should not be able to yank the cluster SA credentials from the metadata server.
       case Some(_) =>
-        // TODO https://broadinstitute.atlassian.net/browse/GAWB-2961
+        // TODO https://github.com/DataBiosphere/leonardo/issues/128
         Future.successful(())
     }
   }
