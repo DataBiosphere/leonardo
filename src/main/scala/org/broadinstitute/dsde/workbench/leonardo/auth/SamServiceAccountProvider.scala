@@ -4,12 +4,14 @@ import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import com.typesafe.config.Config
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.leonardo.config.SamConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
-
 import java.time.Duration
+
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+
+import scala.concurrent.{ExecutionContext, Future}
 
 /**
   * Created by rtitle on 12/5/17.
@@ -26,5 +28,13 @@ abstract class SamServiceAccountProvider(config: Config) extends ServiceAccountP
   protected lazy val (leoEmail, leoPemFile) = getLeoServiceAccountAndKey
   protected lazy val samDAO = new HttpSamDAO(samServer)
   protected lazy val samClient = new SwaggerSamClient(samServer, cacheExpiryTime, cacheMaxSize, leoEmail, leoPemFile)
+
+  override def listUsersStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {
+    Future.successful(List.empty[WorkbenchEmail])
+  }
+
+  override def listGroupsStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {
+    Future(samClient.getUserProxyFromSam(userEmail)).map(List(_))
+  }
 
 }

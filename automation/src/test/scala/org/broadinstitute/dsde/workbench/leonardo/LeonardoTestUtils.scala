@@ -89,13 +89,15 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
                  creator: WorkbenchEmail,
                  clusterRequest: ClusterRequest): Unit = {
 
-    // we don't actually know the SA because it's the pet
-    // set a dummy here and then remove it from the comparison
+    // the SAs can vary here depending on which ServiceAccountProvider is used
+    // set dummy values here and then remove them from the comparison
+    // TODO: check for these values after tests are agnostic to ServiceAccountProvider ?
 
-    val dummyPetSa = WorkbenchEmail("dummy")
-    val expected = clusterRequest.labels ++ DefaultLabels(clusterName, googleProject, creator, Some(dummyPetSa), None, clusterRequest.jupyterExtensionUri, clusterRequest.jupyterUserScriptUri).toMap
+    val dummyClusterSa = WorkbenchEmail("dummy-cluster")
+    val dummyNotebookSa = WorkbenchEmail("dummy-notebook")
+    val expected = clusterRequest.labels ++ DefaultLabels(clusterName, googleProject, creator, Some(dummyClusterSa), Some(dummyNotebookSa), clusterRequest.jupyterExtensionUri, clusterRequest.jupyterUserScriptUri).toMap
 
-    (seen - "clusterServiceAccount") shouldBe (expected - "clusterServiceAccount")
+    (seen - "clusterServiceAccount" - "notebookServiceAccount") shouldBe (expected - "clusterServiceAccount" - "notebookServiceAccount")
   }
 
   def clusterCheck(cluster: Cluster,
