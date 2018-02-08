@@ -10,7 +10,6 @@ import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleExceptionSupport._
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache.{ClusterReady, GetClusterResponse, ProcessReadyCluster}
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -18,7 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterDeleted
-import org.broadinstitute.dsde.workbench.leonardo.service.{BucketService, ClusterNotReadyException}
+import org.broadinstitute.dsde.workbench.leonardo.service.ClusterNotReadyException
 import org.broadinstitute.dsde.workbench.util.addJitter
 
 import scala.concurrent.Future
@@ -124,7 +123,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ShutdownActor
     */
   private def handleReadyCluster(publicIp: IP): Future[ClusterMonitorMessage] = {
-    val result = for {
+    for {
       // Delete the init bucket
       _ <- deleteInitBucket
       // Remove credentials from instance metadata.
@@ -145,8 +144,6 @@ class ClusterMonitorActor(val cluster: Cluster,
       logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is ready for use!")
       ShutdownActor()
     }
-
-    result.handleGoogleException(cluster)
   }
 
   /**
@@ -165,7 +162,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       removeServiceAccountKey
     ))
 
-    val result = deleteFuture.flatMap { _ =>
+    deleteFuture.flatMap { _ =>
       // Decide if we should try recreating the cluster
       if (shouldRecreateCluster(errorDetails.code, errorDetails.message)) {
         // Update the database record to Deleting, shutdown this actor, and register a callback message
@@ -187,8 +184,6 @@ class ClusterMonitorActor(val cluster: Cluster,
         } yield ShutdownActor()
       }
     }
-
-    result.handleGoogleException(cluster)
   }
 
   private def shouldRecreateCluster(code: Int, message: Option[String]): Boolean = {
@@ -218,7 +213,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ClusterMonitorMessage
     */
   private def checkCluster: Future[ClusterMonitorMessage] = {
-    val result = for {
+    for {
       googleStatus <- gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName)
       result <- googleStatus match {
         case Unknown | Creating | Updating =>
@@ -238,11 +233,6 @@ class ClusterMonitorActor(val cluster: Cluster,
         case _ => Future.successful(NotReadyCluster(googleStatus))
       }
     } yield result
-
-    // Recover from Google 404 errors, and assume the cluster is deleted
-    result.handleGoogleException(cluster).recover {
-      case CallToGoogleApiFailedException(_, _, 404, _) => DeletedCluster
-    }
   }
 
   private def removeIamRolesForUser: Future[Unit] = {

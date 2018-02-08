@@ -27,7 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject}
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchException, WorkbenchUserId}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
@@ -81,7 +81,7 @@ class HttpGoogleDataprocDAO(appName: String,
 
     retryWhen500orGoogleError(() => executeGoogleRequest(request)).map { op =>
       Operation(OperationName(op.getName), getOperationUUID(op))
-    }
+    }.handleGoogleException(googleProject, Some(clusterName.value))
   }
 
   override def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName): Future[Unit] = {
@@ -93,7 +93,7 @@ class HttpGoogleDataprocDAO(appName: String,
       case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => ()
       case e: GoogleJsonResponseException if e.getStatusCode == StatusCodes.BadRequest.intValue &&
         e.getDetails.getMessage.contains("it has other pending delete operations against it") => ()
-    }
+    }.handleGoogleException(googleProject, clusterName)
   }
 
   override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] = {
@@ -103,7 +103,7 @@ class HttpGoogleDataprocDAO(appName: String,
         Try(ClusterStatus.withNameIgnoreCase(cluster.getStatus.getState)).toOption.getOrElse(ClusterStatus.Unknown))
     } yield status
 
-    transformed.value.map(_.getOrElse(ClusterStatus.Deleted))
+    transformed.value.map(_.getOrElse(ClusterStatus.Deleted)).handleGoogleException(googleProject, clusterName)
   }
 
   override def listClusters(googleProject: GoogleProject): Future[List[UUID]] = {
@@ -115,7 +115,7 @@ class HttpGoogleDataprocDAO(appName: String,
     } yield {
       googleClusters.asScala.toList.map(c => UUID.fromString(c.getClusterUuid))
     }
-    transformed.value.map(_.getOrElse(List.empty))
+    transformed.value.map(_.getOrElse(List.empty)).handleGoogleException(googleProject)
   }
 
   override def getClusterMasterInstanceIp(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[IP]] = {
@@ -137,10 +137,10 @@ class HttpGoogleDataprocDAO(appName: String,
 
     // OptionT[Future, String] is simply a case class wrapper for Future[Option[String]].
     // So this just grabs the inner value and returns it.
-    ipOpt.value
+    ipOpt.value.handleGoogleException(googleProject, clusterName)
   }
 
-  def getClusterStagingBucket(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[GcsBucketName]] = {
+  override def getClusterStagingBucket(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[GcsBucketName]] = {
     // If an expression might be null, need to use `OptionT.fromOption(Option(expr))`.
     // `OptionT.pure(expr)` throws a NPE!
     val transformed = for {
@@ -149,7 +149,7 @@ class HttpGoogleDataprocDAO(appName: String,
       bucket <- OptionT.fromOption[Future](Option(config.getConfigBucket))
     } yield GcsBucketName(bucket)
 
-    transformed.value
+    transformed.value.handleGoogleException(googleProject, clusterName)
   }
 
   override def getClusterErrorDetails(operationName: OperationName): Future[Option[ClusterErrorDetails]] = {
@@ -159,17 +159,19 @@ class HttpGoogleDataprocDAO(appName: String,
       code <- OptionT.fromOption[Future] { Option(error.getCode) }
     } yield ClusterErrorDetails(code, Option(error.getMessage))
 
-    errorOpt.value
+    errorOpt.value.handleGoogleException(GoogleProject(""), Some(operationName.value))
   }
 
   override def updateFirewallRule(googleProject: GoogleProject, firewallRule: FirewallRule): Future[Unit] = {
     val request = compute.firewalls().get(googleProject.value, firewallRule.name.value)
-    retryWithRecoverWhen500orGoogleError { () =>
+    val response = retryWithRecoverWhen500orGoogleError { () =>
       executeGoogleRequest(request)
       Future.successful(())
     } {
       case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => addFirewallRule(googleProject, firewallRule)
     } flatten
+
+    response.handleGoogleException(googleProject, Some(firewallRule.name.value))
   }
 
   /**
@@ -193,7 +195,7 @@ class HttpGoogleDataprocDAO(appName: String,
     val request = oauth2.tokeninfo().setAccessToken(accessToken)
     retryWhen500orGoogleError(() => executeGoogleRequest(request)).map { tokenInfo =>
       (UserInfo(OAuth2BearerToken(accessToken), WorkbenchUserId(tokenInfo.getUserId), WorkbenchEmail(tokenInfo.getEmail), tokenInfo.getExpiresIn.toInt), Instant.now().plusSeconds(tokenInfo.getExpiresIn.toInt))
-    }
+    }.handleGoogleException(GoogleProject(""), Some("oauth"))
   }
 
   override def getComputeEngineDefaultServiceAccount(googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
@@ -203,7 +205,7 @@ class HttpGoogleDataprocDAO(appName: String,
         // https://cloud.google.com/compute/docs/access/service-accounts#compute_engine_default_service_account
         WorkbenchEmail(s"$number-compute@developer.gserviceaccount.com")
       }
-    }
+    }.handleGoogleException(googleProject)
   }
 
   private def getClusterConfig(machineConfig: MachineConfig, initScript: GcsPath, clusterServiceAccount: Option[WorkbenchEmail], credentialsFileName: Option[String], stagingBucket: GcsBucketName): DataprocClusterConfig = {
@@ -412,6 +414,25 @@ class HttpGoogleDataprocDAO(appName: String,
       Option(executeGoogleRequest(request).getProjectNumber).map(_.toLong)
     } {
       case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => None
+    }
+  }
+
+  private implicit class GoogleExceptionSupport[A](future: Future[A]) {
+    def handleGoogleException(project: GoogleProject, context: Option[String] = None): Future[A] = {
+      future.recover {
+        case e: GoogleJsonResponseException =>
+          val msg = s"Call to Google API failed for ${project.value} ${context.map(c => s"/ $c").getOrElse("")}. Status: ${e.getStatusCode}. Message: ${e.getDetails.getMessage}"
+          logger.error(msg, e)
+          throw new WorkbenchException(msg, e)
+        case e: IllegalArgumentException =>
+          val msg = s"Illegal argument passed to Google request for ${project.value} ${context.map(c => s"/ $c").getOrElse("")}. Message: ${e.getMessage}"
+          logger.error(msg, e)
+          throw new WorkbenchException(msg, e)
+      }
+    }
+
+    def handleGoogleException(project: GoogleProject, clusterName: ClusterName): Future[A] = {
+      handleGoogleException(project, Some(clusterName.value))
     }
   }
 }

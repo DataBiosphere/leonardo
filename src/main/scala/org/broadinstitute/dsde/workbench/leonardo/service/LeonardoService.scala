@@ -10,7 +10,6 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleExceptionSupport._
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
@@ -139,7 +138,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           // Notify the auth provider that the cluster has been created
           _ <- authProvider.notifyClusterCreated(userEmail, googleProject, clusterName)
           // Create the cluster in Google
-          (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest).handleGoogleException(googleProject, Some(clusterName.value))
+          (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest)
           // Save the cluster in the database
           savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, GcsPath(initBucket, GcsObjectName("")), serviceAccountKeyOpt.map(_.id)))
         } yield {
@@ -180,7 +179,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually destroy it
       _ <- checkClusterPermission(userInfo,  DeleteCluster, cluster, throw401 = true)
 
-      _ <- internalDeleteCluster(userInfo.userEmail, cluster).handleGoogleException(cluster)
+      _ <- internalDeleteCluster(userInfo.userEmail, cluster)
     } yield { () }
   }
 

@@ -19,7 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchExceptionWithErrorReport}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchException, WorkbenchExceptionWithErrorReport}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -94,6 +94,9 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
         complete(leoException.statusCode, leoException.toErrorReport)
       case withErrorReport: WorkbenchExceptionWithErrorReport =>
         complete(withErrorReport.errorReport.statusCode.getOrElse(StatusCodes.InternalServerError), withErrorReport.errorReport)
+      case workbenchException: WorkbenchException =>
+        val report = ErrorReport(Option(workbenchException.getMessage).getOrElse(""), Some(StatusCodes.InternalServerError), Seq(), Seq(), Some(workbenchException.getClass))
+        complete(StatusCodes.InternalServerError, report)
       case e: Throwable =>
         //NOTE: this needs SprayJsonSupport._, ErrorReportJsonSupport._, and errorReportSource all imported to work
         complete(StatusCodes.InternalServerError, ErrorReport(e))
