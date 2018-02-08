@@ -51,7 +51,7 @@ object Boot extends App with LazyLogging {
     val samConfig = config.as[SamConfig]("sam")
 
     val serviceAccountProviderClass = config.as[String]("serviceAccounts.providerClass")
-    val serviceAccountConfig = config.getConfig("serviceAccounts.config")
+    val serviceAccountConfig = config.getConfig("serviceAccounts.providerConfig")
     val serviceAccountProvider = ServiceAccountProviderHelper.create(serviceAccountProviderClass, serviceAccountConfig)
 
     val authProviderClass = config.as[String]("auth.providerClass")
