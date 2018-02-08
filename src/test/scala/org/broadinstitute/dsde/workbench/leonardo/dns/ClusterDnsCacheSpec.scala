@@ -45,8 +45,8 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"),
-    jupyterExtensionUri = jupyterExtensionUri,
-    jupyterUserScriptUri = jupyterUserScriptUri,
+    jupyterExtensionUri = Some(jupyterExtensionUri),
+    jupyterUserScriptUri = Some(jupyterUserScriptUri),
     Some(GcsBucketName("testStagingBucket1")))
 
   val c2 = Cluster(

@@ -47,6 +47,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"),
     None,
+    None,
     Some(GcsBucketName("testStagingBucket1")))
 
   val deletingCluster = Cluster(
@@ -63,8 +64,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"),
-    jupyterExtensionUri = jupyterExtensionUri,
-    jupyterUserScriptUri = jupyterUserScriptUri,
+    jupyterExtensionUri = Some(jupyterExtensionUri),
+    jupyterUserScriptUri = Some(jupyterUserScriptUri),
     Some(GcsBucketName("testStagingBucket1")))
 
   override def afterAll(): Unit = {

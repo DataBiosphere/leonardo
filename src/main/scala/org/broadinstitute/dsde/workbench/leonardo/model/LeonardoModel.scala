@@ -24,6 +24,7 @@ import spray.json._
 // Create cluster API request
 case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[GcsPath] = None,
+                          jupyterUserScriptUri: Option[GcsPath] = None,
                           machineConfig: Option[MachineConfig] = None)
 
 // A resource that is required by a cluster
@@ -132,7 +133,7 @@ case class DefaultLabels(clusterName: ClusterName,
                          creator: WorkbenchEmail,
                          clusterServiceAccount: Option[WorkbenchEmail],
                          notebookServiceAccount: Option[WorkbenchEmail],
-                         notebookExtension: Option[String],
+                         notebookExtension: Option[GcsPath],
                          notebookUserScript: Option[GcsPath])
 
 // Provides ways of combining MachineConfigs with Leo defaults
