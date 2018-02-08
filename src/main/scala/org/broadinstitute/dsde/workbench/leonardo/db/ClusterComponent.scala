@@ -12,6 +12,8 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GcsPathSupport, GoogleProject, ServiceAccountKeyId, parseGcsPath}
 
+import scala.collection.immutable
+
 case class ClusterRecord(id: Long,
                          clusterName: String,
                          googleId: UUID,
@@ -43,7 +45,7 @@ case class ServiceAccountInfoRecord(clusterServiceAccount: Option[String],
                                     serviceAccountKeyId: Option[String])
 
 trait ClusterComponent extends LeoComponent {
-  this: LabelComponent =>
+  this: LabelComponent with ClusterErrorComponent =>
 
   import profile.api._
 
@@ -237,7 +239,7 @@ trait ClusterComponent extends LeoComponent {
         //   where clusterId = c.id and (key, value) in ${labelMap}
         // ) = ${labelMap.size}
         //
-        clusterStatusQuery.filter { case (cluster, _) =>
+        clusterStatusQuery.filter { case (cluster, _, _) =>
           labelQuery.filter { _.clusterId === cluster.id }
             // The following confusing line is equivalent to the much simpler:
             // .filter { lbl => (lbl.key, lbl.value) inSetBind labelMap.toSet }
@@ -286,20 +288,21 @@ trait ClusterComponent extends LeoComponent {
       )
     }
 
-    private def unmarshalClustersWithLabels(clusterLabels: Seq[(ClusterRecord, Option[LabelRecord])]): Seq[Cluster] = {
+    private def unmarshalClustersWithLabels(clusterLabels: Seq[(ClusterRecord, Option[LabelRecord], Option[ClusterErrorRecord])]): Seq[Cluster] = {
       // Call foldMap to aggregate a Seq[(ClusterRecord, LabelRecord)] returned by the query to a Map[ClusterRecord, Map[labelKey, labelValue]].
-      val clusterLabelMap: Map[ClusterRecord, LabelMap] = clusterLabels.toList.foldMap { case (clusterRecord, labelRecordOpt) =>
+      val clusterLabelMap = clusterLabels.toList.foldMap { case (clusterRecord, labelRecordOpt, errorOpt) =>
         val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> labelRecordOpt.value).toMap
-        Map(clusterRecord -> labelMap)
+        val errorList = errorOpt.toList.groupBy(_.id).map(_._2.head).map(e => ClusterError(e.errorMessage, e.errorCode, e.timestamp.toInstant)).toList
+        //println(errorList)
+        Map(clusterRecord -> (labelMap, errorList))
       }
-
       // Unmarshal each (ClusterRecord, Map[labelKey, labelValue]) to a Cluster object
-      clusterLabelMap.map { case (clusterRec, labelMap) =>
-        unmarshalCluster(clusterRec, labelMap)
+      clusterLabelMap.map { case (clusterRec,(labelMap, error)) =>
+        unmarshalCluster(clusterRec, labelMap, error.groupBy(_.timestamp).map(_._2.head).toList)
       }.toSeq
     }
 
-    private def unmarshalCluster(clusterRecord: ClusterRecord, labels: LabelMap): Cluster = {
+    private def unmarshalCluster(clusterRecord: ClusterRecord, labels: LabelMap, error:List[ClusterError]): Cluster = {
       val name = ClusterName(clusterRecord.clusterName)
       val project = GoogleProject(clusterRecord.googleProject)
       val machineConfig = MachineConfig(
@@ -330,7 +333,8 @@ trait ClusterComponent extends LeoComponent {
         labels,
         clusterRecord.jupyterExtensionUri flatMap { parseGcsPath(_).toOption },
         clusterRecord.jupyterUserScriptUri flatMap { parseGcsPath(_).toOption },
-        clusterRecord.stagingBucket map GcsBucketName
+        clusterRecord.stagingBucket map GcsBucketName,
+        error
       )
     }
 
@@ -342,11 +346,13 @@ trait ClusterComponent extends LeoComponent {
     }
   }
 
+
   // select * from cluster c left join label l on c.id = l.clusterId
-  val clusterQueryWithLabels: Query[(ClusterTable, Rep[Option[LabelTable]]), (ClusterRecord, Option[LabelRecord]), Seq] = {
+  val clusterQueryWithLabels: Query[(ClusterTable, Rep[Option[LabelTable]], Rep[Option[ClusterErrorTable]]), (ClusterRecord, Option[LabelRecord], Option[ClusterErrorRecord]), Seq] = {
     for {
-      (cluster, label) <- clusterQuery joinLeft labelQuery on (_.id === _.clusterId)
-    } yield (cluster, label)
+      ((cluster, label), errors) <- clusterQuery joinLeft labelQuery on (_.id === _.clusterId) joinLeft clusterErrorQuery on (_._1.id === _.clusterId)
+    } yield (cluster, label, errors)
   }
+
 
 }

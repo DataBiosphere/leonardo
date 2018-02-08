@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
+import java.time.Instant
+
 import akka.actor.{Actor, ActorRef, Props}
 import akka.pattern.{ask, pipe}
 import akka.util.Timeout
@@ -23,6 +25,10 @@ import org.broadinstitute.dsde.workbench.util.addJitter
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Failure
+import akka.pattern.ask
+import akka.util.Timeout
+import org.broadinstitute.dsde.workbench.leonardo.service.ClusterNotReadyException
+import slick.dbio.DBIOAction
 
 object ClusterMonitorActor {
   /**
@@ -161,7 +167,16 @@ class ClusterMonitorActor(val cluster: Cluster,
       // Only happens if the cluster was NOT created with the pet service account.
       removeServiceAccountKey
     ))
-
+    dbRef.inTransaction { dataAccess =>
+      val clusterId = dataAccess.clusterQuery.getIdByGoogleId(cluster.googleId)
+      clusterId flatMap {
+        case Some(a) => dataAccess.clusterErrorQuery.save(a, ClusterError(errorDetails.message.getOrElse("Error not available"), errorDetails.code, Instant.now))
+        case None => {
+          logger.info(s"Could not find Id for Cluster ${cluster.projectNameString}  with google cluster ID ${cluster.googleId}.")
+          DBIOAction.successful(0)
+        }
+      }
+    }
     deleteFuture.flatMap { _ =>
       // Decide if we should try recreating the cluster
       if (shouldRecreateCluster(errorDetails.code, errorDetails.message)) {
