@@ -7,16 +7,24 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import scala.concurrent.{ExecutionContext, Future}
 
 /**
-  * Created by rtitle on 12/8/17.
+  * Created by rtitle on 12/5/17.
+  *
+  * This is not the default ServiceAccountProvider.
+  *
+  * To enable, change the configuration value serviceAccounts.providerClass to
+  * org.broadinstitute.dsde.workbench.leonardo.auth.PetServiceAccountProvider
+  *
+  * See the README for more information.
   */
-class PetsPerProjectServiceAccountProvider(config: Config) extends SamServiceAccountProvider(config) {
+class PetServiceAccountProvider(config: Config) extends SamServiceAccountProvider(config) {
 
   override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
-    // Ask Sam for a pet service account for the given (user, project)
-    samDAO.getPetServiceAccountForProject(userInfo, googleProject).map(Option(_))
+    // Create cluster with the Google Compute Engine default service account
+    Future(None)
   }
 
   override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
-    Future(None)
+    // Ask Sam for the pet service account for the user
+    samDAO.getPetServiceAccountForProject(userInfo, googleProject).map(Option(_))
   }
 }
