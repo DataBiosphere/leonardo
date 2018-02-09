@@ -8,11 +8,12 @@ import akka.http.scaladsl.model.Uri.Host
 import akka.pattern.ask
 import akka.testkit.{TestActorRef, TestKit}
 import akka.util.Timeout
-import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.google._
+import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 
@@ -36,7 +37,7 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-    clusterUrl = Cluster.getClusterUrl(project, name1),
+    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
     operationName = OperationName("op1"),
     status = ClusterStatus.Unknown,
     hostIp = Some(IP("numbers.and.dots")),
@@ -44,8 +45,8 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"),
-    jupyterExtensionUri = jupyterExtensionUri,
-    jupyterUserScriptUri = jupyterUserScriptUri,
+    jupyterExtensionUri = Some(jupyterExtensionUri),
+    jupyterUserScriptUri = Some(jupyterUserScriptUri),
     Some(GcsBucketName("testStagingBucket1")))
 
   val c2 = Cluster(
@@ -54,7 +55,7 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-    clusterUrl = Cluster.getClusterUrl(project, name2),
+    clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
     operationName = OperationName("op2"),
     status = ClusterStatus.Creating,
     hostIp = None,

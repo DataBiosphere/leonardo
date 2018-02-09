@@ -40,11 +40,6 @@ class HttpSamDAO(val baseSamServiceURL: String)(implicit system: ActorSystem, ma
     }
   }
 
-  override def getPetServiceAccountForProject(userInfo: UserInfo, googleProject: GoogleProject): Future[WorkbenchEmail] = {
-    val uri = Uri(samServiceURL + s"/api/google/user/petServiceAccount/${googleProject.value}")
-    executeSamRequestAsUser[WorkbenchEmail](HttpRequest(GET, uri), userInfo)
-  }
-
   private def authHeader(userInfo: UserInfo): HttpHeader = Authorization(userInfo.accessToken)
 
   // If ignoreError is true, this method will try to unmarshal the response entity to a T, regardless of status code.

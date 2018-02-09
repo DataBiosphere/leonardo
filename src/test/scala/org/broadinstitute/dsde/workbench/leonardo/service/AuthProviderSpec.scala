@@ -8,23 +8,24 @@ import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import com.typesafe.config.ConfigFactory
-import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
-import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
+import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.GcsPathUtils
-import org.broadinstitute.dsde.workbench.leonardo.auth.{MockLeoAuthProvider, MockPetsPerProjectServiceAccountProvider}
+import org.broadinstitute.dsde.workbench.leonardo.auth.{MockLeoAuthProvider, MockPetClusterServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockGoogleDataprocDAO, MockSamDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.mockito.Mockito._
 import org.scalatest.mockito.MockitoSugar
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers, OptionValues}
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.GetClusterStatus
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.mockito.Mockito
 
 class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers with MockitoSugar with TestComponent with ScalaFutures with OptionValues with GcsPathUtils with TestProxy with BeforeAndAfterAll {
@@ -33,7 +34,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
   val userInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
   val userEmail = WorkbenchEmail("user1@example.com")
   val serviceAccountEmail = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
-  val clusterName = name1.string
+  val clusterName = name1.value
   val googleProject = project.value
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
@@ -46,11 +47,12 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockSamDAO = new MockSamDAO
   val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
+  val clusterUrlBase = dataprocConfig.clusterUrlBase
 
   val routeTest = this
 
   private val testClusterRequest = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), None)
-  private val serviceAccountProvider = new MockPetsPerProjectServiceAccountProvider(config.getConfig("serviceAccounts.config"))
+  private val serviceAccountProvider = new MockPetClusterServiceAccountProvider(config.getConfig("serviceAccounts.config"))
   private val alwaysYesProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), serviceAccountProvider)
   private val alwaysNoProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysNoProviderConfig"), serviceAccountProvider)
 
@@ -60,7 +62,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-    clusterUrl = Cluster.getClusterUrl(project, name1),
+    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
     operationName = OperationName("op1"),
     status = ClusterStatus.Unknown,
     hostIp = Some(IP("numbers.and.dots")),
@@ -72,11 +74,12 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
     jupyterUserScriptUri = None,
     stagingBucket = Some(GcsBucketName("testStagingBucket1")))
 
-
-  val gdDAO = new MockGoogleDataprocDAO(dataprocConfig, proxyConfig, clusterDefaultsConfig)
+  val gdDAO = new MockGoogleDataprocDAO
   val iamDAO = new MockGoogleIamDAO
+  val storageDAO = new MockGoogleStorageDAO
   val samDAO = new MockSamDAO
   val tokenCookie = HttpCookiePair("LeoToken", "me")
+  val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, storageDAO, serviceAccountProvider)
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -89,7 +92,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
   }
 
   def leoWithAuthProvider(authProvider: LeoAuthProvider): LeonardoService = {
-    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist)
+    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper)
   }
 
   def proxyWithAuthProvider(authProvider: LeoAuthProvider): ProxyService = {
@@ -243,7 +246,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
         clusterName = visibleClusterName,
         googleId = UUID.randomUUID(),
         googleProject = visibleClusterProject,
-        clusterUrl = Cluster.getClusterUrl(visibleClusterProject, visibleClusterName))
+        clusterUrl = Cluster.getClusterUrl(visibleClusterProject, visibleClusterName, clusterUrlBase))
       dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), None) }
       dbFutureValue { _.clusterQuery.save(visibleCluster, gcsPath("gs://bucket1"), None) }
 

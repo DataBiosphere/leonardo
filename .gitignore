@@ -19,5 +19,6 @@ test-output/
 # Automation exclusions
 automation/chrome/
 automation/failure_screenshots/
+automation/src/test/resources/users.json
 automation/src/test/resources/application.conf
 automation/src/test/resources/firecloud-account.pem

@@ -1,35 +1,35 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import akka.actor.{Actor, ActorRef, Props}
-import akka.pattern.pipe
+import akka.pattern.{ask, pipe}
+import akka.util.Timeout
 import cats.data.OptionT
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
-import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
+import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{CallToGoogleApiFailedException, DataprocDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache.{ClusterReady, GetClusterResponse, ProcessReadyCluster}
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
+import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterDeleted
+import org.broadinstitute.dsde.workbench.leonardo.service.ClusterNotReadyException
 import org.broadinstitute.dsde.workbench.util.addJitter
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Failure
-import akka.pattern.ask
-import akka.util.Timeout
-import org.broadinstitute.dsde.workbench.leonardo.service.ClusterNotReadyException
 
 object ClusterMonitorActor {
   /**
     * Creates a Props object used for creating a {{{ClusterMonitorActor}}}.
     */
-  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: DataprocDAO, googleIamDAO: GoogleIamDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider): Props =
-    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, gdDAO, googleIamDAO, dbRef, clusterDnsCache, authProvider))
+  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider): Props =
+    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, gdDAO, googleIamDAO, googleStorageDAO, dbRef, clusterDnsCache, authProvider))
 
   // ClusterMonitorActor messages:
 
@@ -54,8 +54,9 @@ object ClusterMonitorActor {
 class ClusterMonitorActor(val cluster: Cluster,
                           val monitorConfig: MonitorConfig,
                           val dataprocConfig: DataprocConfig,
-                          val gdDAO: DataprocDAO,
+                          val gdDAO: GoogleDataprocDAO,
                           val googleIamDAO: GoogleIamDAO,
+                          val googleStorageDAO: GoogleStorageDAO,
                           val dbRef: DbReference,
                           val clusterDnsCache: ActorRef,
                           val authProvider: LeoAuthProvider) extends Actor with LazyLogging {
@@ -128,9 +129,6 @@ class ClusterMonitorActor(val cluster: Cluster,
       // Remove credentials from instance metadata.
       // Only happens if an notebook service account was used.
       _ <- removeCredentialsFromMetadata
-      // Add Staging Bucket ACLs to the notebook service account.
-      // Only happens if an notebook service account was localized onto the cluster.
-      _ <- gdDAO.setStagingBucketOwnership(cluster)
       // Ensure the cluster is ready for proxying but updating the IP -> DNS cache
       _ <- ensureClusterReadyForProxying(publicIp)
       // update DB after auth futures finish
@@ -215,7 +213,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ClusterMonitorMessage
     */
   private def checkCluster: Future[ClusterMonitorMessage] = {
-    val result = for {
+    for {
       googleStatus <- gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName)
       result <- googleStatus match {
         case Unknown | Creating | Updating =>
@@ -235,11 +233,6 @@ class ClusterMonitorActor(val cluster: Cluster,
         case _ => Future.successful(NotReadyCluster(googleStatus))
       }
     } yield result
-
-    // Recover from Google 404 errors, and assume the cluster is deleted
-    result.recover {
-      case CallToGoogleApiFailedException(_, _, 404, _) => DeletedCluster
-    }
   }
 
   private def removeIamRolesForUser: Future[Unit] = {
@@ -278,9 +271,9 @@ class ClusterMonitorActor(val cluster: Cluster,
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getInitBucket(cluster.googleProject, cluster.clusterName)
     } flatMap {
-      case None => Future.successful( logger.warn(s"Could not lookup bucket for cluster ${cluster.googleProject}/${cluster.clusterName}: cluster not in db") )
+      case None => Future.successful( logger.warn(s"Could not lookup bucket for cluster ${cluster.projectNameString}: cluster not in db") )
       case Some(bucketPath) =>
-        gdDAO.deleteBucket(dataprocConfig.leoGoogleProject, bucketPath.bucketName) map { _ =>
+        googleStorageDAO.deleteBucket(bucketPath.bucketName, recurse = true) map { _ =>
           logger.debug(s"Deleted init bucket $bucketPath for cluster ${cluster.googleProject}/${cluster.clusterName}")
         }
     }
