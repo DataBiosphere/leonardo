@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
 import java.time.Instant
+import java.util.concurrent.TimeUnit
 
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
@@ -13,14 +14,13 @@ import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.util.Timeout
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
-import java.util.concurrent.TimeUnit
-
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.DataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
-import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
+import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -28,14 +28,14 @@ import scala.collection.immutable
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
-case class ClusterNotReadyException(googleProject: GoogleProject, clusterName: ClusterName) extends LeoException(s"Cluster ${googleProject.value}/${clusterName.string} is not ready yet, chill out and try again later", StatusCodes.EnhanceYourCalm)
-case class ProxyException(googleProject: GoogleProject, clusterName: ClusterName) extends LeoException(s"Unable to proxy connection to Jupyter notebook on ${googleProject.value}/${clusterName.string}", StatusCodes.InternalServerError)
+case class ClusterNotReadyException(googleProject: GoogleProject, clusterName: ClusterName) extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} is not ready yet, chill out and try again later", StatusCodes.EnhanceYourCalm)
+case class ProxyException(googleProject: GoogleProject, clusterName: ClusterName) extends LeoException(s"Unable to proxy connection to Jupyter notebook on ${googleProject.value}/${clusterName.value}", StatusCodes.InternalServerError)
 case class AccessTokenExpiredException() extends LeoException(s"Your access token is expired. Try logging in again", StatusCodes.Unauthorized)
 /**
   * Created by rtitle on 8/15/17.
   */
 class ProxyService(proxyConfig: ProxyConfig,
-                   gdDAO: DataprocDAO,
+                   gdDAO: GoogleDataprocDAO,
                    dbRef: DbReference,
                    clusterDnsCache: ActorRef,
                    authProvider: LeoAuthProvider)(implicit val system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext) extends LazyLogging {

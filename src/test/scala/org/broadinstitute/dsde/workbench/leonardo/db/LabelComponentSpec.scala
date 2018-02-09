@@ -4,9 +4,10 @@ import java.sql.SQLException
 import java.time.Instant
 import java.util.UUID
 
-import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.google._
+import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.scalatest.FlatSpecLike
 
 import scala.util.Random
@@ -20,7 +21,7 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTest
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name1),
+      clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
       operationName = OperationName("op1"),
       status = ClusterStatus.Creating,
       hostIp = None,
@@ -28,8 +29,8 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTest
       createdDate = Instant.now(),
       destroyedDate = Option(Instant.now()),
       labels = Map.empty,
-      jupyterExtensionUri = jupyterExtensionUri,
-      jupyterUserScriptUri = jupyterUserScriptUri,
+      jupyterExtensionUri = Some(jupyterExtensionUri),
+      jupyterUserScriptUri = Some(jupyterUserScriptUri),
       Some(GcsBucketName("testStagingBucket1")))
 
     val c2 = Cluster(
@@ -38,7 +39,7 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTest
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name2),
+      clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
       operationName = OperationName("op2"),
       status = ClusterStatus.Unknown,
       hostIp = Some(IP("sure, this is an IP address")),

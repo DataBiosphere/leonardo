@@ -6,17 +6,19 @@ import akka.stream.ActorMaterializer
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.LazyLogging
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.google.HttpGoogleIamDAO
+import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.Pem
+import org.broadinstitute.dsde.workbench.google.{HttpGoogleIamDAO, HttpGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.api.{LeoRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.auth.{LeoAuthProviderHelper, ServiceAccountProviderHelper}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{GoogleDataprocDAO, HttpSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SamConfig, SwaggerConfig}
+import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.HttpGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterStatus
+import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, NetworkTag}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
-import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
+import org.broadinstitute.dsde.workbench.leonardo.service.{BucketHelper, LeonardoService, ProxyService, StatusService}
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
@@ -49,7 +51,7 @@ object Boot extends App with LazyLogging {
     val samConfig = config.as[SamConfig]("sam")
 
     val serviceAccountProviderClass = config.as[String]("serviceAccounts.providerClass")
-    val serviceAccountConfig = config.getConfig("serviceAccounts.config")
+    val serviceAccountConfig = config.getConfig("serviceAccounts.providerConfig")
     val serviceAccountProvider = ServiceAccountProviderHelper.create(serviceAccountProviderClass, serviceAccountConfig)
 
     val authProviderClass = config.as[String]("auth.providerClass")
@@ -67,12 +69,14 @@ object Boot extends App with LazyLogging {
     }
 
     val (leoServiceAccountEmail, leoServiceAccountPemFile) = serviceAccountProvider.getLeoServiceAccountAndKey
-    val gdDAO = new GoogleDataprocDAO(leoServiceAccountEmail, leoServiceAccountPemFile, dataprocConfig, proxyConfig, clusterDefaultsConfig, clusterFilesConfig, clusterResourcesConfig)
-    val googleIamDAO = new HttpGoogleIamDAO(leoServiceAccountEmail.value, leoServiceAccountPemFile.getAbsolutePath, dataprocConfig.applicationName, "google")
+    val gdDAO = new HttpGoogleDataprocDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google", NetworkTag(proxyConfig.networkTag), dataprocConfig.dataprocDefaultRegion)
+    val googleIamDAO = new HttpGoogleIamDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google")
+    val googleStorageDAO = new HttpGoogleStorageDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google")
     val samDAO = new HttpSamDAO(samConfig.server)
     val clusterDnsCache = system.actorOf(ClusterDnsCache.props(proxyConfig, dbRef))
-    val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO, googleIamDAO, dbRef, clusterDnsCache, authProvider))
-    val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, swaggerConfig, gdDAO, googleIamDAO, dbRef, clusterMonitorSupervisor, authProvider, serviceAccountProvider, whitelist)
+    val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, googleStorageDAO, serviceAccountProvider)
+    val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO, googleIamDAO, googleStorageDAO, dbRef, clusterDnsCache, authProvider))
+    val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, googleIamDAO, googleStorageDAO, dbRef, clusterMonitorSupervisor, authProvider, serviceAccountProvider, whitelist, bucketHelper)
     val proxyService = new ProxyService(proxyConfig, gdDAO, dbRef, clusterDnsCache, authProvider)
     val statusService = new StatusService(gdDAO, samDAO, dbRef, dataprocConfig)
     val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with StandardUserInfoDirectives
