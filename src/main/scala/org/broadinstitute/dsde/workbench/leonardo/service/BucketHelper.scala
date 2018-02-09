@@ -34,11 +34,11 @@ class BucketHelper(dataprocConfig: DataprocConfig,
       _ <- googleStorageDAO.createBucket(dataprocConfig.leoGoogleProject, bucketName)
 
       // Leo service account -> Owner
-      // User pet service account (notebook SA or cluster SA) -> Reader
-      petEntityOpt <- getPetOrDefault(googleProject, serviceAccountInfo)
+      // available service accounts (notebook SA, cluster SA, and compute engine default SA, if they exist) -> Reader
+      bucketSAs <- getBucketSAs(googleProject, serviceAccountInfo)
       leoEntity = userEntity(serviceAccountProvider.getLeoServiceAccountAndKey._1)
 
-      _ <- setBucketAcls(bucketName, petEntityOpt.toList, List(leoEntity))
+      _ <- setBucketAcls(bucketName, bucketSAs, List(leoEntity))
     } yield bucketName
   }
 
@@ -52,14 +52,14 @@ class BucketHelper(dataprocConfig: DataprocConfig,
       _ <- googleStorageDAO.createBucket(googleProject, bucketName)
 
       // Leo service account -> Owner
-      // User pet service account (notebook SA or cluster SA) -> Owner
+      // available service accounts (notebook SA, cluster SA, and compute engine default SA, if they exist) -> Owner
       // Additional readers (users and groups) are specified by the service account provider.
       leoEntity = userEntity(serviceAccountProvider.getLeoServiceAccountAndKey._1)
-      petEntityOpt <- getPetOrDefault(googleProject, serviceAccountInfo)
+      bucketSAs <- getBucketSAs(googleProject, serviceAccountInfo)
       providerReaders <- serviceAccountProvider.listUsersStagingBucketReaders(userEmail).map(_.map(userEntity))
       providerGroups <- serviceAccountProvider.listGroupsStagingBucketReaders(userEmail).map(_.map(groupEntity))
 
-      _ <- setBucketAcls(bucketName, providerReaders ++ providerGroups, List(leoEntity) ++ petEntityOpt.toList)
+      _ <- setBucketAcls(bucketName, providerReaders ++ providerGroups, List(leoEntity) ++ bucketSAs)
     } yield bucketName
   }
 
@@ -68,10 +68,10 @@ class BucketHelper(dataprocConfig: DataprocConfig,
     */
   def updateUserBucket(bucketName: GcsBucketName, googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo): Future[Unit] = {
     for {
-      // User pet service account (notebook SA or cluster SA) -> Reader
-      petEntityOpt <- getPetOrDefault(googleProject, serviceAccountInfo)
+      // available service accounts (notebook SA, cluster SA, and compute engine default SA, if they exist) -> Reader
+      bucketSAs <- getBucketSAs(googleProject, serviceAccountInfo)
 
-      _ <- setBucketAcls(bucketName, petEntityOpt.toList, List.empty)
+      _ <- setBucketAcls(bucketName, bucketSAs, List.empty)
     } yield ()
   }
 
@@ -97,14 +97,13 @@ class BucketHelper(dataprocConfig: DataprocConfig,
     } yield ()
   }
 
-  private def getPetOrDefault(googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo): Future[Option[GcsEntity]] = {
-    // notebook SA, else cluster SA, else compute engine default SA
-    val transformed =
-      OptionT.fromOption[Future](serviceAccountInfo.notebookServiceAccount) orElse
-        OptionT.fromOption[Future](serviceAccountInfo.clusterServiceAccount) orElse
-          OptionT(gdDAO.getComputeEngineDefaultServiceAccount(googleProject))
+  private def getBucketSAs(googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo): Future[List[GcsEntity]] = {
+    // notebook SA, cluster SA, and compute engine default SA, if they exist
 
-    transformed.map(userEntity).value
+    gdDAO.getComputeEngineDefaultServiceAccount(googleProject) map { defaultSaOpt =>
+      val accounts = Set(defaultSaOpt, serviceAccountInfo.notebookServiceAccount, serviceAccountInfo.clusterServiceAccount)
+      accounts.toList.collect { case Some(email) => userEntity(email) }
+    }
   }
 
   private def userEntity(email: WorkbenchEmail) = {
