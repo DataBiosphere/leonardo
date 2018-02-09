@@ -144,4 +144,6 @@ USER $USER
 WORKDIR $HOME
 
 EXPOSE $JUPYTER_PORT
-ENTRYPOINT ["/bin/bash"]
+
+# Placeholder entrypoint. The cluster init script needs to run some scripts as root prior to starting pyspark as jupyter-user
+ENTRYPOINT ["sleep infinity"]
