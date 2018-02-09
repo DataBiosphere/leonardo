@@ -48,7 +48,7 @@ class LeoAuthProviderHelperSpec extends TestKit(ActorSystem("leonardotest")) wit
     val mockProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), serviceAccountProvider, false)
     val helper = LeoAuthProviderHelper(mockProvider, config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider)
 
-    helper.notifyClusterCreated(userEmail, project, name1).failed.futureValue shouldBe a [AuthProviderException]
+    helper.notifyClusterCreated(userEmail, project, name1).failed.futureValue shouldBe a [SamProviderException]
   }
 
   it should "handle thrown exceptions" in {
@@ -59,7 +59,7 @@ class LeoAuthProviderHelperSpec extends TestKit(ActorSystem("leonardotest")) wit
     }
 
     val helper = LeoAuthProviderHelper(mockProvider, config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider)
-    helper.hasProjectPermission(userEmail, ProjectActions.CreateClusters, project).failed.futureValue shouldBe a [AuthProviderException]
+    helper.hasProjectPermission(userEmail, ProjectActions.CreateClusters, project).failed.futureValue shouldBe a [SamProviderException]
   }
 
 }

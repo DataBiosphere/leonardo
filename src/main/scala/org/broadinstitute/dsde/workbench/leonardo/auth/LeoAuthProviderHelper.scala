@@ -1,28 +1,31 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth
 
-import akka.http.scaladsl.model.StatusCodes
+import java.util.concurrent.TimeUnit
+
+import akka.actor.ActorSystem
+import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.config.Config
-import com.typesafe.scalalogging.LazyLogging
+import org.broadinstitute.dsde.workbench.leonardo.auth.LeoAuthProviderHelper.NotebookAuthCacheKey
+import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.NotebookClusterAction
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.control.NonFatal
-
-case class AuthProviderException(authProviderClassName: String)
-  extends LeoException(s"Call to $authProviderClassName auth provider failed", StatusCodes.InternalServerError)
 
 /**
   * Wraps a LeoAuthProvider and provides error handling so provider-thrown errors don't bubble up our app.
   */
 object LeoAuthProviderHelper {
-  def apply(wrappedAuthProvider: LeoAuthProvider, config: Config, serviceAccountProvider: ServiceAccountProvider): LeoAuthProviderHelper = {
+
+  private[LeoAuthProviderHelper] case class NotebookAuthCacheKey(userEmail: WorkbenchEmail, action: NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName, executionContext: ExecutionContext)
+
+  def apply(wrappedAuthProvider: LeoAuthProvider, config: Config, serviceAccountProvider: ServiceAccountProvider)(implicit system: ActorSystem): LeoAuthProviderHelper = {
     new LeoAuthProviderHelper(wrappedAuthProvider, config, serviceAccountProvider)
   }
 
-  def create(className: String, config: Config, serviceAccountProvider: ServiceAccountProvider): LeoAuthProviderHelper = {
+  def create(className: String, config: Config, serviceAccountProvider: ServiceAccountProvider)(implicit system: ActorSystem): LeoAuthProviderHelper = {
     val authProvider = Class.forName(className)
       .getConstructor(classOf[Config], classOf[ServiceAccountProvider])
       .newInstance(config, serviceAccountProvider)
@@ -32,48 +35,51 @@ object LeoAuthProviderHelper {
   }
 }
 
-class LeoAuthProviderHelper(wrappedAuthProvider: LeoAuthProvider, authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(authConfig, serviceAccountProvider) with LazyLogging {
+class LeoAuthProviderHelper(val wrappedProvider: LeoAuthProvider, authConfig: Config, serviceAccountProvider: ServiceAccountProvider)(implicit val system: ActorSystem)
+  extends LeoAuthProvider(authConfig, serviceAccountProvider) with SamProviderHelper[LeoAuthProvider] {
 
-  private def safeCall[T](future: => Future[T])(implicit executionContext: ExecutionContext): Future[T] = {
-    val exceptionHandler: PartialFunction[Throwable, Future[Nothing]] = {
-      case e: LeoException => Future.failed(e)
-      case NonFatal(e) =>
-        val wrappedClassName = wrappedAuthProvider.getClass.getSimpleName
-        logger.error(s"Auth provider $wrappedClassName throw an exception", e)
-        Future.failed(AuthProviderException(wrappedClassName))
-    }
-
-    // recover from failed futures AND catch thrown exceptions
-    try { future.recoverWith(exceptionHandler) } catch exceptionHandler
-  }
+  // Cache notebook auth results from Sam as this is called very often by the proxy and the "list clusters" endpoint.
+  // Project-level auth is not called as frequently so it's not as important to cache it.
+  private val notebookAuthCache = CacheBuilder.newBuilder()
+    .expireAfterWrite(5, TimeUnit.MINUTES)
+    .maximumSize(1000)
+    .build(
+      new CacheLoader[NotebookAuthCacheKey, Future[Boolean]] {
+        def load(key: NotebookAuthCacheKey) = {
+          implicit val ec = key.executionContext
+          safeCallSam {
+            wrappedProvider.hasNotebookClusterPermission(key.userEmail, key.action, key.googleProject, key.clusterName)
+          }
+        }
+      }
+    )
 
   override def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-    safeCall {
-      wrappedAuthProvider.hasProjectPermission(userEmail, action, googleProject)
+    safeCallSam {
+      wrappedProvider.hasProjectPermission(userEmail, action, googleProject)
     }
   }
 
   override def canSeeAllClustersInProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-    safeCall {
-      wrappedAuthProvider.canSeeAllClustersInProject(userEmail, googleProject)
+    safeCallSam {
+      wrappedProvider.canSeeAllClustersInProject(userEmail, googleProject)
     }
   }
 
   override def hasNotebookClusterPermission(userEmail: WorkbenchEmail, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-    safeCall {
-      wrappedAuthProvider.hasNotebookClusterPermission(userEmail, action, googleProject, clusterName)
-    }
+    // Consult the notebook auth cache
+    notebookAuthCache.get(NotebookAuthCacheKey(userEmail, action, googleProject, clusterName, executionContext))
   }
 
   override def notifyClusterCreated(creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    safeCall {
-      wrappedAuthProvider.notifyClusterCreated(creatorEmail, googleProject, clusterName)
+    safeCallSam {
+      wrappedProvider.notifyClusterCreated(creatorEmail, googleProject, clusterName)
     }
   }
 
   override def notifyClusterDeleted(userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    safeCall {
-      wrappedAuthProvider.notifyClusterDeleted(userEmail, creatorEmail, googleProject, clusterName)
+    safeCallSam {
+      wrappedProvider.notifyClusterDeleted(userEmail, creatorEmail, googleProject, clusterName)
     }
   }
 }
