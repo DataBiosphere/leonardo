@@ -229,6 +229,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     val testResult: Try[T] = Try {
       val cluster = createAndMonitor(googleProject, name, request)
       cluster.status shouldBe ClusterStatus.Error
+      cluster.errors should have size 1
       testCode(cluster)
     }
 
