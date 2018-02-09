@@ -41,7 +41,7 @@ class LeoAuthProviderHelper(val wrappedProvider: LeoAuthProvider, authConfig: Co
   // Cache notebook auth results from Sam as this is called very often by the proxy and the "list clusters" endpoint.
   // Project-level auth is not called as frequently so it's not as important to cache it.
   private val notebookAuthCache = CacheBuilder.newBuilder()
-    .expireAfterWrite(5, TimeUnit.MINUTES)
+    .expireAfterAccess(5, TimeUnit.MINUTES)
     .maximumSize(1000)
     .build(
       new CacheLoader[NotebookAuthCacheKey, Future[Boolean]] {
