@@ -145,5 +145,6 @@ WORKDIR $HOME
 
 EXPOSE $JUPYTER_PORT
 
-# Placeholder entrypoint. The cluster init script needs to run some scripts as root prior to starting pyspark as jupyter-user
-ENTRYPOINT ["sleep infinity"]
+# Placeholder entrypoint to keep the container running indefinitely.
+# The cluster init script will run some scripts as root and then start pyspark as jupyter-user.
+ENTRYPOINT ["tail", "-f", "/dev/null"]
