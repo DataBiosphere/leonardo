@@ -144,7 +144,4 @@ USER $USER
 WORKDIR $HOME
 
 EXPOSE $JUPYTER_PORT
-
-# Placeholder entrypoint to keep the container running indefinitely.
-# The cluster init script will run some scripts as root and then start pyspark as jupyter-user.
-ENTRYPOINT ["tail", "-f", "/dev/null"]
+ENTRYPOINT ["pyspark"]
