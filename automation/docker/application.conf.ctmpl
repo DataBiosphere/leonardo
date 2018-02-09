@@ -29,7 +29,7 @@ fireCloud {
   fireCloudId = "{{$secrets.Data.firecloud_id}}"
 
   # TODO more Config class nonsense
-  tcgaAuthDomain = “TCGA-dbGaP-Authorized”
+  tcgaAuthDomain = "TCGA-dbGaP-Authorized"
 }
 
 leonardo {
@@ -70,7 +70,7 @@ users {
   tempSubjectId = "{{if or (eq $environment "dev") (eq $environment "alpha")}}111010567286567716739{{else if eq $environment "qa"}}117891551413045861932{{else}}[undefined]{{end}}"
   smoketestpassword = "{{$users.Data.users_passwd}}"
   smoketestuser = {{if eq $environment "prod"}}"b.adm.firec@gmail.com"{{else}}"hermione.owner@{{template "USER_DOMAIN"}}"{{end}}
-  tcgaJsonWebTokenKey = “eyJhbGciOiJIUzI1NiJ9.ZmlyZWNsb3VkLWRldg.NPXbSpTmAOUvJ1HX85TauAARnlMKfqBsPjumCC7zE7s”
+  tcgaJsonWebTokenKey = "eyJhbGciOiJIUzI1NiJ9.ZmlyZWNsb3VkLWRldg.NPXbSpTmAOUvJ1HX85TauAARnlMKfqBsPjumCC7zE7s"
 
   dumbledore = "dumbledore.admin@{{template "USER_DOMAIN"}}"
   voldemort = "voldemort.admin@{{template "USER_DOMAIN"}}"

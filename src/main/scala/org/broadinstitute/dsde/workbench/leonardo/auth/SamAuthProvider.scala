@@ -2,27 +2,21 @@ package org.broadinstitute.dsde.workbench.leonardo.auth
 
 import com.typesafe.config.Config
 import com.typesafe.scalalogging.LazyLogging
-import java.io.File
 
 import akka.http.scaladsl.model.StatusCodes
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.CreateClusters
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.util.toScalaDuration
 
 import scala.concurrent.{ExecutionContext, Future}
 
 case class UnknownLeoAuthAction(action: LeoAuthAction)
   extends LeoException(s"SamAuthProvider has no mapping for authorization action ${action.toString}, and is therefore probably out of date.", StatusCodes.InternalServerError)
 
-class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(authConfig, serviceAccountProvider) with LazyLogging {
-
-  //Leo SA details -- needed to get pet keyfiles
-  private val (leoEmail, leoPem) : (WorkbenchEmail, File) = serviceAccountProvider.getLeoServiceAccountAndKey
-
-  protected val samClient = new SwaggerSamClient(authConfig.getString("samServer"),toScalaDuration(authConfig.getDuration("cacheExpiryTime")), authConfig.getInt("cacheMaxSize"), leoEmail, leoPem)
+class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(config, serviceAccountProvider) with SamProvider with LazyLogging {
 
   protected def getProjectActionString(action: LeoAuthAction): String = {
     projectActionMap.getOrElse(action, throw UnknownLeoAuthAction(action))
@@ -45,7 +39,6 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
     SyncDataToCluster -> "sync",
     DeleteCluster -> "delete")
 
-
   /**
     * @param userEmail The user in question
     * @param action The project-level action (above) the user is requesting
@@ -57,8 +50,6 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
       samClient.hasActionOnBillingProjectResource(userEmail,googleProject, getProjectActionString(action))
     }
   }
-
-
 
   /**
     * When listing clusters, Leo will perform a GROUP BY on google projects and call this function once per google project.
@@ -76,7 +67,6 @@ class SamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccount
       samClient.hasActionOnBillingProjectResource(userEmail,googleProject, "list_notebook_cluster")
     }
   }
-
 
   /**
     * Leo calls this method to verify if the user has permission to perform the given action on a specific notebook cluster.

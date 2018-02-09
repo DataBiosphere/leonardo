@@ -1,9 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth
 
-
 import com.typesafe.config.Config
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterName, LeoAuthProvider, ServiceAccountProvider}
+import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.NotebookClusterAction
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.ProjectAction
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -11,9 +11,9 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class WhitelistAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(authConfig, serviceAccountProvider) {
+class WhitelistAuthProvider(config: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(config, serviceAccountProvider) {
 
-  val whitelist = authConfig.as[Set[String]]("whitelist").map(_.toLowerCase)
+  val whitelist = config.as[Set[String]]("whitelist").map(_.toLowerCase)
 
   protected def checkWhitelist(userEmail: WorkbenchEmail): Future[Boolean] = {
     Future.successful(whitelist contains userEmail.value.toLowerCase)

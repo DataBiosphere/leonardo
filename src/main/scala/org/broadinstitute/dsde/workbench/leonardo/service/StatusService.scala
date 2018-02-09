@@ -3,11 +3,11 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 import akka.actor.ActorSystem
 import akka.pattern.ask
 import akka.util.Timeout
-
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.{DataprocDAO, SamDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.SamDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.util.health.HealthMonitor.GetCurrentStatus
 import org.broadinstitute.dsde.workbench.util.health.{HealthMonitor, StatusCheckResponse, SubsystemStatus}
@@ -20,7 +20,7 @@ import scala.util.{Failure, Success}
 /**
   * Created by rtitle on 10/26/17.
   */
-class StatusService(gdDAO: DataprocDAO,
+class StatusService(gdDAO: GoogleDataprocDAO,
                     samDAO: SamDAO,
                     dbRef: DbReference,
                     dataprocConfig: DataprocConfig,
