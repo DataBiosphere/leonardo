@@ -13,6 +13,4 @@ trait SamDAO {
   implicit val errorReportSource = ErrorReportSource("sam")
 
   def getStatus(): Future[StatusCheckResponse]
-
-  def getPetServiceAccountForProject(userInfo: UserInfo, googleProject: GoogleProject): Future[WorkbenchEmail]
 }

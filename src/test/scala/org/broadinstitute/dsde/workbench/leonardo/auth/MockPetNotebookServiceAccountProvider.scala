@@ -11,19 +11,18 @@ import scala.concurrent.{ExecutionContext, Future}
 /**
   * Created by rtitle on 12/4/17.
   */
-class MockPetServiceAccountProvider(config: Config) extends ServiceAccountProvider(config) {
-  private val mockSamDAO = new MockSamDAO
+class MockPetNotebookServiceAccountProvider(config: Config) extends ServiceAccountProvider(config) {
   private val mockSamClient = new MockSwaggerSamClient
   private implicit val ec = scala.concurrent.ExecutionContext.global
 
-  override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
+  override def getClusterServiceAccount(workbenchEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
     // Pretend we're using the compute engine default SA
     Future.successful(None)
   }
 
-  override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
+  override def getNotebookServiceAccount(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
     // Pretend we're asking Sam for the pet
-    mockSamDAO.getPetServiceAccountForProject(userInfo, googleProject).map(Option(_))
+    Future(Option(mockSamClient.getPetServiceAccount(userEmail, googleProject)))
   }
 
   override def listUsersStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {

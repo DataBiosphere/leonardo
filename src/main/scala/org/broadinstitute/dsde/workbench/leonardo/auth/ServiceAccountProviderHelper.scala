@@ -46,15 +46,15 @@ class ServiceAccountProviderHelper(wrappedServiceAccountProvider: ServiceAccount
     try { future.recoverWith(exceptionHandler) } catch exceptionHandler
   }
 
-  override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
+  override def getClusterServiceAccount(workbenchEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
     safeCall {
-      wrappedServiceAccountProvider.getClusterServiceAccount(userInfo, googleProject)
+      wrappedServiceAccountProvider.getClusterServiceAccount(workbenchEmail, googleProject)
     }
   }
 
-  override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
+  override def getNotebookServiceAccount(workbenchEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
     safeCall {
-      wrappedServiceAccountProvider.getNotebookServiceAccount(userInfo, googleProject)
+      wrappedServiceAccountProvider.getNotebookServiceAccount(workbenchEmail, googleProject)
     }
   }
 
