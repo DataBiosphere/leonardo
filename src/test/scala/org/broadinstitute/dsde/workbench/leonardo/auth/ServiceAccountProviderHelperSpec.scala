@@ -49,7 +49,7 @@ class ServiceAccountProviderHelperSpec extends TestKit(ActorSystem("leonardotest
     }
 
     val helper = ServiceAccountProviderHelper(mockProvider, config.getConfig("serviceAccounts.config"))
-    helper.getNotebookServiceAccount(userInfo.userEmail, project).failed.futureValue shouldBe a [ServiceAccountProviderException]
+    helper.getNotebookServiceAccount(userInfo.userEmail, project).failed.futureValue shouldBe a [SamProviderException]
   }
 
   it should "handle thrown exceptions" in {
@@ -60,7 +60,7 @@ class ServiceAccountProviderHelperSpec extends TestKit(ActorSystem("leonardotest
     }
 
     val helper = ServiceAccountProviderHelper(mockProvider, config.getConfig("serviceAccounts.config"))
-    helper.getNotebookServiceAccount(userInfo.userEmail, project).failed.futureValue shouldBe a [ServiceAccountProviderException]
+    helper.getNotebookServiceAccount(userInfo.userEmail, project).failed.futureValue shouldBe a [SamProviderException]
   }
 
 }

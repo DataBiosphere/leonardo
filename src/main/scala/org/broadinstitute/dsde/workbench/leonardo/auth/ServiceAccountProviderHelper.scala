@@ -1,27 +1,22 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth
 
-import akka.http.scaladsl.model.StatusCodes
+import akka.actor.ActorSystem
 import com.typesafe.config.Config
-import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoException, ServiceAccountProvider}
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.control.NonFatal
-
-case class ServiceAccountProviderException(serviceAccountProviderClassName: String)
-  extends LeoException(s"Call to $serviceAccountProviderClassName service account provider failed", StatusCodes.InternalServerError)
 
 /**
   * Wraps a ServiceAccountProvider and provides error handling so provider-thrown errors don't bubble up our app.
   */
 object ServiceAccountProviderHelper {
-  def apply(wrappedServiceAccountProvider: ServiceAccountProvider, config: Config): ServiceAccountProviderHelper = {
+  def apply(wrappedServiceAccountProvider: ServiceAccountProvider, config: Config)(implicit system: ActorSystem): ServiceAccountProviderHelper = {
     new ServiceAccountProviderHelper(wrappedServiceAccountProvider, config)
   }
 
-  def create(className: String, config: Config): ServiceAccountProviderHelper = {
+  def create(className: String, config: Config)(implicit system: ActorSystem): ServiceAccountProviderHelper = {
     val serviceAccountProvider = Class.forName(className)
       .getConstructor(classOf[Config])
       .newInstance(config)
@@ -31,42 +26,30 @@ object ServiceAccountProviderHelper {
   }
 }
 
-class ServiceAccountProviderHelper(wrappedServiceAccountProvider: ServiceAccountProvider, config: Config) extends ServiceAccountProvider(config) with LazyLogging {
-
-  private def safeCall[T](future: => Future[T])(implicit executionContext: ExecutionContext): Future[T] = {
-    val exceptionHandler: PartialFunction[Throwable, Future[Nothing]] = {
-      case e: LeoException => Future.failed(e)
-      case NonFatal(e) =>
-        val wrappedClassName = wrappedServiceAccountProvider.getClass.getSimpleName
-        logger.error(s"Service account provider $wrappedClassName throw an exception", e)
-        Future.failed(ServiceAccountProviderException(wrappedClassName))
-    }
-
-    // recover from failed futures AND catch thrown exceptions
-    try { future.recoverWith(exceptionHandler) } catch exceptionHandler
-  }
+class ServiceAccountProviderHelper(val wrappedProvider: ServiceAccountProvider, config: Config)(implicit val system: ActorSystem)
+  extends ServiceAccountProvider(config) with SamProviderHelper[ServiceAccountProvider] {
 
   override def getClusterServiceAccount(workbenchEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
-    safeCall {
-      wrappedServiceAccountProvider.getClusterServiceAccount(workbenchEmail, googleProject)
+    safeCallSam {
+      wrappedProvider.getClusterServiceAccount(workbenchEmail, googleProject)
     }
   }
 
   override def getNotebookServiceAccount(workbenchEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
-    safeCall {
-      wrappedServiceAccountProvider.getNotebookServiceAccount(workbenchEmail, googleProject)
+    safeCallSam {
+      wrappedProvider.getNotebookServiceAccount(workbenchEmail, googleProject)
     }
   }
 
   override def listGroupsStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {
-    safeCall {
-      wrappedServiceAccountProvider.listGroupsStagingBucketReaders(userEmail)
+    safeCallSam {
+      wrappedProvider.listGroupsStagingBucketReaders(userEmail)
     }
   }
 
   override def listUsersStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {
-    safeCall {
-      wrappedServiceAccountProvider.listUsersStagingBucketReaders(userEmail)
+    safeCallSam {
+      wrappedProvider.listUsersStagingBucketReaders(userEmail)
     }
   }
 }
