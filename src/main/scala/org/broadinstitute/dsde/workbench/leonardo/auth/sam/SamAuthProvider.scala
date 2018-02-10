@@ -7,7 +7,7 @@ import com.typesafe.scalalogging.LazyLogging
 import akka.http.scaladsl.model.StatusCodes
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProvider.NotebookAuthCacheKey
+import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProvider.{CanSeeAllClustersInProjectCacheKey, NotebookAuthCacheKey, SamCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
@@ -22,7 +22,9 @@ case class UnknownLeoAuthAction(action: LeoAuthAction)
   extends LeoException(s"SamAuthProvider has no mapping for authorization action ${action.toString}, and is therefore probably out of date.", StatusCodes.InternalServerError)
 
 object SamAuthProvider {
-  private[sam] case class NotebookAuthCacheKey(userEmail: WorkbenchEmail, action: NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName, executionContext: ExecutionContext)
+  private[sam] sealed trait SamCacheKey
+  private[sam] case class NotebookAuthCacheKey(userEmail: WorkbenchEmail, action: NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName, executionContext: ExecutionContext) extends SamCacheKey
+  private[sam] case class CanSeeAllClustersInProjectCacheKey(userEmail: WorkbenchEmail, googleProject: GoogleProject, executionContext: ExecutionContext) extends SamCacheKey
 }
 
 class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(config, serviceAccountProvider) with SamProvider with LazyLogging {
@@ -31,14 +33,19 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
   private lazy val notebookAuthCacheExpiryTime = config.getAs[FiniteDuration]("notebookAuthCacheExpiryTime").getOrElse(15 minutes)
 
   // Cache notebook auth results from Sam as this is called very often by the proxy and the "list clusters" endpoint.
-  // Project-level auth is not cached because it's not called as frequently.
+  // Project-level auth is not cached because it's just called for "create cluster" which is not as frequent.
   private[sam] val notebookAuthCache = CacheBuilder.newBuilder()
     .expireAfterWrite(notebookAuthCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
     .maximumSize(notebookAuthCacheMaxSize)
     .build(
-      new CacheLoader[NotebookAuthCacheKey, Future[Boolean]] {
-        def load(key: NotebookAuthCacheKey) = {
-          hasNotebookClusterPermissionInternal(key.userEmail, key.action, key.googleProject, key.clusterName)(key.executionContext)
+      new CacheLoader[SamCacheKey, Future[Boolean]] {
+        def load(key: SamCacheKey) = {
+          key match {
+            case NotebookAuthCacheKey(userEmail, action, googleProject, clusterName, executionContext) =>
+              hasNotebookClusterPermissionInternal(userEmail, action, googleProject, clusterName)(executionContext)
+            case CanSeeAllClustersInProjectCacheKey(userEmail, googleProject, executionContext) =>
+              canSeeAllClustersInProjectInternal(userEmail, googleProject)(executionContext)
+          }
         }
       }
     )
@@ -88,6 +95,11 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     * @return If the given user can see all clusters in this project
     */
   override def canSeeAllClustersInProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+    // Consult the notebook auth cache
+    notebookAuthCache.get(CanSeeAllClustersInProjectCacheKey(userEmail, googleProject, executionContext))
+  }
+
+  private def canSeeAllClustersInProjectInternal(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     Future {
       samClient.hasActionOnBillingProjectResource(userEmail,googleProject, "list_notebook_cluster")
     }
