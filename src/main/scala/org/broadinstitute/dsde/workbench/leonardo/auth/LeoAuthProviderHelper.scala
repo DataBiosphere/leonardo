@@ -39,7 +39,7 @@ object LeoAuthProviderHelper {
 class LeoAuthProviderHelper(wrappedAuthProvider: LeoAuthProvider, authConfig: Config, serviceAccountProvider: ServiceAccountProvider)(implicit system: ActorSystem)
   extends LeoAuthProvider(authConfig, serviceAccountProvider) with FutureSupport with LazyLogging {
 
-  private lazy val providerTimeout = authConfig.getAs[FiniteDuration]("providerTimeout").getOrElse(15 seconds)
+  private lazy val providerTimeout = authConfig.getAs[FiniteDuration]("providerTimeout").getOrElse(30 seconds)
   private implicit val scheduler = system.scheduler
 
   private def safeCall[T](future: => Future[T])(implicit executionContext: ExecutionContext): Future[T] = {

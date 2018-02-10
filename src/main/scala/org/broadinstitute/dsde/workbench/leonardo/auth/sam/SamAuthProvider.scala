@@ -31,7 +31,7 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
   private lazy val notebookAuthCacheExpiryTime = config.getAs[FiniteDuration]("notebookAuthCacheExpiryTime").getOrElse(15 minutes)
 
   // Cache notebook auth results from Sam as this is called very often by the proxy and the "list clusters" endpoint.
-  // Project-level auth is not called as frequently so it's not as important to cache it.
+  // Project-level auth is not cached because it's not called as frequently.
   private[sam] val notebookAuthCache = CacheBuilder.newBuilder()
     .expireAfterWrite(notebookAuthCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
     .maximumSize(notebookAuthCacheMaxSize)

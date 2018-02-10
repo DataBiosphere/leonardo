@@ -38,7 +38,7 @@ object ServiceAccountProviderHelper {
 class ServiceAccountProviderHelper(wrappedServiceAccountProvider: ServiceAccountProvider, config: Config)(implicit system: ActorSystem)
   extends ServiceAccountProvider(config) with FutureSupport with LazyLogging {
 
-  private lazy val providerTimeout = config.getAs[FiniteDuration]("providerTimeout").getOrElse(15 seconds)
+  private lazy val providerTimeout = config.getAs[FiniteDuration]("providerTimeout").getOrElse(30 seconds)
   private implicit val scheudler = system.scheduler
 
   private def safeCall[T](future: => Future[T])(implicit executionContext: ExecutionContext): Future[T] = {
