@@ -33,7 +33,7 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
   // Cache notebook auth results from Sam as this is called very often by the proxy and the "list clusters" endpoint.
   // Project-level auth is not called as frequently so it's not as important to cache it.
   private[sam] val notebookAuthCache = CacheBuilder.newBuilder()
-    .expireAfterAccess(notebookAuthCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
+    .expireAfterWrite(notebookAuthCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
     .maximumSize(notebookAuthCacheMaxSize)
     .build(
       new CacheLoader[NotebookAuthCacheKey, Future[Boolean]] {
