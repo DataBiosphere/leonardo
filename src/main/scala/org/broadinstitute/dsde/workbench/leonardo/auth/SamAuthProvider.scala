@@ -1,9 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth
 
+import java.util.concurrent.TimeUnit
+
 import com.typesafe.config.Config
 import com.typesafe.scalalogging.LazyLogging
-
 import akka.http.scaladsl.model.StatusCodes
+import com.google.common.cache.{CacheBuilder, CacheLoader}
+import net.ceedubs.ficus.Ficus._
+import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider.NotebookAuthCacheKey
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
@@ -11,12 +15,33 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.CreateClu
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
+import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
 case class UnknownLeoAuthAction(action: LeoAuthAction)
   extends LeoException(s"SamAuthProvider has no mapping for authorization action ${action.toString}, and is therefore probably out of date.", StatusCodes.InternalServerError)
 
+object SamAuthProvider {
+  private[SamAuthProvider] case class NotebookAuthCacheKey(userEmail: WorkbenchEmail, action: NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName, executionContext: ExecutionContext)
+}
+
 class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(config, serviceAccountProvider) with SamProvider with LazyLogging {
+
+  private lazy val notebookAuthCacheMaxSize = config.getAs[Int]("notebookAuthCacheMaxSize").getOrElse(1000)
+  private lazy val notebookAuthCacheExpiryTime = config.getAs[FiniteDuration]("notebookAuthCacheExpiryTime").getOrElse(15 minutes)
+
+  // Cache notebook auth results from Sam as this is called very often by the proxy and the "list clusters" endpoint.
+  // Project-level auth is not called as frequently so it's not as important to cache it.
+  private val notebookAuthCache = CacheBuilder.newBuilder()
+    .expireAfterAccess(notebookAuthCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
+    .maximumSize(notebookAuthCacheMaxSize)
+    .build(
+      new CacheLoader[NotebookAuthCacheKey, Future[Boolean]] {
+        def load(key: NotebookAuthCacheKey) = {
+          hasNotebookClusterPermissionInternal(key.userEmail, key.action, key.googleProject, key.clusterName)(key.executionContext)
+        }
+      }
+    )
 
   protected def getProjectActionString(action: LeoAuthAction): String = {
     projectActionMap.getOrElse(action, throw UnknownLeoAuthAction(action))
@@ -79,6 +104,11 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     * @return If the userEmail has permission on this individual notebook cluster to perform this action
     */
   override def hasNotebookClusterPermission(userEmail: WorkbenchEmail, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+    // Consult the notebook auth cache
+    notebookAuthCache.get(NotebookAuthCacheKey(userEmail, action, googleProject, clusterName, executionContext))
+  }
+
+  private def hasNotebookClusterPermissionInternal(userEmail: WorkbenchEmail, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     // if action is connect, check only cluster resource. If action is anything else, either cluster or project must be true
     Future {
       val hasNotebookAction = samClient.hasActionOnNotebookClusterResource(userEmail,googleProject,clusterName, getNotebookActionString(action))
