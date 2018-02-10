@@ -6,7 +6,8 @@ import java.util.UUID
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetClusterServiceAccountProvider, WhitelistAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
+import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._

@@ -1,4 +1,4 @@
-package org.broadinstitute.dsde.workbench.leonardo.auth
+package org.broadinstitute.dsde.workbench.leonardo.auth.sam
 
 import java.util.concurrent.TimeUnit
 
@@ -7,7 +7,7 @@ import com.typesafe.scalalogging.LazyLogging
 import akka.http.scaladsl.model.StatusCodes
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProvider.NotebookAuthCacheKey
+import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProvider.NotebookAuthCacheKey
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
@@ -22,7 +22,7 @@ case class UnknownLeoAuthAction(action: LeoAuthAction)
   extends LeoException(s"SamAuthProvider has no mapping for authorization action ${action.toString}, and is therefore probably out of date.", StatusCodes.InternalServerError)
 
 object SamAuthProvider {
-  private[SamAuthProvider] case class NotebookAuthCacheKey(userEmail: WorkbenchEmail, action: NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName, executionContext: ExecutionContext)
+  private[sam] case class NotebookAuthCacheKey(userEmail: WorkbenchEmail, action: NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName, executionContext: ExecutionContext)
 }
 
 class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(config, serviceAccountProvider) with SamProvider with LazyLogging {
@@ -32,7 +32,7 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
 
   // Cache notebook auth results from Sam as this is called very often by the proxy and the "list clusters" endpoint.
   // Project-level auth is not called as frequently so it's not as important to cache it.
-  private val notebookAuthCache = CacheBuilder.newBuilder()
+  private[sam] val notebookAuthCache = CacheBuilder.newBuilder()
     .expireAfterAccess(notebookAuthCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
     .maximumSize(notebookAuthCacheMaxSize)
     .build(
