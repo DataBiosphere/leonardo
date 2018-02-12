@@ -94,7 +94,7 @@ ENV PATH $SPARK_HOME:$SPARK_HOME/python:$SPARK_HOME/bin:$HAIL_HOME:$PATH
 ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip:$JUPYTER_HOME/custom
 
 RUN apt-get install -yq --no-install-recommends \
-    python2.7 \
+    python \
     python-dev \
     liblzo2-dev \
 
@@ -128,6 +128,15 @@ RUN apt-get install -yq --no-install-recommends \
  && pip install fastinterval \
  && pip install matplotlib-venn \
  && pip install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py"
+
+# Install Python 3 Kernal
+
+RUN apt-get update
+RUN apt-get install python3
+RUN python3 get-pip.py
+RUN pip3 install ipykernel
+RUN python3 -m ipykernel install --name python3 --display-name "Python 3"
+
 
 #######################
 # Utilities
