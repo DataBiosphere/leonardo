@@ -133,6 +133,7 @@ RUN apt-get install -yq --no-install-recommends \
 # Install Python 3 Kernel
 RUN apt-get update \
  && apt-get install -yq --no-install-recommends python3 \
+        liblzo2-dev \
         libz-dev \
         python3-dev \
         python3-matplotlib \
@@ -144,9 +145,9 @@ RUN apt-get update \
  && python3 -m ipykernel install --name python3 --display-name "Python 3"
 
 RUN pip3 install seaborn \
- && python-lzo \
+ && pip3 install python-lzo \
  # && pip3 install libz-dev \ - do I need to do this?
- #&& pip install -U decorator jupyter \  -- idk if i need this
+ # && pip install -U decorator jupyter \ -- idk if i need this
  && pip3 install google-cloud \
  && pip3 install firecloud==0.16.7 \
  && pip3 install -U scikit-learn \
