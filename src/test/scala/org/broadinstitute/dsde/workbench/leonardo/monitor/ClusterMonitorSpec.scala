@@ -360,6 +360,10 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       gdDAO.deleteCluster(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
     } thenReturn Future.successful(())
 
+    when {
+      gdDAO.getComputeEngineDefaultServiceAccount(mockitoEq(creatingCluster.googleProject))
+    } thenReturn Future.successful(Some(serviceAccountEmail))
+
     val newClusterId = UUID.randomUUID()
     when {
       gdDAO.createCluster(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), any[MachineConfig], any[GcsPath], any[Option[WorkbenchEmail]], any[Option[String]], any[GcsBucketName])
