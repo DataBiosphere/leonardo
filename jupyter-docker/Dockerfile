@@ -134,7 +134,7 @@ RUN apt-get install -yq --no-install-recommends \
 RUN apt-get update \
  && apt-get install -yq --no-install-recommends python3 \
         python3-matplotlib \
-        python3-pandas
+        python3-pandas \
         python3-tk \
         python3-numpy \
  && python3 get-pip.py \
