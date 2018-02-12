@@ -23,7 +23,9 @@ object NotebookClusterActions {
   case object ConnectToCluster extends NotebookClusterAction
   case object SyncDataToCluster extends NotebookClusterAction
   case object DeleteCluster extends NotebookClusterAction
-  val allActions = Seq(GetClusterStatus, ConnectToCluster, SyncDataToCluster, DeleteCluster)
+  case object StopStartCluster extends NotebookClusterAction
+  val allActions = Seq(GetClusterStatus, ConnectToCluster, SyncDataToCluster, DeleteCluster, StopStartCluster)
+
 }
 
 abstract class LeoAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider) {

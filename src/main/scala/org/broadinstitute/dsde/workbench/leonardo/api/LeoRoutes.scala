@@ -47,30 +47,50 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
           }
         }
       } ~
-      path("cluster" / Segment / Segment) { (googleProject, clusterName) =>
-        put {
-          entity(as[ClusterRequest]) { cluster =>
-            complete {
-              leonardoService.createCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName), cluster).map { cluster =>
-                StatusCodes.OK -> cluster
-              }
-            }
-          }
-        } ~
-          get {
-            complete {
-              leonardoService.getActiveClusterDetails(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { clusterDetails =>
-                StatusCodes.OK -> clusterDetails
+      pathPrefix("cluster" / Segment / Segment) { (googleProject, clusterName) =>
+        pathEndOrSingleSlash {
+          put {
+            entity(as[ClusterRequest]) { cluster =>
+              complete {
+                leonardoService.createCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName), cluster).map { cluster =>
+                  StatusCodes.OK -> cluster
+                }
               }
             }
           } ~
-          delete {
+            get {
+              complete {
+                leonardoService.getActiveClusterDetails(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { clusterDetails =>
+                  StatusCodes.OK -> clusterDetails
+                }
+              }
+            } ~
+            delete {
+              complete {
+                leonardoService.deleteCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
+                  StatusCodes.Accepted
+                }
+              }
+            }
+        } ~
+        path("stop") {
+          post {
             complete {
-              leonardoService.deleteCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
+              leonardoService.stopCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
                 StatusCodes.Accepted
               }
             }
           }
+        } ~
+        path("start") {
+          post {
+            complete {
+              leonardoService.startCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
+                StatusCodes.Accepted
+              }
+            }
+          }
+        }
       } ~
         path("clusters") {
           parameterMap { params =>

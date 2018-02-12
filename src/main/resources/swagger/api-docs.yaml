@@ -224,6 +224,69 @@ paths:
           schema:
             $ref: '#/definitions/ErrorReport'
 
+  '/api/cluster/{googleProject}/{clusterName}/stop':
+    post:
+      summary: Stops a Dataproc cluster
+      description: |
+        Stops the instances of a Dataproc cluster, but retains any data persisted on disk. The
+        cluster may be restarted with the /start endpoint.
+      operationId: stopCluster
+      tags:
+        - cluster
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          type: string
+        - in: path
+          name: clusterName
+          description: clusterName
+          required: true
+          type: string
+      responses:
+        '202':
+          description: Cluster stop request accepted
+        '404':
+          description: Cluster not found
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '500':
+          description: Internal Error
+          schema:
+          $ref: '#/definitions/ErrorReport'
+
+  '/api/cluster/{googleProject}/{clusterName}/start':
+    post:
+      summary: Starts a Dataproc cluster
+      description: |
+        Starts the instances of a stopped Dataproc cluster.
+      operationId: startCluster
+      tags:
+        - cluster
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          type: string
+        - in: path
+          name: clusterName
+          description: clusterName
+          required: true
+          type: string
+      responses:
+        '202':
+          description: Cluster start request accepted
+        '404':
+          description: Cluster not found
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '500':
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/ErrorReport'
+
   '/notebooks/{googleProject}/{clusterName}':
     get:
       summary: Access Jupyter notebooks on a Dataproc cluster
@@ -257,6 +320,10 @@ paths:
             $ref: '#/definitions/ErrorReport'
         '420':
           description: Cluster not ready
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '422':
+          description: Cluster is stopped
           schema:
             $ref: '#/definitions/ErrorReport'
         '500':
@@ -312,6 +379,10 @@ paths:
             $ref: '#/definitions/ErrorReport'
         '420':
           description: Cluster not ready
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '422':
+          description: Cluster is stopped
           schema:
             $ref: '#/definitions/ErrorReport'
         '500':
@@ -384,9 +455,24 @@ definitions:
       - Running
       - Updating
       - Error
+      - Stopping
+      - Stopped
+      - Starting
       - Deleting
       - Deleted
       - Unknown
+
+  InstanceStatus:
+    type: string
+    enum: &INSTANCESTATUS
+      - Provisioning
+      - Staging
+      - Running
+      - Stopping
+      - Stopped
+      - Suspending
+      - Suspended
+      - Terminated
 
   ErrorReport:
     description: ''
@@ -492,6 +578,55 @@ definitions:
         description: The list of errors that were encountered on cluster create. Each error consists of the error message, code and timestamp
         items:
           $ref: "#/definitions/ClusterError"
+      instances:
+        description: Array of instances belonging to this cluster
+        type: array
+        items:
+          $ref: '#/definitions/Instance'
+
+  InstanceKey:
+    description: ''
+    required:
+      - project
+      - zone
+      - name
+    properties:
+      project:
+        type: string
+        description: The Google Project the instance belongs to
+      zone:
+        type: string
+        description: The Google zone the instance belongs to
+      name:
+        type: string
+        description: The name of the instance
+
+  Instance:
+    description: ''
+    required:
+      - key
+      - googleId
+      - status
+    properties:
+      key:
+        description: Unique identifier of (project, zone, name) for this instance
+        $ref: '#/definitions/InstanceKey'
+      googleId:
+        type: string
+        description: Google's unique id for this instance
+      status:
+        type: string
+        enum: *INSTANCESTATUS
+        description: The current state of the instance
+      ip:
+        type: string
+        description: The public IP address of the instance, if any
+      dataprocRole:
+        type: string
+        description: The dataproc role (master, worker, preemptible worker) of this instance, if any
+      createdDate:
+        type: string
+        description: The date and time the instance was created, in ISO-8601 format
 
   ClusterRequest:
     description: ''
