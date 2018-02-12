@@ -43,13 +43,16 @@ object ClusterStatus extends Enum[ClusterStatus] {
   case object Deleting extends ClusterStatus
   case object Deleted  extends ClusterStatus
 
+  val activeStatuses: Set[ClusterStatus] = Set(Unknown, Creating, Running, Updating)
   val deletableStatuses: Set[ClusterStatus] = Set(Unknown, Creating, Running, Updating, Error)
+  val monitoredStatuses: Set[ClusterStatus] = Set(Unknown, Creating, Updating, Deleting)
 
   implicit class EnrichedClusterStatus(status: ClusterStatus) {
+    def isActive: Boolean = activeStatuses contains status
     def isDeletable: Boolean = deletableStatuses contains status
+    def isMonitored: Boolean = monitoredStatuses contains status
   }
 }
-
 
 //object ClusterStatus extends Enumeration {
 //  type ClusterStatus = Value

@@ -22,7 +22,6 @@ import com.google.api.services.dataproc.model.{Cluster => DataprocCluster, Clust
 import com.google.api.services.oauth2.{Oauth2, Oauth2Scopes}
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.GoogleCredentialMode
 import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService.GoogleInstrumentedService
@@ -100,7 +99,7 @@ class HttpGoogleDataprocDAO(appName: String,
     val transformed = for {
       cluster <- OptionT(getCluster(googleProject, clusterName))
       status <- OptionT.pure[Future, ClusterStatus](
-        Try(ClusterStatus.withNameIgnoreCase(cluster.getStatus.getState)).toOption.getOrElse(ClusterStatus.Unknown))
+        Try(ClusterStatus.withNameInsensitive(cluster.getStatus.getState)).toOption.getOrElse(ClusterStatus.Unknown))
     } yield status
 
     transformed.value.map(_.getOrElse(ClusterStatus.Deleted)).handleGoogleException(googleProject, clusterName)

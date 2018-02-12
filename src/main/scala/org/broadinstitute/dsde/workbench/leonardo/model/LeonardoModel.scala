@@ -12,7 +12,6 @@ import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.google.GoogleJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._

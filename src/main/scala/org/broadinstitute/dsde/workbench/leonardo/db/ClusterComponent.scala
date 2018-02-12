@@ -5,7 +5,6 @@ import java.sql.Timestamp
 import java.util.UUID
 
 import cats.implicits._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._

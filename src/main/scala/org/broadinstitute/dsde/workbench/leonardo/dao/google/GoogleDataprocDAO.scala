@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo.dao.google
 import java.time.Instant
 import java.util.UUID
 
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google._
