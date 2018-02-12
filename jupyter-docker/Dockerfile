@@ -132,7 +132,7 @@ RUN apt-get install -yq --no-install-recommends \
 # Install Python 3 Kernal
 
 RUN apt-get update
-RUN apt-get install python3
+RUN apt-get install -yq --no-install-recommends python3
 RUN python3 get-pip.py
 RUN pip3 install ipykernel
 RUN python3 -m ipykernel install --name python3 --display-name "Python 3"
