@@ -3,15 +3,14 @@ package org.broadinstitute.dsde.workbench.leonardo.model.google
 import java.util.UUID
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.ClusterStatus
-import org.broadinstitute.dsde.workbench.model.{ValueObject, ValueObjectFormat}
-import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat}
+import enumeratum._
+import org.broadinstitute.dsde.workbench.model.{ValueObject, ValueObjectFormat, WorkbenchException}
+import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat, RootJsonFormat}
 
 import scala.language.implicitConversions
 
 // Primitives
 case class ClusterName(value: String) extends ValueObject
-case class InstanceName(value: String) extends ValueObject
 case class ZoneUri(value: String) extends ValueObject
 
 // Cluster machine configuration
@@ -31,28 +30,49 @@ case class Operation(name: OperationName, uuid: UUID)
 case class ClusterErrorDetails(code: Int, message: Option[String])
 
 // Cluster status
-object ClusterStatus extends Enumeration {
-  type ClusterStatus = Value
-  //NOTE: Remember to update the definition of this enum in Swagger when you add new ones
-  val Unknown, Creating, Running, Updating, Error, Deleting, Deleted = Value
+sealed trait ClusterStatus extends EnumEntry
+object ClusterStatus extends Enum[ClusterStatus] {
+  val values = findValues
 
-  val activeStatuses = Set(Unknown, Creating, Running, Updating)
-  val deletableStatuses = Set(Unknown, Creating, Running, Updating, Error)
-  val monitoredStatuses = Set(Unknown, Creating, Updating, Deleting)
+  // NOTE: Remember to update the definition of this enum in Swagger when you add new ones
+  case object Unknown  extends ClusterStatus
+  case object Creating extends ClusterStatus
+  case object Running  extends ClusterStatus
+  case object Updating extends ClusterStatus
+  case object Error    extends ClusterStatus
+  case object Deleting extends ClusterStatus
+  case object Deleted  extends ClusterStatus
 
-  class StatusValue(status: ClusterStatus) {
-    def isActive: Boolean = activeStatuses contains status
-    def isMonitored: Boolean = monitoredStatuses contains status
+  val deletableStatuses: Set[ClusterStatus] = Set(Unknown, Creating, Running, Updating, Error)
+
+  implicit class EnrichedClusterStatus(status: ClusterStatus) {
     def isDeletable: Boolean = deletableStatuses contains status
   }
-  implicit def enumConvert(status: ClusterStatus): StatusValue = new StatusValue(status)
-
-  def withNameOpt(s: String): Option[ClusterStatus] = values.find(_.toString == s)
-
-  def withNameIgnoreCase(str: String): ClusterStatus = {
-    values.find(_.toString.equalsIgnoreCase(str)).getOrElse(throw new IllegalArgumentException(s"Unknown cluster status: $str"))
-  }
 }
+
+
+//object ClusterStatus extends Enumeration {
+//  type ClusterStatus = Value
+//  //NOTE: Remember to update the definition of this enum in Swagger when you add new ones
+//  val Unknown, Creating, Running, Updating, Error, Deleting, Deleted = Value
+//
+//  val activeStatuses = Set(Unknown, Creating, Running, Updating)
+//  val deletableStatuses = Set(Unknown, Creating, Running, Updating, Error)
+//  val monitoredStatuses = Set(Unknown, Creating, Updating, Deleting)
+//
+//  class StatusValue(status: ClusterStatus) {
+//    def isActive: Boolean = activeStatuses contains status
+//    def isMonitored: Boolean = monitoredStatuses contains status
+//    def isDeletable: Boolean = deletableStatuses contains status
+//  }
+//  implicit def enumConvert(status: ClusterStatus): StatusValue = new StatusValue(status)
+//
+//  def withNameOpt(s: String): Option[ClusterStatus] = values.find(_.toString == s)
+//
+//  def withNameIgnoreCase(str: String): ClusterStatus = {
+//    values.find(_.toString.equalsIgnoreCase(str)).getOrElse(throw new IllegalArgumentException(s"Unknown cluster status: $str"))
+//  }
+//}
 
 // VPC networking
 case class IP(value: String) extends ValueObject
@@ -62,6 +82,27 @@ case class FirewallRulePort(value: String) extends ValueObject
 case class FirewallRuleNetwork(value: String) extends ValueObject
 case class FirewallRuleProtocol(value: String) extends ValueObject
 case class FirewallRule(name: FirewallRuleName, protocol: FirewallRuleProtocol, ports: List[FirewallRulePort], network: FirewallRuleNetwork, targetTags: List[NetworkTag])
+
+// Instances
+case class InstanceName(value: String) extends ValueObject
+object DataprocRoles {
+  sealed trait DataprocRole extends ValueObject
+  case object Master extends DataprocRole { val value: String = "Master" }
+  case object Worker extends DataprocRole { val value: String = "Worker" }
+
+  def withName(name: String): DataprocRole = name.toLowerCase() match {
+    case "master" => Master
+    case "worker" => Worker
+    case _ => throw new WorkbenchException(s"Invalid Dataproc role: $name")
+  }
+}
+object InstanceStatuses {
+  sealed trait InstanceStatus
+}
+//PROVISIONING, STAGING, RUNNING, STOPPING, STOPPED, SUSPENDING, SUSPENDED, and TERMINATED.
+
+// status
+
 
 object GoogleJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit object UUIDFormat extends JsonFormat[UUID] {
@@ -84,14 +125,16 @@ object GoogleJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val ClusterErrorDetailsFormat = jsonFormat2(ClusterErrorDetails)
 
-  implicit object ClusterStatusFormat extends JsonFormat[ClusterStatus] {
-    def write(obj: ClusterStatus) = JsString(obj.toString)
-
-    def read(json: JsValue): ClusterStatus = json match {
-      case JsString(status) => ClusterStatus.withName(status)
-      case other => throw DeserializationException("Expected ClusterStatus, got: " + other)
+  case class EnumEntryFormat[T <: EnumEntry](create: String => T) extends RootJsonFormat[T] {
+    def read(obj: JsValue): T = obj match {
+      case JsString(value) => create(value)
+      case _ => throw new DeserializationException(s"could not deserialize $obj")
     }
+
+    def write(obj: T): JsValue = JsString(obj.entryName)
   }
+
+  implicit val ClusterStatusFormat = EnumEntryFormat(ClusterStatus.withName)
 
   implicit val IPFormat = ValueObjectFormat(IP)
   implicit val NetworkTagFormat = ValueObjectFormat(NetworkTag)
