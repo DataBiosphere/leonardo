@@ -99,12 +99,7 @@ class BucketHelper(dataprocConfig: DataprocConfig,
 
   private def getBucketSAs(googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo): Future[List[GcsEntity]] = {
     // cluster SA orElse compute engine default SA
-    val clusterOrComputeDefault: OptionT[Future, WorkbenchEmail] = {
-      val foo: OptionT[Future, WorkbenchEmail] = OptionT.fromOption(serviceAccountInfo.clusterServiceAccount)
-      val bar: OptionT[Future, WorkbenchEmail] = OptionT(gdDAO.getComputeEngineDefaultServiceAccount(googleProject))
-      val baz: OptionT[Future, WorkbenchEmail] = foo orElse bar
-      baz
-    }
+    val clusterOrComputeDefault = OptionT.fromOption[Future](serviceAccountInfo.clusterServiceAccount) orElse OptionT(gdDAO.getComputeEngineDefaultServiceAccount(googleProject))
 
     // List(cluster or default SA, notebook SA) if they exist
     clusterOrComputeDefault.value.map { clusterOrDefaultSAOpt =>
