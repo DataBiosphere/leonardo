@@ -80,6 +80,10 @@ RUN mkdir -p /etc/spark/conf.dist && mkdir -p /etc/hadoop/conf.empty && mkdir -p
 # Python / Jupyter
 #######################
 
+ENV USER jupyter-user
+ENV UID 1000
+ENV HOME /home/$USER
+
 # ensure this matches c.NotebookApp.port in jupyter_notebook_config.py
 ENV JUPYTER_PORT 8000
 ENV JUPYTER_HOME /etc/jupyter
@@ -134,7 +138,7 @@ RUN apt-get update \
  && python3 -m ipykernel install --name python3 --display-name "Python 3"
 
 # pip3 install python3-dev \
-RUN pip3 install python-matplotlib \
+RUN pip3 install matplotlib \
  && pip3 install python-pandas \
  && pip3 install python-seaborn \
  && pip3 install python-tk \
@@ -154,9 +158,6 @@ RUN pip3 install python-matplotlib \
  && pip3 install matplotlib-venn \
  && pip3 install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py"
 
-ENV USER jupyter-user
-ENV UID 1000
-ENV HOME /home/$USER
 
 
 #######################
