@@ -13,7 +13,7 @@ import scala.concurrent.{ExecutionContext, Future}
   * This is not the default ServiceAccountProvider.
   *
   * To enable, change the configuration value serviceAccounts.providerClass to
-  * org.broadinstitute.dsde.workbench.leonardo.auth.PetServiceAccountProvider
+  * org.broadinstitute.dsde.workbench.leonardo.auth.PetNotebookServiceAccountProvider
   *
   * See the README for more information.
   */
