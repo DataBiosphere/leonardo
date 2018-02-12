@@ -11,11 +11,11 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.FutureSupport
 
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future, TimeoutException}
 import scala.util.control.NonFatal
 
-case class ServiceAccountProviderException(serviceAccountProviderClassName: String)
-  extends LeoException(s"Call to $serviceAccountProviderClassName service account provider failed", StatusCodes.InternalServerError)
+case class ServiceAccountProviderException(serviceAccountProviderClassName: String, isTimeout: Boolean = false)
+  extends LeoException(s"Call to $serviceAccountProviderClassName service account provider ${if (isTimeout) "timed out" else "failed"}", StatusCodes.InternalServerError)
 
 /**
   * Wraps a ServiceAccountProvider and provides error handling so provider-thrown errors don't bubble up our app.
@@ -38,12 +38,17 @@ object ServiceAccountProviderHelper {
 class ServiceAccountProviderHelper(wrappedServiceAccountProvider: ServiceAccountProvider, config: Config)(implicit system: ActorSystem)
   extends ServiceAccountProvider(config) with FutureSupport with LazyLogging {
 
-  private lazy val providerTimeout = config.getAs[FiniteDuration]("providerTimeout").getOrElse(30 seconds)
+  // Default timeout is specified in reference.conf
+  private lazy val providerTimeout = config.as[FiniteDuration]("providerTimeout")
   private implicit val scheudler = system.scheduler
 
   private def safeCall[T](future: => Future[T])(implicit executionContext: ExecutionContext): Future[T] = {
     val exceptionHandler: PartialFunction[Throwable, Future[Nothing]] = {
       case e: LeoException => Future.failed(e)
+      case te: TimeoutException =>
+        val wrappedClassName = wrappedServiceAccountProvider.getClass.getSimpleName
+        logger.error(s"Service Account provider $wrappedClassName timed out after $providerTimeout", te)
+        Future.failed(ServiceAccountProviderException(wrappedClassName, isTimeout = true))
       case NonFatal(e) =>
         val wrappedClassName = wrappedServiceAccountProvider.getClass.getSimpleName
         logger.error(s"Service account provider $wrappedClassName throw an exception", e)
@@ -51,7 +56,7 @@ class ServiceAccountProviderHelper(wrappedServiceAccountProvider: ServiceAccount
     }
 
     // recover from failed futures AND catch thrown exceptions
-    try { future.withTimeout(providerTimeout, s"LeoAuthProvider timed out after $providerTimeout").recoverWith(exceptionHandler) } catch exceptionHandler
+    try { future.withTimeout(providerTimeout, "" /* errMsg, not used */).recoverWith(exceptionHandler) } catch exceptionHandler
   }
 
   override def getClusterServiceAccount(workbenchEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {

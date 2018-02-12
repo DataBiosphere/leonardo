@@ -77,7 +77,10 @@ class LeoAuthProviderHelperSpec extends TestKit(ActorSystem("leonardotest")) wit
     }
 
     val helper = LeoAuthProviderHelper(mockProvider, config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider)
-    helper.hasProjectPermission(userEmail, ProjectActions.CreateClusters, project).failed.futureValue shouldBe a [AuthProviderException]
+    // should timeout after 1 second
+    val response = helper.hasProjectPermission(userEmail, ProjectActions.CreateClusters, project).failed.futureValue
+    response shouldBe a [AuthProviderException]
+    response.asInstanceOf[AuthProviderException].isTimeout shouldBe true
   }
 
 }

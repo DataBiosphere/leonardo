@@ -78,7 +78,10 @@ class ServiceAccountProviderHelperSpec extends TestKit(ActorSystem("leonardotest
     }
 
     val helper = ServiceAccountProviderHelper(mockProvider, config.getConfig("serviceAccounts.config"))
-    helper.getNotebookServiceAccount(userInfo.userEmail, project).failed.futureValue shouldBe a [ServiceAccountProviderException]
+    // should timeout after 1 second
+    val response = helper.getNotebookServiceAccount(userInfo.userEmail, project).failed.futureValue
+    response shouldBe a [ServiceAccountProviderException]
+    response.asInstanceOf[ServiceAccountProviderException].isTimeout shouldBe true
   }
 
 }

@@ -12,11 +12,11 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.FutureSupport
 
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future, TimeoutException}
 import scala.util.control.NonFatal
 
-case class AuthProviderException(authProviderClassName: String)
-  extends LeoException(s"Call to $authProviderClassName auth provider failed", StatusCodes.InternalServerError)
+case class AuthProviderException(authProviderClassName: String, isTimeout: Boolean = false)
+  extends LeoException(s"Call to $authProviderClassName auth provider ${if (isTimeout) "timed out" else "failed"}", StatusCodes.InternalServerError)
 
 /**
   * Wraps a LeoAuthProvider and provides error handling so provider-thrown errors don't bubble up our app.
@@ -39,12 +39,17 @@ object LeoAuthProviderHelper {
 class LeoAuthProviderHelper(wrappedAuthProvider: LeoAuthProvider, authConfig: Config, serviceAccountProvider: ServiceAccountProvider)(implicit system: ActorSystem)
   extends LeoAuthProvider(authConfig, serviceAccountProvider) with FutureSupport with LazyLogging {
 
-  private lazy val providerTimeout = authConfig.getAs[FiniteDuration]("providerTimeout").getOrElse(30 seconds)
+  // Default timeout is specified in reference.conf
+  private lazy val providerTimeout = authConfig.as[FiniteDuration]("providerTimeout")
   private implicit val scheduler = system.scheduler
 
   private def safeCall[T](future: => Future[T])(implicit executionContext: ExecutionContext): Future[T] = {
     val exceptionHandler: PartialFunction[Throwable, Future[Nothing]] = {
       case e: LeoException => Future.failed(e)
+      case te: TimeoutException =>
+        val wrappedClassName = wrappedAuthProvider.getClass.getSimpleName
+        logger.error(s"Auth provider $wrappedClassName timed out after $providerTimeout", te)
+        Future.failed(AuthProviderException(wrappedClassName, isTimeout = true))
       case NonFatal(e) =>
         val wrappedClassName = wrappedAuthProvider.getClass.getSimpleName
         logger.error(s"Auth provider $wrappedClassName throw an exception", e)
@@ -52,7 +57,7 @@ class LeoAuthProviderHelper(wrappedAuthProvider: LeoAuthProvider, authConfig: Co
     }
 
     // recover from failed futures AND catch thrown exceptions
-    try { future.withTimeout(providerTimeout, s"LeoAuthProvider timed out after $providerTimeout").recoverWith(exceptionHandler) } catch exceptionHandler
+    try { future.withTimeout(providerTimeout, "" /* errMsg, not used */).recoverWith(exceptionHandler) } catch exceptionHandler
   }
 
   override def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
