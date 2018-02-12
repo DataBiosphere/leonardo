@@ -80,10 +80,6 @@ RUN mkdir -p /etc/spark/conf.dist && mkdir -p /etc/hadoop/conf.empty && mkdir -p
 # Python / Jupyter
 #######################
 
-ENV USER jupyter-user
-ENV UID 1000
-ENV HOME /home/$USER
-
 # ensure this matches c.NotebookApp.port in jupyter_notebook_config.py
 ENV JUPYTER_PORT 8000
 ENV JUPYTER_HOME /etc/jupyter
@@ -137,14 +133,14 @@ RUN apt-get update \
  && pip3 install ipykernel \
  && python3 -m ipykernel install --name python3 --display-name "Python 3"
 
-#pip3 install python3-dev \
+# pip3 install python3-dev \
 RUN pip3 install python-matplotlib \
  && pip3 install python-pandas \
  && pip3 install python-seaborn \
  && pip3 install python-tk \
  && pip3 install python-numpy \
  && pip3 install libz-dev \
- #&& pip install -U decorator jupyter \
+ #&& pip install -U decorator jupyter \  -- idk if i need this
  && pip3 install google-cloud \
  && pip3 install firecloud==0.16.7 \
  && pip3 install -U scikit-learn \
@@ -158,6 +154,9 @@ RUN pip3 install python-matplotlib \
  && pip3 install matplotlib-venn \
  && pip3 install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py"
 
+ENV USER jupyter-user
+ENV UID 1000
+ENV HOME /home/$USER
 
 
 #######################
