@@ -108,8 +108,8 @@ ADD jupyter_localize_extension.py $JUPYTER_HOME/custom/
 ADD jupyter_install_notebook_extension.sh $JUPYTER_HOME/
 
 RUN chown -R $USER:users $JUPYTER_HOME \
- && chmod +x $JUPYTER_HOME/jupyter_install_notebook_extension.sh \
- && chmod +x $HAIL_HOME/spark_install_hail.sh
+ && chmod +x $JUPYTER_HOME/jupyter_install_notebook_extension.sh
+# && chmod +x $HAIL_HOME/spark_install_hail.sh
 
 USER $USER
 WORKDIR $HOME
