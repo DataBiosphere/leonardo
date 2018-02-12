@@ -129,13 +129,35 @@ RUN apt-get install -yq --no-install-recommends \
  && pip install matplotlib-venn \
  && pip install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py"
 
-# Install Python 3 Kernal
 
+# Install Python 3 Kernel
 RUN apt-get update
-RUN apt-get install -yq --no-install-recommends python3
-RUN python3 get-pip.py
-RUN pip3 install ipykernel
-RUN python3 -m ipykernel install --name python3 --display-name "Python 3"
+ && apt-get install -yq --no-install-recommends python3
+ && python3 get-pip.py
+ && pip3 install ipykernel
+ && python3 -m ipykernel install --name python3 --display-name "Python 3"
+
+RUN pip3 install python-dev
+ && pip3 install python-matplotlib
+ && pip3 install python-pandas
+ && pip3 install python-seaborn
+ && pip3 install python-tk \
+ && pip3 install python-numpy \
+ && pip3 install libz-dev \
+ #&& pip install -U decorator jupyter \
+ && pip3 install google-cloud \
+ && pip3 install firecloud==0.16.7 \
+ && pip3 install -U scikit-learn \
+ && pip3 install ggplot \
+ && pip3 install bokeh \
+ && pip3 install pyfasta \
+ && pip3 install pdoc \
+ && pip3 install biopython \
+ && pip3 install bx-python \
+ && pip3 install fastinterval \
+ && pip3 install matplotlib-venn \
+ && pip3 install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py"
+
 
 
 #######################
