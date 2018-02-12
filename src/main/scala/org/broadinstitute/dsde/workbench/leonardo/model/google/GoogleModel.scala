@@ -1,10 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo.model.google
 
+import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import enumeratum._
-import org.broadinstitute.dsde.workbench.model.{ValueObject, ValueObjectFormat, WorkbenchException}
+import org.broadinstitute.dsde.workbench.model.{ValueObject, ValueObjectFormat}
+import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport._
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat, RootJsonFormat}
 
 import scala.language.implicitConversions
@@ -12,6 +14,7 @@ import scala.language.implicitConversions
 // Primitives
 case class ClusterName(value: String) extends ValueObject
 case class ZoneUri(value: String) extends ValueObject
+case class MachineType(value: String) extends ValueObject
 
 // Cluster machine configuration
 case class MachineConfig(numberOfWorkers: Option[Int] = None,
@@ -54,29 +57,6 @@ object ClusterStatus extends Enum[ClusterStatus] {
   }
 }
 
-//object ClusterStatus extends Enumeration {
-//  type ClusterStatus = Value
-//  //NOTE: Remember to update the definition of this enum in Swagger when you add new ones
-//  val Unknown, Creating, Running, Updating, Error, Deleting, Deleted = Value
-//
-//  val activeStatuses = Set(Unknown, Creating, Running, Updating)
-//  val deletableStatuses = Set(Unknown, Creating, Running, Updating, Error)
-//  val monitoredStatuses = Set(Unknown, Creating, Updating, Deleting)
-//
-//  class StatusValue(status: ClusterStatus) {
-//    def isActive: Boolean = activeStatuses contains status
-//    def isMonitored: Boolean = monitoredStatuses contains status
-//    def isDeletable: Boolean = deletableStatuses contains status
-//  }
-//  implicit def enumConvert(status: ClusterStatus): StatusValue = new StatusValue(status)
-//
-//  def withNameOpt(s: String): Option[ClusterStatus] = values.find(_.toString == s)
-//
-//  def withNameIgnoreCase(str: String): ClusterStatus = {
-//    values.find(_.toString.equalsIgnoreCase(str)).getOrElse(throw new IllegalArgumentException(s"Unknown cluster status: $str"))
-//  }
-//}
-
 // VPC networking
 case class IP(value: String) extends ValueObject
 case class NetworkTag(value: String) extends ValueObject
@@ -88,24 +68,36 @@ case class FirewallRule(name: FirewallRuleName, protocol: FirewallRuleProtocol, 
 
 // Instances
 case class InstanceName(value: String) extends ValueObject
-object DataprocRoles {
-  sealed trait DataprocRole extends ValueObject
-  case object Master extends DataprocRole { val value: String = "Master" }
-  case object Worker extends DataprocRole { val value: String = "Worker" }
+sealed trait DataprocRole extends EnumEntry
+object DataprocRole extends Enum[DataprocRole] {
+  val values = findValues
 
-  def withName(name: String): DataprocRole = name.toLowerCase() match {
-    case "master" => Master
-    case "worker" => Worker
-    case _ => throw new WorkbenchException(s"Invalid Dataproc role: $name")
-  }
+  case object Master extends DataprocRole
+  case object Worker extends DataprocRole
 }
-object InstanceStatuses {
-  sealed trait InstanceStatus
+
+sealed trait InstanceStatus extends EnumEntry
+object InstanceStatus extends Enum[InstanceStatus] {
+  val values = findValues
+
+  case object Provisioning extends InstanceStatus
+  case object Staging      extends InstanceStatus
+  case object Running      extends InstanceStatus
+  case object Stopping     extends InstanceStatus
+  case object Stopped      extends InstanceStatus
+  case object Suspending   extends InstanceStatus
+  case object Suspended    extends InstanceStatus
+  case object Terminated   extends InstanceStatus
 }
-//PROVISIONING, STAGING, RUNNING, STOPPING, STOPPED, SUSPENDING, SUSPENDED, and TERMINATED.
 
-// status
-
+case class Instance(name: InstanceName,
+                    zone: ZoneUri,
+                    role: DataprocRole,
+                    status: InstanceStatus,
+                    ip: Option[IP],
+                    machineType: MachineType,
+                    createdDate: Instant,
+                    destroyedDate: Option[Instant])
 
 object GoogleJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit object UUIDFormat extends JsonFormat[UUID] {
@@ -118,7 +110,7 @@ object GoogleJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   }
 
   implicit val ClusterNameFormat = ValueObjectFormat(ClusterName)
-  implicit val InstanceNameFormat = ValueObjectFormat(InstanceName)
+  implicit val MachineTypeFormat = ValueObjectFormat(MachineType)
   implicit val ZoneUriFormat = ValueObjectFormat(ZoneUri)
 
   implicit val MachineConfigFormat = jsonFormat7(MachineConfig.apply)
@@ -146,4 +138,9 @@ object GoogleJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val FirewallRuleProtocolFormat = ValueObjectFormat(FirewallRuleProtocol)
   implicit val FirewallRuleNetworkFormat = ValueObjectFormat(FirewallRuleNetwork)
   implicit val FirewallRuleFormat = jsonFormat5(FirewallRule)
+
+  implicit val InstanceNameFormat = ValueObjectFormat(InstanceName)
+  implicit val DataprocRoleFormat = EnumEntryFormat(DataprocRole.withName)
+  implicit val InstanceStatusFormat = EnumEntryFormat(InstanceStatus.withName)
+  implicit val InstanceFormat = jsonFormat8(Instance)
 }
