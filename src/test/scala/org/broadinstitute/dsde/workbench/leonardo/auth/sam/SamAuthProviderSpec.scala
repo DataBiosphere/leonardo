@@ -73,7 +73,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     samAuthProvider.samClient.billingProjects += (project, userInfo.userEmail) -> Set("launch_notebook_cluster")
     samAuthProvider.hasProjectPermission(userInfo.userEmail, CreateClusters, project).futureValue shouldBe true
 
-    samAuthProvider.hasProjectPermission(WorkbenchEmail("somecreep@example.com"), CreateClusters, project).futureValue shouldBe false
+    samAuthProvider.hasProjectPermission(unauthorizedEmail, CreateClusters, project).futureValue shouldBe false
     samAuthProvider.hasProjectPermission(userInfo.userEmail, CreateClusters, GoogleProject("leo-fake-project")).futureValue shouldBe false
 
     samAuthProvider.samClient.billingProjects.remove((project, userInfo.userEmail))
@@ -85,8 +85,8 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     samAuthProvider.samClient.billingProjects += (project, userInfo.userEmail) -> Set("list_notebook_cluster")
     samAuthProvider.canSeeAllClustersInProject(userInfo.userEmail, project).futureValue shouldBe true
 
-    samAuthProvider.canSeeAllClustersInProject(WorkbenchEmail("somecreep@example.com"), project).futureValue shouldBe false
-    samAuthProvider.canSeeAllClustersInProject(userInfo.userEmail,GoogleProject("leo-fake-project")).futureValue shouldBe false
+    samAuthProvider.canSeeAllClustersInProject(unauthorizedEmail, project).futureValue shouldBe false
+    samAuthProvider.canSeeAllClustersInProject(userInfo.userEmail, GoogleProject("leo-fake-project")).futureValue shouldBe false
 
     samAuthProvider.samClient.billingProjects.remove((project, userInfo.userEmail))
   }
@@ -97,7 +97,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     samAuthProvider.samClient.notebookClusters += (project, name1, userInfo.userEmail) -> Set("sync")
     samAuthProvider.hasNotebookClusterPermission(userInfo.userEmail, SyncDataToCluster, project, name1).futureValue shouldBe true
 
-    samAuthProvider.hasNotebookClusterPermission(WorkbenchEmail("somecreep@example.com"), SyncDataToCluster, project, name1).futureValue shouldBe false
+    samAuthProvider.hasNotebookClusterPermission(unauthorizedEmail, SyncDataToCluster, project, name1).futureValue shouldBe false
     samAuthProvider.hasNotebookClusterPermission(userInfo.userEmail, DeleteCluster, project, name1).futureValue shouldBe false
     samAuthProvider.hasNotebookClusterPermission(userInfo.userEmail, SyncDataToCluster, GoogleProject("leo-fake-project"), name1).futureValue shouldBe false
     samAuthProvider.hasNotebookClusterPermission(userInfo.userEmail, SyncDataToCluster, project, ClusterName("fake-cluster")).futureValue shouldBe false
@@ -170,8 +170,8 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
 
     // call provider method
     samAuthProvider.canSeeAllClustersInProject(userInfo.userEmail, project).futureValue shouldBe true
-    samAuthProvider.canSeeAllClustersInProject(WorkbenchEmail("somecreep@example.com"), project).futureValue shouldBe false
-    samAuthProvider.canSeeAllClustersInProject(userInfo.userEmail,GoogleProject("leo-fake-project")).futureValue shouldBe false
+    samAuthProvider.canSeeAllClustersInProject(unauthorizedEmail, project).futureValue shouldBe false
+    samAuthProvider.canSeeAllClustersInProject(userInfo.userEmail, GoogleProject("leo-fake-project")).futureValue shouldBe false
 
     // cache should contain 3 entries
     samAuthProvider.notebookAuthCache.size shouldBe 3
@@ -179,11 +179,11 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     samAuthProvider.notebookAuthCache.asMap.containsKey(key1) shouldBe true
     samAuthProvider.notebookAuthCache.asMap.get(key1).futureValue shouldBe true
 
-    val key2 = CanSeeAllClustersInProjectCacheKey(WorkbenchEmail("somecreep@example.com"), project, implicitly[ExecutionContext])
+    val key2 = CanSeeAllClustersInProjectCacheKey(unauthorizedEmail, project, implicitly[ExecutionContext])
     samAuthProvider.notebookAuthCache.asMap.containsKey(key2) shouldBe true
     samAuthProvider.notebookAuthCache.asMap.get(key2).futureValue shouldBe false
 
-    val key3 = CanSeeAllClustersInProjectCacheKey(userInfo.userEmail,GoogleProject("leo-fake-project"), implicitly[ExecutionContext])
+    val key3 = CanSeeAllClustersInProjectCacheKey(userInfo.userEmail, GoogleProject("leo-fake-project"), implicitly[ExecutionContext])
     samAuthProvider.notebookAuthCache.asMap.containsKey(key3) shouldBe true
     samAuthProvider.notebookAuthCache.asMap.get(key3).futureValue shouldBe false
 
@@ -192,8 +192,8 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
 
     // provider should return the same results because the info is still cached
     samAuthProvider.canSeeAllClustersInProject(userInfo.userEmail, project).futureValue shouldBe true
-    samAuthProvider.canSeeAllClustersInProject(WorkbenchEmail("somecreep@example.com"), project).futureValue shouldBe false
-    samAuthProvider.canSeeAllClustersInProject(userInfo.userEmail,GoogleProject("leo-fake-project")).futureValue shouldBe false
+    samAuthProvider.canSeeAllClustersInProject(unauthorizedEmail, project).futureValue shouldBe false
+    samAuthProvider.canSeeAllClustersInProject(userInfo.userEmail, GoogleProject("leo-fake-project")).futureValue shouldBe false
   }
 
 }
