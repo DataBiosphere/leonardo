@@ -15,13 +15,16 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main\ndeb $DEBIAN_REPO/debian-security
  && apt-get update && apt-get -yq dist-upgrade \
  && apt-get install -yq --no-install-recommends \
     nano \
+ && apt-get install -myq --no-install-recommends \
+    wget \
+    gnupg \
+ && apt-get install -yq --no-install-recommends \
     #note ca-certificates has to be before wget and curl
     ca-certificates \
     wget \
     curl \
     build-essential \
     lsb-release \
-    gnupg \
 
  # google-cloud-sdk separately because it need lsb-release and other prereqs installed above
  && export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" \
