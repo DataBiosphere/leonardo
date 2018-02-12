@@ -50,6 +50,11 @@ object Boot extends App with LazyLogging {
     val monitorConfig = config.as[MonitorConfig]("monitor")
     val samConfig = config.as[SamConfig]("sam")
 
+    // we need an ActorSystem to host our application in
+    implicit val system = ActorSystem("leonardo")
+    implicit val materializer = ActorMaterializer()
+    import system.dispatcher
+
     val serviceAccountProviderClass = config.as[String]("serviceAccounts.providerClass")
     val serviceAccountConfig = config.getConfig("serviceAccounts.providerConfig")
     val serviceAccountProvider = ServiceAccountProviderHelper.create(serviceAccountProviderClass, serviceAccountConfig)
@@ -57,11 +62,6 @@ object Boot extends App with LazyLogging {
     val authProviderClass = config.as[String]("auth.providerClass")
     val authConfig = config.getConfig("auth.providerConfig")
     val authProvider = LeoAuthProviderHelper.create(authProviderClass, authConfig, serviceAccountProvider)
-
-    // we need an ActorSystem to host our application in
-    implicit val system = ActorSystem("leonardo")
-    implicit val materializer = ActorMaterializer()
-    import system.dispatcher
 
     val dbRef = DbReference.init(config)
     system.registerOnTermination {

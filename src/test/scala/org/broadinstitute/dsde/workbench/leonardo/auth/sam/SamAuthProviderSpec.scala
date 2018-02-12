@@ -1,10 +1,11 @@
-package org.broadinstitute.dsde.workbench.leonardo.auth
+package org.broadinstitute.dsde.workbench.leonardo.auth.sam
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import com.typesafe.config.Config
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
+import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProvider.{CanSeeAllClustersInProjectCacheKey, NotebookAuthCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.{DeleteCluster, SyncDataToCluster}
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.CreateClusters
@@ -14,6 +15,8 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
+
+import scala.concurrent.ExecutionContext
 
 class TestSamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends SamAuthProvider(authConfig, serviceAccountProvider)  {
   override lazy val samClient = new MockSwaggerSamClient()
@@ -70,7 +73,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     samAuthProvider.samClient.billingProjects += (project, userInfo.userEmail) -> Set("launch_notebook_cluster")
     samAuthProvider.hasProjectPermission(userInfo.userEmail, CreateClusters, project).futureValue shouldBe true
 
-    samAuthProvider.hasProjectPermission(WorkbenchEmail("somecreep@example.com"), CreateClusters, project).futureValue shouldBe false
+    samAuthProvider.hasProjectPermission(unauthorizedEmail, CreateClusters, project).futureValue shouldBe false
     samAuthProvider.hasProjectPermission(userInfo.userEmail, CreateClusters, GoogleProject("leo-fake-project")).futureValue shouldBe false
 
     samAuthProvider.samClient.billingProjects.remove((project, userInfo.userEmail))
@@ -82,8 +85,8 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     samAuthProvider.samClient.billingProjects += (project, userInfo.userEmail) -> Set("list_notebook_cluster")
     samAuthProvider.canSeeAllClustersInProject(userInfo.userEmail, project).futureValue shouldBe true
 
-    samAuthProvider.canSeeAllClustersInProject(WorkbenchEmail("somecreep@example.com"), project).futureValue shouldBe false
-    samAuthProvider.canSeeAllClustersInProject(userInfo.userEmail,GoogleProject("leo-fake-project")).futureValue shouldBe false
+    samAuthProvider.canSeeAllClustersInProject(unauthorizedEmail, project).futureValue shouldBe false
+    samAuthProvider.canSeeAllClustersInProject(userInfo.userEmail, GoogleProject("leo-fake-project")).futureValue shouldBe false
 
     samAuthProvider.samClient.billingProjects.remove((project, userInfo.userEmail))
   }
@@ -94,7 +97,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     samAuthProvider.samClient.notebookClusters += (project, name1, userInfo.userEmail) -> Set("sync")
     samAuthProvider.hasNotebookClusterPermission(userInfo.userEmail, SyncDataToCluster, project, name1).futureValue shouldBe true
 
-    samAuthProvider.hasNotebookClusterPermission(WorkbenchEmail("somecreep@example.com"), SyncDataToCluster, project, name1).futureValue shouldBe false
+    samAuthProvider.hasNotebookClusterPermission(unauthorizedEmail, SyncDataToCluster, project, name1).futureValue shouldBe false
     samAuthProvider.hasNotebookClusterPermission(userInfo.userEmail, DeleteCluster, project, name1).futureValue shouldBe false
     samAuthProvider.hasNotebookClusterPermission(userInfo.userEmail, SyncDataToCluster, GoogleProject("leo-fake-project"), name1).futureValue shouldBe false
     samAuthProvider.hasNotebookClusterPermission(userInfo.userEmail, SyncDataToCluster, project, ClusterName("fake-cluster")).futureValue shouldBe false
@@ -129,6 +132,68 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
 
     samAuthProvider.notifyClusterDeleted(userInfo.userEmail, userInfo.userEmail, project, name1).futureValue
     samAuthProvider.samClient.notebookClusters should not contain ((project, name1, userInfo.userEmail) -> Set("connect", "read_policies", "status", "delete", "sync"))
+  }
+
+  "should cache hasNotebookClusterPermission results" in isolatedDbTest {
+    val samAuthProvider = getSamAuthProvider
+
+    // cache should be empty
+    samAuthProvider.notebookAuthCache.size shouldBe 0
+
+    // populate backing samClient
+    samAuthProvider.samClient.notebookClusters += (project, name1, userInfo.userEmail) -> Set("sync")
+
+    // call provider method
+    samAuthProvider.hasNotebookClusterPermission(userInfo.userEmail, SyncDataToCluster, project, name1).futureValue shouldBe true
+
+    // cache should contain 1 entry
+    samAuthProvider.notebookAuthCache.size shouldBe 1
+    val key = NotebookAuthCacheKey(userInfo.userEmail, SyncDataToCluster, project, name1, implicitly[ExecutionContext])
+    samAuthProvider.notebookAuthCache.asMap.containsKey(key) shouldBe true
+    samAuthProvider.notebookAuthCache.asMap.get(key).futureValue shouldBe true
+
+    // remove info from samClient
+    samAuthProvider.samClient.notebookClusters.remove((project, name1, userInfo.userEmail))
+
+    // provider should still return true because the info is cached
+    samAuthProvider.hasNotebookClusterPermission(userInfo.userEmail, SyncDataToCluster, project, name1).futureValue shouldBe true
+  }
+
+  "should cache canSeeAllClustersInProject results" in isolatedDbTest {
+    val samAuthProvider = getSamAuthProvider
+
+    // cache should be empty
+    samAuthProvider.notebookAuthCache.size shouldBe 0
+
+    // populate backing samClient
+    samAuthProvider.samClient.billingProjects += (project, userInfo.userEmail) -> Set("list_notebook_cluster")
+
+    // call provider method
+    samAuthProvider.canSeeAllClustersInProject(userInfo.userEmail, project).futureValue shouldBe true
+    samAuthProvider.canSeeAllClustersInProject(unauthorizedEmail, project).futureValue shouldBe false
+    samAuthProvider.canSeeAllClustersInProject(userInfo.userEmail, GoogleProject("leo-fake-project")).futureValue shouldBe false
+
+    // cache should contain 3 entries
+    samAuthProvider.notebookAuthCache.size shouldBe 3
+    val key1 = CanSeeAllClustersInProjectCacheKey(userInfo.userEmail, project, implicitly[ExecutionContext])
+    samAuthProvider.notebookAuthCache.asMap.containsKey(key1) shouldBe true
+    samAuthProvider.notebookAuthCache.asMap.get(key1).futureValue shouldBe true
+
+    val key2 = CanSeeAllClustersInProjectCacheKey(unauthorizedEmail, project, implicitly[ExecutionContext])
+    samAuthProvider.notebookAuthCache.asMap.containsKey(key2) shouldBe true
+    samAuthProvider.notebookAuthCache.asMap.get(key2).futureValue shouldBe false
+
+    val key3 = CanSeeAllClustersInProjectCacheKey(userInfo.userEmail, GoogleProject("leo-fake-project"), implicitly[ExecutionContext])
+    samAuthProvider.notebookAuthCache.asMap.containsKey(key3) shouldBe true
+    samAuthProvider.notebookAuthCache.asMap.get(key3).futureValue shouldBe false
+
+    // remove info from samClient
+    samAuthProvider.samClient.billingProjects.remove((project, userInfo.userEmail))
+
+    // provider should return the same results because the info is still cached
+    samAuthProvider.canSeeAllClustersInProject(userInfo.userEmail, project).futureValue shouldBe true
+    samAuthProvider.canSeeAllClustersInProject(unauthorizedEmail, project).futureValue shouldBe false
+    samAuthProvider.canSeeAllClustersInProject(userInfo.userEmail, GoogleProject("leo-fake-project")).futureValue shouldBe false
   }
 
 }
