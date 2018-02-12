@@ -137,8 +137,8 @@ RUN apt-get update \
  && pip3 install ipykernel \
  && python3 -m ipykernel install --name python3 --display-name "Python 3"
 
-RUN pip3 install python3-dev \
- && pip3 install python-matplotlib \
+#pip3 install python3-dev \
+RUN pip3 install python-matplotlib \
  && pip3 install python-pandas \
  && pip3 install python-seaborn \
  && pip3 install python-tk \
