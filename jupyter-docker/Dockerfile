@@ -1,6 +1,6 @@
 # adapted from https://hub.docker.com/r/jupyter/base-notebook/ AKA https://github.com/jupyter/docker-stacks/tree/master/base-notebook
 
-FROM debian:jessie
+FROM debian:stretch
 
 USER root
 
@@ -11,7 +11,7 @@ USER root
 ENV DEBIAN_FRONTEND noninteractive
 ENV DEBIAN_REPO http://cdn-fastly.deb.debian.org
 
-RUN echo "deb $DEBIAN_REPO/debian jessie main\ndeb $DEBIAN_REPO/debian-security jessie/updates main" > /etc/apt/sources.list \
+RUN echo "deb $DEBIAN_REPO/debian stretch main\ndeb $DEBIAN_REPO/debian-security stretch/updates main" > /etc/apt/sources.list \
  && apt-get update && apt-get -yq dist-upgrade \
  && apt-get install -yq --no-install-recommends \
     nano \
@@ -92,46 +92,12 @@ ENV PYSPARK_DRIVER_PYTHON_OPTS notebook
 ENV PATH $SPARK_HOME:$SPARK_HOME/python:$SPARK_HOME/bin:$HAIL_HOME:$PATH
 ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip:$JUPYTER_HOME/custom
 
-RUN apt-get install -yq --no-install-recommends \
-    python \
-    python-dev \
-
-    # useful for analysis
-    python-matplotlib \
-    python-pandas \
-    python-seaborn \
-    python-tk \
-    python-numpy \
-    libz-dev \
- && apt-get clean \
- && rm -rf /var/lib/apt/lists/* \
-
- # NOTE! not sure why, but this must run before pip installation
- && useradd -m -s /bin/bash -N -u $UID $USER \
- # jessie's default pip doesn't work well with jupyter
- && wget https://bootstrap.pypa.io/get-pip.py \
- && python get-pip.py \
-
- # Hail requires decorator
- && pip install -U decorator jupyter \
- && pip install google-cloud \
- && pip install firecloud==0.16.7 \
- && pip install -U scikit-learn \
- && pip install ggplot \
- && pip install bokeh \
- && pip install pyfasta \
- && pip install pdoc \
- && pip install biopython \
- && pip install bx-python \
- && pip install fastinterval \
- && pip install matplotlib-venn \
- && pip install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py"
 
 #######################
 # Utilities
 #######################
 
-ADD spark_install_hail.sh $HAIL_HOME/
+#ADD spark_install_hail.sh $HAIL_HOME/
 ADD jupyter_notebook_config.py $JUPYTER_HOME/
 ADD jupyter_localize_extension.py $JUPYTER_HOME/custom/
 ADD jupyter_install_notebook_extension.sh $JUPYTER_HOME/
