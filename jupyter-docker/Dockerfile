@@ -143,8 +143,8 @@ RUN apt-get update \
  && pip3 install ipykernel \
  && python3 -m ipykernel install --name python3 --display-name "Python 3"
 
-# pip3 install python3-dev \
 RUN pip3 install seaborn \
+ && python-lzo \
  # && pip3 install libz-dev \ - do I need to do this?
  #&& pip install -U decorator jupyter \  -- idk if i need this
  && pip3 install google-cloud \
