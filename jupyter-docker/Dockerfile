@@ -131,16 +131,16 @@ RUN apt-get install -yq --no-install-recommends \
 
 
 # Install Python 3 Kernel
-RUN apt-get update
- && apt-get install -yq --no-install-recommends python3
- && python3 get-pip.py
- && pip3 install ipykernel
+RUN apt-get update \
+ && apt-get install -yq --no-install-recommends python3 \
+ && python3 get-pip.py \
+ && pip3 install ipykernel \
  && python3 -m ipykernel install --name python3 --display-name "Python 3"
 
-RUN pip3 install python-dev
- && pip3 install python-matplotlib
- && pip3 install python-pandas
- && pip3 install python-seaborn
+RUN pip3 install python-dev \
+ && pip3 install python-matplotlib \
+ && pip3 install python-pandas \
+ && pip3 install python-seaborn \
  && pip3 install python-tk \
  && pip3 install python-numpy \
  && pip3 install libz-dev \
