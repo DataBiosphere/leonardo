@@ -12,9 +12,8 @@ import org.broadinstitute.dsde.workbench.service.APIException
 import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
-import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail}
-import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsEntityTypes, GcsObjectName, GoogleProject, ServiceAccountName, generateUniqueBucketName}
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GcsObjectName, GoogleProject, ServiceAccountName, generateUniqueBucketName}
 import org.broadinstitute.dsde.workbench.util.LocalFileUtil
 import org.openqa.selenium.WebDriver
 import org.scalatest.{Matchers, Suite}
@@ -308,4 +307,40 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     testResult.get
   }
 
+
+  def verifyHailImport(notebookPage: NotebookPage, vcfPath: GcsPath, clusterName: ClusterName): Unit = {
+    val welcomeToHail =
+      """Welcome to
+        |     __  __     <>__
+        |    / /_/ /__  __/ /
+        |   / __  / _ `/ / /
+        |  /_/ /_/\_,_/_/_/""".stripMargin
+
+    val vcfSummary =
+      """Samples: 1092
+        |        Variants: 855026
+        |       Call Rate: 0.983877
+        |         Contigs: ['20']
+        |   Multiallelics: 0
+        |            SNPs: 824953
+        |            MNPs: 0
+        |      Insertions: 12227
+        |       Deletions: 17798
+        | Complex Alleles: 48
+        |    Star Alleles: 0
+        |     Max Alleles: 2""".stripMargin
+
+    notebookPage.executeCell("from hail import *") shouldBe None
+    notebookPage.executeCell("hc = HailContext(sc)").get should include(welcomeToHail)
+
+    notebookPage.executeCell(s"chr20vcf = '${vcfPath.toUri}'") shouldBe None
+    notebookPage.executeCell("imported = hc.import_vcf(chr20vcf)").get should include("Hail: INFO: Coerced almost-sorted dataset")
+
+    notebookPage.executeCell("imported.summarize().report()").get should include(vcfSummary)
+
+    // show that the Hail log contains jobs that were run on preemptible nodes
+
+    val preemptibleNodePrefix = clusterName.string + "-sw"
+    notebookPage.executeCell(s"! grep Finished ~/hail.log | grep $preemptibleNodePrefix").get should include(preemptibleNodePrefix)
+  }
 }
