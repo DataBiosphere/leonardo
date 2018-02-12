@@ -70,7 +70,8 @@ case class Cluster(clusterName: ClusterName,
 
 case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[String] = None,
-                          jupyterUserScriptUri: Option[String] = None)
+                          jupyterUserScriptUri: Option[String] = None,
+                          machineConfig: Option[MachineConfig] = None)
 
 case class DefaultLabels(clusterName: ClusterName,
                          googleProject: GoogleProject,
