@@ -34,7 +34,7 @@ class BucketHelper(dataprocConfig: DataprocConfig,
       _ <- googleStorageDAO.createBucket(dataprocConfig.leoGoogleProject, bucketName)
 
       // Leo service account -> Owner
-      // available service accounts (notebook SA, cluster SA, and compute engine default SA, if they exist) -> Reader
+      // available service accounts ((cluster or default SA) and notebook SA, if they exist) -> Reader
       bucketSAs <- getBucketSAs(googleProject, serviceAccountInfo)
       leoEntity = userEntity(serviceAccountProvider.getLeoServiceAccountAndKey._1)
 
@@ -52,7 +52,7 @@ class BucketHelper(dataprocConfig: DataprocConfig,
       _ <- googleStorageDAO.createBucket(googleProject, bucketName)
 
       // Leo service account -> Owner
-      // available service accounts (notebook SA, cluster SA, and compute engine default SA, if they exist) -> Owner
+      // available service accounts ((cluster or default SA) and notebook SA, if they exist) -> Owner
       // Additional readers (users and groups) are specified by the service account provider.
       leoEntity = userEntity(serviceAccountProvider.getLeoServiceAccountAndKey._1)
       bucketSAs <- getBucketSAs(googleProject, serviceAccountInfo)
@@ -68,7 +68,7 @@ class BucketHelper(dataprocConfig: DataprocConfig,
     */
   def updateUserBucket(bucketName: GcsBucketName, googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo): Future[Unit] = {
     for {
-      // available service accounts (notebook SA, cluster SA, and compute engine default SA, if they exist) -> Reader
+      // available service accounts ((cluster or default SA) and notebook SA, if they exist) -> Reader
       bucketSAs <- getBucketSAs(googleProject, serviceAccountInfo)
 
       _ <- setBucketAcls(bucketName, bucketSAs, List.empty)
@@ -98,11 +98,12 @@ class BucketHelper(dataprocConfig: DataprocConfig,
   }
 
   private def getBucketSAs(googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo): Future[List[GcsEntity]] = {
-    // notebook SA, cluster SA, and compute engine default SA, if they exist
+    // cluster SA orElse compute engine default SA
+    val clusterOrComputeDefault = OptionT.fromOption(serviceAccountInfo.clusterServiceAccount) orElse OptionT(gdDAO.getComputeEngineDefaultServiceAccount(googleProject))
 
-    gdDAO.getComputeEngineDefaultServiceAccount(googleProject) map { defaultSaOpt =>
-      val accounts = Set(defaultSaOpt, serviceAccountInfo.notebookServiceAccount, serviceAccountInfo.clusterServiceAccount)
-      accounts.toList.collect { case Some(email) => userEntity(email) }
+    // List(cluster or default SA, notebook SA) if they exist
+    clusterOrComputeDefault.value.map { clusterOrDefaultSAOpt =>
+      List(clusterOrDefaultSAOpt, serviceAccountInfo.notebookServiceAccount).flatten.map(userEntity)
     }
   }
 
