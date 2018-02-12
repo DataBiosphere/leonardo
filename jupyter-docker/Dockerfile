@@ -133,7 +133,7 @@ RUN apt-get install -yq --no-install-recommends \
 # Install Python 3 Kernel
 RUN apt-get update \
  && apt-get install -yq --no-install-recommends python3 \
-        zlib1g-dev \
+        libz-dev \
         python3-dev \
         python3-matplotlib \
         python3-pandas \
