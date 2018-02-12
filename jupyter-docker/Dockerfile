@@ -135,7 +135,6 @@ RUN apt-get update \
  && apt-get install -yq --no-install-recommends python3 \
         python3-matplotlib \
         python3-pandas
-        python3-seaborn \
         python3-tk \
         python3-numpy \
  && python3 get-pip.py \
@@ -143,7 +142,8 @@ RUN apt-get update \
  && python3 -m ipykernel install --name python3 --display-name "Python 3"
 
 # pip3 install python3-dev \
-RUN pip3 install libz-dev \
+RUN pip3 install seaborn \
+ && pip3 install libz-dev \
  #&& pip install -U decorator jupyter \  -- idk if i need this
  && pip3 install google-cloud \
  && pip3 install firecloud==0.16.7 \
