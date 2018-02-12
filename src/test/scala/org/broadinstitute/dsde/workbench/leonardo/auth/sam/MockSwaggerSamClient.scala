@@ -1,4 +1,4 @@
-package org.broadinstitute.dsde.workbench.leonardo.auth
+package org.broadinstitute.dsde.workbench.leonardo.auth.sam
 
 import java.io.File
 
