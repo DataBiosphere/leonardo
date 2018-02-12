@@ -1,4 +1,4 @@
-package org.broadinstitute.dsde.workbench.leonardo.auth
+package org.broadinstitute.dsde.workbench.leonardo.auth.sam
 
 import com.typesafe.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
