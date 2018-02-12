@@ -10,7 +10,8 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import com.typesafe.config.ConfigFactory
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.GcsPathUtils
-import org.broadinstitute.dsde.workbench.leonardo.auth.{MockLeoAuthProvider, MockPetClusterServiceAccountProvider}
+import org.broadinstitute.dsde.workbench.leonardo.auth.MockLeoAuthProvider
+import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
@@ -24,6 +25,7 @@ import org.scalatest.mockito.MockitoSugar
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers, OptionValues}
 import net.ceedubs.ficus.Ficus._
+import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.GetClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.mockito.Mockito
