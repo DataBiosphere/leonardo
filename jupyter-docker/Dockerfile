@@ -143,7 +143,7 @@ RUN apt-get update \
 
 # pip3 install python3-dev \
 RUN pip3 install seaborn \
- && pip3 install libz-dev \
+ # && pip3 install libz-dev \ - do I need to do this?
  #&& pip install -U decorator jupyter \  -- idk if i need this
  && pip3 install google-cloud \
  && pip3 install firecloud==0.16.7 \
