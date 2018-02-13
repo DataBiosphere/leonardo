@@ -107,7 +107,7 @@ RUN apt-get install -yq --no-install-recommends \
     python-seaborn \
     python-tk \
     python-numpy \
-    libz-dev 
+    libz-dev \
 
  # NOTE! not sure why, but this must run before pip installation
  && useradd -m -s /bin/bash -N -u $UID $USER \
