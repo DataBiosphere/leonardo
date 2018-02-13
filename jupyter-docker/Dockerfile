@@ -133,6 +133,27 @@ RUN apt-get install -yq --no-install-recommends \
  && pip install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py"
 
 #######################
+# R Kernel
+#######################
+
+RUN apt-get install -y --no-install-recommends \
+    r-base r-base-dev \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+    fonts-dejavu \
+    tzdata \
+    gfortran \
+    gcc \
+    libcurl4-openssl-dev \
+    libssl-dev \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN R -e 'install.packages(c("repr", "IRdisplay", "evaluate", "crayon", "pbdZMQ", "devtools", "uuid", "digest"), repos="http://cran.case.edu")'
+RUN R -e 'devtools::install_github("IRkernel/IRkernel")'
+RUN R -e 'IRkernel::installspec(user = FALSE)'
+
+#######################
 # Utilities
 #######################
 
