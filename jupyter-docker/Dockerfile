@@ -146,8 +146,7 @@ RUN apt-get update \
 
 RUN pip3 install seaborn \
  && pip3 install python-lzo \
- # && pip3 install libz-dev \ - do I need to do this?
- # && pip install -U decorator jupyter \ -- idk if i need this
+ && pip3 install -U decorator jupyter \
  && pip3 install google-cloud \
  && pip3 install firecloud==0.16.7 \
  && pip3 install -U scikit-learn \

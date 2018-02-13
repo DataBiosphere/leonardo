@@ -121,7 +121,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       withDummyClientPage(ronCluster) { dummyClientPage =>
         // opens the notebook list page without setting a cookie
         val notebooksListPage = dummyClientPage.openNotebook
-        notebooksListPage.withNewNotebook { notebookPage =>
+        notebooksListPage.withNewNotebook() { notebookPage =>
           // execute some cells to make sure it works
           notebookPage.executeCell("1+1") shouldBe Some("2")
           notebookPage.executeCell("2*3") shouldBe Some("6")
@@ -172,6 +172,23 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
             }
           }
         }
+      }
+    }
+
+    "should create a notebook with a working Python 3 kernel and import installed packages" in withWebDriver { implicit driver =>
+      Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+
+      withNewNotebook(ronCluster, Python3) { notebookPage =>
+        val getPythonVersion =
+          """import platform
+            |print(platform.python_version())""".stripMargin
+        val getBxPython =
+          """import bx
+            |bx.sys.copyright""".stripMargin //the most annoying package to install
+
+        notebookPage.executeCell("1+1") shouldBe Some("2")
+        notebookPage.executeCell(getPythonVersion) shouldBe Some("3.4.2")
+        notebookPage.executeCell(getBxPython).get should include("Copyright (c)")
       }
     }
 
