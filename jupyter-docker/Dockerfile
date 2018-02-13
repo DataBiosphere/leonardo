@@ -16,7 +16,7 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main\ndeb $DEBIAN_REPO/debian-security
  && apt-get install -yq --no-install-recommends \
     nano \
     wget \
-    liblzo2-dev \
+    gnupg \
     #note ca-certificates has to be before wget and curl
     ca-certificates \
     curl \
@@ -96,6 +96,7 @@ ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/
 RUN apt-get install -yq --no-install-recommends \
     python \
     python-dev \
+    liblzo2-dev \
 
     # useful for analysis
     python-matplotlib \
