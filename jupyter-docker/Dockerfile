@@ -144,8 +144,8 @@ RUN apt-get install -y --no-install-recommends \
     gcc \
     libcurl4-openssl-dev \
     libssl-dev \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN R -e 'install.packages(c("repr", "IRdisplay", "evaluate", "crayon", "pbdZMQ", "devtools", "uuid", "digest"), repos="http://cran.case.edu")'
 RUN R -e 'devtools::install_github("IRkernel/IRkernel")'
