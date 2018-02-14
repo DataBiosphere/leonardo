@@ -146,7 +146,6 @@ RUN apt-get update \
 
 RUN pip3 install seaborn \
  && pip3 install python-lzo \
- && pip3 install -U decorator jupyter \
  && pip3 install google-cloud \
  && pip3 install firecloud==0.16.7 \
  && pip3 install -U scikit-learn \
