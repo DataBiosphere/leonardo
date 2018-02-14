@@ -21,7 +21,6 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main\ndeb $DEBIAN_REPO/debian-security
  && apt-get install -yq --no-install-recommends \
     #note ca-certificates has to be before wget and curl
     ca-certificates \
- #   wget \
     curl \
     build-essential \
     lsb-release \
@@ -136,8 +135,6 @@ RUN apt-get install -yq --no-install-recommends \
 
 RUN apt-get install -y --no-install-recommends \
     r-base r-base-dev \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends \
     fonts-dejavu \
     tzdata \
     gfortran \
