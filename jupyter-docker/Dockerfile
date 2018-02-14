@@ -17,7 +17,6 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main\ndeb $DEBIAN_REPO/debian-security
     nano \
     wget \
     gnupg \
-    #note ca-certificates has to be before wget and curl
     ca-certificates \
     curl \
     build-essential \
