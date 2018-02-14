@@ -143,7 +143,7 @@ RUN apt-get install -y --no-install-recommends \
 
 RUN R -e 'install.packages(c("repr", "IRdisplay", "evaluate", "crayon", "pbdZMQ", "devtools", "uuid", "digest"), repos="http://cran.case.edu")'
 RUN R -e 'devtools::install_github("IRkernel/IRkernel")'
-RUN R -e 'IRkernel::installspec(user = FALSE)'
+RUN R -e 'IRkernel::installspec()'
 
 #######################
 # Utilities
