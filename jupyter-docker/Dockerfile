@@ -15,11 +15,8 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main\ndeb $DEBIAN_REPO/debian-security
  && apt-get update && apt-get -yq dist-upgrade \
  && apt-get install -yq --no-install-recommends \
     nano \
- && apt-get install -myq --no-install-recommends \
     wget \
     gnupg \
- && apt-get install -yq --no-install-recommends \
-    #note ca-certificates has to be before wget and curl
     ca-certificates \
     curl \
     build-essential \
@@ -97,8 +94,8 @@ ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/
 
 RUN apt-get install -yq --no-install-recommends \
     python \
-    liblzo2-dev \
     python-dev \
+    liblzo2-dev \
 
     # useful for analysis
     python-matplotlib \
