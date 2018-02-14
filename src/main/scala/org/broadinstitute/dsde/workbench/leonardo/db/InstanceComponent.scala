@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.db
 import java.math.BigInteger
 import java.sql.Timestamp
 
+import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -60,6 +61,20 @@ trait InstanceComponent extends LeoComponent {
       }
     }
 
+    def instanceByKeyQuery(instanceKey: InstanceKey) = {
+      instanceQuery.filter { _.googleProject === instanceKey.project.value }
+        .filter { _.zone === instanceKey.zone.value }
+        .filter { _.instanceName === instanceKey.name.value }
+    }
+
+    def getInstanceByKey(instanceKey: InstanceKey): DBIO[Option[Instance]] = {
+      instanceByKeyQuery(instanceKey).result.map { _.headOption.map(unmarshalInstance) }
+    }
+
+    def updateInstanceStatusAndIp(instanceKey: InstanceKey, newStatus: InstanceStatus, newIp: Option[IP]) = {
+      instanceByKeyQuery(instanceKey).map(inst => (inst.status, inst.ip)).update(newStatus.entryName, newIp.map(_.value))
+    }
+
     private def marshalInstance(clusterId: Long, instance: Instance): InstanceRecord = {
       InstanceRecord(
         id = 0,    // DB AutoInc
@@ -90,5 +105,12 @@ trait InstanceComponent extends LeoComponent {
       )
     }
   }
+
+//  def instanceByClusterQuery(cluster: Cluster) = {
+//    (instanceQuery join clusterQuery on (_.clusterId === _.id))
+//      .filter { _._2.googleProject === cluster.googleProject.value }
+//      .filter { _._2.clusterName === cluster.clusterName.value }
+//      .map { _._1 }
+//  }
 
 }

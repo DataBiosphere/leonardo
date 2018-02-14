@@ -115,6 +115,14 @@ trait ClusterComponent extends LeoComponent {
       } yield cluster
     }
 
+    def updateInstanceStatus(cluster: Cluster, newStatus: InstanceStatus) = {
+      (instanceQuery join clusterQuery on (_.clusterId === _.id))
+        .filter { _._2.googleProject === cluster.googleProject.value }
+        .filter { _._2.clusterName === cluster.clusterName.value }
+        .map { _._1.status }
+        .update(newStatus.entryName)
+    }
+
     def list(): DBIO[Seq[Cluster]] = {
       clusterQueryWithLabels.result.map(unmarshalClustersWithLabels)
     }
@@ -208,6 +216,12 @@ trait ClusterComponent extends LeoComponent {
       clusterQuery.filter { _.googleId === googleId }
         .map(c => (c.status, c.hostIp))
         .update((ClusterStatus.Running.toString, Option(hostIp.value)))
+    }
+
+    def setToStopped(googleId: UUID): DBIO[Int] = {
+      clusterQuery.filter { _.googleId === googleId }
+        .map(c => (c.status, c.hostIp))
+        .update((ClusterStatus.Stopped.toString, None))
     }
 
     def updateClusterStatus(googleId: UUID, newStatus: ClusterStatus): DBIO[Int] = {
@@ -307,7 +321,7 @@ trait ClusterComponent extends LeoComponent {
         Map(clusterRecord -> labelMap)
       }
 
-      val clusterInstanceMap: Map[ClusterRecord, Seq[InstanceRecord]] = clusterInstanceLabels.toList.foldMap { case (clusterRecord, instanceRecordOpt, _) =>
+      val clusterInstanceMap: Map[ClusterRecord, List[InstanceRecord]] = clusterInstanceLabels.toList.foldMap { case (clusterRecord, instanceRecordOpt, _) =>
         instanceRecordOpt match {
           case Some(instanceRecord) => Map(clusterRecord -> List(instanceRecord))
           case None => Map.empty
@@ -372,7 +386,7 @@ trait ClusterComponent extends LeoComponent {
 
   val clusterQueryWithInstancesAndLabels: Query[(ClusterTable, Rep[Option[InstanceTable]], Rep[Option[LabelTable]]), (ClusterRecord, Option[InstanceRecord], Option[LabelRecord]), Seq] = {
     for {
-      (cluster, instance, label) <- clusterQuery joinLeft instanceQuery joinLeft labelQuery
+      ((cluster, instance), label) <- clusterQuery joinLeft instanceQuery on (_.id === _.clusterId) joinLeft labelQuery on (_._1.id === _.clusterId)
     } yield (cluster, instance, label)
   }
 

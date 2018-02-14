@@ -17,7 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted, RegisterLeoService}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import slick.dbio.DBIO
@@ -193,6 +193,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         }
         // Delete the cluster in Google
         _ <- gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)
+        // TODO set instances to Deleting
         // Change the cluster status to Deleting in the database
         _ <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.googleId))
       } yield {
@@ -200,6 +201,56 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         // This will kick off polling until the cluster is actually deleted in Google.
         clusterMonitorSupervisor ! ClusterDeleted(cluster)
       }
+    } else Future.successful(())
+  }
+
+  def stopCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Unit] = {
+    for {
+      //throws 404 if no permissions
+      cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
+
+      //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually stop it
+      _ <- checkClusterPermission(userInfo, StopCluster, cluster, throw401 = true)
+
+      _ <- internalStopCluster(userInfo.userEmail, cluster)
+    } yield ()
+  }
+
+  def internalStopCluster(userEmail: WorkbenchEmail, cluster: Cluster): Future[Unit] = {
+    if (cluster.status.isStoppable) {
+      for {
+        _ <- Future.traverse(cluster.instances) { instance => googleComputeDAO.stopInstance(instance.key) }
+
+        _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Stopping) }
+      } yield {
+        clusterMonitorSupervisor ! ClusterStopped(cluster)
+      }
+
+    } else Future.successful(())
+  }
+
+  def startCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Unit] = {
+    for {
+      //throws 404 if no permissions
+      cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
+
+      //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually stop it
+      _ <- checkClusterPermission(userInfo, StopCluster, cluster, throw401 = true)
+
+      _ <- internalStartCluster(userInfo.userEmail, cluster)
+    } yield ()
+  }
+
+  def internalStartCluster(userEmail: WorkbenchEmail, cluster: Cluster): Future[Unit] = {
+    if (cluster.status.isStartable) {
+      for {
+        _ <- Future.traverse(cluster.instances) { instance => googleComputeDAO.startInstance(instance.key) }
+
+        _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Starting) }
+      } yield {
+        clusterMonitorSupervisor ! ClusterStarted(cluster)
+      }
+
     } else Future.successful(())
   }
 
@@ -233,22 +284,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } yield {
       visibleClusters
     }
-  }
-
-  def stopCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Unit] = {
-    // auth check
-    // if stoppable:
-    //   db.getInstances().foreach(i => dao.stopInstance(i))
-    //   cluster status to STOPPING
-    //   start monitor actor
-  }
-
-  def startCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Unit] = {
-    // auth check
-    // if startable:
-    //    db.getInstances().foreach(i => dao.startIntance(i))
-    //    cluster status to STARTING
-    //    start monitor actor
   }
 
   private[service] def getActiveCluster(googleProject: GoogleProject, clusterName: ClusterName, dataAccess: DataAccess): DBIO[Cluster] = {

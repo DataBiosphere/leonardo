@@ -9,7 +9,7 @@ import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache.{ClusterReady, GetClusterResponse, ProcessReadyCluster}
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -19,7 +19,9 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterDeleted
 import org.broadinstitute.dsde.workbench.leonardo.service.ClusterNotReadyException
 import org.broadinstitute.dsde.workbench.util.addJitter
+import slick.dbio.DBIOAction
 
+import scala.collection.immutable.Set
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Failure
@@ -28,8 +30,8 @@ object ClusterMonitorActor {
   /**
     * Creates a Props object used for creating a {{{ClusterMonitorActor}}}.
     */
-  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider): Props =
-    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, gdDAO, googleIamDAO, googleStorageDAO, dbRef, clusterDnsCache, authProvider))
+  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider): Props =
+    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, clusterDnsCache, authProvider))
 
   // ClusterMonitorActor messages:
 
@@ -41,6 +43,7 @@ object ClusterMonitorActor {
   private[monitor] case class FailedCluster(errorDetails: ClusterErrorDetails) extends ClusterMonitorMessage
   private[monitor] case object DeletedCluster extends ClusterMonitorMessage
   private[monitor] case class ShutdownActor(notifyParentMsg: Option[Any] = None) extends ClusterMonitorMessage
+  private[monitor] case object StoppedCluster extends ClusterMonitorMessage
 }
 
 /**
@@ -55,6 +58,7 @@ class ClusterMonitorActor(val cluster: Cluster,
                           val monitorConfig: MonitorConfig,
                           val dataprocConfig: DataprocConfig,
                           val gdDAO: GoogleDataprocDAO,
+                          val googleComputeDAO: GoogleComputeDAO,
                           val googleIamDAO: GoogleIamDAO,
                           val googleStorageDAO: GoogleStorageDAO,
                           val dbRef: DbReference,
@@ -72,7 +76,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       scheduleNextMonitorPass
 
     case QueryForCluster =>
-      checkCluster pipeTo self
+      (if (cluster.status == Stopping || cluster.status == Starting) checkClusterInstances else checkCluster) pipeTo self
 
     case NotReadyCluster(status) =>
       handleNotReadyCluster(status) pipeTo self
@@ -85,6 +89,9 @@ class ClusterMonitorActor(val cluster: Cluster,
 
     case DeletedCluster =>
       handleDeletedCluster pipeTo self
+
+    case StoppedCluster =>
+//      handleStoppedCluster pipeTo selfs
 
     case ShutdownActor(notifyParentMsg) =>
       notifyParentMsg.foreach(msg => parent ! msg)
@@ -131,6 +138,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       _ <- removeCredentialsFromMetadata
       // Ensure the cluster is ready for proxying but updating the IP -> DNS cache
       _ <- ensureClusterReadyForProxying(publicIp)
+      // TODO create or update instances in the DB
       // update DB after auth futures finish
       _ <- dbRef.inTransaction { dataAccess =>
         dataAccess.clusterQuery.setToRunning(cluster.googleId, publicIp)
@@ -177,6 +185,7 @@ class ClusterMonitorActor(val cluster: Cluster,
         // Update the database record to Error and shutdown this actor.
         logger.warn(s"Cluster ${cluster.projectNameString} is in an error state with $errorDetails'. Unable to recreate cluster.")
         for {
+          // TODO create or update instances in the DB
           _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Error) }
           // Remove the Dataproc Worker IAM role for the pet service account
           // Only happens if the cluster was created with the pet service account.
@@ -201,10 +210,25 @@ class ClusterMonitorActor(val cluster: Cluster,
     logger.info(s"Cluster ${cluster.projectNameString} has been deleted.")
 
     for {
+      // TODO set instances to deleted
       _ <- dbRef.inTransaction { dataAccess =>
         dataAccess.clusterQuery.completeDeletion(cluster.googleId, cluster.clusterName)
       }
       _ <- authProvider.notifyClusterDeleted(cluster.creator, cluster.creator, cluster.googleProject, cluster.clusterName)
+    } yield ShutdownActor()
+  }
+
+  /**
+    * Handles a dataproc cluster which has been stopped.
+    * We update the status to Stopped in the database and shut down this actor.
+    * @return ShutdownActor
+    */
+  private def handleStoppedCluster(): Future[ClusterMonitorMessage] = {
+    logger.info(s"Cluster ${cluster.projectNameString} has been stopped.")
+
+    for {
+      // this sets the cluster status to stopped and clears the cluster IP
+      _ <- dbRef.inTransaction { _.clusterQuery.setToStopped(cluster.googleId) }
     } yield ShutdownActor()
   }
 
@@ -220,7 +244,7 @@ class ClusterMonitorActor(val cluster: Cluster,
           Future.successful(NotReadyCluster(googleStatus))
         // Take care we don't restart a Deleting cluster if google hasn't updated their status yet
         case Running if cluster.status != Deleting =>
-          gdDAO.getClusterMasterInstanceIp(cluster.googleProject, cluster.clusterName).map {
+          getMasterIp.map {
             case Some(ip) => ReadyCluster(ip)
             case None => NotReadyCluster(ClusterStatus.Running)
           }
@@ -233,6 +257,42 @@ class ClusterMonitorActor(val cluster: Cluster,
         case _ => Future.successful(NotReadyCluster(googleStatus))
       }
     } yield result
+  }
+
+  private def checkClusterInstances: Future[ClusterMonitorMessage] = {
+    val statuses: Future[Set[InstanceStatus]] = for {
+      // get the instances from Google
+      googleInstances <- Future.traverse(cluster.instances) { instance => googleComputeDAO.getInstance(instance.key) } map { _.flatten }
+
+      // side effect, update the instances' status/IP in the database so the current status is reflected
+      _ <- dbRef.inTransaction { dataAccess =>
+        val updates = googleInstances.toList.map { instance => dataAccess.instanceQuery.updateInstanceStatusAndIp(instance.key, instance.status, instance.ip) }
+        DBIOAction.sequence(updates)
+      }
+    } yield googleInstances.map(_.status)
+
+    statuses flatMap {
+      // if the cluster only contains running instances, it's a running cluster
+      case Seq(InstanceStatus.Running) => getMasterIp.map {
+        case Some(ip) => ReadyCluster(ip)
+        case None => NotReadyCluster(ClusterStatus.Running)
+      }
+      // if the cluster only contains stopped instances, it's a stopped cluster
+      case Seq(InstanceStatus.Stopped) =>
+        Future.successful(StoppedCluster)
+      // otherwise, it's not ready
+      case _ => Future.successful(NotReadyCluster(cluster.status))
+    }
+  }
+
+  private def getMasterIp: Future[Option[IP]] = {
+    val transformed = for {
+      masterKey <- OptionT(gdDAO.getClusterMasterInstanceName(cluster.googleProject, cluster.clusterName))
+      masterInstance <- OptionT(googleComputeDAO.getInstance(masterKey))
+      masterIp <- OptionT.fromOption[Future](masterInstance.ip)
+    } yield masterIp
+
+    transformed.value
   }
 
   private def removeIamRolesForUser: Future[Unit] = {

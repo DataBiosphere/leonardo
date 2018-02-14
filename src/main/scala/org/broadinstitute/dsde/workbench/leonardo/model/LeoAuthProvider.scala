@@ -24,7 +24,10 @@ object NotebookClusterActions {
   case object ConnectToCluster extends NotebookClusterAction
   case object SyncDataToCluster extends NotebookClusterAction
   case object DeleteCluster extends NotebookClusterAction
-  val allActions = Seq(GetClusterStatus, ConnectToCluster, SyncDataToCluster, DeleteCluster)
+  // TODO: do we need to update Sam config for these?
+  case object StopCluster extends NotebookClusterAction
+  case object StartCluster extends NotebookClusterAction
+  val allActions = Seq(GetClusterStatus, ConnectToCluster, SyncDataToCluster, DeleteCluster, StopCluster, StartCluster)
 
 }
 
