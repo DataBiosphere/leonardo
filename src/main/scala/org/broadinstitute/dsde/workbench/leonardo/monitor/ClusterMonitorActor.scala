@@ -91,7 +91,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       handleDeletedCluster pipeTo self
 
     case StoppedCluster =>
-//      handleStoppedCluster pipeTo selfs
+      handleStoppedCluster pipeTo self
 
     case ShutdownActor(notifyParentMsg) =>
       notifyParentMsg.foreach(msg => parent ! msg)

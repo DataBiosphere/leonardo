@@ -106,11 +106,4 @@ trait InstanceComponent extends LeoComponent {
     }
   }
 
-//  def instanceByClusterQuery(cluster: Cluster) = {
-//    (instanceQuery join clusterQuery on (_.clusterId === _.id))
-//      .filter { _._2.googleProject === cluster.googleProject.value }
-//      .filter { _._2.clusterName === cluster.clusterName.value }
-//      .map { _._1 }
-//  }
-
 }

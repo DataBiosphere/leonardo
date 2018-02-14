@@ -115,14 +115,6 @@ trait ClusterComponent extends LeoComponent {
       } yield cluster
     }
 
-    def updateInstanceStatus(cluster: Cluster, newStatus: InstanceStatus) = {
-      (instanceQuery join clusterQuery on (_.clusterId === _.id))
-        .filter { _._2.googleProject === cluster.googleProject.value }
-        .filter { _._2.clusterName === cluster.clusterName.value }
-        .map { _._1.status }
-        .update(newStatus.entryName)
-    }
-
     def list(): DBIO[Seq[Cluster]] = {
       clusterQueryWithLabels.result.map(unmarshalClustersWithLabels)
     }
