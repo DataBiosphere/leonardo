@@ -42,7 +42,7 @@ case class ServiceAccountInfoRecord(clusterServiceAccount: Option[String],
                                     serviceAccountKeyId: Option[String])
 
 trait ClusterComponent extends LeoComponent {
-  this: LabelComponent =>
+  this: LabelComponent with InstanceComponent =>
 
   import profile.api._
 
@@ -108,9 +108,11 @@ trait ClusterComponent extends LeoComponent {
     private final val dummyDate:Instant = Instant.ofEpochMilli(1000)
 
     def save(cluster: Cluster, initBucket: GcsPath, serviceAccountKeyId: Option[ServiceAccountKeyId]): DBIO[Cluster] = {
-      (clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster, initBucket.toUri, serviceAccountKeyId)) flatMap { clusterId =>
-        labelQuery.saveAllForCluster(clusterId, cluster.labels)
-      } map { _ => cluster }
+      for {
+        clusterId <- clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster, initBucket.toUri, serviceAccountKeyId)
+        _ <- labelQuery.saveAllForCluster(clusterId, cluster.labels)
+        _ <- instanceQuery.saveAllForCluster(clusterId, cluster.instances.toSeq)
+      } yield cluster
     }
 
     def list(): DBIO[Seq[Cluster]] = {
@@ -138,38 +140,38 @@ trait ClusterComponent extends LeoComponent {
     }
 
     def findByName(project: GoogleProject, name: ClusterName) = {
-      clusterQueryWithLabels.filter { _._1.googleProject === project.value }.filter { _._1.clusterName === name.value }
+      clusterQueryWithInstancesAndLabels.filter { _._1.googleProject === project.value }.filter { _._1.clusterName === name.value }
     }
 
     def getClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
       findByName(project, name).result map { recs =>
-        unmarshalClustersWithLabels(recs).headOption
+        unmarshalClustersWithInstancesAndLabels(recs).headOption
       }
     }
 
     def getActiveClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
-      clusterQueryWithLabels
+      clusterQueryWithInstancesAndLabels
         .filter { _._1.googleProject === project.value }
         .filter { _._1.clusterName === name.value }
         .filter{_._1.destroyedDate === Timestamp.from(dummyDate)}
         .result map { recs =>
-          unmarshalClustersWithLabels(recs).headOption
+        unmarshalClustersWithInstancesAndLabels(recs).headOption
       }
     }
 
     def getDeletingClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
-      clusterQueryWithLabels
+      clusterQueryWithInstancesAndLabels
         .filter { _._1.googleProject === project.value }
         .filter { _._1.clusterName === name.value }
         .filter{_._1.status === ClusterStatus.Deleting.toString}
         .result map { recs =>
-        unmarshalClustersWithLabels(recs).headOption
+        unmarshalClustersWithInstancesAndLabels(recs).headOption
       }
     }
 
     def getByGoogleId(googleId: UUID): DBIO[Option[Cluster]] = {
-      clusterQueryWithLabels.filter { _._1.googleId === googleId }.result map { recs =>
-        unmarshalClustersWithLabels(recs).headOption
+      clusterQueryWithInstancesAndLabels.filter { _._1.googleId === googleId }.result map { recs =>
+        unmarshalClustersWithInstancesAndLabels(recs).headOption
       }
     }
 
@@ -294,11 +296,30 @@ trait ClusterComponent extends LeoComponent {
 
       // Unmarshal each (ClusterRecord, Map[labelKey, labelValue]) to a Cluster object
       clusterLabelMap.map { case (clusterRec, labelMap) =>
-        unmarshalCluster(clusterRec, labelMap)
+        unmarshalCluster(clusterRec, Seq.empty, labelMap)
       }.toSeq
     }
 
-    private def unmarshalCluster(clusterRecord: ClusterRecord, labels: LabelMap): Cluster = {
+    private def unmarshalClustersWithInstancesAndLabels(clusterInstanceLabels: Seq[(ClusterRecord, Option[InstanceRecord], Option[LabelRecord])]): Seq[Cluster] = {
+      // Call foldMap to aggregate a Seq[(ClusterRecord, LabelRecord)] returned by the query to a Map[ClusterRecord, Map[labelKey, labelValue]].
+      val clusterLabelMap: Map[ClusterRecord, LabelMap] = clusterInstanceLabels.toList.foldMap { case (clusterRecord, _, labelRecordOpt) =>
+        val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> labelRecordOpt.value).toMap
+        Map(clusterRecord -> labelMap)
+      }
+
+      val clusterInstanceMap: Map[ClusterRecord, Seq[InstanceRecord]] = clusterInstanceLabels.toList.foldMap { case (clusterRecord, instanceRecordOpt, _) =>
+        instanceRecordOpt match {
+          case Some(instanceRecord) => Map(clusterRecord -> List(instanceRecord))
+          case None => Map.empty
+        }
+      }
+
+      (clusterLabelMap.keySet ++ clusterInstanceMap.keySet).map { clusterRec =>
+        unmarshalCluster(clusterRec, clusterInstanceMap.getOrElse(clusterRec, Seq.empty), clusterLabelMap.getOrElse(clusterRec, Map.empty))
+      }.toSeq
+    }
+
+    private def unmarshalCluster(clusterRecord: ClusterRecord, instanceRecords: Seq[InstanceRecord], labels: LabelMap): Cluster = {
       val name = ClusterName(clusterRecord.clusterName)
       val project = GoogleProject(clusterRecord.googleProject)
       val machineConfig = MachineConfig(
@@ -329,7 +350,8 @@ trait ClusterComponent extends LeoComponent {
         labels,
         clusterRecord.jupyterExtensionUri flatMap { parseGcsPath(_).toOption },
         clusterRecord.jupyterUserScriptUri flatMap { parseGcsPath(_).toOption },
-        clusterRecord.stagingBucket map GcsBucketName
+        clusterRecord.stagingBucket map GcsBucketName,
+        instanceRecords map (ClusterComponent.this.instanceQuery.unmarshalInstance) toSet
       )
     }
 
@@ -346,6 +368,12 @@ trait ClusterComponent extends LeoComponent {
     for {
       (cluster, label) <- clusterQuery joinLeft labelQuery on (_.id === _.clusterId)
     } yield (cluster, label)
+  }
+
+  val clusterQueryWithInstancesAndLabels: Query[(ClusterTable, Rep[Option[InstanceTable]], Rep[Option[LabelTable]]), (ClusterRecord, Option[InstanceRecord], Option[LabelRecord]), Seq] = {
+    for {
+      (cluster, instance, label) <- clusterQuery joinLeft instanceQuery joinLeft labelQuery
+    } yield (cluster, instance, label)
   }
 
 }

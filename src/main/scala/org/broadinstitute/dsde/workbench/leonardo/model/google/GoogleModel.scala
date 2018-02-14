@@ -1,14 +1,19 @@
 package org.broadinstitute.dsde.workbench.leonardo.model.google
 
+import java.math.BigInteger
 import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
+import com.typesafe.scalalogging.LazyLogging
 import enumeratum._
-import org.broadinstitute.dsde.workbench.model.{ValueObject, ValueObjectFormat}
+import org.broadinstitute.dsde.workbench.model.{ValueObject, ValueObjectFormat, WorkbenchException}
 import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport._
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat, RootJsonFormat}
 
+import scala.concurrent.Future
 import scala.language.implicitConversions
 
 // Primitives
@@ -29,6 +34,16 @@ case class MachineConfig(numberOfWorkers: Option[Int] = None,
 case class OperationName(value: String) extends ValueObject
 case class Operation(name: OperationName, uuid: UUID)
 
+// Dataproc Role
+sealed trait DataprocRole extends EnumEntry
+object DataprocRole extends Enum[DataprocRole] {
+  val values = findValues
+
+  case object Master extends DataprocRole
+  case object Worker extends DataprocRole
+  case object SecondaryWorker extends DataprocRole
+}
+
 // Information about error'd clusters
 case class ClusterErrorDetails(code: Int, message: Option[String])
 
@@ -45,6 +60,9 @@ object ClusterStatus extends Enum[ClusterStatus] {
   case object Error    extends ClusterStatus
   case object Deleting extends ClusterStatus
   case object Deleted  extends ClusterStatus
+  case object Stopping extends ClusterStatus
+  case object Stopped  extends ClusterStatus
+  case object Starting extends ClusterStatus
 
   val activeStatuses: Set[ClusterStatus] = Set(Unknown, Creating, Running, Updating)
   val deletableStatuses: Set[ClusterStatus] = Set(Unknown, Creating, Running, Updating, Error)
@@ -68,13 +86,6 @@ case class FirewallRule(name: FirewallRuleName, protocol: FirewallRuleProtocol, 
 
 // Instances
 case class InstanceName(value: String) extends ValueObject
-sealed trait DataprocRole extends EnumEntry
-object DataprocRole extends Enum[DataprocRole] {
-  val values = findValues
-
-  case object Master extends DataprocRole
-  case object Worker extends DataprocRole
-}
 
 sealed trait InstanceStatus extends EnumEntry
 object InstanceStatus extends Enum[InstanceStatus] {
@@ -90,12 +101,14 @@ object InstanceStatus extends Enum[InstanceStatus] {
   case object Terminated   extends InstanceStatus
 }
 
-case class Instance(name: InstanceName,
-                    zone: ZoneUri,
-                    role: DataprocRole,
+case class InstanceKey(project: GoogleProject,
+                       zone: ZoneUri,
+                       name: InstanceName)
+
+case class Instance(key: InstanceKey,
+                    googleId: BigInt,
                     status: InstanceStatus,
                     ip: Option[IP],
-                    machineType: MachineType,
                     createdDate: Instant,
                     destroyedDate: Option[Instant])
 
@@ -142,5 +155,6 @@ object GoogleJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val InstanceNameFormat = ValueObjectFormat(InstanceName)
   implicit val DataprocRoleFormat = EnumEntryFormat(DataprocRole.withName)
   implicit val InstanceStatusFormat = EnumEntryFormat(InstanceStatus.withName)
-  implicit val InstanceFormat = jsonFormat8(Instance)
+  implicit val InstanceKeyFormat = jsonFormat3(InstanceKey)
+  implicit val InstanceFormat = jsonFormat6(Instance)
 }

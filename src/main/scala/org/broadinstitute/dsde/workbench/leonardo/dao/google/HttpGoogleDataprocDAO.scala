@@ -8,20 +8,16 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.data.OptionT
 import cats.implicits._
-import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
-import com.google.api.client.json.jackson2.JacksonFactory
 import com.google.api.services.bigquery.BigqueryScopes
-import com.google.api.services.cloudresourcemanager.CloudResourceManager
-import com.google.api.services.compute.model.Firewall.Allowed
-import com.google.api.services.compute.model.{Firewall, Instance}
-import com.google.api.services.compute.{Compute, ComputeScopes}
+import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.dataproc.Dataproc
 import com.google.api.services.dataproc.model.{Cluster => DataprocCluster, ClusterConfig => DataprocClusterConfig, ClusterStatus => DataprocClusterStatus, Operation => DataprocOperation, _}
 import com.google.api.services.oauth2.{Oauth2, Oauth2Scopes}
-import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.GoogleCredentialMode
 import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
+import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
+import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, SecondaryWorker, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService.GoogleInstrumentedService
@@ -47,16 +43,8 @@ class HttpGoogleDataprocDAO(appName: String,
   private lazy val oauth2Scopes = List(Oauth2Scopes.USERINFO_EMAIL, Oauth2Scopes.USERINFO_PROFILE)
   private lazy val bigqueryScopes = List(BigqueryScopes.BIGQUERY)
 
-  private val httpTransport = GoogleNetHttpTransport.newTrustedTransport
-  private val jsonFactory = JacksonFactory.getDefaultInstance
-
   private lazy val dataproc = {
     new Dataproc.Builder(httpTransport, jsonFactory, googleCredential)
-      .setApplicationName(appName).build()
-  }
-
-  private lazy val compute = {
-    new Compute.Builder(httpTransport, jsonFactory, googleCredential)
       .setApplicationName(appName).build()
   }
 
@@ -64,12 +52,6 @@ class HttpGoogleDataprocDAO(appName: String,
   private lazy val oauth2 =
     new Oauth2.Builder(httpTransport, jsonFactory, null)
       .setApplicationName(appName).build()
-
-  // TODO move out of this DAO
-  private lazy val cloudResourceManager = {
-    new CloudResourceManager.Builder(httpTransport, jsonFactory, googleCredential)
-      .setApplicationName(appName).build()
-  }
 
   override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, machineConfig: MachineConfig, initScript: GcsPath, clusterServiceAccount: Option[WorkbenchEmail], credentialsFileName: Option[String], stagingBucket: GcsBucketName): Future[Operation] = {
     val cluster = new DataprocCluster()
@@ -117,26 +99,26 @@ class HttpGoogleDataprocDAO(appName: String,
     transformed.value.map(_.getOrElse(List.empty)).handleGoogleException(googleProject)
   }
 
-  override def getClusterMasterInstanceIp(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[IP]] = {
-    // OptionT is handy when you potentially want to deal with Future[A], Option[A],
-    // Future[Option[A]], and A all in the same flatMap!
-    //
-    // Legend:
-    // - OptionT.pure turns an A into an OptionT[F, A]
-    // - OptionT.liftF turns an F[A] into an OptionT[F, A]
-    // - OptionT.fromOption turns an Option[A] into an OptionT[F, A]
-
-    val ipOpt: OptionT[Future, IP] = for {
+  override def getClusterMasterInstanceName(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[InstanceKey]] = {
+    val transformed = for {
       cluster <- OptionT(getCluster(googleProject, clusterName))
       masterInstanceName <- OptionT.fromOption[Future] { getMasterInstanceName(cluster) }
       masterInstanceZone <- OptionT.fromOption[Future] { getZone(cluster) }
-      masterInstance <- OptionT(getInstance(googleProject, masterInstanceZone, masterInstanceName))
-      masterInstanceIp <- OptionT.fromOption[Future] { getInstanceIP(masterInstance) }
-    } yield masterInstanceIp
+    } yield InstanceKey(googleProject, masterInstanceZone, masterInstanceName)
 
-    // OptionT[Future, String] is simply a case class wrapper for Future[Option[String]].
-    // So this just grabs the inner value and returns it.
-    ipOpt.value.handleGoogleException(googleProject, clusterName)
+    transformed.value.handleGoogleException(googleProject, clusterName)
+  }
+
+  override def getClusterInstances(googleProject: GoogleProject, clusterName: ClusterName): Future[Map[DataprocRole, Set[InstanceKey]]] = {
+    val transformed = for {
+      cluster <- OptionT(getCluster(googleProject, clusterName))
+      instanceNames <- OptionT.fromOption[Future] { getAllInstanceNames(cluster) }
+      clusterZone <- OptionT.fromOption[Future] { getZone(cluster) }
+    } yield {
+      instanceNames.mapValues(_.map(name => InstanceKey(googleProject, clusterZone, name)))
+    }
+
+    transformed.value.map(_.getOrElse(Map.empty)).handleGoogleException(googleProject, clusterName)
   }
 
   override def getClusterStagingBucket(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[GcsBucketName]] = {
@@ -161,50 +143,11 @@ class HttpGoogleDataprocDAO(appName: String,
     errorOpt.value.handleGoogleException(GoogleProject(""), Some(operationName.value))
   }
 
-  override def updateFirewallRule(googleProject: GoogleProject, firewallRule: FirewallRule): Future[Unit] = {
-    val request = compute.firewalls().get(googleProject.value, firewallRule.name.value)
-    val response = retryWithRecoverWhen500orGoogleError { () =>
-      executeGoogleRequest(request)
-      Future.successful(())
-    } {
-      case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => addFirewallRule(googleProject, firewallRule)
-    } flatten
-
-    response.handleGoogleException(googleProject, Some(firewallRule.name.value))
-  }
-
-  /**
-    * Adds a firewall rule in the given google project. This firewall rule allows ingress traffic through a specified port for all
-    * VMs with the network tag "leonardo". This rule should only be added once per project.
-    * To think about: do we want to remove this rule if a google project no longer has any clusters? */
-  private def addFirewallRule(googleProject: GoogleProject, firewallRule: FirewallRule): Future[Unit] = {
-    val allowed = new Allowed().setIPProtocol(firewallRule.protocol.value).setPorts(firewallRule.ports.map(_.value).asJava)
-    // note: network not used
-    val googleFirewall = new Firewall()
-      .setName(firewallRule.name.value)
-      .setTargetTags(firewallRule.targetTags.map(_.value).asJava)
-      .setAllowed(List(allowed).asJava)
-
-    val request = compute.firewalls().insert(googleProject.value, googleFirewall)
-    logger.info(s"Creating firewall rule with name '${firewallRule.name.value}' in project ${googleProject.value}")
-    retryWhen500orGoogleError(() => executeGoogleRequest(request)).void
-  }
-
   override def getUserInfoAndExpirationFromAccessToken(accessToken: String): Future[(UserInfo, Instant)] = {
     val request = oauth2.tokeninfo().setAccessToken(accessToken)
     retryWhen500orGoogleError(() => executeGoogleRequest(request)).map { tokenInfo =>
       (UserInfo(OAuth2BearerToken(accessToken), WorkbenchUserId(tokenInfo.getUserId), WorkbenchEmail(tokenInfo.getEmail), tokenInfo.getExpiresIn.toInt), Instant.now().plusSeconds(tokenInfo.getExpiresIn.toInt))
     }.handleGoogleException(GoogleProject(""), Some("oauth"))
-  }
-
-  override def getComputeEngineDefaultServiceAccount(googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
-    getProjectNumber(googleProject).map { numberOpt =>
-      numberOpt.map { number =>
-        // Service account email format documented in:
-        // https://cloud.google.com/compute/docs/access/service-accounts#compute_engine_default_service_account
-        WorkbenchEmail(s"$number-compute@developer.gserviceaccount.com")
-      }
-    }.handleGoogleException(googleProject)
   }
 
   private def getClusterConfig(machineConfig: MachineConfig, initScript: GcsPath, clusterServiceAccount: Option[WorkbenchEmail], credentialsFileName: Option[String], stagingBucket: GcsBucketName): DataprocClusterConfig = {
@@ -331,18 +274,6 @@ class HttpGoogleDataprocDAO(appName: String,
   }
 
   /**
-    * Gets a compute Instance from the API.
-    */
-  private def getInstance(googleProject: GoogleProject, zone: ZoneUri, instanceName: InstanceName): Future[Option[Instance]] = {
-    val request = compute.instances().get(googleProject.value, zone.value, instanceName.value)
-    retryWithRecoverWhen500orGoogleError { () =>
-      Option(executeGoogleRequest(request))
-    } {
-      case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => None
-    }
-  }
-
-  /**
     * Gets an Operation from the API.
     */
   private def getOperation(operationName: OperationName): Future[Option[DataprocOperation]] = {
@@ -372,6 +303,20 @@ class HttpGoogleDataprocDAO(appName: String,
     } yield InstanceName(masterInstance)
   }
 
+  private def getAllInstanceNames(cluster: DataprocCluster): Option[Map[DataprocRole, Set[InstanceName]]] = {
+    def getFromGroup(key: DataprocRole)(group: InstanceGroupConfig): Option[Map[DataprocRole, Set[InstanceName]]] = {
+      Option(group.getInstanceNames).map(_.asScala.toSet.map(InstanceName)).map(ins => Map(key -> ins))
+    }
+
+    Option(cluster.getConfig).flatMap { config =>
+      val masters = Option(config.getMasterConfig).flatMap(getFromGroup(Master))
+      val workers = Option(config.getWorkerConfig).flatMap(getFromGroup(Worker))
+      val secondaryWorkers = Option(config.getSecondaryWorkerConfig).flatMap(getFromGroup(SecondaryWorker))
+
+      masters |+| workers |+| secondaryWorkers
+    }
+  }
+
   /**
     * Gets the zone (not to be confused with region) of a dataproc cluster, with error handling.
     * @param cluster the Google dataproc cluster
@@ -390,30 +335,6 @@ class HttpGoogleDataprocDAO(appName: String,
       gceConfig <- Option(config.getGceClusterConfig)
       zoneUri <- Option(gceConfig.getZoneUri)
     } yield parseZone(zoneUri)
-  }
-
-  /**
-    * Gets the public IP from a google Instance, with error handling.
-    * @param instance the Google instance
-    * @return error or public IP, as a String
-    */
-  private def getInstanceIP(instance: Instance): Option[IP] = {
-    for {
-      interfaces <- Option(instance.getNetworkInterfaces)
-      interface <- interfaces.asScala.headOption
-      accessConfigs <- Option(interface.getAccessConfigs)
-      accessConfig <- accessConfigs.asScala.headOption
-    } yield IP(accessConfig.getNatIP)
-  }
-
-
-  private def getProjectNumber(googleProject: GoogleProject): Future[Option[Long]] = {
-    val request = cloudResourceManager.projects().get(googleProject.value)
-    retryWithRecoverWhen500orGoogleError { () =>
-      Option(executeGoogleRequest(request).getProjectNumber).map(_.toLong)
-    } {
-      case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => None
-    }
   }
 
   private implicit class GoogleExceptionSupport[A](future: Future[A]) {

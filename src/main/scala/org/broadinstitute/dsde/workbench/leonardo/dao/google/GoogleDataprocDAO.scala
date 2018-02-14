@@ -18,15 +18,13 @@ trait GoogleDataprocDAO {
 
   def listClusters(googleProject: GoogleProject): Future[List[UUID]]
 
-  def getClusterMasterInstanceIp(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[IP]]
+  def getClusterMasterInstanceName(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[InstanceKey]]
+
+  def getClusterInstances(googleProject: GoogleProject, clusterName: ClusterName): Future[Map[DataprocRole, Set[InstanceKey]]]
 
   def getClusterStagingBucket(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[GcsBucketName]]
 
   def getClusterErrorDetails(operationName: OperationName): Future[Option[ClusterErrorDetails]]
 
-  def updateFirewallRule(googleProject: GoogleProject, firewallRule: FirewallRule): Future[Unit]
-
   def getUserInfoAndExpirationFromAccessToken(accessToken: String): Future[(UserInfo, Instant)]
-
-  def getComputeEngineDefaultServiceAccount(googleProject: GoogleProject): Future[Option[WorkbenchEmail]]
 }

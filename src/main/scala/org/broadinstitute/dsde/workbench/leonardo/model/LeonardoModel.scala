@@ -50,7 +50,8 @@ case class Cluster(clusterName: ClusterName,
                    labels: LabelMap,
                    jupyterExtensionUri: Option[GcsPath],
                    jupyterUserScriptUri: Option[GcsPath],
-                   stagingBucket: Option[GcsBucketName]) {
+                   stagingBucket: Option[GcsBucketName],
+                   instances: Set[Instance]) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.value}"
 }
 object Cluster {
@@ -81,7 +82,8 @@ object Cluster {
         labels = clusterRequest.labels,
         jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
         jupyterUserScriptUri = clusterRequest.jupyterUserScriptUri,
-        stagingBucket = Some(stagingBucket)
+        stagingBucket = Some(stagingBucket),
+        instances = Set.empty
       )
   }
 
@@ -106,7 +108,8 @@ object Cluster {
       labels = clusterRequest.labels,
       jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
       jupyterUserScriptUri = clusterRequest.jupyterUserScriptUri,
-      stagingBucket = None
+      stagingBucket = None,
+      instances = Set.empty
     )
   }
 
@@ -253,7 +256,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val ServiceAccountInfoFormat = jsonFormat2(ServiceAccountInfo)
 
-  implicit val ClusterFormat = jsonFormat16(Cluster.apply)
+  implicit val ClusterFormat = jsonFormat17(Cluster.apply)
 
   implicit val DefaultLabelsFormat = jsonFormat7(DefaultLabels.apply)
 
