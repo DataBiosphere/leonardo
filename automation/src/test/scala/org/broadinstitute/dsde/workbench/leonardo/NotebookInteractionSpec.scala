@@ -157,7 +157,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
 
       // create a new bucket, add the user script to the bucket, create a new cluster using the URI of the user script and create a notebook that will check if the user script ran
       withNewGoogleBucket(billingProject) { bucketName =>
-        val userScriptString = "#!/usr/bin/env bash\n\npip install arrow"
+        val userScriptString = "#!/usr/bin/env bash\n\npip2 install arrow"
         val userScriptObjectName = GcsObjectName("user-script.sh")
         val userScriptUri = s"gs://${bucketName.value}/${userScriptObjectName.value}"
 
@@ -183,8 +183,8 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
           """import platform
             |print(platform.python_version())""".stripMargin
         val getBxPython =
-          """import bx
-            |bx.sys.copyright""".stripMargin //the most annoying package to install
+          """import bx.bitset
+            |bx.bitset.sys.copyright""".stripMargin //the most annoying package to install
 
         notebookPage.executeCell("1+1") shouldBe Some("2")
         notebookPage.executeCell(getPythonVersion) shouldBe Some("3.4.2")
