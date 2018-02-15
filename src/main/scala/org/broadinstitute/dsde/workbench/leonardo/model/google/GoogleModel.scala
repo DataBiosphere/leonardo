@@ -1,19 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo.model.google
 
-import java.math.BigInteger
 import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
-import com.google.api.client.googleapis.json.GoogleJsonResponseException
-import com.typesafe.scalalogging.LazyLogging
 import enumeratum._
-import org.broadinstitute.dsde.workbench.model.{ValueObject, ValueObjectFormat, WorkbenchException}
+import org.broadinstitute.dsde.workbench.model.{ValueObject, ValueObjectFormat}
 import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat, RootJsonFormat}
 
-import scala.concurrent.Future
 import scala.language.implicitConversions
 
 // Primitives
@@ -104,6 +100,9 @@ object InstanceStatus extends Enum[InstanceStatus] {
   case object Suspending   extends InstanceStatus
   case object Suspended    extends InstanceStatus
   case object Terminated   extends InstanceStatus
+
+  case object Deleting     extends InstanceStatus
+  case object Deleted      extends InstanceStatus
 }
 
 case class InstanceKey(project: GoogleProject,
@@ -114,6 +113,7 @@ case class Instance(key: InstanceKey,
                     googleId: BigInt,
                     status: InstanceStatus,
                     ip: Option[IP],
+                    dataprocRole: Option[DataprocRole],
                     createdDate: Instant,
                     destroyedDate: Option[Instant])
 
@@ -161,5 +161,5 @@ object GoogleJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val DataprocRoleFormat = EnumEntryFormat(DataprocRole.withName)
   implicit val InstanceStatusFormat = EnumEntryFormat(InstanceStatus.withName)
   implicit val InstanceKeyFormat = jsonFormat3(InstanceKey)
-  implicit val InstanceFormat = jsonFormat6(Instance)
+  implicit val InstanceFormat = jsonFormat7(Instance)
 }

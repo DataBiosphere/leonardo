@@ -56,6 +56,7 @@ class HttpGoogleComputeDAO(appName: String,
           gi.getId,
           InstanceStatus.withNameInsensitive(gi.getStatus),
           getInstanceIP(gi),
+          None,
           Instant.now /*TODO gi.getCreationTimestamp*/,
           None)
       }

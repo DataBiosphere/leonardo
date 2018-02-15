@@ -18,7 +18,7 @@ trait GoogleDataprocDAO {
 
   def listClusters(googleProject: GoogleProject): Future[List[UUID]]
 
-  def getClusterMasterInstanceName(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[InstanceKey]]
+  def getClusterMasterInstance(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[InstanceKey]]
 
   def getClusterInstances(googleProject: GoogleProject, clusterName: ClusterName): Future[Map[DataprocRole, Set[InstanceKey]]]
 

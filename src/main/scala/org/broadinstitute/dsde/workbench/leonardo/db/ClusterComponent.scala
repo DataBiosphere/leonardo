@@ -115,6 +115,13 @@ trait ClusterComponent extends LeoComponent {
       } yield cluster
     }
 
+    def upsertInstances(cluster: Cluster): DBIO[Cluster] = {
+      for {
+        clusterId <- clusterQuery returning clusterQuery.map(_.id)
+        _ <- instanceQuery.upsertAllForCluster(clusterId, cluster.instances.toSeq)
+      } yield cluster
+    }
+
     def list(): DBIO[Seq[Cluster]] = {
       clusterQueryWithLabels.result.map(unmarshalClustersWithLabels)
     }
@@ -195,13 +202,27 @@ trait ClusterComponent extends LeoComponent {
     }
 
     def markPendingDeletion(googleId: UUID): DBIO[Int] = {
-      clusterQuery.filter(_.googleId === googleId)
+      val deleteCluster = clusterQuery.filter(_.googleId === googleId)
         .map(c => (c.destroyedDate, c.status, c.hostIp))
         .update(Timestamp.from(Instant.now()), ClusterStatus.Deleting.toString, None)
+
+      val deleteInstances = for {
+        clusterId <- clusterQuery.filter(_.googleId === googleId) returning (clusterQuery.map(_.id))
+        ret <- instanceQuery.markPendingDeletionForCluster(clusterId)
+      } yield ret
+
+      DBIO.fold(Seq(deleteCluster, deleteInstances), 0)(_ + _)
     }
 
-    def completeDeletion(googleId: UUID, clusterName: ClusterName): DBIO[Int] = {
-      updateClusterStatus(googleId, ClusterStatus.Deleted)
+    def completeDeletion(googleId: UUID): DBIO[Int] = {
+      val deleteCluster = updateClusterStatus(googleId, ClusterStatus.Deleted)
+
+      val deleteInstances = for {
+        clusterId <- clusterQuery.filter(_.googleId === googleId) returning (clusterQuery.map(_.id))
+        ret <- instanceQuery.completeDeletionForCluster(clusterId)
+      } yield ret
+
+      DBIO.fold(Seq(deleteCluster, deleteInstances), 0)(_ + _)
     }
 
     def setToRunning(googleId: UUID, hostIp: IP): DBIO[Int] = {

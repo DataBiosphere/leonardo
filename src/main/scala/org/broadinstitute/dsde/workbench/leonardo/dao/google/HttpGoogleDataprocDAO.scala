@@ -99,7 +99,7 @@ class HttpGoogleDataprocDAO(appName: String,
     transformed.value.map(_.getOrElse(List.empty)).handleGoogleException(googleProject)
   }
 
-  override def getClusterMasterInstanceName(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[InstanceKey]] = {
+  override def getClusterMasterInstance(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[InstanceKey]] = {
     val transformed = for {
       cluster <- OptionT(getCluster(googleProject, clusterName))
       masterInstanceName <- OptionT.fromOption[Future] { getMasterInstanceName(cluster) }
