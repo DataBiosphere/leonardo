@@ -146,7 +146,7 @@ RUN R -e 'devtools::install_github("IRkernel/IRkernel")'
 RUN R -e 'IRkernel::installspec(user=FALSE)'
 
 RUN mkdir -p $JUPYTER_HOME/.local \
-  && chown -R $USER:users $JUPYTER_HOME/.local \
+  && chown -R $USER:users $JUPYTER_HOME/.local 
 
 #######################
 # Utilities
