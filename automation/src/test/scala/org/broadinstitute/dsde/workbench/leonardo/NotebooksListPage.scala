@@ -7,23 +7,24 @@ import org.openqa.selenium.WebDriver
 
 import scala.util.Try
 
-trait Kernel {
+sealed trait Kernel {
   def string: String
   def cssSelectorString: String
 }
 
-object Python2 extends Kernel {
+case object Python2 extends Kernel {
   def string: String = "Python 2"
   def cssSelectorString: String = "[title='Create a new notebook with Python 2']"
 
 }
-object Python3 extends Kernel {
+
+case object Python3 extends Kernel {
   def string: String = "Python 3"
   def cssSelectorString: String = "[title='Create a new notebook with Python 3']"
 }
 
-object RKernel extends Kernel {
-  def string: String = "R Kernel"
+case object RKernel extends Kernel {
+  def string: String = "R"
   def cssSelectorString: String = "[title='Create a new notebook with R']"
 }
 

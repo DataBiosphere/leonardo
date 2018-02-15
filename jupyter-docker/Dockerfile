@@ -105,8 +105,6 @@ RUN apt-get install -yq --no-install-recommends \
     python-tk \
     python-numpy \
     libz-dev \
- && apt-get clean \
- && rm -rf /var/lib/apt/lists/* \
 
  # NOTE! not sure why, but this must run before pip installation
  && useradd -m -s /bin/bash -N -u $UID $USER \
@@ -130,7 +128,7 @@ RUN apt-get install -yq --no-install-recommends \
  && pip install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py"
 
 
-# Install Python 3 Kernel
+# Python 3 Kernel
 RUN apt-get update \
  && apt-get install -yq --no-install-recommends python3 \
         liblzo2-dev \
@@ -140,11 +138,14 @@ RUN apt-get update \
         python3-pandas \
         python3-tk \
         python3-numpy \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/* \
  && python3 get-pip.py \
+ # install the python 3 kernel
  && pip3 install ipykernel \
- && python3 -m ipykernel install --name python3 --display-name "Python 3"
-
-RUN pip3 install seaborn \
+ && python3 -m ipykernel install --name python3 --display-name "Python 3" \
+ # python 3 packages
+ && pip3 install seaborn \
  && pip3 install python-lzo \
  && pip3 install google-cloud \
  && pip3 install firecloud==0.16.7 \
