@@ -145,8 +145,8 @@ RUN R -e 'install.packages(c("repr", "IRdisplay", "evaluate", "crayon", "pbdZMQ"
 RUN R -e 'devtools::install_github("IRkernel/IRkernel")'
 RUN R -e 'IRkernel::installspec(user=FALSE)'
 
-RUN mkdir -p $JUPYTER_HOME/.local \
-  && chown -R $USER:users $JUPYTER_HOME/.local 
+#RUN mkdir -p $JUPYTER_HOME/.local \
+  #&& chown -R $USER:users $JUPYTER_HOME/.local 
 
 #######################
 # Utilities
