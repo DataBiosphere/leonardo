@@ -10,8 +10,7 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import com.typesafe.config.ConfigFactory
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.GcsPathUtils
-import org.broadinstitute.dsde.workbench.leonardo.auth.MockLeoAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
+import org.broadinstitute.dsde.workbench.leonardo.auth.{MockLeoAuthProvider, MockPetClusterServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
@@ -25,7 +24,7 @@ import org.scalatest.mockito.MockitoSugar
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers, OptionValues}
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.GetClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.mockito.Mockito
@@ -74,14 +73,17 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
     labels = Map("bam" -> "yes", "vcf" -> "no"),
     jupyterExtensionUri = None,
     jupyterUserScriptUri = None,
-    stagingBucket = Some(GcsBucketName("testStagingBucket1")))
+    stagingBucket = Some(GcsBucketName("testStagingBucket1")),
+    Set.empty
+  )
 
   val gdDAO = new MockGoogleDataprocDAO
+  val computeDAO = new MockGoogleComputeDAO
   val iamDAO = new MockGoogleIamDAO
   val storageDAO = new MockGoogleStorageDAO
   val samDAO = new MockSamDAO
   val tokenCookie = HttpCookiePair("LeoToken", "me")
-  val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, storageDAO, serviceAccountProvider)
+  val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -94,7 +96,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
   }
 
   def leoWithAuthProvider(authProvider: LeoAuthProvider): LeonardoService = {
-    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper)
+    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, computeDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper)
   }
 
   def proxyWithAuthProvider(authProvider: LeoAuthProvider): ProxyService = {

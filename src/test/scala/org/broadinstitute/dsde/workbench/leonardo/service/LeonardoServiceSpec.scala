@@ -8,8 +8,8 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.testkit.TestKit
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
-import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{MockPetClusterServiceAccountProvider, MockSwaggerSamClient}
+import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetClusterServiceAccountProvider, MockSwaggerSamClient, WhitelistAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{NegativeIntegerArgumentInClusterRequestException, OneWorkerSpecifiedInClusterRequestException}
@@ -28,6 +28,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures with OptionValues with CommonTestData {
   private var gdDAO: MockGoogleDataprocDAO = _
+  private var computeDAO: MockGoogleComputeDAO = _
   private var iamDAO: MockGoogleIamDAO = _
   private var storageDAO: MockGoogleStorageDAO = _
   private var samClient: MockSwaggerSamClient = _
@@ -37,6 +38,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   before {
     gdDAO = new MockGoogleDataprocDAO
+    computeDAO = new MockGoogleComputeDAO
     iamDAO = new MockGoogleIamDAO
     storageDAO = new MockGoogleStorageDAO
     // Pre-populate the juptyer extenion bucket in the mock storage DAO, as it is passed in some requests
@@ -45,8 +47,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     samClient = serviceAccountProvider.asInstanceOf[MockPetClusterServiceAccountProvider].mockSwaggerSamClient
     authProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider)
 
-    bucketHelper = new BucketHelper(dataprocConfig, gdDAO, storageDAO, serviceAccountProvider)
-    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper)
+    bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
+    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, computeDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper)
   }
 
   override def afterAll(): Unit = {
@@ -239,7 +241,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   it should "delete a cluster" in isolatedDbTest {
     // need a specialized LeonardoService for this test, so we can spy on its authProvider
     val spyProvider: LeoAuthProvider = spy(authProvider)
-    val leoForTest = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), spyProvider, serviceAccountProvider, whitelist, bucketHelper)
+    val leoForTest = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, computeDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), spyProvider, serviceAccountProvider, whitelist, bucketHelper)
 
     // check that the cluster does not exist
     gdDAO.clusters should not contain key (name1)
@@ -414,7 +416,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val cluster3 = leo.createCluster(userInfo, project, clusterName3, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
     dbFutureValue(dataAccess =>
-      dataAccess.clusterQuery.completeDeletion(cluster3.googleId, clusterName3)
+      dataAccess.clusterQuery.completeDeletion(cluster3.googleId)
     )
 
     leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
@@ -486,7 +488,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
 
     // make a new LeoService
-    val newLeo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), newAuthProvider, serviceAccountProvider, whitelist, bucketHelper)
+    val newLeo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, computeDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), newAuthProvider, serviceAccountProvider, whitelist, bucketHelper)
 
     // list clusters should only return cluster1
     newLeo.listClusters(userInfo, Map.empty).futureValue shouldBe Seq(cluster1)

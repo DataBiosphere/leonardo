@@ -9,42 +9,40 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 /**
   * Created by rtitle on 2/13/18.
   */
-// TODO should track dataproc role in this table
 case class InstanceRecord(id: Long,
                           clusterId: Long,
                           googleProject: String,
                           zone: String,
-                          instanceName: String,
+                          name: String,
                           googleId: BigDecimal,
                           status: String,
                           ip: Option[String],
                           dataprocRole: Option[String],
                           createdDate: Timestamp,
-                          destroyedDate: Option[Timestamp])
+                          destroyedDate: Timestamp)
 
 trait InstanceComponent extends LeoComponent {
   this: ClusterComponent =>
 
   import profile.api._
 
-  class InstanceTable(tag: Tag) extends Table[InstanceRecord](tag, "LABEL") {
+  class InstanceTable(tag: Tag) extends Table[InstanceRecord](tag, "INSTANCE") {
     def id =            column[Long]              ("id",            O.PrimaryKey, O.AutoInc)
     def clusterId =     column[Long]              ("clusterId")
     def googleProject = column[String]            ("googleProject", O.Length(254))
     def zone =          column[String]            ("zone",          O.Length(254))
-    def instanceName =  column[String]            ("name",          O.Length(254))
+    def name =          column[String]            ("name",          O.Length(254))
     def googleId =      column[BigDecimal]        ("googleId")
     def status =        column[String]            ("status",        O.Length(254))
     def ip =            column[Option[String]]    ("ip",            O.Length(254))
     def dataprocRole =  column[Option[String]]    ("dataprocRole",  O.Length(254))
     def createdDate =   column[Timestamp]         ("createdDate",   O.SqlType("TIMESTAMP(6)"))
-    def destroyedDate = column[Option[Timestamp]] ("destroyedDate", O.SqlType("TIMESTAMP(6)"))
+    def destroyedDate = column[Timestamp]         ("destroyedDate", O.SqlType("TIMESTAMP(6)"))
 
-    // TODO add destoyed date?
-    def uniqueKey = index("IDX_INSTANCE_UNIQUE", (googleProject, zone, instanceName), unique = true)
-    def cluster = foreignKey("FK_CLUSTER_ID", clusterId, clusterQuery)(_.id)
+    def uniqueKey = index("IDX_INSTANCE_UNIQUE", (googleProject, zone, name, destroyedDate), unique = true)
+    def cluster = foreignKey("FK_INSTANCE_CLUSTER_ID", clusterId, clusterQuery)(_.id)
 
-    def * = (id, clusterId, googleProject, zone, instanceName, googleId, status, ip, dataprocRole, createdDate, destroyedDate) <> (InstanceRecord.tupled, InstanceRecord.unapply)
+    def * = (id, clusterId, googleProject, zone, name, googleId, status, ip, dataprocRole, createdDate, destroyedDate) <> (InstanceRecord.tupled, InstanceRecord.unapply)
   }
 
   object instanceQuery extends TableQuery(new InstanceTable(_)) {
@@ -74,7 +72,7 @@ trait InstanceComponent extends LeoComponent {
     def instanceByKeyQuery(instanceKey: InstanceKey) = {
       instanceQuery.filter { _.googleProject === instanceKey.project.value }
         .filter { _.zone === instanceKey.zone.value }
-        .filter { _.instanceName === instanceKey.name.value }
+        .filter { _.name === instanceKey.name.value }
     }
 
     def getInstanceByKey(instanceKey: InstanceKey): DBIO[Option[Instance]] = {
@@ -94,7 +92,7 @@ trait InstanceComponent extends LeoComponent {
     def markPendingDeletionForCluster(clusterId: Long) = {
       instanceQuery.filter { _.clusterId === clusterId }
         .map(inst => (inst.status, inst.ip, inst.destroyedDate))
-        .update(InstanceStatus.Deleting.entryName, None, Some(Timestamp.from(Instant.now())))
+        .update(InstanceStatus.Deleting.entryName, None, Timestamp.from(Instant.now()))
     }
 
     def completeDeletionForCluster(clusterId: Long) = {
@@ -109,13 +107,13 @@ trait InstanceComponent extends LeoComponent {
         clusterId,
         googleProject = instance.key.project.value,
         zone = instance.key.zone.value,
-        instanceName = instance.key.name.value,
+        name = instance.key.name.value,
         googleId = BigDecimal(instance.googleId),
         status = instance.status.entryName,
         ip = instance.ip.map(_.value),
         dataprocRole = instance.dataprocRole.map(_.entryName),
         createdDate = Timestamp.from(instance.createdDate),
-        destroyedDate = instance.destroyedDate.map(Timestamp.from)
+        destroyedDate = marshalDestroyedDate(instance.destroyedDate)
       )
     }
 
@@ -124,14 +122,14 @@ trait InstanceComponent extends LeoComponent {
         InstanceKey(
           GoogleProject(record.googleProject),
           ZoneUri(record.zone),
-          InstanceName(record.instanceName)
+          InstanceName(record.name)
         ),
         record.googleId.toBigInt,
         InstanceStatus.withName(record.status),
         record.ip map IP,
         record.dataprocRole.map(DataprocRole.withName),
         record.createdDate.toInstant,
-        record.destroyedDate.map(_.toInstant) // TODO
+        unmarshalDestroyedDate(record.destroyedDate)
       )
     }
   }

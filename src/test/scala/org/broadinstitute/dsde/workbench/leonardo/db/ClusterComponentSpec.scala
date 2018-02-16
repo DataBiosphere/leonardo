@@ -32,7 +32,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       labels = Map("bam" -> "yes", "vcf" -> "no"),
       jupyterExtensionUri = None,
       jupyterUserScriptUri = None,
-      Some(GcsBucketName("testStagingBucket1"))
+      Some(GcsBucketName("testStagingBucket1")),
+      Set.empty
     )
 
     val c2 = Cluster(
@@ -51,7 +52,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       labels = Map.empty,
       jupyterExtensionUri = Some(jupyterExtensionUri),
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      Some(GcsBucketName("testStagingBucket2")))
+      Some(GcsBucketName("testStagingBucket2")),
+      Set.empty
+    )
 
     val c3 = Cluster(
       clusterName = name3,
@@ -69,7 +72,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       labels = Map.empty,
       jupyterExtensionUri = Some(jupyterExtensionUri),
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      Some(GcsBucketName("testStagingBucket3")))
+      Some(GcsBucketName("testStagingBucket3")),
+      Set.empty
+    )
 
 
     dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), None) } shouldEqual c1
@@ -106,7 +111,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       labels = Map.empty,
       jupyterExtensionUri = Some(jupyterExtensionUri),
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      Some(GcsBucketName("testStagingBucket4")))
+      Some(GcsBucketName("testStagingBucket4")),
+      Set.empty
+    )
     dbFailure { _.clusterQuery.save(c4, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
 
     // googleId unique key test
@@ -128,7 +135,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       labels = Map.empty,
       jupyterExtensionUri = Some(jupyterExtensionUri),
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      Some(GcsBucketName("testStagingBucket5")))
+      Some(GcsBucketName("testStagingBucket5")),
+      Set.empty
+    )
     dbFailure { _.clusterQuery.save(c5, gcsPath("gs://bucket5"), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(c1.googleId) } shouldEqual 1
@@ -170,7 +179,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
       jupyterExtensionUri = None,
       jupyterUserScriptUri = None,
-      Some(GcsBucketName("testStagingBucket1")))
+      Some(GcsBucketName("testStagingBucket1")),
+      Set.empty
+    )
 
     val c2 = Cluster(
       clusterName = name2,
@@ -188,7 +199,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       labels = Map.empty,
       jupyterExtensionUri = Some(jupyterExtensionUri),
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      Some(GcsBucketName("testStagingBucket2")))
+      Some(GcsBucketName("testStagingBucket2")),
+      Set.empty
+    )
 
     val c3 = Cluster(
       clusterName = name3,
@@ -206,7 +219,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       labels = Map("a" -> "b", "bam" -> "yes"),
       jupyterExtensionUri = Some(jupyterExtensionUri),
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      Some(GcsBucketName("testStagingBucket3")))
+      Some(GcsBucketName("testStagingBucket3")),
+      Set.empty
+    )
 
     dbFutureValue { _.clusterQuery.save(c1, gcsPath( "gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1
     dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id)) } shouldEqual c2

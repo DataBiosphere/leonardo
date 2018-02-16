@@ -105,8 +105,6 @@ trait ClusterComponent extends LeoComponent {
 
   object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
-    private final val dummyDate:Instant = Instant.ofEpochMilli(1000)
-
     def save(cluster: Cluster, initBucket: GcsPath, serviceAccountKeyId: Option[ServiceAccountKeyId]): DBIO[Cluster] = {
       for {
         clusterId <- clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster, initBucket.toUri, serviceAccountKeyId)
@@ -292,7 +290,7 @@ trait ClusterComponent extends LeoComponent {
         cluster.hostIp map(_.value),
         cluster.creator.value,
         Timestamp.from(cluster.createdDate),
-        Timestamp.from(cluster.destroyedDate.getOrElse(dummyDate)),
+        marshalDestroyedDate(cluster.destroyedDate),
         cluster.jupyterExtensionUri map(_.toUri),
         cluster.jupyterUserScriptUri map(_.toUri),
         initBucket,
@@ -373,20 +371,13 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.hostIp map IP,
         WorkbenchEmail(clusterRecord.creator),
         clusterRecord.createdDate.toInstant,
-        getDestroyedDate(clusterRecord.destroyedDate),
+        unmarshalDestroyedDate(clusterRecord.destroyedDate),
         labels,
         clusterRecord.jupyterExtensionUri flatMap { parseGcsPath(_).toOption },
         clusterRecord.jupyterUserScriptUri flatMap { parseGcsPath(_).toOption },
         clusterRecord.stagingBucket map GcsBucketName,
         instanceRecords map (ClusterComponent.this.instanceQuery.unmarshalInstance) toSet
       )
-    }
-
-    private def getDestroyedDate(destroyedDate:Timestamp): Option[Instant] = {
-      if(destroyedDate.toInstant != dummyDate)
-        Some(destroyedDate.toInstant)
-      else
-        None
     }
   }
 
