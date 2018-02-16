@@ -116,10 +116,10 @@ trait ClusterComponent extends LeoComponent {
     }
 
     def upsertInstances(cluster: Cluster): DBIO[Cluster] = {
-      for {
-        clusterId <- clusterQuery returning clusterQuery.map(_.id)
-        _ <- instanceQuery.upsertAllForCluster(clusterId, cluster.instances.toSeq)
-      } yield cluster
+      clusterQuery.filter(_.googleId === cluster.googleId).result.headOption.flatMap {
+        case Some(rec) => instanceQuery.upsertAllForCluster(rec.id, cluster.instances.toSeq).map(_ => cluster)
+        case None => DBIO.successful(cluster)
+      }
     }
 
     def list(): DBIO[Seq[Cluster]] = {
@@ -206,10 +206,10 @@ trait ClusterComponent extends LeoComponent {
         .map(c => (c.destroyedDate, c.status, c.hostIp))
         .update(Timestamp.from(Instant.now()), ClusterStatus.Deleting.toString, None)
 
-      val deleteInstances = for {
-        clusterId <- clusterQuery.filter(_.googleId === googleId) returning (clusterQuery.map(_.id))
-        ret <- instanceQuery.markPendingDeletionForCluster(clusterId)
-      } yield ret
+      val deleteInstances = clusterQuery.filter(_.googleId === googleId).result.headOption.flatMap {
+        case Some(rec) => instanceQuery.markPendingDeletionForCluster(rec.id)
+        case None => DBIO.successful(0)
+      }
 
       DBIO.fold(Seq(deleteCluster, deleteInstances), 0)(_ + _)
     }
@@ -217,10 +217,10 @@ trait ClusterComponent extends LeoComponent {
     def completeDeletion(googleId: UUID): DBIO[Int] = {
       val deleteCluster = updateClusterStatus(googleId, ClusterStatus.Deleted)
 
-      val deleteInstances = for {
-        clusterId <- clusterQuery.filter(_.googleId === googleId) returning (clusterQuery.map(_.id))
-        ret <- instanceQuery.completeDeletionForCluster(clusterId)
-      } yield ret
+      val deleteInstances = clusterQuery.filter(_.googleId === googleId).result.headOption.flatMap {
+        case Some(rec) => instanceQuery.completeDeletionForCluster(rec.id)
+        case None => DBIO.successful(0)
+      }
 
       DBIO.fold(Seq(deleteCluster, deleteInstances), 0)(_ + _)
     }
