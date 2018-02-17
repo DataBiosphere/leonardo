@@ -81,8 +81,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig
 
     // check the firewall rule was created for the project
-    gdDAO.firewallRules should contain key (project)
-    gdDAO.firewallRules(project).name.value shouldBe proxyConfig.firewallRuleName
+    computeDAO.firewallRules should contain key (project)
+    computeDAO.firewallRules(project).name.value shouldBe proxyConfig.firewallRuleName
 
     // should have created init and staging buckets
     val initBucketOpt = storageDAO.buckets.keys.find(_.value.startsWith(name1.value+"-init"))
@@ -317,19 +317,19 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName2 = ClusterName("test-cluster-2")
 
     // Our google project should have no firewall rules
-    gdDAO.firewallRules should not contain (project, proxyConfig.firewallRuleName)
+    computeDAO.firewallRules should not contain (project, proxyConfig.firewallRuleName)
 
     // create the first cluster, this should create a firewall rule in our project
     leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
 
     // check that there is exactly 1 firewall rule for our project
-    gdDAO.firewallRules.filterKeys(_ == project) should have size 1
+    computeDAO.firewallRules.filterKeys(_ == project) should have size 1
 
     // create the second cluster. This should check that our project has a firewall rule and not try to add it again
     leo.createCluster(userInfo, project, clusterName2, testClusterRequest).futureValue
 
     // check that there is still exactly 1 firewall rule in our project
-    gdDAO.firewallRules.filterKeys(_ == project) should have size 1
+    computeDAO.firewallRules.filterKeys(_ == project) should have size 1
   }
 
   it should "template a script using config values" in isolatedDbTest {
@@ -501,8 +501,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterCreateResponse shouldBe a [Exception] // thrown by MockGoogleDataprocDAO
 
     // check the firewall rule was created for the project
-    gdDAO.firewallRules should contain key (project)
-    gdDAO.firewallRules(project).name.value shouldBe proxyConfig.firewallRuleName
+    computeDAO.firewallRules should contain key (project)
+    computeDAO.firewallRules(project).name.value shouldBe proxyConfig.firewallRuleName
 
     //staging bucket lives on!
     storageDAO.buckets.keys.find(bucket => bucket.value.contains("-init")).size shouldBe 0

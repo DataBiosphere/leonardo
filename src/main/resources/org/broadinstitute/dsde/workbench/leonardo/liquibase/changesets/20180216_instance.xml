@@ -17,7 +17,7 @@
             <column name="name" type="VARCHAR(254)">
                 <constraints nullable="false"/>
             </column>
-            <column name="googleId" type="BINARY(16)">
+            <column name="googleId" type="NUMERIC">
                 <constraints primaryKey="true"/>
             </column>
             <column name="status" type="VARCHAR(254)">

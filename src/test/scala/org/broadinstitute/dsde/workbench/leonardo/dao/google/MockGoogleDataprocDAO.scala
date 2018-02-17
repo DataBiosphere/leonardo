@@ -19,7 +19,6 @@ import scala.concurrent.duration._
 class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
 
   val clusters: mutable.Map[ClusterName, Operation] = new TrieMap()
-  val firewallRules: mutable.Map[GoogleProject, FirewallRule] = new TrieMap()
   val badClusterName = ClusterName("badCluster")
   val errorClusterName = ClusterName("erroredCluster")
 

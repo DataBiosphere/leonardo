@@ -31,7 +31,7 @@ case class OperationName(value: String) extends ValueObject
 case class Operation(name: OperationName, uuid: UUID)
 
 // Dataproc Role
-sealed trait DataprocRole extends EnumEntry
+sealed trait DataprocRole extends EnumEntry with Product with Serializable
 object DataprocRole extends Enum[DataprocRole] {
   val values = findValues
 
