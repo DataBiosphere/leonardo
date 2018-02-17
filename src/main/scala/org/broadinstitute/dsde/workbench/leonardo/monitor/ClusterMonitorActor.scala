@@ -251,22 +251,20 @@ class ClusterMonitorActor(val cluster: Cluster,
       startingInstanceCount =  googleInstances.filter(_.status == InstanceStatus.Provisioning).size
 
       result <- googleStatus match {
+          // TODO reprioritize these
         // if the cluster has stopping or starting instances, it's not ready
         case _ if stoppingInstanceCount > 0 || startingInstanceCount > 0 =>
-          println("not ready 1")
           Future.successful(NotReadyCluster(googleStatus, googleInstances))
         // if the cluster only contains stopped instances, it's a stopped cluster
-        case _ if stoppedInstanceCount == googleInstances.size =>
+        case _ if stoppedInstanceCount == googleInstances.size && googleInstances.size > 0 =>
           Future.successful(StoppedCluster(googleInstances))
         case Unknown | Creating | Updating =>
-          println("not ready 2")
           Future.successful(NotReadyCluster(googleStatus, googleInstances))
         // Take care we don't restart a Deleting cluster if google hasn't updated their status yet
         case Running if cluster.status != Deleting =>
           getMasterIp.map {
             case Some(ip) => ReadyCluster(ip, googleInstances)
             case None =>
-              println("not ready 3")
               NotReadyCluster(ClusterStatus.Running, googleInstances)
           }
         case Error =>

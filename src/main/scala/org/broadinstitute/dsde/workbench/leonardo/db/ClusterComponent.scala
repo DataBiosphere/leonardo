@@ -327,20 +327,14 @@ trait ClusterComponent extends LeoComponent {
 
     private def unmarshalClustersWithInstancesAndLabels(clusterInstanceLabels: Seq[(ClusterRecord, Option[InstanceRecord], Option[LabelRecord])]): Seq[Cluster] = {
       // Call foldMap to aggregate a Seq[(ClusterRecord, LabelRecord)] returned by the query to a Map[ClusterRecord, Map[labelKey, labelValue]].
-      val clusterLabelMap: Map[ClusterRecord, LabelMap] = clusterInstanceLabels.toList.foldMap { case (clusterRecord, _, labelRecordOpt) =>
-        val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> labelRecordOpt.value).toMap
-        Map(clusterRecord -> labelMap)
+      val clusterInstanceLabelMap: Map[ClusterRecord, (List[InstanceRecord], Map[String, List[String]])] = clusterInstanceLabels.toList.foldMap { case (clusterRecord, instanceRecordOpt, labelRecordOpt) =>
+        val instanceList = instanceRecordOpt.toList
+        val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> List(labelRecordOpt.value)).toMap
+        Map(clusterRecord -> (instanceList, labelMap))
       }
 
-      val clusterInstanceMap: Map[ClusterRecord, List[InstanceRecord]] = clusterInstanceLabels.toList.foldMap { case (clusterRecord, instanceRecordOpt, _) =>
-        instanceRecordOpt match {
-          case Some(instanceRecord) => Map(clusterRecord -> List(instanceRecord))
-          case None => Map.empty
-        }
-      }
-
-      (clusterLabelMap.keySet ++ clusterInstanceMap.keySet).map { clusterRec =>
-        unmarshalCluster(clusterRec, clusterInstanceMap.getOrElse(clusterRec, Seq.empty), clusterLabelMap.getOrElse(clusterRec, Map.empty))
+      clusterInstanceLabelMap.map { case (clusterRecord, (instanceRecords, labels)) =>
+        unmarshalCluster(clusterRecord, instanceRecords.toSet.toSeq, labels.mapValues(_.toSet.head))
       }.toSeq
     }
 
