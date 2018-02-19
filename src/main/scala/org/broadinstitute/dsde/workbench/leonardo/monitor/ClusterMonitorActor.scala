@@ -246,32 +246,28 @@ class ClusterMonitorActor(val cluster: Cluster,
       googleStatus <- gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName)
       googleInstances <- getClusterInstances
 
+      runningInstanceCount = googleInstances.filter(_.status == InstanceStatus.Running).size
       stoppedInstanceCount = googleInstances.filter(_.status == InstanceStatus.Stopped).size
-      stoppingInstanceCount = googleInstances.filter(_.status == InstanceStatus.Stopping).size
-      startingInstanceCount =  googleInstances.filter(_.status == InstanceStatus.Provisioning).size
 
       result <- googleStatus match {
         case Unknown | Creating | Updating =>
           Future.successful(NotReadyCluster(googleStatus, googleInstances))
-        // if the cluster has stopping or starting instances, it's not ready
-        case _ if stoppingInstanceCount > 0 || startingInstanceCount > 0 =>
-          Future.successful(NotReadyCluster(googleStatus, googleInstances))
-        // if the cluster only contains stopped instances, it's a stopped cluster
-        case _ if stoppedInstanceCount == googleInstances.size =>
-          Future.successful(StoppedCluster(googleInstances))
         // Take care we don't restart a Deleting cluster if google hasn't updated their status yet
-        case Running if cluster.status != Deleting =>
+        case Running if cluster.status != Deleting && runningInstanceCount == googleInstances.size =>
           getMasterIp.map {
             case Some(ip) => ReadyCluster(ip, googleInstances)
             case None =>
               NotReadyCluster(ClusterStatus.Running, googleInstances)
           }
-        case Error =>
+        case Error if runningInstanceCount == googleInstances.size =>
           gdDAO.getClusterErrorDetails(cluster.operationName).map {
             case Some(errorDetails) => FailedCluster(errorDetails, googleInstances)
             case None => NotReadyCluster(ClusterStatus.Error, googleInstances)
           }
         case Deleted => Future.successful(DeletedCluster)
+        // if the cluster only contains stopped instances, it's a stopped cluster
+        case _ if cluster.status != Starting && stoppedInstanceCount == googleInstances.size =>
+          Future.successful(StoppedCluster(googleInstances))
         case _ => Future.successful(NotReadyCluster(googleStatus, googleInstances))
       }
     } yield result

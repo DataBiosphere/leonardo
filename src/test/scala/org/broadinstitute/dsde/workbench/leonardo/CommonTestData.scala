@@ -67,6 +67,42 @@ trait CommonTestData { this: ScalaFutures =>
   protected def notebookServiceAccount(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Option[WorkbenchEmail] = {
     serviceAccountProvider.getNotebookServiceAccount(userInfo.userEmail, googleProject).futureValue
   }
+
+  val masterInstance = Instance(
+    InstanceKey(
+      project,
+      ZoneUri("my-zone"),
+      InstanceName("master-instance")),
+    googleId = BigInt(12345),
+    status = InstanceStatus.Running,
+    ip = Some(IP("1.2.3.4")),
+    dataprocRole = Some(DataprocRole.Master),
+    createdDate = Instant.now(),
+    destroyedDate = None)
+
+  val workerInstance1 = Instance(
+    InstanceKey(
+      project,
+      ZoneUri("my-zone"),
+      InstanceName("worker-instance-1")),
+    googleId = BigInt(23456),
+    status = InstanceStatus.Running,
+    ip = Some(IP("1.2.3.5")),
+    dataprocRole = Some(DataprocRole.Worker),
+    createdDate = Instant.now(),
+    destroyedDate = None)
+
+  val workerInstance2 = Instance(
+    InstanceKey(
+      project,
+      ZoneUri("my-zone"),
+      InstanceName("worker-instance-2")),
+    googleId = BigInt(34567),
+    status = InstanceStatus.Running,
+    ip = Some(IP("1.2.3.6")),
+    dataprocRole = Some(DataprocRole.Worker),
+    createdDate = Instant.now(),
+    destroyedDate = None)
 }
 
 trait GcsPathUtils {

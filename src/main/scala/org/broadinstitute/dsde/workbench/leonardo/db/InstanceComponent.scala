@@ -79,10 +79,6 @@ trait InstanceComponent extends LeoComponent {
       instanceByKeyQuery(instanceKey).result.map { _.headOption.map(unmarshalInstance) }
     }
 
-    def updateStatusAndIp(instanceKey: InstanceKey, newStatus: InstanceStatus, newIp: Option[IP]) = {
-      instanceByKeyQuery(instanceKey).map(inst => (inst.status, inst.ip)).update(newStatus.entryName, newIp.map(_.value))
-    }
-
     def updateStatusAndIpForCluster(clusterId: Long, newStatus: InstanceStatus, newIp: Option[IP]) = {
       instanceQuery.filter { _.clusterId === clusterId }
         .map(inst => (inst.status, inst.ip))

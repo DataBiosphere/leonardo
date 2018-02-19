@@ -378,6 +378,11 @@ trait ClusterComponent extends LeoComponent {
         instanceRecords map (ClusterComponent.this.instanceQuery.unmarshalInstance) toSet
       )
     }
+
+    // for testing
+    private[db] def getClusterId(googleId: UUID): DBIO[Option[Long]] = {
+      clusterQuery.filter(_.googleId === googleId).map(_.id).result.map(_.headOption)
+    }
   }
 
   // select * from cluster c left join label l on c.id = l.clusterId

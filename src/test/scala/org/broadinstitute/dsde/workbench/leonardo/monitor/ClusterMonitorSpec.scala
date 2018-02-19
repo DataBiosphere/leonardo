@@ -33,41 +33,6 @@ import scala.concurrent.{ExecutionContext, Future}
   * Created by rtitle on 9/6/17.
   */
 class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll with TestComponent with CommonTestData with GcsPathUtils { testKit =>
-  val masterInstance = Instance(
-    InstanceKey(
-      project,
-      ZoneUri("my-zone"),
-      InstanceName("master-instance")),
-    googleId = BigInt(12345),
-    status = InstanceStatus.Running,
-    ip = Some(IP("1.2.3.4")),
-    dataprocRole = Some(DataprocRole.Master),
-    createdDate = Instant.now(),
-    destroyedDate = None)
-
-  val workerInstance1 = Instance(
-    InstanceKey(
-      project,
-      ZoneUri("my-zone"),
-      InstanceName("worker-instance-1")),
-    googleId = BigInt(23456),
-    status = InstanceStatus.Running,
-    ip = Some(IP("1.2.3.5")),
-    dataprocRole = Some(DataprocRole.Worker),
-    createdDate = Instant.now(),
-    destroyedDate = None)
-
-  val workerInstance2 = Instance(
-    InstanceKey(
-      project,
-      ZoneUri("my-zone"),
-      InstanceName("worker-instance-2")),
-    googleId = BigInt(34567),
-    status = InstanceStatus.Running,
-    ip = Some(IP("1.2.3.6")),
-    dataprocRole = Some(DataprocRole.Worker),
-    createdDate = Instant.now(),
-    destroyedDate = None)
 
   val creatingCluster = Cluster(
     clusterName = name1,
@@ -471,7 +436,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(())
 
     when {
-      gdDAO.getComputeEngineDefaultServiceAccount(mockitoEq(creatingCluster.googleProject))
+      computeDAO.getComputeEngineDefaultServiceAccount(mockitoEq(creatingCluster.googleProject))
     } thenReturn Future.successful(Some(serviceAccountEmail))
 
     val newClusterId = UUID.randomUUID()
