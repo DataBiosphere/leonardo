@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao.google
 
+import java.text.SimpleDateFormat
 import java.time.Instant
 
 import akka.actor.ActorSystem
@@ -21,6 +22,7 @@ import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchExcepti
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Try
 
 /**
   * Created by rtitle on 2/13/18.
@@ -34,7 +36,7 @@ class HttpGoogleComputeDAO(appName: String,
   // TODO
   override implicit val service: GoogleInstrumentedService = GoogleInstrumentedService.Dataproc
 
-  override val scopes: Seq[String] = Seq(ComputeScopes.CLOUD_PLATFORM)
+  override val scopes: Seq[String] = Seq(ComputeScopes.COMPUTE)
 
   private lazy val compute = {
     new Compute.Builder(httpTransport, jsonFactory, googleCredential)
@@ -51,13 +53,14 @@ class HttpGoogleComputeDAO(appName: String,
 
     retryWithRecoverWhen500orGoogleError { () =>
       Option(executeGoogleRequest(request)) map { gi =>
+        gi.getCreationTimestamp
         Instance(
           instanceKey,
           gi.getId,
           InstanceStatus.withNameInsensitive(gi.getStatus),
           getInstanceIP(gi),
           None,
-          Instant.now /*TODO gi.getCreationTimestamp*/,
+          parseGoogleTimestamp(gi.getCreationTimestamp).getOrElse(Instant.now),
           None)
       }
     } {
@@ -116,6 +119,14 @@ class HttpGoogleComputeDAO(appName: String,
     }.handleGoogleException(googleProject)
   }
 
+  private def parseGoogleTimestamp(googleTimestamp: String): Option[Instant] = {
+    Try {
+      new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX").parse(googleTimestamp)
+    }.toOption map { date =>
+      Instant.ofEpochMilli(date.getTime)
+    }
+  }
+
   private def getProjectNumber(googleProject: GoogleProject): Future[Option[Long]] = {
     val request = cloudResourceManager.projects().get(googleProject.value)
     retryWithRecoverWhen500orGoogleError { () =>
@@ -139,7 +150,6 @@ class HttpGoogleComputeDAO(appName: String,
     } yield IP(accessConfig.getNatIP)
   }
 
-  // TODO duplicated
   private implicit class GoogleExceptionSupport[A](future: Future[A]) {
     def handleGoogleException(project: GoogleProject, context: Option[String] = None): Future[A] = {
       future.recover {

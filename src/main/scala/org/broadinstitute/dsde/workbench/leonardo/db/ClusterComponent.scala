@@ -120,6 +120,8 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
+    // note: list* methods don't query the INSTANCE table
+
     def list(): DBIO[Seq[Cluster]] = {
       clusterQueryWithLabels.result.map(unmarshalClustersWithLabels)
     }
@@ -137,12 +139,14 @@ trait ClusterComponent extends LeoComponent {
     }
 
     def countByClusterServiceAccountAndStatus(clusterServiceAccount: WorkbenchEmail, status: ClusterStatus) = {
-      clusterQueryWithLabels
-        .filter { _._1.clusterServiceAccount === Option(clusterServiceAccount.value) }
-        .filter { _._1.status === status.toString }
+      clusterQuery
+        .filter { _.clusterServiceAccount === Option(clusterServiceAccount.value) }
+        .filter { _.status === status.toString }
         .length
         .result
     }
+
+    // find* and get* methods do query the INSTANCE table
 
     def findByName(project: GoogleProject, name: ClusterName) = {
       clusterQueryWithInstancesAndLabels.filter { _._1.googleProject === project.value }.filter { _._1.clusterName === name.value }
@@ -326,7 +330,8 @@ trait ClusterComponent extends LeoComponent {
     }
 
     private def unmarshalClustersWithInstancesAndLabels(clusterInstanceLabels: Seq[(ClusterRecord, Option[InstanceRecord], Option[LabelRecord])]): Seq[Cluster] = {
-      // Call foldMap to aggregate a Seq[(ClusterRecord, LabelRecord)] returned by the query to a Map[ClusterRecord, Map[labelKey, labelValue]].
+      // Call foldMap to aggregate a flat sequence of (cluster, instance, label) triples returned by the query
+      // to a grouped (cluster -> (instances, labels)) structure.
       val clusterInstanceLabelMap: Map[ClusterRecord, (List[InstanceRecord], Map[String, List[String]])] = clusterInstanceLabels.toList.foldMap { case (clusterRecord, instanceRecordOpt, labelRecordOpt) =>
         val instanceList = instanceRecordOpt.toList
         val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> List(labelRecordOpt.value)).toMap
@@ -382,6 +387,7 @@ trait ClusterComponent extends LeoComponent {
     } yield (cluster, label)
   }
 
+  // select * from cluster c left join instance i on c.id = i.clusterId left join label l on c.id = l.clusterId
   val clusterQueryWithInstancesAndLabels: Query[(ClusterTable, Rep[Option[InstanceTable]], Rep[Option[LabelTable]]), (ClusterRecord, Option[InstanceRecord], Option[LabelRecord]), Seq] = {
     for {
       ((cluster, instance), label) <- clusterQuery joinLeft instanceQuery on (_.id === _.clusterId) joinLeft labelQuery on (_._1.id === _.clusterId)

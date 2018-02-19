@@ -14,6 +14,7 @@ import scala.language.implicitConversions
 
 // Primitives
 case class ClusterName(value: String) extends ValueObject
+case class InstanceName(value: String) extends ValueObject
 case class ZoneUri(value: String) extends ValueObject
 case class MachineType(value: String) extends ValueObject
 
@@ -30,7 +31,7 @@ case class MachineConfig(numberOfWorkers: Option[Int] = None,
 case class OperationName(value: String) extends ValueObject
 case class Operation(name: OperationName, uuid: UUID)
 
-// Dataproc Role
+// Dataproc Role (master, worker, secondary worker)
 sealed trait DataprocRole extends EnumEntry with Product with Serializable
 object DataprocRole extends Enum[DataprocRole] {
   val values = findValues
@@ -44,6 +45,7 @@ object DataprocRole extends Enum[DataprocRole] {
 case class ClusterErrorDetails(code: Int, message: Option[String])
 
 // Cluster status
+// https://cloud.google.com/dataproc/docs/reference/rest/v1beta2/projects.regions.clusters#ClusterStatus
 sealed trait ClusterStatus extends EnumEntry
 object ClusterStatus extends Enum[ClusterStatus] {
   val values = findValues
@@ -55,16 +57,26 @@ object ClusterStatus extends Enum[ClusterStatus] {
   case object Updating extends ClusterStatus
   case object Error    extends ClusterStatus
   case object Deleting extends ClusterStatus
+
+  // note: the below are Leo-specific statuses, not Dataproc statuses
   case object Deleted  extends ClusterStatus
   case object Stopping extends ClusterStatus
   case object Stopped  extends ClusterStatus
   case object Starting extends ClusterStatus
 
-  // TODO explain these better
+  // A user might need to connect to this notebook in the future. Keep it warm in the DNS cache.
   val activeStatuses: Set[ClusterStatus] = Set(Unknown, Creating, Running, Updating, Stopping, Stopped, Starting)
+
+  // Can a user delete this cluster? Contains everything except Deleting, Deleted.
   val deletableStatuses: Set[ClusterStatus] = Set(Unknown, Creating, Running, Updating, Error, Stopping, Stopped, Starting)
+
+  // Non-terminal statuses. Requires cluster monitoring via ClusterMonitorActor.
   val monitoredStatuses: Set[ClusterStatus] = Set(Unknown, Creating, Updating, Deleting, Stopping, Starting)
-  val stoppableStatuses: Set[ClusterStatus] = Set(Unknown, Running, Updating, Error, Starting)
+
+  // Can a user stop this cluster?
+  val stoppableStatuses: Set[ClusterStatus] = Set(Running, Error, Starting)
+
+  // Can a user start this cluster?
   val startableStatuses: Set[ClusterStatus] = Set(Stopped, Stopping)
 
   implicit class EnrichedClusterStatus(status: ClusterStatus) {
@@ -86,8 +98,6 @@ case class FirewallRuleProtocol(value: String) extends ValueObject
 case class FirewallRule(name: FirewallRuleName, protocol: FirewallRuleProtocol, ports: List[FirewallRulePort], network: FirewallRuleNetwork, targetTags: List[NetworkTag])
 
 // Instances
-case class InstanceName(value: String) extends ValueObject
-
 sealed trait InstanceStatus extends EnumEntry
 object InstanceStatus extends Enum[InstanceStatus] {
   val values = findValues
