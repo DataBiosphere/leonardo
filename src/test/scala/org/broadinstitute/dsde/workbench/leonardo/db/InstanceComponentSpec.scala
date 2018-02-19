@@ -34,21 +34,17 @@ class InstanceComponentSpec extends TestComponent with FlatSpecLike with CommonT
     Set.empty
   )
 
-  private def getClusterId: Long = {
-    dbFutureValue { _.clusterQuery.getClusterId(c1.googleId) }.get
-  }
-
   "InstanceComponent" should "save and get instances" in isolatedDbTest {
     dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), None) } shouldEqual c1
-    dbFutureValue { _.instanceQuery.save(getClusterId, masterInstance) } shouldEqual 1
+    dbFutureValue { _.instanceQuery.save(getClusterId(c1.googleId), masterInstance) } shouldEqual 1
     dbFutureValue { _.instanceQuery.getInstanceByKey(masterInstance.key) } shouldEqual Some(masterInstance)
-    dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId) } shouldEqual Seq(masterInstance)
+    dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(c1.googleId)) } shouldEqual Seq(masterInstance)
   }
 
   it should "update status and ip" in isolatedDbTest {
     dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), None) } shouldEqual c1
-    dbFutureValue { _.instanceQuery.save(getClusterId, masterInstance) } shouldEqual 1
-    dbFutureValue { _.instanceQuery.updateStatusAndIpForCluster(getClusterId, InstanceStatus.Provisioning, Some(IP("4.5.6.7"))) } shouldEqual 1
+    dbFutureValue { _.instanceQuery.save(getClusterId(c1.googleId), masterInstance) } shouldEqual 1
+    dbFutureValue { _.instanceQuery.updateStatusAndIpForCluster(getClusterId(c1.googleId), InstanceStatus.Provisioning, Some(IP("4.5.6.7"))) } shouldEqual 1
     val updated = dbFutureValue { _.instanceQuery.getInstanceByKey(masterInstance.key) }
     updated shouldBe 'defined
     updated.get.status shouldBe InstanceStatus.Provisioning
@@ -57,8 +53,8 @@ class InstanceComponentSpec extends TestComponent with FlatSpecLike with CommonT
 
   it should "mark pending deletion" in isolatedDbTest {
     dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), None) } shouldEqual c1
-    dbFutureValue { _.instanceQuery.save(getClusterId, masterInstance) } shouldEqual 1
-    dbFutureValue { _.instanceQuery.markPendingDeletionForCluster(getClusterId) } shouldEqual 1
+    dbFutureValue { _.instanceQuery.save(getClusterId(c1.googleId), masterInstance) } shouldEqual 1
+    dbFutureValue { _.instanceQuery.markPendingDeletionForCluster(getClusterId(c1.googleId)) } shouldEqual 1
     val updated = dbFutureValue { _.instanceQuery.getInstanceByKey(masterInstance.key) }
     updated shouldBe 'defined
     updated.get.status shouldBe InstanceStatus.Deleting
@@ -68,8 +64,8 @@ class InstanceComponentSpec extends TestComponent with FlatSpecLike with CommonT
 
   it should "complete deletion" in isolatedDbTest {
     dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), None) } shouldEqual c1
-    dbFutureValue { _.instanceQuery.save(getClusterId, masterInstance) } shouldEqual 1
-    dbFutureValue { _.instanceQuery.completeDeletionForCluster(getClusterId) } shouldEqual 1
+    dbFutureValue { _.instanceQuery.save(getClusterId(c1.googleId), masterInstance) } shouldEqual 1
+    dbFutureValue { _.instanceQuery.completeDeletionForCluster(getClusterId(c1.googleId)) } shouldEqual 1
     val updated = dbFutureValue { _.instanceQuery.getInstanceByKey(masterInstance.key) }
     updated shouldBe 'defined
     updated.get.status shouldBe InstanceStatus.Deleted

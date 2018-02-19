@@ -290,6 +290,31 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should not contain key (gdDAO.errorClusterName)
   }
 
+  it should "delete a cluster's instances" in isolatedDbTest {
+    // check that the cluster does not exist
+    gdDAO.clusters should not contain key (name1)
+
+    // create the cluster
+    val clusterCreateResponse = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
+
+    // check that the cluster was created
+    gdDAO.clusters should contain key name1
+
+    // populate some instances for the cluster
+    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse.googleId), Seq(masterInstance, workerInstance1, workerInstance2)) }
+
+    // delete the cluster
+    leo.deleteCluster(userInfo, project, name1).futureValue
+
+    // check that the cluster no longer exists
+    gdDAO.clusters should not contain key (name1)
+
+    // check that the instances' status are Deleting in the DB
+    val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse.googleId)) }
+    instances.size shouldBe 3
+    instances.map(_.status).toSet shouldBe Set(InstanceStatus.Deleting)
+  }
+
   it should "throw ClusterNotFoundException when deleting non existent clusters" in isolatedDbTest {
     whenReady( leo.deleteCluster(userInfo, GoogleProject("nonexistent"), ClusterName("cluster")).failed ) { exc =>
       exc shouldBe a [ClusterNotFoundException]
@@ -517,5 +542,64 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val badUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("badguy"), WorkbenchEmail("dont@whitelist.me"), 0)
     val authExc = leo.isWhitelisted(badUserInfo).failed.futureValue
     authExc shouldBe a [AuthorizationError]
+  }
+
+  it should "stop a cluster" in isolatedDbTest {
+    // check that the cluster does not exist
+    gdDAO.clusters should not contain key (name1)
+
+    // create the cluster
+    val clusterCreateResponse = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
+
+    // check that the cluster was created
+    gdDAO.clusters should contain key name1
+
+    // populate some instances for the cluster
+    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse.googleId), Seq(masterInstance, workerInstance1, workerInstance2)) }
+
+    // stop the cluster
+    leo.stopCluster(userInfo, project, name1).futureValue
+
+    // cluster should still exist in Google
+    gdDAO.clusters should contain key (name1)
+
+    // cluster status should be Stopping in the DB
+    dbFutureValue { _.clusterQuery.getByGoogleId(clusterCreateResponse.googleId) }.get.status shouldBe ClusterStatus.Stopping
+
+    // instance status should still be Running in the DB
+    // the ClusterMonitorActor is what updates instance status
+    val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse.googleId)) }
+    instances.size shouldBe 3
+    instances.map(_.status).toSet shouldBe Set(InstanceStatus.Running)
+  }
+
+  it should "start a cluster" in isolatedDbTest {
+    // check that the cluster does not exist
+    gdDAO.clusters should not contain key (name1)
+
+    // create the cluster
+    val clusterCreateResponse = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
+
+    // check that the cluster was created
+    gdDAO.clusters should contain key name1
+
+    // populate some instances for the cluster and set its status to Stopped
+    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse.googleId), Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped))) }
+    dbFutureValue { _.clusterQuery.updateClusterStatus(clusterCreateResponse.googleId, ClusterStatus.Stopped) }
+
+    // start the cluster
+    leo.startCluster(userInfo, project, name1).futureValue
+
+    // cluster should still exist in Google
+    gdDAO.clusters should contain key (name1)
+
+    // cluster status should be Starting in the DB
+    dbFutureValue { _.clusterQuery.getByGoogleId(clusterCreateResponse.googleId) }.get.status shouldBe ClusterStatus.Starting
+
+    // instance status should still be Stopped in the DB
+    // the ClusterMonitorActor is what updates instance status
+    val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse.googleId)) }
+    instances.size shouldBe 3
+    instances.map(_.status).toSet shouldBe Set(InstanceStatus.Stopped)
   }
 }

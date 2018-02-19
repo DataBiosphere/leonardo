@@ -380,7 +380,7 @@ trait ClusterComponent extends LeoComponent {
     }
 
     // for testing
-    private[db] def getClusterId(googleId: UUID): DBIO[Option[Long]] = {
+    private[leonardo] def getClusterId(googleId: UUID): DBIO[Option[Long]] = {
       clusterQuery.filter(_.googleId === googleId).map(_.id).result.map(_.headOption)
     }
   }
