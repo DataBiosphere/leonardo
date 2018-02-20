@@ -161,7 +161,7 @@ RUN apt-get update \
  && pip3 install matplotlib-venn \
  && pip3 install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py" \
  && apt-get clean \
- && rm -rf /var/lib/apt/lists/* \
+ && rm -rf /var/lib/apt/lists/*
 
 #ADD python2_kernelspec.json $KERNELSPEC_HOME/python2/kernel.json
 #ADD python3_kernelspec.json $KERNELSPEC_HOME/python3/kernel.json
