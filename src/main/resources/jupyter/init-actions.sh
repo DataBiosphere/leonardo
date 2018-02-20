@@ -24,6 +24,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_HOME=/etc/jupyter
     JUPYTER_USER_HOME=/home/jupyter-user
     PYSPARK=/usr/bin/pyspark
+    KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
 
     # The following values are populated by Leo when a cluster is created.
     export CLUSTER_NAME=$(clusterName)
@@ -95,7 +96,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     docker-compose -f /etc/cluster-docker-compose.yaml up -d
 
     # Change python 2 and 3 kernel specs to allow each to have its own spark
-    docker exec -u root -d ${JUPYTER_SERVER_NAME} /etc/jupyter/python_kernelspec.sh
+    docker exec -u root -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/kernelspec.sh ${JUPYTER_HOME} ${KERNELSPEC_HOME}
 
     # Install the Hail additions to Spark conf.
     # OK to do this after pyspark runs; it needs to happen before the Jupyter kernel starts.
