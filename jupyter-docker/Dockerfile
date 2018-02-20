@@ -21,6 +21,7 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main\ndeb $DEBIAN_REPO/debian-security
     curl \
     build-essential \
     lsb-release \
+    procps \
 
  # google-cloud-sdk separately because it need lsb-release and other prereqs installed above
  && export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" \
