@@ -52,9 +52,9 @@ pull_configs() {
     fi
     cd firecloud-automated-testing
     echo $PWD
-    git pull
     git stash
     git checkout ${FIRECLOUD_AUTOMATED_TESTING_BRANCH}
+    git pull
     cd $original_dir
 }
 
