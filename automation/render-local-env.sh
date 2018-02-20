@@ -58,13 +58,13 @@ render_configs() {
     cd ../..
     docker pull broadinstitute/dsde-toolbox:dev
     docker run -it --rm -e VAULT_TOKEN=${VAULT_TOKEN} \
-        -e ENVIRONMENT=${ENV} -e ROOT_DIR=${WORKING_DIR} -v $PWD/firecloud-automated-testing/configs:/input -v $PWD/$SERVICE/automation:/output \
+        -e ENVIRONMENT=${ENV} -e ROOT_DIR=${WORKING_DIR} -v $PWD/firecloud-automated-testing/configs:/input -v $PWD/$SCRIPT_ROOT:/output \
         -e OUT_PATH=/output/src/test/resources -e INPUT_PATH=/input -e LOCAL_UI=$LOCAL_UI \
         broadinstitute/dsde-toolbox:dev render-templates.sh
 
     # pull service-specific application.conf
     docker run -it --rm -e VAULT_TOKEN=${VAULT_TOKEN} \
-        -e ENVIRONMENT=${ENV} -e ROOT_DIR=${WORKING_DIR} -v $PWD/firecloud-automated-testing/configs/$SERVICE:/input -v $PWD/$SERVICE/automation:/output \
+        -e ENVIRONMENT=${ENV} -e ROOT_DIR=${WORKING_DIR} -v $PWD/firecloud-automated-testing/configs/$SERVICE:/input -v $PWD/$SCRIPT_ROOT:/output \
         -e OUT_PATH=/output/src/test/resources -e INPUT_PATH=/input -e LOCAL_UI=$LOCAL_UI \
         broadinstitute/dsde-toolbox:dev render-templates.sh
     cd $original_dir
