@@ -1,0 +1,16 @@
+{
+ "language": "python",
+ "display_name": "Python 2",
+ "argv": [
+  "python",
+  "-m",
+  "ipykernel_launcher",
+  "-f",
+  "{connection_file}"
+ ],
+ "env": {
+   "PYSPARK_PYTHON": "/usr/bin/python",
+   "PYTHONSTARTUP": "/usr/lib/spark/python/pyspark/shell.py",
+   "PYSPARK_SUBMIT_ARGS": "--master yarn-client pyspark-shell"
+ }
+}

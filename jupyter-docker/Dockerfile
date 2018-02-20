@@ -63,6 +63,7 @@ ENV HAILJAR hail-0.1-$HAILHASH-Spark-$SPARK_VER.jar
 ENV HAILPYTHON hail-0.1-$HAILHASH.zip
 ENV HAILZIP Hail-0.1-$HAILHASH-Spark-$SPARK_VER.zip
 ENV HAIL_HOME /etc/hail
+ENV KERNELSPEC_HOME /usr/local/share/jupyter/kernals
 
 # Note Spark and Hadoop are mounted from the outside Dataproc VM.
 # Make empty conf dirs for the update-alternatives commands.
@@ -160,7 +161,12 @@ RUN apt-get update \
  && pip3 install matplotlib-venn \
  && pip3 install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py"
 
+#ADD python2_kernelspec.json $KERNELSPEC_HOME/python2/kernel.json
+#ADD python3_kernelspec.json $KERNELSPEC_HOME/python3/kernel.json
 
+
+# Replace default kernelspecs
+RUN ./python_kernelspec.sh $KERNELSPEC_HOME
 
 #######################
 # Utilities
@@ -179,4 +185,4 @@ USER $USER
 WORKDIR $HOME
 
 EXPOSE $JUPYTER_PORT
-ENTRYPOINT ["pyspark"]
+ENTRYPOINT [""]
