@@ -105,6 +105,7 @@ RUN apt-get install -yq --no-install-recommends \
     python-seaborn \
     python-tk \
     python-numpy \
+    liblzo2-dev \
     libz-dev \
 
  # NOTE! not sure why, but this must run before pip installation
@@ -126,14 +127,15 @@ RUN apt-get install -yq --no-install-recommends \
  && pip install bx-python \
  && pip install fastinterval \
  && pip install matplotlib-venn \
- && pip install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py"
+ && pip install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py" \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
 
 
 # Python 3 Kernel
 RUN apt-get update \
  && apt-get install -yq --no-install-recommends python3 \
-        liblzo2-dev \
-        libz-dev \
         python3-dev \
         python3-matplotlib \
         python3-pandas \
@@ -157,7 +159,7 @@ RUN apt-get update \
  && pip3 install bx-python \
  && pip3 install fastinterval \
  && pip3 install matplotlib-venn \
- && pip3 install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py"
+ && pip3 install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py" \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/* \
 
