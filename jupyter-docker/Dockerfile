@@ -144,7 +144,7 @@ RUN apt-get update \
  && python3 get-pip.py \
  # install the python 3 kernel
  && pip3 install ipykernel \
- && python3 -m ipykernel install --name python3 --display-name "Python 3" \
+# && python3 -m ipykernel install --name python3 --display-name "Python 3" \
  # python 3 packages
  && pip3 install seaborn \
  && pip3 install python-lzo \
@@ -168,12 +168,15 @@ RUN apt-get update \
 
 
 # Replace default kernelspecs
-RUN ./python_kernelspec.sh $KERNELSPEC_HOME
+#RUN python_kernelspec.sh $KERNELSPEC_HOME
 
 #######################
 # Utilities
 #######################
 
+ADD python_kernelspec.sh $JUPYTER_HOME/
+ADD python2_kernelspec.json $JUPYTER_HOME/
+ADD python3_kernelspec.json $JUPYTER_HOME/
 ADD spark_install_hail.sh $HAIL_HOME/
 ADD jupyter_notebook_config.py $JUPYTER_HOME/
 ADD jupyter_localize_extension.py $JUPYTER_HOME/custom/
@@ -181,7 +184,8 @@ ADD jupyter_install_notebook_extension.sh $JUPYTER_HOME/
 
 RUN chown -R $USER:users $JUPYTER_HOME \
  && chmod +x $JUPYTER_HOME/jupyter_install_notebook_extension.sh \
- && chmod +x $HAIL_HOME/spark_install_hail.sh
+ && chmod +x $HAIL_HOME/spark_install_hail.sh \
+ && chmod +x $JUPYTER_HOME/python_kernelspec.sh
 
 USER $USER
 WORKDIR $HOME

@@ -94,6 +94,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # Run docker-compose. This mounts Hadoop, Spark, and other resources inside the docker container.
     docker-compose -f /etc/cluster-docker-compose.yaml up -d
 
+    # Change python 2 and 3 kernel specs to allow each to have its own spark
+    docker exec -u root -d ${JUPYTER_SERVER_NAME} /etc/jupyter/python_kernelspec.sh
+
     # Install the Hail additions to Spark conf.
     # OK to do this after pyspark runs; it needs to happen before the Jupyter kernel starts.
     docker exec -u root -d ${JUPYTER_SERVER_NAME} /etc/hail/spark_install_hail.sh
