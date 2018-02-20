@@ -39,7 +39,7 @@ trait InstanceComponent extends LeoComponent {
     def createdDate =   column[Timestamp]         ("createdDate",   O.SqlType("TIMESTAMP(6)"))
     def destroyedDate = column[Timestamp]         ("destroyedDate", O.SqlType("TIMESTAMP(6)"))
 
-    def uniqueKey = index("IDX_INSTANCE_UNIQUE", (googleProject, zone, name, destroyedDate), unique = true)
+    def uniqueKey = index("IDX_INSTANCE_UNIQUE", (clusterId, googleProject, zone, name, destroyedDate), unique = true)
     def cluster = foreignKey("FK_INSTANCE_CLUSTER_ID", clusterId, clusterQuery)(_.id)
 
     def * = (id, clusterId, googleProject, zone, name, googleId, status, ip, dataprocRole, createdDate, destroyedDate) <> (InstanceRecord.tupled, InstanceRecord.unapply)
