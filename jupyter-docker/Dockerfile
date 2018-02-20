@@ -1,6 +1,6 @@
 # adapted from https://hub.docker.com/r/jupyter/base-notebook/ AKA https://github.com/jupyter/docker-stacks/tree/master/base-notebook
 
-FROM debian:jessie
+FROM debian:stretch
 
 USER root
 
@@ -11,16 +11,17 @@ USER root
 ENV DEBIAN_FRONTEND noninteractive
 ENV DEBIAN_REPO http://cdn-fastly.deb.debian.org
 
-RUN echo "deb $DEBIAN_REPO/debian jessie main\ndeb $DEBIAN_REPO/debian-security jessie/updates main" > /etc/apt/sources.list \
+RUN echo "deb $DEBIAN_REPO/debian stretch main\ndeb $DEBIAN_REPO/debian-security stretch/updates main" > /etc/apt/sources.list \
  && apt-get update && apt-get -yq dist-upgrade \
  && apt-get install -yq --no-install-recommends \
     nano \
-    #note ca-certificates has to be before wget and curl
-    ca-certificates \
     wget \
+    gnupg \
+    ca-certificates \
     curl \
     build-essential \
     lsb-release \
+    procps \
 
  # google-cloud-sdk separately because it need lsb-release and other prereqs installed above
  && export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" \
@@ -95,6 +96,7 @@ ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/
 RUN apt-get install -yq --no-install-recommends \
     python \
     python-dev \
+    liblzo2-dev \
 
     # useful for analysis
     python-matplotlib \
