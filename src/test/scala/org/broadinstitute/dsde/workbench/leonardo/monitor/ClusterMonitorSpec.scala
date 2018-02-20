@@ -74,10 +74,50 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     Set(masterInstance, workerInstance1, workerInstance2)
   )
 
+  val stoppingCluster = Cluster(
+    clusterName = name3,
+    googleId = UUID.randomUUID(),
+    googleProject = project,
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
+    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
+    operationName = OperationName("op1"),
+    status = ClusterStatus.Stopping,
+    hostIp = None,
+    creator = userEmail,
+    createdDate = Instant.now(),
+    destroyedDate = None,
+    labels = Map("bam" -> "yes", "vcf" -> "no"),
+    None,
+    None,
+    Some(GcsBucketName("testStagingBucket1")),
+    Set(masterInstance, workerInstance1, workerInstance2)
+  )
+
+  val startingCluster = Cluster(
+    clusterName = name3,
+    googleId = UUID.randomUUID(),
+    googleProject = project,
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
+    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
+    operationName = OperationName("op1"),
+    status = ClusterStatus.Starting,
+    hostIp = None,
+    creator = userEmail,
+    createdDate = Instant.now(),
+    destroyedDate = None,
+    labels = Map("bam" -> "yes", "vcf" -> "no"),
+    None,
+    None,
+    Some(GcsBucketName("testStagingBucket1")),
+    Set(masterInstance, workerInstance1, workerInstance2)
+  )
+
   val clusterInstances = Map(Master -> Set(masterInstance.key),
                              Worker -> Set(workerInstance1.key, workerInstance2.key))
 
-  def stubComputeDAO(status: InstanceStatus = InstanceStatus.Running): GoogleComputeDAO = {
+  def stubComputeDAO(status: InstanceStatus): GoogleComputeDAO = {
     val dao = mock[GoogleComputeDAO]
     when {
       dao.getInstance(mockitoEq(masterInstance.key))
@@ -400,6 +440,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // Pre:
   // - cluster exists in the DB with status Creating
   // - dataproc DAO returns status ERROR and error code UNKNOWN
+  // - compute DAO returns status Running
   // Post:
   // - old cluster status is set to Deleted in the DB
   // - new cluster exists with the original cluster name
@@ -425,7 +466,9 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     when {
       gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
-    } thenReturn Future.successful(clusterInstances)
+    } thenReturn {
+      Future.successful(clusterInstances)
+    }
 
     when {
       gdDAO.getClusterErrorDetails(mockitoEq(OperationName("op1")))
@@ -523,9 +566,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     oldCluster shouldBe 'defined
     oldCluster.map(_.status) shouldBe Some(ClusterStatus.Deleted)
     oldCluster.flatMap(_.hostIp) shouldBe None
-    // TODO these are doubled for some reason
-    // oldCluster.map(_.instances.map(_.status)) shouldBe Some(Set(InstanceStatus.Deleted))
-    // oldCluster.map(_.instances.size) shouldBe Some(3)
+    oldCluster.map(_.instances.count(_.status == InstanceStatus.Deleted)) shouldBe Some(3)
 
     val newCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName) }
     val newClusterBucket = dbFutureValue { _.clusterQuery.getInitBucket(creatingCluster.googleProject, creatingCluster.clusterName) }
@@ -535,7 +576,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     newCluster.map(_.googleId) shouldBe Some(newClusterId)
     newCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
     newCluster.flatMap(_.hostIp) shouldBe Some(IP("1.2.3.4"))
-    // TODO newCluster.map(_.instances) shouldBe Some(Set(masterInstance, workerInstance1, workerInstance2))
+    oldCluster.map(_.instances.count(_.status == InstanceStatus.Running)) shouldBe Some(3)
 
     verify(storageDAO).deleteBucket(mockitoEq(newClusterBucket.get.bucketName), mockitoEq(true))
     // should only add/remove the dataproc.worker role 1 time
@@ -581,7 +622,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
   }
 
-  it should "foo create two clusters for the same user" in isolatedDbTest {
+  it should "create two clusters for the same user" in isolatedDbTest {
     dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual creatingCluster
     val creatingCluster2 = creatingCluster.copy(
       clusterName = ClusterName(creatingCluster.clusterName.value + "_2"),
@@ -664,10 +705,107 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     updatedCluster2 shouldBe 'defined
     updatedCluster2.map(_.status) shouldBe Some(ClusterStatus.Running)
     updatedCluster2.flatMap(_.hostIp) shouldBe Some(IP("1.2.3.4"))  // same ip because we're using the same set of instances
-    // TODO updatedCluster2.map(_.instances) shouldBe Some(Set(masterInstance, workerInstance1, workerInstance2))
+    updatedCluster2.map(_.instances) shouldBe Some(Set(masterInstance, workerInstance1, workerInstance2))
 
     verify(storageDAO, times(2)).deleteBucket(any[GcsBucketName], any[Boolean])
     // removeIamRolesForUser should have been called once now
+    verify(iamDAO, if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
+    verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
+  }
+
+  // Pre:
+  // - cluster exists in the DB with status Stopping
+  // - dataproc DAO returns status RUNNING
+  // - compute DAO returns all instances stopped
+  // Post:
+  // - cluster is updated in the DB with status Stopped
+  // - instances are populated in the DB
+  // - monitor actor shuts down
+  it should "monitor until STOPPED state" in isolatedDbTest {
+    dbFutureValue { _.clusterQuery.save(stoppingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual stoppingCluster
+
+    val gdDAO = mock[GoogleDataprocDAO]
+    when {
+      gdDAO.getClusterStatus(mockitoEq(stoppingCluster.googleProject), mockitoEq(stoppingCluster.clusterName))
+    } thenReturn Future.successful(ClusterStatus.Running)
+    when {
+      gdDAO.getClusterInstances(mockitoEq(stoppingCluster.googleProject), mockitoEq(stoppingCluster.clusterName))
+    } thenReturn Future.successful(clusterInstances)
+
+    val computeDAO = stubComputeDAO(InstanceStatus.Stopped)
+    val storageDAO = mock[GoogleStorageDAO]
+    val iamDAO = mock[GoogleIamDAO]
+    val authProvider = mock[LeoAuthProvider]
+
+    createClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider) ! ClusterCreated(stoppingCluster)
+
+    expectMsgClass(1 second, classOf[Terminated])
+    val updatedCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(stoppingCluster.googleProject, stoppingCluster.clusterName) }
+    updatedCluster shouldBe 'defined
+    updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Stopped)
+    updatedCluster.flatMap(_.hostIp) shouldBe None
+    updatedCluster.map(_.instances) shouldBe Some(Set(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped)))
+
+    verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
+    verify(iamDAO, never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
+    verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
+  }
+
+  // Pre:
+  // - cluster exists in the DB with status Starting
+  // - dataproc DAO returns status RUNNING
+  // - compute DAO returns all instances running
+  // Post:
+  // - cluster is updated in the DB with status Running with IP
+  // - instances are populated in the DB
+  // - monitor actor shuts down
+  it should "monitor from STARTING to RUNNING state" in isolatedDbTest {
+    dbFutureValue { _.clusterQuery.save(startingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual startingCluster
+
+    val gdDAO = mock[GoogleDataprocDAO]
+    when {
+      gdDAO.getClusterStatus(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
+    } thenReturn Future.successful(ClusterStatus.Running)
+    when {
+      gdDAO.getClusterInstances(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
+    } thenReturn Future.successful(clusterInstances)
+    when {
+      gdDAO.getClusterMasterInstance(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
+    } thenReturn Future.successful(Some(masterInstance.key))
+    when {
+      gdDAO.getClusterStagingBucket(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
+    } thenReturn Future.successful(Some(GcsBucketName("staging-bucket")))
+
+    val computeDAO = stubComputeDAO(InstanceStatus.Running)
+    val storageDAO = mock[GoogleStorageDAO]
+    when {
+      storageDAO.deleteBucket(any[GcsBucketName], any[Boolean])
+    } thenReturn Future.successful(())
+
+    when {
+      storageDAO.setBucketAccessControl(any[GcsBucketName], any[GcsEntity], any[GcsRole])
+    } thenReturn Future.successful(())
+
+    when {
+      storageDAO.setDefaultObjectAccessControl(any[GcsBucketName], any[GcsEntity], any[GcsRole])
+    } thenReturn Future.successful(())
+
+    val iamDAO = mock[GoogleIamDAO]
+    when {
+      iamDAO.removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
+    } thenReturn Future.successful(())
+    val authProvider = mock[LeoAuthProvider]
+
+    createClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider) ! ClusterCreated(startingCluster)
+
+    expectMsgClass(1 second, classOf[Terminated])
+    val updatedCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(startingCluster.googleProject, startingCluster.clusterName) }
+    updatedCluster shouldBe 'defined
+    updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
+    updatedCluster.flatMap(_.hostIp) shouldBe Some(IP("1.2.3.4"))
+    updatedCluster.map(_.instances) shouldBe Some(Set(masterInstance, workerInstance1, workerInstance2))
+
+    verify(storageDAO).deleteBucket(any[GcsBucketName], mockitoEq(true))
     verify(iamDAO, if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
     verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
   }
