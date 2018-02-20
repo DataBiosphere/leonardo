@@ -14,9 +14,11 @@ LOCAL_UI=${LOCAL_UI:-false}  # local ui defaults to false unless set in the env
 
 # Parameters
 FIRECLOUD_AUTOMATED_TESTING_BRANCH=${1:-$FIRECLOUD_AUTOMATED_TESTING_BRANCH}
-WORKING_DIR=${2:-$WORKING_DIR}
-VAULT_TOKEN=${3:-$VAULT_TOKEN}
-ENV=${4:-$ENV}
+VAULT_TOKEN=${2:-$VAULT_TOKEN}
+ENV=${3:-$ENV}
+SERVICE_ROOT=${4:-$SERVICE}
+
+SCRIPT_ROOT=${SERVICE_ROOT}/automation
 
 confirm () {
     # call with a prompt string or use a default
@@ -34,24 +36,17 @@ confirm () {
 # clone the firecloud-automated-testing repo
 clone_repo() {
     original_dir=$PWD
-    if [[ $PWD == *"${SERVICE}"* ]]
-        then
-        cd ..
-    fi
-
-    echo "Currently in" $PWD
-    confirm "OK to clone here?" git clone https://github.com/broadinstitute/firecloud-automated-testing.git
-
+    cd ../..
+    echo "Currently in ${PWD}"
+    confirm "OK to clone here?" git clone git@github.com:broadinstitute/firecloud-automated-testing.git
     cd $original_dir
 }
 
 pull_configs() {
     original_dir=$WORKING_DIR
-    if [[ $PWD == *"${SERVICE}"* ]]; then
-        cd ../..
-    fi
+    cd ../..
     cd firecloud-automated-testing
-    echo $PWD
+    echo "Currently in ${PWD}"
     git stash
     git checkout ${FIRECLOUD_AUTOMATED_TESTING_BRANCH}
     git pull
@@ -60,9 +55,7 @@ pull_configs() {
 
 render_configs() {
     original_dir=$WORKING_DIR
-    if [[ $PWD == *"${SERVICE}"* ]]; then
-        cd ../..
-    fi
+    cd ../..
     docker pull broadinstitute/dsde-toolbox:dev
     docker run -it --rm -e VAULT_TOKEN=${VAULT_TOKEN} \
         -e ENVIRONMENT=${ENV} -e ROOT_DIR=${WORKING_DIR} -v $PWD/firecloud-automated-testing/configs:/input -v $PWD/$SERVICE/automation:/output \
@@ -77,6 +70,10 @@ render_configs() {
     cd $original_dir
 }
 
+if [[ $PWD != *"${SCRIPT_ROOT}" ]]; then
+    echo "Error: this script needs to be running from the ${SCRIPT_ROOT} directory!"
+    exit 1
+fi
 confirm "Clone firecloud-automated-testing repo?  Skip if you have already run this step before." clone_repo
 confirm "Checkout ${FIRECLOUD_AUTOMATED_TESTING_BRANCH}? This will stash local changes.  If N, configs will be built from local changes." pull_configs
 render_configs

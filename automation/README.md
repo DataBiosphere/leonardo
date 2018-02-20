@@ -15,21 +15,20 @@ brew install chromedriver
 
 Note: Leonardo integration tests are not currently web-based but may fail due to dependencies without chromedriver
 
-Render configs:
 ```bash
-./render-local-env.sh [branch of firecloud-automated-testing] [working dir] [vault token] [env]
+./render-local-env.sh [branch of firecloud-automated-testing] [vault token] [env] [service root]
 ```
 
 **Arguments:** (arguments are positional)
 
 * branch of firecloud-automated-testing
     * Configs branch; defaults to `master`
-* Working directory
-	* Defaults to `$PWD`.
 * Vault auth token
 	* Defaults to reading it from the .vault-token via `$(cat ~/.vault-token)`.
 * env
 	* Environment of your FiaB; defaults to `dev`
+* service root
+    * the name of your local clone of leonardo if not `leonardo`
 	
 ##### Using a local UI
 
