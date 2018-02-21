@@ -142,12 +142,10 @@ RUN apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN R -e 'install.packages(c("repr", "IRdisplay", "evaluate", "crayon", "pbdZMQ", "devtools", "uuid", "digest"), repos="http://cran.case.edu")'
+RUN R -e 'install.packages(c("repr", "IRdisplay", "evaluate", "crayon", "pbdZMQ", "devtools", "uuid", "digest"), repos="https://cran.mtu.edu")'
 RUN R -e 'devtools::install_github("IRkernel/IRkernel")'
-RUN R -e 'IRkernel::installspec(user=FALSE)'
-
-#RUN mkdir -p $JUPYTER_HOME/.local \
-  #&& chown -R $USER:users $JUPYTER_HOME/.local 
+RUN R -e 'IRkernel::installspec(user=FALSE)' \
+ && chown -R $USER:users /home/jupyter-user/.local 
 
 #######################
 # Utilities
