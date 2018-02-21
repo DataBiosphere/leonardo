@@ -146,6 +146,7 @@ RUN R -e 'install.packages(c("repr", "IRdisplay", "evaluate", "crayon", "pbdZMQ"
 RUN R -e 'devtools::install_github("IRkernel/IRkernel")'
 RUN R -e 'IRkernel::installspec(user=FALSE)' \
  && chown -R $USER:users /home/jupyter-user/.local 
+RUN R -e 'devtools::install_github("apache/spark@v2.0.2", subdir="R/pkg")'
 
 #######################
 # Utilities
