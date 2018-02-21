@@ -33,8 +33,7 @@ class HttpGoogleComputeDAO(appName: String,
                           (implicit override val system: ActorSystem, override val executionContext: ExecutionContext)
   extends AbstractHttpGoogleDAO(appName, googleCredentialMode, workbenchMetricBaseName) with GoogleComputeDAO {
 
-  // TODO
-  override implicit val service: GoogleInstrumentedService = GoogleInstrumentedService.Dataproc
+  override implicit val service: GoogleInstrumentedService = GoogleInstrumentedService.Compute
 
   override val scopes: Seq[String] = Seq(ComputeScopes.COMPUTE)
 

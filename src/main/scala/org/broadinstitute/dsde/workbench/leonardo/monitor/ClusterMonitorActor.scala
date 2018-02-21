@@ -252,14 +252,15 @@ class ClusterMonitorActor(val cluster: Cluster,
       result <- googleStatus match {
         case Unknown | Creating | Updating =>
           Future.successful(NotReadyCluster(googleStatus, googleInstances))
-        // Take care we don't restart a Deleting cluster if google hasn't updated their status yet
-        case Running if cluster.status != Deleting && runningInstanceCount == googleInstances.size =>
+        // Take care we don't restart a Deleting or Stopping cluster if google hasn't updated their status yet
+        case Running if cluster.status != Deleting && cluster.status != Stopping && runningInstanceCount == googleInstances.size =>
           getMasterIp.map {
             case Some(ip) => ReadyCluster(ip, googleInstances)
             case None =>
               NotReadyCluster(ClusterStatus.Running, googleInstances)
           }
-        case Error if runningInstanceCount == googleInstances.size =>
+        // Take care we don't fail a Deleting or Stopping cluster if google hasn't updated their status yet
+        case Error if cluster.status != Deleting && cluster.status != Stopping =>
           gdDAO.getClusterErrorDetails(cluster.operationName).map {
             case Some(errorDetails) => FailedCluster(errorDetails, googleInstances)
             case None => NotReadyCluster(ClusterStatus.Error, googleInstances)

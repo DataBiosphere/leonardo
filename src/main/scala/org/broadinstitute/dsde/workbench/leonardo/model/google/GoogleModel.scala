@@ -102,6 +102,7 @@ sealed trait InstanceStatus extends EnumEntry
 object InstanceStatus extends Enum[InstanceStatus] {
   val values = findValues
 
+  // NOTE: Remember to update the definition of this enum in Swagger when you add new ones
   case object Provisioning extends InstanceStatus
   case object Staging      extends InstanceStatus
   case object Running      extends InstanceStatus
@@ -111,6 +112,7 @@ object InstanceStatus extends Enum[InstanceStatus] {
   case object Suspended    extends InstanceStatus
   case object Terminated   extends InstanceStatus
 
+  // note: the below are Leo-specific statuses, not Dataproc statuses
   case object Deleting     extends InstanceStatus
   case object Deleted      extends InstanceStatus
 }

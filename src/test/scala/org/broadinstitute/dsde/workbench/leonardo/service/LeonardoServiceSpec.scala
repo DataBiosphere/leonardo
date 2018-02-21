@@ -8,7 +8,8 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.testkit.TestKit
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
-import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetClusterServiceAccountProvider, MockSwaggerSamClient, WhitelistAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
+import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{MockPetClusterServiceAccountProvider, MockSwaggerSamClient}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
