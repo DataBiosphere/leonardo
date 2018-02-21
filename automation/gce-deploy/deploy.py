@@ -71,19 +71,19 @@ SSL_TEST_FILE="{ssl_test_file}"
 """
 
 
-
-class Color(object):
-
-    @staticmethod
-    def G(text):
-        return '\033[92m' + text + '\033[0m'
+class Print(object):
+    """Print to the console in color!"""
 
     @staticmethod
-    def Y(text):
-        return '\033[93m' + text + '\033[0m'
+    def GN(text):  # pylint: disable=invalid-name,missing-docstring
+        print('\033[92m' + text + '\033[0m')
+
+    @staticmethod
+    def YL(text):  # pylint: disable=invalid-name,missing-docstring
+        print('\033[93m' + text + '\033[0m')
 
 
-def parse_arguments():
+def parse_arguments():  # pylint: disable=too-many-statements
     """Create and parse argument namespace.
 
     The only required arguments are project and zone. Other arguments
@@ -272,36 +272,12 @@ def parse_arguments():
     if args.build_and_exit:
         return args
 
+    args = ssl_args_rewrite_validate(args)
+
     # Service account defaults to 'default'. In this case, convert
     # to the email form.
-    args.service_account = convert_service_account_to_email(
+    args.service_account = service_account_email_format(
         args.service_account, args.project)
-
-    # Pre-validate ssl flag group by checking that values are legal.
-    # key validation is done later.
-    valid_kms_args = True
-    for sslflag in SSL_FILE_FLAGS:
-        argvalue = getattr(args, sslflag)
-        if argvalue:
-            args.includes_ssl_files = True
-            if not re.match(GS_REGEX, argvalue):
-                warn = '%s must be a GCS path (ex: gs://BUCKET/OBJECT)'
-                warn += '\nfound %s instead.'
-                warn %= (sslflag, argvalue)
-                print(Color.Y(warn))
-                valid_kms_args = False
-    if args.includes_ssl_files:
-        args.kms_project = args.kms_project or args.project
-        if not args.kms_keyring:
-            print(Color.Y(
-                'If including SSL files, you must set --kms-keyring.'))
-            valid_kms_args = False
-        if not args.kms_key:
-            print(Color.Y('If including SSL files, you must set --kms-key.'))
-            valid_kms_args = False
-    if not valid_kms_args:
-        print(Color.Y('SSL flags were missing or incorrect, see gce-deploy/README.md'))
-        sys.exit(1)
 
     # Determine zone.
     args.zone = get_zone_from_flag_values(args.region, args.zone)
@@ -315,6 +291,38 @@ def parse_arguments():
         args.cloud_sql_project = args.project
     if not args.cloud_sql_password:
         args.cloud_sql_password = RANDPASSWORD
+    return args
+
+
+def ssl_args_rewrite_validate(args):
+    """Validate SSL args, then rewrite any cross-flag defaults."""
+    # Check that file paths are present and well-formed values. In that case,
+    # set the user_hidden 'includes_ssl_files' flag to True.
+    valid_kms_args = True
+    for sslflag in SSL_FILE_FLAGS:
+        argvalue = getattr(args, sslflag)
+        if argvalue:
+            args.includes_ssl_files = True
+            if not re.match(GS_REGEX, argvalue):
+                warn = '%s must be a GCS path (ex: gs://BUCKET/OBJECT)'
+                warn += '\nfound %s instead.'
+                warn %= (sslflag, argvalue)
+                Print.YL(warn)
+                valid_kms_args = False
+    # When passing SSL files, some default values may come from
+    # global flags. Reset those defaults and raise errors if required
+    # flags are missing.
+    if args.includes_ssl_files:
+        args.kms_project = args.kms_project or args.project
+        if not args.kms_keyring:
+            Print.YL('If including SSL files, you must set --kms-keyring.')
+            valid_kms_args = False
+        if not args.kms_key:
+            Print.YL('If including SSL files, you must set --kms-key.')
+            valid_kms_args = False
+    if not valid_kms_args:
+        Print.YL('SSL flags were missing or incorrect, see gce-deploy/README.md')
+        sys.exit(1)
     return args
 
 
@@ -340,7 +348,7 @@ def validate_keystore_key(args):
                 args.kms_keyring,
                 args.kms_project,
                 args.kms_location)
-    print(Color.Y(warning))
+    Print.YL(warning)
     sys.exit(1)
 
 
@@ -365,12 +373,14 @@ def ssh_key_propagation_call_retry(cmd):
     raise err
 
 
-def _docker_image(project, image_name, tag):
+def _to_gcr_path(project, image_name, tag):
+    """Convert project, image name and tag to a valid GCR name."""
     image_project = project.replace(':', '/')
     return 'gcr.io/' + image_project + '/' + image_name + ':' + tag
 
 
 def gcloud_json(cmd_list):
+    """Execute gcloud with json format, returning the parsed results."""
     if any(['--format' in field for field in cmd_list]):
         raise ValueError('Format must be controlled by this function')
     cmd_list = [c for c in cmd_list]  # Copy list to prevent mutation.
@@ -379,7 +389,8 @@ def gcloud_json(cmd_list):
     return json.loads(raw_data)
 
 
-def validate_services(project):
+def enable_gcp_apis(project):
+    """Check and, with consent, enable required GCP APIs."""
     active_services = subprocess.check_output(
         ['gcloud', 'services', 'list',
          '--project', project,
@@ -391,14 +402,14 @@ def validate_services(project):
             needed_services.append(service)
     if not needed_services:
         return
-    print(Color.Y('Several required GCP services are disabled,'))
+    Print.YL('Several required GCP services are disabled, enable them now? [y/N]')
     for service in needed_services:
         print('  - %s' % service)
 
-    response = raw_input(Color.Y('Enable them now? [y/N]'))
+    response = raw_input(': ')
     if not re.match('^y(es)?$', response.lower().strip()):
-        print(Color.Y('Enable the services and retry deployment.'))
-        sys.exit(1)
+        Print.YL('WARNING: this may result in unexpected behaviors or errors.')
+        return
     for service in needed_services:
         subprocess.check_call(
             ['gcloud', 'services', 'enable',
@@ -417,7 +428,7 @@ def select_eligible_ip(project, region):
     While this script's interaction can be overridden by flags,
     it's default behavior is to prompt the user for a decision.
     """
-    print(Color.G('Starting IP address selection'))
+    Print.GN('Starting IP address selection')
     reuse_reserved = False
     # Check if reserved IPs exist
     list_command = ['gcloud', 'compute', 'addresses', 'list', '--project', project]
@@ -458,9 +469,9 @@ def select_eligible_ip(project, region):
          '--description', 'Address used for leonardo deployment on %s' % TODAY_SUFFIX,
          '--region', region,
          '--project', project])
-    for ip in gcloud_json(list_command):
-        if ip['name'] == addr_name:
-            return ip['address']
+    for ip_info in gcloud_json(list_command):
+        if ip_info['name'] == addr_name:
+            return ip_info['address']
     raise ValueError('Could not find or create a reserved IP address.')
 
 
@@ -482,7 +493,8 @@ def get_zone_from_flag_values(region, zone):
 
 
 def create_database(args):
-    print(Color.G('Creating and configuring Cloud SQL.'))
+    """Create the Cloud SQL database instance."""
+    Print.GN('Creating and configuring Cloud SQL.')
     connection_name = '%s:%s:%s' % (
         args.cloud_sql_project, args.cloud_sql_region, args.cloud_sql_name)
     subprocess.check_output(
@@ -512,6 +524,7 @@ def create_database(args):
 
 
 def create_firewall_rule(project):
+    """Create a firewall rule for Leonardo."""
     listed_rules = subprocess.check_output(
         ['gcloud', 'compute', 'firewall-rules', 'list',
          '--format', 'value(name)',
@@ -519,7 +532,7 @@ def create_firewall_rule(project):
          '--project', project])
     if LEO_FIREWALL_RULE in listed_rules:
         return
-    print(Color.G('Creating firewall rule for Leonardo VM.'))
+    Print.GN('Creating firewall rule for Leonardo VM.')
     subprocess.check_call(
         ['gcloud', 'compute', 'firewall-rules', 'create',
          LEO_FIREWALL_RULE,
@@ -530,7 +543,8 @@ def create_firewall_rule(project):
 
 
 def create_gce_instance(args, ip_address):
-    print(Color.G('Creating GCE VM.'))
+    """Create Leonardo GCE instance."""
+    Print.GN('Creating GCE VM.')
     instance_name = GCE_INSTANCE_NAME.lower()
     firewall_tag = 'https-server' if args.https_only else LEO_FIREWALL_RULE
     cmd = ['gcloud', 'compute', 'instances', 'create',
@@ -553,7 +567,7 @@ def create_gce_instance(args, ip_address):
         gce_vars = GCE_INIT_SCRIPT_VARS.format(
             server_host=args.host,
             user=LOCAL_USER,
-            docker_image=_docker_image(args.project, 'leonardo', args.branch),
+            docker_image=_to_gcr_path(args.project, 'leonardo', args.branch),
             server_ssl_key=args.ssl_key,
             server_ssl_cert=args.ssl_cert,
             server_ca_bundle=args.ssl_ca_bundle,
@@ -576,7 +590,8 @@ def create_gce_instance(args, ip_address):
 
 
 def build_jar_and_push(project, branch):
-    print(Color.G('Building JAR and pushing image.'))
+    """Build the leo JAR and docker image, pushing to GCR."""
+    Print.GN('Building JAR and pushing image.')
     current_env = os.environ.copy()
     current_env['BRANCH'] = branch
     subprocess.check_call([
@@ -588,7 +603,7 @@ def build_jar_and_push(project, branch):
     ], env=current_env)
 
 
-def convert_service_account_to_email(service_account, project):
+def service_account_email_format(service_account, project):
     """If the service account is 'default', convert to account email."""
     if service_account != 'default':
         return service_account
@@ -600,8 +615,8 @@ def convert_service_account_to_email(service_account, project):
         if 'compute@developer' in sa_struct['email']:
             return sa_struct['email']
 
-    print(Color.Y('Could not find compute default service account!'))
-    print(Color.Y('See `gcloud iam service-accounts list`.'))
+    Print.YL('Could not find compute default service account!')
+    Print.YL('See `gcloud iam service-accounts list`.')
     sys.exit(1)
 
 
@@ -629,23 +644,36 @@ def get_service_acct_pem_file(args):
 
 
 @contextlib.contextmanager
-def generate_config_from_tmpl(configname, args, sql_conn=''):
-    raw_conf = open(os.path.join(SCRIPT_DIR, configname), 'r').read()
-    raw_conf = raw_conf.replace('TEMPLATE_VAR_DOMAIN', args.host)
-    raw_conf = raw_conf.replace(
-        'TEMPLATE_VAR_OAUTH2_CLIENT_ID', args.oauth2_client_id)
-    raw_conf = raw_conf.replace(
-        'TEMPLATE_VAR_SERVICE_ACCOUNT', args.service_account)
-    raw_conf = raw_conf.replace(
-        'TEMPLATE_VAR_SQL_INSTANCE_CONN', sql_conn)
-    raw_conf = raw_conf.replace(
-        'TEMPLATE_VAR_PROJECT', args.project)
-    raw_conf = raw_conf.replace(
-        'TEMPLATE_VAR_DOCKER_PROJECT', args.project.replace(':', '/'))
-    raw_conf = raw_conf.replace(
-        'TEMPLATE_VAR_DOCKER_TAG', args.branch)
-    raw_conf = raw_conf.replace(
-        'TEMPLATE_VAR_DBPASS', args.cloud_sql_password)
+def generate_config_from_tmpl(compose_path, args, sql_conn=''):
+    """Context manager to make configs for upload.
+
+    A number of config template variables are shared between config files.
+    This context manager does the replacement of each template config
+    and writes to a temp file. The name of that temp file is returned
+    while within the context, then the tempfile is cleaned up.
+
+    Args:
+        config_path: (str) path to config with template variables.
+        args: (argparse.Namespace) parsed and validated arguments.
+        sql_conn: (str) full Cloud SQL connection string, only needed
+            for some config files.
+
+    Yields:
+        name of temporary config file.
+    """
+    raw_conf = open(compose_path, 'r').read()
+    replace_map = {
+        'TEMPLATE_VAR_PROJECT': args.project,
+        'TEMPLATE_VAR_DOMAIN': args.host,
+        'TEMPLATE_VAR_SERVICE_ACCOUNT': args.service_account,
+        'TEMPLATE_VAR_OAUTH2_CLIENT_ID': args.oauth2_client_id,
+        'TEMPLATE_VAR_SQL_INSTANCE_CONN': sql_conn,
+        'TEMPLATE_VAR_DBPASS': args.cloud_sql_password,
+        'TEMPLATE_VAR_DOCKER_PROJECT': args.project.replace(':', '/'),
+        'TEMPLATE_VAR_DOCKER_TAG': args.branch,
+    }
+    for template_var, value in replace_map.items():
+        raw_conf = raw_conf.replace(template_var, value)
     with tempfile.NamedTemporaryFile() as real_conf:
         real_conf.write(raw_conf)
         real_conf.flush()
@@ -653,32 +681,23 @@ def generate_config_from_tmpl(configname, args, sql_conn=''):
 
 
 def configure_gce_instance(instance_name, db_conn_name, args):
-    print(Color.G('Configuring GCE VM.'))
-    # site.conf
-    with generate_config_from_tmpl('site.conf', args) as site_conf:
-        cmd = ('gcloud', 'compute', 'scp',
-               site_conf,
-               'root@%s:/app/site.conf' % instance_name,
-               '--zone', args.zone,
-               '--project', args.project)
-        # Run call with retry wrapper - ssh keys may take time to propagate.
-        ssh_key_propagation_call_retry(cmd)
-    # docker-compose.conf
-    with generate_config_from_tmpl('docker-compose.yml', args, db_conn_name) as config_file:
-        cmd = ('gcloud', 'compute', 'scp',
-               config_file,
-               'ubuntu@%s:~/docker-compose.yml' % instance_name,
-               '--zone', args.zone,
-               '--project', args.project)
-        subprocess.check_call(cmd)
-    # leonardo.conf
-    with generate_config_from_tmpl('leonardo.conf', args) as config_file:
-        cmd = ('gcloud', 'compute', 'scp',
-               config_file,
-               'root@%s:/app/leonardo.conf' % instance_name,
-               '--zone', args.zone,
-               '--project', args.project)
-        subprocess.check_call(cmd)
+    """Send config files to the launched GCE instance."""
+    Print.GN('Configuring GCE VM.')
+    # Config tuples: (destination user, destination path, source path).
+    configs = [
+        ('ubuntu', '~/docker-compose.yml', os.path.join(SCRIPT_DIR, 'docker-compose.yml')),
+        ('root', '/app/site.conf', os.path.join(SCRIPT_DIR, 'site.conf')),
+        ('root', '/app/leonardo.conf', os.path.join(SCRIPT_DIR, 'leonardo.conf')),
+    ]
+    for user, dest, source in configs:
+        with generate_config_from_tmpl(source, args, sql_conn=db_conn_name) as site_conf:
+            cmd = ('gcloud', 'compute', 'scp',
+                   site_conf,
+                   '%s@%s:%s' % (user, instance_name, dest),
+                   '--zone', args.zone,
+                   '--project', args.project)
+            # Run call with retry wrapper - ssh keys may take time to propagate.
+            ssh_key_propagation_call_retry(cmd)
     # leonardo-account.pem
     with get_service_acct_pem_file(args) as pem_file_name:
         cmd = ('gcloud', 'compute', 'scp', pem_file_name,
@@ -689,6 +708,7 @@ def configure_gce_instance(instance_name, db_conn_name, args):
 
 
 def main():
+    """Main function."""
     args = parse_arguments()
     if args.includes_ssl_files:
         validate_keystore_key(args)
@@ -697,7 +717,7 @@ def main():
         if args.build_and_exit:
             print('Building complete, skipping cloud deploy.')
             exit(0)
-    validate_services(args.project)
+    enable_gcp_apis(args.project)
     ip_address = select_eligible_ip(args.project, args.region)
     if args.host == 'IP':
         args.host = ip_address
@@ -712,6 +732,17 @@ def main():
         create_firewall_rule(args.project)
     gce_instance_name = create_gce_instance(args, ip_address)
     configure_gce_instance(gce_instance_name, db_conn_name, args)
+    Print.GN('You have successfully deployed Leonardo. You can run Leonardo')
+    Print.GN('and view logs using the following gcloud command:\n')
+    run_cmd = ('  gcloud compute ssh ubuntu@{name} \\\n'
+               '      --zone="{zone}" \\\n'
+               '      --project="{project}" \\\n      -- \\\n'
+               '      "docker-compose up"\n')
+    run_cmd = run_cmd.format(name=gce_instance_name, zone=args.zone, project=args.project)
+    Print.GN(run_cmd)
+    Print.GN('Once run with the command above, you can visit https://%s/ \n' % args.host)
+    Print.GN('Be sure to add https://%s/o2c.html as an' % args.host)
+    Print.GN('Authorized redirect URIs of your OAuth2 Client')
 
 
 

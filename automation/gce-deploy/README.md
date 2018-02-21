@@ -7,7 +7,7 @@ here until the deploy script can run a full deployment
 and provide a functioning Leonardo environment.
 
  ISSUES TO RESOLVE:
-   * Authentication for notebook proxy.
+   * Authentication fails when user's access notebook via the Leonardo-proxy.
    * Running without SAM server (get rid of extraneous warnings or disable entirely).
 
 
@@ -75,14 +75,17 @@ important when:
   * For an existing Leonardo deploy, generating new back-end certificates
     will cause the connection with existing notebook servers to fail.
 
-### Sending SSL Certificates Overview.
+
+### Sending SSL Certificates to Leo
+
+#### Quickstart
 
 Use cloud kms to encrypt certificate files, store them in GCS, and
 set appropriate flags allowing the Leonardo startup script to find
 and decrypt the files. Detailed instuctions are included below.
 
 
-### List of SSL Flags
+#### List of SSL Flags
 
   --kms-project:   project of kms keyring (defaults to --project)
   --kms-location:  location of kms keyring (defaults to global)
@@ -95,7 +98,7 @@ and decrypt the files. Detailed instuctions are included below.
   --ssl-ca-bundle  GCS path of the encrypted front-end CA bundle
 
 
-### Detailed SSL Cert Instructions
+#### Recipe for sending SSL certs
 
   1) Generate or procure a root certificate authority key for internal
      use. You can generate a key using the following openssl command.
