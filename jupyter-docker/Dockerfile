@@ -144,6 +144,7 @@ RUN apt-get update \
  && python3 get-pip.py \
  # install the python 3 kernel
  && pip3 install ipykernel \
+ && python3 -m ipykernel install --name python3 --display-name "Python 3" \
  # python 3 packages
  && pip3 install seaborn \
  && pip3 install python-lzo \
