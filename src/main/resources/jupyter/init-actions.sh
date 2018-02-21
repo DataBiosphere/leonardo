@@ -136,7 +136,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
       docker exec -u root -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
     fi
 
-    #docker exec -d ${JUPYTER_SERVER_NAME} ${PYSPARK}
+    docker exec -d ${JUPYTER_SERVER_NAME} ${PYSPARK}
 fi
 
 
