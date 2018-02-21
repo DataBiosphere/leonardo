@@ -685,15 +685,15 @@ def configure_gce_instance(instance_name, db_conn_name, args):
     Print.GN('Configuring GCE VM.')
     # Config tuples: (destination user, destination path, source path).
     configs = [
-        ('ubuntu', '~/docker-compose.yml', os.path.join(SCRIPT_DIR, 'docker-compose.yml')),
-        ('root', '/app/site.conf', os.path.join(SCRIPT_DIR, 'site.conf')),
-        ('root', '/app/leonardo.conf', os.path.join(SCRIPT_DIR, 'leonardo.conf')),
+        ('~/docker-compose.yml', os.path.join(SCRIPT_DIR, 'docker-compose.yml')),
+        ('~/app/site.conf', os.path.join(SCRIPT_DIR, 'site.conf')),
+        ('~/app/leonardo.conf', os.path.join(SCRIPT_DIR, 'leonardo.conf')),
     ]
-    for user, dest, source in configs:
+    for dest, source in configs:
         with generate_config_from_tmpl(source, args, sql_conn=db_conn_name) as site_conf:
             cmd = ('gcloud', 'compute', 'scp',
                    site_conf,
-                   '%s@%s:%s' % (user, instance_name, dest),
+                   'ubuntu@%s:%s' % (instance_name, dest),
                    '--zone', args.zone,
                    '--project', args.project)
             # Run call with retry wrapper - ssh keys may take time to propagate.
@@ -701,7 +701,7 @@ def configure_gce_instance(instance_name, db_conn_name, args):
     # leonardo-account.pem
     with get_service_acct_pem_file(args) as pem_file_name:
         cmd = ('gcloud', 'compute', 'scp', pem_file_name,
-               'root@%s:/app/leonardo-account.pem' % instance_name,
+               'ubuntu@%s:~/app/leonardo-account.pem' % instance_name,
                '--zone', args.zone,
                '--project', args.project)
         subprocess.check_call(cmd)
@@ -741,8 +741,8 @@ def main():
     run_cmd = run_cmd.format(name=gce_instance_name, zone=args.zone, project=args.project)
     Print.GN(run_cmd)
     Print.GN('Once run with the command above, you can visit https://%s/ \n' % args.host)
-    Print.GN('Be sure to add https://%s/o2c.html as an' % args.host)
-    Print.GN('Authorized redirect URIs of your OAuth2 Client')
+    Print.GN('Be sure to add "https://%s/o2c.html" to the list of' % args.host)
+    Print.GN('authorized redirect URIs of your OAuth2 Client.')
 
 
 

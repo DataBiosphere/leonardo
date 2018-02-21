@@ -20,8 +20,8 @@
 #   - KMS_LOCATION
 
 
-KEYROOT=/app
-mkdir $KEYROOT
+CONFIGROOT=/home/ubuntu/app
+sudo -u ubuntu mkdir $CONFIGROOT
 
 
 ####
@@ -44,6 +44,9 @@ if id -u $REMOTE_USER; then
         usermod -aG docker $REMOTE_USER
 fi
 
+# With install finished (all further operations can be done as
+# the primary non-root user.
+su ubuntu
 
 
 ####
@@ -65,70 +68,67 @@ function decrypt_remote_key() {
 }
 
 if [ -z "${INTERNAL_ROOT_CA}" ]; then
-        openssl genrsa -out $KEYROOT/rootCA.key 2048 -des3
+        openssl genrsa -out $CONFIGROOT/rootCA.key 2048 -des3
 else
-        decrypt_remote_key "${INTERNAL_ROOT_CA}" $KEYROOT/rootCA.key
+        decrypt_remote_key "${INTERNAL_ROOT_CA}" $CONFIGROOT/rootCA.key
 fi
 openssl req -x509 -new -nodes \
         -subj "/C=US/CN=${SERVER_HOST}" \
-        -key $KEYROOT/rootCA.key -days 1024 -out $KEYROOT/rootCA.pem -sha256
+        -key $CONFIGROOT/rootCA.key -days 1024 -out $CONFIGROOT/rootCA.pem -sha256
 
-openssl genrsa -out $KEYROOT/jupyter-server.key 2048
-openssl req -new -key $KEYROOT/jupyter-server.key \
+openssl genrsa -out $CONFIGROOT/jupyter-server.key 2048
+openssl req -new -key $CONFIGROOT/jupyter-server.key \
         -subj "/C=US/CN=${SERVER_HOST}" \
-        -out $KEYROOT/jupyter-server.csr -sha256
-openssl x509 -req -in $KEYROOT/jupyter-server.csr \
-        -CA $KEYROOT/rootCA.pem \
-        -CAkey $KEYROOT/rootCA.key \
-        -CAcreateserial -out $KEYROOT/jupyter-server.crt -days 1500
+        -out $CONFIGROOT/jupyter-server.csr -sha256
+openssl x509 -req -in $CONFIGROOT/jupyter-server.csr \
+        -CA $CONFIGROOT/rootCA.pem \
+        -CAkey $CONFIGROOT/rootCA.key \
+        -CAcreateserial -out $CONFIGROOT/jupyter-server.crt -days 1500
 
-openssl genrsa -out $KEYROOT/leo-client.key 2048
-openssl req -new -key $KEYROOT/leo-client.key \
+openssl genrsa -out $CONFIGROOT/leo-client.key 2048
+openssl req -new -key $CONFIGROOT/leo-client.key \
         -subj "/C=US/CN=${SERVER_HOST}" \
-        -out $KEYROOT/leo-client.csr -sha256
-openssl x509 -req -in $KEYROOT/leo-client.csr -CA $KEYROOT/rootCA.pem \
-        -CAkey $KEYROOT/rootCA.key \
+        -out $CONFIGROOT/leo-client.csr -sha256
+openssl x509 -req -in $CONFIGROOT/leo-client.csr -CA $CONFIGROOT/rootCA.pem \
+        -CAkey $CONFIGROOT/rootCA.key \
         -CAcreateserial \
-        -out $KEYROOT/leo-client.crt \
+        -out $CONFIGROOT/leo-client.crt \
         -days 1500
 
 # Generate keystore without password.
 openssl pkcs12 -export -passout pass:leokeystorepassword \
-        -inkey $KEYROOT/leo-client.key \
-        -in $KEYROOT/leo-client.crt \
-        -out $KEYROOT/leo-client.p12
-
+        -inkey $CONFIGROOT/leo-client.key \
+        -in $CONFIGROOT/leo-client.crt \
+        -out $CONFIGROOT/leo-client.p12
 
 # Generate front-end self-signed key, delete any key provided
 # as a remote key.
 openssl req -new -newkey rsa:2048 \
     -days 365 -nodes -x509 \
     -subj "/C=US/CN=${SERVER_HOST}" \
-    -keyout $KEYROOT/server.key -out $KEYROOT/server.crt
-cp $KEYROOT/server.crt $KEYROOT/ca-bundle.crt
+    -keyout $CONFIGROOT/server.key -out $CONFIGROOT/server.crt
+cp $CONFIGROOT/server.crt $CONFIGROOT/ca-bundle.crt
 
 if [ ! -z "${SERVER_SSL_KEY}" ]; then
-        rm $KEYROOT/server.key
-        decrypt_remote_key "${SERVER_SSL_KEY}" $KEYROOT/server.key
+        rm $CONFIGROOT/server.key
+        decrypt_remote_key "${SERVER_SSL_KEY}" $CONFIGROOT/server.key
 fi
 if [ ! -z "${SERVER_SSL_CERT}" ]; then
-        rm $KEYROOT/server.crt
-        decrypt_remote_key "${SERVER_SSL_CERT}" $KEYROOT/server.crt
+        rm $CONFIGROOT/server.crt
+        decrypt_remote_key "${SERVER_SSL_CERT}" $CONFIGROOT/server.crt
 fi
 if [ ! -z "${SERVER_CA_BUNDLE}" ]; then
-        rm $KEYROOT/ca-bundle.crt
-        decrypt_remote_key "${SERVER_CA_BUNDLE}" $KEYROOT/ca-bundle.crt
+        rm $CONFIGROOT/ca-bundle.crt
+        decrypt_remote_key "${SERVER_CA_BUNDLE}" $CONFIGROOT/ca-bundle.crt
 fi
 
 if [ ! -z "${SSL_TEST_FILE}" ]; then
-        decrypt_remote_key "${SSL_TEST_FILE}" $KEYROOT/test-file.txt
+        decrypt_remote_key "${SSL_TEST_FILE}" $CONFIGROOT/test-file.txt
 fi
 
-
-# Ensure that docker-users can read/write from /app.
-chmod 664 /app/*
-chown root:docker /app
-chown root:docker /app/*
+# Ensure that docker-users can read/write from ~/app.
+chmod 664 $CONFIGROOT
+chmod 664 $CONFIGROOT/*
 
 
 
