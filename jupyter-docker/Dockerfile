@@ -1,6 +1,6 @@
 # adapted from https://hub.docker.com/r/jupyter/base-notebook/ AKA https://github.com/jupyter/docker-stacks/tree/master/base-notebook
 
-FROM debian:stretch
+FROM debian:jessie
 
 USER root
 
@@ -132,18 +132,15 @@ RUN apt-get install -yq --no-install-recommends \
  && rm -rf /var/lib/apt/lists/*
 
 
-echo "deb http://cdn-fastly.deb.debian.org/debian jessie main" >> /etc/apt/sources.list
-
-
 # Python 3 Kernel
 RUN apt-get update \
- && apt-get install -yq --no-install-recommends python3.4 \
-        python3.4-dev \
+ && apt-get install -yq --no-install-recommends python3 \
+        python3-dev \
         python3-matplotlib \
         python3-pandas \
         python3-tk \
         python3-numpy \
- && python3.4 get-pip.py \
+ && python3 get-pip.py \
  # install the python 3 kernel
  && pip3 install ipykernel \
  && python3 -m ipykernel install --name python3 --display-name "Python 3" \
