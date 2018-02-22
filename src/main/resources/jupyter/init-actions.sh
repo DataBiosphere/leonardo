@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
 set -e -x
 
@@ -19,18 +19,23 @@ if [ ! -z ${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} ] ; then
   export GOOGLE_APPLICATION_CREDENTIALS=/etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}
 fi
 
+# Use pyenv for installing python 3.5.3 and 2.7.13, which are the versions necessary for spark workers
+# Install packages for pyenv
 apt-get install -y make build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev
 
+export PYENV_ROOT="/root/.pyenv"
+export PATH="/root/.pyenv/bin:$PATH"
+
+# Install pyenv
 curl -L https://raw.githubusercontent.com/yyuu/pyenv-installer/master/bin/pyenv-installer | bash
 
-#echo 'export PATH="/root/.pyenv/bin:$PATH"' >>~/.bash_profile
-#echo 'eval "$(pyenv init -)"' >>~/.bash_profile
-#echo 'eval "$(pyenv virtualenv-init -)"' >>~/.bash_profile
-export PATH="/root/.pyenv/bin:$PATH"
-#eval "$(pyenv init -)"
-#eval "$(pyenv virtualenv-init -)"
+# Init pyenv
+eval "$(/root/.pyenv/bin/pyenv init -)"
+
 /root/.pyenv/bin/pyenv install 2.7.13
 /root/.pyenv/bin/pyenv install 3.5.3
+
+# Set python2 and python3 as the new versions
 /root/.pyenv/bin/pyenv global 2.7.13 3.5.3
 
 
