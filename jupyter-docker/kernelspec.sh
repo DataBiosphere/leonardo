@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/bash
 
 TMP_KERNELSPEC_DIR=$1
 KERNELSPEC_HOME=$2
