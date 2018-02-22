@@ -131,22 +131,22 @@ RUN apt-get install -yq --no-install-recommends \
 # R Kernel
 #######################
 
-#RUN apt-get install -y --no-install-recommends \
-    #r-base r-base-dev \
-    #fonts-dejavu \
-    #tzdata \
-    #gfortran \
-    #gcc \
-    #libcurl4-openssl-dev \
-    #libssl-dev \
-    #&& apt-get clean \
-    #&& rm -rf /var/lib/apt/lists/*
+RUN apt-get -t jessie-backports install -y --no-install-recommends \
+    r-base=3.3.3-1~bpo8+1 r-base-dev=3.3.3-1~bpo8+1 \
+    fonts-dejavu \
+    tzdata \
+    gfortran \
+    gcc \
+    libcurl4-openssl-dev \
+    libssl-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-#RUN R -e 'install.packages(c("repr", "IRdisplay", "evaluate", "crayon", "pbdZMQ", "devtools", "uuid", "digest"), repos="https://cran.mtu.edu")'
-#RUN R -e 'devtools::install_github("IRkernel/IRkernel")'
-#RUN R -e 'IRkernel::installspec(user=FALSE)' \
- #&& chown -R $USER:users /home/jupyter-user/.local 
-#RUN R -e 'devtools::install_github("apache/spark@v2.0.2", subdir="R/pkg")'
+RUN R -e 'install.packages(c("repr", "IRdisplay", "evaluate", "crayon", "pbdZMQ", "devtools", "uuid", "digest"), repos="https://cran.mtu.edu")'
+RUN R -e 'devtools::install_github("IRkernel/IRkernel")'
+RUN R -e 'IRkernel::installspec(user=FALSE)' \
+ && chown -R $USER:users /home/jupyter-user/.local 
+RUN R -e 'devtools::install_github("apache/spark@v2.0.2", subdir="R/pkg")'
 
 #######################
 # Utilities
