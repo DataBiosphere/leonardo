@@ -121,7 +121,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       withDummyClientPage(ronCluster) { dummyClientPage =>
         // opens the notebook list page without setting a cookie
         val notebooksListPage = dummyClientPage.openNotebook
-        notebooksListPage.withNewNotebook { notebookPage =>
+        notebooksListPage.withNewNotebook() { notebookPage =>
           // execute some cells to make sure it works
           notebookPage.executeCell("1+1") shouldBe Some("2")
           notebookPage.executeCell("2*3") shouldBe Some("6")
@@ -174,6 +174,6 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
         }
       }
     }
-
+    
   }
 }

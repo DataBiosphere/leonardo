@@ -7,6 +7,26 @@ import org.openqa.selenium.WebDriver
 
 import scala.util.Try
 
+trait Kernel {
+  def string: String
+  def cssSelectorString: String
+}
+
+object Python2 extends Kernel {
+  def string: String = "Python 2"
+  def cssSelectorString: String = "[title='Create a new notebook with Python 2']"
+
+}
+object Python3 extends Kernel {
+  def string: String = "Python 3"
+  def cssSelectorString: String = "[title='Create a new notebook with Python 3']"
+}
+
+object RKernel extends Kernel {
+  def string: String = "R Kernel"
+  def cssSelectorString: String = "[title='Create a new notebook with R']"
+}
+
 class NotebooksListPage(override val url: String)(override implicit val authToken: AuthToken, override implicit val webDriver: WebDriver)
   extends JupyterPage {
 
@@ -15,7 +35,6 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
   val uploadNewButton: Query = cssSelector("[title='Click to browse for a file to upload.']")
   val finishUploadButton: Query = cssSelector("[class='btn btn-primary btn-xs upload_button']")
   val newButton: Query = cssSelector("[id='new-buttons']")
-  val python2Link: Query = cssSelector("[title='Create a new notebook with Python 2']")
 
   def upload(file: File): Unit = {
     uploadNewButton.findElement.get.underlying.sendKeys(file.getAbsolutePath)
@@ -30,10 +49,10 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
     result.get
   }
 
-  def withNewNotebook[T](testCode: NotebookPage => T): T = {
+  def withNewNotebook[T](kernel: Kernel = Python2)(testCode: NotebookPage => T): T = {
     switchToNewTab {
       click on (await enabled newButton)
-      click on (await enabled python2Link)
+      click on (await enabled cssSelector(kernel.cssSelectorString))
     }
     // Not calling NotebookPage.open() as it should already be opened
     val notebookPage = new NotebookPage(currentUrl)
@@ -41,4 +60,5 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
     notebookPage.shutdownKernel()
     result.get
   }
+
 }
