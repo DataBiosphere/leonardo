@@ -174,6 +174,5 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
         }
       }
     }
-    
   }
 }
