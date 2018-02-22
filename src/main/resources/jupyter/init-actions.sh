@@ -26,7 +26,7 @@ curl -L https://raw.githubusercontent.com/yyuu/pyenv-installer/master/bin/pyenv-
 #echo 'export PATH="/root/.pyenv/bin:$PATH"' >>~/.bash_profile
 #echo 'eval "$(pyenv init -)"' >>~/.bash_profile
 #echo 'eval "$(pyenv virtualenv-init -)"' >>~/.bash_profile
-#export PATH="/root/.pyenv/bin:$PATH"
+export PATH="/root/.pyenv/bin:$PATH"
 #eval "$(pyenv init -)"
 #eval "$(pyenv virtualenv-init -)"
 /root/.pyenv/bin/pyenv install 2.7.13
