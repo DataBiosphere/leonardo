@@ -1,6 +1,6 @@
 # adapted from https://hub.docker.com/r/jupyter/base-notebook/ AKA https://github.com/jupyter/docker-stacks/tree/master/base-notebook
 
-FROM debian:stretch
+FROM debian:jessie
 
 USER root
 
@@ -11,7 +11,7 @@ USER root
 ENV DEBIAN_FRONTEND noninteractive
 ENV DEBIAN_REPO http://cdn-fastly.deb.debian.org
 
-RUN echo "deb $DEBIAN_REPO/debian stretch main\ndeb $DEBIAN_REPO/debian-security stretch/updates main" > /etc/apt/sources.list \
+RUN echo "deb $DEBIAN_REPO/debian jessie main\ndeb $DEBIAN_REPO/debian-security jessie/updates main\ndeb $DEBIAN_REPO/debian jessie-backports main" > /etc/apt/sources.list \
  && apt-get update && apt-get -yq dist-upgrade \
  && apt-get install -yq --no-install-recommends \
     nano \
@@ -108,7 +108,7 @@ RUN apt-get install -yq --no-install-recommends \
 
  # NOTE! not sure why, but this must run before pip installation
  && useradd -m -s /bin/bash -N -u $UID $USER \
- # jessie's default pip doesn't work well with jupyter # what about stretch?
+ # jessie's default pip doesn't work well with jupyter 
  && wget https://bootstrap.pypa.io/get-pip.py \
  && python get-pip.py \
 
