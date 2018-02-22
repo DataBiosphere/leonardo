@@ -20,13 +20,18 @@ if [ ! -z ${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} ] ; then
 fi
 
 apt-get install -y make build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev libncursesw5-dev
+
 curl -L https://raw.githubusercontent.com/yyuu/pyenv-installer/master/bin/pyenv-installer | bash
-export PATH="/root/.pyenv/bin:$PATH"
-eval "$(pyenv init -)"
-eval "$(pyenv virtualenv-init -)"
-pyenv install 2.7.13
-pyenv install 3.5.3
-pyenv global 2.7.13 3.5.3
+
+#echo 'export PATH="/root/.pyenv/bin:$PATH"' >>~/.bash_profile
+#echo 'eval "$(pyenv init -)"' >>~/.bash_profile
+#echo 'eval "$(pyenv virtualenv-init -)"' >>~/.bash_profile
+#export PATH="/root/.pyenv/bin:$PATH"
+#eval "$(pyenv init -)"
+#eval "$(pyenv virtualenv-init -)"
+/root/.pyenv/bin/pyenv install 2.7.13
+/root/.pyenv/bin/pyenv install 3.5.3
+/root/.pyenv/bin/pyenv global 2.7.13 3.5.3
 
 
 # Only initialize Jupyter docker containers on the master
