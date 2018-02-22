@@ -174,5 +174,16 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
         }
       }
     }
+
+    "should create a notebook with a working R kernel and import installed packages" in withWebDriver { implicit driver =>
+      Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+
+      withNewNotebook(ronCluster, RKernel) { notebookPage =>
+        notebookPage.executeCell("library(SparkR)").get should include("SparkR")
+        notebookPage.executeCell("sparkR.session()")
+        notebookPage.executeCell("df <- as.DataFrame(faithful)")
+        notebookPage.executeCell("head(df)").get should include ("3.600 79")
+      }
+    }
   }
 }
