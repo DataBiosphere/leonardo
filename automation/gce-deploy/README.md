@@ -1,16 +1,3 @@
-#########################
-######## Warning ########
-#########################
-
-This is a work in progress - this warning will remain
-here until the deploy script can run a full deployment
-and provide a functioning Leonardo environment.
-
- ISSUES TO RESOLVE:
-   * Authentication fails when user's access notebook via the Leonardo-proxy.
-   * Running without SAM server (get rid of extraneous warnings or disable entirely).
-
-
 # What is this?
 
 deploy.py is a vanilla Python 2.7 script that will build
