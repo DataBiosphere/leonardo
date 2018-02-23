@@ -127,14 +127,11 @@ RUN apt-get install -yq --no-install-recommends \
  && pip install bx-python \
  && pip install fastinterval \
  && pip install matplotlib-venn \
- && pip install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py" \
- && apt-get clean \
- && rm -rf /var/lib/apt/lists/*
+ && pip install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py"
 
 
 # Python 3 Kernel
-RUN apt-get update \
- && apt-get install -yq --no-install-recommends python3 \
+RUN apt-get install -yq --no-install-recommends python3 \
         python3-dev \
         python3-matplotlib \
         python3-pandas \
