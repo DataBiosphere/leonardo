@@ -18,5 +18,9 @@
                 <constraints nullable="false"/>
             </column>
         </createTable>
+        <createIndex indexName="FK_CLUSTER_ERROR_CLUSTER_ID" tableName="CLUSTER_ERROR">
+            <column name="clusterId"/>
+        </createIndex>
+        <addForeignKeyConstraint baseColumnNames="clusterId" baseTableName="CLUSTER_ERROR" constraintName="FK_CLUSTER_ERROR_CLUSTER_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="CLUSTER"/>
     </changeSet>
 </databaseChangeLog>

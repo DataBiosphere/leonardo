@@ -292,8 +292,7 @@ trait ClusterComponent extends LeoComponent {
       // Call foldMap to aggregate a Seq[(ClusterRecord, LabelRecord)] returned by the query to a Map[ClusterRecord, Map[labelKey, labelValue]].
       val clusterLabelMap = clusterLabels.toList.foldMap { case (clusterRecord, labelRecordOpt, errorOpt) =>
         val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> labelRecordOpt.value).toMap
-        val errorList = errorOpt.toList.groupBy(_.id).map(_._2.head).map(e => ClusterError(e.errorMessage, e.errorCode, e.timestamp.toInstant)).toList
-        //println(errorList)
+        val errorList = errorOpt.toList
         Map(clusterRecord -> (labelMap, errorList))
       }
       // Unmarshal each (ClusterRecord, Map[labelKey, labelValue]) to a Cluster object
@@ -302,7 +301,7 @@ trait ClusterComponent extends LeoComponent {
       }.toSeq
     }
 
-    private def unmarshalCluster(clusterRecord: ClusterRecord, labels: LabelMap, error:List[ClusterError]): Cluster = {
+    private def unmarshalCluster(clusterRecord: ClusterRecord, labels: LabelMap, error:List[ClusterErrorRecord]): Cluster = {
       val name = ClusterName(clusterRecord.clusterName)
       val project = GoogleProject(clusterRecord.googleProject)
       val machineConfig = MachineConfig(
@@ -334,7 +333,7 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.jupyterExtensionUri flatMap { parseGcsPath(_).toOption },
         clusterRecord.jupyterUserScriptUri flatMap { parseGcsPath(_).toOption },
         clusterRecord.stagingBucket map GcsBucketName,
-        error
+        error map clusterErrorQuery.unmarshallClusterErrorRecord
       )
     }
 
@@ -347,7 +346,7 @@ trait ClusterComponent extends LeoComponent {
   }
 
 
-  // select * from cluster c left join label l on c.id = l.clusterId
+  // select * from cluster c left join label l on c.id = l.clusterId left join cluster_error ce ce.clusterId = c.id
   val clusterQueryWithLabels: Query[(ClusterTable, Rep[Option[LabelTable]], Rep[Option[ClusterErrorTable]]), (ClusterRecord, Option[LabelRecord], Option[ClusterErrorRecord]), Seq] = {
     for {
       ((cluster, label), errors) <- clusterQuery joinLeft labelQuery on (_.id === _.clusterId) joinLeft clusterErrorQuery on (_._1.id === _.clusterId)
