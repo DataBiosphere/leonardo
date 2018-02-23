@@ -2,7 +2,7 @@ version: '3'
 services:
   app:
     image: gcr.io/TEMPLATE_VAR_DOCKER_PROJECT/leonardo:TEMPLATE_VAR_DOCKER_TAG
-    # dns: - 172.17.42.1
+    # dns: - 8.8.4.4
     # logging: {"driver": "syslog", "options": {"tag": "leonardo-app"}}
     volumes:
       - /home/ubuntu/app/jupyter-server.crt:/etc/jupyter-server.crt
@@ -10,17 +10,20 @@ services:
       - /home/ubuntu/app/leonardo.conf:/etc/leonardo.conf
       - /home/ubuntu/app/leonardo-account.pem:/etc/leonardo-account.pem:ro
       - /home/ubuntu/app/leo-client.p12:/etc/leo-client.p12
-      - /home/ubuntu/app/mysql01.jks:/etc/ssl/leonardo.keystore:ro
-      - /home/ubuntu/app/mysql_trust.jks:/etc/ssl/leonardo.truststore:ro
       - /home/ubuntu/app/rootCA.key:/etc/rootCA.key
       - /home/ubuntu/app/rootCA.pem:/etc/rootCA.pem
       - /etc/localtime:/etc/localtime:ro
+      # Use the following volumes (and update appropriate JAVA_OPTS) if passing a mysql SSL key.
+      #- /home/ubuntu/app/mysql.jks:/etc/ssl/leonardo.keystore:ro
+      #- /home/ubuntu/app/mysql_trust.jks:/etc/ssl/leonardo.truststore:ro
     environment:
       # Unused java options:
       #-Djavax.net.ssl.keyStore=/etc/ssl/leonardo.keystore
       #-Djavax.net.ssl.keyStorePassword=xxxx
+      #-Djavax.net.ssl.keyStoreType=pkcs12
       #-Djavax.net.ssl.trustStore=/etc/ssl/leonardo.truststore
       #-Djavax.net.ssl.trustStorePassword=xxxxx
+      #-Djavax.net.ssl.trustStoreType=pkcs12
       JAVA_OPTS: -Dconfig.file=/etc/leonardo.conf
     links:
       - sqlproxy:sqlproxy
