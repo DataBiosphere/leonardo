@@ -184,7 +184,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
             |print(platform.python_version())""".stripMargin
         val getBxPython =
           """import bx.bitset
-            |bx.bitset.sys.copyright""".stripMargin //the most annoying package to install
+            |bx.bitset.sys.copyright""".stripMargin
         val sparkJob =
           """import random
             |NUM_SAMPLES=20
@@ -194,7 +194,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
             |
             |count = sc.parallelize(range(0, NUM_SAMPLES)) \
             |             .filter(inside).count()
-            |print("Pi is roughly %f" % (4.0 * count / NUM_SAMPLES))""".stripMargin //the most annoying package to install
+            |print("Pi is roughly %f" % (4.0 * count / NUM_SAMPLES))""".stripMargin
 
         notebookPage.executeCell("1+1") shouldBe Some("2")
         notebookPage.executeCell(getPythonVersion) shouldBe Some("3.4.2")
