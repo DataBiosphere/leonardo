@@ -274,11 +274,6 @@ def parse_arguments():  # pylint: disable=too-many-statements
 
     args = ssl_args_rewrite_validate(args)
 
-    # Service account defaults to 'default'. In this case, convert
-    # to the email form.
-    args.service_account = service_account_email_format(
-        args.service_account, args.project)
-
     # Determine zone.
     args.zone = get_zone_from_flag_values(args.region, args.zone)
 
@@ -603,21 +598,49 @@ def build_jar_and_push(project, branch):
     ], env=current_env)
 
 
-def service_account_email_format(service_account, project):
-    """If the service account is 'default', convert to account email."""
-    if service_account != 'default':
-        return service_account
-
+def email_for_default_sa(project):
+    """Convert default service account to account email."""
     sa_structs = gcloud_json(['gcloud', 'iam',
                               'service-accounts', 'list',
                               '--project', project])
     for sa_struct in sa_structs:
         if 'compute@developer' in sa_struct['email']:
             return sa_struct['email']
-
     Print.YL('Could not find compute default service account!')
     Print.YL('See `gcloud iam service-accounts list`.')
     sys.exit(1)
+
+
+def validate_service_account_keys(service_account, project):
+    """Validate service account, and SA keys, rewriting email if needed."""
+    Print.GN('Validating service account and keys.')
+    if service_account == 'default':
+        service_account = email_for_default_sa(project)
+    try:
+        user_keys = gcloud_json([
+            'gcloud', 'iam', 'service-accounts', 'keys', 'list',
+            '--iam-account', service_account, '--managed-by=user'])
+    except subprocess.CalledProcessError:
+        Print.YL('Could not list keys for: %s' % service_account)
+        Print.YL('Either it does not exist or you lack permissions to access keys.')
+        sys.exit(1)
+    if not user_keys:
+        return service_account
+    Print.YL('Found %d keys for this service account. Service accounts' % len(user_keys))
+    Print.YL('may only have a limited number of user-managed keys.\n\n'
+             'Would you like to revoke existing keys (this may break\napplications'
+             ' that rely on a key file)\n[y/N]')
+    response = raw_input('')
+    if not re.match('^y(es)?$', response.lower().strip()):
+        return service_account
+    print('Purging keys.')
+    for key_strict in user_keys:
+        key_id = key_strict['name'].rpartition('/')[2]
+        subprocess.check_call(['gcloud', 'iam', 'service-accounts', 'keys', 'delete',
+                               key_id,
+                               '--iam-account', service_account,
+                               '--quiet'])
+    return service_account
 
 
 @contextlib.contextmanager
@@ -718,6 +741,10 @@ def main():
             print('Building complete, skipping cloud deploy.')
             exit(0)
     enable_gcp_apis(args.project)
+
+    args.service_account = validate_service_account_keys(
+        args.service_account, args.project)
+
     ip_address = select_eligible_ip(args.project, args.region)
     if args.host == 'IP':
         args.host = ip_address

@@ -21,8 +21,8 @@
 
 
 CONFIGROOT=/home/ubuntu/app
-sudo -u ubuntu mkdir $CONFIGROOT
-
+mkdir $CONFIGROOT
+chmod 777 $CONFIGROOT
 
 ####
 #### Install and configure docker and docker-compose.
@@ -45,9 +45,8 @@ if id -u $REMOTE_USER; then
 fi
 
 # With install finished (all further operations can be done as
-# the primary non-root user.
-su ubuntu
-
+# the primary non-root user).
+sudo -u ubuntu bash << EEOOFF
 
 ####
 #### Generate or fetch SSL keys for application.
@@ -73,12 +72,12 @@ else
         decrypt_remote_key "${INTERNAL_ROOT_CA}" $CONFIGROOT/rootCA.key
 fi
 openssl req -x509 -new -nodes \
-        -subj "/C=US/CN=${SERVER_HOST}" \
+        -subj "/C=US/CN=*.${SERVER_HOST}" \
         -key $CONFIGROOT/rootCA.key -days 1024 -out $CONFIGROOT/rootCA.pem -sha256
 
 openssl genrsa -out $CONFIGROOT/jupyter-server.key 2048
 openssl req -new -key $CONFIGROOT/jupyter-server.key \
-        -subj "/C=US/CN=${SERVER_HOST}" \
+        -subj "/C=US/CN=*.${SERVER_HOST}" \
         -out $CONFIGROOT/jupyter-server.csr -sha256
 openssl x509 -req -in $CONFIGROOT/jupyter-server.csr \
         -CA $CONFIGROOT/rootCA.pem \
@@ -87,7 +86,7 @@ openssl x509 -req -in $CONFIGROOT/jupyter-server.csr \
 
 openssl genrsa -out $CONFIGROOT/leo-client.key 2048
 openssl req -new -key $CONFIGROOT/leo-client.key \
-        -subj "/C=US/CN=${SERVER_HOST}" \
+        -subj "/C=US/CN=*.${SERVER_HOST}" \
         -out $CONFIGROOT/leo-client.csr -sha256
 openssl x509 -req -in $CONFIGROOT/leo-client.csr -CA $CONFIGROOT/rootCA.pem \
         -CAkey $CONFIGROOT/rootCA.key \
@@ -105,7 +104,7 @@ openssl pkcs12 -export -passout pass:leokeystorepassword \
 # as a remote key.
 openssl req -new -newkey rsa:2048 \
     -days 365 -nodes -x509 \
-    -subj "/C=US/CN=${SERVER_HOST}" \
+    -subj "/C=US/CN=*.${SERVER_HOST}" \
     -keyout $CONFIGROOT/server.key -out $CONFIGROOT/server.crt
 cp $CONFIGROOT/server.crt $CONFIGROOT/ca-bundle.crt
 
@@ -126,14 +125,12 @@ if [ ! -z "${SSL_TEST_FILE}" ]; then
         decrypt_remote_key "${SSL_TEST_FILE}" $CONFIGROOT/test-file.txt
 fi
 
-# Ensure that docker-users can read/write from ~/app.
-chmod 664 $CONFIGROOT
-chmod 664 $CONFIGROOT/*
-
-
 
 ####
 #### Localize docker images.
 ####
 docker pull broadinstitute/openidc-proxy:dev
 gcloud docker -- pull $LEONARDO_SERVER_IMAGE
+
+# End "ubuntu" user part of init script.
+EEOOFF
