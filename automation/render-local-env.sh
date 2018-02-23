@@ -75,5 +75,5 @@ if [[ $PWD != *"${SCRIPT_ROOT}" ]]; then
     exit 1
 fi
 confirm "Clone firecloud-automated-testing repo?  Skip if you have already run this step before." clone_repo
-confirm "Checkout ${FIRECLOUD_AUTOMATED_TESTING_BRANCH}? This will stash local changes.  If N, configs will be built from local changes." pull_configs
+confirm "Checkout ${FIRECLOUD_AUTOMATED_TESTING_BRANCH} in firecloud-automated-testing? This will stash local changes.  If N, configs will be built from local changes." pull_configs
 render_configs
