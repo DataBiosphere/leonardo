@@ -157,7 +157,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
 
       // create a new bucket, add the user script to the bucket, create a new cluster using the URI of the user script and create a notebook that will check if the user script ran
       withNewGoogleBucket(billingProject) { bucketName =>
-        val userScriptString = "#!/usr/bin/env bash\n\npip install arrow"
+        val userScriptString = "#!/usr/bin/env bash\n\npip2 install arrow"
         val userScriptObjectName = GcsObjectName("user-script.sh")
         val userScriptUri = s"gs://${bucketName.value}/${userScriptObjectName.value}"
 
@@ -172,6 +172,34 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
             }
           }
         }
+      }
+    }
+
+    "should create a notebook with a working Python 3 kernel and import installed packages" in withWebDriver { implicit driver =>
+      Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+
+      withNewNotebook(ronCluster, Python3) { notebookPage =>
+        val getPythonVersion =
+          """import platform
+            |print(platform.python_version())""".stripMargin
+        val getBxPython =
+          """import bx.bitset
+            |bx.bitset.sys.copyright""".stripMargin
+        val sparkJob =
+          """import random
+            |NUM_SAMPLES=20
+            |def inside(p):
+            |    x, y = random.random(), random.random()
+            |    return x*x + y*y < 1
+            |
+            |count = sc.parallelize(range(0, NUM_SAMPLES)) \
+            |             .filter(inside).count()
+            |print("Pi is roughly %f" % (4.0 * count / NUM_SAMPLES))""".stripMargin
+
+        notebookPage.executeCell("1+1") shouldBe Some("2")
+        notebookPage.executeCell(getPythonVersion) shouldBe Some("3.4.2")
+        notebookPage.executeCell(getBxPython).get should include("Copyright (c)")
+        notebookPage.executeCell(sparkJob).get should include("Pi is roughly ")
       }
     }
 

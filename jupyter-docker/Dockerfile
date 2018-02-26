@@ -63,6 +63,7 @@ ENV HAILJAR hail-0.1-$HAILHASH-Spark-$SPARK_VER.jar
 ENV HAILPYTHON hail-0.1-$HAILHASH.zip
 ENV HAILZIP Hail-0.1-$HAILHASH-Spark-$SPARK_VER.zip
 ENV HAIL_HOME /etc/hail
+ENV KERNELSPEC_HOME /usr/local/share/jupyter/kernals
 
 # Note Spark and Hadoop are mounted from the outside Dataproc VM.
 # Make empty conf dirs for the update-alternatives commands.
@@ -104,6 +105,7 @@ RUN apt-get install -yq --no-install-recommends \
     python-seaborn \
     python-tk \
     python-numpy \
+    liblzo2-dev \
     libz-dev \
 
  # NOTE! not sure why, but this must run before pip installation
@@ -126,6 +128,37 @@ RUN apt-get install -yq --no-install-recommends \
  && pip install fastinterval \
  && pip install matplotlib-venn \
  && pip install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py"
+
+
+# Python 3 Kernel
+RUN apt-get install -yq --no-install-recommends python3 \
+        python3-dev \
+        python3-matplotlib \
+        python3-pandas \
+        python3-tk \
+        python3-numpy \
+ && python3 get-pip.py \
+ # install the python 3 kernel
+ && pip3 install ipykernel \
+ && python3 -m ipykernel install --name python3 --display-name "Python 3" \
+ # python 3 packages
+ && pip3 install seaborn \
+ && pip3 install python-lzo \
+ && pip3 install google-cloud \
+ && pip3 install firecloud==0.16.7 \
+ && pip3 install -U scikit-learn \
+ && pip3 install ggplot \
+ && pip3 install bokeh \
+ && pip3 install pyfasta \
+ && pip3 install pdoc \
+ && pip3 install biopython \
+ && pip3 install bx-python \
+ && pip3 install fastinterval \
+ && pip3 install matplotlib-venn \
+ && pip3 install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py" \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
 
 #######################
 # R Kernel
@@ -152,6 +185,8 @@ RUN R -e 'devtools::install_github("apache/spark@v2.0.2", subdir="R/pkg")'
 # Utilities
 #######################
 
+ADD kernelspec.sh $JUPYTER_HOME/
+ADD python_kernelspec.tmpl $JUPYTER_HOME/
 ADD spark_install_hail.sh $HAIL_HOME/
 ADD jupyter_notebook_config.py $JUPYTER_HOME/
 ADD jupyter_localize_extension.py $JUPYTER_HOME/custom/
@@ -159,7 +194,8 @@ ADD jupyter_install_notebook_extension.sh $JUPYTER_HOME/
 
 RUN chown -R $USER:users $JUPYTER_HOME \
  && chmod +x $JUPYTER_HOME/jupyter_install_notebook_extension.sh \
- && chmod +x $HAIL_HOME/spark_install_hail.sh
+ && chmod +x $HAIL_HOME/spark_install_hail.sh \
+ && chmod +x $JUPYTER_HOME/kernelspec.sh
 
 USER $USER
 WORKDIR $HOME
