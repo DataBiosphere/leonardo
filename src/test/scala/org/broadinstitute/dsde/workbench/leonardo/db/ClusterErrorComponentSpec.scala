@@ -1,13 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
 import java.time.Instant
-import java.time.temporal.{ChronoUnit, TemporalUnit}
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
-import org.broadinstitute.dsde.workbench.google.gcs.GcsBucketName
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.google._
+import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.scalatest.FlatSpecLike
+
 
 
 class ClusterErrorComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils {
@@ -27,8 +29,8 @@ class ClusterErrorComponentSpec extends TestComponent with FlatSpecLike with Com
       createdDate = Instant.now(),
       destroyedDate = Option(Instant.now()),
       labels = Map.empty,
-      jupyterExtensionUri = jupyterExtensionUri,
-      jupyterUserScriptUri = jupyterUserScriptUri,
+      jupyterExtensionUri = Some(jupyterExtensionUri),
+      jupyterUserScriptUri = Some(jupyterUserScriptUri),
       Some(GcsBucketName("testStagingBucket1")),
       List.empty)
 
