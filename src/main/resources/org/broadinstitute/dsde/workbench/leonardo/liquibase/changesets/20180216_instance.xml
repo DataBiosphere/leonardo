@@ -17,8 +17,8 @@
             <column name="name" type="VARCHAR(254)">
                 <constraints nullable="false"/>
             </column>
-            <column name="googleId" type="NUMERIC">
-                <constraints primaryKey="true"/>
+            <column name="googleId" type="BIGINT">
+                <constraints nullable="false"/>
             </column>
             <column name="status" type="VARCHAR(254)">
                 <constraints nullable="false"/>
@@ -37,5 +37,6 @@
         </createIndex>
         <addForeignKeyConstraint baseColumnNames="clusterId" baseTableName="INSTANCE" constraintName="FK_INSTANCE_CLUSTER_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="CLUSTER"/>
         <addUniqueConstraint columnNames="clusterId, googleProject, zone, name, destroyedDate" constraintName="IDX_INSTANCE_UNIQUE" tableName="INSTANCE"/>
+        <addUniqueConstraint columnNames="googleId" constraintName="IDX_INSTANCE_GOOGLE_ID_UNIQUE" tableName="INSTANCE"/>
     </changeSet>
 </databaseChangeLog>
