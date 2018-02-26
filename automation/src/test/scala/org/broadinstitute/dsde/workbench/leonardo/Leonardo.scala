@@ -34,6 +34,8 @@ object Leonardo extends RestClient with LazyLogging {
   }
 
   object cluster {
+    // TODO: the Leo API returns instances which are not recognized by this JSON parser.
+    // Ingoring unknown properties to work around it.
     mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
 
     // TODO: custom JSON deserializer

@@ -103,6 +103,13 @@ trait CommonTestData { this: ScalaFutures =>
     dataprocRole = Some(DataprocRole.Worker),
     createdDate = Instant.now(),
     destroyedDate = None)
+
+  protected def modifyInstance(instance: Instance): Instance = {
+    instance.copy(key = modifyInstanceKey(instance.key), googleId = instance.googleId + 1)
+  }
+  protected def modifyInstanceKey(instanceKey: InstanceKey): InstanceKey = {
+    instanceKey.copy(name = InstanceName(instanceKey.name.value + "_2"))
+  }
 }
 
 trait GcsPathUtils {
