@@ -155,9 +155,7 @@ RUN apt-get install -yq --no-install-recommends python3 \
  && pip3 install bx-python \
  && pip3 install fastinterval \
  && pip3 install matplotlib-venn \
- && pip3 install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py" \
- && apt-get clean \
- && rm -rf /var/lib/apt/lists/*
+ && pip3 install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py" 
 
 
 #######################
@@ -175,11 +173,11 @@ RUN apt-get -t jessie-backports install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN R -e 'install.packages(c("repr", "IRdisplay", "evaluate", "crayon", "pbdZMQ", "devtools", "uuid", "digest"), repos="https://cran.mtu.edu")'
-RUN R -e 'devtools::install_github("IRkernel/IRkernel")'
-RUN R -e 'IRkernel::installspec(user=FALSE)' \
- && chown -R $USER:users /home/jupyter-user/.local 
-RUN R -e 'devtools::install_github("apache/spark@v2.0.2", subdir="R/pkg")'
+RUN R -e 'install.packages(c("repr", "IRdisplay", "evaluate", "crayon", "pbdZMQ", "devtools", "uuid", "digest"), repos="https://cran.mtu.edu")' \
+ && R -e 'devtools::install_github("IRkernel/IRkernel")' \
+ && RUN R -e 'IRkernel::installspec(user=FALSE)' \
+ && chown -R $USER:users /home/jupyter-user/.local  \
+ && RUN R -e 'devtools::install_github("apache/spark@v2.0.2", subdir="R/pkg")'
 
 #######################
 # Utilities
