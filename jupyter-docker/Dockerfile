@@ -175,9 +175,9 @@ RUN apt-get -t jessie-backports install -y --no-install-recommends \
 
 RUN R -e 'install.packages(c("repr", "IRdisplay", "evaluate", "crayon", "pbdZMQ", "devtools", "uuid", "digest"), repos="https://cran.mtu.edu")' \
  && R -e 'devtools::install_github("IRkernel/IRkernel")' \
- && RUN R -e 'IRkernel::installspec(user=FALSE)' \
+ && R -e 'IRkernel::installspec(user=FALSE)' \
  && chown -R $USER:users /home/jupyter-user/.local  \
- && RUN R -e 'devtools::install_github("apache/spark@v2.0.2", subdir="R/pkg")'
+ && R -e 'devtools::install_github("apache/spark@v2.0.2", subdir="R/pkg")'
 
 #######################
 # Utilities
