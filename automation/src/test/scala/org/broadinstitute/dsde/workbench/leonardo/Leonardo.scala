@@ -5,6 +5,7 @@ import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.model.headers.{Cookie, HttpCookiePair}
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.ResourceFile
@@ -34,12 +35,9 @@ object Leonardo extends RestClient with LazyLogging {
   }
 
   object cluster {
-    // TODO: the Leo API returns instances which are not recognized by this JSON parser.
-    // Ingoring unknown properties to work around it.
-    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-
     // TODO: custom JSON deserializer
     // the default doesn't handle some fields correctly so here they're strings
+    @JsonIgnoreProperties(ignoreUnknown = true)
     private case class ClusterKluge(clusterName: ClusterName,
                                     googleId: UUID,
                                     googleProject: String,
@@ -77,7 +75,10 @@ object Leonardo extends RestClient with LazyLogging {
     }
 
     def handleClusterResponse(response: String): Cluster = {
-      mapper.readValue(response, classOf[ClusterKluge]).toCluster
+      // TODO: the Leo API returns instances which are not recognized by this JSON parser.
+      // Ingoring unknown properties to work around it.
+      val newMapper = mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+      newMapper.readValue(response, classOf[ClusterKluge]).toCluster
     }
 
     def handleClusterSeqResponse(response: String): List[Cluster] = {
