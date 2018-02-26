@@ -5,6 +5,7 @@ import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.model.headers.{Cookie, HttpCookiePair}
+import com.fasterxml.jackson.databind.DeserializationFeature
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.service.RestClient
@@ -33,6 +34,7 @@ object Leonardo extends RestClient with LazyLogging {
   }
 
   object cluster {
+    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
 
     // TODO: custom JSON deserializer
     // the default doesn't handle some fields correctly so here they're strings
