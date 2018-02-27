@@ -233,7 +233,7 @@ paths:
       operationId: stopCluster
       tags:
         - cluster
-      paramters:
+      parameters:
         - in: path
           name: googleProject
           description: googleProject
@@ -264,7 +264,7 @@ paths:
       operationId: startCluster
       tags:
         - cluster
-      paramters:
+      parameters:
         - in: path
           name: googleProject
           description: googleProject
