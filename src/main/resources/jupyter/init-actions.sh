@@ -23,7 +23,7 @@ fi
 if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_HOME=/etc/jupyter
     JUPYTER_USER_HOME=/home/jupyter-user
-    PYSPARK=/usr/bin/pyspark
+    NOTEBOOK="/usr/local/bin/jupyter notebook"
     KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
 
     # The following values are populated by Leo when a cluster is created.
@@ -99,7 +99,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
     docker exec -u root -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/kernelspec.sh ${JUPYTER_HOME} ${KERNELSPEC_HOME}
 
     # Install the Hail additions to Spark conf.
-    # OK to do this after pyspark runs; it needs to happen before the Jupyter kernel starts.
     docker exec -u root -d ${JUPYTER_SERVER_NAME} /etc/hail/spark_install_hail.sh
 
     # Copy the actual service account JSON file into the Jupyter docker container.
@@ -140,7 +139,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
       docker exec -u root -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
     fi
 
-    docker exec -d ${JUPYTER_SERVER_NAME} ${PYSPARK}
+    #docker exec -d ${JUPYTER_SERVER_NAME} ${NOTEBOOK}
 fi
 
 
