@@ -247,7 +247,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       googleInstances <- getClusterInstances
 
       runningInstanceCount = googleInstances.filter(_.status == InstanceStatus.Running).size
-      stoppedInstanceCount = googleInstances.filter(_.status == InstanceStatus.Stopped).size
+      stoppedInstanceCount = googleInstances.filter(i => i.status == InstanceStatus.Stopped || i.status == InstanceStatus.Terminated).size
 
       result <- googleStatus match {
         case Unknown | Creating | Updating =>
