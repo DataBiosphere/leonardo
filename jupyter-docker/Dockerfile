@@ -199,4 +199,4 @@ USER $USER
 WORKDIR $HOME
 
 EXPOSE $JUPYTER_PORT
-ENTRYPOINT ["jupyter notebook"]
+ENTRYPOINT ["/usr/local/bin/jupyter notebook"]
