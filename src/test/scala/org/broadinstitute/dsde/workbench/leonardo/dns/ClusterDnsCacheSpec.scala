@@ -71,6 +71,26 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     Set.empty
   )
 
+  val c3 = Cluster(
+    clusterName = name3,
+    googleId = UUID.randomUUID(),
+    googleProject = project,
+    serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
+    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
+    clusterUrl = Cluster.getClusterUrl(project, name3, clusterUrlBase),
+    operationName = OperationName("op3"),
+    status = ClusterStatus.Stopping,
+    hostIp = None,
+    creator = userEmail,
+    createdDate = Instant.now(),
+    destroyedDate = None,
+    labels = Map.empty,
+    None,
+    None,
+    Some(GcsBucketName("testStagingBucket3")),
+    Set.empty
+  )
+
   it should "update maps and return clusters" in isolatedDbTest {
     val actorRef = TestActorRef[ClusterDnsCache](ClusterDnsCache.props(proxyConfig, DbSingleton.ref))
 
@@ -81,12 +101,14 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // save the clusters to the db
     dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1
     dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id)) } shouldEqual c2
+    dbFutureValue { _.clusterQuery.save(c3, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } shouldEqual c3
 
     // maps should be populated
     eventually {
       actorRef.underlyingActor.ProjectNameToHost shouldBe Map(
         (project, name1) -> ClusterReady(Host(s"${c1.googleId.toString}.jupyter.firecloud.org")),
-        (project, name2) -> ClusterNotReady
+        (project, name2) -> ClusterNotReady,
+        (project, name3) -> ClusterPaused
       )
       ClusterDnsCache.HostToIp shouldBe Map(
         Host(s"${c1.googleId.toString}.jupyter.firecloud.org") -> c1.hostIp.get
@@ -96,6 +118,7 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // calling GetByProjectAndName should return the correct responses
     (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.toString}.jupyter.firecloud.org"))
     (actorRef ? GetByProjectAndName(project, name2)).futureValue shouldBe ClusterNotReady
+    (actorRef ? GetByProjectAndName(project, name3)).futureValue shouldBe ClusterPaused
     (actorRef ? GetByProjectAndName(project, ClusterName("bogus"))).futureValue shouldBe ClusterNotFound
   }
 
@@ -109,11 +132,13 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // save the clusters to the db
     dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1
     dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id)) } shouldEqual c2
+    dbFutureValue { _.clusterQuery.save(c3, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } shouldEqual c3
 
     // we have not yet executed a DNS cache refresh cycle
 
     (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterNotFound
     (actorRef ? GetByProjectAndName(project, name2)).futureValue shouldBe ClusterNotFound
+    (actorRef ? GetByProjectAndName(project, name3)).futureValue shouldBe ClusterNotFound
 
     // add one cluster to cache immediately without waiting for the cycle
 
@@ -123,12 +148,14 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.toString}.jupyter.firecloud.org"))
     (actorRef ? GetByProjectAndName(project, name2)).futureValue shouldBe ClusterNotFound
+    (actorRef ? GetByProjectAndName(project, name3)).futureValue shouldBe ClusterNotFound
 
     // the cycle still eventually populates normally
 
     eventually {
       (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.toString}.jupyter.firecloud.org"))
       (actorRef ? GetByProjectAndName(project, name2)).futureValue shouldBe ClusterNotReady
+      (actorRef ? GetByProjectAndName(project, name3)).futureValue shouldBe ClusterPaused
     }
 
     val newname1 = ClusterName("newname1")
