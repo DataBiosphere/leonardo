@@ -295,8 +295,9 @@ trait ClusterComponent extends LeoComponent {
         val errorList = errorOpt.toList
         Map(clusterRecord -> (labelMap, errorList))
       }
-      // Unmarshal each (ClusterRecord, Map[labelKey, labelValue]) to a Cluster object
-      clusterLabelMap.map { case (clusterRec,(labelMap, error)) =>
+
+      clusterLabelMap.map {
+        case (clusterRec,(labelMap, error)) =>
         unmarshalCluster(clusterRec, labelMap, error.groupBy(_.timestamp).map(_._2.head).toList)
       }.toSeq
     }

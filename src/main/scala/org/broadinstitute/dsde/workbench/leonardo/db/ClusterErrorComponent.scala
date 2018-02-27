@@ -43,10 +43,6 @@ trait ClusterErrorComponent extends LeoComponent {
       }
     }
 
-    def delete(clusterId: Long): DBIO[Int] = {
-      clusterErrorQuery.filter(_.clusterId === clusterId).delete
-    }
-
     def unmarshallClusterErrorRecord(clusterErrorRecord: ClusterErrorRecord) : ClusterError = {
       ClusterError(clusterErrorRecord.errorMessage, clusterErrorRecord.errorCode, clusterErrorRecord.timestamp.toInstant)
     }
