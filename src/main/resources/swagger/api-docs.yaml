@@ -262,8 +262,8 @@ paths:
       description: |
         Starts the instances of a stopped Dataproc cluster.
       operationId: startCluster
-        tags:
-          - cluster
+      tags:
+        - cluster
       paramters:
         - in: path
           name: googleProject
