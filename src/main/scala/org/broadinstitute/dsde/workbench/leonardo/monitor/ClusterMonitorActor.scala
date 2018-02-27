@@ -276,6 +276,7 @@ class ClusterMonitorActor(val cluster: Cluster,
 
   private def persistInstances(instances: Set[Instance]): Future[Unit] = {
     if (cluster.status != Deleted && cluster.status != Deleting) {
+      logger.debug(s"Persisting instances for cluster ${cluster.projectNameString}: ${instances}")
       dbRef.inTransaction { dataAccess =>
         dataAccess.clusterQuery.upsertInstances(cluster.copy(instances = instances))
       }.void
