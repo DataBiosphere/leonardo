@@ -23,9 +23,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
         withNewCluster(project, nameToReuse)(_ => ())
       }
     }
-
-    // TODO: this test fails intermittently. Ignoring until it's stable.
-    // See https://github.com/DataBiosphere/leonardo/issues/205
+    
     "should error on cluster create and delete the cluster" in {
       withNewBillingProject { project =>
         Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
