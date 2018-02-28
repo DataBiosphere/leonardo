@@ -267,7 +267,7 @@ class ClusterMonitorActor(val cluster: Cluster,
           }
         case Deleted => Future.successful(DeletedCluster)
         // if the cluster only contains stopped instances, it's a stopped cluster
-        case _ if cluster.status != Starting && stoppedInstanceCount == googleInstances.size =>
+        case _ if cluster.status != Starting && cluster.status != Deleting && stoppedInstanceCount == googleInstances.size =>
           Future.successful(StoppedCluster(googleInstances))
         case _ => Future.successful(NotReadyCluster(googleStatus, googleInstances))
       }

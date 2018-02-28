@@ -8,6 +8,7 @@ set -e -x
 # Uses cluster-docker-compose.yaml
 
 ROLE=$(/usr/share/google/get_metadata_value attributes/dataproc-role)
+NAME=$(/usr/share/google/get_metadata_value name)
 
 # If a Google credentials file was specified, grab the service account json file and set the GOOGLE_APPLICATION_CREDENTIALS EV.
 # This overrides the credentials on the metadata server.
@@ -23,7 +24,7 @@ fi
 if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_HOME=/etc/jupyter
     JUPYTER_USER_HOME=/home/jupyter-user
-    NOTEBOOK="/usr/local/bin/jupyter notebook"
+    JUPYTER_NOTEBOOK="/usr/local/bin/jupyter notebook"
     KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
 
     # The following values are populated by Leo when a cluster is created.
@@ -139,7 +140,12 @@ if [[ "${ROLE}" == 'Master' ]]; then
       docker exec -u root -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
     fi
 
-    #docker exec -d ${JUPYTER_SERVER_NAME} ${NOTEBOOK}
+    # Install the jupyter notebook startup script in instance metadata so it runs on startup.
+    # This is needed to support pause/resume clusters.
+    gcloud compute instances add-metadata ${NAME} --metadata startup-script="docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_NOTEBOOK}"
+
+    # Run jupyter notebook now.
+    docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_NOTEBOOK}
 fi
 
 
