@@ -8,6 +8,8 @@ set -e -x
 # Uses cluster-docker-compose.yaml
 
 ROLE=$(/usr/share/google/get_metadata_value attributes/dataproc-role)
+NAME=$(/usr/share/google/get_metadata_value name)
+ZONE=$(/usr/share/google/get_metadata_value zone)
 
 # If a Google credentials file was specified, grab the service account json file and set the GOOGLE_APPLICATION_CREDENTIALS EV.
 # This overrides the credentials on the metadata server.
@@ -23,7 +25,7 @@ fi
 if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_HOME=/etc/jupyter
     JUPYTER_USER_HOME=/home/jupyter-user
-    PYSPARK=/usr/bin/pyspark
+    JUPYTER_NOTEBOOK="/usr/local/bin/jupyter notebook"
     KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
 
     # The following values are populated by Leo when a cluster is created.
@@ -99,7 +101,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
     docker exec -u root -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/kernelspec.sh ${JUPYTER_HOME} ${KERNELSPEC_HOME}
 
     # Install the Hail additions to Spark conf.
-    # OK to do this after pyspark runs; it needs to happen before the Jupyter kernel starts.
     docker exec -u root -d ${JUPYTER_SERVER_NAME} /etc/hail/spark_install_hail.sh
 
     # Copy the actual service account JSON file into the Jupyter docker container.
@@ -140,7 +141,12 @@ if [[ "${ROLE}" == 'Master' ]]; then
       docker exec -u root -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
     fi
 
-    docker exec -d ${JUPYTER_SERVER_NAME} ${PYSPARK}
+    # Install the jupyter notebook startup script in instance metadata so it runs on startup.
+    # This is needed to support pause/resume clusters.
+    #gcloud compute instances add-metadata ${NAME} --zone ${ZONE} --metadata startup-script="docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_NOTEBOOK}"
+
+    # Run jupyter notebook now.
+    docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_NOTEBOOK}
 fi
 
 

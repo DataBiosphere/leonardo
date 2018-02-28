@@ -103,7 +103,7 @@ object StringValueClass {
 object ClusterStatus extends Enumeration {
   type ClusterStatus = Value
   //NOTE: Remember to update the definition of this enum in Swagger when you add new ones
-  val Unknown, Creating, Running, Updating, Error, Deleting, Deleted = Value
+  val Unknown, Creating, Running, Updating, Error, Deleting, Deleted, Stopping, Stopped, Starting = Value
   val activeStatuses = Set(Unknown, Creating, Running, Updating)
   val monitoredStatuses = Set(Unknown, Creating, Updating, Deleting)
 

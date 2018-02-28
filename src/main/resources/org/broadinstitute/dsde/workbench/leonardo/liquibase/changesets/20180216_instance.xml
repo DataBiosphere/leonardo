@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="rtitle" id="instance">
+        <createTable tableName="INSTANCE">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="clusterId" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="googleProject" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="zone" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="googleId" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="ip" type="VARCHAR(254)"/>
+            <column name="dataprocRole" type="VARCHAR(254)"/>
+            <column name="createdDate" type="TIMESTAMP(6)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="destroyedDate" type="TIMESTAMP(6)" defaultValue="1970-01-01 00:00:01.000000">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex indexName="FK_INSTANCE_CLUSTER_ID" tableName="INSTANCE">
+            <column name="clusterId"/>
+        </createIndex>
+        <addForeignKeyConstraint baseColumnNames="clusterId" baseTableName="INSTANCE" constraintName="FK_INSTANCE_CLUSTER_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="CLUSTER"/>
+        <addUniqueConstraint columnNames="clusterId, googleProject, zone, name, destroyedDate" constraintName="IDX_INSTANCE_UNIQUE" tableName="INSTANCE"/>
+        <addUniqueConstraint columnNames="googleId" constraintName="IDX_INSTANCE_GOOGLE_ID_UNIQUE" tableName="INSTANCE"/>
+    </changeSet>
+</databaseChangeLog>

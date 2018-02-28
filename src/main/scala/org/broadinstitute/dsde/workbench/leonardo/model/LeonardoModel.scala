@@ -12,7 +12,6 @@ import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.google.GoogleJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
@@ -51,7 +50,8 @@ case class Cluster(clusterName: ClusterName,
                    labels: LabelMap,
                    jupyterExtensionUri: Option[GcsPath],
                    jupyterUserScriptUri: Option[GcsPath],
-                   stagingBucket: Option[GcsBucketName]) {
+                   stagingBucket: Option[GcsBucketName],
+                   instances: Set[Instance]) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.value}"
 }
 object Cluster {
@@ -82,7 +82,8 @@ object Cluster {
         labels = clusterRequest.labels,
         jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
         jupyterUserScriptUri = clusterRequest.jupyterUserScriptUri,
-        stagingBucket = Some(stagingBucket)
+        stagingBucket = Some(stagingBucket),
+        instances = Set.empty
       )
   }
 
@@ -107,7 +108,8 @@ object Cluster {
       labels = clusterRequest.labels,
       jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
       jupyterUserScriptUri = clusterRequest.jupyterUserScriptUri,
-      stagingBucket = None
+      stagingBucket = None,
+      instances = Set.empty
     )
   }
 
@@ -254,7 +256,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val ServiceAccountInfoFormat = jsonFormat2(ServiceAccountInfo)
 
-  implicit val ClusterFormat = jsonFormat16(Cluster.apply)
+  implicit val ClusterFormat = jsonFormat17(Cluster.apply)
 
   implicit val DefaultLabelsFormat = jsonFormat7(DefaultLabels.apply)
 

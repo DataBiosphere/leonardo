@@ -11,7 +11,7 @@ object Dependencies {
 
   val workbenchUtilV    = "0.2-d97f551"
   val workbenchModelV   = "0.10-6800f3a"
-  val workbenchGoogleV  = "0.15-2fc79a3"
+  val workbenchGoogleV  = "0.16-eac241e"
   val workbenchMetricsV = "0.3-d97f551"
 
   val samV =  "1.0-5cdffb4"
@@ -33,6 +33,7 @@ object Dependencies {
   val ficus: ModuleID =          "com.iheart"                 %% "ficus"           % "1.4.0"
   val cats: ModuleID =           "org.typelevel"              %% "cats"            % "0.9.0"
   val httpClient: ModuleID =     "org.apache.httpcomponents"  % "httpclient"       % "4.5.3"  // upgrading a transitive dependency to avoid security warnings
+  val enumeratum: ModuleID =     "com.beachape"               %% "enumeratum"      % "1.5.12"
 
   val akkaActor: ModuleID =         "com.typesafe.akka"   %%  "akka-actor"           % akkaV
   val akkaContrib: ModuleID =       "com.typesafe.akka"   %%  "akka-contrib"         % akkaV
@@ -57,7 +58,7 @@ object Dependencies {
   val workbenchGoogleTests: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-google" % workbenchGoogleV % "test" classifier "tests" excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel)
   val workbenchMetrics: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-metrics" % workbenchMetricsV excludeAll(excludeWorkbenchUtil)
 
-  val sam:ModuleID = "org.broadinstitute.dsde.sam-client" %% "sam" % samV
+  val sam: ModuleID = "org.broadinstitute.dsde.sam-client" %% "sam" % samV
 
   val slick: ModuleID =     "com.typesafe.slick" %% "slick"                 % slickV
   val hikariCP: ModuleID =  "com.typesafe.slick" %% "slick-hikaricp"        % slickV
@@ -78,6 +79,7 @@ object Dependencies {
     ficus,
     cats,
     httpClient,
+    enumeratum,
 
     akkaActor,
     akkaContrib,

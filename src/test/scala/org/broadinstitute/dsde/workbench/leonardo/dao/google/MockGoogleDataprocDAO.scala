@@ -6,7 +6,7 @@ import java.util.UUID
 
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.ClusterStatus
+import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
@@ -19,7 +19,6 @@ import scala.concurrent.duration._
 class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
 
   val clusters: mutable.Map[ClusterName, Operation] = new TrieMap()
-  val firewallRules: mutable.Map[GoogleProject, FirewallRule] = new TrieMap()
   val badClusterName = ClusterName("badCluster")
   val errorClusterName = ClusterName("erroredCluster")
 
@@ -53,22 +52,25 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
     else Future.successful(Stream.continually(UUID.randomUUID).take(5).toList)
   }
 
-  override def getClusterMasterInstanceIp(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[IP]] = {
+  override def getClusterMasterInstance(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[InstanceKey]] = {
     Future.successful {
-      if (clusters.contains(clusterName)) Some(IP("1.2.3.4"))
+      if (clusters.contains(clusterName)) Some(InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName("master-instance")))
       else None
+    }
+  }
+
+  override def getClusterInstances(googleProject: GoogleProject, clusterName: ClusterName): Future[Map[DataprocRole, Set[InstanceKey]]] = {
+    Future.successful {
+      if (clusters.contains(clusterName))
+        Map(Master -> Set(InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName("master-instance"))),
+            Worker -> Set(InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName("worker-instance-1")),
+                          InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName("worker-instance-2"))))
+      else Map.empty
     }
   }
 
   override def getClusterErrorDetails(operationName: OperationName): Future[Option[ClusterErrorDetails]] = {
     Future.successful(None)
-  }
-
-  override def updateFirewallRule(googleProject: GoogleProject, firewallRule: FirewallRule): Future[Unit] = {
-    if (!firewallRules.contains(googleProject)) {
-      firewallRules += googleProject -> firewallRule
-    }
-    Future.successful(())
   }
 
   override def getUserInfoAndExpirationFromAccessToken(accessToken: String): Future[(UserInfo, Instant)] = {
@@ -82,10 +84,6 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
           (UserInfo(OAuth2BearerToken(accessToken), WorkbenchUserId("1234567890"), WorkbenchEmail("user1@example.com"), (1 hour).toMillis), Instant.now.plus(1, ChronoUnit.HOURS))
       }
     }
-  }
-
-  override def getComputeEngineDefaultServiceAccount(googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
-    Future.successful(Some(WorkbenchEmail("compute-engine@example.com")))
   }
 
   override def getClusterStagingBucket(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[GcsBucketName]] = {

@@ -28,9 +28,18 @@ import scala.collection.immutable
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
-case class ClusterNotReadyException(googleProject: GoogleProject, clusterName: ClusterName) extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} is not ready yet, chill out and try again later", StatusCodes.EnhanceYourCalm)
-case class ProxyException(googleProject: GoogleProject, clusterName: ClusterName) extends LeoException(s"Unable to proxy connection to Jupyter notebook on ${googleProject.value}/${clusterName.value}", StatusCodes.InternalServerError)
-case class AccessTokenExpiredException() extends LeoException(s"Your access token is expired. Try logging in again", StatusCodes.Unauthorized)
+case class ClusterNotReadyException(googleProject: GoogleProject, clusterName: ClusterName)
+  extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} is not ready yet, chill out and try again later", StatusCodes.EnhanceYourCalm)
+
+case class ClusterPausedException(googleProject: GoogleProject, clusterName: ClusterName)
+  extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} is stopped. Start your cluster before proceeding.", StatusCodes.UnprocessableEntity)
+
+case class ProxyException(googleProject: GoogleProject, clusterName: ClusterName)
+  extends LeoException(s"Unable to proxy connection to Jupyter notebook on ${googleProject.value}/${clusterName.value}", StatusCodes.InternalServerError)
+
+case class AccessTokenExpiredException()
+  extends LeoException(s"Your access token is expired. Try logging in again", StatusCodes.Unauthorized)
+
 /**
   * Created by rtitle on 8/15/17.
   */
@@ -125,6 +134,8 @@ class ProxyService(proxyConfig: ProxyConfig,
         }
       case ClusterNotReady =>
         throw ClusterNotReadyException(googleProject, clusterName)
+      case ClusterPaused =>
+        throw ClusterPausedException(googleProject, clusterName)
       case ClusterNotFound =>
         throw ClusterNotFoundException(googleProject, clusterName)
     }

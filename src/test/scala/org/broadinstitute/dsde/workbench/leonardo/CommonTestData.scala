@@ -51,7 +51,7 @@ trait CommonTestData { this: ScalaFutures =>
 
 
   val serviceAccountInfo = new ServiceAccountInfo(Option(WorkbenchEmail("testServiceAccount1@example.com")), Option(WorkbenchEmail("testServiceAccount2@example.com")))
-  val testCluster = new Cluster(name1, new UUID(1, 1), project, serviceAccountInfo, MachineConfig(), Cluster.getClusterUrl(project, name1, clusterUrlBase), OperationName("op"), ClusterStatus.Running, None, userEmail, Instant.now(), None, Map(), Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript"))), Some(GcsBucketName("testStagingBucket1")))
+  val testCluster = new Cluster(name1, new UUID(1, 1), project, serviceAccountInfo, MachineConfig(), Cluster.getClusterUrl(project, name1, clusterUrlBase), OperationName("op"), ClusterStatus.Running, None, userEmail, Instant.now(), None, Map(), Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript"))), Some(GcsBucketName("testStagingBucket1")), Set.empty)
 
 
   // TODO look into parameterized tests so both provider impls can both be tested
@@ -66,6 +66,49 @@ trait CommonTestData { this: ScalaFutures =>
 
   protected def notebookServiceAccount(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Option[WorkbenchEmail] = {
     serviceAccountProvider.getNotebookServiceAccount(userInfo.userEmail, googleProject).futureValue
+  }
+
+  val masterInstance = Instance(
+    InstanceKey(
+      project,
+      ZoneUri("my-zone"),
+      InstanceName("master-instance")),
+    googleId = BigInt(12345),
+    status = InstanceStatus.Running,
+    ip = Some(IP("1.2.3.4")),
+    dataprocRole = Some(DataprocRole.Master),
+    createdDate = Instant.now(),
+    destroyedDate = None)
+
+  val workerInstance1 = Instance(
+    InstanceKey(
+      project,
+      ZoneUri("my-zone"),
+      InstanceName("worker-instance-1")),
+    googleId = BigInt(23456),
+    status = InstanceStatus.Running,
+    ip = Some(IP("1.2.3.5")),
+    dataprocRole = Some(DataprocRole.Worker),
+    createdDate = Instant.now(),
+    destroyedDate = None)
+
+  val workerInstance2 = Instance(
+    InstanceKey(
+      project,
+      ZoneUri("my-zone"),
+      InstanceName("worker-instance-2")),
+    googleId = BigInt(34567),
+    status = InstanceStatus.Running,
+    ip = Some(IP("1.2.3.6")),
+    dataprocRole = Some(DataprocRole.Worker),
+    createdDate = Instant.now(),
+    destroyedDate = None)
+
+  protected def modifyInstance(instance: Instance): Instance = {
+    instance.copy(key = modifyInstanceKey(instance.key), googleId = instance.googleId + 1)
+  }
+  protected def modifyInstanceKey(instanceKey: InstanceKey): InstanceKey = {
+    instanceKey.copy(name = InstanceName(instanceKey.name.value + "_2"))
   }
 }
 
