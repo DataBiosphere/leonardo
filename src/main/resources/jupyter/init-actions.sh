@@ -9,6 +9,7 @@ set -e -x
 
 ROLE=$(/usr/share/google/get_metadata_value attributes/dataproc-role)
 NAME=$(/usr/share/google/get_metadata_value name)
+ZONE=$(/usr/share/google/get_metadata_value zone)
 
 # If a Google credentials file was specified, grab the service account json file and set the GOOGLE_APPLICATION_CREDENTIALS EV.
 # This overrides the credentials on the metadata server.
@@ -142,7 +143,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
     # Install the jupyter notebook startup script in instance metadata so it runs on startup.
     # This is needed to support pause/resume clusters.
-    gcloud compute instances add-metadata ${NAME} --metadata startup-script="docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_NOTEBOOK}"
+    gcloud compute instances add-metadata ${NAME} --zone ${ZONE} --metadata startup-script="docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_NOTEBOOK}"
 
     # Run jupyter notebook now.
     docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_NOTEBOOK}
