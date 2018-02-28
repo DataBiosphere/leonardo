@@ -65,13 +65,19 @@ case class Cluster(clusterName: ClusterName,
                    labels: LabelMap,
                    jupyterExtensionUri: Option[GcsPath],
                    jupyterUserScriptUri: Option[GcsPath],
-                   stagingBucket:Option[GcsBucketName]
+                   stagingBucket:Option[GcsBucketName],
+                   errors:List[ClusterError]
                   )
 
 case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[String] = None,
                           jupyterUserScriptUri: Option[String] = None,
                           machineConfig: Option[MachineConfig] = None)
+
+case class ClusterError(errorMessage: String,
+                        errorCode: Int,
+                        timestamp: String
+                       )
 
 case class DefaultLabels(clusterName: ClusterName,
                          googleProject: GoogleProject,

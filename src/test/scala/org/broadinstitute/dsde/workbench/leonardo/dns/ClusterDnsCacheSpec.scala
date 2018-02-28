@@ -47,7 +47,7 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     labels = Map("bam" -> "yes", "vcf" -> "no"),
     jupyterExtensionUri = Some(jupyterExtensionUri),
     jupyterUserScriptUri = Some(jupyterUserScriptUri),
-    Some(GcsBucketName("testStagingBucket1")))
+    Some(GcsBucketName("testStagingBucket1")), List.empty)
 
   val c2 = Cluster(
     clusterName = name2,
@@ -65,7 +65,7 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     labels = Map.empty,
     None,
     None,
-    Some(GcsBucketName("testStagingBucket2")))
+    Some(GcsBucketName("testStagingBucket2")), List.empty)
 
   it should "update maps and return clusters" in isolatedDbTest {
     val actorRef = TestActorRef[ClusterDnsCache](ClusterDnsCache.props(proxyConfig, DbSingleton.ref))

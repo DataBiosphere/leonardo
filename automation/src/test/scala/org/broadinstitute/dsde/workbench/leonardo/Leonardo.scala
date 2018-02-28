@@ -51,7 +51,8 @@ object Leonardo extends RestClient with LazyLogging {
                                     labels: LabelMap,
                                     jupyterExtensionUri: Option[String],
                                     jupyterUserScriptUri: Option[String],
-                                    stagingBucket: String) {
+                                    stagingBucket: String,
+                                    errors:List[ClusterError]) {
 
       def toCluster = Cluster(clusterName,
         googleId,
@@ -68,7 +69,8 @@ object Leonardo extends RestClient with LazyLogging {
         labels,
         jupyterExtensionUri map (parseGcsPath(_).right.get),
         jupyterUserScriptUri map (parseGcsPath(_).right.get),
-        Some(GcsBucketName(stagingBucket))
+        Some(GcsBucketName(stagingBucket)),
+        errors
       )
     }
 
