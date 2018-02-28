@@ -92,7 +92,7 @@ class HttpGoogleDataprocDAO(appName: String,
     } {
       case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => ()
       case e: GoogleJsonResponseException if e.getStatusCode == StatusCodes.BadRequest.intValue &&
-        e.getDetails.getMessage.contains("it has other pending delete operations against it") => ()
+        e.getDetails.getMessage.contains("pending delete") => ()
     }.handleGoogleException(googleProject, clusterName)
   }
 
