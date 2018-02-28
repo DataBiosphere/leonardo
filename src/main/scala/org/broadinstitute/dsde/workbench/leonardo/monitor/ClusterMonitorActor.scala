@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
+import akka.actor.Status.Failure
 import akka.actor.{Actor, ActorRef, Props}
 import akka.pattern.{ask, pipe}
 import akka.util.Timeout
@@ -23,7 +24,6 @@ import org.broadinstitute.dsde.workbench.util.addJitter
 import scala.collection.immutable.Set
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.util.Failure
 
 object ClusterMonitorActor {
   /**

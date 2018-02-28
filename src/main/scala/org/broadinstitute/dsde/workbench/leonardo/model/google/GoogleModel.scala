@@ -68,7 +68,7 @@ object ClusterStatus extends Enum[ClusterStatus] {
   val activeStatuses: Set[ClusterStatus] = Set(Unknown, Creating, Running, Updating, Stopping, Stopped, Starting)
 
   // A cluster that has been paused recently.
-  val pausedStatuses: Set[ClusterStatus] = Set(Stopping, Stopped, Starting)
+  val pausedStatuses: Set[ClusterStatus] = Set(Stopping, Stopped)
 
   // Can a user delete this cluster? Contains everything except Deleting, Deleted.
   val deletableStatuses: Set[ClusterStatus] = Set(Unknown, Creating, Running, Updating, Error, Stopping, Stopped, Starting)
