@@ -92,6 +92,14 @@ if [[ "${ROLE}" == 'Master' ]]; then
       echo "" > /etc/google_application_credentials.env
     fi
 
+    # Pre-load docker images using gcloud. This prevents auth errors while fetching a non-public GCR images.
+    if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}" ; then
+      gcloud docker -- pull "${JUPYTER_DOCKER_IMAGE}"
+    fi
+    if grep -qF "gcr.io" <<< "${PROXY_DOCKER_IMAGE}" ; then
+      gcloud docker -- pull "${PROXY_DOCKER_IMAGE}"
+    fi
+
     # Run docker-compose. This mounts Hadoop, Spark, and other resources inside the docker container.
     docker-compose -f /etc/cluster-docker-compose.yaml up -d
 
