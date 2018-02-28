@@ -81,10 +81,18 @@ class HttpGoogleComputeDAO(appName: String,
   }
 
   override def addInstanceMetadata(instanceKey: InstanceKey, metadata: Map[String, String]): Future[Unit] = {
-    val googleMetadata = new Metadata().setItems(metadata.toList.map { case (k, v) => new Items().setKey(k).setValue(v) }.asJava)
-    val request = compute.instances.setMetadata(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value, googleMetadata)
+    val getInstanceRequest = compute.instances().get(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value)
+    retryWhen500orGoogleError(() => executeGoogleRequest(getInstanceRequest)).flatMap { googleInstance =>
+      val fingerprintOpt = for {
+        instance <- Option(googleInstance)
+        metadata <- Option(instance.getMetadata)
+        fingerprint <- Option(metadata.getFingerprint)
+      } yield fingerprint
 
-    retryWhen500orGoogleError(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
+      val newMetadata = new Metadata().setFingerprint(fingerprintOpt.orNull).setItems(metadata.toList.map { case (k, v) => new Items().setKey(k).setValue(v) }.asJava)
+      val setMetadataRequest = compute.instances.setMetadata(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value, newMetadata)
+      retryWhen500orGoogleError(() => executeGoogleRequest(setMetadataRequest)).void.handleGoogleException(instanceKey)
+    }
   }
 
   override def updateFirewallRule(googleProject: GoogleProject, firewallRule: FirewallRule): Future[Unit] = {
