@@ -10,7 +10,8 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
 import com.google.api.services.cloudresourcemanager.CloudResourceManager
 import com.google.api.services.compute.model.Firewall.Allowed
-import com.google.api.services.compute.model.{Firewall, Instance => GoogleInstance}
+import com.google.api.services.compute.model.Metadata.Items
+import com.google.api.services.compute.model.{Firewall, Metadata, Instance => GoogleInstance}
 import com.google.api.services.compute.{Compute, ComputeScopes}
 import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
@@ -75,6 +76,13 @@ class HttpGoogleComputeDAO(appName: String,
 
   override def startInstance(instanceKey: InstanceKey): Future[Unit] = {
     val request = compute.instances.start(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value)
+
+    retryWhen500orGoogleError(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
+  }
+
+  override def addInstanceMetadata(instanceKey: InstanceKey, metadata: Map[String, String]): Future[Unit] = {
+    val googleMetadata = new Metadata().setItems(metadata.toList.map { case (k, v) => new Items().setKey(k).setValue(v) }.asJava)
+    val request = compute.instances.setMetadata(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value, googleMetadata)
 
     retryWhen500orGoogleError(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
   }

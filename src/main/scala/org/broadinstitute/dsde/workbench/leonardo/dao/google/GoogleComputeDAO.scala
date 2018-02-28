@@ -17,6 +17,8 @@ trait GoogleComputeDAO {
 
   def startInstance(instanceKey: InstanceKey): Future[Unit]
 
+  def addInstanceMetadata(instanceKey: InstanceKey, metadata: Map[String, String]): Future[Unit]
+
   def updateFirewallRule(googleProject: GoogleProject, firewallRule: FirewallRule): Future[Unit]
 
   def getComputeEngineDefaultServiceAccount(googleProject: GoogleProject): Future[Option[WorkbenchEmail]]

@@ -14,6 +14,7 @@ import scala.concurrent.Future
 class MockGoogleComputeDAO extends GoogleComputeDAO {
   val instances: mutable.Map[InstanceKey, Instance] = new TrieMap()
   val firewallRules: mutable.Map[GoogleProject, FirewallRule] = new TrieMap()
+  val instanceMetadata: mutable.Map[InstanceKey, Map[String, String]] = new TrieMap()
 
   override def getInstance(instanceKey: InstanceKey): Future[Option[Instance]] = {
     Future.successful(instances.get(instanceKey))
@@ -33,6 +34,13 @@ class MockGoogleComputeDAO extends GoogleComputeDAO {
     Future.successful(())
   }
 
+  override def addInstanceMetadata(instanceKey: InstanceKey, metadata: Map[String, String]): Future[Unit] = {
+    instanceMetadata.get(instanceKey).foreach { existingMetadata =>
+      instanceMetadata += instanceKey -> (existingMetadata ++ metadata)
+    }
+    Future.successful(())
+  }
+
   override def updateFirewallRule(googleProject: GoogleProject, firewallRule: FirewallRule): Future[Unit] = {
     if (!firewallRules.contains(googleProject)) {
       firewallRules += googleProject -> firewallRule
@@ -43,4 +51,5 @@ class MockGoogleComputeDAO extends GoogleComputeDAO {
   override def getComputeEngineDefaultServiceAccount(googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
     Future.successful(Some(WorkbenchEmail("compute-engine@example.com")))
   }
+
 }

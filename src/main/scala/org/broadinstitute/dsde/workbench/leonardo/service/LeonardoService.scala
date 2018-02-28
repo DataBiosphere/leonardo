@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.Master
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.model.google._
@@ -23,6 +24,7 @@ import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import slick.dbio.DBIO
 import spray.json._
 
+import scala.collection.immutable
 import scala.collection.Map
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.Source
@@ -77,6 +79,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     ports = List(FirewallRulePort(proxyConfig.jupyterPort.toString)),
     network = FirewallRuleNetwork(proxyConfig.firewallVPCNetwork),
     targetTags = List(NetworkTag(proxyConfig.networkTag)))
+
+  private lazy val startupScript: immutable.Map[String, String] = {
+    immutable.Map("startup-script" -> s"docker exec -d ${dataprocConfig.jupyterServerName} /usr/local/bin/jupyter notebook")
+  }
 
   def isWhitelisted(userInfo: UserInfo): Future[Boolean] = {
     if( whitelist contains userInfo.userEmail.value.toLowerCase ) {
@@ -219,7 +225,16 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   def internalStopCluster(userEmail: WorkbenchEmail, cluster: Cluster): Future[Unit] = {
     if (cluster.status.isStoppable) {
       for {
-        _ <- Future.traverse(cluster.instances) { instance => googleComputeDAO.stopInstance(instance.key) }
+        _ <- Future.traverse(cluster.instances) { instance =>
+          // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
+          instance.dataprocRole match {
+            case Some(Master) =>
+              googleComputeDAO.addInstanceMetadata(instance.key, startupScript).flatMap { _ =>
+                googleComputeDAO.stopInstance(instance.key)
+              }
+            case _ => googleComputeDAO.stopInstance(instance.key)
+          }
+        }
 
         _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Stopping) }
       } yield {
