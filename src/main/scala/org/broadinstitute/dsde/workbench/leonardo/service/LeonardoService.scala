@@ -205,7 +205,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       } yield {
         // Notify the cluster monitor supervisor of cluster deletion.
         // This will kick off polling until the cluster is actually deleted in Google.
-        clusterMonitorSupervisor ! ClusterDeleted(cluster)
+        clusterMonitorSupervisor ! ClusterDeleted(cluster.copy(status = ClusterStatus.Deleting))
       }
     } else Future.successful(())
   }
