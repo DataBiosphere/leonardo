@@ -160,12 +160,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ShutdownActor
     */
   private def handleFailedCluster(errorDetails: ClusterErrorDetails): Future[ClusterMonitorMessage] = {
-    val deleteFuture = Future.sequence(Seq(
-      // Delete the cluster in Google
-      gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName),
-      // Remove the service account key in Google, if present.
-      // Only happens if the cluster was NOT created with the pet service account.
-      removeServiceAccountKey,
+
       dbRef.inTransaction { dataAccess =>
         val clusterId = dataAccess.clusterQuery.getIdByGoogleId(cluster.googleId)
         clusterId flatMap {
@@ -176,30 +171,33 @@ class ClusterMonitorActor(val cluster: Cluster,
           }
         }
       }
-    ))
 
-    deleteFuture.flatMap { _ =>
-      // Decide if we should try recreating the cluster
-      if (shouldRecreateCluster(errorDetails.code, errorDetails.message)) {
+    // Decide if we should try recreating the cluster
+    if (shouldRecreateCluster(errorDetails.code, errorDetails.message)) {
         // Update the database record to Deleting, shutdown this actor, and register a callback message
         // to the supervisor telling it to recreate the cluster.
         logger.info(s"Cluster ${cluster.projectNameString} is in an error state with $errorDetails. Attempting to recreate...")
         dbRef.inTransaction { dataAccess =>
           dataAccess.clusterQuery.markPendingDeletion(cluster.googleId)
+        } flatMap  {_ =>
+          gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)
+          removeServiceAccountKey
         } map { _ =>
           ShutdownActor(Some(ClusterDeleted(cluster, recreate = true)))
         }
-      } else {
+    } else {
         // Update the database record to Error and shutdown this actor.
         logger.warn(s"Cluster ${cluster.projectNameString} is in an error state with $errorDetails'. Unable to recreate cluster.")
         for {
           _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Error) }
+          _ <- gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)
+          _ <- removeServiceAccountKey
           // Remove the Dataproc Worker IAM role for the pet service account
           // Only happens if the cluster was created with the pet service account.
           _ <-  removeIamRolesForUser
         } yield ShutdownActor()
       }
-    }
+
   }
 
   private def shouldRecreateCluster(code: Int, message: Option[String]): Boolean = {
