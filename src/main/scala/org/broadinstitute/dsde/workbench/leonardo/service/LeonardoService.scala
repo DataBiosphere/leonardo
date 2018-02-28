@@ -238,7 +238,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Stopping) }
       } yield {
-        clusterMonitorSupervisor ! ClusterStopped(cluster)
+        clusterMonitorSupervisor ! ClusterStopped(cluster.copy(status = ClusterStatus.Stopping))
       }
 
     } else Future.successful(())
@@ -263,7 +263,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Starting) }
       } yield {
-        clusterMonitorSupervisor ! ClusterStarted(cluster)
+        clusterMonitorSupervisor ! ClusterStarted(cluster.copy(status = ClusterStatus.Starting))
       }
 
     } else Future.successful(())

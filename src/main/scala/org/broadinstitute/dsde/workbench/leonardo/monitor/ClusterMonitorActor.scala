@@ -118,7 +118,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ScheduleMonitorPass
     */
   private def handleNotReadyCluster(status: ClusterStatus, instances: Set[Instance]): Future[ClusterMonitorMessage] = {
-    logger.info(s"Cluster ${cluster.projectNameString} is not ready yet ($status). Checking again in ${monitorConfig.pollPeriod.toString}.")
+    logger.info(s"Cluster ${cluster.projectNameString} is not ready yet (cluster status = $status, instace status = ${instances.map(_.status)}). Checking again in ${monitorConfig.pollPeriod.toString}.")
     persistInstances(instances).map { _ =>
       ScheduleMonitorPass
     }
