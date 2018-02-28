@@ -487,6 +487,11 @@ definitions:
       labels:
         type: object
         description: The labels to be placed on the cluster. Of type Map[String,String]
+      errors:
+        type: array
+        description: The list of errors that were encountered on cluster create. Each error consists of the error message, code and timestamp
+        items:
+          $ref: "#/definitions/ClusterError"
 
   ClusterRequest:
     description: ''
@@ -508,6 +513,19 @@ definitions:
       machineConfig:
         description: The machine configurations for the master and worker nodes
         $ref: '#/definitions/MachineConfig'
+
+  ClusterError:
+    description: 'Errors encountered on cluster create'
+    properties:
+      errorMessage:
+        type: string
+        description: Error message
+      errorCode:
+        type: integer
+        description: Error code
+      timestamp:
+        type: string
+        description: timestamp for error in ISO 8601 format
 
   MachineConfig:
     description: 'The configuration for a single Dataproc cluster'

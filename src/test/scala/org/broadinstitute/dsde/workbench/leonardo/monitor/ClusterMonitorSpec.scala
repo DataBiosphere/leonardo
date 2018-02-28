@@ -47,8 +47,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"),
     None,
-    None,
-    Some(GcsBucketName("testStagingBucket1")))
+    None,Some(GcsBucketName("testStagingBucket1"))
+  , List.empty)
 
   val deletingCluster = Cluster(
     clusterName = name2,
@@ -66,7 +66,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     labels = Map("bam" -> "yes", "vcf" -> "no"),
     jupyterExtensionUri = Some(jupyterExtensionUri),
     jupyterUserScriptUri = Some(jupyterUserScriptUri),
-    Some(GcsBucketName("testStagingBucket1")))
+    Some(GcsBucketName("testStagingBucket1"))
+  , List.empty)
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
@@ -283,6 +284,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val updatedCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName) }
     updatedCluster shouldBe 'defined
     updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Error)
+    updatedCluster.map(_.errors).get should have length 1
     updatedCluster.flatMap(_.hostIp) shouldBe None
 
     verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
