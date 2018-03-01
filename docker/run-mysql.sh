@@ -47,8 +47,8 @@ stop() {
     docker rm -v $CONTAINER2 || echo "mysql rm -v failed.  container $CONTAINER2 already destroyed."
 }
 
-CONTAINER=mysql
-CONTAINER2=leonardo-mysql
+CONTAINER=leonardo-mysql
+CONTAINER2=mysql
 
 if [ ${#@} == 0 ]; then
     echo "Usage: $0 stop|start <service>"
