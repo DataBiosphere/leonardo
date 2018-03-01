@@ -2,17 +2,19 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.service.{Orchestration, Sam}
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
+import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
-import org.broadinstitute.dsde.workbench.model.google.{GcsEntity, GcsObjectName, GcsPath, parseGcsPath}
+import org.broadinstitute.dsde.workbench.model.google.{GcsEntity, GcsObjectName, GcsPath, GoogleProject, parseGcsPath}
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 
-class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with ParallelTestExecution {
+class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with ParallelTestExecution with BillingFixtures {
   "Leonardo clusters" - {
 
     "should create, monitor, delete, recreate, and re-delete a cluster" in {
-      withNewBillingProject { project =>
-        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+      withCleanBillingProject(hermioneCreds) { projectName =>
+        Orchestration.billing.addUserToBillingProject(projectName, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+        val project = GoogleProject(projectName)
         implicit val token = ronAuthToken
         val nameToReuse = randomClusterName
 
@@ -23,12 +25,12 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
         withNewCluster(project, nameToReuse)(_ => ())
       }
     }
-    
+
     "should error on cluster create and delete the cluster" in {
-      withNewBillingProject { project =>
-        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+      withCleanBillingProject(hermioneCreds) { projectName =>
+        Orchestration.billing.addUserToBillingProject(projectName, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
         implicit val token = ronAuthToken
-        withNewErroredCluster(project) { _ =>
+        withNewErroredCluster(GoogleProject(projectName)) { _ =>
           // no-op; just verify that it launches
         }
       }
@@ -36,8 +38,10 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
 
     // default PetClusterServiceAccountProvider edition
     "should create a cluster in a different billing project using PetClusterServiceAccountProvider and put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
-      withNewBillingProject { project =>
-        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+      withCleanBillingProject(hermioneCreds) { projectName =>
+        val project = GoogleProject(projectName)
+
+        Orchestration.billing.addUserToBillingProject(projectName, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
 
         implicit val token = ronAuthToken
         // Pre-conditions: pet service account exists in this Google project and in Sam
@@ -66,8 +70,10 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
 
     // PetNotebookServiceAccountProvider edition.  IGNORE.
     "should create a cluster in a different billing project using PetNotebookServiceAccountProvider and put the pet's credentials on the cluster" ignore withWebDriver { implicit driver =>
-      withNewBillingProject { project =>
-        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+      withCleanBillingProject(hermioneCreds) { projectName =>
+        val project = GoogleProject(projectName)
+
+        Orchestration.billing.addUserToBillingProject(projectName, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
 
         implicit val token = ronAuthToken
         // Pre-conditions: pet service account exists in this Google project and in Sam
@@ -98,8 +104,10 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
     // https://github.com/DataBiosphere/leonardo/issues/204
     // https://github.com/DataBiosphere/leonardo/issues/228
     "should execute Hail with correct permissions on a cluster with preemptible workers" ignore withWebDriver { implicit driver =>
-      withNewBillingProject { project =>
-        Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+      withCleanBillingProject(hermioneCreds) { projectName =>
+        val project = GoogleProject(projectName)
+
+        Orchestration.billing.addUserToBillingProject(projectName, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
 
         withNewGoogleBucket(project) { bucket =>
           val srcPath = parseGcsPath("gs://genomics-public-data/1000-genomes/vcf/ALL.chr20.integrated_phase1_v3.20101123.snps_indels_svs.genotypes.vcf").right.get
