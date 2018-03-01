@@ -106,4 +106,7 @@ object Dependencies {
     workbenchMetrics,
     sam
   )
+
+  val modelDependencies = rootDependencies
+  val leoServiceDependencies = rootDependencies
 }

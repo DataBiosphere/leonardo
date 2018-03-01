@@ -18,9 +18,9 @@ object Version {
     val isSnapshot = sys.props.getOrElse("project.isSnapshot", "true").toBoolean
 
     // For now, obfuscate SNAPSHOTs from sbt's developers: https://github.com/sbt/sbt/issues/2687#issuecomment-236586241
-    if (isSnapshot) s"$version-SNAPSHOT" else version
+    if (isSnapshot) s"$version-SNAP" else version
   }
 
-  val rootVersionSettings: Seq[Setting[_]] =
+  val commonVersionSettings: Seq[Setting[_]] =
     Seq(version := getVersionString)
 }

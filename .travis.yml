@@ -1,25 +1,24 @@
 jdk:
-  - oraclejdk8
-
+- oraclejdk8
 language: scala
-
 scala:
-  - 2.12.2
-
+- 2.12.2
 sudo: required
-
 services:
-  - docker
-
+- docker
 before_install:
-  - docker rm -f mysql || true          # in case the after_success step does not run
-  - docker pull mysql/mysql-server:5.6
-  # port 3306 is not available because Travis runs its own MySQL after 2006-12-01
-  - docker run -p 3307:3306 --name mysql -e MYSQL_ROOT_PASSWORD=leonardo-test -e MYSQL_USER=leonardo-test -e MYSQL_PASSWORD=leonardo-test -e MYSQL_DATABASE=leotestdb -d mysql/mysql-server:5.6
-
+- docker rm -f mysql || true
+- docker pull mysql/mysql-server:5.6
+- docker run -p 3307:3306 --name mysql -e MYSQL_ROOT_PASSWORD=leonardo-test -e MYSQL_USER=leonardo-test
+  -e MYSQL_PASSWORD=leonardo-test -e MYSQL_DATABASE=leotestdb -d mysql/mysql-server:5.6
 script:
-  - SBT_OPTS=-Xmx3g sbt -Denv.type=test -Dmysql.host=localhost -Dmysql.port=3307 clean coverage test coverageReport
-
+- SBT_OPTS=-Xmx3g sbt -Denv.type=test -Dmysql.host=localhost -Dmysql.port=3307 clean
+  coverage test coverageReport
 after_success:
-  - SBT_OPTS=-Xmx3g sbt coveralls
-  - docker rm -f mysql
+- SBT_OPTS=-Xmx3g sbt coveralls
+- bash scripts/publish.sh
+- docker rm -f mysql
+env:
+  global:
+  - secure: t73Lglo9rj+EeBLPmyFgsMOOBywTRCgNg0K9udiUsVKtASs4EgNi5y6Mhhb+89m/Iz/GlJZ5rIkgbRrY4p5FfpYVH8ICKcExXE9H62/TypP40AvGFh7TBzxMf21O1SgiBh8g2xnI0MgEfUitggKnievOG8eqXj2pfVmq0edf+YcvAncPY09N2rCK9MUXG+43fEWTh1QnWs1bJI7I4MzT9PrU0tHtWoSiE5UzDQaEtmwC3l5vxxSPmAipmhdo532W669AvXXNSCZ2RfVDA8GNt10exqnTJ9y66lDwHjIMGa8s23LCVdSrflPdw4beEH1n/Pfg1yTK2mArQEnVuEM9Zlu8TARvUn0dY1o25s83Cgh2VByTCpGH6IBkEhWHWn1GG5xA+K15JJp0LaRCGj46qlCppnUvTtglQeRbvsokWkZD/Y97Ojn4LtEW42GkTlne4boG+Rw7KysKWn+fdv45ustP/hBWceDCgcgHANd8wL6GOhdI3bJp8DVlj3nmlxDd+mHYqjhFi61oKaKVo6lY6IAOlJt6sfDSh8Y/R3+s3vupYOnvxQj1IQHlPxQHeh7nW5TqjbNycwrA8ltEwIBMYPNKLkpQnjmNfZk33lIuxFXTR7xVq1YrgBHBj80EpMXtRu8qI/dxEZdkWottP0Rus7ED66iBExMfLCO6PExWqWs=
+  - secure: kIOVIsevUdUUacMJvgj1oq8ZDJmJ78XqFH5i2QgnudiVck4BqyTfmc6WTjYaht9R3+pY7j3VGk9tzY9BeFz95I0mfQSDiD0/INcNht/wL8GkqqSATvzQ/bYee5ZyDQSiCCX7XIcdZJ/vmmrpfDmn20PsN21jNrvKf6UBytzgIPAjHDssHfEYzF3SWutO/Pke5JCfl0dMJhyC1b0/AbNCp5QU/tk0zh66b7FLh/Ub7EYmathPWgTqiK2cmpSN/gM48WGdUbXZQ1nfcI5stlo4vE5pzDvkOeVr7MaIxYyXLjz3oIczS6wyBRwgPT4fACDdoUlaL3si2hxPp/Eggyoq2KJd9vuCwB3BU4MSYUYc9r1h2sIe57bfhbYYAe3x/MCY9s5GPXkbHy0tS3Z6D8dFLTY2sqjRAeoWG+31v63S0Kl4g+6XIU94Q3OL6vU/bP/rAlOm0iq3xDnm5aokD7mi5oXyX6xsobqEsqVUpxoummMPs4TgJyrRo3PY4bSXSSH584y26FosXgmNRY7znjUobnlwUqUZXU2Q0m8P2etZ6ZHgZuQ2Gx8W73XVVi0ff6oqT28/r92DOl8PhOlG/gx9z+Bxt/mzHXRi+262Vm7hPC2ZwYG5MRn4xL54w6L5iglln1nUa1d5FEfYuqlqpuuDvgQY3KKehccqc6iqKE0SDD4=

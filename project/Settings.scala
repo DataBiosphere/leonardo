@@ -1,5 +1,6 @@
 import Dependencies._
 import Merging._
+import Publishing._
 import Testing._
 import Version._
 import sbt.Keys._
@@ -38,12 +39,29 @@ object Settings {
 
   //common settings for all sbt subprojects
   val commonSettings =
-    commonBuildSettings ++ commonAssemblySettings ++ commonTestSettings ++ List(
+    commonBuildSettings ++ commonAssemblySettings ++ commonTestSettings ++ commonVersionSettings ++ List(
     organization  := "org.broadinstitute.dsde.workbench",
     scalaVersion  := "2.12.3",
     resolvers ++= commonResolvers,
     scalacOptions ++= commonCompilerSettings
   )
+
+  //the full list of settings for the leoModel project (see build.sbt)
+  //coreDefaultSettings (inside commonBuildSettings) sets the project name, which we want to override, so ordering is important.
+  //thus commonSettings needs to be added first.
+  val modelSettings = commonSettings ++ List(
+    name := "leonardo-model",
+    libraryDependencies ++= modelDependencies
+  ) ++ publishSettings
+
+  //the full list of settings for the leoService project (see build.sbt)
+  //coreDefaultSettings (inside commonBuildSsettings) sets the project name, which we want to override, so ordering is important.
+  //thus commonSettings needs to be added first.
+  val leoServiceSettings = commonSettings ++ List(
+    name := "leo-service",
+    version := "0.1",
+    libraryDependencies ++= leoServiceDependencies
+  ) ++ noPublishSettings
 
   //the full list of settings for the root project that's ultimately the one we build into a fat JAR and run
   //coreDefaultSettings (inside commonSettings) sets the project name, which we want to override, so ordering is important.
@@ -51,9 +69,7 @@ object Settings {
   val rootSettings = commonSettings ++ List(
     name := "leonardo",
     libraryDependencies ++= rootDependencies
-    //the version is applied in rootVersionSettings and is set to 0.1-githash.
-    //we don't really use it for anything but we might when we publish our model
-  ) ++ commonAssemblySettings ++ rootVersionSettings
-
+    //the version is applied in commonVersionSettings and is set to 0.1-githash.
+  ) ++ noPublishSettings
 
 }
