@@ -95,8 +95,9 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
     }
 
     // TODO: this test fails intermittently. Ignoring until it's stable.
-    // See https://github.com/DataBiosphere/leonardo/issues/204
-    "should execute Hail with correct permissions on a cluster with preemptible workers" in withWebDriver { implicit driver =>
+    // https://github.com/DataBiosphere/leonardo/issues/204
+    // https://github.com/DataBiosphere/leonardo/issues/228
+    "should execute Hail with correct permissions on a cluster with preemptible workers" ignore withWebDriver { implicit driver =>
       withNewBillingProject { project =>
         Orchestration.billing.addUserToBillingProject(project.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
 
