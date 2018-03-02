@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, UserAuthToken}
 import org.broadinstitute.dsde.workbench.config.{Config, Credentials}
-import org.broadinstitute.dsde.workbench.service.{Orchestration, Rawls, Sam}
+import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.service.APIException
 import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
@@ -24,7 +24,6 @@ import org.scalatest.time.{Minutes, Seconds, Span}
 
 import scala.concurrent.duration.FiniteDuration
 import scala.util.{Random, Try}
-import scala.util.control.NonFatal
 
 trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures {
   this: Suite =>
@@ -57,35 +56,6 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
 
     linesWithoutIPs(left) shouldEqual linesWithoutIPs(right)
-  }
-
-  def createNewBillingProject(): GoogleProject = {
-    val ownerToken: AuthToken = hermioneAuthToken
-    val billingProject = "leonardo-billing-spec-" + makeRandomId()
-
-    logger.info(s"Creating billing project: $billingProject")
-    Orchestration.billing.createBillingProject(billingProject, Config.Projects.billingAccountId)(ownerToken)
-
-    GoogleProject(billingProject)
-  }
-
-  def cleanupBillingProject(billingProject: GoogleProject): Unit = {
-    Try(Rawls.admin.deleteBillingProject(billingProject.value)(UserAuthToken(Config.Users.Admins.getUserCredential("dumbledore")))).recover { case NonFatal(e) =>
-      logger.warn(s"Could not delete billing project $billingProject", e)
-    }
-  }
-
-  def withNewBillingProject[T](testCode: GoogleProject => T): T = {
-    // Create billing project and run test code
-    val billingProject = createNewBillingProject()
-    val testResult: Try[T] = Try {
-      testCode(billingProject)
-    }
-    // Clean up billing project
-    cleanupBillingProject(billingProject)
-
-    // Return the test result, or throw error
-    testResult.get
   }
 
   def labelCheck(seen: LabelMap,
