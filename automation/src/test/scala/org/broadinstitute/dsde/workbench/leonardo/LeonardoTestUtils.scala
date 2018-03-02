@@ -2,8 +2,10 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.io.{ByteArrayInputStream, File}
 import java.nio.file.Files
+import java.time.Instant
 
 import com.typesafe.scalalogging.LazyLogging
+import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, UserAuthToken}
 import org.broadinstitute.dsde.workbench.config.{Config, Credentials}
@@ -13,13 +15,14 @@ import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GcsObjectName, GoogleProject, ServiceAccountName, generateUniqueBucketName}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject, ServiceAccountName, generateUniqueBucketName}
 import org.broadinstitute.dsde.workbench.util.LocalFileUtil
 import org.openqa.selenium.WebDriver
 import org.scalatest.{Matchers, Suite}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Minutes, Seconds, Span}
 
+import scala.concurrent.duration.FiniteDuration
 import scala.util.{Random, Try}
 import scala.util.control.NonFatal
 
@@ -28,6 +31,9 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   val swatTestBucket = "gs://leonardo-swat-test-bucket-do-not-delete"
   val incorrectJupyterExtensionUri = swatTestBucket + "/"
+
+  // must align with run-tests.sh and hub-compose-fiab.yml
+  val downloadDir = "chrome/downloads"
 
   // Ron and Hermione are on the dev Leo whitelist, and Hermione is a Project Owner
   lazy val ronCreds: Credentials = Config.Users.NotebooksWhitelisted.getUserCredential("ron")
@@ -47,7 +53,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
     def linesWithoutIPs(file: File) = {
       import scala.collection.JavaConverters._
-      Files.readAllLines(left.toPath).asScala map { _.replaceAll("(\\d+.){3}\\d+", "<IP>") }
+      Files.readAllLines(file.toPath).asScala map { _.replaceAll("(\\d+.){3}\\d+", "<IP>") }
     }
 
     linesWithoutIPs(left) shouldEqual linesWithoutIPs(right)
@@ -345,5 +351,31 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
     val preemptibleNodePrefix = clusterName.string + "-sw"
     notebookPage.executeCell(s"! grep Finished ~/hail.log | grep $preemptibleNodePrefix").get should include(preemptibleNodePrefix)
+  }
+
+  def uploadDownloadTest(cluster: Cluster, uploadFile: File, timeout: FiniteDuration)(assertion: (File, File) => Any)(implicit webDriver: WebDriver, token: AuthToken): Any = {
+    cluster.status shouldBe ClusterStatus.Running
+    uploadFile.exists() shouldBe true
+
+    withNotebookUpload(cluster, uploadFile) { notebook =>
+      notebook.runAllCells(timeout.toSeconds)
+      notebook.download()
+    }
+
+    // sanity check the file downloaded correctly
+    val downloadFile = new File(downloadDir, "utf-8''"+uploadFile.getName)  // TODO https://github.com/DataBiosphere/leonardo/issues/214
+    downloadFile.exists() shouldBe true
+    downloadFile.isFile() shouldBe true
+    math.abs(System.currentTimeMillis - downloadFile.lastModified()) shouldBe < (timeout.toMillis)
+
+    // move the file to a unique location so it won't interfere with other tests
+    val uniqueDownFile = new File(downloadDir, s"${Instant.now().toString}-${uploadFile.getName}")
+    moveFile(downloadFile, uniqueDownFile)
+
+    // clean up after ourselves
+    uniqueDownFile.deleteOnExit()
+
+    // run the assertion
+    assertion(uploadFile, uniqueDownFile)
   }
 }
