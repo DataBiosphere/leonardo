@@ -1,13 +1,16 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import java.io.File
-import java.time.Instant
+import java.nio.file.Files
 
 import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GoogleProject}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
+
+import scala.concurrent.duration._
+import scala.collection.JavaConverters._
 
 class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with BeforeAndAfterAll {
   /*
@@ -24,6 +27,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
     billingProject = createNewBillingProject()
     Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
     ronCluster = createNewCluster(billingProject)(ronAuthToken)
+    new File(downloadDir).mkdirs()
   }
 
   override def afterAll(): Unit = {
@@ -35,12 +39,10 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
 
   "Leonardo notebooks" - {
     val hailFileName: String = "import-hail.ipynb"
-    val hailUploadFile = ResourceFile(s"diff-tests/$hailFileName")
+    val hailTutorialFileName: String = "hail-tutorial.ipynb"
 
-    // must align with run-tests.sh and hub-compose-fiab.yml
-    val downloadDir = "chrome/downloads"
-    val hailDownloadFile = new File(downloadDir, hailFileName)
-    hailDownloadFile.mkdirs()
+    val hailUploadFile = ResourceFile(s"diff-tests/$hailFileName")
+    val hailTutorialUploadFile = ResourceFile(s"diff-tests/$hailTutorialFileName")
 
     "should open the notebooks list page" in withWebDriver { implicit driver =>
       withNotebooksListPage(ronCluster) { _ =>
@@ -49,19 +51,20 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
     }
 
     "should upload notebook and verify execution" in withWebDriver(downloadDir) { implicit driver =>
-      withNotebookUpload(ronCluster, hailUploadFile) { notebook =>
-        notebook.runAllCells(60) // wait 60 sec for Kernel to init and Hail to load
-        notebook.download()
-      }
-
-      // move the file to a unique location so it won't interfere with other tests
-      val uniqueDownFile = new File(downloadDir, s"import-hail-${Instant.now().toString}.ipynb")
-
-      moveFile(hailDownloadFile, uniqueDownFile)
-      uniqueDownFile.deleteOnExit()
-
       // output for this notebook includes an IP address which can vary
-      compareFilesExcludingIPs(hailUploadFile, uniqueDownFile)
+      uploadDownloadTest(ronCluster, hailUploadFile, 60.seconds)(compareFilesExcludingIPs)
+    }
+
+    // See https://hail.is/docs/stable/tutorials-landing.html
+    // Note this is for the stable Hail version (0.1). The tutorial script has changed in Hail 0.2.
+    "should run the Hail tutorial" in withWebDriver(downloadDir) { implicit driver =>
+      uploadDownloadTest(ronCluster, hailTutorialUploadFile, 3.minutes) { (uploadFile, downloadFile) =>
+        // There are many differences including timestamps, so we can't really compare uploadFile
+        // and downloadFile correctly. For now just verify the absence of ClassCastExceptions, which is the
+        // issue reported in https://github.com/DataBiosphere/leonardo/issues/222.
+        val downloadFileContents: String = Files.readAllLines(downloadFile.toPath).asScala.mkString
+        downloadFileContents should not include "ClassCastException"
+      }
     }
 
     "should execute cells" in withWebDriver { implicit driver =>
