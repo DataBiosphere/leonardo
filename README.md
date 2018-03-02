@@ -36,12 +36,14 @@ Currently, Leo uses its own SA for #1, and the same per-user project-specific SA
 ## Building and running Leonardo
 Clone the repo.
 ```
-$ git clone https://github.com/broadinstitute/leonardo.git
+$ git clone https://github.com/broadinstitute/leonardo.git 
 $ cd leonardo
 ```
+
+### Run Leonardo unit tests
 Ensure docker is running. Spin up MySQL locally:
 ```
-$ ./docker/run-mysql.sh start leonardo
+$ ./docker/run-mysql.sh start leonardo  
 ```
 Build Leonardo and run tests.
 ```
@@ -51,6 +53,12 @@ sbt clean compile test
 Once you're done, tear down MySQL.
 ```
 ./docker/run-mysql.sh stop leonardo
+```
+
+### Run Leonardo locally
+This will start up the database and shut it down when it exits.
+```
+./config/docker-rsync-local-leonardo.sh
 ```
 
 ## Building Leonardo docker image
