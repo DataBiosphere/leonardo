@@ -29,7 +29,7 @@ spark.submit.pyFiles ${HAIL_HOME}/${HAILZIP},${HAIL_HOME}/${HAILPYTHON}
 spark.driver.extraClassPath ${HAIL_HOME}/${HAILJAR}
 
 # Add JARs to Classpaths: distributed to executor working directory by above spark.jars directive
-spark.executor.extraClassPath ${HAIL_HOME}/${HAILJAR}
+spark.executor.extraClassPath ./${HAILJAR}
 
 # Hail needs at least 50GB
 
