@@ -47,14 +47,14 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       }
     }
 
-    "foo should upload notebook and verify execution" in withWebDriver(downloadDir) { implicit driver =>
+    "should upload notebook and verify execution" in withWebDriver(downloadDir) { implicit driver =>
       // output for this notebook includes an IP address which can vary
       uploadDownloadTest(ronCluster, hailFileName, 60.seconds)(compareFilesExcludingIPs)
     }
 
     // See https://hail.is/docs/stable/tutorials-landing.html
     // Note this is for the stable Hail version (0.1). The tutorial script has changed in Hail 0.2.
-    "foo should run the Hail tutorial" in withWebDriver(downloadDir) { implicit driver =>
+    "should run the Hail tutorial" in withWebDriver(downloadDir) { implicit driver =>
       uploadDownloadTest(ronCluster, hailTutorialFileName, 3.minutes) { (uploadFile, downloadFile) =>
         // There are many differences including timestamps, so we can't really compare uploadFile
         // and downloadFile correctly. For now just verify the absence of ClassCastExceptions, which is the
