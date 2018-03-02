@@ -3,6 +3,8 @@ package org.broadinstitute.dsde.workbench.leonardo
 import org.broadinstitute.dsde.workbench.service.{Orchestration, Sam}
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterRequest
+import org.broadinstitute.dsde.workbench.leonardo.model.google.MachineConfig
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
 import org.broadinstitute.dsde.workbench.model.google.{GcsEntity, GcsObjectName, GcsPath, GoogleProject, parseGcsPath}
