@@ -354,6 +354,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   }
 
   def uploadDownloadTest(cluster: Cluster, uploadFile: File, timeout: FiniteDuration)(assertion: (File, File) => Any)(implicit webDriver: WebDriver, token: AuthToken): Any = {
+    cluster.status shouldBe ClusterStatus.Running
     uploadFile.exists() shouldBe true
 
     withNotebookUpload(cluster, uploadFile) { notebook =>
