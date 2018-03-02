@@ -121,6 +121,9 @@ class ProxyService(proxyConfig: ProxyConfig,
           case Some(upgrade) => handleWebSocketRequest(targetHost, request, upgrade)
           case None => handleHttpRequest(targetHost, request)
         }
+        responseFuture map {response =>
+          logRequestForMetrics(userInfo, request, response)
+        }
         responseFuture recover { case e =>
           logger.error("Error occurred in Jupyter proxy", e)
           throw ProxyException(googleProject, clusterName)
@@ -130,6 +133,20 @@ class ProxyService(proxyConfig: ProxyConfig,
       case ClusterNotFound =>
         throw ClusterNotFoundException(googleProject, clusterName)
     }
+  }
+
+  private def logRequestForMetrics(userInfo: UserInfo, request: HttpRequest, response: HttpResponse) = {
+    val headers = request.headers
+    val headerMap: Map[String, String] = headers.map{ header =>
+      (header.name(),header.value())
+    }.toMap
+
+    logger.info(s"${headerMap.getOrElse("X-Forwarded-For", "0.0.0.0")} ${userInfo.userEmail} " +
+      s"${userInfo.userId} [${DateTime.now.toIsoDateTimeString()}] " +
+      s"""${request.method.value} ${request.uri} ${request.protocol.value}" """ +
+      s"""${response.status.intValue} ${response.entity.contentLengthOption.getOrElse("-")} "${headerMap.getOrElse("Origin", "-")}" """ +
+      s""""${headerMap.getOrElse("User-Agent","unknown")}"""")
+
   }
 
   private def handleHttpRequest(targetHost: Host, request: HttpRequest): Future[HttpResponse] = {
