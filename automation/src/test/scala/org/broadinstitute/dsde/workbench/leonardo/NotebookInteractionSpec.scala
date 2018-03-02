@@ -35,11 +35,14 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
 
   "Leonardo notebooks" - {
     val hailFileName: String = "import-hail.ipynb"
+    val hailTutorialFileName: String = "hail-tutorial.ipynb"
     val hailUploadFile = ResourceFile(s"diff-tests/$hailFileName")
+    val hailTutorialUploadFile = ResourceFile(s"diff-tests/$hailTutorialFileName")
 
     // must align with run-tests.sh and hub-compose-fiab.yml
     val downloadDir = "chrome/downloads"
     val hailDownloadFile = new File(downloadDir, hailFileName)
+    val hailTutorialDownloadFile = new File(downloadDir, hailTutorialFileName)
     hailDownloadFile.mkdirs()
 
     "should open the notebooks list page" in withWebDriver { implicit driver =>
@@ -62,6 +65,24 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
 
       // output for this notebook includes an IP address which can vary
       compareFilesExcludingIPs(hailUploadFile, uniqueDownFile)
+    }
+
+    // See https://hail.is/docs/stable/tutorials-landing.html
+    // Note this is for the stable Hail version (0.1). The tutorial script has changed in Hail 0.2.
+    "should run the Hail tutorial" in withWebDriver(downloadDir) { implicit driver =>
+      withNotebookUpload(ronCluster, hailTutorialUploadFile) { notebook =>
+        notebook.runAllCells(180) // wait 3 minutes for the kernel to load and the tutorial script to execute
+        notebook.download()
+      }
+
+      // move the file to a unique location so it won't interfere with other tests
+      val uniqueDownFile = new File(downloadDir, s"hail-tutorial-${Instant.now().toString}.ipynb")
+
+      moveFile(hailTutorialDownloadFile, uniqueDownFile)
+      uniqueDownFile.deleteOnExit()
+
+      // output for this notebook includes an IP address which can vary
+      compareFilesExcludingIPs(hailTutorialUploadFile, uniqueDownFile)
     }
 
     "should execute cells" in withWebDriver { implicit driver =>
