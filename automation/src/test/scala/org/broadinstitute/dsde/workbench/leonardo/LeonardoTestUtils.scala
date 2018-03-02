@@ -353,8 +353,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     notebookPage.executeCell(s"! grep Finished ~/hail.log | grep $preemptibleNodePrefix").get should include(preemptibleNodePrefix)
   }
 
-  def uploadDownloadTest(cluster: Cluster, fileName: String, timeout: FiniteDuration)(assertion: (File, File) => Any)(implicit webDriver: WebDriver, token: AuthToken): Any = {
-    val uploadFile = ResourceFile(s"diff-tests/$fileName")
+  def uploadDownloadTest(cluster: Cluster, uploadFile: File, timeout: FiniteDuration)(assertion: (File, File) => Any)(implicit webDriver: WebDriver, token: AuthToken): Any = {
     uploadFile.exists() shouldBe true
 
     withNotebookUpload(cluster, uploadFile) { notebook =>
@@ -363,13 +362,13 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
 
     // sanity check the file downloaded correctly
-    val downloadFile = new File(downloadDir, "utf-8''"+fileName)  // TODO https://github.com/DataBiosphere/leonardo/issues/214
+    val downloadFile = new File(downloadDir, "utf-8''"+uploadFile.getName)  // TODO https://github.com/DataBiosphere/leonardo/issues/214
     downloadFile.exists() shouldBe true
     downloadFile.isFile() shouldBe true
     math.abs(System.currentTimeMillis - downloadFile.lastModified()) shouldBe < (timeout.toMillis)
 
     // move the file to a unique location so it won't interfere with other tests
-    val uniqueDownFile = new File(downloadDir, s"${Instant.now().toString}-$fileName")
+    val uniqueDownFile = new File(downloadDir, s"${Instant.now().toString}-${uploadFile.getName}")
     moveFile(downloadFile, uniqueDownFile)
 
     // clean up after ourselves

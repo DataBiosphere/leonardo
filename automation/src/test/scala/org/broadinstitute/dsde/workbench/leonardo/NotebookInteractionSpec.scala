@@ -41,6 +41,9 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
     val hailFileName: String = "import-hail.ipynb"
     val hailTutorialFileName: String = "hail-tutorial.ipynb"
 
+    val hailUploadFile = ResourceFile(s"diff-tests/$hailFileName")
+    val hailTutorialUploadFile = ResourceFile(s"diff-tests/$hailTutorialFileName")
+
     "should open the notebooks list page" in withWebDriver { implicit driver =>
       withNotebooksListPage(ronCluster) { _ =>
         // no-op; just verify that it opens
@@ -49,13 +52,13 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
 
     "should upload notebook and verify execution" in withWebDriver(downloadDir) { implicit driver =>
       // output for this notebook includes an IP address which can vary
-      uploadDownloadTest(ronCluster, hailFileName, 60.seconds)(compareFilesExcludingIPs)
+      uploadDownloadTest(ronCluster, hailUploadFile, 60.seconds)(compareFilesExcludingIPs)
     }
 
     // See https://hail.is/docs/stable/tutorials-landing.html
     // Note this is for the stable Hail version (0.1). The tutorial script has changed in Hail 0.2.
     "should run the Hail tutorial" in withWebDriver(downloadDir) { implicit driver =>
-      uploadDownloadTest(ronCluster, hailTutorialFileName, 3.minutes) { (uploadFile, downloadFile) =>
+      uploadDownloadTest(ronCluster, hailTutorialUploadFile, 3.minutes) { (uploadFile, downloadFile) =>
         // There are many differences including timestamps, so we can't really compare uploadFile
         // and downloadFile correctly. For now just verify the absence of ClassCastExceptions, which is the
         // issue reported in https://github.com/DataBiosphere/leonardo/issues/222.
@@ -73,7 +76,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
     }
 
     "should localize files" in withWebDriver { implicit driver =>
-      withFileUpload(ronCluster, ResourceFile(hailFileName)) { _ =>
+      withFileUpload(ronCluster, hailUploadFile) { _ =>
         //good data
         val goodLocalize = Map(
           "test.rtf" -> s"$swatTestBucket/test.rtf"
