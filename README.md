@@ -56,7 +56,7 @@ Once you're done, tear down MySQL.
 ```
 
 ### Run Leonardo locally
-This will start leonardo and the database locally and shut them down when it exits. You should be able to access swagger at https://local.broadinstitue.org:30443, but you need to allow it to be unsecured. It will not have a dataproc environment associated with it however.
+This will start leonardo and the database locally and shut them down when it exits. You should be able to access swagger at https://local.broadinstitue.org:30443, but you need to allow it to be unsecured.
 ```
 ./config/docker-rsync-local-leonardo.sh
 ```
