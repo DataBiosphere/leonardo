@@ -112,12 +112,12 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
         withNewGoogleBucket(project) { bucket =>
           val srcPath = parseGcsPath("gs://genomics-public-data/1000-genomes/vcf/ALL.chr20.integrated_phase1_v3.20101123.snps_indels_svs.genotypes.vcf").right.get
           val destPath = GcsPath(bucket, GcsObjectName("chr20.vcf"))
-          googleStorageDAO.copyObject(srcPath.bucketName, srcPath.objectName, destPath.bucketName, destPath.objectName)
+          googleStorageDAO.copyObject(srcPath.bucketName, srcPath.objectName, destPath.bucketName, destPath.objectName).futureValue
 
           implicit val token = ronAuthToken
           val ronProxyGroup = Sam.user.proxyGroup(ronEmail)
           val ronPetEntity = GcsEntity(ronProxyGroup, Group)
-          googleStorageDAO.setObjectAccessControl(destPath.bucketName, destPath.objectName, ronPetEntity, Reader)
+          googleStorageDAO.setObjectAccessControl(destPath.bucketName, destPath.objectName, ronPetEntity, Reader).futureValue
 
           val request = ClusterRequest(machineConfig = Option(MachineConfig(
             // need at least 2 regular workers to enable preemptibles
