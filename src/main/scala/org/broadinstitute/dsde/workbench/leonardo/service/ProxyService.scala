@@ -104,7 +104,6 @@ class ProxyService(proxyConfig: ProxyConfig,
     */
   def proxyNotebook(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest): Future[HttpResponse] = {
     authCheck(userInfo, googleProject, clusterName, ConnectToCluster).flatMap { _ =>
-      logger.warn(s"CHECKIT ${userInfo.userEmail}:${userInfo.userId} ${request}")
       proxyInternal(userInfo, googleProject, clusterName, request)
     }
   }
@@ -181,8 +180,7 @@ class ProxyService(proxyConfig: ProxyConfig,
     // data between client, proxy, and server. However Jupyter is doing something strange and the proxy only
     // works when toStrict is used. Luckily, it's only needed for HTTP requests (which are fairly small) and not
     // WebSocket requests (which could potentially be large).
-    logger.info("CHECKIT")
-    val handler: Future[HttpResponse] = Source.single(newRequest).log("handlingRequest")
+    val handler: Future[HttpResponse] = Source.single(newRequest)
       .via(flow)
       .runWith(Sink.head)
       .flatMap(_.toStrict(5 seconds))
