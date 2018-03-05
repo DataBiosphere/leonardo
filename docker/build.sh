@@ -35,7 +35,7 @@ set -e
 
 # Set default variables used while parsing command line options.
 TARGET="${TARGET:-leonardo}"
-DB_CONTAINER="leonardo-mysql
+DB_CONTAINER="leonardo-mysql"
 GIT_BRANCH="${BRANCH:-$(git rev-parse --abbrev-ref HEAD)}"
 DOCKER_REGISTRY="dockerhub"  # Must be either "dockerhub" or "gcr"
 DOCKER_CMD=""
