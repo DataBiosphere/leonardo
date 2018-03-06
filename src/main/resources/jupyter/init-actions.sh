@@ -54,15 +54,19 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_GOOGLE_SIGN_IN_JS_URI=$(jupyterGoogleSignInJsUri)
     JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
 
+    echo `date` Installing prerequisites...
+
     # install Docker
     export DOCKER_CE_VERSION="17.12.0~ce-0~debian"
     update_apt_get
-    apt-get install -y \
+    apt-get install -y -q \
      apt-transport-https \
      ca-certificates \
      curl \
      gnupg2 \
      software-properties-common
+
+    echo `date` Adding Docker package sources...
 
     curl -fsSL https://download.docker.com/linux/$(. /etc/os-release; echo "$ID")/gpg | apt-key add -
 
@@ -71,12 +75,18 @@ if [[ "${ROLE}" == 'Master' ]]; then
      $(lsb_release -cs) \
      stable"
 
-    apt-get update
-    apt-get install -y docker-ce=$DOCKER_CE_VERSION
+    echo `date` Installing Docker...
+
+    update_apt_get
+    apt-get install -y -q docker-ce=$DOCKER_CE_VERSION
+
+    echo `date` Installing Docker Compose...
 
     # Install docker-compose
     curl -L https://github.com/docker/compose/releases/download/1.18.0/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
     sudo chmod +x /usr/local/bin/docker-compose
+
+    echo `date` Copying secrets from GCS...
 
     mkdir /work
     mkdir /certs
@@ -105,26 +115,35 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # If either image is hosted in a GCR registry (detected by regex) then
     # authorize docker to interact with gcr.io.
     if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}" ; then
+      echo `date` Authorizing GCR...
       gcloud docker --authorize-only
     fi
+
+    echo `date` Starting up the Jupydocker...
 
 
     # Run docker-compose. This mounts Hadoop, Spark, and other resources inside the docker container.
     docker-compose -f /etc/cluster-docker-compose.yaml up -d
 
+    echo `date` Installing Jupydocker kernelspecs...
+
     # Change python 2 and 3 kernel specs to allow each to have its own spark
     docker exec -u root -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/kernelspec.sh ${JUPYTER_HOME} ${KERNELSPEC_HOME}
+
+    echo `date` Installing Hail additions to Jupydocker spark.conf...
 
     # Install the Hail additions to Spark conf.
     docker exec -u root -d ${JUPYTER_SERVER_NAME} /etc/hail/spark_install_hail.sh
 
     # Copy the actual service account JSON file into the Jupyter docker container.
     if [ ! -z ${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} ] ; then
+      echo `date` Copying SA into Docker...
       docker cp /etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} ${JUPYTER_SERVER_NAME}:/etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}
     fi
 
     # If a Jupyter extension was specified, copy it into the jupyter docker container.
     if [ ! -z ${JUPYTER_EXTENSION_URI} ] ; then
+      echo `date` Installing Jupyter server extension...
       gsutil cp ${JUPYTER_EXTENSION_URI} /etc
       JUPYTER_EXTENSION_ARCHIVE=`basename ${JUPYTER_EXTENSION_URI}`
       docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
@@ -133,6 +152,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
     # If a custom.js was specified, copy it into the jupyter docker container.
     if [ ! -z ${JUPYTER_CUSTOM_JS_URI} ] ; then
+      echo `date` Installing Jupyter custom.js...
       gsutil cp ${JUPYTER_CUSTOM_JS_URI} /etc
       JUPYTER_CUSTOM_JS=`basename ${JUPYTER_CUSTOM_JS_URI}`
       docker exec -d ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
@@ -141,6 +161,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
     # If a google_sign_in.js was specified, copy it into the jupyter docker container.
     if [ ! -z ${JUPYTER_GOOGLE_SIGN_IN_JS_URI} ] ; then
+      echo `date` Installing Google sign in extension...
       gsutil cp ${JUPYTER_GOOGLE_SIGN_IN_JS_URI} /etc
       JUPYTER_GOOGLE_SIGN_IN_JS=`basename ${JUPYTER_GOOGLE_SIGN_IN_JS_URI}`
       docker exec -d ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
@@ -149,6 +170,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
     # If a Jupyter user script was specified, copy it into the jupyter docker container.
     if [ ! -z ${JUPYTER_USER_SCRIPT_URI} ] ; then
+      echo `date` Installing Jupyter user extension...
       gsutil cp ${JUPYTER_USER_SCRIPT_URI} /etc
       JUPYTER_USER_SCRIPT=`basename ${JUPYTER_USER_SCRIPT_URI}`
       docker cp /etc/${JUPYTER_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
@@ -156,7 +178,10 @@ if [[ "${ROLE}" == 'Master' ]]; then
       docker exec -u root -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
     fi
 
+    echo `date` Starting Jupyter Notebook...
     docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_NOTEBOOK}
+
+    echo `date` All done!
 fi
 
 
