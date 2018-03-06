@@ -92,6 +92,13 @@ if [[ "${ROLE}" == 'Master' ]]; then
       echo "" > /etc/google_application_credentials.env
     fi
 
+    # If either image is hosted in a GCR registry (detected by regex) then
+    # authorize docker to interact with gcr.io.
+    if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}" ; then
+      gcloud docker --authorize-only
+    fi
+
+
     # Run docker-compose. This mounts Hadoop, Spark, and other resources inside the docker container.
     docker-compose -f /etc/cluster-docker-compose.yaml up -d
 
