@@ -36,7 +36,7 @@ Currently, Leo uses its own SA for #1, and the same per-user project-specific SA
 ## Building and running Leonardo
 Clone the repo.
 ```
-$ git clone https://github.com/broadinstitute/leonardo.git 
+$ git clone https://github.com/DataBiosphere/leonardo.git 
 $ cd leonardo
 ```
 
