@@ -38,4 +38,6 @@ class PetNotebookServiceAccountProvider(val config: Config) extends ServiceAccou
   override def listUsersStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {
     Future.successful(List.empty)
   }
+
+  override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = samClient.getCachedPetAccessToken(userEmail, googleProject)
 }

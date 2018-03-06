@@ -33,6 +33,12 @@ trait TestLeoRoutes { this: ScalatestRouteTest with ScalaFutures =>
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
+  val mockPetGoogleDAO:(WorkbenchEmail, GoogleProject) => MockGoogleStorageDAO = (email, project) => {
+    val petMock = new MockGoogleStorageDAO
+    val extensionPath = GcsPath(GcsBucketName("bucket"), GcsObjectName("my_extension.tar.gz"))
+    petMock.buckets += extensionPath.bucketName -> Set((extensionPath.objectName, new ByteArrayInputStream("foo".getBytes())))
+    petMock
+  }
   val mockSamDAO = new MockSamDAO
   val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO
@@ -48,7 +54,7 @@ trait TestLeoRoutes { this: ScalatestRouteTest with ScalaFutures =>
   // Route tests don't currently do cluster monitoring, so use NoopActor
   val clusterMonitorSupervisor = system.actorOf(NoopActor.props)
   val bucketHelper = new BucketHelper(dataprocConfig, mockGoogleDataprocDAO, mockGoogleStorageDAO, serviceAccountProvider)
-  val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, mockGoogleDataprocDAO, mockGoogleIamDAO, mockGoogleStorageDAO, DbSingleton.ref, clusterMonitorSupervisor, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper)
+  val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, mockGoogleDataprocDAO, mockGoogleIamDAO, mockGoogleStorageDAO,mockPetGoogleDAO, DbSingleton.ref, clusterMonitorSupervisor, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper)
   val proxyService = new MockProxyService(proxyConfig, mockGoogleDataprocDAO, DbSingleton.ref, whitelistAuthProvider)
   val statusService = new StatusService(mockGoogleDataprocDAO, mockSamDAO, DbSingleton.ref, dataprocConfig, pollInterval = 1.second)
   val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)

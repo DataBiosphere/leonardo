@@ -46,7 +46,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     authProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider)
 
     bucketHelper = new BucketHelper(dataprocConfig, gdDAO, storageDAO, serviceAccountProvider)
-    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper)
+    val mockPetGoogleDAO:(WorkbenchEmail, GoogleProject) => MockGoogleStorageDAO = (email, project) => {
+      new MockGoogleStorageDAO
+    }
+    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper)
   }
 
   override def afterAll(): Unit = {
@@ -239,7 +242,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   it should "delete a cluster" in isolatedDbTest {
     // need a specialized LeonardoService for this test, so we can spy on its authProvider
     val spyProvider: LeoAuthProvider = spy(authProvider)
-    val leoForTest = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), spyProvider, serviceAccountProvider, whitelist, bucketHelper)
+    val mockPetGoogleDAO:(WorkbenchEmail, GoogleProject) => MockGoogleStorageDAO = (email, project) => {
+      new MockGoogleStorageDAO
+    }
+    val leoForTest = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, system.actorOf(NoopActor.props), spyProvider, serviceAccountProvider, whitelist, bucketHelper)
 
     // check that the cluster does not exist
     gdDAO.clusters should not contain key (name1)
@@ -465,6 +471,35 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.listClusters(userInfo, Map("_labels" -> "foo=bar,bam")).failed.futureValue shouldBe a [ParseLabelsException]
     leo.listClusters(userInfo, Map("_labels" -> "bogus")).failed.futureValue shouldBe a [ParseLabelsException]
     leo.listClusters(userInfo, Map("_labels" -> "a,b")).failed.futureValue shouldBe a [ParseLabelsException]
+  }
+
+  it should "filter out auth provider exceptions from list clusters" in isolatedDbTest {
+    // create a couple clusters
+    val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
+    val cluster1 = leo.createCluster(userInfo, project, clusterName1, testClusterRequest).futureValue
+
+    val clusterName2 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
+    val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
+
+    // provider fails on cluster2, succeeds on cluster1
+    val newAuthProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider) {
+      override def hasNotebookClusterPermission(userEmail: WorkbenchEmail, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+        if (clusterName == clusterName1) {
+          super.hasNotebookClusterPermission(userEmail, action, googleProject, clusterName)
+        } else {
+          Future.failed(new RuntimeException)
+        }
+      }
+    }
+
+    val mockPetGoogleDAO:(WorkbenchEmail, GoogleProject) => MockGoogleStorageDAO = (email, project) => {
+      new MockGoogleStorageDAO
+    }
+    // make a new LeoService
+    val newLeo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, system.actorOf(NoopActor.props), newAuthProvider, serviceAccountProvider, whitelist, bucketHelper)
+
+    // list clusters should only return cluster1
+    newLeo.listClusters(userInfo, Map.empty).futureValue shouldBe Seq(cluster1)
   }
 
   it should "delete the init bucket if cluster creation fails" in isolatedDbTest {

@@ -82,4 +82,6 @@ class ServiceAccountProviderHelper(wrappedServiceAccountProvider: ServiceAccount
       wrappedServiceAccountProvider.listUsersStagingBucketReaders(userEmail)
     }
   }
+
+  override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = wrappedServiceAccountProvider.getAccessToken(userEmail, googleProject)
 }

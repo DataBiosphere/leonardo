@@ -29,4 +29,6 @@ class DefaultServiceAccountProvider(config: Config) extends ServiceAccountProvid
   override def listUsersStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {
     Future.successful(List.empty)
   }
+
+  override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = ""
 }
