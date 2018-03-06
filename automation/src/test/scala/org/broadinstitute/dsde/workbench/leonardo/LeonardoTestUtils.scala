@@ -35,6 +35,9 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   // must align with run-tests.sh and hub-compose-fiab.yml
   val downloadDir = "chrome/downloads"
 
+  val logDir = new File("logs")
+  logDir.mkdirs
+
   // Ron and Hermione are on the dev Leo whitelist, and Hermione is a Project Owner
   lazy val ronCreds: Credentials = Config.Users.NotebooksWhitelisted.getUserCredential("ron")
   lazy val hermioneCreds: Credentials = Config.Users.NotebooksWhitelisted.getUserCredential("hermione")
@@ -114,17 +117,17 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
     // Log cluster errors
     if (actualCluster.isSuccess && actualCluster.get.errors.nonEmpty) {
-      logger.warn(s"Cluster ${actualCluster.get.googleProject} / ${actualCluster.get.clusterName} returned the following errors: ${actualCluster.get.errors}")
+      logger.warn(s"Cluster ${actualCluster.get.googleProject}/${actualCluster.get.clusterName} returned the following errors: ${actualCluster.get.errors}")
     }
 
-    // Save cluster init log file
+    // Save cluster init log file whether or not the cluster created successfully
     implicit val ec = ExecutionContext.global
     saveClusterInitLogFile(creatingCluster).recover { case e =>
-      logger.error(s"Error occurred saving log file for cluster ${cluster.googleProject} / ${cluster.clusterName}", e)
+      logger.error(s"Error occurred saving log file for cluster ${cluster.googleProject}/${cluster.clusterName}", e)
       None
     }.futureValue match {
-      case Some(file) => logger.info(s"Saved log file for cluster ${cluster.googleProject} / ${cluster.clusterName} to ${file.getAbsolutePath}")
-      case None => logger.warn(s"Could not obtain log file for cluster ${cluster.googleProject} / ${cluster.clusterName}")
+      case Some(file) => logger.info(s"Saved log file for cluster ${cluster.googleProject}/${cluster.clusterName} to ${file.getAbsolutePath}")
+      case None => logger.warn(s"Could not obtain log file for cluster ${cluster.googleProject}/${cluster.clusterName}")
     }
 
     actualCluster.get
@@ -157,25 +160,6 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     val cluster = createAndMonitor(googleProject, name, request)
     cluster.status shouldBe ClusterStatus.Running
     cluster
-  }
-
-  def saveClusterInitLogFile(cluster: Cluster)(implicit executionContext: ExecutionContext): Future[Option[File]] = {
-    val transformed = for {
-      bucketName <- OptionT.fromOption[Future](cluster.stagingBucket)
-      _ = logger.info("bucket name = " + bucketName)
-      logFile <- OptionT(googleStorageDAO.listObjectsWithPrefix(bucketName, "").map(_.filter(_.value.endsWith("dataproc-initialization-script-0_output")).headOption))
-      _ = logger.info("log file = " + logFile)
-      contentStream <- OptionT(googleStorageDAO.getObject(bucketName, logFile))
-      downloadFile <- OptionT.pure[Future, File](new File(downloadDir, s"${Instant.now().toString}-${logFile.value}"))
-      _ = logger.info("download file = " + downloadFile)
-      _ <- OptionT.liftF(Future {
-        val fos = new FileOutputStream(downloadFile)
-        fos.write(contentStream.toByteArray)
-        fos.close()
-      })
-    } yield downloadFile
-
-    transformed.value
   }
 
   def verifyNotebookCredentials(notebookPage: NotebookPage, expectedEmail: WorkbenchEmail): Unit = {
@@ -385,5 +369,22 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
     // run the assertion
     assertion(uploadFile, uniqueDownFile)
+  }
+
+  def saveClusterInitLogFile(cluster: Cluster)(implicit executionContext: ExecutionContext): Future[Option[File]] = {
+    val transformed = for {
+      bucketName <- OptionT.fromOption[Future](cluster.stagingBucket)
+      bucketObjects <- OptionT.liftF[Future, List[GcsObjectName]](googleStorageDAO.listObjectsWithPrefix(bucketName, ""))
+      logFile <- OptionT.fromOption[Future](bucketObjects.filter(_.value.endsWith("dataproc-initialization-script-0_output")).headOption)
+      contentStream <- OptionT(googleStorageDAO.getObject(bucketName, logFile))
+      downloadFile <- OptionT.pure[Future, File](new File(logDir, s"${Instant.now().toString}-${new File(logFile.value).getName}"))
+      _ <- OptionT.liftF(Future {
+        val fos = new FileOutputStream(downloadFile)
+        fos.write(contentStream.toByteArray)
+        fos.close()
+      })
+    } yield downloadFile
+
+    transformed.value
   }
 }
