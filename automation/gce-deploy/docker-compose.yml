@@ -1,0 +1,70 @@
+version: '3'
+services:
+  app:
+    image: gcr.io/TEMPLATE_VAR_DOCKER_PROJECT/leonardo:TEMPLATE_VAR_DOCKER_TAG
+    # dns: - 8.8.4.4
+    # logging: {"driver": "syslog", "options": {"tag": "leonardo-app"}}
+    volumes:
+      - /home/ubuntu/app/jupyter-server.crt:/etc/jupyter-server.crt
+      - /home/ubuntu/app/jupyter-server.key:/etc/jupyter-server.key
+      - /home/ubuntu/app/leonardo.conf:/etc/leonardo.conf
+      - /home/ubuntu/app/leonardo-account.pem:/etc/leonardo-account.pem:ro
+      - /home/ubuntu/app/leo-client.p12:/etc/leo-client.p12
+      - /home/ubuntu/app/rootCA.key:/etc/rootCA.key
+      - /home/ubuntu/app/rootCA.pem:/etc/rootCA.pem
+      - /etc/localtime:/etc/localtime:ro
+      # Use the following volumes (and update appropriate JAVA_OPTS) if passing a mysql SSL key.
+      #- /home/ubuntu/app/mysql.jks:/etc/ssl/leonardo.keystore:ro
+      #- /home/ubuntu/app/mysql_trust.jks:/etc/ssl/leonardo.truststore:ro
+    environment:
+      # Unused java options:
+      #-Djavax.net.ssl.keyStore=/etc/ssl/leonardo.keystore
+      #-Djavax.net.ssl.keyStorePassword=xxxx
+      #-Djavax.net.ssl.keyStoreType=pkcs12
+      #-Djavax.net.ssl.trustStore=/etc/ssl/leonardo.truststore
+      #-Djavax.net.ssl.trustStorePassword=xxxxx
+      #-Djavax.net.ssl.trustStoreType=pkcs12
+      JAVA_OPTS: -Dconfig.file=/etc/leonardo.conf
+    links:
+      - sqlproxy:sqlproxy
+
+  sqlproxy:
+    image: gcr.io/cloudsql-docker/gce-proxy
+    command:
+      - /cloud_sql_proxy
+      - -instances=TEMPLATE_VAR_SQL_INSTANCE_CONN=tcp:0.0.0.0:3306
+    expose:
+      - "3306"
+
+  proxy:
+    image: broadinstitute/openidc-proxy:latest
+    ports:
+      - "80:80"
+      - "443:443"
+      - "127.0.0.1:8888:8888"
+    links:
+      - app:app
+    volumes:
+      - /home/ubuntu/app/server.crt:/etc/ssl/certs/server.crt:ro
+      - /home/ubuntu/app/server.key:/etc/ssl/private/server.key:ro
+      - /home/ubuntu/app/ca-bundle.crt:/etc/ssl/certs/ca-bundle.crt:ro
+      - /home/ubuntu/app/site.conf:/etc/apache2/sites-available/site.conf
+    # logging: {"driver": "syslog", "options": {"tag": "leonardo-proxy"}}
+    environment:
+      #oauth callback
+      CALLBACK_URI: https://TEMPLATE_VAR_DOMAIN/oauth2callback
+      LOG_LEVEL: warn
+      SERVER_NAME: TEMPLATE_VAR_DOMAIN
+      AUTH_REQUIRE2: Require valid-user
+      AUTH_TYPE2: AuthType oauth20
+      ## LDAP based config disabled below
+      #AUTH_REQUIRE2: Require ldap-group ...
+      #AUTH_LDAP_URL2: 'AuthLDAPURL <url>'
+      #AUTH_LDAP_GROUP_ATTR2: 'AuthLDAPGroupAttribute <attribute>'
+      #AUTH_LDAP_BIND_DN2: 'AuthLDAPBindDN "<bind>"'
+      #AUTH_LDAP_BIND_PASSWORD2: 'AuthLDAPBindPassword <password>'
+      REMOTE_USER_CLAIM: sub
+      ENABLE_STACKDRIVER: 'yes'
+      FILTER2: AddOutputFilterByType DEFLATE application/json text/plain text/html application/javascript application/x-javascript
+    restart: always
+
