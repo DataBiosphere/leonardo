@@ -1,11 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.io.{ByteArrayInputStream, File}
+import java.io.{ByteArrayInputStream, File, FileOutputStream}
 import java.nio.file.Files
 import java.time.Instant
 
+import cats.data.OptionT
+import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, UserAuthToken}
 import org.broadinstitute.dsde.workbench.config.{Config, Credentials}
@@ -22,8 +23,7 @@ import org.scalatest.{Matchers, Suite}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Minutes, Seconds, Span}
 
-import scala.concurrent.duration._
-import scala.language.postfixOps
+import scala.concurrent.duration.FiniteDuration
 import scala.util.{Random, Try}
 
 trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures {
@@ -102,15 +102,32 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     clusterCheck(cluster, googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest)
 
     // verify with get()
-    clusterCheck(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest)
+    val creatingCluster = clusterCheck(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest)
 
     // wait for "Running" or error (fail fast)
     implicit val patienceConfig: PatienceConfig = clusterPatience
-    val actualCluster = eventually {
-      clusterCheck(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName, Seq(ClusterStatus.Running, ClusterStatus.Error), clusterRequest)
+    val actualCluster = Try {
+      eventually {
+        clusterCheck(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName, Seq(ClusterStatus.Running, ClusterStatus.Error), clusterRequest)
+      }
     }
 
-    actualCluster
+    // Log cluster errors
+    if (actualCluster.isSuccess && actualCluster.get.errors.nonEmpty) {
+      logger.warn(s"Cluster ${actualCluster.get.googleProject} / ${actualCluster.get.clusterName} returned the following errors: ${actualCluster.get.errors}")
+    }
+
+    // Save cluster init log file
+    implicit val ec = ExecutionContext.global
+    saveClusterInitLogFile(creatingCluster).recover { case e =>
+      logger.error(s"Error occurred saving log file for cluster ${cluster.googleProject} / ${cluster.clusterName}", e)
+      None
+    }.futureValue match {
+      case Some(file) => logger.info(s"Saved log file for cluster ${cluster.googleProject} / ${cluster.clusterName} to ${file.getAbsolutePath}")
+      case None => logger.warn(s"Could not obtain log file for cluster ${cluster.googleProject} / ${cluster.clusterName}")
+    }
+
+    actualCluster.get
   }
 
   // deletes a cluster and checks to see that it reaches the Deleted state
@@ -140,6 +157,25 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     val cluster = createAndMonitor(googleProject, name, request)
     cluster.status shouldBe ClusterStatus.Running
     cluster
+  }
+
+  def saveClusterInitLogFile(cluster: Cluster)(implicit executionContext: ExecutionContext): Future[Option[File]] = {
+    val transformed = for {
+      bucketName <- OptionT.fromOption[Future](cluster.stagingBucket)
+      _ = logger.info("bucket name = " + bucketName)
+      logFile <- OptionT(googleStorageDAO.listObjectsWithPrefix(bucketName, "").map(_.filter(_.value.endsWith("dataproc-initialization-script-0_output")).headOption))
+      _ = logger.info("log file = " + logFile)
+      contentStream <- OptionT(googleStorageDAO.getObject(bucketName, logFile))
+      downloadFile <- OptionT.pure[Future, File](new File(downloadDir, s"${Instant.now().toString}-${logFile.value}"))
+      _ = logger.info("download file = " + downloadFile)
+      _ <- OptionT.liftF(Future {
+        val fos = new FileOutputStream(downloadFile)
+        fos.write(contentStream.toByteArray)
+        fos.close()
+      })
+    } yield downloadFile
+
+    transformed.value
   }
 
   def verifyNotebookCredentials(notebookPage: NotebookPage, expectedEmail: WorkbenchEmail): Unit = {
