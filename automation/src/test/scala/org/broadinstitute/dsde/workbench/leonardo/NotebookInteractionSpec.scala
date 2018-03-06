@@ -6,16 +6,18 @@ import java.nio.file.Files
 import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
+import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GoogleProject}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 
 import scala.concurrent.duration._
 import scala.collection.JavaConverters._
 
-class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with BeforeAndAfterAll {
+class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with BeforeAndAfterAll with BillingFixtures {
   /*
    * This class creates a cluster in a new billing project and runs all tests inside the same cluster.
    */
+  var gpAllocProject : ClaimedProject = _
   var billingProject : GoogleProject = _
   var ronCluster : Cluster = _
 
@@ -24,15 +26,15 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
   override def beforeAll(): Unit = {
     super.beforeAll()
 
-    billingProject = createNewBillingProject()
-    Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+    gpAllocProject = claimGPAllocProject(hermioneCreds, List(ronEmail))
+    billingProject = GoogleProject(gpAllocProject.projectName)
     ronCluster = createNewCluster(billingProject)(ronAuthToken)
     new File(downloadDir).mkdirs()
   }
 
   override def afterAll(): Unit = {
     deleteAndMonitor(billingProject, ronCluster.clusterName)(ronAuthToken)
-    cleanupBillingProject(billingProject)
+    gpAllocProject.cleanup(hermioneCreds, List(ronEmail))
 
     super.afterAll()
   }
