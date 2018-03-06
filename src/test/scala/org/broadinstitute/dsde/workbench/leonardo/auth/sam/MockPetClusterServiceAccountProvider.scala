@@ -31,4 +31,6 @@ class MockPetClusterServiceAccountProvider(config: Config) extends ServiceAccoun
   def listUsersStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): scala.concurrent.Future[List[WorkbenchEmail]] = {
     Future(mockSwaggerSamClient.getUserProxyFromSam(userEmail))map(List(_))
   }
+
+  override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = mockSwaggerSamClient.getCachedPetAccessToken(userEmail,googleProject)
 }

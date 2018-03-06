@@ -71,4 +71,6 @@ abstract class ServiceAccountProvider(config: Config) {
     * @return list of users that will have reader access to a staging bucket
     */
   def listUsersStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]]
+
+  def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject): String
 }

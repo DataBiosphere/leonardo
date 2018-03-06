@@ -6,6 +6,7 @@ import akka.actor.ActorRef
 import akka.http.scaladsl.model.StatusCodes
 import cats.data.OptionT
 import cats.implicits._
+import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
@@ -59,7 +60,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val swaggerConfig: SwaggerConfig,
                       protected val gdDAO: GoogleDataprocDAO,
                       protected val googleIamDAO: GoogleIamDAO,
-                      protected val googleStorageDAO: GoogleStorageDAO,
+                      protected val leoGoogleStorageDAO: GoogleStorageDAO,
+                      protected val petGoogleStorageDAO: (WorkbenchEmail, GoogleProject) => GoogleStorageDAO,
                       protected val dbRef: DbReference,
                       protected val clusterMonitorSupervisor: ActorRef,
                       protected val authProvider: LeoAuthProvider,
@@ -110,6 +112,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   def createCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
+    logger.info("Inside the service")
     for {
       _ <- checkProjectPermission(userInfo.userEmail, CreateClusters, googleProject)
 
@@ -255,8 +258,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                           (implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
     for {
       // Validate that the Jupyter extension URI and Jupyter user script URI are valid URIs and reference real GCS objects
-      _ <- validateBucketObjectUri(googleProject, clusterRequest.jupyterExtensionUri)
-      _ <- validateBucketObjectUri(googleProject, clusterRequest.jupyterUserScriptUri)
+      //TODO: change this get
+      _ <- validateBucketObjectUri(serviceAccountInfo.clusterServiceAccount.get, googleProject, clusterRequest.jupyterExtensionUri)
+      _ <- validateBucketObjectUri(serviceAccountInfo.clusterServiceAccount.get, googleProject, clusterRequest.jupyterUserScriptUri)
       // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
       _ <- gdDAO.updateFirewallRule(googleProject, firewallRule)
       // Generate a service account key for the notebook service account (if present) to localize on the cluster.
@@ -282,7 +286,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       } andThen { case Failure(_) =>
         // If cluster creation fails, delete the init bucket asynchronously and return the original error.
         // Don't delete the staging bucket so the user can see error logs.
-        googleStorageDAO.deleteBucket(initBucket, recurse = true)
+        leoGoogleStorageDAO.deleteBucket(initBucket, recurse = true)
       }
     } yield {
       (cluster, initBucket, serviceAccountKeyOpt)
@@ -312,15 +316,16 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } getOrElse Future.successful(())
   }
 
-  private[service] def validateBucketObjectUri(googleProject: GoogleProject, gcsUriOpt: Option[GcsPath])(implicit executionContext: ExecutionContext): Future[Unit] = {
+  private[service] def validateBucketObjectUri(serviceAccount: WorkbenchEmail, googleProject: GoogleProject, gcsUriOpt: Option[GcsPath])(implicit executionContext: ExecutionContext): Future[Unit] = {
+    logger.info("Validating bucket")
     gcsUriOpt match {
       case None => Future.successful(())
       case Some(gcsPath) =>
         if (gcsPath.toUri.length > bucketPathMaxLength) {
           throw BucketObjectException(gcsPath)
         }
-        googleStorageDAO.objectExists(gcsPath.bucketName, gcsPath.objectName).map {
-          case true => ()
+        petGoogleStorageDAO(serviceAccount, googleProject).objectExists(gcsPath.bucketName, gcsPath.objectName).map {
+          case true => print("validated bucket")
           case false => throw BucketObjectException(gcsPath)
         }
     }
@@ -350,7 +355,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     // Uploads the service account private key to the init bucket, if defined.
     // This is a no-op if createClusterAsPetServiceAccount is true.
     val uploadPrivateKeyFuture: Future[Unit] = serviceAccountKey.flatMap(_.privateKeyData.decode).map { k =>
-      googleStorageDAO.storeObject(initBucketName, GcsObjectName(ClusterInitValues.serviceAccountCredentialsFilename), k, "text/plain")
+      leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(ClusterInitValues.serviceAccountCredentialsFilename), k, "text/plain")
     } getOrElse(Future.successful(()))
 
     // Fill in templated resources with the given replacements
@@ -359,18 +364,18 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     for {
       // Upload the init script to the bucket
-      _ <- googleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.initActionsScript.value), initScriptContent, "text/plain")
+      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.initActionsScript.value), initScriptContent, "text/plain")
 
       // Upload the googleSignInJs file to the bucket
-      _ <- googleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterGoogleSignInJs.value), googleSignInJsContent, "text/plain")
+      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterGoogleSignInJs.value), googleSignInJsContent, "text/plain")
 
       // Upload raw files (like certs) to the bucket
-      _ <- Future.traverse(filesToUpload)(file => googleStorageDAO.storeObject(initBucketName, GcsObjectName(file.getName), file, "text/plain"))
+      _ <- Future.traverse(filesToUpload)(file => leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(file.getName), file, "text/plain"))
 
       // Upload raw resources (like cluster-docker-compose.yml, site.conf) to the bucket
       _ <- Future.traverse(resourcesToUpload) { resource =>
         val content = Source.fromResource(s"${ClusterResourcesConfig.basePath}/${resource.value}").mkString
-        googleStorageDAO.storeObject(initBucketName, GcsObjectName(resource.value), content, "text/plain")
+        leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(resource.value), content, "text/plain")
       }
 
       // Update the private key json, if defined

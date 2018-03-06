@@ -94,7 +94,10 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
   }
 
   def leoWithAuthProvider(authProvider: LeoAuthProvider): LeonardoService = {
-    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper)
+    val mockPetGoogleDAO:(WorkbenchEmail, GoogleProject) => MockGoogleStorageDAO = (email, project) => {
+      new MockGoogleStorageDAO
+    }
+    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO,mockPetGoogleDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper)
   }
 
   def proxyWithAuthProvider(authProvider: LeoAuthProvider): ProxyService = {
