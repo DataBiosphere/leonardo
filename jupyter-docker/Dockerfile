@@ -140,7 +140,7 @@ RUN apt-get install -yq --no-install-recommends python3 \
  && python3 get-pip.py \
  # install the python 3 kernel
  && pip3 install tornado==4.5.3 \
- && pip3 install ipykernel \
+ && pip3 install ipykernel==4.8.2 \
  && python3 -m ipykernel install --name python3 --display-name "Python 3" \
  # python 3 packages
  && pip3 install seaborn \
