@@ -85,6 +85,11 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
                    expectedStatuses: Iterable[ClusterStatus],
                    clusterRequest: ClusterRequest): Cluster = {
 
+    // Always log cluster errors
+    if (cluster.errors.nonEmpty) {
+      logger.warn(s"Cluster ${cluster.googleProject}/${cluster.clusterName} returned the following errors: ${cluster.errors}")
+    }
+
     withClue(s"Cluster ${cluster.googleProject}/${cluster.clusterName}: ") {
       expectedStatuses should contain (cluster.status)
     }
@@ -118,12 +123,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       }
     }
 
-    // Log cluster errors
-    if (actualCluster.isSuccess && actualCluster.get.errors.nonEmpty) {
-      logger.warn(s"Cluster ${actualCluster.get.googleProject}/${actualCluster.get.clusterName} returned the following errors: ${actualCluster.get.errors}")
-    }
-
-    // Save cluster init log file whether or not the cluster created successfully
+    // Save the cluster init log file whether or not the cluster created successfully
     implicit val ec = ExecutionContext.global
     saveClusterInitLogFile(creatingCluster).recover { case e =>
       logger.error(s"Error occurred saving log file for cluster ${cluster.googleProject}/${cluster.clusterName}", e)
