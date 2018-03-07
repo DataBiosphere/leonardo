@@ -85,7 +85,10 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
                    expectedStatuses: Iterable[ClusterStatus],
                    clusterRequest: ClusterRequest): Cluster = {
 
-    expectedStatuses should contain (cluster.status)
+    withClue(s"Cluster ${cluster.googleProject}/${cluster.clusterName}: ") {
+      expectedStatuses should contain (cluster.status)
+    }
+
     cluster.googleProject shouldBe expectedProject
     cluster.clusterName shouldBe expectedName
     cluster.stagingBucket shouldBe 'defined

@@ -11,7 +11,7 @@ import org.scalatest.{FreeSpec, ParallelTestExecution}
 class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with ParallelTestExecution with BillingFixtures {
   "Leonardo clusters" - {
 
-    "foo should create, monitor, delete, recreate, and re-delete a cluster" in {
+    "should create, monitor, delete, recreate, and re-delete a cluster" in {
       withCleanBillingProject(hermioneCreds) { projectName =>
         Orchestration.billing.addUserToBillingProject(projectName, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
         val project = GoogleProject(projectName)
