@@ -22,7 +22,8 @@ import org.scalatest.{Matchers, Suite}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Minutes, Seconds, Span}
 
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration._
+import scala.language.postfixOps
 import scala.util.{Random, Try}
 
 trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures {
@@ -288,6 +289,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
 
   def verifyHailImport(notebookPage: NotebookPage, vcfPath: GcsPath, clusterName: ClusterName): Unit = {
+    val hailTimeout = 5 minutes
     val welcomeToHail =
       """Welcome to
         |     __  __     <>__
@@ -313,9 +315,9 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     notebookPage.executeCell("hc = HailContext(sc)").get should include(welcomeToHail)
 
     notebookPage.executeCell(s"chr20vcf = '${vcfPath.toUri}'") shouldBe None
-    notebookPage.executeCell("imported = hc.import_vcf(chr20vcf)").get should include("Hail: INFO: Coerced almost-sorted dataset")
+    notebookPage.executeCell("imported = hc.import_vcf(chr20vcf)", hailTimeout).get should include("Hail: INFO: Coerced almost-sorted dataset")
 
-    notebookPage.executeCell("imported.summarize().report()").get should include(vcfSummary)
+    notebookPage.executeCell("imported.summarize().report()", hailTimeout).get should include(vcfSummary)
 
     // show that the Hail log contains jobs that were run on preemptible nodes
 
