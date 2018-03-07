@@ -377,10 +377,9 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   }
 
   def saveClusterInitLogFile(cluster: Cluster)(implicit executionContext: ExecutionContext): Future[Option[File]] = {
-    def downloadLogFile(stagingBucketName: GcsBucketName, logFile: GcsObjectName, contentStream: ByteArrayOutputStream): File = {
+    def downloadLogFile(contentStream: ByteArrayOutputStream): File = {
       // .log suffix is needed so it shows up as a Jenkins build artifact
-      //val downloadFile = new File(clusterDir, s"${Instant.now().toString}-${new File(logFile.value).getName}.log")
-      val downloadFile = new File(logDir, s"${cluster.googleProject}-${cluster.clusterName}-init.log")
+      val downloadFile = new File(logDir, s"${cluster.googleProject.value}-${cluster.clusterName.string}-init.log")
       val fos = new FileOutputStream(downloadFile)
       fos.write(contentStream.toByteArray)
       fos.close()
@@ -392,7 +391,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       stagingBucketObjects <- OptionT.liftF[Future, List[GcsObjectName]](googleStorageDAO.listObjectsWithPrefix(stagingBucketName, "google-cloud-dataproc-metainfo"))
       logFile <- OptionT.fromOption[Future](stagingBucketObjects.filter(_.value.endsWith("dataproc-initialization-script-0_output")).headOption)
       contentStream <- OptionT(googleStorageDAO.getObject(stagingBucketName, logFile))
-    } yield downloadLogFile(stagingBucketName, logFile, contentStream)
+    } yield downloadLogFile(contentStream)
 
     transformed.value
   }
