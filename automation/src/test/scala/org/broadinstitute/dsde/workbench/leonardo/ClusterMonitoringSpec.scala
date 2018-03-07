@@ -100,7 +100,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
       }
     }
 
-    // TODO: this test fails intermittently. Ignoring until it's stable.
+    // TODO: we've noticed intermittent failures for this test. See:
     // https://github.com/DataBiosphere/leonardo/issues/204
     // https://github.com/DataBiosphere/leonardo/issues/228
     "should execute Hail with correct permissions on a cluster with preemptible workers" ignore withWebDriver { implicit driver =>
@@ -110,14 +110,16 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
         Orchestration.billing.addUserToBillingProject(projectName, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
 
         withNewGoogleBucket(project) { bucket =>
+          implicit val patienceConfig: PatienceConfig = storagePatience
+
           val srcPath = parseGcsPath("gs://genomics-public-data/1000-genomes/vcf/ALL.chr20.integrated_phase1_v3.20101123.snps_indels_svs.genotypes.vcf").right.get
           val destPath = GcsPath(bucket, GcsObjectName("chr20.vcf"))
-          googleStorageDAO.copyObject(srcPath.bucketName, srcPath.objectName, destPath.bucketName, destPath.objectName)
+          googleStorageDAO.copyObject(srcPath.bucketName, srcPath.objectName, destPath.bucketName, destPath.objectName).futureValue
 
           implicit val token = ronAuthToken
           val ronProxyGroup = Sam.user.proxyGroup(ronEmail)
           val ronPetEntity = GcsEntity(ronProxyGroup, Group)
-          googleStorageDAO.setObjectAccessControl(destPath.bucketName, destPath.objectName, ronPetEntity, Reader)
+          googleStorageDAO.setObjectAccessControl(destPath.bucketName, destPath.objectName, ronPetEntity, Reader).futureValue
 
           val request = ClusterRequest(machineConfig = Option(MachineConfig(
             // need at least 2 regular workers to enable preemptibles
