@@ -6,6 +6,8 @@ import org.openqa.selenium.{By, WebDriver, WebElement}
 import org.openqa.selenium.interactions.Actions
 
 import scala.collection.JavaConverters._
+import scala.concurrent.duration._
+import scala.language.postfixOps
 
 class NotebookPage(override val url: String)(override implicit val authToken: AuthToken, override implicit val webDriver: WebDriver)
   extends JupyterPage {
@@ -88,13 +90,13 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     outputs.asScala.headOption.map(_.getText)
   }
 
-  def executeCell(code: String, timeoutSeconds: Long = 60): Option[String] = {
+  def executeCell(code: String, timeout: FiniteDuration = 1 minute): Option[String] = {
     await enabled cells
     val cell = lastCell
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
     executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
     click on runCellButton
-    await condition (!cellsAreRunning, timeoutSeconds)
+    await condition (!cellsAreRunning, timeout.toSeconds)
     cellOutput(cell)
   }
 
