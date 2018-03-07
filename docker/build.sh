@@ -35,6 +35,7 @@ set -e
 
 # Set default variables used while parsing command line options.
 TARGET="${TARGET:-leonardo}"
+DB_CONTAINER="leonardo-mysql"
 GIT_BRANCH="${BRANCH:-$(git rev-parse --abbrev-ref HEAD)}"
 DOCKER_REGISTRY="dockerhub"  # Must be either "dockerhub" or "gcr"
 DOCKER_CMD=""
@@ -118,13 +119,13 @@ function make_jar()
 {
     echo "building jar..."
     # start test db
-    bash ./docker/run-mysql.sh start ${TARGET}
+    bash ./docker/run-mysql.sh start ${TARGET} ${DB_CONTAINER}
 
     # Get the last commit hash and set it as an environment variable
     GIT_HASH=$(git log -n 1 --pretty=format:%h)
 
     # Make jar & cache sbt dependencies.
-    JAR_CMD="$(docker run --rm --link mysql:mysql \
+    JAR_CMD="$(docker run --rm --link $DB_CONTAINER:mysql \
                           -e GIT_HASH=$GIT_HASH \
                           -v $PWD:/working \
                           -v jar-cache:/root/.ivy \
@@ -134,7 +135,7 @@ function make_jar()
     EXIT_CODE=$?
 
     # stop test db
-    bash ./docker/run-mysql.sh stop ${TARGET}
+    bash ./docker/run-mysql.sh stop ${TARGET} ${DB_CONTAINER}
 
     if [ $EXIT_CODE != 0 ]; then
         echo "Tests/jar build exited with status $EXIT_CODE"
