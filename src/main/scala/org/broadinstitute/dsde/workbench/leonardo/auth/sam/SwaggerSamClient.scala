@@ -58,6 +58,8 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
 
   //"Fast" lookup of pet's access token, using the cache.
   def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = {
+    logger.info("Email to sam::" + userEmail)
+    logger.info("google project to sam::" + googleProject)
     petTokenCache.get(UserEmailAndProject(userEmail, googleProject))
   }
 
