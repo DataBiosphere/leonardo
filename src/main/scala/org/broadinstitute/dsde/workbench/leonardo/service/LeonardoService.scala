@@ -334,7 +334,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         if (gcsPath.toUri.length > bucketPathMaxLength) {
           throw BucketObjectException(gcsPath)
         }
-        petGoogleStorageDAO(serviceAccount, googleProject).objectExists(gcsPath.bucketName, gcsPath.objectName).map {
+        val petDAO = petGoogleStorageDAO(serviceAccount, googleProject)
+        petDAO.createBucket(googleProject, GcsBucketName("vkumra-cluster-1"))
+        println("bucket created")
+        petDAO.objectExists(gcsPath.bucketName, gcsPath.objectName).map {
           case true => print("validated bucket")
           case false => throw BucketObjectException(gcsPath)
         }
