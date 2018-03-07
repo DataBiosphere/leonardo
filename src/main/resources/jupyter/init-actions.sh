@@ -4,6 +4,16 @@ set -e -x
 
 # adapted from https://github.com/GoogleCloudPlatform/dataproc-initialization-actions/blob/master/datalab/datalab.sh
 
+function update_apt_get() {
+  for ((i = 0; i < 10; i++)); do
+    if apt-get update; then
+      return 0
+    fi
+    sleep 5
+  done
+  return 1
+}
+
 # Initialize the dataproc cluster with Jupyter and apache proxy docker images
 # Uses cluster-docker-compose.yaml
 
@@ -46,7 +56,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
     # install Docker
     export DOCKER_CE_VERSION="17.12.0~ce-0~debian"
-    apt-get update
+    update_apt_get
     apt-get install -y \
      apt-transport-https \
      ca-certificates \
