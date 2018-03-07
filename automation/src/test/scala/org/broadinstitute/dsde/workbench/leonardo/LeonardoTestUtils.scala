@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.io.{ByteArrayInputStream, File, FileOutputStream}
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, File, FileOutputStream}
 import java.nio.file.Files
 import java.time.Instant
 
@@ -372,18 +372,23 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   }
 
   def saveClusterInitLogFile(cluster: Cluster)(implicit executionContext: ExecutionContext): Future[Option[File]] = {
+    def downloadLogFile(stagingBucketName: GcsBucketName, logFile: GcsObjectName, contentStream: ByteArrayOutputStream): File = {
+      val clusterDir = new File(logDir, stagingBucketName.value)
+      clusterDir.mkdirs()
+      // .log suffix is needed so it shows up as a Jenkins build artifact
+      val downloadFile = new File(clusterDir, s"${Instant.now().toString}-${new File(logFile.value).getName}.log")
+      val fos = new FileOutputStream(downloadFile)
+      fos.write(contentStream.toByteArray)
+      fos.close()
+      downloadFile
+    }
+
     val transformed = for {
-      bucketName <- OptionT.fromOption[Future](cluster.stagingBucket)
-      bucketObjects <- OptionT.liftF[Future, List[GcsObjectName]](googleStorageDAO.listObjectsWithPrefix(bucketName, ""))
-      logFile <- OptionT.fromOption[Future](bucketObjects.filter(_.value.endsWith("dataproc-initialization-script-0_output")).headOption)
-      contentStream <- OptionT(googleStorageDAO.getObject(bucketName, logFile))
-      downloadFile <- OptionT.pure[Future, File](new File(logDir, s"${Instant.now().toString}-${new File(logFile.value).getName}"))
-      _ <- OptionT.liftF(Future {
-        val fos = new FileOutputStream(downloadFile)
-        fos.write(contentStream.toByteArray)
-        fos.close()
-      })
-    } yield downloadFile
+      stagingBucketName <- OptionT.fromOption[Future](cluster.stagingBucket)
+      stagingBucketObjects <- OptionT.liftF[Future, List[GcsObjectName]](googleStorageDAO.listObjectsWithPrefix(stagingBucketName, "google-cloud-dataproc-metainfo"))
+      logFile <- OptionT.fromOption[Future](stagingBucketObjects.filter(_.value.endsWith("dataproc-initialization-script-0_output")).headOption)
+      contentStream <- OptionT(googleStorageDAO.getObject(stagingBucketName, logFile))
+    } yield downloadLogFile(stagingBucketName, logFile, contentStream)
 
     transformed.value
   }
