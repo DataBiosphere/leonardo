@@ -6,7 +6,7 @@ object Dependencies {
   val akkaHttpV = "10.0.5"
 
   val workbenchModelV   = "0.10-6800f3a"
-  val workbenchGoogleV  = "0.15-2fc79a3"
+  val workbenchGoogleV  = "0.16-16e3aab"
   val serviceTestV = "0.5-f1b0c7b"
 
   val excludeWorkbenchModel =   ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-model_2.11")
