@@ -258,9 +258,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                           (implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
     for {
       // Validate that the Jupyter extension URI and Jupyter user script URI are valid URIs and reference real GCS objects
-      //TODO: change this get
-      _ <- validateBucketObjectUri(serviceAccountInfo.clusterServiceAccount.get, googleProject, clusterRequest.jupyterExtensionUri)
-      _ <- validateBucketObjectUri(serviceAccountInfo.clusterServiceAccount.get, googleProject, clusterRequest.jupyterUserScriptUri)
+      _ <- validateBucketObjectUri(userEmail, googleProject, clusterRequest.jupyterExtensionUri)
+      _ <- validateBucketObjectUri(userEmail, googleProject, clusterRequest.jupyterUserScriptUri)
       // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
       _ <- gdDAO.updateFirewallRule(googleProject, firewallRule)
       // Generate a service account key for the notebook service account (if present) to localize on the cluster.
