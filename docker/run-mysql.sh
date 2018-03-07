@@ -6,6 +6,7 @@ start() {
 
     echo "attempting to remove old $CONTAINER container..."
     docker rm -f $CONTAINER || echo "docker rm failed. nothing to rm."
+    docker rm -f $CONTAINER2 || echo "docker rm failed. nothing to rm."
 
     # start up mysql
     echo "starting up mysql container..."
@@ -39,9 +40,13 @@ stop() {
     echo "Stopping docker $CONTAINER container..."
     docker stop $CONTAINER || echo "mysql stop failed. container already stopped."
     docker rm -v $CONTAINER || echo "mysql rm -v failed.  container already destroyed."
+
+    docker stop $CONTAINER2 || echo "mysql stop failed. container already stopped."
+    docker rm -v $CONTAINER2 || echo "mysql rm -v failed.  container already destroyed."
 }
 
 CONTAINER=mysql
+CONTAINER2=leonardo-mysql
 
 if [ ${#@} == 0 ]; then
     echo "Usage: $0 stop|start <service>"
