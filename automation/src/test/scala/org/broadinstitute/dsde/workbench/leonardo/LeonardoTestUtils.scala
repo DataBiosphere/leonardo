@@ -23,7 +23,9 @@ import org.scalatest.{Matchers, Suite}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Minutes, Seconds, Span}
 
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent._
+import scala.concurrent.duration._
+import scala.language.postfixOps
 import scala.util.{Random, Try}
 
 trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures {
