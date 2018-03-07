@@ -381,7 +381,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       val clusterDir = new File(logDir, stagingBucketName.value)
       clusterDir.mkdirs()
       // .log suffix is needed so it shows up as a Jenkins build artifact
-      val downloadFile = new File(clusterDir, s"${Instant.now().toString}-${new File(logFile.value).getName}.log")
+      //val downloadFile = new File(clusterDir, s"${Instant.now().toString}-${new File(logFile.value).getName}.log")
+      val downloadFile = new File(clusterDir, s"${cluster.googleProject}-${cluster.clusterName}-init.log")
       val fos = new FileOutputStream(downloadFile)
       fos.write(contentStream.toByteArray)
       fos.close()
