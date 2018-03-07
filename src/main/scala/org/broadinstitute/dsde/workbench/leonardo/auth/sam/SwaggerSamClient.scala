@@ -70,6 +70,7 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
       new CacheLoader[UserEmailAndProject, String] {
         def load(userEmailAndProject: UserEmailAndProject) = {
           val token = getPetAccessTokenFromSam(userEmailAndProject.userEmail, userEmailAndProject.googleProject)
+          println("Token from sam for email:: "  + userEmailAndProject.userEmail+" token is:: " + token)
           token
         }
       }
