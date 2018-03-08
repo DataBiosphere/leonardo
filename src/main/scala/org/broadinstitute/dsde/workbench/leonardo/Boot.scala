@@ -72,8 +72,8 @@ object Boot extends App with LazyLogging {
     }
 
     val petGoogleDAO: (WorkbenchEmail, GoogleProject) => GoogleStorageDAO = (email, project) => {
-      val mode = GoogleCredentialModes.Token(() => serviceAccountProvider.getAccessToken(email, project))
-      new HttpGoogleStorageDAO(dataprocConfig.applicationName, mode, "google")
+      //val mode = GoogleCredentialModes.Token(() => serviceAccountProvider.getAccessToken(email, project))
+      new HttpGoogleStorageDAO(dataprocConfig.applicationName, GoogleCredentialModes.Token(() => serviceAccountProvider.getAccessToken(email, project)), "google")
     }
 
     val (leoServiceAccountEmail, leoServiceAccountPemFile) = serviceAccountProvider.getLeoServiceAccountAndKey

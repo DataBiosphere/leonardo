@@ -336,10 +336,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           throw BucketObjectException(gcsPath)
         }
         val petDAO = petGoogleStorageDAO(serviceAccount, googleProject)
+        println("bucket created")
         for {
           _ <- petDAO.createBucket(googleProject, bucketName)
         } yield bucketName
-        println("bucket created")
+        print("petDAO::" + petDAO)
         petDAO.objectExists(gcsPath.bucketName, gcsPath.objectName).map {
           case true => print("validated bucket")
           case false => throw BucketObjectException(gcsPath)
