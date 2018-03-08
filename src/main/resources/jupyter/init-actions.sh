@@ -123,8 +123,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
       gcloud docker --authorize-only
     fi
 
-    log Starting up the Jupydocker...'
-
+    log 'Starting up the Jupydocker...'
 
     # Run docker-compose. This mounts Hadoop, Spark, and other resources inside the docker container.
     docker-compose -f /etc/cluster-docker-compose.yaml up -d
