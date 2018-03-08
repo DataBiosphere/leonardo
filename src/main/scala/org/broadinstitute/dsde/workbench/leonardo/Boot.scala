@@ -6,7 +6,7 @@ import akka.stream.ActorMaterializer
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.LazyLogging
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.Pem
+import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Pem, Token}
 import org.broadinstitute.dsde.workbench.google.{GoogleCredentialModes, GoogleStorageDAO, HttpGoogleIamDAO, HttpGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.api.{LeoRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SwaggerSamClient
@@ -70,13 +70,13 @@ object Boot extends App with LazyLogging {
     system.registerOnTermination {
       dbRef.database.close()
     }
-
+    val (leoServiceAccountEmail, leoServiceAccountPemFile) = serviceAccountProvider.getLeoServiceAccountAndKey
     val petGoogleDAO: (WorkbenchEmail, GoogleProject) => GoogleStorageDAO = (email, project) => {
       //val mode = GoogleCredentialModes.Token(() => serviceAccountProvider.getAccessToken(email, project))
-      new HttpGoogleStorageDAO(dataprocConfig.applicationName, GoogleCredentialModes.Token(() => serviceAccountProvider.getAccessToken(email, project)), "google")
+      new HttpGoogleStorageDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google")
     }
 
-    val (leoServiceAccountEmail, leoServiceAccountPemFile) = serviceAccountProvider.getLeoServiceAccountAndKey
+
     val gdDAO = new HttpGoogleDataprocDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google", NetworkTag(proxyConfig.networkTag), dataprocConfig.dataprocDefaultRegion)
     val googleIamDAO = new HttpGoogleIamDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google")
     val googleStorageDAO = new HttpGoogleStorageDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google")
