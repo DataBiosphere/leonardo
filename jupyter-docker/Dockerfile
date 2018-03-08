@@ -126,8 +126,7 @@ RUN apt-get install -yq --no-install-recommends \
  && pip install biopython \
  && pip install bx-python \
  && pip install fastinterval \
- && pip install matplotlib-venn \
- && pip install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py"
+ && pip install matplotlib-venn
 
 
 # Python 3 Kernel
@@ -155,8 +154,7 @@ RUN apt-get install -yq --no-install-recommends python3 \
  && pip3 install biopython \
  && pip3 install bx-python \
  && pip3 install fastinterval \
- && pip3 install matplotlib-venn \
- && pip3 install "https://github.com/all-of-us/workbench/archive/pyclient-v0-1-rc3.zip#egg=aou_workbench_client&subdirectory=client/py" 
+ && pip3 install matplotlib-venn
 
 
 #######################
