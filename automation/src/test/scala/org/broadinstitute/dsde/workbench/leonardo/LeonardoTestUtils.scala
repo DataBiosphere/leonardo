@@ -37,7 +37,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   // must align with run-tests.sh and hub-compose-fiab.yml
   val downloadDir = "chrome/downloads"
 
-  val logDir = new File("target")
+  val logDir = new File("output")
   logDir.mkdirs
 
   // Ron and Hermione are on the dev Leo whitelist, and Hermione is a Project Owner
