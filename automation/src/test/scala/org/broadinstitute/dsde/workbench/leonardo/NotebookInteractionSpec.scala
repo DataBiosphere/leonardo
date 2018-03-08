@@ -28,7 +28,15 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
 
     gpAllocProject = claimGPAllocProject(hermioneCreds, List(ronEmail))
     billingProject = GoogleProject(gpAllocProject.projectName)
-    ronCluster = createNewCluster(billingProject)(ronAuthToken)
+    ronCluster = try {
+      createNewCluster(billingProject)(ronAuthToken)
+    } catch {
+      case e: Throwable =>
+        logger.error(s"NotebookInteractionSpec: error occurred creating cluster in billing project ${billingProject}", e)
+        // clean up billing project here because afterAll() doesn't run if beforeAll() throws an exception
+        gpAllocProject.cleanup(hermioneCreds, List(ronEmail))
+        throw e
+    }
     new File(downloadDir).mkdirs()
   }
 
