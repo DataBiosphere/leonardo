@@ -1,11 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.io.{ByteArrayInputStream, File}
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, File, FileOutputStream}
 import java.nio.file.Files
 import java.time.Instant
 
+import cats.data.OptionT
+import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, UserAuthToken}
 import org.broadinstitute.dsde.workbench.config.{Config, Credentials}
@@ -22,6 +23,7 @@ import org.scalatest.{Matchers, Suite}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Minutes, Seconds, Span}
 
+import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.{Random, Try}
@@ -34,6 +36,9 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   // must align with run-tests.sh and hub-compose-fiab.yml
   val downloadDir = "chrome/downloads"
+
+  val logDir = new File("output")
+  logDir.mkdirs
 
   // Ron and Hermione are on the dev Leo whitelist, and Hermione is a Project Owner
   lazy val ronCreds: Credentials = Config.Users.NotebooksWhitelisted.getUserCredential("ron")
@@ -82,7 +87,15 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
                    expectedStatuses: Iterable[ClusterStatus],
                    clusterRequest: ClusterRequest): Cluster = {
 
-    expectedStatuses should contain (cluster.status)
+    // Always log cluster errors
+    if (cluster.errors.nonEmpty) {
+      logger.warn(s"Cluster ${cluster.googleProject}/${cluster.clusterName} returned the following errors: ${cluster.errors}")
+    }
+
+    withClue(s"Cluster ${cluster.googleProject}/${cluster.clusterName}: ") {
+      expectedStatuses should contain (cluster.status)
+    }
+
     cluster.googleProject shouldBe expectedProject
     cluster.clusterName shouldBe expectedName
     cluster.stagingBucket shouldBe 'defined
@@ -102,15 +115,29 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     clusterCheck(cluster, googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest)
 
     // verify with get()
-    clusterCheck(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest)
+    val creatingCluster = clusterCheck(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest)
 
     // wait for "Running" or error (fail fast)
     implicit val patienceConfig: PatienceConfig = clusterPatience
-    val actualCluster = eventually {
-      clusterCheck(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName, Seq(ClusterStatus.Running, ClusterStatus.Error), clusterRequest)
+    val actualCluster = Try {
+      eventually {
+        clusterCheck(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName, Seq(ClusterStatus.Running, ClusterStatus.Error), clusterRequest)
+      }
     }
 
-    actualCluster
+    // Save the cluster init log file whether or not the cluster created successfully
+    implicit val ec = ExecutionContext.global
+    saveDataprocLogFiles(creatingCluster).recover { case e =>
+      logger.error(s"Error occurred saving Dataproc log files for cluster ${cluster.googleProject}/${cluster.clusterName}", e)
+      None
+    }.futureValue match {
+      case Some((initLog, startupLog)) =>
+        logger.info(s"Saved Dataproc init log file for cluster ${cluster.googleProject}/${cluster.clusterName} to ${initLog.getAbsolutePath}")
+        logger.info(s"Saved Dataproc startup log file for cluster ${cluster.googleProject}/${cluster.clusterName} to ${startupLog.getAbsolutePath}")
+      case None => logger.warn(s"Could not obtain Dataproc log files for cluster ${cluster.googleProject}/${cluster.clusterName}")
+    }
+
+    actualCluster.get
   }
 
   // deletes a cluster and checks to see that it reaches the Deleted state
@@ -349,5 +376,29 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
     // run the assertion
     assertion(uploadFile, uniqueDownFile)
+  }
+
+  def saveDataprocLogFiles(cluster: Cluster)(implicit executionContext: ExecutionContext): Future[Option[(File, File)]] = {
+    def downloadLogFile(contentStream: ByteArrayOutputStream, fileName: String): File = {
+      // .log suffix is needed so it shows up as a Jenkins build artifact
+      val downloadFile = new File(logDir, s"${cluster.googleProject.value}-${cluster.clusterName.string}-${fileName}.log")
+      val fos = new FileOutputStream(downloadFile)
+      fos.write(contentStream.toByteArray)
+      fos.close()
+      downloadFile
+    }
+
+    val transformed = for {
+      stagingBucketName <- OptionT.fromOption[Future](cluster.stagingBucket)
+      stagingBucketObjects <- OptionT.liftF[Future, List[GcsObjectName]](googleStorageDAO.listObjectsWithPrefix(stagingBucketName, "google-cloud-dataproc-metainfo"))
+      initLogFile <- OptionT.fromOption[Future](stagingBucketObjects.filter(_.value.endsWith("dataproc-initialization-script-0_output")).headOption)
+      initContent <- OptionT(googleStorageDAO.getObject(stagingBucketName, initLogFile))
+      initDownloadFile <- OptionT.pure[Future, File](downloadLogFile(initContent, new File(initLogFile.value).getName))
+      startupLogFile <- OptionT.fromOption[Future](stagingBucketObjects.filter(_.value.endsWith("dataproc-startup-script_output")).headOption)
+      startupContent <- OptionT(googleStorageDAO.getObject(stagingBucketName, startupLogFile))
+      startupDownloadFile <- OptionT.pure[Future, File](downloadLogFile(startupContent, new File(startupLogFile.value).getName))
+    } yield (initDownloadFile, startupDownloadFile)
+
+    transformed.value
   }
 }
