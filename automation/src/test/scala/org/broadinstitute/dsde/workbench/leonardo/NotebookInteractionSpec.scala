@@ -115,21 +115,6 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       }
     }
 
-    "should import AoU library" in withWebDriver { implicit driver =>
-      withNewNotebook(ronCluster) { notebookPage =>
-        val importAoU =
-          """import sys
-            |import aou_workbench_client
-            |modulename = 'aou_workbench_client'
-            |if modulename not in sys.modules:
-            |    print 'You have not imported the {} module'.format(modulename)
-            |else:
-            |    print 'AoU library installed'""".stripMargin
-
-        notebookPage.executeCell(importAoU) shouldBe Some("AoU library installed")
-      }
-    }
-
     "should do cross domain cookie auth" in withWebDriver { implicit driver =>
       withDummyClientPage(ronCluster) { dummyClientPage =>
         // opens the notebook list page without setting a cookie
