@@ -316,22 +316,15 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   private[service] def validateBucketObjectUri(serviceAccount: WorkbenchEmail, googleProject: GoogleProject, gcsUriOpt: Option[GcsPath])(implicit executionContext: ExecutionContext): Future[Unit] = {
-    logger.info("Validating bucket")
-    val bucketName = generateUniqueBucketName("vikram-test")
+
     gcsUriOpt match {
       case None => Future.successful(())
       case Some(gcsPath) =>
         if (gcsPath.toUri.length > bucketPathMaxLength) {
           throw BucketObjectException(gcsPath)
         }
-        val petDAO = petGoogleStorageDAO(serviceAccount, googleProject)
-        println("bucket created")
-        for {
-          _ <- petDAO.createBucket(googleProject, bucketName)
-        } yield bucketName
-        print("petDAO::" + petDAO)
-        petDAO.objectExists(gcsPath.bucketName, gcsPath.objectName).map {
-          case true => print("validated bucket")
+        petGoogleStorageDAO(serviceAccount, googleProject).objectExists(gcsPath.bucketName, gcsPath.objectName).map {
+          case true => ()
           case false => throw BucketObjectException(gcsPath)
         }
     }
