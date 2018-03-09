@@ -26,7 +26,7 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
 
   private val httpTransport = GoogleNetHttpTransport.newTrustedTransport
   private val jsonFactory = JacksonFactory.getDefaultInstance
-  private val saScopes = Seq(PlusScopes.USERINFO_EMAIL, PlusScopes.USERINFO_PROFILE, StorageScopes.DEVSTORAGE_FULL_CONTROL)
+  private val saScopes = Seq(PlusScopes.USERINFO_EMAIL, PlusScopes.USERINFO_PROFILE, StorageScopes.DEVSTORAGE_READ_ONLY)
 
   private val notebookClusterResourceTypeName = "notebook-cluster"
   private val billingProjectResourceTypeName = "billing-project"
