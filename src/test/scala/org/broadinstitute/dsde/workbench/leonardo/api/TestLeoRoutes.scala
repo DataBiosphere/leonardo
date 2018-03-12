@@ -35,8 +35,8 @@ trait TestLeoRoutes { this: ScalatestRouteTest with ScalaFutures =>
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
   val mockPetGoogleDAO:(WorkbenchEmail, GoogleProject) => MockGoogleStorageDAO = (email, project) => {
     val petMock = new MockGoogleStorageDAO
-    val extensionPath = GcsPath(GcsBucketName("bucket"), GcsObjectName("my_extension.tar.gz"))
-    petMock.buckets += extensionPath.bucketName -> Set((extensionPath.objectName, new ByteArrayInputStream("foo".getBytes())))
+    val userScriptPath = GcsPath(GcsBucketName("bucket"), GcsObjectName("my_script.tar.gz"))
+    petMock.buckets += userScriptPath.bucketName -> Set((userScriptPath.objectName, new ByteArrayInputStream("foo".getBytes())))
     petMock
   }
   val mockSamDAO = new MockSamDAO
