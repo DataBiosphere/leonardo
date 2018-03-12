@@ -33,17 +33,17 @@ trait TestLeoRoutes { this: ScalatestRouteTest with ScalaFutures =>
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
+  val userScriptPath = GcsPath(GcsBucketName("bucket1"), GcsObjectName("script.tar.gz"))
+  val extensionPath = GcsPath(GcsBucketName("bucket"), GcsObjectName("my_extension.tar.gz"))
   val mockPetGoogleDAO:(WorkbenchEmail, GoogleProject) => MockGoogleStorageDAO = (email, project) => {
     val petMock = new MockGoogleStorageDAO
-    val userScriptPath = GcsPath(GcsBucketName("bucket"), GcsObjectName("my_script.tar.gz"))
     petMock.buckets += userScriptPath.bucketName -> Set((userScriptPath.objectName, new ByteArrayInputStream("foo".getBytes())))
+    petMock.buckets += extensionPath.bucketName -> Set((extensionPath.objectName, new ByteArrayInputStream("foo".getBytes())))
     petMock
   }
   val mockSamDAO = new MockSamDAO
   val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO
-  val extensionPath = GcsPath(GcsBucketName("bucket"), GcsObjectName("my_extension.tar.gz"))
-  mockGoogleStorageDAO.buckets += extensionPath.bucketName -> Set((extensionPath.objectName, new ByteArrayInputStream("foo".getBytes())))
 
   // TODO look into parameterized tests so both provider impls can both be tested
   //val serviceAccountProvider = new MockPetServiceAccountProvider(config.getConfig("serviceAccounts.config"))

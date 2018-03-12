@@ -41,9 +41,10 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "200 when creating and getting cluster" in isolatedDbTest {
-    val newCluster = ClusterRequest(Map.empty, Some(extensionPath))
+    val newCluster = ClusterRequest(Map.empty, Some(extensionPath), Some(userScriptPath))
 
-    Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> leoRoutes.route ~> check {
+    Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~>
+      leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
     }
 
