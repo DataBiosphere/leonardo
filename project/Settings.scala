@@ -37,6 +37,10 @@ object Settings {
     test in assembly := {}
   )
 
+  val serviceAssemblySettings = Seq(
+    mainClass in assembly := Some("org.broadinstitute.dsde.workbench.leonardo.Boot")
+  )
+
   //common settings for all sbt subprojects
   val commonSettings =
     commonBuildSettings ++ commonAssemblySettings ++ commonTestSettings ++ commonVersionSettings ++ List(
@@ -55,13 +59,13 @@ object Settings {
   ) ++ publishSettings
 
   //the full list of settings for the leoService project (see build.sbt)
-  //coreDefaultSettings (inside commonBuildSsettings) sets the project name, which we want to override, so ordering is important.
+  //coreDefaultSettings (inside commonBuildSettings) sets the project name, which we want to override, so ordering is important.
   //thus commonSettings needs to be added first.
   val leoServiceSettings = commonSettings ++ List(
     name := "leo-service",
     version := "0.1",
     libraryDependencies ++= leoServiceDependencies
-  ) ++ noPublishSettings
+  ) ++ noPublishSettings ++ serviceAssemblySettings
 
   //the full list of settings for the root project that's ultimately the one we build into a fat JAR and run
   //coreDefaultSettings (inside commonSettings) sets the project name, which we want to override, so ordering is important.
@@ -70,6 +74,6 @@ object Settings {
     name := "leonardo",
     libraryDependencies ++= rootDependencies
     //the version is applied in commonVersionSettings and is set to 0.1-githash.
-  ) ++ noPublishSettings
+  ) ++ noPublishSettings ++ serviceAssemblySettings
 
 }
