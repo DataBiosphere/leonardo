@@ -7,7 +7,9 @@ import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
-import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GoogleProject}
+import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest}
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
+import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 
 import scala.concurrent.duration._
@@ -157,12 +159,12 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       withNewGoogleBucket(billingProject) { bucketName =>
         val userScriptString = "#!/usr/bin/env bash\n\npip2 install arrow"
         val userScriptObjectName = GcsObjectName("user-script.sh")
-        val userScriptUri = s"gs://${bucketName.value}/${userScriptObjectName.value}"
+        val userScriptUri = GcsPath(bucketName, userScriptObjectName)
 
         withNewBucketObject(bucketName, userScriptObjectName, userScriptString, "text/plain") { objectName =>
           val clusterName = ClusterName("user-script-cluster" + makeRandomId())
 
-          withNewCluster(billingProject, clusterName, ClusterRequest(Map(), None, Option(userScriptUri))) { cluster =>
+          withNewCluster(billingProject, clusterName, ClusterRequest(Map(), None, Option(userScriptUri), None)) { cluster =>
             withNewNotebook(cluster) { notebookPage =>
               notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
               notebookPage.executeCell("""import arrow""")

@@ -1,16 +1,17 @@
 import sbt._
 
 object Dependencies {
-  val jacksonV = "2.8.4"
+  val jacksonV = "2.9.0"
   val akkaV = "2.4.17"
   val akkaHttpV = "10.0.5"
 
   val workbenchModelV   = "0.10-6800f3a"
   val workbenchGoogleV  = "0.16-2947b3a-SNAP"
-  val serviceTestV = "0.5-f1b0c7b"
+  val serviceTestV = "0.5-d440a49-SNAP"
+  val leoModelV = "0.1-9671e70-SNAP"
 
-  val excludeWorkbenchModel =   ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-model_2.11")
-  val excludeWorkbenchGoogle =   ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-google_2.11")
+  val excludeWorkbenchModel =   ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-model_2.12")
+  val excludeWorkbenchGoogle =   ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-google_2.12")
 
   val workbenchModel: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-model"  % workbenchModelV
   val workbenchGoogle: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-google" % workbenchGoogleV excludeAll excludeWorkbenchModel
@@ -19,13 +20,16 @@ object Dependencies {
     excludeWorkbenchModel,
     excludeWorkbenchGoogle)
 
+  val leoModel: ModuleID = "org.broadinstitute.dsde.workbench" %% "leonardo-model" % leoModelV excludeAll (
+    excludeWorkbenchModel,
+    excludeWorkbenchGoogle)
+
   val rootDependencies = Seq(
-    // proactively pull in latest versions of Jackson libs, instead of relying on the versions
-    // specified as transitive dependencies, due to OWASP DependencyCheck warnings for earlier versions.
-    "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonV,
-    "com.fasterxml.jackson.core" % "jackson-databind" % jacksonV,
-    "com.fasterxml.jackson.core" % "jackson-core" % jacksonV,
-    "com.fasterxml.jackson.module" % "jackson-module-scala_2.11" % jacksonV,
+    "com.fasterxml.jackson.module" %% "jackson-module-scala" % jacksonV,
+
+    // support for Instant
+    "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310" % jacksonV,
+
     "ch.qos.logback" % "logback-classic" % "1.1.3",
     "com.google.apis" % "google-api-services-oauth2" % "v1-rev112-1.20.0" excludeAll (
       ExclusionRule("com.google.guava", "guava-jdk5"),
@@ -36,18 +40,16 @@ object Dependencies {
       ExclusionRule("org.apache.httpcomponents", "httpclient")),
     "org.webjars"           %  "swagger-ui"    % "2.2.5",
     "com.typesafe.akka"   %%  "akka-http-core"     % akkaHttpV,
-    "com.typesafe.akka"   %%  "akka-stream-testkit" % "2.4.11",
     "com.typesafe.akka"   %%  "akka-http"           % akkaHttpV,
     "com.typesafe.akka"   %%  "akka-testkit"        % akkaV     % "test",
     "com.typesafe.akka"   %%  "akka-slf4j"          % akkaV,
-    "org.specs2"          %%  "specs2-core"   % "3.7"  % "test",
     "org.scalatest"       %%  "scalatest"     % "3.0.1"   % "test",
     "org.seleniumhq.selenium" % "selenium-java" % "3.8.1" % "test",
-    "com.typesafe.scala-logging" %% "scala-logging" % "3.1.0",
     "org.apache.commons" % "commons-text" % "1.2",
 
     workbenchModel,
     workbenchGoogle,
+    leoModel,
     workbenchServiceTest,
 
     // required by workbenchGoogle
