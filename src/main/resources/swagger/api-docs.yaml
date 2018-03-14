@@ -263,50 +263,6 @@ paths:
           description: Internal Error
           schema:
             $ref: '#/definitions/ErrorReport'
-  '/notebooks/{googleProject}/{clusterName}/api/contents':
-    post:
-      summary: Create a new Jupyter notebook on a Dataproc cluster
-      description: |
-        Proxies the request through to the Jupyter notebook server running on the given cluster.
-      operationId: proxyCluster
-      tags:
-        - notebooks
-      parameters:
-        - in: path
-          name: googleProject
-          description: googleProject
-          required: true
-          type: string
-        - in: path
-          name: clusterName
-          description: clusterName
-          required: true
-          type: string
-        - in: body
-          description: Content type to create
-          name: type
-          required: true
-          schema:
-            $ref: '#/definitions/ContentType'
-      responses:
-        '201':
-          description: Notebook creation successful
-        '401':
-          description: Proxy connection unauthorized
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '404':
-          description: Cluster not found
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '420':
-          description: Cluster not ready
-          schema:
-            $ref: '#/definitions/ErrorReport'
-        '500':
-          description: Internal Error
-          schema:
-            $ref: '#/definitions/ErrorReport'
   '/notebooks/{googleProject}/{clusterName}/api/localize':
     post:
       summary: Localize files to/from a Jupyter notebook server
@@ -637,10 +593,3 @@ definitions:
       systems:
         type: object
         description: Map[String, SubsystemStatus]
-
-  ContentType:
-    description: The value passed when creating a notebook
-    properties:
-      type:
-        type: string
-        description: notebook
