@@ -19,8 +19,9 @@ start () {
     docker create -it --rm --name ${CONTAINER} -p 8000:8000 -e GOOGLE_PROJECT=project -e CLUSTER_NAME=cluster "${DOCKER_IMG}"
     docker cp jupyter-docker/jupyter_notebook_config.py ${CONTAINER}:/etc/jupyter/jupyter_notebook_config.py
     docker cp jupyter-docker/jupyter_localize_extension.py ${CONTAINER}:/etc/jupyter/custom/jupyter_localize_extension.py
+    docker cp jupyter-docker/delocalizing_contents_manager.py ${CONTAINER}:/etc/jupyter/custom/delocalizing_contents_manager.py
     # To debug startup failures, add -a here to attach.
-    docker start ${CONTAINER}
+    docker start -a ${CONTAINER}
 
     sleep 5
     docker logs ${CONTAINER}

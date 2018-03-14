@@ -187,6 +187,7 @@ ADD python_kernelspec.tmpl $JUPYTER_HOME/
 ADD spark_install_hail.sh $HAIL_HOME/
 ADD jupyter_notebook_config.py $JUPYTER_HOME/
 ADD jupyter_localize_extension.py $JUPYTER_HOME/custom/
+ADD delocalizing_contents_manager.py $JUPYTER_HOME/custom/
 ADD jupyter_install_notebook_extension.sh $JUPYTER_HOME/
 
 RUN chown -R $USER:users $JUPYTER_HOME \
