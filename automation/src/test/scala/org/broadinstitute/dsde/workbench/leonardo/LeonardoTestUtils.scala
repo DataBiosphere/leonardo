@@ -117,6 +117,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     // Google doesn't seem to like simultaneous cluster creates.  Add 0-30 sec jitter
     Thread sleep Random.nextInt(30000)
 
+    println(s"clusterRequest = $clusterRequest")
+
     val cluster = Leonardo.cluster.create(googleProject, clusterName, clusterRequest)
     clusterCheck(cluster, googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest)
 

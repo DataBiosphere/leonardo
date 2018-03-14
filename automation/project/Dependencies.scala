@@ -7,7 +7,7 @@ object Dependencies {
 
   val workbenchModelV   = "0.10-6800f3a"
   val workbenchGoogleV  = "0.16-2947b3a-SNAP"
-  val serviceTestV = "0.5-f1b0c7b"
+  val serviceTestV = "0.5-d440a49-SNAP"
   val leoModelV = "0.1-9671e70-SNAP"
 
   val excludeWorkbenchModel =   ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-model_2.12")
