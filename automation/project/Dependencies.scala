@@ -26,6 +26,10 @@ object Dependencies {
 
   val rootDependencies = Seq(
     "com.fasterxml.jackson.module" %% "jackson-module-scala" % jacksonV,
+
+    // support for Instant
+    "com.fasterxml.jackson.datatype" % "jackson-datatype-jsr310" % jacksonV,
+
     "ch.qos.logback" % "logback-classic" % "1.1.3",
     "com.google.apis" % "google-api-services-oauth2" % "v1-rev112-1.20.0" excludeAll (
       ExclusionRule("com.google.guava", "guava-jdk5"),
