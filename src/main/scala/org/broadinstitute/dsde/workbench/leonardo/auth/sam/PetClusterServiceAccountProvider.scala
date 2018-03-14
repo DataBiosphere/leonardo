@@ -28,5 +28,7 @@ class PetClusterServiceAccountProvider(val config: Config) extends ServiceAccoun
     Future.successful(List.empty)
   }
 
-  override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = samClient.getCachedPetAccessToken(userEmail, googleProject)
+  override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[String]] = {
+    Future(Option(samClient.getCachedPetAccessToken(userEmail, googleProject)))
+  }
 }

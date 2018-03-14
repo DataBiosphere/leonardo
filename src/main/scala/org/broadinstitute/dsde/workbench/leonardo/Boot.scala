@@ -7,9 +7,8 @@ import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.LazyLogging
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Pem, Token}
-import org.broadinstitute.dsde.workbench.google.{GoogleCredentialModes, GoogleStorageDAO, HttpGoogleIamDAO, HttpGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.{GoogleStorageDAO, HttpGoogleIamDAO, HttpGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.api.{LeoRoutes, StandardUserInfoDirectives}
-import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SwaggerSamClient
 import org.broadinstitute.dsde.workbench.leonardo.auth.{LeoAuthProviderHelper, ServiceAccountProviderHelper}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SamConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO
@@ -20,8 +19,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, N
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.leonardo.service.{BucketHelper, LeonardoService, ProxyService, StatusService}
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
@@ -71,8 +68,8 @@ object Boot extends App with LazyLogging {
       dbRef.database.close()
     }
 
-    val petGoogleDAO: (WorkbenchEmail, GoogleProject) => GoogleStorageDAO = (email, project) => {
-      new HttpGoogleStorageDAO(dataprocConfig.applicationName, Token(() => serviceAccountProvider.getAccessToken(email, project)), "google")
+    val petGoogleDAO: String => GoogleStorageDAO = token => {
+      new HttpGoogleStorageDAO(dataprocConfig.applicationName, Token(() => token), "google")
     }
 
     val (leoServiceAccountEmail, leoServiceAccountPemFile) = serviceAccountProvider.getLeoServiceAccountAndKey

@@ -44,4 +44,8 @@ class MockSwaggerSamClient extends SwaggerSamClient("fake/path", new FiniteDurat
   override def getPetServiceAccount(userEmail: WorkbenchEmail, googleProject: GoogleProject): WorkbenchEmail = {
     serviceAccount
   }
+
+  override def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = {
+    "token"
+  }
 }

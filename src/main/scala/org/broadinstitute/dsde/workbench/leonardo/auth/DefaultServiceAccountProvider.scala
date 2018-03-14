@@ -30,5 +30,7 @@ class DefaultServiceAccountProvider(config: Config) extends ServiceAccountProvid
     Future.successful(List.empty)
   }
 
-  override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = ""
+  override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[String]] = {
+    Future.successful(None)
+  }
 }

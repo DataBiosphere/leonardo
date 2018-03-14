@@ -6,6 +6,7 @@ import java.util.UUID
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.testkit.TestKit
+import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
@@ -46,7 +47,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     authProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider)
 
     bucketHelper = new BucketHelper(dataprocConfig, gdDAO, storageDAO, serviceAccountProvider)
-    val mockPetGoogleDAO:(WorkbenchEmail, GoogleProject) => MockGoogleStorageDAO = (email, project) => {
+    val mockPetGoogleDAO: String => GoogleStorageDAO = _ => {
       new MockGoogleStorageDAO
     }
     leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper)
@@ -242,7 +243,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   it should "delete a cluster" in isolatedDbTest {
     // need a specialized LeonardoService for this test, so we can spy on its authProvider
     val spyProvider: LeoAuthProvider = spy(authProvider)
-    val mockPetGoogleDAO:(WorkbenchEmail, GoogleProject) => MockGoogleStorageDAO = (email, project) => {
+    val mockPetGoogleDAO: String => GoogleStorageDAO = _ => {
       new MockGoogleStorageDAO
     }
     val leoForTest = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, system.actorOf(NoopActor.props), spyProvider, serviceAccountProvider, whitelist, bucketHelper)
@@ -491,7 +492,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       }
     }
 
-    val mockPetGoogleDAO:(WorkbenchEmail, GoogleProject) => MockGoogleStorageDAO = (email, project) => {
+    val mockPetGoogleDAO: String => GoogleStorageDAO = _ => {
       new MockGoogleStorageDAO
     }
     // make a new LeoService

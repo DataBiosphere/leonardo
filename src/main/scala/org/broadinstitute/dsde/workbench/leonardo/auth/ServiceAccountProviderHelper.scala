@@ -83,5 +83,9 @@ class ServiceAccountProviderHelper(wrappedServiceAccountProvider: ServiceAccount
     }
   }
 
-  override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = wrappedServiceAccountProvider.getAccessToken(userEmail, googleProject)
+  override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[String]] = {
+    safeCall {
+      wrappedServiceAccountProvider.getAccessToken(userEmail, googleProject)
+    }
+  }
 }
