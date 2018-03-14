@@ -54,4 +54,8 @@ class MockSwaggerSamClient extends SwaggerSamClient("fake/path", new FiniteDurat
   override def listCreatedClusters(userInfo: UserInfo): List[(GoogleProject, ClusterName)] = {
     clusterCreators.get(userInfo.userEmail).map(_.toList).getOrElse(List.empty)
   }
+
+  override def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = {
+    "token"
+  }
 }

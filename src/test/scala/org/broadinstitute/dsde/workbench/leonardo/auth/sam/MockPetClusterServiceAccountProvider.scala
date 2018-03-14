@@ -31,5 +31,7 @@ class MockPetClusterServiceAccountProvider(config: Config) extends ServiceAccoun
     Future(mockSwaggerSamClient.getUserProxyFromSam(userEmail))map(List(_))
   }
 
-  override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = mockSwaggerSamClient.getCachedPetAccessToken(userEmail,googleProject)
+  override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[String]] = {
+    Future(Option(mockSwaggerSamClient.getCachedPetAccessToken(userEmail, googleProject)))
+  }
 }

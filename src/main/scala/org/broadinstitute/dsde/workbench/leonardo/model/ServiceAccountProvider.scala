@@ -72,5 +72,5 @@ abstract class ServiceAccountProvider(config: Config) {
     */
   def listUsersStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]]
 
-  def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject): String
+  def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[String]]
 }
