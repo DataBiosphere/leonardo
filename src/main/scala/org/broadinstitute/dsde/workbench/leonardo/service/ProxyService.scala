@@ -1,16 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
 import java.time.Instant
-import java.util
 import java.util.concurrent.TimeUnit
 
 import akka.actor.{ActorRef, ActorSystem}
-import akka.http.javadsl.model.headers.{ContentDisposition, ContentDispositionType}
+import akka.http.javadsl.model.headers.{ContentDisposition}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.`Content-Disposition`
-import akka.http.scaladsl.model.headers.ContentDispositionTypes
 import akka.http.scaladsl.model.ws._
 import akka.pattern.ask
 import akka.stream.ActorMaterializer
@@ -32,7 +30,6 @@ import scala.collection.immutable
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.matching.Regex
 
 case class ClusterNotReadyException(googleProject: GoogleProject, clusterName: ClusterName) extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} is not ready yet, chill out and try again later", StatusCodes.EnhanceYourCalm)
 case class ProxyException(googleProject: GoogleProject, clusterName: ClusterName) extends LeoException(s"Unable to proxy connection to Jupyter notebook on ${googleProject.value}/${clusterName.value}", StatusCodes.InternalServerError)
