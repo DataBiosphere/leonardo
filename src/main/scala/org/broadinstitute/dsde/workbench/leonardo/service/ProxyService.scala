@@ -1,12 +1,16 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
 import java.time.Instant
+import java.util
 import java.util.concurrent.TimeUnit
 
 import akka.actor.{ActorRef, ActorSystem}
+import akka.http.javadsl.model.headers.{ContentDisposition, ContentDispositionType}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.`Content-Disposition`
+import akka.http.scaladsl.model.headers.ContentDispositionTypes
 import akka.http.scaladsl.model.ws._
 import akka.pattern.ask
 import akka.stream.ActorMaterializer
@@ -25,8 +29,10 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.collection.immutable
+import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.matching.Regex
 
 case class ClusterNotReadyException(googleProject: GoogleProject, clusterName: ClusterName) extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} is not ready yet, chill out and try again later", StatusCodes.EnhanceYourCalm)
 case class ProxyException(googleProject: GoogleProject, clusterName: ClusterName) extends LeoException(s"Unable to proxy connection to Jupyter notebook on ${googleProject.value}/${clusterName.value}", StatusCodes.InternalServerError)
@@ -165,11 +171,57 @@ class ProxyService(proxyConfig: ProxyConfig,
     // WebSocket requests (which could potentially be large).
     val handler: Future[HttpResponse] = Source.single(newRequest)
       .via(flow)
+      .map(fixContentDisposition)
       .runWith(Sink.head)
       .flatMap(_.toStrict(5 seconds))
 
     // That's it! This is our whole HTTP proxy.
     handler
+  }
+
+  private def fixContentDisposition(httpResponse: HttpResponse): HttpResponse = {
+    // TODO fix header
+//Response content disposition is Some(Content-Disposition: attachment; filename="utf-8''Untitled.ipynb")
+//    if (httpResponse.headers.contains(ContentDisposition)) {
+//      httpResponse.mapHeaders{header =>
+//        if header.
+//      }
+  //  def updateContentDispositionHeader(params: util.Map[String, String]): util.Map[String, String] = {
+    def getNewParams(params: Map[String, String]): util.Map[String, String] = {
+      //val paramsConvertedMap: Map[String, String] = params.asScala.toMap //.mapValues(_.asScala.toSet)
+      logger.info(s"params = ${params.toString}")
+      //logger.info(s"paramsConvertedMap = ${paramsConvertedMap.toString}")
+      val keyName = "filename"
+      val fileName = params.get(keyName).get
+      logger.info(s"params.get(keyName) = ${params.get(keyName)}")
+      // if matches utf-8 regex, replace, otherwise output old params
+      val regexThing = """utf-8''""".r
+      val newFileName = regexThing.replaceAllIn(fileName, "")
+      logger.info(s"regexThing.replaceAllIn(fileName, ) = ${regexThing.replaceAllIn(fileName, "")}")
+      //paramsConvertedMap + (keyName, newFileName)  //keyName, newFileName)
+      val newParams = params + (keyName -> newFileName)
+      logger.info(s"newParams = ${newParams}")
+      newParams.asJava
+    }
+    httpResponse.header[`Content-Disposition`] match {
+     case Some(header) => {
+       logger.info(s"header = $header")
+       logger.info(s"header.dispositionType.name() = ${header.dispositionType.name()}")
+       httpResponse.removeHeader(header.lowercaseName())
+       logger.info(s"header.lowercaseName = ${header.lowercaseName()}")
+       logger.info(s"httpResponse.removeHeader(header.lowercaseName()) = ${httpResponse.removeHeader(header.lowercaseName())}")
+       //updateContentDispositionHeader()
+       val newParams = getNewParams(header.params)
+       val newHeader: HttpHeader = ContentDisposition.create(header.dispositionType, newParams)
+       httpResponse.addHeader(newHeader)
+
+     }
+     case None => httpResponse
+    }
+//      val oldContentDisposition = httpResponse.header[`Content-Disposition`].get
+//      oldContentDisposition.params
+//      httpResponse.
+//    } else httpResponse
   }
 
   private def handleWebSocketRequest(targetHost: Host, request: HttpRequest, upgrade: UpgradeToWebSocket): Future[HttpResponse] = {
