@@ -179,49 +179,28 @@ class ProxyService(proxyConfig: ProxyConfig,
     handler
   }
 
+  // This is our current workaround for a bug that causes notebooks to download with "utf-8''" prepended to the file name
+  // This is due to an akka-http bug. For now, for each response that has a Content-Disposition header with a 'filename'
+  //  in it the header params, we remove any "utf-8''". Should not affect any other responses.
   private def fixContentDisposition(httpResponse: HttpResponse): HttpResponse = {
-    // TODO fix header
-//Response content disposition is Some(Content-Disposition: attachment; filename="utf-8''Untitled.ipynb")
-//    if (httpResponse.headers.contains(ContentDisposition)) {
-//      httpResponse.mapHeaders{header =>
-//        if header.
-//      }
-  //  def updateContentDispositionHeader(params: util.Map[String, String]): util.Map[String, String] = {
-    def getNewParams(params: Map[String, String]): util.Map[String, String] = {
-      //val paramsConvertedMap: Map[String, String] = params.asScala.toMap //.mapValues(_.asScala.toSet)
-      logger.info(s"params = ${params.toString}")
-      //logger.info(s"paramsConvertedMap = ${paramsConvertedMap.toString}")
-      val keyName = "filename"
-      val fileName = params.get(keyName).get
-      logger.info(s"params.get(keyName) = ${params.get(keyName)}")
-      // if matches utf-8 regex, replace, otherwise output old params
-      val regexThing = """utf-8''""".r
-      val newFileName = regexThing.replaceAllIn(fileName, "")
-      logger.info(s"regexThing.replaceAllIn(fileName, ) = ${regexThing.replaceAllIn(fileName, "")}")
-      //paramsConvertedMap + (keyName, newFileName)  //keyName, newFileName)
-      val newParams = params + (keyName -> newFileName)
-      logger.info(s"newParams = ${newParams}")
-      newParams.asJava
-    }
     httpResponse.header[`Content-Disposition`] match {
      case Some(header) => {
-       logger.info(s"header = $header")
-       logger.info(s"header.dispositionType.name() = ${header.dispositionType.name()}")
-       httpResponse.removeHeader(header.lowercaseName())
-       logger.info(s"header.lowercaseName = ${header.lowercaseName()}")
-       logger.info(s"httpResponse.removeHeader(header.lowercaseName()) = ${httpResponse.removeHeader(header.lowercaseName())}")
-       //updateContentDispositionHeader()
-       val newParams = getNewParams(header.params)
-       val newHeader: HttpHeader = ContentDisposition.create(header.dispositionType, newParams)
-       httpResponse.addHeader(newHeader)
-
+       val keyName = "filename"
+       header.params.get(keyName) match {
+         case Some(fileName) => {
+           val regex = """utf-8''""".r
+           val newFileName = regex.replaceAllIn(fileName, "")  // a filename that doesn't have utf-8'' shouldn't be affected
+           val newParams = header.params + (keyName -> newFileName)
+           val newHeader = ContentDisposition.create(header.dispositionType, newParams.asJava)
+           val newHeaders = httpResponse.headers.filter(header => header.isNot("content-disposition")) ++ Seq(newHeader)
+           val newResponse = HttpResponse(status = httpResponse.status, entity = httpResponse.entity, protocol = httpResponse.protocol, headers = newHeaders)
+           newResponse
+         }
+         case None => httpResponse
+       }
      }
      case None => httpResponse
     }
-//      val oldContentDisposition = httpResponse.header[`Content-Disposition`].get
-//      oldContentDisposition.params
-//      httpResponse.
-//    } else httpResponse
   }
 
   private def handleWebSocketRequest(targetHost: Host, request: HttpRequest, upgrade: UpgradeToWebSocket): Future[HttpResponse] = {
