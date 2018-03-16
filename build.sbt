@@ -1,8 +1,24 @@
 import Settings._
 import Testing._
 
-lazy val root = project.in(file("."))
+
+
+
+
+lazy val leoModel = project.in(file("model"))
+  .settings(modelSettings:_*)
+  .withTestSettings
+
+lazy val leoService = project.in(file("service"))
+  .settings(leoServiceSettings:_*)
+  .dependsOn(leoModel)
+  .withTestSettings
+
+lazy val leo = project.in(file("."))
   .settings(rootSettings:_*)
+  .aggregate(leoModel)
+  .aggregate(leoService)
+  .dependsOn(leoService)
   .withTestSettings
 
 Revolver.settings
