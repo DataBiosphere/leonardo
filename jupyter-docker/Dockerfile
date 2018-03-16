@@ -195,7 +195,8 @@ RUN R -e 'install.packages(c( \
  && R -e 'IRkernel::installspec(user=FALSE)' \
  && chown -R $USER:users /home/jupyter-user/.local  \
  && R -e 'devtools::install_github("apache/spark@v2.0.2", subdir="R/pkg")' \
- && mkdir -p /home/jupyter-user/.rpackages; echo "R_LIBS=/home/jupyter-user/.rpackages" > /home/jupyter-user/.Renviron
+ && mkdir -p /home/jupyter-user/.rpackages \
+ && echo "R_LIBS=/home/jupyter-user/.rpackages" > /home/jupyter-user/.Renviron
 
 #######################
 # Utilities
