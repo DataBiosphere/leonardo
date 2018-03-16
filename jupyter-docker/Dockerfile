@@ -185,7 +185,7 @@ RUN R -e 'install.packages(c( \
     "dplyr",  \
     "tidyr",  \
     "reshape2",  \
-    "RJDBC",
+    "RJDBC", \
     "bigrquery"),  \
     repos="https://cran.mtu.edu")' \
  && R -e 'source("https://bioconductor.org/biocLite.R")' \
