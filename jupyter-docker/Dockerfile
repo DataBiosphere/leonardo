@@ -187,16 +187,16 @@ RUN R -e 'install.packages(c( \
     "reshape2",  \
     "RJDBC", \
     "bigrquery"),  \
-    repos="https://cran.mtu.edu")' \
- && R -e 'source("https://bioconductor.org/biocLite.R")' \
- && R -e biocLite("GenomicRanges")' \
- && R -e biocLite("VariantAnnotation")' \
- && R -e 'devtools::install_github("IRkernel/IRkernel")' \
- && R -e 'IRkernel::installspec(user=FALSE)' \
- && chown -R $USER:users /home/jupyter-user/.local  \
- && R -e 'devtools::install_github("apache/spark@v2.0.2", subdir="R/pkg")' \
- && mkdir -p /home/jupyter-user/.rpackages \
- && echo "R_LIBS=/home/jupyter-user/.rpackages" > /home/jupyter-user/.Renviron
+    repos="https://cran.mtu.edu")' 
+ #&& R -e 'source("https://bioconductor.org/biocLite.R")' \
+ #&& R -e biocLite("GenomicRanges")' \
+ #&& R -e biocLite("VariantAnnotation")' \
+ #&& R -e 'devtools::install_github("IRkernel/IRkernel")' \
+ #&& R -e 'IRkernel::installspec(user=FALSE)' \
+ #&& chown -R $USER:users /home/jupyter-user/.local  \
+ #&& R -e 'devtools::install_github("apache/spark@v2.0.2", subdir="R/pkg")' \
+ #&& mkdir -p /home/jupyter-user/.rpackages \
+ #&& echo "R_LIBS=/home/jupyter-user/.rpackages" > /home/jupyter-user/.Renviron
 
 #######################
 # Utilities
