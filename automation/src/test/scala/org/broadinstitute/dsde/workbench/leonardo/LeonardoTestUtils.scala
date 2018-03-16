@@ -10,8 +10,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, UserAuthToken}
 import org.broadinstitute.dsde.workbench.config.{Config, Credentials}
-import org.broadinstitute.dsde.workbench.service.Sam
-import org.broadinstitute.dsde.workbench.service.APIException
+import org.broadinstitute.dsde.workbench.service.{RestException, Sam}
 import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
@@ -147,7 +146,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
         "The request has been accepted for processing, but the processing has not been completed."
     } catch {
       // OK if cluster not found / already deleted
-      case ae: APIException if ae.message.contains("\"statusCode\":404") => ()
+      case re: RestException if re.message.contains("\"statusCode\":404") => ()
       case e: Exception => throw e
     }
 
