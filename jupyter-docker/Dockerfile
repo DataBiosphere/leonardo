@@ -22,6 +22,8 @@ RUN echo "deb $DEBIAN_REPO/debian jessie main\ndeb $DEBIAN_REPO/debian-security 
     build-essential \
     lsb-release \
     procps \
+    # to support userScript pip installs via git
+    git \
 
  # google-cloud-sdk separately because it need lsb-release and other prereqs installed above
  && export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" \
