@@ -4,7 +4,6 @@ import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import akka.actor.{ActorRef, ActorSystem}
-import akka.http.javadsl.model.headers.{ContentDisposition}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model._
@@ -177,21 +176,20 @@ class ProxyService(proxyConfig: ProxyConfig,
   }
 
   // This is our current workaround for a bug that causes notebooks to download with "utf-8''" prepended to the file name
-  // This is due to an akka-http bug. For now, for each response that has a Content-Disposition header with a 'filename'
-  //  in it the header params, we remove any "utf-8''". Should not affect any other responses.
+  // This is due to an akka-http bug currently being worked on here: https://github.com/playframework/playframework/issues/7719
+  // For now, for each response that has a Content-Disposition header with a 'filename' in the header params, we remove any "utf-8''".
+  // Should not affect any other responses.
   private def fixContentDisposition(httpResponse: HttpResponse): HttpResponse = {
     httpResponse.header[`Content-Disposition`] match {
      case Some(header) => {
        val keyName = "filename"
        header.params.get(keyName) match {
          case Some(fileName) => {
-           val regex = """utf-8''""".r
-           val newFileName = regex.replaceAllIn(fileName, "")  // a filename that doesn't have utf-8'' shouldn't be affected
+           val newFileName = fileName.replace("utf-8''", "")  // a filename that doesn't have utf-8'' shouldn't be affected
            val newParams = header.params + (keyName -> newFileName)
-           val newHeader = ContentDisposition.create(header.dispositionType, newParams.asJava)
+           val newHeader = `Content-Disposition`(header.dispositionType, newParams)
            val newHeaders = httpResponse.headers.filter(header => header.isNot("content-disposition")) ++ Seq(newHeader)
-           val newResponse = HttpResponse(status = httpResponse.status, entity = httpResponse.entity, protocol = httpResponse.protocol, headers = newHeaders)
-           newResponse
+           httpResponse.copy(headers = newHeaders)
          }
          case None => httpResponse
        }
