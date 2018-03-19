@@ -7,12 +7,12 @@ import com.typesafe.scalalogging.LazyLogging
 import akka.http.scaladsl.model.StatusCodes
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProvider.{CanSeeAllClustersInProjectCacheKey, NotebookAuthCacheKey, SamCacheKey}
+import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProvider.{NotebookAuthCacheKey, SamCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.CreateClusters
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.duration._
@@ -23,8 +23,7 @@ case class UnknownLeoAuthAction(action: LeoAuthAction)
 
 object SamAuthProvider {
   private[sam] sealed trait SamCacheKey
-  private[sam] case class NotebookAuthCacheKey(userEmail: WorkbenchEmail, action: NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName, executionContext: ExecutionContext) extends SamCacheKey
-  private[sam] case class CanSeeAllClustersInProjectCacheKey(userEmail: WorkbenchEmail, googleProject: GoogleProject, executionContext: ExecutionContext) extends SamCacheKey
+  private[sam] case class NotebookAuthCacheKey(userInfo: UserInfo, action: NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName, executionContext: ExecutionContext) extends SamCacheKey
 }
 
 class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(config, serviceAccountProvider) with SamProvider with LazyLogging {
@@ -43,8 +42,6 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
           key match {
             case NotebookAuthCacheKey(userEmail, action, googleProject, clusterName, executionContext) =>
               hasNotebookClusterPermissionInternal(userEmail, action, googleProject, clusterName)(executionContext)
-            case CanSeeAllClustersInProjectCacheKey(userEmail, googleProject, executionContext) =>
-              canSeeAllClustersInProjectInternal(userEmail, googleProject)(executionContext)
           }
         }
       }
@@ -72,36 +69,14 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     DeleteCluster -> "delete")
 
   /**
-    * @param userEmail The user in question
+    * @param userInfo The user in question
     * @param action The project-level action (above) the user is requesting
     * @param googleProject The Google project to check in
     * @return If the given user has permissions in this project to perform the specified action.
     */
-  override def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  override def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     Future {
-      samClient.hasActionOnBillingProjectResource(userEmail,googleProject, getProjectActionString(action))
-    }
-  }
-
-  /**
-    * When listing clusters, Leo will perform a GROUP BY on google projects and call this function once per google project.
-    * If you have an implementation such that users, even in some cases, can see all clusters in a google project, overriding
-    * this function may lead to significant performance improvements.
-    * For any projects where this function call returns Future.successful(false), Leo will then call hasNotebookClusterPermission
-    * for every cluster in that project, passing in action = GetClusterStatus.
-    *
-    * @param userEmail The user in question
-    * @param googleProject A Google project
-    * @return If the given user can see all clusters in this project
-    */
-  override def canSeeAllClustersInProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-    // Consult the notebook auth cache
-    notebookAuthCache.get(CanSeeAllClustersInProjectCacheKey(userEmail, googleProject, executionContext))
-  }
-
-  private def canSeeAllClustersInProjectInternal(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-    Future {
-      samClient.hasActionOnBillingProjectResource(userEmail,googleProject, "list_notebook_cluster")
+      samClient.hasActionOnBillingProjectResource(userInfo, googleProject, getProjectActionString(action))
     }
   }
 
@@ -109,25 +84,36 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     * Leo calls this method to verify if the user has permission to perform the given action on a specific notebook cluster.
     * It may call this method passing in a cluster that doesn't exist. Return Future.successful(false) if so.
     *
-    * @param userEmail      The user in question
+    * @param userInfo      The user in question
     * @param action        The cluster-level action (above) the user is requesting
     * @param googleProject The Google project the cluster was created in
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return If the userEmail has permission on this individual notebook cluster to perform this action
     */
-  override def hasNotebookClusterPermission(userEmail: WorkbenchEmail, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  override def hasNotebookClusterPermission(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     // Consult the notebook auth cache
-    notebookAuthCache.get(NotebookAuthCacheKey(userEmail, action, googleProject, clusterName, executionContext))
+    notebookAuthCache.get(NotebookAuthCacheKey(userInfo, action, googleProject, clusterName, executionContext))
   }
 
-  private def hasNotebookClusterPermissionInternal(userEmail: WorkbenchEmail, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  private def hasNotebookClusterPermissionInternal(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     // if action is connect, check only cluster resource. If action is anything else, either cluster or project must be true
     Future {
-      val hasNotebookAction = samClient.hasActionOnNotebookClusterResource(userEmail,googleProject,clusterName, getNotebookActionString(action))
+      val hasNotebookAction = samClient.hasActionOnNotebookClusterResource(userInfo, googleProject,clusterName, getNotebookActionString(action))
       if (action == ConnectToCluster) {
         hasNotebookAction
       } else {
-        hasNotebookAction || samClient.hasActionOnBillingProjectResource(userEmail,googleProject, getProjectActionString(action))
+        hasNotebookAction || samClient.hasActionOnBillingProjectResource(userInfo, googleProject, getProjectActionString(action))
+      }
+    }
+  }
+
+  override def filterClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterName)])(implicit executionContext: ExecutionContext): Future[List[(GoogleProject, ClusterName)]] = {
+    for {
+      owningProjects <- Future(samClient.listOwningProjects(userInfo).toSet)
+      createdClusters <- Future(samClient.listCreatedClusters(userInfo).toSet)
+    } yield {
+      clusters.filter { case (project, name) =>
+        owningProjects.contains(project) || createdClusters.contains((project, name))
       }
     }
   }

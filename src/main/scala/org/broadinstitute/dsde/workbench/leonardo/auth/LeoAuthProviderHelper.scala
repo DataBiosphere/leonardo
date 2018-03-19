@@ -7,7 +7,7 @@ import com.typesafe.scalalogging.LazyLogging
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.FutureSupport
 
@@ -60,21 +60,21 @@ class LeoAuthProviderHelper(wrappedAuthProvider: LeoAuthProvider, authConfig: Co
     try { future.withTimeout(providerTimeout, "" /* errMsg, not used */).recoverWith(exceptionHandler) } catch exceptionHandler
   }
 
-  override def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  override def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     safeCall {
-      wrappedAuthProvider.hasProjectPermission(userEmail, action, googleProject)
+      wrappedAuthProvider.hasProjectPermission(userInfo, action, googleProject)
     }
   }
 
-  override def canSeeAllClustersInProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  override def hasNotebookClusterPermission(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     safeCall {
-      wrappedAuthProvider.canSeeAllClustersInProject(userEmail, googleProject)
+      wrappedAuthProvider.hasNotebookClusterPermission(userInfo, action, googleProject, clusterName)
     }
   }
 
-  override def hasNotebookClusterPermission(userEmail: WorkbenchEmail, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  override def filterClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterName)])(implicit executionContext: ExecutionContext): Future[List[(GoogleProject, ClusterName)]] = {
     safeCall {
-      wrappedAuthProvider.hasNotebookClusterPermission(userEmail, action, googleProject, clusterName)
+      wrappedAuthProvider.filterClusters(userInfo, clusters)
     }
   }
 

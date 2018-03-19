@@ -13,7 +13,7 @@ import com.typesafe.scalalogging.LazyLogging
 import io.swagger.client.ApiClient
 import io.swagger.client.api.{GoogleApi, ResourcesApi}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.collection.JavaConverters._
@@ -29,6 +29,9 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
 
   private val notebookClusterResourceTypeName = "notebook-cluster"
   private val billingProjectResourceTypeName = "billing-project"
+
+  private val projectOwnerPolicyName = "owner"
+  private val clusterCreatorPolicyName = "creator"
 
 
   private[auth] def samGoogleApi(accessToken: String): GoogleApi = {
@@ -47,12 +50,12 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
   }
 
   //A resources API as the given user's pet SA
-  private[auth] def resourcesApiAsPet(userEmail: WorkbenchEmail, googleProject: GoogleProject): ResourcesApi = {
+  private[auth] def samResourcesApiAsPet(userEmail: WorkbenchEmail, googleProject: GoogleProject): ResourcesApi = {
     samResourcesApi(getCachedPetAccessToken(userEmail, googleProject))
   }
 
   //A google API as the given user's pet SA
-  private[auth] def googleApiAsPet(userEmail: WorkbenchEmail, googleProject: GoogleProject): GoogleApi = {
+  private[auth] def samGoogleApiAsPet(userEmail: WorkbenchEmail, googleProject: GoogleProject): GoogleApi = {
     samGoogleApi(getCachedPetAccessToken(userEmail, googleProject))
   }
 
@@ -103,45 +106,73 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
     credential.refreshAccessToken.getTokenValue
   }
 
+  def createNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
+    logger.debug(s"Calling Sam createNotebookClusterResource as PET for user [${userEmail.value}] with project [${googleProject.value}] and clusterName [${clusterName.value}]")
+    // this is called as the user's pet
+    val samAPI = samResourcesApiAsPet(userEmail, googleProject)
+    samAPI.createResource(notebookClusterResourceTypeName, getClusterResourceId(googleProject, clusterName))
+  }
+
+  def deleteNotebookClusterResource(creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
+    logger.debug(s"Calling Sam deleteNotebookClusterResource as PET for user [${creatorEmail.value}] with project [${googleProject.value}] and clusterName [${clusterName.value}]")
+    // this is called as the user's pet
+    val samAPI = samResourcesApiAsPet(creatorEmail, googleProject)
+    samAPI.deleteResource(notebookClusterResourceTypeName, getClusterResourceId(googleProject, clusterName))
+  }
+
+  def hasActionOnBillingProjectResource(userInfo: UserInfo, googleProject: GoogleProject, action: String): Boolean = {
+    // this is called with the user's token
+    hasActionOnResource(userInfo, billingProjectResourceTypeName, googleProject.value, action)
+  }
+
+  def hasActionOnNotebookClusterResource(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, action: String): Boolean = {
+    // this is called with the user's token
+    hasActionOnResource(userInfo, notebookClusterResourceTypeName, getClusterResourceId(googleProject, clusterName), action)
+  }
+
+  def getUserProxyFromSam(userEmail: WorkbenchEmail): WorkbenchEmail = {
+    logger.debug(s"Calling Sam getUserProxyFromSam as user ${leoEmail} with email ${userEmail.value}")
+    // this is called as the Leo service account
+    val samAPI = samGoogleApi(getAccessTokenUsingPem(leoEmail, leoPem))
+    WorkbenchEmail(samAPI.getProxyGroup(userEmail.value))
+  }
+
+  def getPetServiceAccount(userInfo: UserInfo, googleProject: GoogleProject): WorkbenchEmail = {
+    logger.debug(s"Calling Sam getPetServiceAccount as user [${userInfo}] and project [${googleProject.value}]")
+    // this is called with the user's token
+    val samAPI = samGoogleApi(userInfo.accessToken.token)
+    WorkbenchEmail(samAPI.getPetServiceAccount(googleProject.value))
+  }
+
+  def listOwningProjects(userInfo: UserInfo): List[GoogleProject] = {
+    val samAPI = samResourcesApi(userInfo.accessToken.token)
+    samAPI.listResourcesAndPolicies(billingProjectResourceTypeName).asScala.toList
+      .filter(_.getAccessPolicyName == projectOwnerPolicyName)
+      .map(p => GoogleProject(p.getResourceId))
+  }
+
+  def listCreatedClusters(userInfo: UserInfo): List[(GoogleProject, ClusterName)] = {
+    val samAPI = samResourcesApi(userInfo.accessToken.token)
+    samAPI.listResourcesAndPolicies(notebookClusterResourceTypeName).asScala.toList
+      .filter(_.getAccessPolicyName == clusterCreatorPolicyName)
+      .flatMap(p => parseClusterResourceId(p.getResourceId))
+  }
+
+  private def hasActionOnResource(userInfo: UserInfo, resourceType: String, resourceName: String, action: String): Boolean = {
+    logger.debug(s"Calling Sam resources API as user [${userInfo}] for resource type [$resourceType], resource name [$resourceName] and action [$action]")
+    // this is called with the user's token
+    val samAPI = samResourcesApi(userInfo.accessToken.token)
+    samAPI.resourceAction(resourceType, resourceName, action)
+  }
 
   private def getClusterResourceId(googleProject: GoogleProject, clusterName: ClusterName): String = {
     googleProject.value + "_" + clusterName.value
   }
 
-
-  def createNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
-    logger.info(s"Calling Sam createNotebookClusterResource as user ${userEmail.value} and project ${googleProject.value} and clusterName ${clusterName.value}")
-    resourcesApiAsPet(userEmail, googleProject).createResource(notebookClusterResourceTypeName, getClusterResourceId(googleProject, clusterName))
+  private def parseClusterResourceId(id: String): Option[(GoogleProject, ClusterName)] = {
+    val splitId = id.split("_")
+    if (splitId.length == 2) {
+      Some(GoogleProject(splitId(0)), ClusterName(splitId(1)))
+    } else None
   }
-
-  def deleteNotebookClusterResource(creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
-    logger.info(s"Calling Sam deleteNotebookClusterResource as user ${creatorEmail.value} and project ${googleProject.value} and clusterName ${clusterName.value}")
-    resourcesApiAsPet(creatorEmail, googleProject).deleteResource(notebookClusterResourceTypeName, getClusterResourceId(googleProject, clusterName))
-  }
-
-  def hasActionOnBillingProjectResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, action: String): Boolean = {
-    logger.info(s"Calling Sam hasActionOnBillingProjectResource as user ${userEmail.value} and project ${googleProject.value} and action ${action}")
-    hasActionOnResource(billingProjectResourceTypeName, googleProject.value, userEmail, googleProject, action)
-  }
-
-  def hasActionOnNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, action: String): Boolean = {
-    logger.info(s"Calling Sam hasActionOnNotebookClusterResource as user ${userEmail.value} and project ${googleProject.value} and action ${action}")
-    hasActionOnResource(notebookClusterResourceTypeName, getClusterResourceId(googleProject, clusterName), userEmail, googleProject, action)
-  }
-
-  def getUserProxyFromSam(userEmail: WorkbenchEmail): WorkbenchEmail = {
-    logger.info(s"Calling Sam getUserProxyFromSam as user ${userEmail.value}")
-    val samAPI = samGoogleApi(getAccessTokenUsingPem(leoEmail, leoPem))
-    WorkbenchEmail(samAPI.getProxyGroup(userEmail.value))
-  }
-
-  def getPetServiceAccount(userEmail: WorkbenchEmail, googleProject: GoogleProject): WorkbenchEmail = {
-    logger.info(s"Calling Sam getPetServiceAccount as user ${userEmail.value} and project ${googleProject.value}")
-    WorkbenchEmail(googleApiAsPet(userEmail, googleProject).getPetServiceAccount(googleProject.value))
-  }
-
-  private def hasActionOnResource(resourceType: String, resourceName: String, userEmail: WorkbenchEmail, googleProject: GoogleProject, action: String): Boolean = {
-    resourcesApiAsPet(userEmail, googleProject).resourceAction(resourceType, resourceName, action)
-  }
-
 }

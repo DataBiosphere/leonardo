@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.auth
 import com.typesafe.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import net.ceedubs.ficus.Ficus._
 
@@ -19,20 +19,22 @@ class MockLeoAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAcc
   val canSeeClustersInAllProjects = authConfig.as[Option[Boolean]]("canSeeClustersInAllProjects").getOrElse(false)
   val canSeeAllClustersIn = authConfig.as[Option[Seq[String]]]("canSeeAllClustersIn").getOrElse(Seq.empty)
 
-  override def canSeeAllClustersInProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-    if(canSeeClustersInAllProjects) {
-      Future.successful(true)
-    } else {
-      Future.successful( canSeeAllClustersIn.contains(googleProject.value) )
-    }
-  }
-
-  def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  override def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     Future.successful(projectPermissions(action))
   }
 
-  def hasNotebookClusterPermission(userEmail: WorkbenchEmail, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  override def hasNotebookClusterPermission(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     Future.successful(clusterPermissions(action))
+  }
+
+  override def filterClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterName)])(implicit executionContext: ExecutionContext): Future[List[(GoogleProject, ClusterName)]] = {
+    if (canSeeClustersInAllProjects) {
+      Future.successful(clusters)
+    } else {
+      Future.successful(clusters.filter { case (googleProject, _) =>
+        canSeeAllClustersIn.contains(googleProject.value) || clusterPermissions(NotebookClusterActions.GetClusterStatus)
+      })
+    }
   }
 
   private def notifyInternal = {
@@ -42,8 +44,8 @@ class MockLeoAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAcc
       Future.failed(new RuntimeException("boom"))
   }
 
-  def notifyClusterCreated(creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = notifyInternal
+  override def notifyClusterCreated(creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = notifyInternal
 
-  def notifyClusterDeleted(userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = notifyInternal
+  override def notifyClusterDeleted(userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = notifyInternal
 
 }

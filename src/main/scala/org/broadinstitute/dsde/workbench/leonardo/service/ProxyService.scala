@@ -68,8 +68,8 @@ class ProxyService(proxyConfig: ProxyConfig,
    */
   private[leonardo] def authCheck(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, notebookAction: NotebookClusterAction): Future[Unit] = {
     for {
-      hasViewPermission <- authProvider.hasNotebookClusterPermission(userInfo.userEmail, GetClusterStatus, googleProject, clusterName)
-      hasRequiredPermission <- authProvider.hasNotebookClusterPermission(userInfo.userEmail, notebookAction, googleProject, clusterName)
+      hasViewPermission <- authProvider.hasNotebookClusterPermission(userInfo, GetClusterStatus, googleProject, clusterName)
+      hasRequiredPermission <- authProvider.hasNotebookClusterPermission(userInfo, notebookAction, googleProject, clusterName)
     } yield {
       if (!hasViewPermission) {
         throw ClusterNotFoundException(googleProject, clusterName)
