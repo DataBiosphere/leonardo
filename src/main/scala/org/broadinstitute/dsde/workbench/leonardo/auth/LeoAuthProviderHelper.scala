@@ -72,9 +72,9 @@ class LeoAuthProviderHelper(wrappedAuthProvider: LeoAuthProvider, authConfig: Co
     }
   }
 
-  override def filterClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterName)])(implicit executionContext: ExecutionContext): Future[List[(GoogleProject, ClusterName)]] = {
+  override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterName)])(implicit executionContext: ExecutionContext): Future[List[(GoogleProject, ClusterName)]] = {
     safeCall {
-      wrappedAuthProvider.filterClusters(userInfo, clusters)
+      wrappedAuthProvider.filterUserVisibleClusters(userInfo, clusters)
     }
   }
 

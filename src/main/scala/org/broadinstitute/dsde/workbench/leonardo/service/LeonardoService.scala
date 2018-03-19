@@ -207,7 +207,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     for {
       paramMap <- processListClustersParameters(params)
       clusterList <- dbRef.inTransaction { da => da.clusterQuery.listByLabels(paramMap._1, paramMap._2) }
-      visibleClusters <- authProvider.filterClusters(userInfo, clusterList.map(c => (c.googleProject, c.clusterName)).toList)
+      visibleClusters <- authProvider.filterUserVisibleClusters(userInfo, clusterList.map(c => (c.googleProject, c.clusterName)).toList)
     } yield {
       val visibleClustersSet = visibleClusters.toSet
       clusterList.filter(c => visibleClustersSet.contains((c.googleProject, c.clusterName)))

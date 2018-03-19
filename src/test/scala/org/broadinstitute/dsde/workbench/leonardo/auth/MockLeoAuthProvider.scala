@@ -27,7 +27,7 @@ class MockLeoAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAcc
     Future.successful(clusterPermissions(action))
   }
 
-  override def filterClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterName)])(implicit executionContext: ExecutionContext): Future[List[(GoogleProject, ClusterName)]] = {
+  override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterName)])(implicit executionContext: ExecutionContext): Future[List[(GoogleProject, ClusterName)]] = {
     if (canSeeClustersInAllProjects) {
       Future.successful(clusters)
     } else {

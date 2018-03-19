@@ -150,18 +150,18 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     val samAuthProvider = getSamAuthProvider
 
     // initial filterClusters should return empty list
-    samAuthProvider.filterClusters(userInfo, List(project -> name1, project -> name2)).futureValue shouldBe List.empty
+    samAuthProvider.filterUserVisibleClusters(userInfo, List(project -> name1, project -> name2)).futureValue shouldBe List.empty
 
     // pretend user created name2
     samAuthProvider.samClient.clusterCreators += userInfo.userEmail -> Set(project -> name2)
 
     // name2 should now be returned
-    samAuthProvider.filterClusters(userInfo, List(project -> name1, project -> name2)).futureValue shouldBe List(project -> name2)
+    samAuthProvider.filterUserVisibleClusters(userInfo, List(project -> name1, project -> name2)).futureValue shouldBe List(project -> name2)
 
     // pretend user owns the project
     samAuthProvider.samClient.projectOwners += userInfo.userEmail -> Set(project)
 
     // name1 and name2 should now be returned
-    samAuthProvider.filterClusters(userInfo, List(project -> name1, project -> name2)).futureValue shouldBe List(project -> name1, project -> name2)
+    samAuthProvider.filterUserVisibleClusters(userInfo, List(project -> name1, project -> name2)).futureValue shouldBe List(project -> name1, project -> name2)
   }
 }

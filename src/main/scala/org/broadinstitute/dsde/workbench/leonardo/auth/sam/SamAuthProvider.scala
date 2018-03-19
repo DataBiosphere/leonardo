@@ -109,12 +109,13 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
 
   /**
     * Leo calls this method when it receives a "list clusters" API call, passing in all non-deleted clusters from the database.
+    * It should return a list of clusters that the user can see according to their authz.
     *
     * @param userInfo The user in question
     * @param clusters All non-deleted clusters from the database
-    * @return         Filtered list of clusters to return to the caller
+    * @return         Filtered list of clusters that the user is allowed to see
     */
-  override def filterClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterName)])(implicit executionContext: ExecutionContext): Future[List[(GoogleProject, ClusterName)]] = {
+  override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterName)])(implicit executionContext: ExecutionContext): Future[List[(GoogleProject, ClusterName)]] = {
     for {
       owningProjects <- Future(samClient.listOwningProjects(userInfo).toSet)
       createdClusters <- Future(samClient.listCreatedClusters(userInfo).toSet)
