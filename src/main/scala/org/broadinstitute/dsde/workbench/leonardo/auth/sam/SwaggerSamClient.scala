@@ -78,7 +78,7 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
 
   //"Slow" lookup of pet's access token. The cache calls this when it needs to.
   private def getPetAccessTokenFromSam(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = {
-    logger.info(s"Calling Sam getPetAccessTokenFromSam as user ${userEmail.value} and project ${googleProject.value}")
+    logger.debug(s"Calling Sam getPetAccessTokenFromSam as user ${userEmail.value} and project ${googleProject.value}")
     val samAPI = samGoogleApi(getAccessTokenUsingPem(leoEmail, leoPem))
     val userPetServiceAccountKey = samAPI.getUserPetServiceAccountKey(googleProject.value, userEmail.value)
     getAccessTokenUsingJson(userPetServiceAccountKey)
@@ -145,6 +145,8 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
   }
 
   def listOwningProjects(userInfo: UserInfo): List[GoogleProject] = {
+    logger.debug(s"Calling Sam listResourcesAndPolicies as user [${userInfo}] and resource type [${billingProjectResourceTypeName}]")
+    // this is called with the user's token
     val samAPI = samResourcesApi(userInfo.accessToken.token)
     samAPI.listResourcesAndPolicies(billingProjectResourceTypeName).asScala.toList
       .filter(_.getAccessPolicyName == projectOwnerPolicyName)
@@ -152,6 +154,8 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
   }
 
   def listCreatedClusters(userInfo: UserInfo): List[(GoogleProject, ClusterName)] = {
+    logger.debug(s"Calling Sam listResourcesAndPolicies as user [${userInfo}] and resource type [${notebookClusterResourceTypeName}]")
+    // this is called with the user's token
     val samAPI = samResourcesApi(userInfo.accessToken.token)
     samAPI.listResourcesAndPolicies(notebookClusterResourceTypeName).asScala.toList
       .filter(_.getAccessPolicyName == clusterCreatorPolicyName)
