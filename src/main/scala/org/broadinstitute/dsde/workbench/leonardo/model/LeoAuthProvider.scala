@@ -48,6 +48,13 @@ abstract class LeoAuthProvider(authConfig: Config, serviceAccountProvider: Servi
     */
   def hasNotebookClusterPermission(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean]
 
+  /**
+    * Leo calls this method when it receives a "list clusters" API call, passing in all non-deleted clusters from the database.
+    *
+    * @param userInfo The user in question
+    * @param clusters All non-deleted clusters from the database
+    * @return         Filtered list of clusters to return to the caller
+    */
   def filterClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterName)])(implicit executionContext: ExecutionContext): Future[List[(GoogleProject, ClusterName)]]
 
   //Notifications that Leo has created/destroyed clusters. Allows the auth provider to register things.

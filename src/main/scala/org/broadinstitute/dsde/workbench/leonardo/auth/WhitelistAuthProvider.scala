@@ -40,6 +40,13 @@ class WhitelistAuthProvider(config: Config, serviceAccountProvider: ServiceAccou
     checkWhitelist(userInfo)
   }
 
+  /**
+    * Leo calls this method when it receives a "list clusters" API call, passing in all non-deleted clusters from the database.
+    *
+    * @param userInfo The user in question
+    * @param clusters All non-deleted clusters from the database
+    * @return         Filtered list of clusters to return to the caller
+    */
   override def filterClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterName)])(implicit executionContext: ExecutionContext): Future[List[(GoogleProject, ClusterName)]] = {
     clusters.traverseFilter { a =>
       checkWhitelist(userInfo).map {
