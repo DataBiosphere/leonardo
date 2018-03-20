@@ -230,10 +230,9 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       // check that the cluster does not exist
       gdDAO.clusters should not contain key (name1)
 
+      // creation and deletion notifications should have been fired
       verify(spyProvider).notifyClusterCreated(userEmail, project, name1)
-
-      // the auth provider is only notified after deletion is complete
-      verify(spyProvider, never).notifyClusterDeleted(userEmail, userEmail, project, name1)
+      verify(spyProvider).notifyClusterDeleted(userEmail, userEmail, project, name1)
     }
 
     "should use optimized canSeeAllClustersInProject in listClusters where appropriate" in isolatedDbTest {

@@ -296,7 +296,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "initialize bucket with correct files" in isolatedDbTest {
     // create the bucket and add files
-    val bucket = bucketHelper.createInitBucket(project, name1, ServiceAccountInfo(None, Some(serviceAccountEmail))).futureValue
+    val bucketName = generateUniqueBucketName(name1.value+"-init")
+    val bucket = bucketHelper.createInitBucket(project, bucketName, ServiceAccountInfo(None, Some(serviceAccountEmail))).futureValue
     leo.initializeBucketObjects(userInfo.userEmail, project, name1, bucket, testClusterRequest, Some(serviceAccountKey)).futureValue
 
     // our bucket should now exist
