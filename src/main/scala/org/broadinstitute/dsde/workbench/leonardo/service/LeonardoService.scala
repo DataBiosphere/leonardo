@@ -286,10 +286,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       }
     } yield (cluster, initBucket, serviceAccountKeyOpt)
 
-    // Clean up Google resources on errors and return the original error
-    // Don't wait for this future.
-    googleFuture.andThen {
-      case Failure(t) => cleanUpGoogleResourcesOnError(t, googleProject, clusterName, initBucketName, serviceAccountInfo)
+    // If anything fails, we need to clean up Google resources that might have been created
+    googleFuture.andThen { case Failure(t) =>
+      // Don't wait for this future
+      cleanUpGoogleResourcesOnError(t, googleProject, clusterName, initBucketName, serviceAccountInfo)
     }
   }
 
