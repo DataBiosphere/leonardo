@@ -6,7 +6,8 @@ import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
 
 import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
-import akka.http.scaladsl.model.headers.`Access-Control-Allow-Origin`
+import akka.http.scaladsl.model.headers.{`Access-Control-Allow-Origin`, ContentDispositionTypes, `Content-Disposition`}
+import akka.http.scaladsl.model.HttpResponse
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
@@ -16,8 +17,10 @@ import akka.stream.scaladsl.{Flow, Sink, Source}
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.service.TestProxy.Data
 import org.scalatest.concurrent.ScalaFutures
+import scala.collection.immutable
 import spray.json.DefaultJsonProtocol._
 import spray.json.RootJsonFormat
+
 
 trait TestProxy { this: ScalaFutures =>
   val googleProject: String
@@ -65,14 +68,21 @@ trait TestProxy { this: ScalaFutures =>
           path("websocket") {
             handleWebSocketMessages(greeter)
           } ~
-            complete {
-              Data(
-                request.method.value,
-                request.uri.path.toString,
-                request.uri.queryString(),
-                request.headers.map(h => h.name -> h.value).toMap
-              )
+          // this path is so that we can test our fix for LEO-214 - cleaning "utf-8''" out of
+          //  notebook download names. Jupyter usually adds the Content-Disposition header to the response.
+          path("content-disposition-test") {
+            complete{
+              HttpResponse(headers = immutable.Seq(`Content-Disposition`(ContentDispositionTypes.attachment, Map("filename" -> "utf-8''notebook.ipynb"))))
             }
+          } ~
+          complete {
+            Data(
+              request.method.value,
+              request.uri.path.toString,
+              request.uri.queryString(),
+              request.headers.map(h => h.name -> h.value).toMap
+            )
+          }
         }
       }
     }
