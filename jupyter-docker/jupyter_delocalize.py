@@ -45,7 +45,7 @@ class DelocalizingContentsManager(FileContentsManager):
     self.log.info('initializing DelocalizingContentsManager')
     self.delocalize_metadata = {}
     # Allows for stubbing in tests.
-    self.file_cmd = ['gsutil', '-q']
+    self.file_cmd = ['gsutil', '-q', '-m']
     super(DelocalizingContentsManager, self).__init__(*args, **kwargs)
 
   def _now(self):

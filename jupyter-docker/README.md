@@ -1,4 +1,6 @@
-## delocalizing_contents_manager testing
+## Python testing
+
+TODO: Integrate this into automated testing processes.
 
 - Initialize and activate a virtualenv
 - Install requirements:

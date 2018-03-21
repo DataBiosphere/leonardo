@@ -22,4 +22,4 @@ c.NotebookApp.webapp_settings = {'static_url_prefix':'/notebooks/' + fragment + 
 c.NotebookApp.nbserver_extensions = {
     'jupyter_localize_extension': True,
 }
-c.NotebookApp.contents_manager_class = 'delocalizing_contents_manager.DelocalizingContentsManager'
+c.NotebookApp.contents_manager_class = 'jupyter_delocalize.DelocalizingContentsManager'

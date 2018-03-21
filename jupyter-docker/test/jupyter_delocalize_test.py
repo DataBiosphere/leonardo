@@ -10,15 +10,15 @@ from unittest.mock import patch
 
 # Import this first; see https://github.com/jupyter/notebook/issues/2798
 import notebook.transutils
-import delocalizing_contents_manager
+import jupyter_delocalize
 
 class TestDelocalizingContentsManager(unittest.TestCase):
   """DelocalizingContentsManager tests"""
 
   def setUp(self):
-    self.orig_ttl = delocalizing_contents_manager.METADATA_TTL
-    delocalizing_contents_manager.METADATA_TTL = timedelta()
-    self.manager = delocalizing_contents_manager.DelocalizingContentsManager(
+    self.orig_ttl = jupyter_delocalize.METADATA_TTL
+    jupyter_delocalize.METADATA_TTL = timedelta()
+    self.manager = jupyter_delocalize.DelocalizingContentsManager(
         root_dir=tempfile.mkdtemp(),
         delete_to_trash=False
     )
@@ -28,7 +28,7 @@ class TestDelocalizingContentsManager(unittest.TestCase):
     self.out_dir = tempfile.mkdtemp()
 
   def tearDown(self):
-    delocalizing_contents_manager.METADATA_TTL = self.orig_ttl
+    jupyter_delocalize.METADATA_TTL = self.orig_ttl
     shutil.rmtree(self.manager.root_dir)
     shutil.rmtree(self.out_dir)
 
@@ -151,7 +151,7 @@ class TestDelocalizingContentsManager(unittest.TestCase):
     self.assertFalse(os.path.isfile(self.manager.root_dir + '/foo.ipynb'))
 
   def test_metadata_cache(self):
-    delocalizing_contents_manager.METADATA_TTL = timedelta(minutes=5)
+    delocalize.METADATA_TTL = timedelta(minutes=5)
     # Stub out and advance time manually.
     now = datetime.datetime(2018, 3, 20)
     self.manager._now = lambda: now
