@@ -28,9 +28,14 @@ class DelocalizingContentsManager(FileContentsManager):
   gsutil is used to delocalize files. A log is produced on the Jupyter server
   in the root directory. As a rule, this logfile should only be created if
   delocalization is configured in at least one subdirectory.
+
+  Note: when a new .delocalize.json config is added, existing eligible files
+  will not be automatically backfilled. They will only be delocalized upon
+  further modification.
   """
 
   # TODO: Support GCS version preconditions on save.
+  # TODO: Try shifting the delocalization logic into a background thread.
 
   # Cache delocalization metadata for 5 minutes. The cache points to a tuple of
   # (metadata: dict, read_at: datetime), with a key of JSON file path. Negative
@@ -39,10 +44,16 @@ class DelocalizingContentsManager(FileContentsManager):
   def __init__(self, *args, **kwargs):
     self.log.info('initializing DelocalizingContentsManager')
     self.delocalize_metadata = {}
+    # Allows for stubbing in tests.
+    self.file_cmd = ['gsutil', '-q']
     super(DelocalizingContentsManager, self).__init__(*args, **kwargs)
 
+  def _now(self):
+    """Current time, stubbed for testing"""
+    return datetime.now()
+
   def _find_delocalize_meta(self, path):
-    now = datetime.now()
+    now = self._now()
     dir_name = os.path.dirname(path)
     json_path = os.path.join(dir_name, '.delocalize.json')
     if json_path in self.delocalize_metadata:
@@ -76,6 +87,9 @@ class DelocalizingContentsManager(FileContentsManager):
     return self.delocalize_metadata[json_path][0]
 
   def _should_skip_file(self, meta, os_path):
+    base_name = os.path.basename(os_path)
+    if base_name == '.delocalize.json':
+      return True
     if 'pattern' in meta and not meta['pattern'].search(base_name):
       self.log.info(
           'skipping delocalize for "{}", doesn\'t match pattern "{}"'.format(
@@ -86,23 +100,24 @@ class DelocalizingContentsManager(FileContentsManager):
   def _remote_path(self, meta, os_path):
     return meta['destination'] + '/' + os.path.basename(os_path)
 
-  def _log_and_call_cmd_background(self, cmd):
+  def _log_and_call_file_cmd(self, args):
     with open('delocalization.log', 'a', buffering=1) as locout:
+      cmd = self.file_cmd + args
       locout.write(' '.join(cmd) + '\n')
       subprocess.call(cmd, stderr=locout)
 
   def save(self, model, path=''):
     ret = super(DelocalizingContentsManager, self).save(model, path)
-    # Sometimes the "path" contains a leading /, sometimes not; let Jupyter convert.
-    if not path:
+    if not path or model['type'] == 'directory':
       return ret
+    # Sometimes the "path" contains a leading /, sometimes not; let Jupyter convert.
     os_path = self._get_os_path(path)
     meta = self._find_delocalize_meta(os_path)
     if not meta or self._should_skip_file(meta, os_path):
       return ret
 
-    self._log_and_call_cmd_background(
-        ['gsutil', '-q', 'cp', os_path, self._remote_path(meta, os_path)])
+    self._log_and_call_file_cmd(
+        ['cp', os_path, self._remote_path(meta, os_path)])
     return ret
 
   def rename_file(self, old_path, new_path):
@@ -119,8 +134,8 @@ class DelocalizingContentsManager(FileContentsManager):
       # whether this operation is even supported in the Jupyter UI.
       return
 
-    self._log_and_call_cmd_background([
-        'gsutil', '-q', 'mv',
+    self._log_and_call_file_cmd([
+        'mv',
         self._remote_path(old_meta, old_os_path),
         self._remote_path(new_meta, new_os_path)
     ])
@@ -132,6 +147,6 @@ class DelocalizingContentsManager(FileContentsManager):
     if not meta or self._should_skip_file(meta, os_path):
       return
 
-    self._log_and_call_cmd_background([
-        'gsutil', '-q', 'rm', self._remote_path(meta, os_path),
+    self._log_and_call_file_cmd([
+        'rm', self._remote_path(meta, os_path),
     ])
