@@ -6,6 +6,7 @@ import akka.actor.ActorRef
 import akka.http.scaladsl.model.StatusCodes
 import cats.data.OptionT
 import cats.implicits._
+import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
@@ -44,6 +45,9 @@ case class InitializationFileException(googleProject: GoogleProject, clusterName
 
 case class BucketObjectException(gcsUri: GcsPath)
   extends LeoException(s"The provided GCS URI is invalid or unparseable: ${gcsUri.toUri}", StatusCodes.BadRequest)
+
+case class BucketObjectAccessException(userEmail: WorkbenchEmail, gcsUri: GcsPath)
+  extends LeoException(s"${userEmail.value} does not have access to ${gcsUri.toUri}", StatusCodes.Forbidden)
 
 case class ParseLabelsException(labelString: String)
   extends LeoException(s"Could not parse label string: $labelString. Expected format [key1=value1,key2=value2,...]", StatusCodes.BadRequest)
@@ -329,14 +333,18 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     gcsUriOpt match {
       case None => Future.successful(())
       case Some(gcsPath) =>
-        if (gcsPath.toUri.length > bucketPathMaxLength) {
+        if (gcsPath.toUri.length > bucketPathMaxLength)
           throw BucketObjectException(gcsPath)
-        }
         serviceAccountProvider.getAccessToken(userEmail, googleProject).flatMap {
-          case Some(token) => petGoogleStorageDAO(token).objectExists(gcsPath.bucketName, gcsPath.objectName).map {
-            case true => ()
-            case false => throw BucketObjectException(gcsPath)
-          }
+          case Some(token) =>
+            petGoogleStorageDAO(token).objectExists(gcsPath.bucketName, gcsPath.objectName).map {
+              case true => ()
+              case false => throw BucketObjectException(gcsPath)
+            } recover {
+              case e: HttpResponseException if e.getStatusCode == StatusCodes.Forbidden.intValue =>
+                logger.error(s"User $userEmail does not have access to ${gcsPath.bucketName} / ${gcsPath.objectName}")
+                throw BucketObjectAccessException(userEmail, gcsPath)
+            }
           case None => Future.successful(())
         }
     }

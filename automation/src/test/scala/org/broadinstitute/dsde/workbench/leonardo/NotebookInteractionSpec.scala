@@ -29,15 +29,15 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
 
     gpAllocProject = claimGPAllocProject(hermioneCreds, List(ronEmail))
     billingProject = GoogleProject(gpAllocProject.projectName)
-    ronCluster = try {
-      createNewCluster(billingProject)(ronAuthToken)
-    } catch {
-      case e: Throwable =>
-        logger.error(s"NotebookInteractionSpec: error occurred creating cluster in billing project ${billingProject}", e)
-        // clean up billing project here because afterAll() doesn't run if beforeAll() throws an exception
-        gpAllocProject.cleanup(hermioneCreds, List(ronEmail))
-        throw e
-    }
+//    ronCluster = try {
+//      createNewCluster(billingProject)(ronAuthToken)
+//    } catch {
+//      case e: Throwable =>
+//        logger.error(s"NotebookInteractionSpec: error occurred creating cluster in billing project ${billingProject}", e)
+//        // clean up billing project here because afterAll() doesn't run if beforeAll() throws an exception
+//        gpAllocProject.cleanup(hermioneCreds, List(ronEmail))
+//        throw e
+//    }
     new File(downloadDir).mkdirs()
   }
 
@@ -149,35 +149,35 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
 
       //a cluster without the user script should not be able to import the arrow library
-      withNewNotebook(ronCluster) { notebookPage =>
-        notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
-        notebookPage.executeCell("""import arrow""").get should include("ImportError: No module named arrow")
-      }
+//      withNewNotebook(ronCluster) { notebookPage =>
+//        notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
+//        notebookPage.executeCell("""import arrow""").get should include("ImportError: No module named arrow")
+//      }
       // create a new bucket, add the user script to the bucket, create a new cluster using the URI of the user script and create a notebook that will check if the user script ran
-      withNewGoogleBucket(billingProject) { bucketName =>
-
-        val ronProxyGroup = Sam.user.proxyGroup(ronEmail)(hermioneAuthToken)
-        googleStorageDAO.setBucketAccessControl(bucketName, GcsEntity(ronProxyGroup, GcsEntityTypes.Group), GcsRoles.Owner)
+      val gpAllocScriptProject = claimGPAllocProject(hermioneCreds)
+      val billingScriptProject = GoogleProject(gpAllocScriptProject.projectName)
+      withNewGoogleBucket(billingScriptProject) { bucketName =>
+        val ronPetServiceAccount = Sam.user.petServiceAccountEmail(billingProject.value)(ronAuthToken)
+        googleStorageDAO.setBucketAccessControl(bucketName, GcsEntity(ronPetServiceAccount, GcsEntityTypes.User), GcsRoles.Owner)
 
         val userScriptString = "#!/usr/bin/env bash\n\npip2 install arrow"
         val userScriptObjectName = GcsObjectName("user-script.sh")
         val userScriptUri = s"gs://${bucketName.value}/${userScriptObjectName.value}"
 
         withNewBucketObject(bucketName, userScriptObjectName, userScriptString, "text/plain") { objectName =>
-          googleStorageDAO.setObjectAccessControl(bucketName, objectName, GcsEntity(ronProxyGroup, GcsEntityTypes.Group), GcsRoles.Owner)
+          googleStorageDAO.setObjectAccessControl(bucketName, objectName, GcsEntity(ronPetServiceAccount, GcsEntityTypes.User), GcsRoles.Owner)
           val clusterName = ClusterName("user-script-cluster" + makeRandomId())
-
           withNewCluster(billingProject, clusterName, ClusterRequest(Map(), None, Option(userScriptUri))) { cluster =>
+            Thread.sleep(10000)
             withNewNotebook(cluster) { notebookPage =>
               notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
               notebookPage.executeCell("""import arrow""")
               notebookPage.executeCell("""arrow.get(727070400)""") shouldBe Some("<Arrow [1993-01-15T04:00:00+00:00]>")
             }
-          }
+          }(ronAuthToken)
         }
       }
     }
-
     "should create a notebook with a working Python 3 kernel and import installed packages" in withWebDriver { implicit driver =>
       Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
 

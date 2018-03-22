@@ -52,7 +52,7 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
 
   def withNewNotebook[T](kernel: Kernel = Python2)(testCode: NotebookPage => T): T = {
     switchToNewTab {
-      click on (await enabled newButton)
+      click on (await enabled(newButton, 30))
       click on (await enabled cssSelector(kernel.cssSelectorString))
     }
     // Not calling NotebookPage.open() as it should already be opened
