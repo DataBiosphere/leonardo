@@ -361,7 +361,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
 
     // sanity check the file downloaded correctly
-    val downloadFile = new File(downloadDir, "utf-8''"+uploadFile.getName)  // TODO https://github.com/DataBiosphere/leonardo/issues/214
+    val downloadFile = new File(downloadDir, uploadFile.getName)
     downloadFile.exists() shouldBe true
     downloadFile.isFile() shouldBe true
     math.abs(System.currentTimeMillis - downloadFile.lastModified()) shouldBe < (timeout.toMillis)
