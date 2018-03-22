@@ -161,7 +161,7 @@ RUN apt-get install -yq --no-install-recommends python3 \
 # R Kernel
 #######################
 
-RUN apt-get -t jessie-backports install -y --no-install-recommends \
+RUN apt-get update && apt-get -t jessie-backports install -y --no-install-recommends \
     r-base=3.3.3-1~bpo8+1 r-base-dev=3.3.3-1~bpo8+1 \
     fonts-dejavu \
     tzdata \
@@ -185,12 +185,8 @@ RUN R -e 'install.packages(c( \
     "dplyr",  \
     "tidyr",  \
     "reshape2",  \
-    #"RJDBC", \
     "bigrquery"),  \
     repos="https://cran.mtu.edu")' \
- #&& R -e 'source("https://bioconductor.org/biocLite.R")' \
- #&& R -e biocLite("GenomicRanges")' \
- #&& R -e biocLite("VariantAnnotation")' \
  && R -e 'devtools::install_github("IRkernel/IRkernel")' \
  && R -e 'IRkernel::installspec(user=FALSE)' \
  && chown -R $USER:users /home/jupyter-user/.local  \
