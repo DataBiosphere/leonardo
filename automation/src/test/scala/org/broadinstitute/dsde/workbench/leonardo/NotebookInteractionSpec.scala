@@ -29,15 +29,15 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
 
     gpAllocProject = claimGPAllocProject(hermioneCreds, List(ronEmail))
     billingProject = GoogleProject(gpAllocProject.projectName)
-//    ronCluster = try {
-//      createNewCluster(billingProject)(ronAuthToken)
-//    } catch {
-//      case e: Throwable =>
-//        logger.error(s"NotebookInteractionSpec: error occurred creating cluster in billing project ${billingProject}", e)
-//        // clean up billing project here because afterAll() doesn't run if beforeAll() throws an exception
-//        gpAllocProject.cleanup(hermioneCreds, List(ronEmail))
-//        throw e
-//    }
+    ronCluster = try {
+      createNewCluster(billingProject)(ronAuthToken)
+    } catch {
+      case e: Throwable =>
+        logger.error(s"NotebookInteractionSpec: error occurred creating cluster in billing project ${billingProject}", e)
+        // clean up billing project here because afterAll() doesn't run if beforeAll() throws an exception
+        gpAllocProject.cleanup(hermioneCreds, List(ronEmail))
+        throw e
+    }
     new File(downloadDir).mkdirs()
   }
 
@@ -149,10 +149,10 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
 
       //a cluster without the user script should not be able to import the arrow library
-//      withNewNotebook(ronCluster) { notebookPage =>
-//        notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
-//        notebookPage.executeCell("""import arrow""").get should include("ImportError: No module named arrow")
-//      }
+      withNewNotebook(ronCluster) { notebookPage =>
+        notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
+        notebookPage.executeCell("""import arrow""").get should include("ImportError: No module named arrow")
+      }
       // create a new bucket, add the user script to the bucket, create a new cluster using the URI of the user script and create a notebook that will check if the user script ran
       val gpAllocScriptProject = claimGPAllocProject(hermioneCreds)
       val billingScriptProject = GoogleProject(gpAllocScriptProject.projectName)
