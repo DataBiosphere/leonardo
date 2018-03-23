@@ -5,7 +5,7 @@ import akka.testkit.TestKit
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.model.{NotebookClusterActions, ProjectActions}
 import org.broadinstitute.dsde.workbench.leonardo.service.ClusterNotFoundException
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
@@ -29,21 +29,21 @@ class LeoAuthProviderHelperSpec extends TestKit(ActorSystem("leonardotest")) wit
     val mockProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), serviceAccountProvider)
     val helper = LeoAuthProviderHelper(mockProvider, config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider)
 
-    helper.hasProjectPermission(userEmail, ProjectActions.CreateClusters, project).futureValue shouldBe true
-    helper.hasNotebookClusterPermission(userEmail, NotebookClusterActions.ConnectToCluster, project, name1).futureValue shouldBe true
+    helper.hasProjectPermission(userInfo, ProjectActions.CreateClusters, project).futureValue shouldBe true
+    helper.hasNotebookClusterPermission(userInfo, NotebookClusterActions.ConnectToCluster, project, name1).futureValue shouldBe true
   }
 
   // The next 3 tests verify that an exception thrown in LeoAuthProvider gets translated to LeoException in LeoAuthProviderHelper
 
   it should "pass through LeoExceptions" in {
     val mockProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), serviceAccountProvider) {
-      override def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+      override def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
         Future.failed(ClusterNotFoundException(googleProject, name1))
       }
     }
 
     val helper = LeoAuthProviderHelper(mockProvider, config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider)
-    helper.hasProjectPermission(userEmail, ProjectActions.CreateClusters, project).failed.futureValue shouldBe a [ClusterNotFoundException]
+    helper.hasProjectPermission(userInfo, ProjectActions.CreateClusters, project).failed.futureValue shouldBe a [ClusterNotFoundException]
   }
 
   it should "map non-LeoExceptions to LeoExceptions" in {
@@ -56,19 +56,19 @@ class LeoAuthProviderHelperSpec extends TestKit(ActorSystem("leonardotest")) wit
 
   it should "handle thrown exceptions" in {
     val mockProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), serviceAccountProvider) {
-      override def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+      override def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
         throw new RuntimeException
       }
     }
 
     val helper = LeoAuthProviderHelper(mockProvider, config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider)
-    helper.hasProjectPermission(userEmail, ProjectActions.CreateClusters, project).failed.futureValue shouldBe a [AuthProviderException]
+    helper.hasProjectPermission(userInfo, ProjectActions.CreateClusters, project).failed.futureValue shouldBe a [AuthProviderException]
   }
 
   it should "timeout long provider responses" in {
     implicit val patienceConfig = PatienceConfig(timeout = scaled(Span(10, Seconds)))
     val mockProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), serviceAccountProvider) {
-      override def hasProjectPermission(userEmail: WorkbenchEmail, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+      override def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
         Future {
           Thread.sleep((1 minute).toMillis)
           true
@@ -78,7 +78,7 @@ class LeoAuthProviderHelperSpec extends TestKit(ActorSystem("leonardotest")) wit
 
     val helper = LeoAuthProviderHelper(mockProvider, config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider)
     // should timeout after 1 second
-    val response = helper.hasProjectPermission(userEmail, ProjectActions.CreateClusters, project).failed.futureValue
+    val response = helper.hasProjectPermission(userInfo, ProjectActions.CreateClusters, project).failed.futureValue
     response shouldBe a [AuthProviderException]
     response.asInstanceOf[AuthProviderException].isTimeout shouldBe true
   }

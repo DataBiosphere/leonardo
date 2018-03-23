@@ -5,7 +5,7 @@ import akka.testkit.TestKit
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.service.ClusterNotFoundException
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
@@ -26,8 +26,8 @@ class ServiceAccountProviderHelperSpec extends TestKit(ActorSystem("leonardotest
     val helper = ServiceAccountProviderHelper(serviceAccountProvider, config.getConfig("serviceAccounts.config"))
 
     helper.getLeoServiceAccountAndKey shouldBe serviceAccountProvider.getLeoServiceAccountAndKey
-    helper.getClusterServiceAccount(userInfo.userEmail, project).futureValue shouldBe serviceAccountProvider.getClusterServiceAccount(userInfo.userEmail, project).futureValue
-    helper.getNotebookServiceAccount(userInfo.userEmail, project).futureValue shouldBe serviceAccountProvider.getNotebookServiceAccount(userInfo.userEmail, project).futureValue
+    helper.getClusterServiceAccount(userInfo, project).futureValue shouldBe serviceAccountProvider.getClusterServiceAccount(userInfo, project).futureValue
+    helper.getNotebookServiceAccount(userInfo, project).futureValue shouldBe serviceAccountProvider.getNotebookServiceAccount(userInfo, project).futureValue
     helper.listGroupsStagingBucketReaders(userEmail).futureValue shouldBe serviceAccountProvider.listGroupsStagingBucketReaders(userEmail).futureValue
   }
 
@@ -35,41 +35,41 @@ class ServiceAccountProviderHelperSpec extends TestKit(ActorSystem("leonardotest
 
   it should "pass through LeoExceptions" in {
     val mockProvider = new MockPetClusterServiceAccountProvider(config.getConfig("serviceAccounts.config")) {
-      override def getNotebookServiceAccount(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
+      override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
         Future.failed(ClusterNotFoundException(googleProject, name1))
       }
     }
 
     val helper = ServiceAccountProviderHelper(mockProvider, config.getConfig("serviceAccounts.config"))
-    helper.getNotebookServiceAccount(userInfo.userEmail, project).failed.futureValue shouldBe a [ClusterNotFoundException]
+    helper.getNotebookServiceAccount(userInfo, project).failed.futureValue shouldBe a [ClusterNotFoundException]
   }
 
   it should "map non-LeoExceptions to LeoExceptions" in {
     val mockProvider = new MockPetClusterServiceAccountProvider(config.getConfig("serviceAccounts.config")) {
-      override def getNotebookServiceAccount(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
+      override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
         Future.failed(new RuntimeException)
       }
     }
 
     val helper = ServiceAccountProviderHelper(mockProvider, config.getConfig("serviceAccounts.config"))
-    helper.getNotebookServiceAccount(userInfo.userEmail, project).failed.futureValue shouldBe a [ServiceAccountProviderException]
+    helper.getNotebookServiceAccount(userInfo, project).failed.futureValue shouldBe a [ServiceAccountProviderException]
   }
 
   it should "handle thrown exceptions" in {
     val mockProvider = new MockPetClusterServiceAccountProvider(config.getConfig("serviceAccounts.config")) {
-      override def getNotebookServiceAccount(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
+      override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
         throw new RuntimeException
       }
     }
 
     val helper = ServiceAccountProviderHelper(mockProvider, config.getConfig("serviceAccounts.config"))
-    helper.getNotebookServiceAccount(userInfo.userEmail, project).failed.futureValue shouldBe a [ServiceAccountProviderException]
+    helper.getNotebookServiceAccount(userInfo, project).failed.futureValue shouldBe a [ServiceAccountProviderException]
   }
 
   it should "timeout long provider responses" in {
     implicit val patienceConfig = PatienceConfig(timeout = scaled(Span(10, Seconds)))
     val mockProvider = new MockPetClusterServiceAccountProvider(config.getConfig("serviceAccounts.config")) {
-      override def getNotebookServiceAccount(workbenchEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
+      override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
         Future {
           Thread.sleep((1 minute).toMillis)
           Some(userEmail)
@@ -79,7 +79,7 @@ class ServiceAccountProviderHelperSpec extends TestKit(ActorSystem("leonardotest
 
     val helper = ServiceAccountProviderHelper(mockProvider, config.getConfig("serviceAccounts.config"))
     // should timeout after 1 second
-    val response = helper.getNotebookServiceAccount(userInfo.userEmail, project).failed.futureValue
+    val response = helper.getNotebookServiceAccount(userInfo, project).failed.futureValue
     response shouldBe a [ServiceAccountProviderException]
     response.asInstanceOf[ServiceAccountProviderException].isTimeout shouldBe true
   }

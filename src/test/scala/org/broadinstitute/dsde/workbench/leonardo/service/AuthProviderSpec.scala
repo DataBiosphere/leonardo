@@ -11,7 +11,6 @@ import com.typesafe.config.ConfigFactory
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.GcsPathUtils
 import org.broadinstitute.dsde.workbench.leonardo.auth.MockLeoAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
@@ -26,7 +25,6 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers, OptionValues}
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
-import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.GetClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.mockito.Mockito
 
@@ -234,36 +232,6 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
 
       // the auth provider is only notified after deletion is complete
       verify(spyProvider, never).notifyClusterDeleted(userEmail, userEmail, project, name1)
-    }
-
-    "should use optimized canSeeAllClustersInProject in listClusters where appropriate" in isolatedDbTest {
-      val optimizedListClustersProvider = new MockLeoAuthProvider(config.getConfig("auth.optimizedListClustersConfig"), serviceAccountProvider)
-      val spyProvider = spy(optimizedListClustersProvider)
-      val leo = leoWithAuthProvider(spyProvider)
-
-      //poke two clusters in the db: one in an "everything is visible in this project" project and a normal one
-      val visibleClusterName = ClusterName("visible-cluster")
-      val visibleClusterProject = GoogleProject("visible-project")
-      val visibleCluster = c1.copy(
-        clusterName = visibleClusterName,
-        googleId = UUID.randomUUID(),
-        googleProject = visibleClusterProject,
-        clusterUrl = Cluster.getClusterUrl(visibleClusterProject, visibleClusterName, clusterUrlBase))
-      dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), None) }
-      dbFutureValue { _.clusterQuery.save(visibleCluster, gcsPath("gs://bucket1"), None) }
-
-      val clusterList = leo.listClusters(userInfo, Map.empty).futureValue
-      clusterList should contain theSameElementsAs Seq(c1, visibleCluster)
-
-      //verify we optimized the sequence of calls to auth provider
-
-      //unoptimized version: try the project first, fail, fall back to the cluster
-      verify(spyProvider).canSeeAllClustersInProject(userInfo.userEmail, project)
-      verify(spyProvider).hasNotebookClusterPermission(userInfo.userEmail, GetClusterStatus, project, name1)
-
-      //optimized version: try the project first, succeed, never fall back to the cluster
-      verify(spyProvider).canSeeAllClustersInProject(userInfo.userEmail, visibleClusterProject)
-      verify(spyProvider, Mockito.never).hasNotebookClusterPermission(userInfo.userEmail, GetClusterStatus, visibleClusterProject, visibleClusterName)
     }
   }
 }
