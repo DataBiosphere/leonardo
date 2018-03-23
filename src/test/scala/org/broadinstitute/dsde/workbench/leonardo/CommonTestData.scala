@@ -28,6 +28,7 @@ trait CommonTestData { this: ScalaFutures =>
   val userInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), userEmail, 0)
   val serviceAccountEmail = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
   val unauthorizedEmail = WorkbenchEmail("somecreep@example.com")
+  val unauthorizedUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("somecreep"), unauthorizedEmail, 0)
   val jupyterExtensionUri = GcsPath(GcsBucketName("extension_bucket"), GcsObjectName("extension_path"))
   val jupyterUserScriptUri = GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh"))
   val serviceAccountKey = ServiceAccountKey(ServiceAccountKeyId("123"), ServiceAccountPrivateKeyData("abcdefg"), Some(Instant.now), Some(Instant.now.plusSeconds(300)))
@@ -61,11 +62,11 @@ trait CommonTestData { this: ScalaFutures =>
 
 
   protected def clusterServiceAccount(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Option[WorkbenchEmail] = {
-    serviceAccountProvider.getClusterServiceAccount(userInfo.userEmail, googleProject).futureValue
+    serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject).futureValue
   }
 
   protected def notebookServiceAccount(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Option[WorkbenchEmail] = {
-    serviceAccountProvider.getNotebookServiceAccount(userInfo.userEmail, googleProject).futureValue
+    serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject).futureValue
   }
 }
 

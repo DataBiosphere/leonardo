@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.auth.sam
 
 import com.typesafe.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -19,15 +19,15 @@ import scala.concurrent.{ExecutionContext, Future}
   */
 class PetNotebookServiceAccountProvider(val config: Config) extends ServiceAccountProvider(config) with SamProvider {
 
-  override def getClusterServiceAccount(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
+  override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
     // Create cluster with the Google Compute Engine default service account
     Future(None)
   }
 
-  override def getNotebookServiceAccount(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
-    // Ask Sam for a pet service account for the given (email, project)
+  override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
+    // Ask Sam for a pet service account for the given (user, project)
     Future {
-      Option(samClient.getPetServiceAccount(userEmail, googleProject))
+      Option(samClient.getPetServiceAccount(userInfo, googleProject))
     }
   }
 

@@ -57,10 +57,10 @@ trait TestLeoRoutes { this: ScalatestRouteTest with ScalaFutures =>
   }
 
   def clusterServiceAccount(googleProject: GoogleProject): Option[WorkbenchEmail] = {
-    serviceAccountProvider.getClusterServiceAccount(defaultUserInfo.userEmail, googleProject).futureValue
+    serviceAccountProvider.getClusterServiceAccount(defaultUserInfo, googleProject).futureValue
   }
 
   def notebookServiceAccount(googleProject: GoogleProject): Option[WorkbenchEmail] = {
-    serviceAccountProvider.getNotebookServiceAccount(defaultUserInfo.userEmail, googleProject).futureValue
+    serviceAccountProvider.getNotebookServiceAccount(defaultUserInfo, googleProject).futureValue
   }
 }
