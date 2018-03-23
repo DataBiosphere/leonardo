@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth.sam
 
 import com.typesafe.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -15,14 +14,14 @@ class MockPetNotebookServiceAccountProvider(config: Config) extends ServiceAccou
   private val mockSamClient = new MockSwaggerSamClient
   private implicit val ec = scala.concurrent.ExecutionContext.global
 
-  override def getClusterServiceAccount(workbenchEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
+  override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
     // Pretend we're using the compute engine default SA
     Future.successful(None)
   }
 
-  override def getNotebookServiceAccount(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
+  override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
     // Pretend we're asking Sam for the pet
-    Future(Option(mockSamClient.getPetServiceAccount(userEmail, googleProject)))
+    Future(Option(mockSamClient.getPetServiceAccount(userInfo, googleProject)))
   }
 
   override def listUsersStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {

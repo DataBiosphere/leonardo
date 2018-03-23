@@ -89,20 +89,20 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   // Register this instance with the cluster monitor supervisor so our cluster monitor can potentially delete and recreate clusters
   clusterMonitorSupervisor ! RegisterLeoService(this)
 
-  protected def checkProjectPermission(userEmail: WorkbenchEmail, action: ProjectAction, project: GoogleProject): Future[Unit] = {
-    authProvider.hasProjectPermission(userEmail, action, project) map {
-      case false => throw AuthorizationError(Option(userEmail))
+  protected def checkProjectPermission(userInfo: UserInfo, action: ProjectAction, project: GoogleProject): Future[Unit] = {
+    authProvider.hasProjectPermission(userInfo, action, project) map {
+      case false => throw AuthorizationError(Option(userInfo.userEmail))
       case true => ()
     }
   }
 
   //Throws 404 and pretends we don't even know there's a cluster there, by default.
   //If the cluster really exists and you're OK with the user knowing that, set throw401 = true.
-  protected def checkClusterPermission(user: UserInfo, action: NotebookClusterAction, cluster: Cluster, throw401: Boolean = false): Future[Unit] = {
-    authProvider.hasNotebookClusterPermission(user.userEmail, action, cluster.googleProject, cluster.clusterName) map {
+  protected def checkClusterPermission(userInfo: UserInfo, action: NotebookClusterAction, cluster: Cluster, throw401: Boolean = false): Future[Unit] = {
+    authProvider.hasNotebookClusterPermission(userInfo, action, cluster.googleProject, cluster.clusterName) map {
       case false =>
         if( throw401 )
-          throw AuthorizationError(Option(user.userEmail))
+          throw AuthorizationError(Option(userInfo.userEmail))
         else
           throw ClusterNotFoundException(cluster.googleProject, cluster.clusterName)
       case true => ()
@@ -111,11 +111,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   def createCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
     for {
-      _ <- checkProjectPermission(userInfo.userEmail, CreateClusters, googleProject)
+      _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
 
       // Grab the service accounts from serviceAccountProvider for use later
-      clusterServiceAccountOpt <- serviceAccountProvider.getClusterServiceAccount(userInfo.userEmail, googleProject)
-      notebookServiceAccountOpt <- serviceAccountProvider.getNotebookServiceAccount(userInfo.userEmail, googleProject)
+      clusterServiceAccountOpt <- serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject)
+      notebookServiceAccountOpt <- serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject)
       serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountOpt, notebookServiceAccountOpt)
 
       cluster <- internalCreateCluster(userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
@@ -207,31 +207,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     for {
       paramMap <- processListClustersParameters(params)
       clusterList <- dbRef.inTransaction { da => da.clusterQuery.listByLabels(paramMap._1, paramMap._2) }
-      //LeoAuthProviders can override canSeeAllClustersInProject if they have a speedy implementation, e.g. "you're a
-      //project owner so of course you do". In order to use it, we first group our list of clusters by project, and
-      //call canSeeAllClustersInProject once per project. If the answer is "no" for a given project, we check each
-      //cluster in that project individually.
-      clustersByProject = clusterList.groupBy(_.googleProject)
-      visibleClusters <- clustersByProject.toList.flatTraverse[Future, Cluster] { case (googleProject, clusters) =>
-        val clusterList = clusters.toList
-        authProvider.canSeeAllClustersInProject(userInfo.userEmail, googleProject).recover { case NonFatal(e) =>
-          logger.warn(s"The auth provider returned an exception calling canSeeAllClustersInProject for resource ${googleProject.value}. Filtering out this project from list results.", e)
-          false
-        } flatMap {
-          case true => Future.successful(clusterList)
-          case false => clusterList.traverseFilter { cluster =>
-            authProvider.hasNotebookClusterPermission(userInfo.userEmail, GetClusterStatus, cluster.googleProject, cluster.clusterName) map {
-              case false => None
-              case true => Some(cluster)
-            } recover { case NonFatal(e) =>
-              logger.warn(s"The auth provider returned an exception for resource ${cluster.projectNameString}. Filtering out from list results.", e)
-              None
-            }
-          }
-        }
-      }
+      visibleClusters <- authProvider.filterUserVisibleClusters(userInfo, clusterList.map(c => (c.googleProject, c.clusterName)).toList)
     } yield {
-      visibleClusters
+      val visibleClustersSet = visibleClusters.toSet
+      clusterList.filter(c => visibleClustersSet.contains((c.googleProject, c.clusterName)))
     }
   }
 

@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.auth.sam
 import java.io.File
 
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.duration.{FiniteDuration, SECONDS}
@@ -14,6 +14,8 @@ class MockSwaggerSamClient extends SwaggerSamClient("fake/path", new FiniteDurat
 
   val billingProjects: mutable.Map[(GoogleProject, WorkbenchEmail), Set[String]] =  new TrieMap()
   val notebookClusters: mutable.Map[(GoogleProject, ClusterName, WorkbenchEmail), Set[String]] = new TrieMap()
+  val projectOwners: mutable.Map[WorkbenchEmail, Set[GoogleProject]] = new TrieMap()
+  val clusterCreators: mutable.Map[WorkbenchEmail, Set[(GoogleProject, ClusterName)]] = new TrieMap()
   val userProxy = "PROXY_1234567890@dev.test.firecloud.org"
   val serviceAccount = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
 
@@ -25,14 +27,14 @@ class MockSwaggerSamClient extends SwaggerSamClient("fake/path", new FiniteDurat
     notebookClusters.remove((googleProject, clusterName, userEmail))
   }
 
-  override def hasActionOnBillingProjectResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, action: String): Boolean = {
-    billingProjects.get((googleProject, userEmail)) //look it up: Option[Set]
+  override def hasActionOnBillingProjectResource(userInfo: UserInfo, googleProject: GoogleProject, action: String): Boolean = {
+    billingProjects.get((googleProject, userInfo.userEmail)) //look it up: Option[Set]
       .map( _.contains(action) ) //open the option to peek the set: Option[Bool]
       .getOrElse(false) //unpack the resulting option and handle the project never having existed
   }
 
-  override def hasActionOnNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, action: String): Boolean = {
-    notebookClusters.get((googleProject, clusterName, userEmail))
+  override def hasActionOnNotebookClusterResource(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, action: String): Boolean = {
+    notebookClusters.get((googleProject, clusterName, userInfo.userEmail))
       .map( _.contains(action) )
       .getOrElse(false)
   }
@@ -41,7 +43,15 @@ class MockSwaggerSamClient extends SwaggerSamClient("fake/path", new FiniteDurat
     WorkbenchEmail(userProxy)
   }
 
-  override def getPetServiceAccount(userEmail: WorkbenchEmail, googleProject: GoogleProject): WorkbenchEmail = {
+  override def getPetServiceAccount(userInfo: UserInfo, googleProject: GoogleProject): WorkbenchEmail = {
     serviceAccount
+  }
+
+  override def listOwningProjects(userInfo: UserInfo): List[GoogleProject] = {
+    projectOwners.get(userInfo.userEmail).map(_.toList).getOrElse(List.empty)
+  }
+
+  override def listCreatedClusters(userInfo: UserInfo): List[(GoogleProject, ClusterName)] = {
+    clusterCreators.get(userInfo.userEmail).map(_.toList).getOrElse(List.empty)
   }
 }
