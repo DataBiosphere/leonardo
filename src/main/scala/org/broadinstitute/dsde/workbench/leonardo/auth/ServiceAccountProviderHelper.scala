@@ -6,7 +6,7 @@ import com.typesafe.config.Config
 import com.typesafe.scalalogging.LazyLogging
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoException, ServiceAccountProvider}
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.FutureSupport
 
@@ -59,15 +59,15 @@ class ServiceAccountProviderHelper(wrappedServiceAccountProvider: ServiceAccount
     try { future.withTimeout(providerTimeout, "" /* errMsg, not used */).recoverWith(exceptionHandler) } catch exceptionHandler
   }
 
-  override def getClusterServiceAccount(workbenchEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
+  override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
     safeCall {
-      wrappedServiceAccountProvider.getClusterServiceAccount(workbenchEmail, googleProject)
+      wrappedServiceAccountProvider.getClusterServiceAccount(userInfo, googleProject)
     }
   }
 
-  override def getNotebookServiceAccount(workbenchEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
+  override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
     safeCall {
-      wrappedServiceAccountProvider.getNotebookServiceAccount(workbenchEmail, googleProject)
+      wrappedServiceAccountProvider.getNotebookServiceAccount(userInfo, googleProject)
     }
   }
 

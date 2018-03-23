@@ -50,8 +50,8 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
     Get(s"/api/cluster/${googleProject.value}/${clusterName.value}") ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
       val responseCluster = responseAs[Cluster]
-      responseCluster.serviceAccountInfo.clusterServiceAccount shouldEqual serviceAccountProvider.getClusterServiceAccount(defaultUserInfo.userEmail, googleProject).futureValue
-      responseCluster.serviceAccountInfo.notebookServiceAccount shouldEqual serviceAccountProvider.getNotebookServiceAccount(defaultUserInfo.userEmail, googleProject).futureValue
+      responseCluster.serviceAccountInfo.clusterServiceAccount shouldEqual serviceAccountProvider.getClusterServiceAccount(defaultUserInfo, googleProject).futureValue
+      responseCluster.serviceAccountInfo.notebookServiceAccount shouldEqual serviceAccountProvider.getNotebookServiceAccount(defaultUserInfo, googleProject).futureValue
       responseCluster.jupyterExtensionUri shouldEqual Some(extensionPath)
     }
   }
