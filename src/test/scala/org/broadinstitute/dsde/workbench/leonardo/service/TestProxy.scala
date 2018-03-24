@@ -6,6 +6,7 @@ import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
 
 import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
+import akka.http.scaladsl.model.headers.`Access-Control-Allow-Origin`
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
@@ -59,17 +60,20 @@ trait TestProxy { this: ScalaFutures =>
   def backendRoute: Route =
     pathPrefix("notebooks" / googleProject / clusterName) {
       extractRequest { request =>
-        path("websocket") {
-          handleWebSocketMessages(greeter)
-        } ~
-          complete {
-            Data(
-              request.method.value,
-              request.uri.path.toString,
-              request.uri.queryString(),
-              request.headers.map(h => h.name -> h.value).toMap
-            )
-          }
+        // Jupyter sets Access-Control-Allow-Origin = *, so simulate that here
+        respondWithHeader(`Access-Control-Allow-Origin`.*) {
+          path("websocket") {
+            handleWebSocketMessages(greeter)
+          } ~
+            complete {
+              Data(
+                request.method.value,
+                request.uri.path.toString,
+                request.uri.queryString(),
+                request.headers.map(h => h.name -> h.value).toMap
+              )
+            }
+        }
       }
     }
 
