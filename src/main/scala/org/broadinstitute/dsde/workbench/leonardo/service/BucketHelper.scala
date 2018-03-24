@@ -27,8 +27,7 @@ class BucketHelper(dataprocConfig: DataprocConfig,
   /**
     * Creates the dataproc init bucket and sets the necessary ACLs.
     */
-  def createInitBucket(googleProject: GoogleProject, clusterName: ClusterName, serviceAccountInfo: ServiceAccountInfo): Future[GcsBucketName] = {
-    val bucketName = generateUniqueBucketName(clusterName.value+"-init")
+  def createInitBucket(googleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[GcsBucketName] = {
     for {
       // The init bucket is created in Leo's project, not the cluster's project.
       _ <- googleStorageDAO.createBucket(dataprocConfig.leoGoogleProject, bucketName)
@@ -45,8 +44,7 @@ class BucketHelper(dataprocConfig: DataprocConfig,
   /**
     * Creates the dataproc staging bucket and sets the necessary ACLs.
     */
-  def createStagingBucket(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, serviceAccountInfo: ServiceAccountInfo): Future[GcsBucketName] = {
-    val bucketName = generateUniqueBucketName(clusterName.value+"-staging")
+  def createStagingBucket(userEmail: WorkbenchEmail, googleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[GcsBucketName] = {
     for {
       // The staging bucket is created in the cluster's project.
       _ <- googleStorageDAO.createBucket(googleProject, bucketName)
