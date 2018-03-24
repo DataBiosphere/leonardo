@@ -75,6 +75,16 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
     }
   }
 
+  it should "set CORS headers in proxy requests" in {
+    Get(s"/notebooks/$googleProject/$clusterName")
+      .addHeader(Cookie(tokenCookie))
+      .addHeader(Origin("http://example.com")) ~> leoRoutes.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.OK
+      validateCors(origin = Some("http://example.com"))
+    }
+  }
+
   it should "reject non-cookied requests" in {
     Get(s"/notebooks/$googleProject/$clusterName") ~> leoRoutes.route ~> check {
       handled shouldBe true
@@ -263,6 +273,8 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
   }
 
   private def validateCors(origin: Option[String] = None, optionsRequest: Boolean = false): Unit = {
+    // Issue 272: CORS headers should not be double set
+    headers.filter(_.is(`Access-Control-Allow-Origin`.lowercaseName)).size shouldBe 1
     header[`Access-Control-Allow-Origin`] shouldBe origin.map(`Access-Control-Allow-Origin`(_)).orElse(Some(`Access-Control-Allow-Origin`.*))
     header[`Access-Control-Allow-Credentials`] shouldBe Some(`Access-Control-Allow-Credentials`(true))
     header[`Access-Control-Allow-Headers`] shouldBe Some(`Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin"))

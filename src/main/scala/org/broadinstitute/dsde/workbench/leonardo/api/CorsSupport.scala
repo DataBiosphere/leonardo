@@ -26,11 +26,15 @@ trait CorsSupport {
       case Some(origin) => `Access-Control-Allow-Origin`(origin.value)
       case None => `Access-Control-Allow-Origin`.*
     } flatMap { allowOrigin =>
-      respondWithHeaders(
-        allowOrigin,
-        `Access-Control-Allow-Credentials`(true),
-        `Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin"),
-        `Access-Control-Max-Age`(1728000))
+      mapResponseHeaders { headers =>
+        // Filter out the Access-Control-Allow-Origin set by Jupyter so we don't have duplicate headers
+        // (causes issues on some browsers). See https://github.com/DataBiosphere/leonardo/issues/272
+        headers.filter(_.isNot(`Access-Control-Allow-Origin`.lowercaseName)) ++
+          Seq(allowOrigin,
+            `Access-Control-Allow-Credentials`(true),
+            `Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin"),
+            `Access-Control-Max-Age`(1728000))
+      }
     }
   }
 
