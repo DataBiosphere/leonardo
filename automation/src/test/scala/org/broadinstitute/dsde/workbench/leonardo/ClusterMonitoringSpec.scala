@@ -103,7 +103,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
     // TODO: we've noticed intermittent failures for this test. See:
     // https://github.com/DataBiosphere/leonardo/issues/204
     // https://github.com/DataBiosphere/leonardo/issues/228
-    "should execute Hail with correct permissions on a cluster with preemptible workers" ignore withWebDriver { implicit driver =>
+    "should execute Hail with correct permissions on a cluster with preemptible workers" in withWebDriver { implicit driver =>
       withCleanBillingProject(hermioneCreds) { projectName =>
         val project = GoogleProject(projectName)
 
