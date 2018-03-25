@@ -7,6 +7,7 @@ import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.`Content-Disposition`
 import akka.http.scaladsl.model.ws._
 import akka.pattern.ask
 import akka.stream.ActorMaterializer
@@ -165,11 +166,35 @@ class ProxyService(proxyConfig: ProxyConfig,
     // WebSocket requests (which could potentially be large).
     val handler: Future[HttpResponse] = Source.single(newRequest)
       .via(flow)
+      .map(fixContentDisposition)
       .runWith(Sink.head)
       .flatMap(_.toStrict(5 seconds))
 
     // That's it! This is our whole HTTP proxy.
     handler
+  }
+
+  // This is our current workaround for a bug that causes notebooks to download with "utf-8''" prepended to the file name
+  // This is due to an akka-http bug currently being worked on here: https://github.com/playframework/playframework/issues/7719
+  // For now, for each response that has a Content-Disposition header with a 'filename' in the header params, we remove any "utf-8''".
+  // Should not affect any other responses.
+  private def fixContentDisposition(httpResponse: HttpResponse): HttpResponse = {
+    httpResponse.header[`Content-Disposition`] match {
+     case Some(header) => {
+       val keyName = "filename"
+       header.params.get(keyName) match {
+         case Some(fileName) => {
+           val newFileName = fileName.replace("utf-8''", "")  // a filename that doesn't have utf-8'' shouldn't be affected
+           val newParams = header.params + (keyName -> newFileName)
+           val newHeader = `Content-Disposition`(header.dispositionType, newParams)
+           val newHeaders = httpResponse.headers.filter(header => header.isNot("content-disposition")) ++ Seq(newHeader)
+           httpResponse.copy(headers = newHeaders)
+         }
+         case None => httpResponse
+       }
+     }
+     case None => httpResponse
+    }
   }
 
   private def handleWebSocketRequest(targetHost: Host, request: HttpRequest, upgrade: UpgradeToWebSocket): Future[HttpResponse] = {

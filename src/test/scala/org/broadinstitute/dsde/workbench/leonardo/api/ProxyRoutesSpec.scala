@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.api
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers._
+import akka.http.scaladsl.model.headers.{ContentDispositionTypes, `Content-Disposition`, _}
 import akka.http.scaladsl.model.ws.{TextMessage, WebSocketRequest}
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.http.scaladsl.Http
@@ -137,6 +137,13 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
       .addHeader(RawHeader("foo", "bar"))
       .addHeader(RawHeader("baz", "biz")) ~> leoRoutes.route ~> check {
       responseAs[Data].headers should contain allElementsOf Map("foo" -> "bar", "baz" -> "biz")
+    }
+  }
+
+  it should "remove utf-8'' from content-disposition header filenames" in {
+    // The TestProxy adds the Content-Disposition header to the response, we can't do it from here
+    Get(s"/notebooks/$googleProject/$clusterName/content-disposition-test").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+      responseAs[HttpResponse].headers should contain (`Content-Disposition`(ContentDispositionTypes.attachment, Map("filename" -> "notebook.ipynb")))
     }
   }
 
