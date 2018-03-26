@@ -3,11 +3,12 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.io.File
 import java.nio.file.Files
 
-import org.broadinstitute.dsde.workbench.service.Orchestration
+import org.broadinstitute.dsde.workbench.service.{Orchestration, Sam}
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
+import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
-import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{GcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles, GoogleProject}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 
 import scala.concurrent.duration._
@@ -152,27 +153,31 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
         notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
         notebookPage.executeCell("""import arrow""").get should include("ImportError: No module named arrow")
       }
-
       // create a new bucket, add the user script to the bucket, create a new cluster using the URI of the user script and create a notebook that will check if the user script ran
-      withNewGoogleBucket(billingProject) { bucketName =>
+      val gpAllocScriptProject = claimGPAllocProject(hermioneCreds)
+      val billingScriptProject = GoogleProject(gpAllocScriptProject.projectName)
+      withNewGoogleBucket(billingScriptProject) { bucketName =>
+        val ronPetServiceAccount = Sam.user.petServiceAccountEmail(billingProject.value)(ronAuthToken)
+        googleStorageDAO.setBucketAccessControl(bucketName, GcsEntity(ronPetServiceAccount, GcsEntityTypes.User), GcsRoles.Owner)
+
         val userScriptString = "#!/usr/bin/env bash\n\npip2 install arrow"
         val userScriptObjectName = GcsObjectName("user-script.sh")
         val userScriptUri = s"gs://${bucketName.value}/${userScriptObjectName.value}"
 
         withNewBucketObject(bucketName, userScriptObjectName, userScriptString, "text/plain") { objectName =>
+          googleStorageDAO.setObjectAccessControl(bucketName, objectName, GcsEntity(ronPetServiceAccount, GcsEntityTypes.User), GcsRoles.Owner)
           val clusterName = ClusterName("user-script-cluster" + makeRandomId())
-
           withNewCluster(billingProject, clusterName, ClusterRequest(Map(), None, Option(userScriptUri))) { cluster =>
+            Thread.sleep(10000)
             withNewNotebook(cluster) { notebookPage =>
               notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
               notebookPage.executeCell("""import arrow""")
               notebookPage.executeCell("""arrow.get(727070400)""") shouldBe Some("<Arrow [1993-01-15T04:00:00+00:00]>")
             }
-          }
+          }(ronAuthToken)
         }
       }
     }
-
     "should create a notebook with a working Python 3 kernel and import installed packages" in withWebDriver { implicit driver =>
       Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
 
