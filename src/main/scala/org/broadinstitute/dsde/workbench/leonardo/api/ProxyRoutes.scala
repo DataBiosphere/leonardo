@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
-import akka.http.scaladsl.model.StatusCodes
+import akka.event.{Logging, LoggingAdapter}
+import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive0, Directive1, Route}
 import com.typesafe.scalalogging.LazyLogging
@@ -8,10 +9,12 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.service.{AuthorizationError, ProxyService}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import akka.http.scaladsl.model.headers._
+import akka.http.scaladsl.server.RouteResult.Complete
+import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.ConnectToCluster
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 trait ProxyRoutes extends UserInfoDirectives with CorsSupport { self: LazyLogging =>
   val proxyService: ProxyService
@@ -44,16 +47,18 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport { self: LazyLoggin
             }
           } ~
             (extractRequest & extractUserInfo) { (request, userInfo) =>
-              // Proxy logic handled by the ProxyService class
-              // Note ProxyService calls the LeoAuthProvider internally
-              path("api" / "localize") { // route for custom Jupyter server extension
-                complete {
-                  proxyService.proxyLocalize(userInfo, googleProject, clusterName, request)
-                }
-              } ~
-                complete {
-                  proxyService.proxyNotebook(userInfo, googleProject, clusterName, request)
-                }
+              (logRequestResultForMetrics(userInfo)) {
+                // Proxy logic handled by the ProxyService class
+                // Note ProxyService calls the LeoAuthProvider internally
+                path("api" / "localize") { // route for custom Jupyter server extension
+                  complete {
+                    proxyService.proxyLocalize(userInfo, googleProject, clusterName, request)
+                  }
+                } ~
+                  complete {
+                    proxyService.proxyNotebook(userInfo, googleProject, clusterName, request)
+                  }
+              }
             }
       } ~
         // No need to lookup the user or consult the auth provider for this endpoint
@@ -101,6 +106,28 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport { self: LazyLoggin
     extractToken.flatMap { token =>
       onSuccess(proxyService.getCachedUserInfoFromToken(token))
     }
+  }
+
+  // basis for logRequestResult lifted from http://stackoverflow.com/questions/32475471/how-does-one-log-akka-http-client-requests
+  private def logRequestResultForMetrics(userInfo: UserInfo): Directive0 = {
+    def myMetricsLogger(logger: LoggingAdapter)(req: HttpRequest)(res: Any): Unit = {
+      val headers = req.headers
+      val headerMap: Map[String, String] = headers.map { header =>
+        (header.name(), header.value())
+      }.toMap
+
+      val entry = res match {
+        case Complete(resp) =>
+          LogEntry(s"${headerMap.getOrElse("X-Forwarded-For", "0.0.0.0")} ${userInfo.userEmail} " +
+            s"${userInfo.userId} [${DateTime.now.toIsoDateTimeString()}] " +
+            s""""${req.method.value} ${req.uri} ${req.protocol.value}" """ +
+            s"""${resp.status.intValue} ${resp.entity.contentLengthOption.getOrElse("-")} ${headerMap.getOrElse("Origin", "-")} """ +
+            s"${headerMap.getOrElse("User-Agent", "unknown")}", Logging.InfoLevel)
+        case _ => LogEntry(s"No response - request not complete")
+      }
+      entry.logTo(logger)
+    }
+    DebuggingDirectives.logRequestResult(LoggingMagnet(myMetricsLogger))
   }
 
   /**
