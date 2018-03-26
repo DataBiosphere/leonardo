@@ -87,10 +87,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.firewallRules(project).name.value shouldBe proxyConfig.firewallRuleName
 
     // should have created init and staging buckets
-    val initBucketOpt = storageDAO.buckets.keys.find(_.value.startsWith(name1.value+"-init"))
+    val initBucketOpt = storageDAO.buckets.keys.find(_.value.startsWith("LeoInit-"+name1.value))
     initBucketOpt shouldBe 'defined
 
-    val stagingBucketOpt = storageDAO.buckets.keys.find(_.value.startsWith(name1.value+"-staging"))
+    val stagingBucketOpt = storageDAO.buckets.keys.find(_.value.startsWith("LeoStaging-"+name1.value))
     stagingBucketOpt shouldBe 'defined
 
     // check the init files were added to the init bucket
