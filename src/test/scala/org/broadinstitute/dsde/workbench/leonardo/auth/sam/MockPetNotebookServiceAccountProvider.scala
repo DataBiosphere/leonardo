@@ -32,4 +32,7 @@ class MockPetNotebookServiceAccountProvider(config: Config) extends ServiceAccou
     Future(mockSamClient.getUserProxyFromSam(userEmail))map(List(_))
   }
 
+  override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[String]] = {
+    Future(Option(mockSamClient.getCachedPetAccessToken(userEmail, googleProject)))
+  }
 }

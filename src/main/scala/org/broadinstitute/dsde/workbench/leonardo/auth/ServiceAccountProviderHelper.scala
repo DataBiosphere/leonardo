@@ -82,4 +82,10 @@ class ServiceAccountProviderHelper(wrappedServiceAccountProvider: ServiceAccount
       wrappedServiceAccountProvider.listUsersStagingBucketReaders(userEmail)
     }
   }
+
+  override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[String]] = {
+    safeCall {
+      wrappedServiceAccountProvider.getAccessToken(userEmail, googleProject)
+    }
+  }
 }
