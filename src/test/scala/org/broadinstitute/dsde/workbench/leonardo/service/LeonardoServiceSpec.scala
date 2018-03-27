@@ -87,10 +87,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.firewallRules(project).name.value shouldBe proxyConfig.firewallRuleName
 
     // should have created init and staging buckets
-    val initBucketOpt = storageDAO.buckets.keys.find(_.value.startsWith(name1.value+"-init"))
+    val initBucketOpt = storageDAO.buckets.keys.find(_.value.startsWith("leoinit-"+name1.value))
     initBucketOpt shouldBe 'defined
 
-    val stagingBucketOpt = storageDAO.buckets.keys.find(_.value.startsWith(name1.value+"-staging"))
+    val stagingBucketOpt = storageDAO.buckets.keys.find(_.value.startsWith("leostaging-"+name1.value))
     stagingBucketOpt shouldBe 'defined
 
     // check the init files were added to the init bucket
@@ -485,8 +485,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.firewallRules(project).name.value shouldBe proxyConfig.firewallRuleName
 
     //staging bucket lives on!
-    storageDAO.buckets.keys.find(bucket => bucket.value.contains("-init")).size shouldBe 0
-    storageDAO.buckets.keys.find(bucket => bucket.value.contains("-staging")).size shouldBe 1
+    storageDAO.buckets.keys.find(bucket => bucket.value.contains("leoinit-")).size shouldBe 0
+    storageDAO.buckets.keys.find(bucket => bucket.value.contains("leostaging-")).size shouldBe 1
   }
 
   it should "tell you if you're whitelisted" in isolatedDbTest {
