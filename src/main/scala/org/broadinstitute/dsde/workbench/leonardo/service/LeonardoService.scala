@@ -238,8 +238,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                            clusterName: ClusterName,
                                            clusterRequest: ClusterRequest)
                                           (implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
-    val initBucketName = generateUniqueBucketName(clusterName.value+"-init")
-    val stagingBucketName = generateUniqueBucketName(clusterName.value+"-staging")
+    val initBucketName = generateUniqueBucketName("leoinit-"+clusterName.value)
+    val stagingBucketName = generateUniqueBucketName("leostaging-"+clusterName.value)
 
     val googleFuture = for {
       // Validate that the Jupyter extension URI and Jupyter user script URI are valid URIs and reference real GCS objects
