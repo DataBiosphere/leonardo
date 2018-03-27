@@ -90,7 +90,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val initBucketOpt = storageDAO.buckets.keys.find(_.value.startsWith("leoinit-"+name1.value))
     initBucketOpt shouldBe 'defined
 
-    val stagingBucketOpt = storageDAO.buckets.keys.find(_.value.startsWith("leoinit-"+name1.value))
+    val stagingBucketOpt = storageDAO.buckets.keys.find(_.value.startsWith("leostaging-"+name1.value))
     stagingBucketOpt shouldBe 'defined
 
     // check the init files were added to the init bucket
