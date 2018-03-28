@@ -154,7 +154,7 @@ function docker_cmd()
             GIT_SHA=$(git rev-parse origin/${GIT_BRANCH})
             echo GIT_SHA=$GIT_SHA > env.properties
             DOCKER_TAG=${GIT_SHA:0:12}
-            DOCKER_TAG_TESTS=${ENV}
+            DOCKER_TAG_TESTS=${GIT_SHA:0:12}
         fi
 
         # builds the juptyer notebooks docker image that goes on dataproc clusters
