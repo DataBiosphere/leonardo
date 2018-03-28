@@ -206,14 +206,13 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.json.keyfile')") shouldBe Some("None")
   }
 
-  def getAndVerifyPet(project: GoogleProject)(implicit token: AuthToken): (ServiceAccountName, WorkbenchEmail) = {
+  def getAndVerifyPet(project: GoogleProject)(implicit token: AuthToken): WorkbenchEmail = {
     val samPetEmail = Sam.user.petServiceAccountEmail(project.value)
     val userStatus = Sam.user.status().get
-    val petName = Sam.petName(userStatus.userInfo)
     implicit val patienceConfig: PatienceConfig = saPatience
-    val googlePetEmail = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
+    val googlePetEmail = googleIamDAO.findServiceAccount(project, samPetEmail).futureValue.map(_.email)
     googlePetEmail shouldBe Some(samPetEmail)
-    (petName, samPetEmail)
+    samPetEmail
   }
 
   def withNewCluster[T](googleProject: GoogleProject, name: ClusterName = randomClusterName, request: ClusterRequest = defaultClusterRequest)(testCode: Cluster => T)(implicit token: AuthToken): T = {

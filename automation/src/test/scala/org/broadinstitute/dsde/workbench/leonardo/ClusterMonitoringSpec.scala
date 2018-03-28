@@ -45,7 +45,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
 
         implicit val token = ronAuthToken
         // Pre-conditions: pet service account exists in this Google project and in Sam
-        val (petName, petEmail) = getAndVerifyPet(project)
+        val petEmail = getAndVerifyPet(project)
 
         // Create a cluster
 
@@ -63,7 +63,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
         // Post-conditions: pet should still exist in this Google project
 
         implicit val patienceConfig: PatienceConfig = saPatience
-        val googlePetEmail2 = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
+        val googlePetEmail2 = googleIamDAO.findServiceAccount(project, petEmail).futureValue.map(_.email)
         googlePetEmail2 shouldBe Some(petEmail)
       }
     }
@@ -77,7 +77,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
 
         implicit val token = ronAuthToken
         // Pre-conditions: pet service account exists in this Google project and in Sam
-        val (petName, petEmail) = getAndVerifyPet(project)
+        val petEmail = getAndVerifyPet(project)
 
         // Create a cluster
 
@@ -95,7 +95,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
         // Post-conditions: pet should still exist in this Google project
 
         implicit val patienceConfig: PatienceConfig = saPatience
-        val googlePetEmail2 = googleIamDAO.findServiceAccount(project, petName).futureValue.map(_.email)
+        val googlePetEmail2 = googleIamDAO.findServiceAccount(project, petEmail).futureValue.map(_.email)
         googlePetEmail2 shouldBe Some(petEmail)
       }
     }
