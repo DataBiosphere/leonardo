@@ -39,6 +39,10 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     findAll(submenus).filter { e => e.text == "Download as" }.toList.head
   }
 
+  // Cell -> Cell type
+  lazy val cellTypeSubMenu: Element = {
+    findAll(submenus).filter { e => e.text == "Cell Type" }.toList.head
+  }
   // File -> Download as -> ipynb
   lazy val downloadSelection: Query = cssSelector("[id='download_ipynb']")
 
@@ -56,6 +60,10 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
 
   // selects the numbered left-side cell prompts
   lazy val prompts: Query = cssSelector("[class='prompt input_prompt']")
+
+  lazy val toMarkdownCell:Query = cssSelector("[title='Markdown']")
+
+  lazy val translateCell: Query = cssSelector("[title='Translate current cell']")
 
   // is at least one cell currently executing?
   def cellsAreRunning: Boolean = {
@@ -85,6 +93,8 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     webDriver.findElements(cells.by).asScala.toList.last
   }
 
+
+
   def cellOutput(cell: WebElement): Option[String] = {
     val outputs = cell.findElements(By.xpath("../../../..//div[contains(@class, 'output_subarea')]"))
     outputs.asScala.headOption.map(_.getText)
@@ -98,6 +108,25 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     click on runCellButton
     await condition (!cellsAreRunning, timeout.toSeconds)
     cellOutput(cell)
+  }
+
+  def translateMarkup(code: String, timeout: FiniteDuration = 1 minute): String = {
+    await enabled cells
+    await enabled translateCell
+    val cell = lastCell
+    val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
+    executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
+    changeCodeToMarkdown
+    await enabled cells
+    click on translateCell
+    Thread.sleep(3000)
+    lastCell.getText
+  }
+
+  private def changeCodeToMarkdown = {
+    click on cellMenu
+    new Actions(webDriver).moveToElement(cellTypeSubMenu.underlying).perform()
+    await visible(translateCell)
   }
 
   def shutdownKernel(): Unit = {
