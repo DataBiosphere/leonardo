@@ -32,6 +32,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   val swatTestBucket = "gs://leonardo-swat-test-bucket-do-not-delete"
   val incorrectJupyterExtensionUri = swatTestBucket + "/"
+  val testJupyterExtensionUri = swatTestBucket + "/my_ext.tar.gz"
 
   // must align with run-tests.sh and hub-compose-fiab.yml
   val downloadDir = "chrome/downloads"
