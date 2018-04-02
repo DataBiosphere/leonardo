@@ -159,7 +159,7 @@ function docker_cmd()
         fi
 
         # builds the juptyer notebooks docker image that goes on dataproc clusters
-        bash ./jupyter-docker/build.sh build "${REPO}" "${DOCKER_TAG}"
+        bash ./jupyter-docker/build.sh build "gcr.io/broad-dsde-prod" "${DOCKER_TAG}"
 
         docker build -t "${IMAGE}:${DOCKER_TAG}" .
         cd automation
@@ -173,7 +173,7 @@ function docker_cmd()
             echo "pushing $TESTS_IMAGE docker image..."
             $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${DOCKER_TAG_TESTS}
             # pushes the juptyer notebooks docker image that goes on dataproc clusters
-            bash ./jupyter-docker/build.sh push "${REPO}" "${DOCKER_TAG}"
+            bash ./jupyter-docker/build.sh push "gcr.io/broad-dsde-prod" "${DOCKER_TAG}"
         fi
     else
         echo "Not a valid docker option!  Choose either build or push (which includes build)"
