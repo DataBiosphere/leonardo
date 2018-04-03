@@ -237,7 +237,11 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       withNewNotebook(ronCluster, RKernel) { notebookPage =>
         // httr is a simple http library for R
         // http://httr.r-lib.org//index.html
-        notebookPage.executeCell("""install.packages("httr")""").get should include ("Installing package into '/home/jupyter-user/.rpackages'")
+
+        // it may take a little while to install
+        val installTimeout = 2 minutes
+
+        notebookPage.executeCell("""install.packages("httr")""", installTimeout).get should include ("Installing package into '/home/jupyter-user/.rpackages'")
 
         val httpGetTest =
           """library(httr)
