@@ -30,14 +30,16 @@ class BucketHelper(dataprocConfig: DataprocConfig,
   def createInitBucket(googleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[GcsBucketName] = {
     for {
       // The init bucket is created in Leo's project, not the cluster's project.
-      _ <- googleStorageDAO.createBucket(dataprocConfig.leoGoogleProject, bucketName)
+
 
       // Leo service account -> Owner
       // available service accounts ((cluster or default SA) and notebook SA, if they exist) -> Reader
       bucketSAs <- getBucketSAs(googleProject, serviceAccountInfo)
       leoEntity = userEntity(serviceAccountProvider.getLeoServiceAccountAndKey._1)
 
+
       _ <- setBucketAcls(bucketName, bucketSAs, List(leoEntity))
+      _ <- googleStorageDAO.createBucket(dataprocConfig.leoGoogleProject, bucketName, bucketSAs, List(leoEntity))
     } yield bucketName
   }
 
@@ -58,6 +60,7 @@ class BucketHelper(dataprocConfig: DataprocConfig,
       providerGroups <- serviceAccountProvider.listGroupsStagingBucketReaders(userEmail).map(_.map(groupEntity))
 
       _ <- setBucketAcls(bucketName, providerReaders ++ providerGroups, List(leoEntity) ++ bucketSAs)
+      _ <- googleStorageDAO.createBucket(googleProject, bucketName, providerReaders ++ providerGroups, List(leoEntity) ++ bucketSAs)
     } yield bucketName
   }
 
