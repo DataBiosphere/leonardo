@@ -38,7 +38,7 @@ class BucketHelper(dataprocConfig: DataprocConfig,
       leoEntity = userEntity(serviceAccountProvider.getLeoServiceAccountAndKey._1)
 
 
-      _ <- setBucketAcls(bucketName, bucketSAs, List(leoEntity))
+      //_ <- setBucketAcls(bucketName, bucketSAs, List(leoEntity))
       _ <- googleStorageDAO.createBucket(dataprocConfig.leoGoogleProject, bucketName, bucketSAs, List(leoEntity))
     } yield bucketName
   }
