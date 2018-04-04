@@ -27,6 +27,9 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.{Random, Try}
 
+
+case class TimeResult[R,T](result:R, duration:T)
+
 trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures {
   this: Suite =>
 
@@ -52,6 +55,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   val localizePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
   val saPatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
   val storagePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
+  val nanoSecond = 1000000000L
 
   // TODO: show diffs as screenshot or other test output?
   def compareFilesExcludingIPs(left: File, right: File): Unit = {
@@ -111,9 +115,10 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     // Google doesn't seem to like simultaneous cluster creates.  Add 0-30 sec jitter
     Thread sleep Random.nextInt(30000)
 
-    val cluster = Leonardo.cluster.create(googleProject, clusterName, clusterRequest)
+    val clusterTimeResult = time(Leonardo.cluster.create(googleProject, clusterName, clusterRequest))
+    val cluster = clusterTimeResult.result
     clusterCheck(cluster, googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest)
-
+    clusterTimeResult.duration should be < (10 * nanoSecond)
     // verify with get()
     val creatingCluster = clusterCheck(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest)
 
@@ -399,5 +404,13 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     } yield (initDownloadFile, startupDownloadFile)
 
     transformed.value
+  }
+
+  def time[R](block: => R): TimeResult[R, Long] = {
+    val t0 = System.nanoTime()
+    val result = block
+    val t1 = System.nanoTime()
+    val timediff = t1 - t0
+    TimeResult(result, timediff)
   }
 }
