@@ -71,6 +71,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   }
 
   // has the specified cell completed execution?
+  // since we execute cells one by one, the Nth cell (counting from 1) will also have Cell Number N
   def cellIsRendered(cellNumber: Int): Boolean = {
     findAll(prompts).exists { e => e.text == s"In [$cellNumber]:" }
   }
