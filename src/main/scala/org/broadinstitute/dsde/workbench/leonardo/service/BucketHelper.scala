@@ -54,8 +54,9 @@ class BucketHelper(dataprocConfig: DataprocConfig,
       // Leo service account -> Owner
       // available service accounts ((cluster or default SA) and notebook SA, if they exist) -> Owner
       // Additional readers (users and groups) are specified by the service account provider.
-      leoEntity <-  userEntity(serviceAccountProvider.getLeoServiceAccountAndKey._1)
+
       bucketSAs <- getBucketSAs(googleProject, serviceAccountInfo)
+      leoEntity = userEntity(serviceAccountProvider.getLeoServiceAccountAndKey._1)
       providerReaders <- serviceAccountProvider.listUsersStagingBucketReaders(userEmail).map(_.map(userEntity))
       providerGroups <- serviceAccountProvider.listGroupsStagingBucketReaders(userEmail).map(_.map(groupEntity))
 
