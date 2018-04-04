@@ -230,14 +230,17 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       }
     }
 
-    // https://github.com/DataBiosphere/leonardo/issues/254
     "should be able to install new R packages" in withWebDriver { implicit driver =>
       Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
 
       withNewNotebook(ronCluster, RKernel) { notebookPage =>
         // httr is a simple http library for R
         // http://httr.r-lib.org//index.html
-        notebookPage.executeCell("""install.packages("httr")""").get should include ("Installing package into '/home/jupyter-user/.rpackages'")
+
+        // it may take a little while to install
+        val installTimeout = 2 minutes
+
+        notebookPage.executeCell("""install.packages("httr")""", installTimeout).get should include ("Installing package into '/home/jupyter-user/.rpackages'")
 
         val httpGetTest =
           """library(httr)
