@@ -230,7 +230,6 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       }
     }
 
-    // https://github.com/DataBiosphere/leonardo/issues/254
     "should be able to install new R packages" in withWebDriver { implicit driver =>
       Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
 

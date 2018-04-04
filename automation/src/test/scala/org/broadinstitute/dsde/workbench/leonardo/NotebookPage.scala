@@ -70,6 +70,11 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     findAll(prompts).exists { e => e.text == "In [*]:" }
   }
 
+  // has the specified cell completed execution?
+  def cellIsRendered(cellNumber: Int): Boolean = {
+    findAll(prompts).exists { e => e.text == s"In [$cellNumber]:" }
+  }
+
   // can we see that the kernel connection has terminated?
   lazy val kernelTerminatedModalBody: Query = cssSelector("[class='modal-body']")
 
@@ -89,38 +94,39 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
 
   lazy val cells: Query = cssSelector(".CodeMirror")
 
-  def lastCell: WebElement = {
-    webDriver.findElements(cells.by).asScala.toList.last
+  def lastCell: (Int, WebElement) = {
+    val asList = webDriver.findElements(cells.by).asScala.toList
+    (asList.length, asList.last)
   }
-
-
 
   def cellOutput(cell: WebElement): Option[String] = {
     val outputs = cell.findElements(By.xpath("../../../..//div[contains(@class, 'output_subarea')]"))
     outputs.asScala.headOption.map(_.getText)
   }
-
+  
   def executeCell(code: String, timeout: FiniteDuration = 1 minute): Option[String] = {
     await enabled cells
-    val cell = lastCell
+    val (cellNumber, cell) = lastCell
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
     executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
     click on runCellButton
     await condition (!cellsAreRunning, timeout.toSeconds)
+    await condition (cellIsRendered(cellNumber), timeout.toSeconds)
     cellOutput(cell)
   }
 
   def translateMarkup(code: String, timeout: FiniteDuration = 1 minute): String = {
     await enabled cells
     await enabled translateCell
-    val cell = lastCell
+    val (_, inputCell) = lastCell
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
-    executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
+    executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", inputCell)
     changeCodeToMarkdown
     await enabled cells
     click on translateCell
     Thread.sleep(3000)
-    lastCell.getText
+    val (_, outputCell) = lastCell
+    outputCell.getText
   }
 
   private def changeCodeToMarkdown = {
