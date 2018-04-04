@@ -49,12 +49,12 @@ class BucketHelper(dataprocConfig: DataprocConfig,
   def createStagingBucket(userEmail: WorkbenchEmail, googleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[GcsBucketName] = {
     for {
       // The staging bucket is created in the cluster's project.
-      _ <- googleStorageDAO.createBucket(googleProject, bucketName)
+      //_ <- googleStorageDAO.createBucket(googleProject, bucketName)
 
       // Leo service account -> Owner
       // available service accounts ((cluster or default SA) and notebook SA, if they exist) -> Owner
       // Additional readers (users and groups) are specified by the service account provider.
-      leoEntity = userEntity(serviceAccountProvider.getLeoServiceAccountAndKey._1)
+      leoEntity <-  userEntity(serviceAccountProvider.getLeoServiceAccountAndKey._1)
       bucketSAs <- getBucketSAs(googleProject, serviceAccountInfo)
       providerReaders <- serviceAccountProvider.listUsersStagingBucketReaders(userEmail).map(_.map(userEntity))
       providerGroups <- serviceAccountProvider.listGroupsStagingBucketReaders(userEmail).map(_.map(groupEntity))
