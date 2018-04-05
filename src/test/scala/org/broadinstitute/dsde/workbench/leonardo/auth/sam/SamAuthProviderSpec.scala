@@ -3,6 +3,8 @@ package org.broadinstitute.dsde.workbench.leonardo.auth.sam
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import com.typesafe.config.Config
+import com.typesafe.scalalogging.LazyLogging
+import io.swagger.client.ApiException
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProvider.NotebookAuthCacheKey
@@ -12,8 +14,11 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.CreateClu
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.mockito.ArgumentMatchers.{eq => mockitoEq}
+import org.mockito.Mockito._
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.mockito.MockitoSugar
 
 import scala.concurrent.ExecutionContext
 
@@ -21,7 +26,7 @@ class TestSamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAcc
   override lazy val samClient = new MockSwaggerSamClient()
 }
 
-class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with FreeSpecLike with Matchers with TestComponent with CommonTestData with ScalaFutures with BeforeAndAfterAll {
+class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with FreeSpecLike with Matchers with TestComponent with CommonTestData with ScalaFutures with BeforeAndAfterAll with MockitoSugar with LazyLogging {
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
@@ -164,4 +169,91 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     // name1 and name2 should now be returned
     samAuthProvider.filterUserVisibleClusters(userInfo, List(project -> name1, project -> name2)).futureValue shouldBe List(project -> name1, project -> name2)
   }
+
+  "notifyClusterCreated should retry errors and invalidate the pet token cache" in isolatedDbTest {
+    logger.info("testing retries, stack traces expected")
+
+    // should retry 401s
+    val samClientThrowing401 = mock[MockSwaggerSamClient]
+    when {
+      samClientThrowing401.createNotebookClusterResource(mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(name1))
+    } thenThrow new ApiException(401, "unauthorized")
+
+    val providerThrowing401 = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider) {
+      override lazy val samClient = samClientThrowing401
+    }
+
+    providerThrowing401.notifyClusterCreated(userInfo.userEmail, project, name1).failed.futureValue shouldBe a [ApiException]
+    verify(samClientThrowing401, times(3)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
+
+    // should retry 500s
+    val samClientThrowing500 = mock[MockSwaggerSamClient]
+    when {
+      samClientThrowing500.createNotebookClusterResource(mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(name1))
+    } thenThrow new ApiException(500, "internal error")
+
+    val providerThrowing500 = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider) {
+      override lazy val samClient = samClientThrowing500
+    }
+
+    providerThrowing500.notifyClusterCreated(userInfo.userEmail, project, name1).failed.futureValue shouldBe a [ApiException]
+    verify(samClientThrowing500, times(3)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
+
+    // should not retry 404s
+    val samClientThrowing404 = mock[MockSwaggerSamClient]
+    when {
+      samClientThrowing404.createNotebookClusterResource(mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(name1))
+    } thenThrow new ApiException(401, "unauthorized")
+
+    val providerThrowing404 = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider) {
+      override lazy val samClient = samClientThrowing404
+    }
+
+    providerThrowing404.notifyClusterCreated(userInfo.userEmail, project, name1).failed.futureValue shouldBe a [ApiException]
+    verify(samClientThrowing404, times(3)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
+  }
+
+  "notifyClusterDeleted should retry errors and invalidate the pet token cache" in isolatedDbTest {
+    logger.info("testing retries, stack traces expected")
+
+    // should retry 401s
+    val samClientThrowing401 = mock[MockSwaggerSamClient]
+    when {
+      samClientThrowing401.deleteNotebookClusterResource(mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(name1))
+    } thenThrow new ApiException(401, "unauthorized")
+
+    val providerThrowing401 = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider) {
+      override lazy val samClient = samClientThrowing401
+    }
+
+    providerThrowing401.notifyClusterDeleted(userInfo.userEmail, userInfo.userEmail, project, name1).failed.futureValue shouldBe a [ApiException]
+    verify(samClientThrowing401, times(3)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
+
+    // should retry 500s
+    val samClientThrowing500 = mock[MockSwaggerSamClient]
+    when {
+      samClientThrowing500.deleteNotebookClusterResource(mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(name1))
+    } thenThrow new ApiException(500, "internal error")
+
+    val providerThrowing500 = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider) {
+      override lazy val samClient = samClientThrowing500
+    }
+
+    providerThrowing500.notifyClusterDeleted(userInfo.userEmail, userInfo.userEmail, project, name1).failed.futureValue shouldBe a [ApiException]
+    verify(samClientThrowing500, times(3)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
+
+    // should not retry 404s
+    val samClientThrowing404 = mock[MockSwaggerSamClient]
+    when {
+      samClientThrowing404.deleteNotebookClusterResource(mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(name1))
+    } thenThrow new ApiException(401, "unauthorized")
+
+    val providerThrowing404 = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider) {
+      override lazy val samClient = samClientThrowing404
+    }
+
+    providerThrowing404.notifyClusterDeleted(userInfo.userEmail, userInfo.userEmail, project, name1).failed.futureValue shouldBe a [ApiException]
+    verify(samClientThrowing404, times(3)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
+  }
+
 }
