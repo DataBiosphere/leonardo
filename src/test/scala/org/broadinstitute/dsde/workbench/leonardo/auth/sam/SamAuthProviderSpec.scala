@@ -13,8 +13,9 @@ import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.{
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.CreateClusters
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.mockito.ArgumentMatchers.{eq => mockitoEq}
+import org.mockito.ArgumentMatchers.{eq => mockitoEq, any}
 import org.mockito.Mockito._
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
@@ -203,14 +204,14 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     val samClientThrowing404 = mock[MockSwaggerSamClient]
     when {
       samClientThrowing404.createNotebookClusterResource(mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(name1))
-    } thenThrow new ApiException(401, "unauthorized")
+    } thenThrow new ApiException(404, "not found")
 
     val providerThrowing404 = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider) {
       override lazy val samClient = samClientThrowing404
     }
 
     providerThrowing404.notifyClusterCreated(userInfo.userEmail, project, name1).failed.futureValue shouldBe a [ApiException]
-    verify(samClientThrowing404, times(3)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
+    verify(samClientThrowing404, never).invalidatePetAccessToken(any[WorkbenchEmail], any[GoogleProject])
   }
 
   "notifyClusterDeleted should retry errors and invalidate the pet token cache" in isolatedDbTest {
@@ -246,14 +247,14 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     val samClientThrowing404 = mock[MockSwaggerSamClient]
     when {
       samClientThrowing404.deleteNotebookClusterResource(mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(name1))
-    } thenThrow new ApiException(401, "unauthorized")
+    } thenThrow new ApiException(404, "not found")
 
     val providerThrowing404 = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider) {
       override lazy val samClient = samClientThrowing404
     }
 
     providerThrowing404.notifyClusterDeleted(userInfo.userEmail, userInfo.userEmail, project, name1).failed.futureValue shouldBe a [ApiException]
-    verify(samClientThrowing404, times(3)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
+    verify(samClientThrowing404, never).invalidatePetAccessToken(any[WorkbenchEmail], any[GoogleProject])
   }
 
 }
