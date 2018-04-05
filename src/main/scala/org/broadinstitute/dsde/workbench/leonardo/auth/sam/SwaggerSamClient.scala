@@ -62,10 +62,7 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
 
   //"Fast" lookup of pet's access token, using the cache.
   def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = {
-    logger.info("::Getting Cluster Service account::")
-    val token = petTokenCache.get(UserEmailAndProject(userEmail, googleProject))
-    logger.info("::Getting Cluster Service account::")
-    token
+    petTokenCache.get(UserEmailAndProject(userEmail, googleProject))
   }
 
   private[leonardo] val petTokenCache = CacheBuilder.newBuilder()
