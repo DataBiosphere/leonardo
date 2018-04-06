@@ -389,7 +389,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(())
 
     when {
-      storageDAO.createBucket(any[GoogleProject], any[GcsBucketName])
+      storageDAO.createBucket(any[GoogleProject], any[GcsBucketName], any[List[GcsEntity]], any[List[GcsEntity]])
     } thenReturn Future.successful(GcsBucketName("my-bucket"))
 
     when {
@@ -415,6 +415,10 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     when {
       storageDAO.deleteBucket(any[GcsBucketName], mockitoEq(true))
     } thenReturn Future.successful(())
+
+    when {
+      storageDAO.createBucket(any[GoogleProject], any[GcsBucketName], any[List[GcsEntity]], any[List[GcsEntity]])
+    } thenReturn Future.successful(GcsBucketName("my-bucket"))
 
     val iamDAO = mock[GoogleIamDAO]
     when {
