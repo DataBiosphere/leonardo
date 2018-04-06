@@ -11,10 +11,10 @@ class DelocalizingContentsManager(FileContentsManager):
   """
   A contents manager allowing for configurable automated delocalization.
 
-  Files will always be persisted to the local Jupyter file system as usual. The
-  decision of whether to try delocalization is driven by the presence of a file
-  named .delocalize.json on the Jupyter file system. The format of this
-  JSON is as follows:
+  Files will always be persisted to the local Jupyter file system as usual.
+  Delocalization may occur for a given file operation only if there exists a
+  file named ".delocalize.json" within the same directory as that file on the
+  Jupyter file system. The format of this JSON is as follows:
 
   {
     // Optional, only delocalize files from the collocated directory with a
@@ -34,8 +34,11 @@ class DelocalizingContentsManager(FileContentsManager):
   further modification.
   """
 
-  # TODO: Support GCS version preconditions on save.
-  # TODO: Try shifting the delocalization logic into a background thread.
+  # TODO:
+  # - Support GCS version preconditions on save
+  # - Try shifting the delocalization logic into a background thread
+  # - Support a recursive option in .delocalize.json
+  # - Invalidate the cache when a new .delocalize.json file is written
 
   # Cache delocalization metadata for 5 minutes. The cache points to a tuple of
   # (metadata: dict, read_at: datetime), with a key of JSON file path. Negative
