@@ -65,6 +65,10 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
     petTokenCache.get(UserEmailAndProject(userEmail, googleProject))
   }
 
+  def invalidatePetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject): Unit = {
+    petTokenCache.invalidate(UserEmailAndProject(userEmail, googleProject))
+  }
+
   private[leonardo] val petTokenCache = CacheBuilder.newBuilder()
     .expireAfterWrite(cacheExpiryTime.toMinutes, TimeUnit.MINUTES)
     .maximumSize(cacheMaxSize)

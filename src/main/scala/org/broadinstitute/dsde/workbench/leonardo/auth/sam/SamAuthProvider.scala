@@ -3,9 +3,9 @@ package org.broadinstitute.dsde.workbench.leonardo.auth.sam
 import java.util.concurrent.TimeUnit
 
 import com.typesafe.config.Config
-import com.typesafe.scalalogging.LazyLogging
 import akka.http.scaladsl.model.StatusCodes
 import com.google.common.cache.{CacheBuilder, CacheLoader}
+import io.swagger.client.ApiException
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProvider.{NotebookAuthCacheKey, SamCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent._
 
 case class UnknownLeoAuthAction(action: LeoAuthAction)
   extends LeoException(s"SamAuthProvider has no mapping for authorization action ${action.toString}, and is therefore probably out of date.", StatusCodes.InternalServerError)
@@ -26,7 +26,11 @@ object SamAuthProvider {
   private[sam] case class NotebookAuthCacheKey(userInfo: UserInfo, action: NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName, executionContext: ExecutionContext) extends SamCacheKey
 }
 
-class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(config, serviceAccountProvider) with SamProvider with LazyLogging {
+class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(config, serviceAccountProvider) with SamProvider {
+
+  // This causes Leo to try Sam calls up to 3 times, sleeping 100 milliseconds between each try
+  private val samRetryInterval = 100 milliseconds
+  private val samRetryTimeout = 200 milliseconds
 
   private lazy val notebookAuthCacheMaxSize = config.getAs[Int]("notebookAuthCacheMaxSize").getOrElse(1000)
   private lazy val notebookAuthCacheExpiryTime = config.getAs[FiniteDuration]("notebookAuthCacheExpiryTime").getOrElse(15 minutes)
@@ -76,7 +80,7 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     */
   override def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     Future {
-      samClient.hasActionOnBillingProjectResource(userInfo, googleProject, getProjectActionString(action))
+      blocking(samClient.hasActionOnBillingProjectResource(userInfo, googleProject, getProjectActionString(action)))
     }
   }
 
@@ -98,11 +102,11 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
   private def hasNotebookClusterPermissionInternal(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     // if action is connect, check only cluster resource. If action is anything else, either cluster or project must be true
     Future {
-      val hasNotebookAction = samClient.hasActionOnNotebookClusterResource(userInfo, googleProject,clusterName, getNotebookActionString(action))
+      val hasNotebookAction = blocking(samClient.hasActionOnNotebookClusterResource(userInfo, googleProject,clusterName, getNotebookActionString(action)))
       if (action == ConnectToCluster) {
         hasNotebookAction
       } else {
-        hasNotebookAction || samClient.hasActionOnBillingProjectResource(userInfo, googleProject, getProjectActionString(action))
+        hasNotebookAction || blocking(samClient.hasActionOnBillingProjectResource(userInfo, googleProject, getProjectActionString(action)))
       }
     }
   }
@@ -117,8 +121,8 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     */
   override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterName)])(implicit executionContext: ExecutionContext): Future[List[(GoogleProject, ClusterName)]] = {
     for {
-      owningProjects <- Future(samClient.listOwningProjects(userInfo).toSet)
-      createdClusters <- Future(samClient.listCreatedClusters(userInfo).toSet)
+      owningProjects <- Future(blocking(samClient.listOwningProjects(userInfo)).toSet)
+      createdClusters <- Future(blocking(samClient.listCreatedClusters(userInfo)).toSet)
     } yield {
       clusters.filter { case (project, name) =>
         owningProjects.contains(project) || createdClusters.contains((project, name))
@@ -140,8 +144,16 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
   override def notifyClusterCreated(creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    Future {
-      samClient.createNotebookClusterResource(creatorEmail, googleProject, clusterName)
+    retryUntilSuccessOrTimeout(shouldInvalidateSamCacheAndRetry, "SamAuthProvider.notifyClusterCreated call failed")(samRetryInterval, samRetryTimeout) { () =>
+      Future {
+        blocking(samClient.createNotebookClusterResource(creatorEmail, googleProject, clusterName))
+      }.recover {
+        case e if shouldInvalidateSamCacheAndRetry(e) =>
+          // invalidate the pet token cache between retries in case it contains stale entries
+          // See https://github.com/DataBiosphere/leonardo/issues/290
+          samClient.invalidatePetAccessToken(creatorEmail, googleProject)
+          throw e
+      }
     }
   }
 
@@ -157,8 +169,28 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
   override def notifyClusterDeleted(userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    Future {
-      samClient.deleteNotebookClusterResource(creatorEmail, googleProject, clusterName)
+    retryUntilSuccessOrTimeout(shouldInvalidateSamCacheAndRetry, "SamAuthProvider.notifyClusterDeleted call failed")(samRetryInterval, samRetryTimeout) { () =>
+      Future {
+        blocking(samClient.deleteNotebookClusterResource(creatorEmail, googleProject, clusterName))
+      }.recover {
+        case e if shouldInvalidateSamCacheAndRetry(e) =>
+          // invalidate the pet token cache between retries in case it contains stale entries
+          // See https://github.com/DataBiosphere/leonardo/issues/290
+          samClient.invalidatePetAccessToken(creatorEmail, googleProject)
+          throw e
+      }
     }
   }
+
+  private def shouldInvalidateSamCacheAndRetry(t: Throwable): Boolean = {
+    t match {
+      // invalidate and retry 401s because the pet token cached in SwaggerSamClient might be stale
+      case e: ApiException if e.getCode == 401 => true
+      // always invalidate and retry 500 errors
+      case e: ApiException if e.getCode / 100 == 5 => true
+      // otherwise don't retry
+      case _ => false
+    }
+  }
+
 }
