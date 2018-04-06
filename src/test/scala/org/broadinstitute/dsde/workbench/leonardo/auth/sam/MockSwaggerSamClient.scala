@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.auth.sam
 
 import java.io.File
 
+import io.swagger.client.ApiException
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -19,10 +20,12 @@ class MockSwaggerSamClient extends SwaggerSamClient("fake/path", new FiniteDurat
   val userProxy = "PROXY_1234567890@dev.test.firecloud.org"
   val serviceAccount = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
 
+  @throws[ApiException]
   override def createNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
     notebookClusters += (googleProject, clusterName, userEmail) -> Set("status", "connect", "sync", "delete", "read_policies")
   }
 
+  @throws[ApiException]
   override def deleteNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
     notebookClusters.remove((googleProject, clusterName, userEmail))
   }
