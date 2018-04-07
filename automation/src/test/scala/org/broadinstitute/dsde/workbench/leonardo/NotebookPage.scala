@@ -76,8 +76,12 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     findAll(prompts).exists { e => e.text == s"In [$cellNumber]:" }
   }
 
+  lazy val kernelNotification: Query = cssSelector("[id='notification_kernel']")
+
   // can we see that the kernel connection has terminated?
-  lazy val kernelTerminatedModalBody: Query = cssSelector("[class='modal-body']")
+  def isKernelShutdown: Boolean = {
+    find(kernelNotification).exists { e => e.text == "No kernel" }
+  }
 
   def runAllCells(timeoutSeconds: Long): Unit = {
     click on cellMenu
@@ -140,6 +144,6 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     click on kernelMenu
     click on (await enabled shutdownKernelSelection)
     click on (await enabled shutdownKernelConfirmationSelection)
-    await enabled kernelTerminatedModalBody
+    await condition isKernelShutdown
   }
 }
