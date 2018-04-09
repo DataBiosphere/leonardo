@@ -55,7 +55,7 @@ fi
 COMMAND=$1
 TARGET=${2:-leonardo}
 CONTAINER=${3:-leonardo-mysql}
-CONTAINER2=${3:-mysql}
+CONTAINER2=mysql
 
 if [ ${#@} == 0 ]; then
     echo "Usage: $0 stop|start"
