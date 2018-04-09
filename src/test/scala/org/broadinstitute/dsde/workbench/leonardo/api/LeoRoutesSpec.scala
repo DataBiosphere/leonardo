@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
 import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.model.headers.OAuth2BearerToken
+import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken, `Set-Cookie`}
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.testkit.TestDuration
 import org.broadinstitute.dsde.workbench.model.UserInfo
@@ -12,6 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.{FlatSpec, Matchers}
+
 import scala.concurrent.duration._
 import spray.json._
 
@@ -22,9 +23,12 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
 
   private val googleProject = GoogleProject("test-project")
   private val clusterName = ClusterName("test-cluster")
+  private val tokenName = "LeoToken"
+  private val tokenValue = "accessToken"
+  private val tokenCookie = HttpCookiePair(tokenName, tokenValue)
 
   val invalidUserLeoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with MockUserInfoDirectives {
-    override val userInfo: UserInfo =  UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("badUser"), WorkbenchEmail("badUser@example.com"), 0)
+    override val userInfo: UserInfo =  UserInfo(OAuth2BearerToken(tokenValue), WorkbenchUserId("badUser"), WorkbenchEmail("badUser@example.com"), 0)
   }
 
   "LeoRoutes" should "200 on ping" in {
@@ -48,9 +52,22 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   it should "200 when creating and getting cluster" in isolatedDbTest {
     val newCluster = ClusterRequest(Map.empty, Some(extensionPath), Some(userScriptPath))
 
+    // cache should not initially contain the token
+    proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe false
+
     Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~>
       leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
+
+      val setCookie = header[`Set-Cookie`]
+      setCookie shouldBe 'defined
+      val cookie = setCookie.get.cookie
+      cookie.name shouldBe tokenCookie.name
+      cookie.value shouldBe tokenCookie.value
+      cookie.secure shouldBe true
+//      cookie.maxAge.map(a => ((9 + a) / 10) * 10) shouldBe Some(tokenMaxAge)   // round up to nearest 10, test execution loses some milliseconds
+      cookie.domain shouldBe None
+      cookie.path shouldBe Some("/")
     }
 
     Get(s"/api/cluster/${googleProject.value}/${clusterName.value}") ~> leoRoutes.route ~> check {

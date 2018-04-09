@@ -133,7 +133,7 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport { self: LazyLoggin
   /**
     * Sets a token cookie in the HTTP response.
     */
-  private def setTokenCookie(userInfo: UserInfo): Directive0 = {
+  private[api] def setTokenCookie(userInfo: UserInfo): Directive0 = {
     setCookie(buildCookie(userInfo))
   }
 

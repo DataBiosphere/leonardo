@@ -50,9 +50,11 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
       path("cluster" / Segment / Segment) { (googleProject, clusterName) =>
         put {
           entity(as[ClusterRequest]) { cluster =>
-            complete {
-              leonardoService.createCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName), cluster).map { cluster =>
-                StatusCodes.OK -> cluster
+            setTokenCookie(userInfo) {
+              complete {
+                leonardoService.createCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName), cluster).map { cluster =>
+                  StatusCodes.OK -> cluster
+                }
               }
             }
           }
