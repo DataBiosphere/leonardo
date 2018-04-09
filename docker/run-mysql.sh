@@ -5,8 +5,9 @@ MYSQL_VERSION=5.6
 start() {
 
     echo "attempting to remove old $CONTAINER container..."
-    docker rm -f $CONTAINER || echo "docker rm failed. nothing to rm."
-    docker rm -f $CONTAINER2 || echo "docker rm failed. nothing to rm."
+    docker rm -f $CONTAINER || echo "docker rm failed. $CONTAINER not found."
+    echo "attempting to remove old $CONTAINER2 container..."
+    docker rm -f $CONTAINER2 || echo "docker rm failed. $CONTAINER2 not found."
 
     # start up mysql
     echo "starting up mysql container..."
@@ -38,11 +39,12 @@ start() {
 
 stop() {
     echo "Stopping docker $CONTAINER container..."
-    docker stop $CONTAINER || echo "mysql stop failed. container already stopped."
-    docker rm -v $CONTAINER || echo "mysql rm -v failed.  container already destroyed."
+    docker stop $CONTAINER || echo "mysql stop failed. container $CONTAINER already stopped."
+    docker rm -v $CONTAINER || echo "mysql rm -v failed.  container $CONTAINER already destroyed."
 
-    docker stop $CONTAINER2 || echo "mysql stop failed. container already stopped."
-    docker rm -v $CONTAINER2 || echo "mysql rm -v failed.  container already destroyed."
+    echo "Stopping docker $CONTAINER2 container..."
+    docker stop $CONTAINER2 || echo "mysql stop failed. container $CONTAINER2 already stopped."
+    docker rm -v $CONTAINER2 || echo "mysql rm -v failed.  container $CONTAINER2 already destroyed."
 }
 
 CONTAINER=mysql
