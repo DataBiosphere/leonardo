@@ -26,7 +26,7 @@ start() {
                --link $CONTAINER:mysql \
                -v $PWD/docker/sql_validate.sh:/working/sql_validate.sh \
                mysql:$MYSQL_VERSION \
-               /working/sql_validate.sh leonardo
+               /working/sql_validate.sh $TARGET
 
     if [ 0 -eq $? ]; then
         echo "mysql validation succeeded."
@@ -47,15 +47,15 @@ stop() {
     docker rm -v $CONTAINER2 || echo "mysql rm -v failed.  container $CONTAINER2 already destroyed."
 }
 
-CONTAINER=mysql
-CONTAINER2=leonardo-mysql
-
 if [ ${#@} == 0 ]; then
     echo "Usage: $0 stop|start <service>"
     exit 1
 fi
 
 COMMAND=$1
+TARGET=${2:-leonardo}
+CONTAINER=${3:-leonardo-mysql}
+CONTAINER2=mysql
 
 if [ ${#@} == 0 ]; then
     echo "Usage: $0 stop|start"
