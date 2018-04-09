@@ -2,7 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo.api
 
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
-import akka.http.scaladsl.testkit.ScalatestRouteTest
+import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
+import akka.testkit.TestDuration
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
@@ -11,9 +12,13 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.{FlatSpec, Matchers}
+import scala.concurrent.duration._
 import spray.json._
 
 class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with TestLeoRoutes with TestComponent {
+
+  // https://doc.akka.io/docs/akka-http/current/routing-dsl/testkit.html#increase-timeout
+  implicit val timeout = RouteTestTimeout(5.seconds dilated)
 
   private val googleProject = GoogleProject("test-project")
   private val clusterName = ClusterName("test-cluster")
