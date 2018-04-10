@@ -2,16 +2,13 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.io.File
 
-import org.broadinstitute.dsde.workbench.service.{Orchestration, RestException, Sam}
+import org.broadinstitute.dsde.workbench.service.{Orchestration, Sam}
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
 import org.broadinstitute.dsde.workbench.model.google.{GcsEntity, GcsObjectName, GcsPath, GoogleProject, parseGcsPath}
-import org.scalactic.source.Position
 import org.scalatest.{FreeSpec, ParallelTestExecution}
-
-import scala.util.{Success, Try}
 
 class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with ParallelTestExecution with BillingFixtures {
   "Leonardo clusters" - {
@@ -172,6 +169,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
             val firstCell = notebookPage.firstCell
             notebookPage.cellOutput(firstCell) shouldBe Some(printStr)
             // execute a new cell to make sure the notebook kernel still works
+            notebookPage.runAllCells(60)
             notebookPage.executeCell("sum(range(1,10))") shouldBe Some("45")
           }
         }
