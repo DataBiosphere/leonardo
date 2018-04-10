@@ -17,7 +17,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache.{ClusterReady, GetClusterResponse, ProcessReadyCluster}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterDeleted
@@ -136,11 +135,12 @@ class ClusterMonitorActor(val cluster: Cluster,
     */
   private def handleReadyCluster(publicIp: IP, instances: Set[Instance]): Future[ClusterMonitorMessage] = {
     for {
+      clusterStatus <- getDbClusterStatus
       // Remove credentials from instance metadata.
       // Only happens if an notebook service account was used.
-      _ <- removeCredentialsFromMetadata
+      _ <- if (clusterStatus == ClusterStatus.Creating) removeCredentialsFromMetadata else Future.successful(())
       // Ensure the cluster is ready for proxying but updating the IP -> DNS cache
-      _ <- ensureClusterReadyForProxying(publicIp)
+      _ <- ensureClusterReadyForProxying(publicIp, clusterStatus)
       // create or update instances in the DB
       _ <- persistInstances(instances)
       // update DB after auth futures finish
@@ -150,7 +150,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       // Remove the Dataproc Worker IAM role for the cluster service account.
       // Only happens if the cluster was created with a service account other
       // than the compute engine default service account.
-      _ <- removeIamRolesForUser
+      _ <- if (clusterStatus == ClusterStatus.Creating) removeIamRolesForUser else Future.successful(())
     } yield {
       // Finally pipe a shutdown message to this actor
       logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is ready for use!")
@@ -259,6 +259,8 @@ class ClusterMonitorActor(val cluster: Cluster,
     */
   private def checkCluster: Future[ClusterMonitorMessage] = {
     for {
+      clusterStatus <- getDbClusterStatus
+
       googleStatus <- gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName)
       googleInstances <- getClusterInstances
 
@@ -269,21 +271,21 @@ class ClusterMonitorActor(val cluster: Cluster,
         case Unknown | Creating | Updating =>
           Future.successful(NotReadyCluster(googleStatus, googleInstances))
         // Take care we don't restart a Deleting or Stopping cluster if google hasn't updated their status yet
-        case Running if cluster.status != Deleting && cluster.status != Stopping && runningInstanceCount == googleInstances.size =>
+        case Running if clusterStatus != Deleting && clusterStatus != Stopping && runningInstanceCount == googleInstances.size =>
           getMasterIp.map {
             case Some(ip) => ReadyCluster(ip, googleInstances)
             case None =>
               NotReadyCluster(ClusterStatus.Running, googleInstances)
           }
         // Take care we don't fail a Deleting or Stopping cluster if google hasn't updated their status yet
-        case Error if cluster.status != Deleting && cluster.status != Stopping =>
+        case Error if clusterStatus != Deleting && clusterStatus != Stopping =>
           gdDAO.getClusterErrorDetails(cluster.operationName).map {
             case Some(errorDetails) => FailedCluster(errorDetails, googleInstances)
             case None => NotReadyCluster(ClusterStatus.Error, googleInstances)
           }
         case Deleted => Future.successful(DeletedCluster)
         // if the cluster only contains stopped instances, it's a stopped cluster
-        case _ if cluster.status != Starting && cluster.status != Deleting && stoppedInstanceCount == googleInstances.size =>
+        case _ if clusterStatus != Starting && clusterStatus != Deleting && stoppedInstanceCount == googleInstances.size =>
           Future.successful(StoppedCluster(googleInstances))
         case _ => Future.successful(NotReadyCluster(googleStatus, googleInstances))
       }
@@ -362,10 +364,10 @@ class ClusterMonitorActor(val cluster: Cluster,
     }
   }
 
-  private def ensureClusterReadyForProxying(ip: IP): Future[Unit] = {
+  private def ensureClusterReadyForProxying(ip: IP, clusterStatus: ClusterStatus): Future[Unit] = {
     // Ensure if the cluster's IP has been picked up by the DNS cache and is ready for proxying.
     implicit val timeout: Timeout = Timeout(5 seconds)
-    (clusterDnsCache ? ProcessReadyCluster(cluster.copy(hostIp = Some(ip))))
+    (clusterDnsCache ? ProcessReadyCluster(cluster.copy(hostIp = Some(ip), status = clusterStatus)))
       .mapTo[Either[Throwable, GetClusterResponse]]
       .map {
         case Left(throwable) => throw throwable
@@ -386,5 +388,9 @@ class ClusterMonitorActor(val cluster: Cluster,
         // TODO https://github.com/DataBiosphere/leonardo/issues/128
         Future.successful(())
     }
+  }
+
+  private def getDbClusterStatus: Future[ClusterStatus] = {
+    dbRef.inTransaction { _.clusterQuery.getClusterStatus(cluster.googleId) } map { _.getOrElse(ClusterStatus.Unknown) }
   }
 }

@@ -236,6 +236,12 @@ trait ClusterComponent extends LeoComponent {
       clusterQuery.filter { _.googleId === googleId }.map(_.status).update(newStatus.toString)
     }
 
+    def getClusterStatus(googleId: UUID): DBIO[Option[ClusterStatus]] = {
+      clusterQuery.filter { _.googleId === googleId }.map(_.status).result.headOption map { statusOpt =>
+        statusOpt map (ClusterStatus.withName)
+      }
+    }
+
     def listByLabels(labelMap: LabelMap, includeDeleted: Boolean): DBIO[Seq[Cluster]] = {
       val clusterStatusQuery = if (includeDeleted) clusterQueryWithLabels else clusterQueryWithLabels.filterNot { _._1.status === "Deleted" }
 
