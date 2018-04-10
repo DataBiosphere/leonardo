@@ -23,13 +23,17 @@ class LocalizeHandler(IPythonHandler):
   @gen.coroutine
   def localize(self, pathdict):
     """Treats the given dict as a string/string map and sends it to gsutil."""
+    ok = True
     #This gets dropped inside the user's notebook working directory
     with open("localization.log", 'a', buffering=1) as locout:
       for key in pathdict:
         #NOTE: keys are destinations, values are sources
-        cmd = " ".join(["gsutil -m -q cp -R -c -e", self.sanitize(pathdict[key]), self.sanitize(key)])
-        locout.write(cmd + '\n')
-        subprocess.call(cmd, stderr=locout, shell=True)
+        cmd = ['gsutil', '-m', '-q', 'cp', '-R', '-c', '-e', self.sanitize(pathdict[key]), self.sanitize(key)]
+        locout.write(' '.join(cmd) + '\n')
+        code = subprocess.call(cmd, stderr=locout)
+        if code is not 0:
+          ok = False
+    return ok
 
   def post(self):
     try:
@@ -43,12 +47,26 @@ class LocalizeHandler(IPythonHandler):
     if not all(map(lambda v: type(v) is unicode, pathdict.values())):
       raise HTTPError(400, "Body must be JSON object of type string/string")
 
-    #complete the request HERE, without waiting for the localize to run
-    self.set_status(200)
-    self.finish()
+    synchronous = self.get_query_argument('sync', False)
 
-    #fire and forget the actual work -- it'll log to a file in the user's homedir
-    tornado.ioloop.IOLoop.current().spawn_callback(self.localize, pathdict)
+    if not synchronous:
+      #complete the request HERE, without waiting for the localize to run
+      self.set_status(200)
+      self.finish()
+
+      #fire and forget the actual work -- it'll log to a file in the user's homedir
+      tornado.ioloop.IOLoop.current().spawn_callback(self.localize, pathdict)
+
+    else:
+      #run localize synchronous to the HTTP request
+      ok = self.localize(pathdict)
+
+      #complete the request only after localize completes
+      if not ok:
+        raise HTTPError(500, "Error occurred during localization. See localization.log for details.")
+      else:
+        self.set_status(200)
+        self.finish()
 
 def load_jupyter_server_extension(nb_server_app):
   """Entrypoint for the Jupyter extension."""
