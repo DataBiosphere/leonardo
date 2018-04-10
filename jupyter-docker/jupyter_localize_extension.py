@@ -59,7 +59,8 @@ class LocalizeHandler(IPythonHandler):
 
     else:
       #run localize synchronous to the HTTP request
-      ok = self.localize(pathdict)
+      #run_sync() doesn't take arguments, so we must wrap the call in a lambda.
+      ok = tornado.ioloop.IOLoop().run_sync(lambda: self.localize(pathdict))
 
       #complete the request only after localize completes
       if not ok:
