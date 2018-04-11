@@ -5,24 +5,26 @@ import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, LeoAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 
 object ClusterMonitorSupervisor {
-  def props(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider): Props =
-    Props(new ClusterMonitorSupervisor(monitorConfig, dataprocConfig, gdDAO, googleIamDAO, googleStorageDAO, dbRef, clusterDnsCache, authProvider))
+  def props(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider): Props =
+    Props(new ClusterMonitorSupervisor(monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, clusterDnsCache, authProvider))
 
   sealed trait ClusterSupervisorMessage
   case class RegisterLeoService(service: LeonardoService) extends ClusterSupervisorMessage
   case class ClusterCreated(cluster: Cluster) extends ClusterSupervisorMessage
   case class ClusterDeleted(cluster: Cluster, recreate: Boolean = false) extends ClusterSupervisorMessage
   case class RecreateCluster(cluster: Cluster) extends ClusterSupervisorMessage
+  case class ClusterStopped(cluster: Cluster) extends ClusterSupervisorMessage
+  case class ClusterStarted(cluster: Cluster) extends ClusterSupervisorMessage
 }
 
-class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider) extends Actor with LazyLogging {
+class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider) extends Actor with LazyLogging {
   import context.dispatcher
 
   var leoService: LeonardoService = _
@@ -53,10 +55,18 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
       } else {
         logger.warn(s"Received RecreateCluster message for cluster ${cluster.projectNameString} but cluster recreation is disabled.")
       }
+
+    case ClusterStopped(cluster) =>
+      logger.info(s"Monitoring cluster ${cluster.projectNameString} after stopping.")
+      startClusterMonitorActor(cluster)
+
+    case ClusterStarted(cluster) =>
+      logger.info(s"Monitoring cluster ${cluster.projectNameString} after starting.")
+      startClusterMonitorActor(cluster)
   }
 
   def createChildActor(cluster: Cluster): ActorRef = {
-    context.actorOf(ClusterMonitorActor.props(cluster, monitorConfig, dataprocConfig, gdDAO, googleIamDAO, googleStorageDAO, dbRef, clusterDnsCache, authProvider))
+    context.actorOf(ClusterMonitorActor.props(cluster, monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, clusterDnsCache, authProvider))
   }
 
   def startClusterMonitorActor(cluster: Cluster, recreate: Boolean = false): Unit = {

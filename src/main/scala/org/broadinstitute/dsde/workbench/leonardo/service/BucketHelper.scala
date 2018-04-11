@@ -5,7 +5,7 @@ import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.model.{ServiceAccountInfo, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -20,6 +20,7 @@ import scala.concurrent.{ExecutionContext, Future}
   */
 class BucketHelper(dataprocConfig: DataprocConfig,
                    gdDAO: GoogleDataprocDAO,
+                   googleComputeDAO: GoogleComputeDAO,
                    googleStorageDAO: GoogleStorageDAO,
                    serviceAccountProvider: ServiceAccountProvider)
                   (implicit val executionContext: ExecutionContext) extends LazyLogging {
@@ -93,7 +94,7 @@ class BucketHelper(dataprocConfig: DataprocConfig,
 
   private def getBucketSAs(googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo): Future[List[GcsEntity]] = {
     // cluster SA orElse compute engine default SA
-    val clusterOrComputeDefault = OptionT.fromOption[Future](serviceAccountInfo.clusterServiceAccount) orElse OptionT(gdDAO.getComputeEngineDefaultServiceAccount(googleProject))
+    val clusterOrComputeDefault = OptionT.fromOption[Future](serviceAccountInfo.clusterServiceAccount) orElse OptionT(googleComputeDAO.getComputeEngineDefaultServiceAccount(googleProject))
 
     // List(cluster or default SA, notebook SA) if they exist
     clusterOrComputeDefault.value.map { clusterOrDefaultSAOpt =>
