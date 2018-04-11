@@ -59,27 +59,28 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
             }
           }
         } ~
-          get {
-            setTokenCookie(userInfo) {
-              complete {
-                leonardoService.getActiveClusterDetails(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { clusterDetails =>
-                  StatusCodes.OK -> clusterDetails
-                }
-              }
-            }
-          } ~
-          delete {
-            setTokenCookie(userInfo) {
-              complete {
-                leonardoService.deleteCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
-                  StatusCodes.Accepted
-                }
+        get {
+          setTokenCookie(userInfo) {
+            complete {
+              leonardoService.getActiveClusterDetails(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { clusterDetails =>
+                StatusCodes.OK -> clusterDetails
               }
             }
           }
+        } ~
+        delete {
+          setTokenCookie(userInfo) {
+            complete {
+              leonardoService.deleteCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
+                StatusCodes.Accepted
+              }
+            }
+          }
+        }
       } ~
-        path("clusters") {
-          parameterMap { params =>
+      path("clusters") {
+        parameterMap { params =>
+          setTokenCookie(userInfo) {
             complete {
               leonardoService.listClusters(userInfo, params).map { clusters =>
                 StatusCodes.OK -> clusters
@@ -87,6 +88,7 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
             }
           }
         }
+      }
     }
 
   def route: Route = (logRequestResult & handleExceptions(myExceptionHandler)) {

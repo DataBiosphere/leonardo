@@ -74,8 +74,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
 
-      val setCookie = header[`Set-Cookie`]
-      validateCookie(setCookie)
+      validateCookie { header[`Set-Cookie`] }
     }
 
     Get(s"/api/cluster/${googleProject.value}/${clusterName.value}") ~> timedLeoRoutes.route ~> check {
@@ -86,8 +85,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       responseCluster.serviceAccountInfo.notebookServiceAccount shouldEqual serviceAccountProvider.getNotebookServiceAccount(defaultUserInfo, googleProject).futureValue
       responseCluster.jupyterExtensionUri shouldEqual Some(extensionPath)
 
-      val setCookie = header[`Set-Cookie`]
-      validateCookie(setCookie)
+      validateCookie { header[`Set-Cookie`] }
     }
   }
 
@@ -118,8 +116,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
     Delete(s"/api/cluster/${googleProject.value}/${clusterName.value}") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
 
-      val setCookie = header[`Set-Cookie`]
-      validateCookie(setCookie)
+      validateCookie { header[`Set-Cookie`] }
     }
   }
 
@@ -130,9 +127,11 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "200 when listing no clusters" in isolatedDbTest {
-    Get("/api/clusters") ~> leoRoutes.route ~> check {
+    Get("/api/clusters") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[List[Cluster]] shouldBe 'empty
+
+      validateCookie { header[`Set-Cookie`] }
     }
   }
 
@@ -144,7 +143,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       }
     }
 
-    Get("/api/clusters") ~> leoRoutes.route ~> check {
+    Get("/api/clusters") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
       val responseClusters = responseAs[List[Cluster]]
       responseClusters should have size 10
@@ -157,6 +156,8 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
           "creator" -> "user1@example.com",
           "googleProject" -> googleProject.value) ++ serviceAccountLabels
       }
+
+      validateCookie { header[`Set-Cookie`] }
     }
   }
 
@@ -168,10 +169,12 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       }
     }
 
-    Get("/api/clusters?label6=value6") ~> leoRoutes.route ~> check {
+    Get("/api/clusters?label6=value6") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
+
       val responseClusters = responseAs[List[Cluster]]
       responseClusters should have size 1
+
       val cluster = responseClusters.head
       cluster.googleProject shouldEqual googleProject
       cluster.clusterName shouldEqual ClusterName("test-cluster-6")
@@ -182,12 +185,16 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
         "creator" -> "user1@example.com",
         "googleProject" -> googleProject.value,
         "label6" -> "value6") ++ serviceAccountLabels
+
+      validateCookie { header[`Set-Cookie`] }
     }
 
-    Get("/api/clusters?_labels=label4%3Dvalue4") ~> leoRoutes.route ~> check {
+    Get("/api/clusters?_labels=label4%3Dvalue4") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
+
       val responseClusters = responseAs[List[Cluster]]
       responseClusters should have size 1
+
       val cluster = responseClusters.head
       cluster.googleProject shouldEqual googleProject
       cluster.clusterName shouldEqual ClusterName("test-cluster-4")
@@ -198,6 +205,8 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
         "creator" -> "user1@example.com",
         "googleProject" -> googleProject.value,
         "label4" -> "value4") ++ serviceAccountLabels
+
+      validateCookie { header[`Set-Cookie`] }
     }
 
     Get("/api/clusters?_labels=bad") ~> leoRoutes.route ~> check {
