@@ -46,6 +46,9 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   // File -> Download as -> ipynb
   lazy val downloadSelection: Query = cssSelector("[id='download_ipynb']")
 
+  // File -> Save and Checkpoint
+  lazy val saveAndCheckpointSelection: Query = cssSelector("[id='save_checkpoint']")
+
   // Cell -> Run All Cells
   lazy val runAllCellsSelection: Query = cssSelector("[id='run_all_cells']")
 
@@ -97,11 +100,20 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     click on (await enabled downloadSelection)
   }
 
+  def saveAndCheckpoint(): Unit = {
+    click on fileMenu
+    click on (await enabled saveAndCheckpointSelection)
+  }
+
   lazy val cells: Query = cssSelector(".CodeMirror")
 
   def lastCell: (Int, WebElement) = {
     val asList = webDriver.findElements(cells.by).asScala.toList
     (asList.length, asList.last)
+  }
+
+  def firstCell: WebElement = {
+    webDriver.findElements(cells.by).asScala.toList.head
   }
 
   def cellOutput(cell: WebElement): Option[String] = {
@@ -112,6 +124,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   def executeCell(code: String, timeout: FiniteDuration = 1 minute): Option[String] = {
     await enabled cells
     val (cellNumber, cell) = lastCell
+    click on cell
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
     executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
     click on runCellButton

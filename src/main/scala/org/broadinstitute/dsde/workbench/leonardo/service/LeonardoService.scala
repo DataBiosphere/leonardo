@@ -10,21 +10,22 @@ import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
+import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, SecondaryWorker, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted, RegisterLeoService}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import slick.dbio.DBIO
 import spray.json._
 
+import scala.collection.immutable
 import scala.collection.Map
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.Source
@@ -62,6 +63,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val proxyConfig: ProxyConfig,
                       protected val swaggerConfig: SwaggerConfig,
                       protected val gdDAO: GoogleDataprocDAO,
+                      protected val googleComputeDAO: GoogleComputeDAO,
                       protected val googleIamDAO: GoogleIamDAO,
                       protected val leoGoogleStorageDAO: GoogleStorageDAO,
                       protected val petGoogleStorageDAO: String => GoogleStorageDAO,
@@ -82,6 +84,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     ports = List(FirewallRulePort(proxyConfig.jupyterPort.toString)),
     network = FirewallRuleNetwork(proxyConfig.firewallVPCNetwork),
     targetTags = List(NetworkTag(proxyConfig.networkTag)))
+
+  // Startup script to install on the cluster master node. This is needed to support pause/resume clusters.
+  private lazy val masterInstanceStartupScript: immutable.Map[String, String] = {
+    immutable.Map("startup-script" -> s"docker exec -d ${dataprocConfig.jupyterServerName} /usr/local/bin/jupyter notebook")
+  }
 
   def isWhitelisted(userInfo: UserInfo): Future[Boolean] = {
     if( whitelist contains userInfo.userEmail.value.toLowerCase ) {
@@ -200,12 +207,89 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         // Delete the cluster in Google
         _ <- gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)
         // Change the cluster status to Deleting in the database
+        // Note this also changes the instance status to Deleting
         _ <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.googleId))
       } yield {
         // Notify the cluster monitor supervisor of cluster deletion.
         // This will kick off polling until the cluster is actually deleted in Google.
-        clusterMonitorSupervisor ! ClusterDeleted(cluster)
+        clusterMonitorSupervisor ! ClusterDeleted(cluster.copy(status = ClusterStatus.Deleting))
       }
+    } else Future.successful(())
+  }
+
+  def stopCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Unit] = {
+    for {
+      //throws 404 if no permissions
+      cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
+
+      //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually stop it
+      _ <- checkClusterPermission(userInfo, StopStartCluster, cluster, throw401 = true)
+
+      _ <- internalStopCluster(userInfo.userEmail, cluster)
+    } yield ()
+  }
+
+  def internalStopCluster(userEmail: WorkbenchEmail, cluster: Cluster): Future[Unit] = {
+    if (cluster.status.isStoppable) {
+      for {
+        // First remove all its preemptible instances in Google, if any
+        _ <- if (cluster.machineConfig.numberOfPreemptibleWorkers.exists(_ > 0))
+               gdDAO.resizeCluster(cluster.googleProject, cluster.clusterName, numPreemptibles = Some(0))
+             else Future.successful(())
+
+        // Now stop each instance individually
+        _ <- Future.traverse(cluster.nonPreemptibleInstances) { instance =>
+          // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
+          instance.dataprocRole match {
+            case Some(Master) =>
+              googleComputeDAO.addInstanceMetadata(instance.key, masterInstanceStartupScript).flatMap { _ =>
+                googleComputeDAO.stopInstance(instance.key)
+              }
+            case _ =>
+              googleComputeDAO.stopInstance(instance.key)
+          }
+        }
+
+        // Update the cluster status to Stopping
+        _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Stopping) }
+      } yield {
+        clusterMonitorSupervisor ! ClusterStopped(cluster.copy(status = ClusterStatus.Stopping))
+      }
+
+    } else Future.successful(())
+  }
+
+  def startCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Unit] = {
+    for {
+      //throws 404 if no permissions
+      cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
+
+      //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually stop it
+      _ <- checkClusterPermission(userInfo, StopStartCluster, cluster, throw401 = true)
+
+      _ <- internalStartCluster(userInfo.userEmail, cluster)
+    } yield ()
+  }
+
+  def internalStartCluster(userEmail: WorkbenchEmail, cluster: Cluster): Future[Unit] = {
+    if (cluster.status.isStartable) {
+      for {
+        // Add back the preemptible instances
+        _ <- if (cluster.machineConfig.numberOfPreemptibleWorkers.exists(_ > 0))
+               gdDAO.resizeCluster(cluster.googleProject, cluster.clusterName, numPreemptibles = cluster.machineConfig.numberOfPreemptibleWorkers)
+             else Future.successful(())
+
+        // Start each instance individually
+        _ <- Future.traverse(cluster.nonPreemptibleInstances) { instance =>
+          googleComputeDAO.startInstance(instance.key)
+        }
+
+        // Update the cluster status to Starting
+        _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Starting) }
+      } yield {
+        clusterMonitorSupervisor ! ClusterStarted(cluster.copy(status = ClusterStatus.Starting))
+      }
+
     } else Future.successful(())
   }
 
@@ -246,7 +330,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       _ <- validateBucketObjectUri(userEmail, googleProject, clusterRequest.jupyterExtensionUri)
       _ <- validateBucketObjectUri(userEmail, googleProject, clusterRequest.jupyterUserScriptUri)
       // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
-      _ <- gdDAO.updateFirewallRule(googleProject, firewallRule)
+      _ <- googleComputeDAO.updateFirewallRule(googleProject, firewallRule)
       // Generate a service account key for the notebook service account (if present) to localize on the cluster.
       // We don't need to do this for the cluster service account because its credentials are already
       // on the metadata server.
