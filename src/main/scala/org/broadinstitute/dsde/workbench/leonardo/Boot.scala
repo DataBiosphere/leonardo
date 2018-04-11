@@ -12,7 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.api.{LeoRoutes, StandardUserIn
 import org.broadinstitute.dsde.workbench.leonardo.auth.{LeoAuthProviderHelper, ServiceAccountProviderHelper}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SamConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.HttpGoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.{HttpGoogleComputeDAO, HttpGoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, NetworkTag}
@@ -68,19 +68,20 @@ object Boot extends App with LazyLogging {
       dbRef.database.close()
     }
 
-    val petGoogleDAO: String => GoogleStorageDAO = token => {
+    val petGoogleStorageDAO: String => GoogleStorageDAO = token => {
       new HttpGoogleStorageDAO(dataprocConfig.applicationName, Token(() => token), "google")
     }
 
     val (leoServiceAccountEmail, leoServiceAccountPemFile) = serviceAccountProvider.getLeoServiceAccountAndKey
     val gdDAO = new HttpGoogleDataprocDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google", NetworkTag(proxyConfig.networkTag), dataprocConfig.dataprocDefaultRegion)
+    val googleComputeDAO = new HttpGoogleComputeDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google")
     val googleIamDAO = new HttpGoogleIamDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google")
     val googleStorageDAO = new HttpGoogleStorageDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google")
     val samDAO = new HttpSamDAO(samConfig.server)
     val clusterDnsCache = system.actorOf(ClusterDnsCache.props(proxyConfig, dbRef))
-    val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, googleStorageDAO, serviceAccountProvider)
-    val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO, googleIamDAO, googleStorageDAO, dbRef, clusterDnsCache, authProvider))
-    val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, googleIamDAO, googleStorageDAO, petGoogleDAO, dbRef, clusterMonitorSupervisor, authProvider, serviceAccountProvider, whitelist, bucketHelper)
+    val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, googleComputeDAO, googleStorageDAO, serviceAccountProvider)
+    val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, clusterDnsCache, authProvider))
+    val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, petGoogleStorageDAO, dbRef, clusterMonitorSupervisor, authProvider, serviceAccountProvider, whitelist, bucketHelper)
     val proxyService = new ProxyService(proxyConfig, gdDAO, dbRef, clusterDnsCache, authProvider)
     val statusService = new StatusService(gdDAO, samDAO, dbRef, dataprocConfig)
     val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with StandardUserInfoDirectives
@@ -102,6 +103,8 @@ object Boot extends App with LazyLogging {
       case Success(clusters) =>
         clusters.foreach {
           case c if c.status == ClusterStatus.Deleting => clusterMonitor ! ClusterDeleted(c)
+          case c if c.status == ClusterStatus.Stopping => clusterMonitor ! ClusterStopped(c)
+          case c if c.status == ClusterStatus.Starting => clusterMonitor ! ClusterStarted(c)
           case c => clusterMonitor ! ClusterCreated(c)
         }
       case Failure(e) =>

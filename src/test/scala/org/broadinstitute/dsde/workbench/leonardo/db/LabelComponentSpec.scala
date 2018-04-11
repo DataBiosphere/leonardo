@@ -32,7 +32,9 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTest
       jupyterExtensionUri = Some(jupyterExtensionUri),
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
       Some(GcsBucketName("testStagingBucket1")),
-      List.empty)
+      List.empty,
+      Set.empty
+    )
 
     val c2 = Cluster(
       clusterName = name2,
@@ -51,7 +53,9 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTest
       None,
       None,
       Some(GcsBucketName("testStagingBucket2")),
-      List.empty)
+      List.empty,
+      Set.empty,
+    )
 
     val c2Map = Map("bam" -> "true", "sample" -> "NA12878")
 

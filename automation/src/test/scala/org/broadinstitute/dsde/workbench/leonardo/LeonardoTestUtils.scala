@@ -18,6 +18,7 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject, ServiceAccountName, generateUniqueBucketName}
 import org.broadinstitute.dsde.workbench.util.LocalFileUtil
 import org.openqa.selenium.WebDriver
+import org.scalactic.source.Position
 import org.scalatest.{Matchers, Suite}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Minutes, Seconds, Span}
@@ -56,7 +57,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   val saPatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
   val storagePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
   val tenSeconds = FiniteDuration(10, SECONDS)
-
+  val startPatience = PatienceConfig(timeout = scaled(Span(5, Minutes)), interval = scaled(Span(1, Seconds)))
 
   // TODO: show diffs as screenshot or other test output?
   def compareFilesExcludingIPs(left: File, right: File): Unit = {
@@ -168,6 +169,56 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
   }
 
+  def stopAndMonitor(googleProject: GoogleProject, clusterName: ClusterName)(implicit webDriver: WebDriver, token: AuthToken): Unit = {
+    Leonardo.cluster.stop(googleProject, clusterName) shouldBe
+      "The request has been accepted for processing, but the processing has not been completed."
+
+    // verify with get()
+    val stoppingCluster = Leonardo.cluster.get(googleProject, clusterName)
+    stoppingCluster.status shouldBe ClusterStatus.Stopping
+
+    // wait until in Stopped state
+    implicit val patienceConfig: PatienceConfig = clusterPatience
+    eventually {
+      val status = Leonardo.cluster.get(googleProject, clusterName).status
+      status shouldBe ClusterStatus.Stopped
+    }
+
+    // Verify notebook error
+    val caught = the [RestException] thrownBy {
+      Leonardo.notebooks.getApi(googleProject, clusterName)
+    }
+    caught.message shouldBe s"""{"statusCode":422,"source":"leonardo","causes":[],"exceptionClass":"org.broadinstitute.dsde.workbench.leonardo.service.ClusterPausedException","stackTrace":[],"message":"Cluster ${googleProject.value}/${clusterName.string} is stopped. Start your cluster before proceeding."}"""
+  }
+
+  def startAndMonitor(googleProject: GoogleProject, clusterName: ClusterName)(implicit webDriver: WebDriver, token: AuthToken): Unit = {
+    Leonardo.cluster.start(googleProject, clusterName) shouldBe
+      "The request has been accepted for processing, but the processing has not been completed."
+
+    // verify with get()
+    val stoppingCluster = Leonardo.cluster.get(googleProject, clusterName)
+    stoppingCluster.status shouldBe ClusterStatus.Starting
+
+    // wait until in Running state
+    implicit val patienceConfig: PatienceConfig = clusterPatience
+    eventually {
+      val status = Leonardo.cluster.get(googleProject, clusterName).status
+      status shouldBe ClusterStatus.Running
+    }
+
+    // TODO cluster is not proxyable yet even after Google says it's ok
+    eventually {
+      logger.info("Checking if cluster is proxyable yet")
+      val getResult = Try(Leonardo.notebooks.getApi(googleProject, clusterName))
+      getResult.isSuccess shouldBe true
+      getResult.get should not include "ProxyException"
+
+    }(startPatience, implicitly[Position])
+
+    logger.info("Sleeping 1 minute to make sure restarted cluster is proxyable")
+    Thread.sleep(60*1000)
+  }
+
   def randomClusterName: ClusterName = ClusterName(s"automation-test-a${makeRandomId().toLowerCase}z")
 
   def defaultClusterRequest: ClusterRequest = ClusterRequest(Map("foo" -> makeRandomId()))
@@ -275,6 +326,14 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   def withNewNotebook[T](cluster: Cluster, kernel: Kernel = Python2)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
       notebooksListPage.withNewNotebook(kernel) { notebookPage =>
+        testCode(notebookPage)
+      }
+    }
+  }
+
+  def withOpenNotebook[T](cluster: Cluster, notebookPath: File)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+    withNotebooksListPage(cluster) { notebooksListPage =>
+      notebooksListPage.withOpenNotebook(notebookPath) { notebookPage =>
         testCode(notebookPage)
       }
     }

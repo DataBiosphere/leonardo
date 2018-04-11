@@ -5,6 +5,8 @@ import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.model.headers.{Cookie, HttpCookiePair}
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
+import com.fasterxml.jackson.databind.DeserializationFeature
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.service.RestClient
@@ -33,9 +35,9 @@ object Leonardo extends RestClient with LazyLogging {
   }
 
   object cluster {
-
     // TODO: custom JSON deserializer
     // the default doesn't handle some fields correctly so here they're strings
+    @JsonIgnoreProperties(ignoreUnknown = true)
     private case class ClusterKluge(clusterName: ClusterName,
                                     googleId: UUID,
                                     googleProject: String,
@@ -75,7 +77,11 @@ object Leonardo extends RestClient with LazyLogging {
     }
 
     def handleClusterResponse(response: String): Cluster = {
-      mapper.readValue(response, classOf[ClusterKluge]).toCluster
+      // TODO: the Leo API returns instances which are not recognized by this JSON parser.
+      // Ingoring unknown properties to work around it.
+      // ClusterKluge will be removed anyway in https://github.com/DataBiosphere/leonardo/pull/236
+      val newMapper = mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+      newMapper.readValue(response, classOf[ClusterKluge]).toCluster
     }
 
     def handleClusterSeqResponse(response: String): List[Cluster] = {
@@ -119,6 +125,18 @@ object Leonardo extends RestClient with LazyLogging {
       deleteRequest(url + path)
     }
 
+    def stop(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): String = {
+      val path = clusterPath(googleProject, clusterName) + "/stop"
+      logger.info(s"Stopping cluster: POST /$path")
+      postRequest(url + path)
+    }
+
+    def start(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): String = {
+      val path = clusterPath(googleProject, clusterName) + "/start"
+      logger.info(s"Starting cluster: POST /$path")
+      postRequest(url + path)
+    }
+
   }
 
   object notebooks {
@@ -139,6 +157,12 @@ object Leonardo extends RestClient with LazyLogging {
       val path = notebooksPath(googleProject, clusterName)
       logger.info(s"Get notebook: GET /$path")
       new NotebooksListPage(url + path)
+    }
+
+    def getApi(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver): String = {
+      val path = notebooksPath(googleProject, clusterName)
+      logger.info(s"Get notebook: GET /$path")
+      parseResponse(getRequest(url + path))
     }
 
     def localize(googleProject: GoogleProject, clusterName: ClusterName, locMap: Map[String, String])(implicit token: AuthToken): String = {
