@@ -128,8 +128,9 @@ RUN apt-get install -yq --no-install-recommends \
  && pip install biopython \
  && pip install bx-python \
  && pip install fastinterval \
- && pip install matplotlib-venn
-
+ && pip install matplotlib-venn \
+ # for jupyter_localize_extension
+ && pip install python-datauri
 
 # Python 3 Kernel
 RUN apt-get install -yq --no-install-recommends python3 \

@@ -28,11 +28,24 @@ class LocalizeHandler(IPythonHandler):
     with open("localization.log", 'a', buffering=1) as locout:
       for key in pathdict:
         #NOTE: keys are destinations, values are sources
-        cmd = ['gsutil', '-m', '-q', 'cp', '-R', '-c', '-e', self.sanitize(pathdict[key]), self.sanitize(key)]
-        locout.write(' '.join(cmd) + '\n')
-        code = subprocess.call(cmd, stderr=locout)
-        if code is not 0:
-          all_success = False
+        source = self.sanitize(pathdict[key])
+        dest = self.sanitize(key)
+
+        if source.startswith('data:'):
+          # if the source is a data URI,
+          try:
+            uri = DataURI(source)
+          except ValueError:
+            all_success = False
+
+          # TODO
+        else if source.startswith('gs:') or dest.startswith('gs:'):
+          cmd = ['gsutil', '-m', '-q', 'cp', '-R', '-c', '-e', source, dest]
+          locout.write(' '.join(cmd) + '\n')
+          code = subprocess.call(cmd, stderr=locout)
+          if code is not 0:
+            all_success = False
+        else raise
     return all_success
 
   def post(self):
