@@ -69,9 +69,11 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
             }
           } ~
           delete {
-            complete {
-              leonardoService.deleteCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
-                StatusCodes.Accepted
+            setTokenCookie(userInfo) {
+              complete {
+                leonardoService.deleteCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
+                  StatusCodes.Accepted
+                }
               }
             }
           }

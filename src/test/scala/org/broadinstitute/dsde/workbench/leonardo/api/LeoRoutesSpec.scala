@@ -112,11 +112,14 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   it should "202 when deleting a cluster" in isolatedDbTest{
     val newCluster = ClusterRequest(Map.empty, None)
 
-    Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> leoRoutes.route ~> check {
+    Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
     }
-    Delete(s"/api/cluster/${googleProject.value}/${clusterName.value}") ~> leoRoutes.route ~> check {
+    Delete(s"/api/cluster/${googleProject.value}/${clusterName.value}") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
+
+      val setCookie = header[`Set-Cookie`]
+      validateCookie(setCookie)
     }
   }
 
