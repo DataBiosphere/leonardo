@@ -60,9 +60,11 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
           }
         } ~
           get {
-            complete {
-              leonardoService.getActiveClusterDetails(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { clusterDetails =>
-                StatusCodes.OK -> clusterDetails
+            setTokenCookie(userInfo) {
+              complete {
+                leonardoService.getActiveClusterDetails(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { clusterDetails =>
+                  StatusCodes.OK -> clusterDetails
+                }
               }
             }
           } ~
