@@ -32,7 +32,8 @@ class InstanceComponentSpec extends TestComponent with FlatSpecLike with CommonT
     jupyterUserScriptUri = None,
     Some(GcsBucketName("testStagingBucket1")),
     List.empty,
-    Set.empty
+    Set.empty,
+    None
   )
 
   "InstanceComponent" should "save and get instances" in isolatedDbTest {

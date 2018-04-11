@@ -50,6 +50,7 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     Some(GcsBucketName("testStagingBucket1")),
     List.empty,
     Set.empty,
+    None
   )
 
   val c2 = Cluster(
@@ -70,7 +71,8 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     None,
     Some(GcsBucketName("testStagingBucket2")),
     List.empty,
-    Set.empty
+    Set.empty,
+    None
   )
 
   val c3 = Cluster(
@@ -91,7 +93,8 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     None,
     Some(GcsBucketName("testStagingBucket3")),
     List.empty,
-    Set.empty
+    Set.empty,
+    None
   )
 
   it should "update maps and return clusters" in isolatedDbTest {

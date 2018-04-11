@@ -79,7 +79,8 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
     jupyterUserScriptUri = None,
     stagingBucket = Some(GcsBucketName("testStagingBucket1")), 
     List.empty,
-    Set.empty
+    Set.empty,
+    None
   )
 
   val gdDAO = new MockGoogleDataprocDAO
@@ -122,6 +123,9 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
 
       // get status
       val clusterStatus = leo.getActiveClusterDetails(userInfo, project, name1).futureValue
+
+      println(cluster1)
+      println(clusterStatus)
 
       cluster1 shouldEqual clusterStatus
 

@@ -29,7 +29,6 @@ import slick.dbio.DBIO
 import spray.json._
 
 import scala.collection.immutable
-import scala.collection.Map
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.Source
 import scala.util.control.NonFatal
@@ -53,8 +52,8 @@ case class ClusterCannotBeStartedException(googleProject: GoogleProject, cluster
 case class InitializationFileException(googleProject: GoogleProject, clusterName: ClusterName, errorMessage: String)
   extends LeoException(s"Unable to process initialization files for ${googleProject.value}/${clusterName.value}. Returned message: $errorMessage", StatusCodes.Conflict)
 
-case class BucketObjectException(gcsUri: GcsPath)
-  extends LeoException(s"The provided GCS URI is invalid or unparseable: ${gcsUri.toUri}", StatusCodes.BadRequest)
+case class BucketObjectException(gcsUri: String)
+  extends LeoException(s"The provided GCS URI is invalid or unparseable: ${gcsUri}", StatusCodes.BadRequest)
 
 case class BucketObjectAccessException(userEmail: WorkbenchEmail, gcsUri: GcsPath)
   extends LeoException(s"${userEmail.value} does not have access to ${gcsUri.toUri}", StatusCodes.Forbidden)
@@ -335,9 +334,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val stagingBucketName = generateUniqueBucketName("leostaging-"+clusterName.value)
 
     val googleFuture = for {
-      // Validate that the Jupyter extension URI and Jupyter user script URI are valid URIs and reference real GCS objects
-      _ <- validateBucketObjectUri(userEmail, googleProject, clusterRequest.jupyterExtensionUri)
-      _ <- validateBucketObjectUri(userEmail, googleProject, clusterRequest.jupyterUserScriptUri)
+
+      // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
+      _ <- validateClusterRequestBucketObjectUri(userEmail, googleProject, clusterRequest)
+
       // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
       _ <- googleComputeDAO.updateFirewallRule(googleProject, firewallRule)
       // Generate a service account key for the notebook service account (if present) to localize on the cluster.
@@ -421,18 +421,34 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } getOrElse Future.successful(())
   }
 
-  private[service] def validateBucketObjectUri(userEmail: WorkbenchEmail, googleProject: GoogleProject, gcsUriOpt: Option[GcsPath])(implicit executionContext: ExecutionContext): Future[Unit] = {
 
+  private def validateClusterRequestBucketObjectUri(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[Unit] = {
+    for {
+      _ <- clusterRequest.jupyterUserScriptUri match {
+        case Some(userScriptUri) => validateBucketObjectUri(userEmail, googleProject, userScriptUri.toUri)
+        case None => Future.successful(())
+      }
+
+      _ <- clusterRequest.userJupyterExtensionConfig match {
+        case Some(config) =>
+          val extensionsToValidate = (config.nbExtensions.values ++ config.serverExtensions.values ++ config.combinedExtensions.values).filter(_.startsWith("gs://"))
+          Future.traverse(extensionsToValidate)(x => validateBucketObjectUri(userEmail, googleProject, x))
+        case None => Future.successful(())
+      }
+    } yield()
+  }
+  private[service] def validateBucketObjectUri(userEmail: WorkbenchEmail, googleProject: GoogleProject, gcsUri: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
+
+    val gcsUriOpt = parseGcsPath(gcsUri)
     gcsUriOpt match {
-      case None => Future.successful(())
-      case Some(gcsPath) =>
+      case Right(gcsPath) =>
         if (gcsPath.toUri.length > bucketPathMaxLength)
-          throw BucketObjectException(gcsPath)
+          throw BucketObjectException(gcsUri)
         serviceAccountProvider.getAccessToken(userEmail, googleProject).flatMap {
           case Some(token) =>
             petGoogleStorageDAO(token).objectExists(gcsPath.bucketName, gcsPath.objectName).map {
               case true => ()
-              case false => throw BucketObjectException(gcsPath)
+              case false => throw BucketObjectException(gcsPath.toUri)
             } recover {
               case e: HttpResponseException if e.getStatusCode == StatusCodes.Forbidden.intValue =>
                 logger.error(s"User $userEmail does not have access to ${gcsPath.bucketName} / ${gcsPath.objectName}")
@@ -440,11 +456,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
             }
           case None => Future.successful(())
         }
+      case Left(err) => throw BucketObjectException(gcsUri)
     }
   }
 
   /* Process the templated cluster init script and put all initialization files in the init bucket */
   private[service] def initializeBucketObjects(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountKey: Option[ServiceAccountKey]): Future[Unit] = {
+
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
     val replacements: Map[String, JsValue] = ClusterInitValues(googleProject, clusterName, initBucketName, clusterRequest, dataprocConfig,
       clusterFilesConfig, clusterResourcesConfig, proxyConfig, serviceAccountKey, userEmail
@@ -550,13 +568,30 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private[service] def addClusterDefaultLabels(serviceAccountInfo: ServiceAccountInfo, googleProject: GoogleProject, clusterName: ClusterName, creator: WorkbenchEmail, clusterRequest: ClusterRequest): ClusterRequest = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultLabels(clusterName, googleProject, creator,
-      serviceAccountInfo.clusterServiceAccount, serviceAccountInfo.notebookServiceAccount, clusterRequest.jupyterExtensionUri, clusterRequest.jupyterUserScriptUri)
+      serviceAccountInfo.clusterServiceAccount, serviceAccountInfo.notebookServiceAccount, clusterRequest.jupyterUserScriptUri)
       .toJson.asJsObject.fields.mapValues(labelValue => labelValue.convertTo[String])
-    // combine default and given labels
-    val allLabels = clusterRequest.labels ++ defaultLabels
+
+
+
+    //Add UserJupyterUri to NbExtension
+    val userJupyterExt = clusterRequest.jupyterExtensionUri match {
+      case Some(ext) => Map[String, String]("notebookExtension" -> ext.toUri)
+      case None => Map[String, String]()
+    }
+
+    val nbExtensions = userJupyterExt ++ clusterRequest.userJupyterExtensionConfig.map(_.nbExtensions).getOrElse(Map.empty)
+
+    val serverExtensions = clusterRequest.userJupyterExtensionConfig.map(_.serverExtensions).getOrElse(Map.empty)
+
+    val combinedExtension = clusterRequest.userJupyterExtensionConfig.map(_.combinedExtensions).getOrElse(Map.empty)
+
+    // combine default and given labels and add labels for extensions
+    val allLabels = clusterRequest.labels ++ defaultLabels ++ nbExtensions ++ serverExtensions ++ combinedExtension
+
+    val updatedUserJupyterExtensionConfig = if(nbExtensions.isEmpty && serverExtensions.isEmpty && combinedExtension.isEmpty) None else Some(UserJupyterExtensionConfig(nbExtensions, serverExtensions, combinedExtension))
     // check the labels do not contain forbidden keys
     if (allLabels.contains(includeDeletedKey))
       throw IllegalLabelKeyException(includeDeletedKey)
-    else clusterRequest.copy(labels = allLabels)
+    else clusterRequest.copy(labels = allLabels).copy(userJupyterExtensionConfig = updatedUserJupyterExtensionConfig)
   }
 }

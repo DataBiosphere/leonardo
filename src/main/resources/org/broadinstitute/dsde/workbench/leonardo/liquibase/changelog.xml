@@ -19,4 +19,5 @@
     <include file="changesets/20180130_cluster-jupyterUserScriptUri-column.xml" relativeToChangelogFile="true" />
     <include file="changesets/20180205_cluster-error.xml" relativeToChangelogFile="true" />
     <include file="changesets/20180216_instance.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20180503_extensions.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

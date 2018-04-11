@@ -387,9 +387,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
           |"${name1.value}"
           |"${project.value}"
           |"${proxyConfig.jupyterProxyDockerImage}"
-          |"${jupyterExtensionUri.toUri}"
           |"${jupyterUserScriptUri.toUri}"
-          |"${GcsPath(initBucketPath, GcsObjectName(ClusterInitValues.serviceAccountCredentialsFilename)).toUri}"""".stripMargin
+          |"${GcsPath(initBucketPath, GcsObjectName(ClusterInitValues.serviceAccountCredentialsFilename)).toUri}"
+          |""".stripMargin
 
     result shouldEqual expected
   }
@@ -480,6 +480,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.listClusters(userInfo, Map("a" -> "b")).futureValue.toSet shouldBe Set(cluster2)
     leo.listClusters(userInfo, Map("foo" -> "bar", "baz" -> "biz")).futureValue.toSet shouldBe Set.empty
     leo.listClusters(userInfo, Map("A" -> "B")).futureValue.toSet shouldBe Set(cluster2)  // labels are not case sensitive because MySQL
+    //Assert that extensions were added as labels as well
+    leo.listClusters(userInfo, Map("abc" -> "def", "pqr" -> "pqr", "xyz" -> "xyz")).futureValue.toSet shouldBe Set(cluster1, cluster2)
   }
 
   it should "throw IllegalLabelKeyException when using a forbidden label" in isolatedDbTest {

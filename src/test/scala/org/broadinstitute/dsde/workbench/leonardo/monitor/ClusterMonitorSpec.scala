@@ -55,7 +55,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     None,
     Some(GcsBucketName("testStagingBucket1")),
     List.empty,
-    Set.empty
+    Set.empty,
+    Some(userExtConfig)
   )
 
   val deletingCluster = Cluster(
@@ -76,7 +77,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     jupyterUserScriptUri = Some(jupyterUserScriptUri),
     Some(GcsBucketName("testStagingBucket1")),
     List.empty,
-    Set(masterInstance, workerInstance1, workerInstance2)
+    Set(masterInstance, workerInstance1, workerInstance2),
+    None
   )
 
   val stoppingCluster = Cluster(
@@ -97,7 +99,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     None,
     Some(GcsBucketName("testStagingBucket1")),
     List.empty,
-    Set(masterInstance, workerInstance1, workerInstance2)
+    Set(masterInstance, workerInstance1, workerInstance2),
+    None
   )
 
   val startingCluster = Cluster(
@@ -118,7 +121,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     None,
     Some(GcsBucketName("testStagingBucket1")),
     List.empty,
-    Set(masterInstance, workerInstance1, workerInstance2)
+    Set(masterInstance, workerInstance1, workerInstance2),
+    None
   )
 
   val clusterInstances = Map(Master -> Set(masterInstance.key),
@@ -622,6 +626,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       newCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
       newCluster.flatMap(_.hostIp) shouldBe Some(IP("1.2.3.4"))
       newCluster.map(_.instances.count(_.status == InstanceStatus.Running)) shouldBe Some(3)
+      newCluster.flatMap(_.userJupyterExtensionConfig) shouldBe Some(userExtConfig)
 
       verify(storageDAO, never).deleteBucket(mockitoEq(newClusterBucket.get.bucketName), any[Boolean])
       // should only add/remove the dataproc.worker role 1 time
