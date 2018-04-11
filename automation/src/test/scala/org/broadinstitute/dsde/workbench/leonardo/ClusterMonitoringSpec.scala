@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import java.io.File
+
 import org.broadinstitute.dsde.workbench.service.{Orchestration, Sam}
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
@@ -136,6 +138,109 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
       }
     }
 
+    "should pause and resume a cluster" in withWebDriver { implicit driver =>
+      withCleanBillingProject(hermioneCreds) { projectName =>
+        val project = GoogleProject(projectName)
+
+        Orchestration.billing.addUserToBillingProject(projectName, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+
+        implicit val token = ronAuthToken
+
+        // Create a cluster
+        withNewCluster(project) { cluster =>
+          val printStr = "Pause/resume test"
+
+          // Create a notebook and execute a cell
+          withNewNotebook(cluster, kernel = Python3) { notebookPage =>
+            notebookPage.executeCell(s"""print("$printStr")""") shouldBe Some(printStr)
+            notebookPage.saveAndCheckpoint()
+          }
+
+          // Stop the cluster
+          stopAndMonitor(cluster.googleProject, cluster.clusterName)
+
+          // Start the cluster
+          startAndMonitor(cluster.googleProject, cluster.clusterName)
+
+          // TODO make tests rename notebooks?
+          val notebookPath = new File("Untitled.ipynb")
+          withOpenNotebook(cluster, notebookPath) { notebookPage =>
+            // old output should still exist
+            val firstCell = notebookPage.firstCell
+            notebookPage.cellOutput(firstCell) shouldBe Some(printStr)
+            // execute a new cell to make sure the notebook kernel still works
+            notebookPage.runAllCells(60)
+            notebookPage.executeCell("sum(range(1,10))") shouldBe Some("45")
+          }
+        }
+
+      }
+    }
+
+    "should be able to delete a stopped cluster" in withWebDriver { implicit driver =>
+      withCleanBillingProject(hermioneCreds) { projectName =>
+        val project = GoogleProject(projectName)
+
+        Orchestration.billing.addUserToBillingProject(projectName, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+
+        implicit val token = ronAuthToken
+
+        // Create a cluster
+        withNewCluster(project) { cluster =>
+          // Stop the cluster
+          stopAndMonitor(cluster.googleProject, cluster.clusterName)
+        }
+        // Delete should succeed
+      }
+    }
+
+    "should pause and resume a cluster with preemptible instances" in withWebDriver { implicit driver =>
+      withCleanBillingProject(hermioneCreds) { projectName =>
+        val project = GoogleProject(projectName)
+
+        Orchestration.billing.addUserToBillingProject(projectName, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+
+        withNewGoogleBucket(project) { bucket =>
+          implicit val patienceConfig: PatienceConfig = storagePatience
+
+          val srcPath = parseGcsPath("gs://genomics-public-data/1000-genomes/vcf/ALL.chr20.integrated_phase1_v3.20101123.snps_indels_svs.genotypes.vcf").right.get
+          val destPath = GcsPath(bucket, GcsObjectName("chr20.vcf"))
+          googleStorageDAO.copyObject(srcPath.bucketName, srcPath.objectName, destPath.bucketName, destPath.objectName).futureValue
+
+          implicit val token = ronAuthToken
+          val ronProxyGroup = Sam.user.proxyGroup(ronEmail)
+          val ronPetEntity = GcsEntity(ronProxyGroup, Group)
+          googleStorageDAO.setObjectAccessControl(destPath.bucketName, destPath.objectName, ronPetEntity, Reader).futureValue
+
+          val request = ClusterRequest(machineConfig = Option(MachineConfig(
+            // need at least 2 regular workers to enable preemptibles
+            numberOfWorkers = Option(2),
+            numberOfPreemptibleWorkers = Option(10)
+          )))
+
+          withNewCluster(project, request = request) { cluster =>
+            // Verify a Hail job uses preemptibes
+            withNewNotebook(cluster) { notebookPage =>
+              verifyHailImport(notebookPage, destPath, cluster.clusterName)
+              notebookPage.saveAndCheckpoint()
+            }
+
+            // Stop the cluster
+            stopAndMonitor(cluster.googleProject, cluster.clusterName)
+
+            // Start the cluster
+            startAndMonitor(cluster.googleProject, cluster.clusterName)
+
+            // Verify the Hail import again in a new notebook
+            withNewNotebook(cluster) { notebookPage =>
+              verifyHailImport(notebookPage, destPath, cluster.clusterName)
+              notebookPage.saveAndCheckpoint()
+            }
+          }
+        }
+      }
+
+    }
 
   }
 

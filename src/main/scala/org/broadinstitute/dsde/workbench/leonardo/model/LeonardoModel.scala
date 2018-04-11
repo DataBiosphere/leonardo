@@ -12,7 +12,7 @@ import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.ClusterStatus
+import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.model.google.GoogleJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
@@ -34,6 +34,10 @@ case class ClusterResource(value: String) extends ValueObject
 case class ServiceAccountInfo(clusterServiceAccount: Option[WorkbenchEmail],
                               notebookServiceAccount: Option[WorkbenchEmail])
 
+case class ClusterError(errorMessage: String,
+                        errorCode: Int,
+                        timestamp: Instant)
+
 // The cluster itself
 // Also the API response for "list clusters" and "get active cluster"
 case class Cluster(clusterName: ClusterName,
@@ -52,16 +56,11 @@ case class Cluster(clusterName: ClusterName,
                    jupyterExtensionUri: Option[GcsPath],
                    jupyterUserScriptUri: Option[GcsPath],
                    stagingBucket: Option[GcsBucketName],
-                   errors: List[ClusterError]) {
+                   errors: List[ClusterError],
+                   instances: Set[Instance]) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.value}"
+  def nonPreemptibleInstances: Set[Instance] = instances.filterNot(_.dataprocRole == Some(SecondaryWorker))
 }
-
-
-case class ClusterError(errorMessage: String,
-                        errorCode: Int,
-                        timestamp: Instant
-                       )
-
 object Cluster {
   type LabelMap = Map[String, String]
 
@@ -91,7 +90,8 @@ object Cluster {
         jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
         jupyterUserScriptUri = clusterRequest.jupyterUserScriptUri,
         stagingBucket = Some(stagingBucket),
-        errors = List.empty
+        errors = List.empty,
+        instances = Set.empty
       )
   }
 
@@ -117,7 +117,8 @@ object Cluster {
       jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
       jupyterUserScriptUri = clusterRequest.jupyterUserScriptUri,
       stagingBucket = None,
-      errors = List.empty
+      errors = List.empty,
+      instances = Set.empty
     )
   }
 
@@ -266,7 +267,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val ClusterErrorFormat = jsonFormat3(ClusterError.apply)
 
-  implicit val ClusterFormat = jsonFormat17(Cluster.apply)
+  implicit val ClusterFormat = jsonFormat18(Cluster.apply)
 
   implicit val DefaultLabelsFormat = jsonFormat7(DefaultLabels.apply)
 

@@ -63,14 +63,15 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     GetClusterStatus -> "list_notebook_cluster",
     CreateClusters -> "launch_notebook_cluster",
     SyncDataToCluster -> "sync_notebook_cluster",
-    DeleteCluster -> "delete_notebook_cluster")
-
+    DeleteCluster -> "delete_notebook_cluster",
+    StopStartCluster -> "stop_start_notebook_cluster")
 
   val notebookActionMap: Map[LeoAuthAction, String] = Map(
     GetClusterStatus -> "status",
     ConnectToCluster -> "connect",
     SyncDataToCluster -> "sync",
-    DeleteCluster -> "delete")
+    DeleteCluster -> "delete",
+    StopStartCluster -> "stop_start")
 
   /**
     * @param userInfo The user in question

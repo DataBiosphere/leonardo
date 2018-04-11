@@ -11,6 +11,7 @@ import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, Moc
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{MockPetClusterServiceAccountProvider, MockSwaggerSamClient}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{NegativeIntegerArgumentInClusterRequestException, OneWorkerSpecifiedInClusterRequestException}
@@ -29,6 +30,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures with OptionValues with CommonTestData {
   private var gdDAO: MockGoogleDataprocDAO = _
+  private var computeDAO: MockGoogleComputeDAO = _
   private var iamDAO: MockGoogleIamDAO = _
   private var storageDAO: MockGoogleStorageDAO = _
   private var samClient: MockSwaggerSamClient = _
@@ -38,6 +40,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   before {
     gdDAO = new MockGoogleDataprocDAO
+    computeDAO = new MockGoogleComputeDAO
     iamDAO = new MockGoogleIamDAO
     storageDAO = new MockGoogleStorageDAO
     // Pre-populate the juptyer extenion bucket in the mock storage DAO, as it is passed in some requests
@@ -46,11 +49,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     samClient = serviceAccountProvider.asInstanceOf[MockPetClusterServiceAccountProvider].mockSwaggerSamClient
     authProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider)
 
-    bucketHelper = new BucketHelper(dataprocConfig, gdDAO, storageDAO, serviceAccountProvider)
+    bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
     val mockPetGoogleDAO: String => GoogleStorageDAO = _ => {
       new MockGoogleStorageDAO
     }
-    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper)
+    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper)
   }
 
   override def afterAll(): Unit = {
@@ -83,8 +86,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig
 
     // check the firewall rule was created for the project
-    gdDAO.firewallRules should contain key (project)
-    gdDAO.firewallRules(project).name.value shouldBe proxyConfig.firewallRuleName
+    computeDAO.firewallRules should contain key (project)
+    computeDAO.firewallRules(project).name.value shouldBe proxyConfig.firewallRuleName
 
     // should have created init and staging buckets
     val initBucketOpt = storageDAO.buckets.keys.find(_.value.startsWith("leoinit-"+name1.value))
@@ -243,10 +246,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   it should "delete a cluster" in isolatedDbTest {
     // need a specialized LeonardoService for this test, so we can spy on its authProvider
     val spyProvider: LeoAuthProvider = spy(authProvider)
-    val mockPetGoogleDAO: String => GoogleStorageDAO = _ => {
+    val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
       new MockGoogleStorageDAO
     }
-    val leoForTest = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, iamDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, system.actorOf(NoopActor.props), spyProvider, serviceAccountProvider, whitelist, bucketHelper)
+    val leoForTest = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), spyProvider, serviceAccountProvider, whitelist, bucketHelper)
 
     // check that the cluster does not exist
     gdDAO.clusters should not contain key (name1)
@@ -295,6 +298,30 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should not contain key (gdDAO.errorClusterName)
   }
 
+  it should "delete a cluster's instances" in isolatedDbTest {
+    // check that the cluster does not exist
+    gdDAO.clusters should not contain key (name1)
+
+    // create the cluster
+    val clusterCreateResponse = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
+
+    // check that the cluster was created
+    gdDAO.clusters should contain key name1
+
+    // populate some instances for the cluster
+    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse.googleId), Seq(masterInstance, workerInstance1, workerInstance2)) }
+
+    // delete the cluster
+    leo.deleteCluster(userInfo, project, name1).futureValue
+
+    // check that the cluster no longer exists
+    gdDAO.clusters should not contain key (name1)
+
+    // check that the instances are still in the DB (they get removed by the ClusterMonitorActor)
+    val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse.googleId)) }
+    instances.toSet shouldBe Set(masterInstance, workerInstance1, workerInstance2)
+  }
+
   it should "throw ClusterNotFoundException when deleting non existent clusters" in isolatedDbTest {
     whenReady( leo.deleteCluster(userInfo, GoogleProject("nonexistent"), ClusterName("cluster")).failed ) { exc =>
       exc shouldBe a [ClusterNotFoundException]
@@ -323,19 +350,19 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName2 = ClusterName("test-cluster-2")
 
     // Our google project should have no firewall rules
-    gdDAO.firewallRules should not contain (project, proxyConfig.firewallRuleName)
+    computeDAO.firewallRules should not contain (project, proxyConfig.firewallRuleName)
 
     // create the first cluster, this should create a firewall rule in our project
     leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
 
     // check that there is exactly 1 firewall rule for our project
-    gdDAO.firewallRules.filterKeys(_ == project) should have size 1
+    computeDAO.firewallRules.filterKeys(_ == project) should have size 1
 
     // create the second cluster. This should check that our project has a firewall rule and not try to add it again
     leo.createCluster(userInfo, project, clusterName2, testClusterRequest).futureValue
 
     // check that there is still exactly 1 firewall rule in our project
-    gdDAO.firewallRules.filterKeys(_ == project) should have size 1
+    computeDAO.firewallRules.filterKeys(_ == project) should have size 1
   }
 
   it should "template a script using config values" in isolatedDbTest {
@@ -422,7 +449,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val cluster3 = leo.createCluster(userInfo, project, clusterName3, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
     dbFutureValue(dataAccess =>
-      dataAccess.clusterQuery.completeDeletion(cluster3.googleId, clusterName3)
+      dataAccess.clusterQuery.completeDeletion(cluster3.googleId)
     )
 
     leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
@@ -481,8 +508,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterCreateResponse shouldBe a [Exception] // thrown by MockGoogleDataprocDAO
 
     // check the firewall rule was created for the project
-    gdDAO.firewallRules should contain key (project)
-    gdDAO.firewallRules(project).name.value shouldBe proxyConfig.firewallRuleName
+    computeDAO.firewallRules should contain key (project)
+    computeDAO.firewallRules(project).name.value shouldBe proxyConfig.firewallRuleName
 
     //staging bucket lives on!
     storageDAO.buckets.keys.find(bucket => bucket.value.contains("leoinit-")).size shouldBe 0
@@ -497,5 +524,64 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val badUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("badguy"), WorkbenchEmail("dont@whitelist.me"), 0)
     val authExc = leo.isWhitelisted(badUserInfo).failed.futureValue
     authExc shouldBe a [AuthorizationError]
+  }
+
+  it should "stop a cluster" in isolatedDbTest {
+    // check that the cluster does not exist
+    gdDAO.clusters should not contain key (name1)
+
+    // create the cluster
+    val clusterCreateResponse = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
+
+    // check that the cluster was created
+    gdDAO.clusters should contain key name1
+
+    // populate some instances for the cluster
+    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse.googleId), Seq(masterInstance, workerInstance1, workerInstance2)) }
+
+    // stop the cluster
+    leo.stopCluster(userInfo, project, name1).futureValue
+
+    // cluster should still exist in Google
+    gdDAO.clusters should contain key (name1)
+
+    // cluster status should be Stopping in the DB
+    dbFutureValue { _.clusterQuery.getByGoogleId(clusterCreateResponse.googleId) }.get.status shouldBe ClusterStatus.Stopping
+
+    // instance status should still be Running in the DB
+    // the ClusterMonitorActor is what updates instance status
+    val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse.googleId)) }
+    instances.size shouldBe 3
+    instances.map(_.status).toSet shouldBe Set(InstanceStatus.Running)
+  }
+
+  it should "start a cluster" in isolatedDbTest {
+    // check that the cluster does not exist
+    gdDAO.clusters should not contain key (name1)
+
+    // create the cluster
+    val clusterCreateResponse = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
+
+    // check that the cluster was created
+    gdDAO.clusters should contain key name1
+
+    // populate some instances for the cluster and set its status to Stopped
+    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse.googleId), Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped))) }
+    dbFutureValue { _.clusterQuery.updateClusterStatus(clusterCreateResponse.googleId, ClusterStatus.Stopped) }
+
+    // start the cluster
+    leo.startCluster(userInfo, project, name1).futureValue
+
+    // cluster should still exist in Google
+    gdDAO.clusters should contain key (name1)
+
+    // cluster status should be Starting in the DB
+    dbFutureValue { _.clusterQuery.getByGoogleId(clusterCreateResponse.googleId) }.get.status shouldBe ClusterStatus.Starting
+
+    // instance status should still be Stopped in the DB
+    // the ClusterMonitorActor is what updates instance status
+    val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse.googleId)) }
+    instances.size shouldBe 3
+    instances.map(_.status).toSet shouldBe Set(InstanceStatus.Stopped)
   }
 }
