@@ -46,6 +46,9 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
     cookie.path shouldBe Some("/")
   }
 
+  private def isTokenCached(cookie: HttpCookiePair = tokenCookie): Boolean =
+    proxyService.googleTokenCache.asMap().containsKey(cookie.value)
+
   "LeoRoutes" should "200 on ping" in {
     Get("/ping") ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
@@ -65,10 +68,9 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "200 when creating and getting cluster" in isolatedDbTest {
+    isTokenCached() shouldBe false
+    
     val newCluster = ClusterRequest(Map.empty, Some(extensionPath), Some(userScriptPath))
-
-    // cache should not initially contain the token
-    proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe false
 
     Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~>
       timedLeoRoutes.route ~> check {
@@ -108,6 +110,8 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "202 when deleting a cluster" in isolatedDbTest{
+    isTokenCached() shouldBe false
+
     val newCluster = ClusterRequest(Map.empty, None)
 
     Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
@@ -127,6 +131,8 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "200 when listing no clusters" in isolatedDbTest {
+    isTokenCached() shouldBe false
+
     Get("/api/clusters") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[List[Cluster]] shouldBe 'empty
@@ -136,6 +142,8 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "list clusters" in isolatedDbTest {
+    isTokenCached() shouldBe false
+
     val newCluster = ClusterRequest(Map.empty, None)
     for (i <- 1 to 10) {
       Put(s"/api/cluster/${googleProject.value}/${clusterName.value}-$i", newCluster.toJson) ~> leoRoutes.route ~> check {
@@ -145,6 +153,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
 
     Get("/api/clusters") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
+
       val responseClusters = responseAs[List[Cluster]]
       responseClusters should have size 10
       responseClusters foreach { cluster =>
@@ -162,6 +171,8 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "list clusters with labels" in isolatedDbTest {
+    isTokenCached() shouldBe false
+
     val newCluster = ClusterRequest(Map.empty, None)
     for (i <- 1 to 10) {
       Put(s"/api/cluster/${googleProject.value}/${clusterName.value}-$i", newCluster.copy(labels = Map(s"label$i" -> s"value$i")).toJson) ~> leoRoutes.route ~> check {
