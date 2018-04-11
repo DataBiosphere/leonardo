@@ -23,7 +23,7 @@ class LocalizeHandler(IPythonHandler):
   @gen.coroutine
   def localize(self, pathdict):
     """Treats the given dict as a string/string map and sends it to gsutil."""
-    ok = True
+    all_success = True
     #This gets dropped inside the user's notebook working directory
     with open("localization.log", 'a', buffering=1) as locout:
       for key in pathdict:
@@ -32,8 +32,8 @@ class LocalizeHandler(IPythonHandler):
         locout.write(' '.join(cmd) + '\n')
         code = subprocess.call(cmd, stderr=locout)
         if code is not 0:
-          ok = False
-    return ok
+          all_success = False
+    return all_success
 
   def post(self):
     try:
@@ -60,10 +60,10 @@ class LocalizeHandler(IPythonHandler):
     else:
       #run localize synchronous to the HTTP request
       #run_sync() doesn't take arguments, so we must wrap the call in a lambda.
-      ok = tornado.ioloop.IOLoop().run_sync(lambda: self.localize(pathdict))
+      success = tornado.ioloop.IOLoop().run_sync(lambda: self.localize(pathdict))
 
       #complete the request only after localize completes
-      if not ok:
+      if not success:
         raise HTTPError(500, "Error occurred during localization. See localization.log for details.")
       else:
         self.set_status(200)
