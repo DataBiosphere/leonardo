@@ -31,6 +31,21 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
     override val userInfo: UserInfo =  UserInfo(OAuth2BearerToken(tokenValue), WorkbenchUserId("badUser"), WorkbenchEmail("badUser@example.com"), 0)
   }
 
+  private def validateCookie(setCookie: Option[`Set-Cookie`],
+                             expectedCookie: HttpCookiePair = tokenCookie,
+                             age: Long = tokenAge / 1000): Unit = {
+    def roundUpToNearestTen(d: Long) = Math.ceil(d / 10.0) * 10
+
+    setCookie shouldBe 'defined
+    val cookie = setCookie.get.cookie
+    cookie.name shouldBe expectedCookie.name
+    cookie.value shouldBe expectedCookie.value
+    cookie.secure shouldBe true
+    cookie.maxAge.map(roundUpToNearestTen) shouldBe Some(age) // test execution loses some milliseconds
+    cookie.domain shouldBe None
+    cookie.path shouldBe Some("/")
+  }
+
   "LeoRoutes" should "200 on ping" in {
     Get("/ping") ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
@@ -56,18 +71,11 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
     proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe false
 
     Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~>
-      leoRoutes.route ~> check {
+      timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
 
       val setCookie = header[`Set-Cookie`]
-      setCookie shouldBe 'defined
-      val cookie = setCookie.get.cookie
-      cookie.name shouldBe tokenCookie.name
-      cookie.value shouldBe tokenCookie.value
-      cookie.secure shouldBe true
-//      cookie.maxAge.map(a => ((9 + a) / 10) * 10) shouldBe Some(tokenMaxAge)   // round up to nearest 10, test execution loses some milliseconds
-      cookie.domain shouldBe None
-      cookie.path shouldBe Some("/")
+      validateCookie(setCookie)
     }
 
     Get(s"/api/cluster/${googleProject.value}/${clusterName.value}") ~> leoRoutes.route ~> check {
