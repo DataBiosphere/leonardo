@@ -20,10 +20,40 @@ class LocalizeHandler(IPythonHandler):
         pass
     return pipes.quote(expanded)
 
+  def _handle_gcs_uri(self, locout, source, dest):
+    """Handles localization entries where either the source or destination is a gs: path.
+    Simply invokes gsuitl in a subprocess."""
+    cmd = ['gsutil', '-m', '-q', 'cp', '-R', '-c', '-e', source, dest]
+    locout.write(' '.join(cmd) + '\n')
+    result = subprocess.call(cmd, stderr=locout)
+    return result
+
+  def _handle_data_uri(self, locout, source, dest):
+    """Handles localization entries where the source is a data: URI."""
+    try:
+      uri = DataURI(source)
+    except ValueError:
+      locout.write('Could not parse "{}" as a data URI: {}\n'.format(source, str(e)))
+      return False
+
+    try:
+      with open(dest, 'w+', buffering=1) as destout:
+        destout.write(uri.data)
+        locout.write('{}: wrote {} bytes\n'.format(dest, len(uri.data)))
+    except IOError as e:
+      locout.write('{}: I/O error({0}): {1}\n'.format(dest, e.errno, e.strerror)
+      return False
+    except:
+      locout.write('{}: unexpected error: {}\n'.format(sys.exc_info()[0]))
+      return False
+
+    return True
+
   @gen.coroutine
   def localize(self, pathdict):
-    """Treats the given dict as a string/string map and sends it to gsutil."""
-    all_success = True
+    """Treats the given dict as a string/string map and localizes each entry one by one.
+    Returns a list of any failed entries."""
+    failures = []
     #This gets dropped inside the user's notebook working directory
     with open("localization.log", 'a', buffering=1) as locout:
       for key in pathdict:
@@ -31,22 +61,18 @@ class LocalizeHandler(IPythonHandler):
         source = self.sanitize(pathdict[key])
         dest = self.sanitize(key)
 
-        if source.startswith('data:'):
-          # if the source is a data URI,
-          try:
-            uri = DataURI(source)
-          except ValueError:
-            all_success = False
+        if source.startswith('gs:') or dest.startswith('gs:'):
+          result = self._handle_gcs_uri(locout, source, dest)
+        else if source.startswith('data:'):
+          result = self._handle_data_uri(locout, source, dest)
+        else:
+          locout.write('Unhandled localization entry: {} -> {}. Required gs: or data: URIs.\n'.format(source, dest))
+          result = False
 
-          # TODO
-        else if source.startswith('gs:') or dest.startswith('gs:'):
-          cmd = ['gsutil', '-m', '-q', 'cp', '-R', '-c', '-e', source, dest]
-          locout.write(' '.join(cmd) + '\n')
-          code = subprocess.call(cmd, stderr=locout)
-          if code is not 0:
-            all_success = False
-        else raise
-    return all_success
+        if not result:
+          failures.append((dest, source))
+
+    return failures
 
   def post(self):
     try:
@@ -73,11 +99,12 @@ class LocalizeHandler(IPythonHandler):
     else:
       #run localize synchronous to the HTTP request
       #run_sync() doesn't take arguments, so we must wrap the call in a lambda.
-      success = tornado.ioloop.IOLoop().run_sync(lambda: self.localize(pathdict))
+      failures = tornado.ioloop.IOLoop().run_sync(lambda: self.localize(pathdict))
 
       #complete the request only after localize completes
-      if not success:
-        raise HTTPError(500, "Error occurred during localization. See localization.log for details.")
+      if failures:
+        raise HTTPError(500, "Error occurred localizing for the following {} entries: {}. See localization.log for details.".format(
+          len(entries), str(entries)))
       else:
         self.set_status(200)
         self.finish()
