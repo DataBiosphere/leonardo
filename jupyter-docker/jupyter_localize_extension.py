@@ -41,7 +41,7 @@ class LocalizeHandler(IPythonHandler):
         destout.write(uri.data)
         locout.write('{}: wrote {} bytes\n'.format(dest, len(uri.data)))
     except IOError as e:
-      locout.write('{}: I/O error({0}): {1}\n'.format(dest, e.errno, e.strerror)
+      locout.write('{}: I/O error({0}): {1}\n'.format(dest, e.errno, e.strerror))
       return False
     except:
       locout.write('{}: unexpected error: {}\n'.format(sys.exc_info()[0]))
@@ -63,7 +63,7 @@ class LocalizeHandler(IPythonHandler):
 
         if source.startswith('gs:') or dest.startswith('gs:'):
           result = self._handle_gcs_uri(locout, source, dest)
-        else if source.startswith('data:'):
+        elif source.startswith('data:'):
           result = self._handle_data_uri(locout, source, dest)
         else:
           locout.write('Unhandled localization entry: {} -> {}. Required gs: or data: URIs.\n'.format(source, dest))
