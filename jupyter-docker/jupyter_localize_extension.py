@@ -107,7 +107,7 @@ class LocalizeHandler(IPythonHandler):
       #complete the request only after localize completes
       if failures:
         raise HTTPError(500, "Error occurred localizing the following {} entries: {}. See localization.log for details.".format(
-          len(entries), str(entries)))
+          len(failures), str(failures)))
       else:
         self.set_status(200)
         self.finish()
