@@ -406,7 +406,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
           val localizeRequest = Map(
             localizeFileName -> GcsPath(bucketName, bucketObjectToLocalize).toUri,
             GcsPath(bucketName, GcsObjectName(delocalizeFileName)).toUri -> delocalizeFileName,
-            Base64.getEncoder.encode(dataFileContents.getBytes(StandardCharsets.UTF_8)) -> dataFileName
+            dataFileName -> s"data:text/plain;base64,${Base64.getEncoder.encodeToString(dataFileContents.getBytes(StandardCharsets.UTF_8))}"
           )
 
           val testResult = Try(testCode(localizeRequest, bucketName))
