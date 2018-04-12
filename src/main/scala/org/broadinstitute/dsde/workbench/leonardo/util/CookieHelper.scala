@@ -5,7 +5,9 @@ import akka.http.scaladsl.server.Directive0
 import akka.http.scaladsl.server.Directives.setCookie
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
-trait RouteHelper {
+trait CookieHelper {
+  protected val tokenCookieName = "LeoToken"
+
   /**
     * Sets a token cookie in the HTTP response.
     */

@@ -12,16 +12,14 @@ import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.server.RouteResult.Complete
 import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.ConnectToCluster
-import org.broadinstitute.dsde.workbench.leonardo.util.RouteHelper
+import org.broadinstitute.dsde.workbench.leonardo.util.CookieHelper
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
 import scala.concurrent.ExecutionContext
 
-trait ProxyRoutes extends UserInfoDirectives with CorsSupport with RouteHelper { self: LazyLogging =>
+trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper { self: LazyLogging =>
   val proxyService: ProxyService
   implicit val executionContext: ExecutionContext
-
-  private val tokenCookieName = "LeoToken"
 
   protected val proxyRoutes: Route =
     pathPrefix("notebooks") {

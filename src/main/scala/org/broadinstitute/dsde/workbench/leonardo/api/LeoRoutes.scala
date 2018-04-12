@@ -17,7 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, LeoExce
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
-import org.broadinstitute.dsde.workbench.leonardo.util.RouteHelper
+import org.broadinstitute.dsde.workbench.leonardo.util.CookieHelper
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchException, WorkbenchExceptionWithErrorReport}
@@ -26,9 +26,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxyService, val statusService: StatusService, val swaggerConfig: SwaggerConfig)
                         (implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext)
-  extends LazyLogging with RouteHelper with ProxyRoutes with SwaggerRoutes with StatusRoutes with UserInfoDirectives {
-
-  private val tokenCookieName = "LeoToken"
+  extends LazyLogging with CookieHelper with ProxyRoutes with SwaggerRoutes with StatusRoutes with UserInfoDirectives {
 
   def unauthedRoutes: Route =
     path("ping") {
