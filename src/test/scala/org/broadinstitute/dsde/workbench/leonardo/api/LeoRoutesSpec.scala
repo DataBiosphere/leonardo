@@ -199,14 +199,20 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with TestLeoRoutes 
   it should "202 when stopping and starting a cluster" in isolatedDbTest {
     val newCluster = ClusterRequest(Map.empty, None)
 
-    Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> leoRoutes.route ~> check {
+    Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
+
+      validateCookie { header[`Set-Cookie`] }
     }
-    Post(s"/api/cluster/${googleProject.value}/${clusterName.value}/stop") ~> leoRoutes.route ~> check {
+    Post(s"/api/cluster/${googleProject.value}/${clusterName.value}/stop") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
+
+      validateCookie { header[`Set-Cookie`] }
     }
-    Post(s"/api/cluster/${googleProject.value}/${clusterName.value}/start") ~> leoRoutes.route ~> check {
+    Post(s"/api/cluster/${googleProject.value}/${clusterName.value}/start") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
+
+      validateCookie { header[`Set-Cookie`] }
     }
   }
 
