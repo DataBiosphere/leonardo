@@ -28,7 +28,7 @@ import org.scalatest.time.{Minutes, Seconds, Span}
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import scala.util.{Random, Try}
+import scala.util.{Failure, Random, Success, Try}
 
 
 case class TimeResult[R](result:R, duration:FiniteDuration)
@@ -397,7 +397,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       val bucketObjectToLocalize = GcsObjectName(fileToLocalize)
       withNewBucketObject(bucketName, bucketObjectToLocalize, fileToLocalizeContents, "text/plain") { objectName =>
         // give the user's pet read access to the object
-        googleStorageDAO.setObjectAccessControl(bucketName, objectName, GcsEntity(petServiceAccount, GcsEntityTypes.User), GcsRoles.Owner).futureValue
+        googleStorageDAO.setObjectAccessControl(bucketName, objectName, GcsEntity(petServiceAccount, GcsEntityTypes.User), GcsRoles.Reader).futureValue
 
         // create a notebook file to delocalize
         withNewNotebook(cluster) { notebookPage =>
@@ -410,6 +410,14 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
           )
 
           val testResult = Try(testCode(localizeRequest, bucketName))
+
+          // Verify and save the localization.log file to test output to aid in debugging
+          Try(verifyAndSaveLocalizationLog(cluster)) match {
+            case Success(downloadFile) =>
+              logger.info(s"Saved localization log for cluster ${cluster.googleProject.value}/${cluster.clusterName.string} to ${downloadFile.getAbsolutePath}")
+            case Failure(e) =>
+              logger.warn(s"Could not obtain localization log files for cluster ${cluster.googleProject}/${cluster.clusterName}: ${e.getMessage}")
+          }
 
           // clean up files on the cluster
           // no need to clean up the bucket objects; that will happen as part of `withNewBucketObject`
@@ -427,17 +435,6 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
                                dataFileName: String, dataFileContents: String)(implicit token: AuthToken): Unit = {
     implicit val patienceConfig: PatienceConfig = storagePatience
 
-    // check localization.log for existence
-    val localizationLog = Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "localization.log", includeContent = true)
-    localizationLog.content shouldBe defined
-
-    // Save localization.log to test output to aid in debugging
-    val downloadFile = new File(logDir, s"${cluster.googleProject.value}-${cluster.clusterName.string}-localization.log")
-    val fos = new FileOutputStream(downloadFile)
-    fos.write(localizationLog.content.get.getBytes)
-    fos.close()
-    logger.info(s"Saved localization log for cluster ${cluster.googleProject.value}/${cluster.clusterName.string} to ${downloadFile.getAbsolutePath}")
-
     // the localized file should exist on the notebook VM
     val item = Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, localizedFileName, includeContent = true)
     item.content shouldBe Some(localizedFileContents)
@@ -449,6 +446,20 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     // the data file should exist on the notebook VM
     val dataItem = Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, dataFileName, includeContent = true)
     dataItem.content shouldBe Some(dataFileContents)
+  }
+
+  def verifyAndSaveLocalizationLog(cluster: Cluster)(implicit token: AuthToken): File = {
+    // check localization.log for existence
+    val localizationLog = Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "localization.log", includeContent = true)
+    localizationLog.content shouldBe defined
+
+    // Save localization.log to test output to aid in debugging
+    val downloadFile = new File(logDir, s"${cluster.googleProject.value}-${cluster.clusterName.string}-localization.log")
+    val fos = new FileOutputStream(downloadFile)
+    fos.write(localizationLog.content.get.getBytes)
+    fos.close()
+
+    downloadFile
   }
 
   def verifyHailImport(notebookPage: NotebookPage, vcfPath: GcsPath, clusterName: ClusterName): Unit = {
