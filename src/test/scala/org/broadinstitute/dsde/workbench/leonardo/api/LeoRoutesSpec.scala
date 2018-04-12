@@ -11,39 +11,21 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchUserId}
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.FlatSpec
 
 import scala.concurrent.duration._
 import spray.json._
 
-class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with TestLeoRoutes with TestComponent {
+class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with TestLeoRoutes with TestComponent {
 
   // https://doc.akka.io/docs/akka-http/current/routing-dsl/testkit.html#increase-timeout
   implicit val timeout = RouteTestTimeout(5.seconds dilated)
 
   private val googleProject = GoogleProject("test-project")
   private val clusterName = ClusterName("test-cluster")
-  private val tokenName = "LeoToken"
-  private val tokenValue = "accessToken"
-  private val tokenCookie = HttpCookiePair(tokenName, tokenValue)
 
   val invalidUserLeoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with MockUserInfoDirectives {
     override val userInfo: UserInfo =  UserInfo(OAuth2BearerToken(tokenValue), WorkbenchUserId("badUser"), WorkbenchEmail("badUser@example.com"), 0)
-  }
-
-  private def validateCookie(setCookie: Option[`Set-Cookie`],
-                             expectedCookie: HttpCookiePair = tokenCookie,
-                             age: Long = tokenAge / 1000): Unit = {
-    def roundUpToNearestTen(d: Long) = Math.ceil(d / 10.0) * 10
-
-    setCookie shouldBe 'defined
-    val cookie = setCookie.get.cookie
-    cookie.name shouldBe expectedCookie.name
-    cookie.value shouldBe expectedCookie.value
-    cookie.secure shouldBe true
-    cookie.maxAge.map(roundUpToNearestTen) shouldBe Some(age) // test execution loses some milliseconds
-    cookie.domain shouldBe None
-    cookie.path shouldBe Some("/")
   }
 
   "LeoRoutes" should "200 on ping" in {
