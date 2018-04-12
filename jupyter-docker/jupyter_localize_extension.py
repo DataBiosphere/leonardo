@@ -6,6 +6,7 @@ from tornado import gen
 from tornado.web import HTTPError
 from notebook.base.handlers import IPythonHandler
 from notebook.utils import url_path_join
+from datauri import DataURI
 
 class LocalizeHandler(IPythonHandler):
   def _sanitize(self, pathstr):
@@ -20,7 +21,7 @@ class LocalizeHandler(IPythonHandler):
         os.makedirs(os.path.dirname(expanded))
       except OSError: #thrown if dirs already exist
         pass
-      expanded
+      return expanded
 
   def _handle_gcs_uri(self, locout, source, dest):
     """Handles localization entries where either the source or destination is a gs: path.
