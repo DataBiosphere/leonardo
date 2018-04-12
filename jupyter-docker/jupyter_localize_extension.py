@@ -29,7 +29,7 @@ class LocalizeHandler(IPythonHandler):
     cmd = ['gsutil', '-m', '-q', 'cp', '-R', '-c', '-e', pipes.quote(source), pipes.quote(dest)]
     locout.write(' '.join(cmd) + '\n')
     result = subprocess.call(cmd, stderr=locout)
-    return result
+    return result == 0
 
   def _handle_data_uri(self, locout, source, dest):
     """Handles localization entries where the source is a data: URI."""
@@ -65,14 +65,14 @@ class LocalizeHandler(IPythonHandler):
         dest = self._sanitize(key)
 
         if source.startswith('gs:') or dest.startswith('gs:'):
-          result = self._handle_gcs_uri(locout, source, dest)
+          success = self._handle_gcs_uri(locout, source, dest)
         elif source.startswith('data:'):
-          result = self._handle_data_uri(locout, source, dest)
+          success = self._handle_data_uri(locout, source, dest)
         else:
           locout.write('Unhandled localization entry: {} -> {}. Required gs: or data: URIs.\n'.format(source, dest))
-          result = False
+          success = False
 
-        if not result:
+        if not success:
           failures.append((dest, source))
 
     return failures
