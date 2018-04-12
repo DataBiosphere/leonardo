@@ -196,6 +196,26 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with TestLeoRoutes 
     }
   }
 
+  it should "202 when stopping and starting a cluster" in isolatedDbTest {
+    val newCluster = ClusterRequest(Map.empty, None)
+
+    Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+    }
+    Post(s"/api/cluster/${googleProject.value}/${clusterName.value}/stop") ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+    }
+    Post(s"/api/cluster/${googleProject.value}/${clusterName.value}/start") ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+    }
+  }
+
+  it should "404 when stopping a cluster that does not exist" in {
+    Post(s"/api/cluster/nonexistent/bestclustername/stop") ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.NotFound
+    }
+  }
+
   private def serviceAccountLabels: Map[String, String] = {
     (
       clusterServiceAccount(googleProject).map { sa => Map("clusterServiceAccount" -> sa.value) } getOrElse Map.empty

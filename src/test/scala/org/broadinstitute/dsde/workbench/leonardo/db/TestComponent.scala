@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
+import java.util.UUID
+
 import org.broadinstitute.dsde.workbench.leonardo.TestExecutionContext
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
@@ -30,5 +32,9 @@ trait TestComponent extends Matchers with ScalaFutures
     } finally {
       dbFutureValue { _ => DbSingleton.ref.dataAccess.truncateAll() }
     }
+  }
+
+  protected def getClusterId(googleId: UUID): Long = {
+    dbFutureValue { _.clusterQuery.getIdByGoogleId(googleId) }.get
   }
 }

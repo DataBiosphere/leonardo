@@ -5,8 +5,9 @@ MYSQL_VERSION=5.6
 start() {
 
     echo "attempting to remove old $CONTAINER container..."
-    docker rm -f $CONTAINER || echo "docker rm failed. nothing to rm."
-    docker rm -f $CONTAINER2 || echo "docker rm failed. nothing to rm."
+    docker rm -f $CONTAINER || echo "docker rm failed. $CONTAINER not found."
+    echo "attempting to remove old $CONTAINER2 container..."
+    docker rm -f $CONTAINER2 || echo "docker rm failed. $CONTAINER2 not found."
 
     # start up mysql
     echo "starting up mysql container..."
@@ -25,7 +26,7 @@ start() {
                --link $CONTAINER:mysql \
                -v $PWD/docker/sql_validate.sh:/working/sql_validate.sh \
                mysql:$MYSQL_VERSION \
-               /working/sql_validate.sh leonardo
+               /working/sql_validate.sh $TARGET
 
     if [ 0 -eq $? ]; then
         echo "mysql validation succeeded."
@@ -38,15 +39,13 @@ start() {
 
 stop() {
     echo "Stopping docker $CONTAINER container..."
-    docker stop $CONTAINER || echo "mysql stop failed. container already stopped."
-    docker rm -v $CONTAINER || echo "mysql rm -v failed.  container already destroyed."
+    docker stop $CONTAINER || echo "mysql stop failed. container $CONTAINER already stopped."
+    docker rm -v $CONTAINER || echo "mysql rm -v failed.  container $CONTAINER already destroyed."
 
-    docker stop $CONTAINER2 || echo "mysql stop failed. container already stopped."
-    docker rm -v $CONTAINER2 || echo "mysql rm -v failed.  container already destroyed."
+    echo "Stopping docker $CONTAINER2 container..."
+    docker stop $CONTAINER2 || echo "mysql stop failed. container $CONTAINER2 already stopped."
+    docker rm -v $CONTAINER2 || echo "mysql rm -v failed.  container $CONTAINER2 already destroyed."
 }
-
-CONTAINER=mysql
-CONTAINER2=leonardo-mysql
 
 if [ ${#@} == 0 ]; then
     echo "Usage: $0 stop|start <service>"
@@ -54,6 +53,9 @@ if [ ${#@} == 0 ]; then
 fi
 
 COMMAND=$1
+TARGET=${2:-leonardo}
+CONTAINER=${3:-leonardo-mysql}
+CONTAINER2=mysql
 
 if [ ${#@} == 0 ]; then
     echo "Usage: $0 stop|start"
