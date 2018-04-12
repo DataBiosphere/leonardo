@@ -38,49 +38,43 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
 
   def leoRoutes: Route =
     requireUserInfo { userInfo =>
-      path("isWhitelisted") {
-        get {
-          complete {
-            leonardoService.isWhitelisted(userInfo).map { _ =>
-              StatusCodes.OK
+      setTokenCookie(userInfo) {
+        path("isWhitelisted") {
+          get {
+            complete {
+              leonardoService.isWhitelisted(userInfo).map { _ =>
+                StatusCodes.OK
+              }
             }
           }
-        }
-      } ~
-      path("cluster" / Segment / Segment) { (googleProject, clusterName) =>
-        put {
-          entity(as[ClusterRequest]) { cluster =>
-            setTokenCookie(userInfo) {
+        } ~
+        path("cluster" / Segment / Segment) { (googleProject, clusterName) =>
+          put {
+            entity(as[ClusterRequest]) { cluster =>
               complete {
                 leonardoService.createCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName), cluster).map { cluster =>
                   StatusCodes.OK -> cluster
                 }
               }
             }
-          }
-        } ~
-        get {
-          setTokenCookie(userInfo) {
+          } ~
+          get {
             complete {
               leonardoService.getActiveClusterDetails(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { clusterDetails =>
                 StatusCodes.OK -> clusterDetails
               }
             }
-          }
-        } ~
-        delete {
-          setTokenCookie(userInfo) {
+          } ~
+          delete {
             complete {
               leonardoService.deleteCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
                 StatusCodes.Accepted
               }
             }
           }
-        }
-      } ~
-      path("clusters") {
-        parameterMap { params =>
-          setTokenCookie(userInfo) {
+        } ~
+        path("clusters") {
+          parameterMap { params =>
             complete {
               leonardoService.listClusters(userInfo, params).map { clusters =>
                 StatusCodes.OK -> clusters
