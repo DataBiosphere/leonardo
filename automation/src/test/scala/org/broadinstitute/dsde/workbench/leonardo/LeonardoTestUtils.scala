@@ -404,8 +404,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
           notebookPage.executeCell(s"""! echo -n "$fileToDelocalizeContents" > $fileToDelocalize""")
 
           val localizeRequest = Map(
-            fileToLocalize -> GcsPath(bucketName, bucketObjectToLocalize).toUri,
-            GcsPath(bucketName, GcsObjectName(fileToDelocalize)).toUri -> fileToDelocalize,
+            localizeFileName -> GcsPath(bucketName, bucketObjectToLocalize).toUri,
+            GcsPath(bucketName, GcsObjectName(delocalizeFileName)).toUri -> delocalizeFileName,
             Base64.getEncoder.encode(dataFileContents.getBytes(StandardCharsets.UTF_8)) -> dataFileName
           )
 
