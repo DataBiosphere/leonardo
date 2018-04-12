@@ -334,7 +334,7 @@ paths:
     post:
       summary: Localize files to/from a Jupyter notebook server
       description: |
-        Sends a command to a Jupyter notebook server to localize files between the server and GCS.
+        Sends a command to a Jupyter notebook server to localize files to/from the server. Supports GCS paths and [Data URIs](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URIs).
         Output, including any errors, will appear in `localization.log` in the working directory of the Jupyter notebook server.
 
         By default this operation will happen synchronously and the response status will reflect any errors encountered in the copy.
@@ -363,8 +363,15 @@ paths:
           default: false
         - in: body
           description: |
-            JSON object. Keys represent destinations, values represent sources.
-            Paths will be quoted, intermediate local directories made, and then sent to [gsutil cp](https://cloud.google.com/storage/docs/gsutil/commands/cp).
+            JSON object. Keys represent destinations, values represent sources. The following rules apply:
+
+            * If either the source or destination is a GCS path, it will be sent to [gsutil cp](https://cloud.google.com/storage/docs/gsutil/commands/cp). Therefore
+              this can be used to localize a file _from_ a bucket _to_ the notebook server; or delocalize a file _from_ the notebook server _to_ a bucket.
+            * If the source is a Data URI, then the destination file will be a created with the decoded data URI contents. This mode can only be used to localize
+              file to the notebook server.
+
+            In both cases all paths will be quoted & sanitized, and intermediate local directories will be made.
+
             Note that duplicate keys will lead to unexpected behaviour, so specify the destination filename explicitly if you want to localize multiple files to the same directory.
           name: filesToLocalize
           required: true
@@ -372,9 +379,10 @@ paths:
             type: object
             description:
             example:
-              "/local/file/system/file.txt" : "gs://somebucket/file.txt"
-              "/localize/entire/directory" : "gs://somebucket/*"
-              "gs://upload/to/this/bucketdir" : "/this/local/file.txt"
+              "~/file.txt" : "gs://somebucket/file.txt"
+              "~/directory" : "gs://somebucket/*"
+              "gs://upload/to/this/bucketdir" : "~/file.txt"
+              "~/data.txt" : "data:text/plain;base64,SGVsbG8sIFdvcmxkIQ%3D%3D"
       responses:
         '200':
           description: Proxy connection successful
