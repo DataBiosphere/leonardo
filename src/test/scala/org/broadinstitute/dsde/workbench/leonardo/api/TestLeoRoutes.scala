@@ -85,7 +85,7 @@ trait TestLeoRoutes { this: ScalatestRouteTest with ScalaFutures with Matchers =
 
   private[api] def validateCookie(setCookie: Option[`Set-Cookie`],
                              expectedCookie: HttpCookiePair = tokenCookie,
-                             age: Long = tokenAge / 1000): Unit = {
+                             age: Long = tokenAge): Unit = {
     def roundUpToNearestTen(d: Long) = Math.ceil(d / 10.0) * 10
 
     setCookie shouldBe 'defined

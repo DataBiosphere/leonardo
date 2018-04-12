@@ -67,7 +67,7 @@ class ProxyService(proxyConfig: ProxyConfig,
     googleTokenCache.get(token).map {
       case (userInfo, expireTime) =>
         if (expireTime.isAfter(Instant.now))
-          userInfo.copy(tokenExpiresIn = expireTime.toEpochMilli - Instant.now.toEpochMilli)
+          userInfo.copy(tokenExpiresIn = expireTime.getEpochSecond - Instant.now.getEpochSecond)
         else
           throw AccessTokenExpiredException()
     }
