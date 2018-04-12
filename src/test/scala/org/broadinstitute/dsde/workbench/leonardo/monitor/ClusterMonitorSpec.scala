@@ -18,7 +18,8 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Mas
 import org.broadinstitute.dsde.workbench.leonardo.model.google.InstanceStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterCreated, ClusterDeleted}
-import org.broadinstitute.dsde.workbench.leonardo.service.{BucketHelper, LeonardoService}
+import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
+import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsObjectName, GcsPath, GoogleProject, ServiceAccountKeyId}

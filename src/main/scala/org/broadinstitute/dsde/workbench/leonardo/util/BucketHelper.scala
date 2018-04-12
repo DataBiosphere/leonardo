@@ -1,4 +1,4 @@
-package org.broadinstitute.dsde.workbench.leonardo.service
+package org.broadinstitute.dsde.workbench.leonardo.util
 
 import cats.data.OptionT
 import cats.implicits._
@@ -6,12 +6,11 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.model.{ServiceAccountInfo, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.{Group, User}
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.{GcsRole, Owner, Reader}
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GoogleProject, generateUniqueBucketName}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GoogleProject}
 
 import scala.concurrent.{ExecutionContext, Future}
 
