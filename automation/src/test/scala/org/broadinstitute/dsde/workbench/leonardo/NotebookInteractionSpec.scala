@@ -91,7 +91,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       val localizeFileContents = "Async localize test"
       val delocalizeFileName = "delocalize_async.txt"
       val delocalizeFileContents = "Async delocalize test"
-      val localizeDataFileName = "localize_data_aync.txt"
+      val localizeDataFileName = "localize_data_async.txt"
       val localizeDataContents = "Hello World"
 
       withLocalizeDelocalizeFiles(ronCluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName) =>

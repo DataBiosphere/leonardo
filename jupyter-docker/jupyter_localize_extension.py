@@ -8,22 +8,24 @@ from notebook.base.handlers import IPythonHandler
 from notebook.utils import url_path_join
 
 class LocalizeHandler(IPythonHandler):
-  def sanitize(self, pathstr):
-    """Expands to absolute paths, makes intermediate dirs, and quotes to remove any shell naughtiness.
-    This doesn't need to be a coroutine as it's an inline function, not something Future-y."""
-    #expanduser behaves fine with gs:// urls, thankfully
-    expanded = os.path.expanduser(pathstr)
-    if not pathstr.startswith("gs://"):
+  def _sanitize(self, pathstr):
+    """Sanitizes paths. Handles local paths, gs: URIs, and data: URIs."""
+    # return gs or data uris as is
+    if pathstr.startswith("gs:") or pathstr.startswith("data:"):
+      return pathstr
+    # expand user directories and make intermediate directories
+    else:
+      expanded = os.path.expanduser(pathstr)
       try:
         os.makedirs(os.path.dirname(expanded))
       except OSError: #thrown if dirs already exist
         pass
-    return pipes.quote(expanded)
+      expanded
 
   def _handle_gcs_uri(self, locout, source, dest):
     """Handles localization entries where either the source or destination is a gs: path.
-    Simply invokes gsuitl in a subprocess."""
-    cmd = ['gsutil', '-m', '-q', 'cp', '-R', '-c', '-e', source, dest]
+    Simply invokes gsutil in a subprocess. Quotes paths to remove any shell naughtiness."""
+    cmd = ['gsutil', '-m', '-q', 'cp', '-R', '-c', '-e', pipes.quote(source), pipes.quote(dest)]
     locout.write(' '.join(cmd) + '\n')
     result = subprocess.call(cmd, stderr=locout)
     return result
@@ -58,8 +60,8 @@ class LocalizeHandler(IPythonHandler):
     with open("localization.log", 'a', buffering=1) as locout:
       for key in pathdict:
         #NOTE: keys are destinations, values are sources
-        source = self.sanitize(pathdict[key])
-        dest = self.sanitize(key)
+        source = self._sanitize(pathdict[key])
+        dest = self._sanitize(key)
 
         if source.startswith('gs:') or dest.startswith('gs:'):
           result = self._handle_gcs_uri(locout, source, dest)
