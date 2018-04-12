@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
 import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.model.headers.OAuth2BearerToken
+import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken, `Set-Cookie`}
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.testkit.TestDuration
 import org.broadinstitute.dsde.workbench.model.UserInfo
@@ -11,11 +11,12 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchUserId}
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.FlatSpec
+
 import scala.concurrent.duration._
 import spray.json._
 
-class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with TestLeoRoutes with TestComponent {
+class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with TestLeoRoutes with TestComponent {
 
   // https://doc.akka.io/docs/akka-http/current/routing-dsl/testkit.html#increase-timeout
   implicit val timeout = RouteTestTimeout(5.seconds dilated)
@@ -24,7 +25,7 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   private val clusterName = ClusterName("test-cluster")
 
   val invalidUserLeoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with MockUserInfoDirectives {
-    override val userInfo: UserInfo =  UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("badUser"), WorkbenchEmail("badUser@example.com"), 0)
+    override val userInfo: UserInfo =  UserInfo(OAuth2BearerToken(tokenValue), WorkbenchUserId("badUser"), WorkbenchEmail("badUser@example.com"), 0)
   }
 
   "LeoRoutes" should "200 on ping" in {
@@ -34,8 +35,10 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "200 if you're on the whitelist" in isolatedDbTest {
-    Get(s"/api/isWhitelisted") ~> leoRoutes.route ~> check {
+    Get(s"/api/isWhitelisted") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
+
+      validateCookie { header[`Set-Cookie`] }
     }
   }
 
@@ -49,16 +52,21 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
     val newCluster = ClusterRequest(Map.empty, Some(extensionPath), Some(userScriptPath))
 
     Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~>
-      leoRoutes.route ~> check {
+      timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
+
+      validateCookie { header[`Set-Cookie`] }
     }
 
-    Get(s"/api/cluster/${googleProject.value}/${clusterName.value}") ~> leoRoutes.route ~> check {
+    Get(s"/api/cluster/${googleProject.value}/${clusterName.value}") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
+
       val responseCluster = responseAs[Cluster]
       responseCluster.serviceAccountInfo.clusterServiceAccount shouldEqual serviceAccountProvider.getClusterServiceAccount(defaultUserInfo, googleProject).futureValue
       responseCluster.serviceAccountInfo.notebookServiceAccount shouldEqual serviceAccountProvider.getNotebookServiceAccount(defaultUserInfo, googleProject).futureValue
       responseCluster.jupyterExtensionUri shouldEqual Some(extensionPath)
+
+      validateCookie { header[`Set-Cookie`] }
     }
   }
 
@@ -83,11 +91,13 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   it should "202 when deleting a cluster" in isolatedDbTest{
     val newCluster = ClusterRequest(Map.empty, None)
 
-    Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> leoRoutes.route ~> check {
+    Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
     }
-    Delete(s"/api/cluster/${googleProject.value}/${clusterName.value}") ~> leoRoutes.route ~> check {
+    Delete(s"/api/cluster/${googleProject.value}/${clusterName.value}") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
+
+      validateCookie { header[`Set-Cookie`] }
     }
   }
 
@@ -98,9 +108,11 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   }
 
   it should "200 when listing no clusters" in isolatedDbTest {
-    Get("/api/clusters") ~> leoRoutes.route ~> check {
+    Get("/api/clusters") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[List[Cluster]] shouldBe 'empty
+
+      validateCookie { header[`Set-Cookie`] }
     }
   }
 
@@ -112,8 +124,9 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       }
     }
 
-    Get("/api/clusters") ~> leoRoutes.route ~> check {
+    Get("/api/clusters") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
+
       val responseClusters = responseAs[List[Cluster]]
       responseClusters should have size 10
       responseClusters foreach { cluster =>
@@ -125,6 +138,8 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
           "creator" -> "user1@example.com",
           "googleProject" -> googleProject.value) ++ serviceAccountLabels
       }
+
+      validateCookie { header[`Set-Cookie`] }
     }
   }
 
@@ -136,10 +151,12 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
       }
     }
 
-    Get("/api/clusters?label6=value6") ~> leoRoutes.route ~> check {
+    Get("/api/clusters?label6=value6") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
+
       val responseClusters = responseAs[List[Cluster]]
       responseClusters should have size 1
+
       val cluster = responseClusters.head
       cluster.googleProject shouldEqual googleProject
       cluster.clusterName shouldEqual ClusterName("test-cluster-6")
@@ -150,12 +167,16 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
         "creator" -> "user1@example.com",
         "googleProject" -> googleProject.value,
         "label6" -> "value6") ++ serviceAccountLabels
+
+      validateCookie { header[`Set-Cookie`] }
     }
 
-    Get("/api/clusters?_labels=label4%3Dvalue4") ~> leoRoutes.route ~> check {
+    Get("/api/clusters?_labels=label4%3Dvalue4") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
+
       val responseClusters = responseAs[List[Cluster]]
       responseClusters should have size 1
+
       val cluster = responseClusters.head
       cluster.googleProject shouldEqual googleProject
       cluster.clusterName shouldEqual ClusterName("test-cluster-4")
@@ -166,6 +187,8 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
         "creator" -> "user1@example.com",
         "googleProject" -> googleProject.value,
         "label4" -> "value4") ++ serviceAccountLabels
+
+      validateCookie { header[`Set-Cookie`] }
     }
 
     Get("/api/clusters?_labels=bad") ~> leoRoutes.route ~> check {
@@ -176,14 +199,20 @@ class LeoRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with 
   it should "202 when stopping and starting a cluster" in isolatedDbTest {
     val newCluster = ClusterRequest(Map.empty, None)
 
-    Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> leoRoutes.route ~> check {
+    Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
+
+      validateCookie { header[`Set-Cookie`] }
     }
-    Post(s"/api/cluster/${googleProject.value}/${clusterName.value}/stop") ~> leoRoutes.route ~> check {
+    Post(s"/api/cluster/${googleProject.value}/${clusterName.value}/stop") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
+
+      validateCookie { header[`Set-Cookie`] }
     }
-    Post(s"/api/cluster/${googleProject.value}/${clusterName.value}/start") ~> leoRoutes.route ~> check {
+    Post(s"/api/cluster/${googleProject.value}/${clusterName.value}/start") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
+
+      validateCookie { header[`Set-Cookie`] }
     }
   }
 

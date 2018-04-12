@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.service.TestProxy.Data
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
-import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll, FlatSpec, Matchers}
+import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll, FlatSpec}
 
 import scala.collection.immutable
 import scala.concurrent.duration._
@@ -23,13 +23,12 @@ import scala.concurrent.duration._
 /**
   * Created by rtitle on 8/10/17.
   */
-class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with BeforeAndAfter with ScalatestRouteTest with ScalaFutures with TestLeoRoutes with TestProxy with TestComponent with GcsPathUtils {
+class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfter with ScalatestRouteTest with ScalaFutures with TestLeoRoutes with TestProxy with TestComponent with GcsPathUtils {
   implicit val patience = PatienceConfig(timeout = scaled(Span(30, Seconds)))
   implicit val routeTimeout = RouteTestTimeout(10 seconds)
 
   val clusterName = "test"
   val googleProject = "dsp-leo-test"
-  val tokenCookie = HttpCookiePair("LeoToken", "me")
   val unauthorizedTokenCookie = HttpCookiePair("LeoToken", "unauthorized")
   val expiredTokenCookie = HttpCookiePair("LeoToken", "expired")
   val serviceAccountEmail = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
@@ -186,18 +185,7 @@ class ProxyRoutesSpec extends FlatSpec with Matchers with BeforeAndAfterAll with
     Get(s"/notebooks/$googleProject/$clusterName/setCookie")
       .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
       .addHeader(Origin("http://example.com"))  ~> leoRoutes.route ~> check {
-      handled shouldBe true
-      status shouldEqual StatusCodes.OK
-
-      val setCookie = header[`Set-Cookie`]
-      setCookie shouldBe 'defined
-      val cookie = setCookie.get.cookie
-      cookie.name shouldBe tokenCookie.name
-      cookie.value shouldBe tokenCookie.value
-      cookie.secure shouldBe true
-      cookie.maxAge.map(a => ((9 + a) / 10) * 10) shouldBe Some(3600)   // round up to nearest 10, test execution loses some milliseconds
-      cookie.domain shouldBe None
-      cookie.path shouldBe Some("/")
+      validateCookie(setCookie = header[`Set-Cookie`], age = 3600)
 
       validateCors(origin = Some("http://example.com"))
     }

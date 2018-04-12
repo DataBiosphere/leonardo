@@ -38,26 +38,27 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
 
   def leoRoutes: Route =
     requireUserInfo { userInfo =>
-      path("isWhitelisted") {
-        get {
-          complete {
-            leonardoService.isWhitelisted(userInfo).map { _ =>
-              StatusCodes.OK
-            }
-          }
-        }
-      } ~
-      pathPrefix("cluster" / Segment / Segment) { (googleProject, clusterName) =>
-        pathEndOrSingleSlash {
-          put {
-            entity(as[ClusterRequest]) { cluster =>
-              complete {
-                leonardoService.createCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName), cluster).map { cluster =>
-                  StatusCodes.OK -> cluster
-                }
+      setTokenCookie(userInfo) {
+        path("isWhitelisted") {
+          get {
+            complete {
+              leonardoService.isWhitelisted(userInfo).map { _ =>
+                StatusCodes.OK
               }
             }
-          } ~
+          }
+        } ~
+        pathPrefix("cluster" / Segment / Segment) { (googleProject, clusterName) =>
+          pathEndOrSingleSlash {
+            put {
+              entity(as[ClusterRequest]) { cluster =>
+                complete {
+                  leonardoService.createCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName), cluster).map { cluster =>
+                    StatusCodes.OK -> cluster
+                  }
+                }
+              }
+            } ~
             get {
               complete {
                 leonardoService.getActiveClusterDetails(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { clusterDetails =>
@@ -72,26 +73,26 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
                 }
               }
             }
-        } ~
-        path("stop") {
-          post {
-            complete {
-              leonardoService.stopCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
-                StatusCodes.Accepted
+          } ~
+          path("stop") {
+            post {
+              complete {
+                leonardoService.stopCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
+                  StatusCodes.Accepted
+                }
+              }
+            }
+          } ~
+          path("start") {
+            post {
+              complete {
+                leonardoService.startCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
+                  StatusCodes.Accepted
+                }
               }
             }
           }
         } ~
-        path("start") {
-          post {
-            complete {
-              leonardoService.startCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
-                StatusCodes.Accepted
-              }
-            }
-          }
-        }
-      } ~
         path("clusters") {
           parameterMap { params =>
             complete {
@@ -101,6 +102,7 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
             }
           }
         }
+      }
     }
 
   def route: Route = (logRequestResult & handleExceptions(myExceptionHandler)) {
