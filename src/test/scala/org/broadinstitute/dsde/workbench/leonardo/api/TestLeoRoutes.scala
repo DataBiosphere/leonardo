@@ -15,7 +15,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbSingleton
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
-import org.broadinstitute.dsde.workbench.leonardo.service.{BucketHelper, LeonardoService, MockProxyService, StatusService}
+import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, MockProxyService, StatusService}
+import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.Matchers
@@ -85,7 +86,7 @@ trait TestLeoRoutes { this: ScalatestRouteTest with ScalaFutures with Matchers =
 
   private[api] def validateCookie(setCookie: Option[`Set-Cookie`],
                              expectedCookie: HttpCookiePair = tokenCookie,
-                             age: Long = tokenAge / 1000): Unit = {
+                             age: Long = tokenAge): Unit = {
     def roundUpToNearestTen(d: Long) = Math.ceil(d / 10.0) * 10
 
     setCookie shouldBe 'defined
