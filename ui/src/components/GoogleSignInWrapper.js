@@ -2,6 +2,8 @@ import React from 'react';
 import Dialog, { DialogContent } from 'material-ui/Dialog';
 import GoogleLogin from 'react-google-login';
 
+import ListStateContainer from './ListStateContainer'
+
 
 /**
  * Update state on successful login or credential refresh.
@@ -97,6 +99,16 @@ class GoogleSignInWrapper extends React.Component {
 
   render() {
     var application = <div></div>;
+    if (this.state.loggedIn) {
+      application = (
+        <ListStateContainer
+          googleProfile={this.state.googleProfile}
+          googleAuthToken={this.state.googleToken}
+          oauthClientId={process.env.REACT_APP_OAUTH_CLIENT_ID}
+          errorHandler={this.props.errorHandler}
+        />
+      );
+    }
     return (
       <div>
         <Dialog
