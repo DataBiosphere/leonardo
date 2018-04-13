@@ -12,15 +12,14 @@ import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.server.RouteResult.Complete
 import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.ConnectToCluster
+import org.broadinstitute.dsde.workbench.leonardo.util.CookieHelper
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
-trait ProxyRoutes extends UserInfoDirectives with CorsSupport { self: LazyLogging =>
+trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper { self: LazyLogging =>
   val proxyService: ProxyService
   implicit val executionContext: ExecutionContext
-
-  protected val tokenCookieName = "LeoToken"
 
   protected val proxyRoutes: Route =
     pathPrefix("notebooks") {
@@ -36,7 +35,7 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport { self: LazyLoggin
               get {
                 // Check the user for ConnectToCluster privileges and set a cookie in the response
                 onSuccess(proxyService.authCheck(userInfo, googleProject, clusterName, ConnectToCluster)) {
-                  setTokenCookie(userInfo) {
+                  setTokenCookie(userInfo, tokenCookieName) {
                     complete {
                       logger.debug(s"Successfully set cookie for user $userInfo")
                       StatusCodes.OK
@@ -129,23 +128,4 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport { self: LazyLoggin
     }
     DebuggingDirectives.logRequestResult(LoggingMagnet(myMetricsLogger))
   }
-
-  /**
-    * Sets a token cookie in the HTTP response.
-    */
-  private[api] def setTokenCookie(userInfo: UserInfo): Directive0 = {
-    setCookie(buildCookie(userInfo))
-  }
-
-  private def buildCookie(userInfo: UserInfo): HttpCookie = {
-    HttpCookie(
-      name = tokenCookieName,
-      value = userInfo.accessToken.token,
-      secure = true,  // cookie is only sent for SSL requests
-      domain = None,  // Do not specify domain, making it default to Leo's domain
-      maxAge = Option(userInfo.tokenExpiresIn / 1000),  // coookie expiry is tied to the token expiry
-      path = Some("/")  // needed so it works for AJAX requests
-    )
-  }
-
 }
