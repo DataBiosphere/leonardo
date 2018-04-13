@@ -18,7 +18,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, NetworkTag}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
-import org.broadinstitute.dsde.workbench.leonardo.service.{BucketHelper, LeonardoService, ProxyService, StatusService}
+import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
+import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
