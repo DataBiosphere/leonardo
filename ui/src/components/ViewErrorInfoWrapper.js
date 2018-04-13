@@ -9,6 +9,12 @@ import Dialog, {
 
 import GoogleSignInWrapper from './GoogleSignInWrapper'
 
+
+/**
+ * Wrap all user interactions with div containing a hidden error popup.
+ * This wrapper provides the 'errorHandler' callback used when there are
+ * failures or urgent notifications from contained components.
+ */
 class ViewErrorInfoWrapper extends React.Component {
 
   constructor(props) {

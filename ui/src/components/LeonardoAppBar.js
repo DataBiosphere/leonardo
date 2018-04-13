@@ -1,7 +1,6 @@
 import React from 'react';
 
 import AppBar from 'material-ui/AppBar';
-import AssignmentIcon from 'material-ui-icons/Assignment';
 import Button from 'material-ui/Button';
 import Icon from 'material-ui/Icon';
 import Toolbar from 'material-ui/Toolbar';
@@ -28,7 +27,7 @@ class UnstyledLeonardoAppBar extends React.Component {
               color="inherit"
               aria-label="Menu"
             >
-                <AssignmentIcon />
+              assignment
             </Icon>
           </span>
           <Typography
