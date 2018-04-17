@@ -107,6 +107,7 @@ RUN apt-get install -yq --no-install-recommends \
     python-seaborn \
     python-tk \
     python-numpy \
+    python-pydot \
     liblzo2-dev \
     libz-dev \
 
@@ -138,6 +139,7 @@ RUN apt-get install -yq --no-install-recommends python3 \
         python3-pandas \
         python3-tk \
         python3-numpy \
+        python3-pydot \
  && python3 get-pip.py \
  # install the python 3 kernel
  && pip3 install tornado==4.5.3 \
