@@ -150,8 +150,8 @@ object Leonardo extends RestClient with LazyLogging {
     def contentsPath(googleProject: GoogleProject, clusterName: ClusterName, contentPath: String): String =
       s"${notebooksPath(googleProject, clusterName)}/api/contents/$contentPath"
 
-    def localizePath(googleProject: GoogleProject, clusterName: ClusterName, sync: Boolean = false): String =
-      s"${notebooksPath(googleProject, clusterName)}/api/localize${if (sync) "?sync=true" else ""}"
+    def localizePath(googleProject: GoogleProject, clusterName: ClusterName, async: Boolean = false): String =
+      s"${notebooksPath(googleProject, clusterName)}/api/localize${if (async) "?async=true" else ""}"
 
     def get(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver): NotebooksListPage = {
       val path = notebooksPath(googleProject, clusterName)
@@ -165,8 +165,8 @@ object Leonardo extends RestClient with LazyLogging {
       parseResponse(getRequest(url + path))
     }
 
-    def localize(googleProject: GoogleProject, clusterName: ClusterName, locMap: Map[String, String], sync: Boolean = false)(implicit token: AuthToken): String = {
-      val path = localizePath(googleProject, clusterName, sync)
+    def localize(googleProject: GoogleProject, clusterName: ClusterName, locMap: Map[String, String], async: Boolean = false)(implicit token: AuthToken): String = {
+      val path = localizePath(googleProject, clusterName, async)
       logger.info(s"Localize notebook files: POST /$path")
       val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
       postRequest(url + path, locMap, httpHeaders = List(cookie))

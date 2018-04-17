@@ -337,9 +337,8 @@ paths:
         Sends a command to a Jupyter notebook server to localize files between the server and GCS.
         Output, including any errors, will appear in `localization.log` in the working directory of the Jupyter notebook server.
 
-        By default this operation will happen asynchronously and this API will always return a 200 status.
-        However, if the `sync` parameter is specfied then the localization will happen synchronous to the request, and the API will
-        return 500 if an error occurred during the copy.
+        By default this operation will happen synchronously and the response status will reflect any errors encountered in the copy.
+        However, if the `async` parameter is specfied then the localization will happen asynchronously to the request, and the API will always return 200.
       operationId: proxyLocalize
       tags:
         - notebooks
@@ -355,10 +354,10 @@ paths:
           required: true
           type: string
         - in: query
-          name: sync
+          name: async
           description: |
-            If true, the copy will happen synchronous to the request and the API response will reflect any errors encountered during the copy.
-            If false, the copy will happen asynchronous to the request and the API will always return 200.
+            If true, the copy will happen asynchronously to the request and the API will always return 200.
+            If false (the default), the copy will happen synchronously and the response will reflect any errors encountered during the copy.
           required: false
           type: boolean
           default: false

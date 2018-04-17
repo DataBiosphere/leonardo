@@ -381,7 +381,9 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     testResult.get
   }
 
-  def withLocalizeDelocalizeFiles[T](cluster: Cluster, localizeFileName: String, localizeFileContents: String, delocalizeFileName: String, delocalizeFileContents: String)(testCode: (Map[String, String], GcsBucketName) => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+  def withLocalizeDelocalizeFiles[T](cluster: Cluster, fileToLocalize: String, fileToLocalizeContents: String, fileToDelocalize: String, fileToDelocalizeContents: String)
+                                    (testCode: (Map[String, String], GcsBucketName) => T)
+                                    (implicit webDriver: WebDriver, token: AuthToken): T = {
     implicit val patienceConfig: PatienceConfig = storagePatience
 
     withNewGoogleBucket(cluster.googleProject) { bucketName =>
@@ -390,26 +392,26 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       googleStorageDAO.setBucketAccessControl(bucketName, GcsEntity(petServiceAccount, GcsEntityTypes.User), GcsRoles.Owner).futureValue
 
       // create a bucket object to localize
-      val bucketObjectToLocalize = GcsObjectName(localizeFileName)
-      withNewBucketObject(bucketName, bucketObjectToLocalize, localizeFileContents, "text/plain") { objectName =>
+      val bucketObjectToLocalize = GcsObjectName(fileToLocalize)
+      withNewBucketObject(bucketName, bucketObjectToLocalize, fileToLocalizeContents, "text/plain") { objectName =>
         // give the user's pet read access to the object
         googleStorageDAO.setObjectAccessControl(bucketName, objectName, GcsEntity(petServiceAccount, GcsEntityTypes.User), GcsRoles.Owner).futureValue
 
         // create a notebook file to delocalize
         withNewNotebook(cluster) { notebookPage =>
-          notebookPage.executeCell(s"""! echo -n "$delocalizeFileContents" > $delocalizeFileName""")
+          notebookPage.executeCell(s"""! echo -n "$fileToDelocalizeContents" > $fileToDelocalize""")
 
           val localizeRequest = Map(
-            localizeFileName -> GcsPath(bucketName, bucketObjectToLocalize).toUri,
-            GcsPath(bucketName, GcsObjectName(delocalizeFileName)).toUri -> delocalizeFileName
+            fileToLocalize -> GcsPath(bucketName, bucketObjectToLocalize).toUri,
+            GcsPath(bucketName, GcsObjectName(fileToDelocalize)).toUri -> fileToDelocalize
           )
 
           val testResult = Try(testCode(localizeRequest, bucketName))
 
           // clean up files on the cluster
           // no need to clean up the bucket objects; that will happen as part of `withNewBucketObject`
-          notebookPage.executeCell(s"""! rm -f $localizeFileName""")
-          notebookPage.executeCell(s"""! rm -f $delocalizeFileName""")
+          notebookPage.executeCell(s"""! rm -f $fileToLocalize""")
+          notebookPage.executeCell(s"""! rm -f $fileToDelocalize""")
 
           testResult.get
         }

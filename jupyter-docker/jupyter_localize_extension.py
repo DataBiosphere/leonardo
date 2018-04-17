@@ -47,9 +47,9 @@ class LocalizeHandler(IPythonHandler):
     if not all(map(lambda v: type(v) is unicode, pathdict.values())):
       raise HTTPError(400, "Body must be JSON object of type string/string")
 
-    synchronous = self.get_query_argument('sync', False)
+    async = self.get_query_argument('async', False)
 
-    if not synchronous:
+    if async:
       #complete the request HERE, without waiting for the localize to run
       self.set_status(200)
       self.finish()

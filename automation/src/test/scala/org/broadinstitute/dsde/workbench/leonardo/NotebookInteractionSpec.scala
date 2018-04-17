@@ -94,7 +94,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
 
       withLocalizeDelocalizeFiles(ronCluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents) { (localizeRequest, bucketName) =>
         // call localize; this should return 200
-        Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, localizeRequest, sync = false)
+        Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, localizeRequest, async = true)
 
         // check that the files are eventually at their destinations
         implicit val patienceConfig: PatienceConfig = localizePatience
@@ -104,7 +104,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
 
         // call localize again with bad data. This should still return 200 since we're in async mode.
         val badLocalize = Map("file.out" -> "gs://nobuckethere")
-        Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, badLocalize, sync = false)
+        Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, badLocalize, async = true)
 
         // it should not have localized this file
         val thrown = the [RestException] thrownBy {
@@ -123,7 +123,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
 
       withLocalizeDelocalizeFiles(ronCluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents) { (localizeRequest, bucketName) =>
         // call localize; this should return 200
-        Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, localizeRequest, sync = true)
+        Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, localizeRequest, async = false)
 
         // check that the files are immediately at their destinations
         verifyLocalizeDelocalize(ronCluster, localizeFileName, localizeFileContents, GcsPath(bucketName, GcsObjectName(delocalizeFileName)), delocalizeFileContents)
@@ -131,7 +131,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
         // call localize again with bad data. This should still return 500 since we're in sync mode.
         val badLocalize = Map("file.out" -> "gs://nobuckethere")
         val thrown = the [RestException] thrownBy {
-          Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, badLocalize, sync = true)
+          Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, badLocalize, async = false)
         }
         // why doesn't `RestException` have a status code field?
         thrown.message should include ("500 : Internal Server Error")
