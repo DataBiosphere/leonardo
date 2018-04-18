@@ -23,16 +23,16 @@ class LocalizeHandler(IPythonHandler):
         pass
       return expanded
 
-  def _handle_gcs_uri(self, locout, source, dest):
-    """Handles localization entries where either the source or destination is a gs: path.
+  def _localize_gcs_uri(self, locout, source, dest):
+    """Localizes an entry where either the source or destination is a gs: path.
     Simply invokes gsutil in a subprocess. Quotes paths to remove any shell naughtiness."""
     cmd = ['gsutil', '-m', '-q', 'cp', '-R', '-c', '-e', pipes.quote(source), pipes.quote(dest)]
     locout.write(' '.join(cmd) + '\n')
     result = subprocess.call(cmd, stderr=locout)
     return result == 0
 
-  def _handle_data_uri(self, locout, source, dest):
-    """Handles localization entries where the source is a data: URI."""
+  def _localize_data_uri(self, locout, source, dest):
+    """Localizes an entry where the source is a data: URI"""
     try:
       uri = DataURI(source)
     except ValueError:
@@ -65,9 +65,9 @@ class LocalizeHandler(IPythonHandler):
         dest = self._sanitize(key)
 
         if source.startswith('gs:') or dest.startswith('gs:'):
-          success = self._handle_gcs_uri(locout, source, dest)
+          success = self._localize_gcs_uri(locout, source, dest)
         elif source.startswith('data:'):
-          success = self._handle_data_uri(locout, source, dest)
+          success = self._localize_data_uri(locout, source, dest)
         else:
           locout.write('Unhandled localization entry: {} -> {}. Required gs: or data: URIs.\n'.format(source, dest))
           success = False

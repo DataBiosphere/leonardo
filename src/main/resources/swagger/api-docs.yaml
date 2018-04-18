@@ -367,8 +367,8 @@ paths:
 
             * If either the source or destination is a GCS path, it will be sent to [gsutil cp](https://cloud.google.com/storage/docs/gsutil/commands/cp). Therefore
               this can be used to localize a file _from_ a bucket _to_ the notebook server; or delocalize a file _from_ the notebook server _to_ a bucket.
-            * If the source is a Data URI, then the destination file will be a created with the decoded data URI contents. This mode can only be used to localize
-              file to the notebook server.
+            * If the source is a Data URI, then the destination file will be created with the decoded data URI contents. This mode can only be used to localize
+              files to the notebook server.
 
             In both cases all paths will be quoted & sanitized, and intermediate local directories will be made.
 
