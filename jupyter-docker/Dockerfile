@@ -37,9 +37,9 @@ RUN echo "deb $DEBIAN_REPO/debian jessie main\ndeb $DEBIAN_REPO/debian-security 
 # Java
 #######################
 
-ENV JAVA_VER jdk1.8.0_161
-ENV JAVA_TGZ jdk-8u161-linux-x64.tar.gz
-ENV JAVA_URL http://download.oracle.com/otn-pub/java/jdk/8u161-b12/2f38c3b165be4555a1fa6e98c45e0808/$JAVA_TGZ
+ENV JAVA_VER jdk1.8.0_171
+ENV JAVA_TGZ jdk-8u171-linux-x64.tar.gz
+ENV JAVA_URL http://download.oracle.com/otn-pub/java/jdk/8u171-b11/512cd62ec5174c3487ac17c61aaa89e8/$JAVA_TGZ
 ENV JAVA_HOME /usr/lib/jdk/$JAVA_VER
 
 RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
@@ -119,7 +119,7 @@ RUN apt-get install -yq --no-install-recommends \
  # Hail requires decorator
  && pip install -U decorator jupyter \
  && pip install google-cloud \
- && pip install firecloud==0.16.7 \
+ && pip install --ignore-installed firecloud==0.16.7 \
  && pip install -U scikit-learn \
  && pip install ggplot \
  && pip install bokeh \
@@ -147,7 +147,7 @@ RUN apt-get install -yq --no-install-recommends python3 \
  && pip3 install seaborn \
  && pip3 install python-lzo \
  && pip3 install google-cloud \
- && pip3 install firecloud==0.16.7 \
+ && pip3 install --ignore-installed firecloud==0.16.7 \
  && pip3 install -U scikit-learn \
  && pip3 install ggplot \
  && pip3 install bokeh \
