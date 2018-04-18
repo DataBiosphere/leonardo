@@ -117,7 +117,8 @@ RUN apt-get install -yq --no-install-recommends \
  && python get-pip.py \
 
  # Hail requires decorator
- && pip install -U decorator jupyter \
+ && pip install -U decorator==4.2.1 \
+ && pip install -U jupyter \
  && pip install google-cloud \
  && pip install --ignore-installed firecloud==0.16.7 \
  && pip install -U scikit-learn \
