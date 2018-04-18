@@ -6,7 +6,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.model.{ServiceAccountInfo, ServiceAccountProvider}
+import org.broadinstitute.dsde.workbench.leonardo.model.{LeoException, ServiceAccountInfo, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.{Group, User}
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.{GcsRole, Owner, Reader}
@@ -23,6 +23,8 @@ class BucketHelper(dataprocConfig: DataprocConfig,
                    googleStorageDAO: GoogleStorageDAO,
                    serviceAccountProvider: ServiceAccountProvider)
                   (implicit val executionContext: ExecutionContext) extends LazyLogging {
+
+  import BucketHelper._
 
   /**
     * Creates the dataproc init bucket and sets the necessary ACLs.
@@ -46,14 +48,24 @@ class BucketHelper(dataprocConfig: DataprocConfig,
     for {
       // The staging bucket is created in the cluster's project.
       // Leo service account -> Owner
-      // available service accounts ((cluster or default SA) and notebook SA, if they exist) -> Owner
+      // Available service accounts ((cluster or default SA) and notebook SA, if they exist) -> Owner
       // Additional readers (users and groups) are specified by the service account provider.
+      // Convenience values for projects (to address https://github.com/DataBiosphere/leonardo/issues/317)
+      //    viewers-<project number> -> Reader
+      //    editors-<project number> -> Owner
+      //    owners-<project number> -> Owner
       bucketSAs <- getBucketSAs(googleProject, serviceAccountInfo)
       leoEntity = userEntity(serviceAccountProvider.getLeoServiceAccountAndKey._1)
       providerReaders <- serviceAccountProvider.listUsersStagingBucketReaders(userEmail).map(_.map(userEntity))
       providerGroups <- serviceAccountProvider.listGroupsStagingBucketReaders(userEmail).map(_.map(groupEntity))
 
-      _ <- googleStorageDAO.createBucket(googleProject, bucketName, providerReaders ++ providerGroups, List(leoEntity) ++ bucketSAs)
+      projectNumberOpt <- googleComputeDAO.getProjectNumber(googleProject)
+      (projectViewers, projectEditors, projectOwners) <- getConvenienceEntities(googleProject, projectNumberOpt)
+
+      readers = providerReaders ++ providerGroups :+ projectViewers
+      owners = List(leoEntity) ++ bucketSAs :+ projectEditors :+ projectOwners
+
+      _ <- googleStorageDAO.createBucket(googleProject, bucketName, readers, owners)
     } yield bucketName
   }
 
@@ -67,6 +79,23 @@ class BucketHelper(dataprocConfig: DataprocConfig,
 
       _ <- setBucketAcls(bucketName, bucketSAs, List.empty)
     } yield ()
+  }
+
+  private def getConvenienceEntities(googleProject: GoogleProject,
+                                     googleProjectNumberOpt: Option[Long]): Future[(GcsEntity, GcsEntity, GcsEntity)] = {
+
+    def createEntities(projectNumber: Long): (GcsEntity, GcsEntity, GcsEntity) = {
+      val projectViewers = GcsEntity(WorkbenchEmail(s"viewers-$projectNumber"), Group)
+      val projectEditors = GcsEntity(WorkbenchEmail(s"editors-$projectNumber"), Group)
+      val projectOwners = GcsEntity(WorkbenchEmail(s"owners-$projectNumber"), Group)
+
+      (projectViewers, projectEditors, projectOwners)
+    }
+
+    googleProjectNumberOpt match {
+      case Some(projectNumber) => Future(createEntities(projectNumber))
+      case _ => Future.failed(NoGoogleProjectNumberException(googleProject))
+    }
   }
 
   private def setBucketAcls(bucketName: GcsBucketName, readers: List[GcsEntity], owners: List[GcsEntity]): Future[Unit] = {
@@ -108,4 +137,9 @@ class BucketHelper(dataprocConfig: DataprocConfig,
   private def groupEntity(email: WorkbenchEmail) = {
     GcsEntity(email, Group)
   }
+}
+
+object BucketHelper {
+  case class NoGoogleProjectNumberException(googleProject: GoogleProject)
+    extends LeoException(s"Project number could not be found for Google project $googleProject")
 }

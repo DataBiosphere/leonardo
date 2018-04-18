@@ -144,7 +144,7 @@ class HttpGoogleComputeDAO(appName: String,
     }
   }
 
-  private def getProjectNumber(googleProject: GoogleProject): Future[Option[Long]] = {
+  override def getProjectNumber(googleProject: GoogleProject): Future[Option[Long]] = {
     val request = cloudResourceManager.projects().get(googleProject.value)
     retryWithRecoverWhen500orGoogleError { () =>
       Option(executeGoogleRequest(request).getProjectNumber).map(_.toLong)
