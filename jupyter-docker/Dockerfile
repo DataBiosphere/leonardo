@@ -108,6 +108,12 @@ RUN apt-get install -yq --no-install-recommends \
     python-tk \
     python-numpy \
     python-pydot \
+    python-scipy \
+    python-statsmodels \
+    python-dateutil \
+    python-patsy \
+    python-six \
+
     liblzo2-dev \
     libz-dev \
 
@@ -140,6 +146,11 @@ RUN apt-get install -yq --no-install-recommends python3 \
         python3-tk \
         python3-numpy \
         python3-pydot \
+        python3-scipy \
+        python3-dateutil \
+        python3-patsy \
+        python3-six \
+
  && python3 get-pip.py \
  # install the python 3 kernel
  && pip3 install tornado==4.5.3 \
