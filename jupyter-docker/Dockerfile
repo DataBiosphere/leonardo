@@ -37,9 +37,9 @@ RUN echo "deb $DEBIAN_REPO/debian jessie main\ndeb $DEBIAN_REPO/debian-security 
 # Java
 #######################
 
-ENV JAVA_VER jdk1.8.0_161
-ENV JAVA_TGZ jdk-8u161-linux-x64.tar.gz
-ENV JAVA_URL http://download.oracle.com/otn-pub/java/jdk/8u161-b12/2f38c3b165be4555a1fa6e98c45e0808/$JAVA_TGZ
+ENV JAVA_VER jdk1.8.0_171
+ENV JAVA_TGZ jdk-8u171-linux-x64.tar.gz
+ENV JAVA_URL http://download.oracle.com/otn-pub/java/jdk/8u171-b11/512cd62ec5174c3487ac17c61aaa89e8/$JAVA_TGZ
 ENV JAVA_HOME /usr/lib/jdk/$JAVA_VER
 
 RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
@@ -107,6 +107,13 @@ RUN apt-get install -yq --no-install-recommends \
     python-seaborn \
     python-tk \
     python-numpy \
+    python-pydot \
+    python-scipy \
+    python-statsmodels \
+    python-dateutil \
+    python-patsy \
+    python-six \
+
     liblzo2-dev \
     libz-dev \
 
@@ -138,6 +145,12 @@ RUN apt-get install -yq --no-install-recommends python3 \
         python3-pandas \
         python3-tk \
         python3-numpy \
+        python3-pydot \
+        python3-scipy \
+        python3-dateutil \
+        python3-patsy \
+        python3-six \
+
  && python3 get-pip.py \
  # install the python 3 kernel
  && pip3 install tornado==4.5.3 \
