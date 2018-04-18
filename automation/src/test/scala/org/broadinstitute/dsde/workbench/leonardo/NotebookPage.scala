@@ -58,8 +58,14 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   // Kernel -> Shutdown
   lazy val shutdownKernelSelection: Query = cssSelector("[id='shutdown_kernel']")
 
+  // Kernel -> Restart
+  lazy val restartKernelSelection: Query = cssSelector("[id='restart_kernel']")
+
   // Jupyter asks: Are you sure you want to shutdown the kernel?
   lazy val shutdownKernelConfirmationSelection: Query = cssSelector("[class='btn btn-default btn-sm btn-danger']")
+
+  // Jupyter asks: Are you sure you want to restart the kernel?
+  lazy val restartKernelConfirmationSelection: Query = cssSelector("[class='btn btn-default btn-sm btn-danger']")
 
   // selects the numbered left-side cell prompts
   lazy val prompts: Query = cssSelector("[class='prompt input_prompt']")
@@ -84,6 +90,11 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   // can we see that the kernel connection has terminated?
   def isKernelShutdown: Boolean = {
     find(kernelNotification).exists { e => e.text == "No kernel" }
+  }
+
+  // is the kernel ready?
+  def isKernelReady: Boolean = {
+    find(kernelNotification).exists { e => e.text == "Kernel ready" }
   }
 
   def runAllCells(timeoutSeconds: Long): Unit = {
@@ -158,5 +169,12 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     click on (await enabled shutdownKernelSelection)
     click on (await enabled shutdownKernelConfirmationSelection)
     await condition isKernelShutdown
+  }
+
+  def restartKernel(): Unit = {
+    click on kernelMenu
+    click on (await enabled restartKernelSelection)
+    click on (await enabled restartKernelConfirmationSelection)
+    await condition isKernelReady
   }
 }

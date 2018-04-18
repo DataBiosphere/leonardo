@@ -556,4 +556,27 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     val timediff = FiniteDuration(t1 - t0, NANOSECONDS)
     TimeResult(result, timediff)
   }
+
+  def pipInstall(notebookPage: NotebookPage, kernel: Kernel, packageName: String): Unit = {
+    val pip = kernel match {
+      case Python2 => "pip2"
+      case Python3 => "pip3"
+      case _ => throw new IllegalArgumentException(s"Can't pip install in a ${kernel.string} kernel")
+    }
+
+    val installOutput = notebookPage.executeCell(s"!$pip install $packageName")
+    installOutput shouldBe 'defined
+    installOutput.get should include (s"Collecting $packageName")
+    installOutput.get should include ("Installing collected packages:")
+    installOutput.get should include ("Successfully installed")
+    installOutput.get should not include ("Exception:")
+  }
+
+  // https://github.com/aymericdamien/TensorFlow-Examples/blob/master/notebooks/1_Introduction/helloworld.ipynb
+  def verifyTensorFlow(notebookPage: NotebookPage): Unit = {
+    notebookPage.executeCell("import tensorflow as tf") shouldBe None
+    notebookPage.executeCell("hello = tf.constant('Hello, TensorFlow!')") shouldBe None
+    notebookPage.executeCell("sess = tf.Session()") shouldBe None
+    notebookPage.executeCell("print(sess.run(hello))") shouldBe Some("Hello, TensorFlow!")
+  }
 }
