@@ -3,12 +3,12 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.io.File
 import java.nio.file.Files
 
-import org.broadinstitute.dsde.workbench.service.{Orchestration, Sam}
+import org.broadinstitute.dsde.workbench.service.{Orchestration, RestException, Sam}
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
-import org.broadinstitute.dsde.workbench.model.google.{GcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{GcsEntity, GcsEntityTypes, GcsObjectName, GcsPath, GcsRoles, GoogleProject}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 
 import scala.concurrent.duration._
@@ -86,33 +86,62 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       }
     }
 
-    "should localize files" in withWebDriver { implicit driver =>
-      withFileUpload(ronCluster, hailUploadFile) { _ =>
-        //good data
-        val goodLocalize = Map(
-          "test.rtf" -> s"$swatTestBucket/test.rtf"
-          //TODO: create a bucket and upload to there
-          //"gs://new_bucket/import-hail.ipynb" -> "import-hail.ipynb"
-        )
+    "should localize files in async mode" in withWebDriver { implicit driver =>
+      val localizeFileName = "localize_async.txt"
+      val localizeFileContents = "Async localize test"
+      val delocalizeFileName = "delocalize_async.txt"
+      val delocalizeFileContents = "Async delocalize test"
 
+      withLocalizeDelocalizeFiles(ronCluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents) { (localizeRequest, bucketName) =>
+        // call localize; this should return 200
+        Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, localizeRequest, async = true)
+
+        // check that the files are eventually at their destinations
         implicit val patienceConfig: PatienceConfig = localizePatience
         eventually {
-          Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, goodLocalize)
-          //the following line will barf with an exception if the file isn't there; that's enough
-          Leonardo.notebooks.getContentItem(ronCluster.googleProject, ronCluster.clusterName, "test.rtf", includeContent = false)
+          verifyLocalizeDelocalize(ronCluster, localizeFileName, localizeFileContents, GcsPath(bucketName, GcsObjectName(delocalizeFileName)), delocalizeFileContents)
         }
 
-
-        val localizationLog = Leonardo.notebooks.getContentItem(ronCluster.googleProject, ronCluster.clusterName, "localization.log")
-        localizationLog.content shouldBe defined
-        localizationLog.content.get shouldNot include("Exception")
-
-        //bad data
+        // call localize again with bad data. This should still return 200 since we're in async mode.
         val badLocalize = Map("file.out" -> "gs://nobuckethere")
-        Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, badLocalize)
-        val localizationLogAgain = Leonardo.notebooks.getContentItem(ronCluster.googleProject, ronCluster.clusterName, "localization.log")
-        localizationLogAgain.content shouldBe defined
-        localizationLogAgain.content.get should include("Exception")
+        Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, badLocalize, async = true)
+
+        // it should not have localized this file
+        val thrown = the [RestException] thrownBy {
+          Leonardo.notebooks.getContentItem(ronCluster.googleProject, ronCluster.clusterName, "file.out", includeContent = false)
+        }
+        // why doesn't `RestException` have a status code field?
+        thrown.message should include ("No such file or directory: file.out")
+      }
+    }
+
+    "should localize files in sync mode" in withWebDriver { implicit driver =>
+      val localizeFileName = "localize_sync.txt"
+      val localizeFileContents = "Sync localize test"
+      val delocalizeFileName = "delocalize_sync.txt"
+      val delocalizeFileContents = "Sync delocalize test"
+
+      withLocalizeDelocalizeFiles(ronCluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents) { (localizeRequest, bucketName) =>
+        // call localize; this should return 200
+        Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, localizeRequest, async = false)
+
+        // check that the files are immediately at their destinations
+        verifyLocalizeDelocalize(ronCluster, localizeFileName, localizeFileContents, GcsPath(bucketName, GcsObjectName(delocalizeFileName)), delocalizeFileContents)
+
+        // call localize again with bad data. This should still return 500 since we're in sync mode.
+        val badLocalize = Map("file.out" -> "gs://nobuckethere")
+        val thrown = the [RestException] thrownBy {
+          Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, badLocalize, async = false)
+        }
+        // why doesn't `RestException` have a status code field?
+        thrown.message should include ("500 : Internal Server Error")
+        thrown.message should include ("Error occurred during localization. See localization.log for details.")
+
+        // it should not have localized this file
+        val contentThrown = the [RestException] thrownBy {
+          Leonardo.notebooks.getContentItem(ronCluster.googleProject, ronCluster.clusterName, "file.out", includeContent = false)
+        }
+        contentThrown.message should include ("No such file or directory: file.out")
       }
     }
 
