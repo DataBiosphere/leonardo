@@ -6,34 +6,76 @@ from tornado import gen
 from tornado.web import HTTPError
 from notebook.base.handlers import IPythonHandler
 from notebook.utils import url_path_join
+from datauri import DataURI
 
 class LocalizeHandler(IPythonHandler):
-  def sanitize(self, pathstr):
-    """Expands to absolute paths, makes intermediate dirs, and quotes to remove any shell naughtiness.
-    This doesn't need to be a coroutine as it's an inline function, not something Future-y."""
-    #expanduser behaves fine with gs:// urls, thankfully
-    expanded = os.path.expanduser(pathstr)
-    if not pathstr.startswith("gs://"):
+  def _sanitize(self, pathstr):
+    """Sanitizes paths. Handles local paths, gs: URIs, and data: URIs."""
+    # return gs or data uris as is
+    if pathstr.startswith("gs:") or pathstr.startswith("data:"):
+      return pathstr
+    # expand user directories and make intermediate directories
+    else:
+      expanded = os.path.expanduser(pathstr)
       try:
         os.makedirs(os.path.dirname(expanded))
       except OSError: #thrown if dirs already exist
         pass
-    return pipes.quote(expanded)
+      return expanded
+
+  def _localize_gcs_uri(self, locout, source, dest):
+    """Localizes an entry where either the source or destination is a gs: path.
+    Simply invokes gsutil in a subprocess. Quotes paths to remove any shell naughtiness."""
+    cmd = ['gsutil', '-m', '-q', 'cp', '-R', '-c', '-e', pipes.quote(source), pipes.quote(dest)]
+    locout.write(' '.join(cmd) + '\n')
+    result = subprocess.call(cmd, stderr=locout)
+    return result == 0
+
+  def _localize_data_uri(self, locout, source, dest):
+    """Localizes an entry where the source is a data: URI"""
+    try:
+      uri = DataURI(source)
+    except ValueError:
+      locout.write('Could not parse "{}" as a data URI: {}\n'.format(source, str(e)))
+      return False
+
+    try:
+      with open(dest, 'w+', buffering=1) as destout:
+        destout.write(uri.data)
+        locout.write('{}: wrote {} bytes\n'.format(dest, len(uri.data)))
+    except IOError as e:
+      locout.write('{}: I/O error({0}): {1}\n'.format(dest, e.errno, e.strerror))
+      return False
+    except:
+      locout.write('{}: unexpected error: {}\n'.format(sys.exc_info()[0]))
+      return False
+
+    return True
 
   @gen.coroutine
   def localize(self, pathdict):
-    """Treats the given dict as a string/string map and sends it to gsutil."""
-    all_success = True
+    """Treats the given dict as a string/string map and localizes each entry one by one.
+    Returns a list of any failed entries."""
+    failures = []
     #This gets dropped inside the user's notebook working directory
     with open("localization.log", 'a', buffering=1) as locout:
       for key in pathdict:
         #NOTE: keys are destinations, values are sources
-        cmd = ['gsutil', '-m', '-q', 'cp', '-R', '-c', '-e', self.sanitize(pathdict[key]), self.sanitize(key)]
-        locout.write(' '.join(cmd) + '\n')
-        code = subprocess.call(cmd, stderr=locout)
-        if code is not 0:
-          all_success = False
-    return all_success
+        source = self._sanitize(pathdict[key])
+        dest = self._sanitize(key)
+
+        if source.startswith('gs:') or dest.startswith('gs:'):
+          success = self._localize_gcs_uri(locout, source, dest)
+        elif source.startswith('data:'):
+          success = self._localize_data_uri(locout, source, dest)
+        else:
+          locout.write('Unhandled localization entry: {} -> {}. Required gs: or data: URIs.\n'.format(source, dest))
+          success = False
+
+        if not success:
+          failures.append((dest, source))
+
+    return failures
 
   def post(self):
     try:
@@ -60,11 +102,12 @@ class LocalizeHandler(IPythonHandler):
     else:
       #run localize synchronous to the HTTP request
       #run_sync() doesn't take arguments, so we must wrap the call in a lambda.
-      success = tornado.ioloop.IOLoop().run_sync(lambda: self.localize(pathdict))
+      failures = tornado.ioloop.IOLoop().run_sync(lambda: self.localize(pathdict))
 
       #complete the request only after localize completes
-      if not success:
-        raise HTTPError(500, "Error occurred during localization. See localization.log for details.")
+      if failures:
+        raise HTTPError(500, "Error occurred localizing the following {} entries: {}. See localization.log for details.".format(
+          len(failures), str(failures)))
       else:
         self.set_status(200)
         self.finish()
