@@ -174,6 +174,8 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
       Future {
         blocking(samClient.deleteNotebookClusterResource(creatorEmail, googleProject, clusterName))
       }.recover {
+        // treat 404s from Sam as the cluster already being deleted
+        case e: ApiException if e.getCode == StatusCodes.NotFound.intValue => ()
         case e if shouldInvalidateSamCacheAndRetry(e) =>
           // invalidate the pet token cache between retries in case it contains stale entries
           // See https://github.com/DataBiosphere/leonardo/issues/290
