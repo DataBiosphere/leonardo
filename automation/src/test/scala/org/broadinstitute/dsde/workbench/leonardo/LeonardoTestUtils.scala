@@ -1,8 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, File, FileOutputStream}
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.time.Instant
+import java.util.Base64
 
 import cats.data.OptionT
 import cats.implicits._
@@ -26,7 +28,7 @@ import org.scalatest.time.{Minutes, Seconds, Span}
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import scala.util.{Random, Try}
+import scala.util.{Failure, Random, Success, Try}
 
 
 case class TimeResult[R](result:R, duration:FiniteDuration)
@@ -381,9 +383,9 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     testResult.get
   }
 
-  def withLocalizeDelocalizeFiles[T](cluster: Cluster, fileToLocalize: String, fileToLocalizeContents: String, fileToDelocalize: String, fileToDelocalizeContents: String)
-                                    (testCode: (Map[String, String], GcsBucketName) => T)
-                                    (implicit webDriver: WebDriver, token: AuthToken): T = {
+  def withLocalizeDelocalizeFiles[T](cluster: Cluster, fileToLocalize: String, fileToLocalizeContents: String,
+                                     fileToDelocalize: String, fileToDelocalizeContents: String,
+                                     dataFileName: String, dataFileContents: String)(testCode: (Map[String, String], GcsBucketName) => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     implicit val patienceConfig: PatienceConfig = storagePatience
 
     withNewGoogleBucket(cluster.googleProject) { bucketName =>
@@ -395,7 +397,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       val bucketObjectToLocalize = GcsObjectName(fileToLocalize)
       withNewBucketObject(bucketName, bucketObjectToLocalize, fileToLocalizeContents, "text/plain") { objectName =>
         // give the user's pet read access to the object
-        googleStorageDAO.setObjectAccessControl(bucketName, objectName, GcsEntity(petServiceAccount, GcsEntityTypes.User), GcsRoles.Owner).futureValue
+        googleStorageDAO.setObjectAccessControl(bucketName, objectName, GcsEntity(petServiceAccount, GcsEntityTypes.User), GcsRoles.Reader).futureValue
 
         // create a notebook file to delocalize
         withNewNotebook(cluster) { notebookPage =>
@@ -403,10 +405,19 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
           val localizeRequest = Map(
             fileToLocalize -> GcsPath(bucketName, bucketObjectToLocalize).toUri,
-            GcsPath(bucketName, GcsObjectName(fileToDelocalize)).toUri -> fileToDelocalize
+            GcsPath(bucketName, GcsObjectName(fileToDelocalize)).toUri -> fileToDelocalize,
+            dataFileName -> s"data:text/plain;base64,${Base64.getEncoder.encodeToString(dataFileContents.getBytes(StandardCharsets.UTF_8))}"
           )
 
           val testResult = Try(testCode(localizeRequest, bucketName))
+
+          // Verify and save the localization.log file to test output to aid in debugging
+          Try(verifyAndSaveLocalizationLog(cluster)) match {
+            case Success(downloadFile) =>
+              logger.info(s"Saved localization log for cluster ${cluster.googleProject.value}/${cluster.clusterName.string} to ${downloadFile.getAbsolutePath}")
+            case Failure(e) =>
+              logger.warn(s"Could not obtain localization log files for cluster ${cluster.googleProject}/${cluster.clusterName}: ${e.getMessage}")
+          }
 
           // clean up files on the cluster
           // no need to clean up the bucket objects; that will happen as part of `withNewBucketObject`
@@ -419,9 +430,25 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
   }
 
-  def verifyLocalizeDelocalize(cluster: Cluster, localizedFileName: String, localizedFileContents: String, delocalizedBucketPath: GcsPath, delocalizedBucketContents: String)(implicit token: AuthToken): Unit = {
+  def verifyLocalizeDelocalize(cluster: Cluster, localizedFileName: String, localizedFileContents: String,
+                               delocalizedBucketPath: GcsPath, delocalizedBucketContents: String,
+                               dataFileName: String, dataFileContents: String)(implicit token: AuthToken): Unit = {
     implicit val patienceConfig: PatienceConfig = storagePatience
 
+    // the localized file should exist on the notebook VM
+    val item = Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, localizedFileName, includeContent = true)
+    item.content shouldBe Some(localizedFileContents)
+
+    // the delocalized file should exist in the Google bucket
+    val bucketData = googleStorageDAO.getObject(delocalizedBucketPath.bucketName, delocalizedBucketPath.objectName).futureValue
+    bucketData.map(_.toString) shouldBe Some(delocalizedBucketContents)
+
+    // the data file should exist on the notebook VM
+    val dataItem = Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, dataFileName, includeContent = true)
+    dataItem.content shouldBe Some(dataFileContents)
+  }
+
+  def verifyAndSaveLocalizationLog(cluster: Cluster)(implicit token: AuthToken): File = {
     // check localization.log for existence
     val localizationLog = Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "localization.log", includeContent = true)
     localizationLog.content shouldBe defined
@@ -431,15 +458,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     val fos = new FileOutputStream(downloadFile)
     fos.write(localizationLog.content.get.getBytes)
     fos.close()
-    logger.info(s"Saved localization log for cluster ${cluster.googleProject.value}/${cluster.clusterName.string} to ${downloadFile.getAbsolutePath}")
 
-    // the localized file should exist on the notebook VM
-    val item = Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, localizedFileName, includeContent = true)
-    item.content shouldBe Some(localizedFileContents)
-
-    // the delocalized file should exist in the Google bucket
-    val data = googleStorageDAO.getObject(delocalizedBucketPath.bucketName, delocalizedBucketPath.objectName).futureValue
-    data.map(_.toString) shouldBe Some(delocalizedBucketContents)
+    downloadFile
   }
 
   def verifyHailImport(notebookPage: NotebookPage, vcfPath: GcsPath, clusterName: ClusterName): Unit = {
