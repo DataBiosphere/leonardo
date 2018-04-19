@@ -36,7 +36,7 @@ class HttpGoogleComputeDAO(appName: String,
 
   override implicit val service: GoogleInstrumentedService = GoogleInstrumentedService.Compute
 
-  override val scopes: Seq[String] = Seq(ComputeScopes.COMPUTE)
+  override val scopes: Seq[String] = Seq(ComputeScopes.CLOUD_PLATFORM)
 
   private lazy val compute = {
     new Compute.Builder(httpTransport, jsonFactory, googleCredential)
