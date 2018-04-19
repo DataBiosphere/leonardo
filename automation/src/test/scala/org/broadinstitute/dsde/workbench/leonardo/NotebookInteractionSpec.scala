@@ -30,6 +30,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
     gpAllocProject = claimGPAllocProject(hermioneCreds, List(ronEmail))
     billingProject = GoogleProject(gpAllocProject.projectName)
     ronCluster = try {
+
       createNewCluster(billingProject)(ronAuthToken)
     } catch {
       case e: Throwable =>
