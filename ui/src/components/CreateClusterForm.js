@@ -205,7 +205,7 @@ class UnstyledCreateClusterForm extends React.Component {
       {/* Configure worker node number and type. */}
           <Typography
             className={classes.formInfo}
-            color="primary"
+            color="inherit"
           >
             Cluster worker configuration:
           </Typography>
