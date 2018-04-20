@@ -309,13 +309,15 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     samPetEmail
   }
 
-  def withNewCluster[T](googleProject: GoogleProject, name: ClusterName = randomClusterName, request: ClusterRequest = defaultClusterRequest, monitor: Boolean = true)(testCode: Cluster => T)(implicit token: AuthToken): T = {
-    val cluster = createNewCluster(googleProject, name, request)
+  def withNewCluster[T](googleProject: GoogleProject, name: ClusterName = randomClusterName, request: ClusterRequest = defaultClusterRequest, monitorCreate: Boolean = true, monitorDelete: Boolean = true)
+                       (testCode: Cluster => T)
+                       (implicit token: AuthToken): T = {
+    val cluster = createNewCluster(googleProject, name, request, monitorCreate)
     val testResult: Try[T] = Try {
       testCode(cluster)
     }
     // delete before checking testCode status, which may throw
-    deleteAndMonitor(googleProject, cluster.clusterName)
+    deleteCluster(googleProject, cluster.clusterName, monitorDelete)
     testResult.get
   }
 
