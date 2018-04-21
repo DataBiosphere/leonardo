@@ -142,6 +142,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                             clusterRequest: ClusterRequest): Future[Cluster] = {
     // Check if the google project has a cluster with the same name. If not, we can create it
     dbRef.inTransaction { dataAccess =>
+      dataAccess.clusterQuery.list
+    }
+
+    dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName)
     } flatMap {
       case Some(_) => throw ClusterAlreadyExistsException(googleProject, clusterName)
@@ -252,7 +256,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         }
 
         // Update the cluster status to Stopping
-        _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Stopping) }
+        _ <- dbRef.inTransaction { _.clusterQuery.setToStopping(cluster.googleId) }
       } yield {
         clusterMonitorSupervisor ! ClusterStopped(cluster.copy(status = ClusterStatus.Stopping))
       }
