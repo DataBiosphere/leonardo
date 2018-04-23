@@ -10,7 +10,7 @@ object Dependencies {
   val slickV        = "3.2.1"
 
   val workbenchUtilV    = "0.2-d97f551"
-  val workbenchModelV   = "0.10-6800f3a"
+  val workbenchModelV   = "0.10-9c151a6-SNAP"
   val workbenchGoogleV  = "0.16-dad200b"
   val workbenchMetricsV = "0.3-d97f551"
 

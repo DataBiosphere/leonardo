@@ -10,7 +10,8 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{LeoException, ServiceAc
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.{Group, User}
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.{GcsRole, Owner, Reader}
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.ProjectTeamTypes.{Editors, Owners, Viewers}
+import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsBucketName, GcsEntity, GoogleProject, ProjectGcsEntity, ProjectNumber}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -85,9 +86,9 @@ class BucketHelper(dataprocConfig: DataprocConfig,
                                      googleProjectNumberOpt: Option[Long]): Future[(GcsEntity, GcsEntity, GcsEntity)] = {
 
     def createEntities(projectNumber: Long): (GcsEntity, GcsEntity, GcsEntity) = {
-      val projectViewers = GcsEntity(WorkbenchEmail(s"viewers-$projectNumber"), Group)
-      val projectEditors = GcsEntity(WorkbenchEmail(s"editors-$projectNumber"), Group)
-      val projectOwners = GcsEntity(WorkbenchEmail(s"owners-$projectNumber"), Group)
+      val projectViewers = ProjectGcsEntity(Viewers, ProjectNumber(projectNumber.toString))
+      val projectEditors = ProjectGcsEntity(Editors, ProjectNumber(projectNumber.toString))
+      val projectOwners = ProjectGcsEntity(Owners, ProjectNumber(projectNumber.toString))
 
       (projectViewers, projectEditors, projectOwners)
     }
@@ -130,13 +131,8 @@ class BucketHelper(dataprocConfig: DataprocConfig,
     }
   }
 
-  private def userEntity(email: WorkbenchEmail) = {
-    GcsEntity(email, User)
-  }
-
-  private def groupEntity(email: WorkbenchEmail) = {
-    GcsEntity(email, Group)
-  }
+  private def userEntity(email: WorkbenchEmail) = EmailGcsEntity(User, email)
+  private def groupEntity(email: WorkbenchEmail) = EmailGcsEntity(Group, email)
 }
 
 object BucketHelper {
