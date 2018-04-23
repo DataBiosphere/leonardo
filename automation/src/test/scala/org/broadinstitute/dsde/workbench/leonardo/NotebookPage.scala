@@ -97,10 +97,10 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     find(kernelNotification).exists { e => e.text == "Kernel ready" }
   }
 
-  def runAllCells(timeoutSeconds: Long): Unit = {
+  def runAllCells(timeout: FiniteDuration = 60 seconds): Unit = {
     click on cellMenu
     click on (await enabled runAllCellsSelection)
-    await condition (!cellsAreRunning, timeoutSeconds)
+    await condition (!cellsAreRunning, timeout.toSeconds)
   }
 
   def download(): Unit = {

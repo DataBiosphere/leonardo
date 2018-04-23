@@ -169,7 +169,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
             val firstCell = notebookPage.firstCell
             notebookPage.cellOutput(firstCell) shouldBe Some(printStr)
             // execute a new cell to make sure the notebook kernel still works
-            notebookPage.runAllCells(60)
+            notebookPage.runAllCells()
             notebookPage.executeCell("sum(range(1,10))") shouldBe Some("45")
           }
         }
