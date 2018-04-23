@@ -118,13 +118,16 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
 
   lazy val cells: Query = cssSelector(".CodeMirror")
 
-  def lastCell: (Int, WebElement) = {
-    val asList = webDriver.findElements(cells.by).asScala.toList
-    (asList.length, asList.last)
+  def lastCell: WebElement = {
+    webDriver.findElements(cells.by).asScala.toList.last
   }
 
   def firstCell: WebElement = {
     webDriver.findElements(cells.by).asScala.toList.head
+  }
+
+  def numCellsOnPage: Int = {
+    webDriver.findElements(cells.by).asScala.toList.length
   }
 
   def cellOutput(cell: WebElement): Option[String] = {
@@ -132,9 +135,10 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     outputs.asScala.headOption.map(_.getText)
   }
   
-  def executeCell(code: String, timeout: FiniteDuration = 1 minute): Option[String] = {
+  def executeCell(code: String, timeout: FiniteDuration = 1 minute, cellNumberOpt: Option[Int] = None): Option[String] = {
     await enabled cells
-    val (cellNumber, cell) = lastCell
+    val cell = lastCell
+    val cellNumber = cellNumberOpt.getOrElse(numCellsOnPage)
     click on cell
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
     executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
@@ -147,14 +151,14 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   def translateMarkup(code: String, timeout: FiniteDuration = 1 minute): String = {
     await enabled cells
     await enabled translateCell
-    val (_, inputCell) = lastCell
+    val inputCell = lastCell
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
     executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", inputCell)
     changeCodeToMarkdown
     await enabled cells
     click on translateCell
     Thread.sleep(3000)
-    val (_, outputCell) = lastCell
+    val outputCell = lastCell
     outputCell.getText
   }
 

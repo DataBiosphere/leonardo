@@ -573,10 +573,10 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   }
 
   // https://github.com/aymericdamien/TensorFlow-Examples/blob/master/notebooks/1_Introduction/helloworld.ipynb
-  def verifyTensorFlow(notebookPage: NotebookPage): Unit = {
-    notebookPage.executeCell("import tensorflow as tf") shouldBe None
-    notebookPage.executeCell("hello = tf.constant('Hello, TensorFlow!')") shouldBe None
-    notebookPage.executeCell("sess = tf.Session()") shouldBe None
-    notebookPage.executeCell("print(sess.run(hello))") shouldBe Some("Hello, TensorFlow!")
+  def verifyTensorFlow(notebookPage: NotebookPage, startCellNumber: Option[Int] = None): Unit = {
+    notebookPage.executeCell("import tensorflow as tf", cellNumberOpt = startCellNumber) shouldBe None
+    notebookPage.executeCell("hello = tf.constant('Hello, TensorFlow!')", cellNumberOpt = startCellNumber.map(_ + 1)) shouldBe None
+    notebookPage.executeCell("sess = tf.Session()", cellNumberOpt = startCellNumber.map(_ + 2)) shouldBe None
+    notebookPage.executeCell("print(sess.run(hello))", cellNumberOpt = startCellNumber.map(_ + 3)) shouldBe Some("Hello, TensorFlow!")
   }
 }
