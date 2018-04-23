@@ -18,12 +18,21 @@ if grep -Fq "gcr.io" <<< "${DOCKER_REPOSITORY}" ; then
 fi
 
 build() {
-    echo "building jupyter docker image..."
-    $DOCKER_BINARY build -t "${DOCKER_REPOSITORY}/leonardo-notebooks:${JUPYTER_TAG}" .
+    echo "building jupyter docker images..."
+    $DOCKER_BINARY build \
+        --tag "${DOCKER_REPOSITORY}/leonardo-notebooks-base:${JUPYTER_TAG}" \
+        --file ./Dockerfile.base \
+        .
+    $DOCKER_BINARY build \
+        --build-arg BASE_IMAGE="${DOCKER_REPOSITORY}/leonardo-notebooks-base:${JUPYTER_TAG}" \
+        --tag "${DOCKER_REPOSITORY}/leonardo-notebooks:${JUPYTER_TAG}" \
+        --file ./Dockerfile.final \
+        .
 }
 
 push() {
     echo "pushing jupyter docker image..."
+    $DOCKER_BINARY push "${DOCKER_REPOSITORY}/leonardo-notebooks-base:${JUPYTER_TAG}"
     $DOCKER_BINARY push "${DOCKER_REPOSITORY}/leonardo-notebooks:${JUPYTER_TAG}"
 }
 
