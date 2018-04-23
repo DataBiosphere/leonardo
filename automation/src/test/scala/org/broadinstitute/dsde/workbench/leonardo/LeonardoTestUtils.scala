@@ -171,12 +171,16 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
 
     if (monitor) {
-      // wait until not found or in "Deleted" state
-      implicit val patienceConfig: PatienceConfig = clusterPatience
-      eventually {
-        val statusOpt = Leonardo.cluster.listIncludingDeleted().find(_.clusterName == clusterName).map(_.status)
-        statusOpt getOrElse ClusterStatus.Deleted shouldBe ClusterStatus.Deleted
-      }
+      monitorDelete(googleProject, clusterName)
+    }
+  }
+
+  def monitorDelete(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): Unit = {
+    // wait until not found or in "Deleted" state
+    implicit val patienceConfig: PatienceConfig = clusterPatience
+    eventually {
+      val statusOpt = Leonardo.cluster.listIncludingDeleted().find(_.clusterName == clusterName).map(_.status)
+      statusOpt getOrElse ClusterStatus.Deleted shouldBe ClusterStatus.Deleted
     }
   }
 
