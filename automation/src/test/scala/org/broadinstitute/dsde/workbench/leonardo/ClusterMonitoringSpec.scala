@@ -48,6 +48,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
         val project = GoogleProject(projectName)
         implicit val token = ronAuthToken
 
+        // delete while the cluster is still creating
         withNewCluster(project, monitorCreate = false, monitorDelete = true)(_ => ())
       }
     }
@@ -67,8 +68,6 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
     }
 
     // create -> wait -> delete -> no wait -> create (conflict)
-    // TODO fails due to "statusCode":500.
-    // rogue actor running
     "should not be able to recreate a deleting cluster" in withWebDriver { implicit driver =>
       withCleanBillingProject(hermioneCreds) { projectName =>
         Orchestration.billing.addUserToBillingProject(projectName, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
@@ -83,8 +82,6 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
     }
 
     // create -> wait -> delete -> no wait -> delete
-    // TODO failed, no exception thrown
-    // second deletion seemed to have no effect
     "should not be able to delete a deleting cluster" in withWebDriver { implicit driver =>
       withCleanBillingProject(hermioneCreds) { projectName =>
         Orchestration.billing.addUserToBillingProject(projectName, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
@@ -93,12 +90,12 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
 
         val cluster = withNewCluster(project, monitorCreate = true, monitorDelete = false)(identity)
 
+        // second delete should succeed
         deleteCluster(project, cluster.clusterName, monitor = false)
       }
     }
 
     // create -> no wait -> stop (conflict) -> delete
-    // TODO failed, no exception thrown
     "should not be able to stop a creating cluster" in withWebDriver { implicit driver =>
       withCleanBillingProject(hermioneCreds) { projectName =>
         Orchestration.billing.addUserToBillingProject(projectName, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
@@ -119,9 +116,10 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
         val project = GoogleProject(projectName)
         implicit val token = ronAuthToken
 
-        withNewCluster(project, monitorCreate = true, monitorDelete = false) { cluster =>
+        withNewCluster(project) { cluster =>
+          // start without waiting for stop to complete
           stopCluster(project, cluster.clusterName, monitor = false)
-          startCluster(project, cluster.clusterName, monitor = false)
+          startAndMonitor(project, cluster.clusterName)
         }
       }
     }
@@ -133,7 +131,8 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
         val project = GoogleProject(projectName)
         implicit val token = ronAuthToken
 
-        withNewCluster(project, monitorCreate = true, monitorDelete = true) { cluster =>
+        withNewCluster(project) { cluster =>
+          // delete after stop is complete
           stopAndMonitor(cluster.googleProject, cluster.clusterName)
         }
       }
@@ -146,7 +145,8 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
         val project = GoogleProject(projectName)
         implicit val token = ronAuthToken
 
-        withNewCluster(project, monitorCreate = true, monitorDelete = true) { cluster =>
+        withNewCluster(project) { cluster =>
+          // delete without waiting for the stop to complete
           stopCluster(cluster.googleProject, cluster.clusterName, monitor = false)
         }
       }
