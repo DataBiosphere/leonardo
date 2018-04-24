@@ -28,10 +28,9 @@ USER $USER
 ##########################
 
 RUN pip2 install --user \
-        google-cloud \
+        pandas-gbq \
     && pip3 install --user \
-        google-cloud \
+        pandas-gbq \
     && R -e 'install.packages(c( \
-        "nloptr", \
-        "nlme"), \
+        "nloptr"), \
         repos="https://cran.mtu.edu")'
