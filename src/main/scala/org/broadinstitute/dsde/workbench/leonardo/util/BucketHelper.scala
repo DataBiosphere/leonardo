@@ -53,7 +53,8 @@ class BucketHelper(dataprocConfig: DataprocConfig,
       providerReaders <- serviceAccountProvider.listUsersStagingBucketReaders(userEmail).map(_.map(userEntity))
       providerGroups <- serviceAccountProvider.listGroupsStagingBucketReaders(userEmail).map(_.map(groupEntity))
 
-      _ <- googleStorageDAO.createBucket(googleProject, bucketName, providerReaders ++ providerGroups, List(leoEntity) ++ bucketSAs)
+      _ <- googleStorageDAO.createBucket(googleProject, bucketName)
+      _ <- setBucketAcls(bucketName, providerReaders ++ providerGroups, List(leoEntity) ++ bucketSAs)
     } yield bucketName
   }
 
