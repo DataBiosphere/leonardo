@@ -36,7 +36,9 @@ class HttpGoogleComputeDAO(appName: String,
 
   override implicit val service: GoogleInstrumentedService = GoogleInstrumentedService.Compute
 
-  override val scopes: Seq[String] = Seq(ComputeScopes.CLOUD_PLATFORM)
+  override val scopes: Seq[String] = Seq(ComputeScopes.COMPUTE)
+
+  private lazy val resourceManagerScopes = Seq(ComputeScopes.CLOUD_PLATFORM)
 
   private lazy val compute = {
     new Compute.Builder(httpTransport, jsonFactory, googleCredential)
@@ -44,7 +46,8 @@ class HttpGoogleComputeDAO(appName: String,
   }
 
   private lazy val cloudResourceManager = {
-    new CloudResourceManager.Builder(httpTransport, jsonFactory, googleCredential)
+    val resourceManagerCredential = googleCredential.createScoped(resourceManagerScopes.asJava)
+    new CloudResourceManager.Builder(httpTransport, jsonFactory, resourceManagerCredential)
       .setApplicationName(appName).build()
   }
 

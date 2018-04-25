@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
+import akka.http.scaladsl.model.StatusCodes
 import cats.data.OptionT
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
@@ -15,6 +16,11 @@ import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsBucket
 
 import scala.concurrent.{ExecutionContext, Future}
 
+case class NoGoogleProjectNumberException(googleProject: GoogleProject)
+  extends LeoException(
+    s"Project number could not be found for Google project $googleProject",
+    StatusCodes.InternalServerError)
+
 /**
   * Created by rtitle on 2/7/18.
   */
@@ -24,8 +30,6 @@ class BucketHelper(dataprocConfig: DataprocConfig,
                    googleStorageDAO: GoogleStorageDAO,
                    serviceAccountProvider: ServiceAccountProvider)
                   (implicit val executionContext: ExecutionContext) extends LazyLogging {
-
-  import BucketHelper._
 
   /**
     * Creates the dataproc init bucket and sets the necessary ACLs.
@@ -133,9 +137,4 @@ class BucketHelper(dataprocConfig: DataprocConfig,
 
   private def userEntity(email: WorkbenchEmail) = EmailGcsEntity(User, email)
   private def groupEntity(email: WorkbenchEmail) = EmailGcsEntity(Group, email)
-}
-
-object BucketHelper {
-  case class NoGoogleProjectNumberException(googleProject: GoogleProject)
-    extends LeoException(s"Project number could not be found for Google project $googleProject")
 }
