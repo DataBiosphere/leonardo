@@ -10,9 +10,16 @@ USER root
 
 ENV DEBIAN_FRONTEND noninteractive
 ENV DEBIAN_REPO http://cdn-fastly.deb.debian.org
+ENV CRAN_REPO http://cran.mtu.edu
 
-RUN echo "deb $DEBIAN_REPO/debian jessie main\ndeb $DEBIAN_REPO/debian-security jessie/updates main\ndeb $DEBIAN_REPO/debian jessie-backports main" > /etc/apt/sources.list \
- && apt-get update && apt-get -yq dist-upgrade \
+RUN echo "deb $DEBIAN_REPO/debian jessie main"                   > /etc/apt/sources.list \
+ && echo "deb $DEBIAN_REPO/debian-security jessie/updates main" >> /etc/apt/sources.list \
+ && echo "deb $DEBIAN_REPO/debian jessie-backports main"        >> /etc/apt/sources.list \
+ && echo "deb $CRAN_REPO/bin/linux/debian jessie-cran34/"       >> /etc/apt/sources.list \
+ && apt-key adv --keyserver keys.gnupg.net \
+    --recv-key 'E19F5F87128899B192B1A2C2AD5F960A256A04AF' \
+ && apt-get update \
+ && apt-get -yq dist-upgrade \
  && apt-get install -yq --no-install-recommends \
     nano \
     wget \
@@ -129,8 +136,9 @@ RUN apt-get install -yq --no-install-recommends \
  && pip install biopython \
  && pip install bx-python \
  && pip install fastinterval \
- && pip install matplotlib-venn
-
+ && pip install matplotlib-venn \
+ # for jupyter_localize_extension
+ && pip install python-datauri
 
 # Python 3 Kernel
 RUN apt-get install -yq --no-install-recommends python3 \
@@ -164,16 +172,17 @@ RUN apt-get install -yq --no-install-recommends python3 \
 # R Kernel
 #######################
 
-RUN apt-get update && apt-get -t jessie-backports install -y --no-install-recommends \
-    r-base=3.3.3-1~bpo8+1 r-base-dev=3.3.3-1~bpo8+1 \
+RUN apt-get -t jessie-cran34 install -y --no-install-recommends \
+    r-base \
+    r-base-dev \
+    r-recommended \
+ && apt-get install -y --no-install-recommends \
     fonts-dejavu \
     tzdata \
     gfortran \
     gcc \
     libcurl4-openssl-dev \
-    libssl-dev \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    libssl-dev
 
 RUN R -e 'install.packages(c( \
     "repr",  \
