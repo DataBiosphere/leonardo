@@ -222,8 +222,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       "The request has been accepted for processing, but the processing has not been completed."
 
     // verify with get()
-    val stoppingCluster = Leonardo.cluster.get(googleProject, clusterName)
-    stoppingCluster.status shouldBe ClusterStatus.Starting
+    val startingCluster = Leonardo.cluster.get(googleProject, clusterName)
+    startingCluster.status shouldBe ClusterStatus.Starting
 
     if (monitor) {
       // wait until in Running state
