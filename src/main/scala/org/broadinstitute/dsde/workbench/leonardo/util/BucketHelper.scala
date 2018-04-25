@@ -19,7 +19,7 @@ import scala.concurrent.{ExecutionContext, Future}
 case class NoGoogleProjectNumberException(googleProject: GoogleProject)
   extends LeoException(
     s"Project number could not be found for Google project $googleProject",
-    StatusCodes.InternalServerError)
+    StatusCodes.NotFound)
 
 /**
   * Created by rtitle on 2/7/18.
