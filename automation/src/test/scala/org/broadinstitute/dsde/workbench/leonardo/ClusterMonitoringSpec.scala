@@ -123,6 +123,9 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
           withNewCluster(project) { cluster =>
             // start without waiting for stop to complete
             stopCluster(project, cluster.clusterName, monitor = false)
+            // TODO: cluster is not _immediately_ startable after stopping. Why?
+            logger.info("Sleeping 10 seconds before starting")
+            Thread.sleep(10000)
             startAndMonitor(project, cluster.clusterName)
           }
         }
