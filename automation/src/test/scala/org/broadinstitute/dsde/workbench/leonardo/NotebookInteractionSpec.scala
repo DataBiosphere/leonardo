@@ -312,7 +312,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
 
           // verify that tensorflow is installed
           // note cell numbers start at 1 after the kernel is restarted
-          verifyTensorFlow(notebookPage)
+          verifyTensorFlow(notebookPage, kernel)
         }
       }
     }

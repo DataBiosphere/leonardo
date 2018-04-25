@@ -179,7 +179,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
       JUPYTER_USER_SCRIPT=`basename ${JUPYTER_USER_SCRIPT_URI}`
       docker cp /etc/${JUPYTER_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
       docker exec -u root -d ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
-      docker exec -u root -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
+      docker exec -u root -d -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
     fi
 
     log 'Starting Jupyter Notebook...'
