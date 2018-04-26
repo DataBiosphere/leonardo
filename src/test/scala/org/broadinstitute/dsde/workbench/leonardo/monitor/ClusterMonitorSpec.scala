@@ -30,7 +30,7 @@ import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Try
+import scala.util.{Random, Try}
 
 /**
   * Created by rtitle on 9/6/17.
@@ -147,6 +147,9 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     when {
       dao.getInstance(mockitoEq(modifyInstanceKey(workerInstance2.key)))
     } thenReturn Future.successful(Some(modifyInstance(workerInstance2).copy(status = status)))
+    when {
+      dao.getProjectNumber(any[GoogleProject])
+    } thenReturn Future.successful(Some((new Random).nextLong()))
     dao
   }
 
