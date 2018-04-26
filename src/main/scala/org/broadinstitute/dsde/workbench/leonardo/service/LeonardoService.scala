@@ -179,7 +179,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   //throws 404 if nonexistent or no permissions
   def getActiveClusterDetails(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Cluster] = {
-    _ = logger.info(s"In getActiveClusterDetails for ${googleProject.value}/${clusterName.value}")
+    logger.info(s"In getActiveClusterDetails for ${googleProject.value}/${clusterName.value}")
     for {
       cluster <- internalGetActiveClusterDetails(googleProject, clusterName) //throws 404 if nonexistent
       _ = logger.info(s"internalGetActiveClusterDetails returned ${cluster.projectNameString}")
