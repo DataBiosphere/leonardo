@@ -23,4 +23,5 @@ trait GoogleComputeDAO {
 
   def getComputeEngineDefaultServiceAccount(googleProject: GoogleProject): Future[Option[WorkbenchEmail]]
 
+  def getProjectNumber(googleProject: GoogleProject): Future[Option[Long]]
 }
