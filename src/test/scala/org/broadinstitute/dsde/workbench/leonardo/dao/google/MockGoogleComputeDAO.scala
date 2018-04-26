@@ -7,6 +7,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 import scala.concurrent.Future
+import scala.util.Random
 
 /**
   * Created by rtitle on 2/16/18.
@@ -52,4 +53,8 @@ class MockGoogleComputeDAO extends GoogleComputeDAO {
     Future.successful(Some(WorkbenchEmail("compute-engine@example.com")))
   }
 
+  override def getProjectNumber(googleProject: GoogleProject): Future[Option[Long]] = {
+    val rng = new Random
+    Future.successful(Some(rng.nextLong()))
+  }
 }
