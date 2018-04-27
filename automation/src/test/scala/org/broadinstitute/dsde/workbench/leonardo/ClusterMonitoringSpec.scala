@@ -7,7 +7,7 @@ import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorage
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
-import org.broadinstitute.dsde.workbench.model.google.{GcsEntity, GcsObjectName, GcsPath, GoogleProject, parseGcsPath}
+import org.broadinstitute.dsde.workbench.model.google.{GcsEntity, GcsObjectName, GcsPath, parseGcsPath}
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 
 class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with ParallelTestExecution with BillingFixtures {
@@ -124,7 +124,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
             val firstCell = notebookPage.firstCell
             notebookPage.cellOutput(firstCell) shouldBe Some(printStr)
             // execute a new cell to make sure the notebook kernel still works
-            notebookPage.runAllCells(60)
+            notebookPage.runAllCells()
             notebookPage.executeCell("sum(range(1,10))") shouldBe Some("45")
           }
         }
