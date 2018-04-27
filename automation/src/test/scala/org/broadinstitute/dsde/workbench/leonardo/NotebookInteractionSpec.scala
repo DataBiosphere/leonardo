@@ -308,10 +308,11 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
 
           // need to restart the kernel for the install to take effect
           notebookPage.restartKernel()
+
+          // re-run all cells so the cell numbers are consistent (otherwise they start over at 1 after a kernel restart)
           notebookPage.runAllCells()
 
           // verify that tensorflow is installed
-          // note cell numbers start at 1 after the kernel is restarted
           verifyTensorFlow(notebookPage, kernel)
         }
       }

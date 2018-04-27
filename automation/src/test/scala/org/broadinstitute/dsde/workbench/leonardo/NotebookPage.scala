@@ -135,10 +135,10 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     outputs.asScala.headOption.map(_.getText)
   }
   
-  def executeCell(code: String, timeout: FiniteDuration = 1 minute, cellNumberOpt: Option[Int] = None): Option[String] = {
+  def executeCell(code: String, timeout: FiniteDuration = 1 minute): Option[String] = {
     await enabled cells
     val cell = lastCell
-    val cellNumber = cellNumberOpt.getOrElse(numCellsOnPage)
+    val cellNumber = numCellsOnPage
     click on cell
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
     executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
