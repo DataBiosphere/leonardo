@@ -504,7 +504,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     uploadFile.exists() shouldBe true
 
     withNotebookUpload(cluster, uploadFile) { notebook =>
-      notebook.runAllCells(timeout.toSeconds)
+      notebook.runAllCells(timeout)
       notebook.download()
     }
 
@@ -555,5 +555,33 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     val t1 = System.nanoTime()
     val timediff = FiniteDuration(t1 - t0, NANOSECONDS)
     TimeResult(result, timediff)
+  }
+
+  def pipInstall(notebookPage: NotebookPage, kernel: Kernel, packageName: String): Unit = {
+    val pip = kernel match {
+      case Python2 => "pip2"
+      case Python3 => "pip3"
+      case _ => throw new IllegalArgumentException(s"Can't pip install in a ${kernel.string} kernel")
+    }
+
+    val installOutput = notebookPage.executeCell(s"!$pip install $packageName")
+    installOutput shouldBe 'defined
+    installOutput.get should include (s"Collecting $packageName")
+    installOutput.get should include ("Installing collected packages:")
+    installOutput.get should include ("Successfully installed")
+    installOutput.get should not include ("Exception:")
+  }
+
+  // https://github.com/aymericdamien/TensorFlow-Examples/blob/master/notebooks/1_Introduction/helloworld.ipynb
+  def verifyTensorFlow(notebookPage: NotebookPage, kernel: Kernel): Unit = {
+    notebookPage.executeCell("import tensorflow as tf") shouldBe None
+    notebookPage.executeCell("hello = tf.constant('Hello, TensorFlow!')") shouldBe None
+    notebookPage.executeCell("sess = tf.Session()") shouldBe None
+    val helloOutput = notebookPage.executeCell("print(sess.run(hello))")
+    kernel match {
+      case Python2 => helloOutput shouldBe Some("Hello, TensorFlow!")
+      case Python3 => helloOutput shouldBe Some("b'Hello, TensorFlow!'")
+      case other => fail(s"Unexpected kernel: $other")
+    }
   }
 }
