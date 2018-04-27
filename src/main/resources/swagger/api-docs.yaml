@@ -679,6 +679,12 @@ definitions:
       machineConfig:
         description: The machine configurations for the master and worker nodes
         $ref: '#/definitions/MachineConfig'
+      stopAfterCreation:
+        description: |
+          If true, Leo will immediately stop the cluster once it's created, with the end result being a
+          a cluster in Stopped state. Otherwise, the end result will be a cluster in Running or Error state.
+          Defaults to false.
+        type: boolean
 
   ClusterError:
     description: 'Errors encountered on cluster create'

@@ -164,7 +164,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, GcsPath(initBucket, GcsObjectName("")), serviceAccountKeyOpt.map(_.id)))
         } yield {
           // Notify the cluster monitor that the cluster has been created
-          clusterMonitorSupervisor ! ClusterCreated(savedCluster)
+          clusterMonitorSupervisor ! ClusterCreated(savedCluster, clusterRequest.stopAfterCeation)
           savedCluster
         }
 
