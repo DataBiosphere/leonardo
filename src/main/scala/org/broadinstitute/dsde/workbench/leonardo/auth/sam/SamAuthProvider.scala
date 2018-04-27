@@ -43,7 +43,6 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     .build(
       new CacheLoader[SamCacheKey, Future[Boolean]] {
         def load(key: SamCacheKey) = {
-          logger.info(s"Cache MISS for $key")
           key match {
             case NotebookAuthCacheKey(userEmail, action, googleProject, clusterName, executionContext) =>
               hasNotebookClusterPermissionInternal(userEmail, action, googleProject, clusterName)(executionContext)
@@ -98,9 +97,7 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     */
   override def hasNotebookClusterPermission(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     // Consult the notebook auth cache
-    val key = NotebookAuthCacheKey(userInfo, action, googleProject, clusterName, executionContext)
-    logger.info(s"Querying cache for $key")
-    notebookAuthCache.get(key)
+    notebookAuthCache.get(NotebookAuthCacheKey(userInfo, action, googleProject, clusterName, executionContext))
   }
 
   private def hasNotebookClusterPermissionInternal(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {

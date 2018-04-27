@@ -183,8 +183,20 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     // wait until not found or in "Deleted" state
     implicit val patienceConfig: PatienceConfig = clusterPatience
     eventually {
-      val statusOpt = Leonardo.cluster.listIncludingDeleted().find(_.clusterName == clusterName).map(_.status)
-      statusOpt getOrElse ClusterStatus.Deleted shouldBe ClusterStatus.Deleted
+      val allStatus: Set[ClusterStatus] = Leonardo.cluster.listIncludingDeleted()
+        .filter(c => c.clusterName == clusterName && c.googleProject == googleProject)
+        .map(_.status)
+        .toSet
+
+      val isDeleted = if (allStatus.isEmpty || allStatus == Set(ClusterStatus.Deleted)) {
+        logger.info(s"Cluster ${googleProject.value}/${clusterName.string} is deleted")
+        true
+      } else {
+        logger.info(s"Cluster ${googleProject.value}/${clusterName.string} is not deleted yet")
+        false
+      }
+
+      isDeleted shouldBe true
     }
   }
 
