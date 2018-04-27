@@ -60,6 +60,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   val storagePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
   val tenSeconds = FiniteDuration(10, SECONDS)
   val startPatience = PatienceConfig(timeout = scaled(Span(5, Minutes)), interval = scaled(Span(1, Seconds)))
+  val getAfterCreatePatience = PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(1, Seconds)))
 
   // TODO: show diffs as screenshot or other test output?
   def compareFilesExcludingIPs(left: File, right: File): Unit = {
@@ -125,8 +126,11 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
     // verify the create cluster response
     clusterCheck(clusterTimeResult.result, googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest)
+
     // verify with get()
-    val creatingCluster = clusterCheck(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest)
+    val creatingCluster = eventually {
+      clusterCheck(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest)
+    }(getAfterCreatePatience, implicitly[Position])
 
     if (monitor) {
       // wait for "Running" or error (fail fast)
