@@ -299,5 +299,23 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
         }
       }
     }
+
+    Seq(Python2, Python3).foreach { kernel =>
+      s"should be able to pip install packages using ${kernel.string}" in withWebDriver { implicit driver =>
+        withNewNotebook(ronCluster, kernel) { notebookPage =>
+          // install tensorflow
+          pipInstall(notebookPage, kernel, "tensorflow")
+
+          // need to restart the kernel for the install to take effect
+          notebookPage.restartKernel()
+
+          // re-run all cells so the cell numbers are consistent (otherwise they start over at 1 after a kernel restart)
+          notebookPage.runAllCells()
+
+          // verify that tensorflow is installed
+          verifyTensorFlow(notebookPage, kernel)
+        }
+      }
+    }
   }
 }

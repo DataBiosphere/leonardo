@@ -167,6 +167,9 @@ RUN apt-get install -yq --no-install-recommends python3 \
  && pip3 install fastinterval \
  && pip3 install matplotlib-venn
 
+# make pip install to a user directory, instead of a system directory which requires root.
+# this is useful so `pip install` commands can be run in the context of a notebook.
+ENV PIP_USER=true
 
 #######################
 # R Kernel

@@ -58,8 +58,14 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   // Kernel -> Shutdown
   lazy val shutdownKernelSelection: Query = cssSelector("[id='shutdown_kernel']")
 
+  // Kernel -> Restart
+  lazy val restartKernelSelection: Query = cssSelector("[id='restart_kernel']")
+
   // Jupyter asks: Are you sure you want to shutdown the kernel?
   lazy val shutdownKernelConfirmationSelection: Query = cssSelector("[class='btn btn-default btn-sm btn-danger']")
+
+  // Jupyter asks: Are you sure you want to restart the kernel?
+  lazy val restartKernelConfirmationSelection: Query = cssSelector("[class='btn btn-default btn-sm btn-danger']")
 
   // selects the numbered left-side cell prompts
   lazy val prompts: Query = cssSelector("[class='prompt input_prompt']")
@@ -86,10 +92,15 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     find(kernelNotification).exists { e => e.text == "No kernel" }
   }
 
-  def runAllCells(timeoutSeconds: Long): Unit = {
+  // is the kernel ready?
+  def isKernelReady: Boolean = {
+    find(kernelNotification).exists { e => e.text == "Kernel ready" }
+  }
+
+  def runAllCells(timeout: FiniteDuration = 60 seconds): Unit = {
     click on cellMenu
     click on (await enabled runAllCellsSelection)
-    await condition (!cellsAreRunning, timeoutSeconds)
+    await condition (!cellsAreRunning, timeout.toSeconds)
   }
 
   def download(): Unit = {
@@ -107,13 +118,16 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
 
   lazy val cells: Query = cssSelector(".CodeMirror")
 
-  def lastCell: (Int, WebElement) = {
-    val asList = webDriver.findElements(cells.by).asScala.toList
-    (asList.length, asList.last)
+  def lastCell: WebElement = {
+    webDriver.findElements(cells.by).asScala.toList.last
   }
 
   def firstCell: WebElement = {
     webDriver.findElements(cells.by).asScala.toList.head
+  }
+
+  def numCellsOnPage: Int = {
+    webDriver.findElements(cells.by).asScala.toList.length
   }
 
   def cellOutput(cell: WebElement): Option[String] = {
@@ -123,7 +137,8 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   
   def executeCell(code: String, timeout: FiniteDuration = 1 minute): Option[String] = {
     await enabled cells
-    val (cellNumber, cell) = lastCell
+    val cell = lastCell
+    val cellNumber = numCellsOnPage
     click on cell
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
     executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
@@ -136,14 +151,14 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   def translateMarkup(code: String, timeout: FiniteDuration = 1 minute): String = {
     await enabled cells
     await enabled translateCell
-    val (_, inputCell) = lastCell
+    val inputCell = lastCell
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
     executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", inputCell)
     changeCodeToMarkdown
     await enabled cells
     click on translateCell
     Thread.sleep(3000)
-    val (_, outputCell) = lastCell
+    val outputCell = lastCell
     outputCell.getText
   }
 
@@ -158,5 +173,12 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     click on (await enabled shutdownKernelSelection)
     click on (await enabled shutdownKernelConfirmationSelection)
     await condition isKernelShutdown
+  }
+
+  def restartKernel(): Unit = {
+    click on kernelMenu
+    click on (await enabled restartKernelSelection)
+    click on (await enabled restartKernelConfirmationSelection)
+    await condition isKernelReady
   }
 }
