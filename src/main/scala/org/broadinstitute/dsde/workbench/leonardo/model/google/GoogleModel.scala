@@ -67,9 +67,6 @@ object ClusterStatus extends Enum[ClusterStatus] {
   // A user might need to connect to this notebook in the future. Keep it warm in the DNS cache.
   val activeStatuses: Set[ClusterStatus] = Set(Unknown, Creating, Running, Updating, Stopping, Stopped, Starting)
 
-  // A cluster that has been paused recently.
-  val pausedStatuses: Set[ClusterStatus] = Set(Stopping, Stopped)
-
   // Can a user delete this cluster? Contains everything except Deleting, Deleted.
   val deletableStatuses: Set[ClusterStatus] = Set(Unknown, Creating, Running, Updating, Error, Stopping, Stopped, Starting)
 
@@ -84,7 +81,6 @@ object ClusterStatus extends Enum[ClusterStatus] {
 
   implicit class EnrichedClusterStatus(status: ClusterStatus) {
     def isActive: Boolean = activeStatuses contains status
-    def isPaused: Boolean = pausedStatuses contains status
     def isDeletable: Boolean = deletableStatuses contains status
     def isMonitored: Boolean = monitoredStatuses contains status
     def isStoppable: Boolean = stoppableStatuses contains status

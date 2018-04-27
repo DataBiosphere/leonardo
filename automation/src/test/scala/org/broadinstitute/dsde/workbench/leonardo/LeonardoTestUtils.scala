@@ -12,7 +12,8 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, UserAuthToken}
 import org.broadinstitute.dsde.workbench.config.{Config, Credentials}
-import org.broadinstitute.dsde.workbench.service.{RestException, Sam}
+import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
+import org.broadinstitute.dsde.workbench.service.{Orchestration, RestException, Sam}
 import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
@@ -34,7 +35,7 @@ import scala.util.{Failure, Random, Success, Try}
 case class TimeResult[R](result:R, duration:FiniteDuration)
 
 trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures {
-  this: Suite =>
+  this: Suite with BillingFixtures =>
 
   val swatTestBucket = "gs://leonardo-swat-test-bucket-do-not-delete"
   val incorrectJupyterExtensionUri = swatTestBucket + "/"
@@ -327,6 +328,17 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     val googlePetEmail = googleIamDAO.findServiceAccount(project, samPetEmail).futureValue.map(_.email)
     googlePetEmail shouldBe Some(samPetEmail)
     samPetEmail
+  }
+
+  // Wrapper for BillingFixtures.withCleanBillingProject which sets up a project with Hermione as owner, and Ron as a user
+  // testCode is curried so the token can be made implicit:
+  // https://stackoverflow.com/questions/14072061/function-literal-with-multiple-implicit-arguments
+  def withProject(testCode: GoogleProject => UserAuthToken => Any): Unit = {
+    withCleanBillingProject(hermioneCreds) { projectName =>
+      Orchestration.billing.addUserToBillingProject(projectName, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+      val project = GoogleProject(projectName)
+      testCode(project)(ronAuthToken)
+    }
   }
 
   def withNewCluster[T](googleProject: GoogleProject, name: ClusterName = randomClusterName, request: ClusterRequest = defaultClusterRequest, monitorCreate: Boolean = true, monitorDelete: Boolean = true)

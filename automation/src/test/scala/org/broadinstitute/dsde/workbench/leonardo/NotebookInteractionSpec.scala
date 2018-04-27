@@ -13,6 +13,7 @@ import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 
 import scala.concurrent.duration._
 import scala.collection.JavaConverters._
+import scala.language.postfixOps
 
 class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with BeforeAndAfterAll with BillingFixtures {
   /*
