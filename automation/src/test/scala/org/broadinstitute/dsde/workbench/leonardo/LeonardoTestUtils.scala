@@ -649,4 +649,6 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       case other => fail(s"Unexpected kernel: $other")
     }
   }
+
+  def noop[A](x: A): Unit = ()
 }

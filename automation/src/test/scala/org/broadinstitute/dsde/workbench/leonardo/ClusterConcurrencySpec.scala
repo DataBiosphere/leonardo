@@ -18,10 +18,10 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
         val nameToReuse = randomClusterName
 
         // create, monitor, delete once
-        withNewCluster(project, nameToReuse)(identity)
+        withNewCluster(project, nameToReuse)(noop)
 
         // create, monitor, delete again with same name
-        withNewCluster(project, nameToReuse)(identity)
+        withNewCluster(project, nameToReuse)(noop)
       }
     }
 
@@ -38,7 +38,7 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
     "should delete a creating cluster" in withWebDriver { implicit driver =>
       withProject { project => implicit token =>
         // delete while the cluster is still creating
-        withNewCluster(project, monitorCreate = false, monitorDelete = true)(identity)
+        withNewCluster(project, monitorCreate = false, monitorDelete = true)(noop)
       }
     }
 
