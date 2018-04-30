@@ -130,10 +130,20 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
     "should be able to delete a stopping cluster" in withWebDriver { implicit driver =>
       withProject { project => implicit token =>
         logger.info(s"${project.value}: should be able to delete a stopping cluster")
-        
+
         withNewCluster(project) { cluster =>
           // delete without waiting for the stop to complete
           stopCluster(cluster.googleProject, cluster.clusterName, monitor = false)
+        }
+      }
+    }
+
+    // set the "stop after creation" flag
+    "should stop a cluster after creation" in withWebDriver { implicit driver =>
+      withProject { project => implicit token =>
+        val request = defaultClusterRequest.copy(stopAfterCreation = true)
+        withNewCluster(project, request = request) { cluster =>
+          // no-op; just verify the cluster is stopped
         }
       }
     }

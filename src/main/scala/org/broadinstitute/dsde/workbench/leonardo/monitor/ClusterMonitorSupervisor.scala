@@ -76,7 +76,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
         case Some(resolvedCluster) =>
           leoService.internalStopCluster(resolvedCluster.creator, resolvedCluster)
         case None =>
-          Future.failed(new WorkbenchException("Cluster not found in the database"))
+          Future.failed(new WorkbenchException(s"Cluster ${cluster.projectNameString} not found in the database"))
       }.failed.foreach { e =>
         logger.error(s"Error occurred stopping cluster ${cluster.projectNameString} after creation", e)
       }
