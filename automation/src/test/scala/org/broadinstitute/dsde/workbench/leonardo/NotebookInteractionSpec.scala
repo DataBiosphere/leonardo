@@ -305,13 +305,10 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
         withNewNotebook(ronCluster, kernel) { notebookPage =>
           // install tensorflow
           pipInstall(notebookPage, kernel, "tensorflow")
+        }
 
-          // need to restart the kernel for the install to take effect
-          notebookPage.restartKernel()
-
-          // re-run all cells so the cell numbers are consistent (otherwise they start over at 1 after a kernel restart)
-          notebookPage.runAllCells()
-
+        // need to restart the kernel for the install to take effect
+        withNewNotebook(ronCluster, kernel) { notebookPage =>
           // verify that tensorflow is installed
           verifyTensorFlow(notebookPage, kernel)
         }
