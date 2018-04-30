@@ -7,7 +7,7 @@ import org.scalatest.{FreeSpec, ParallelTestExecution}
 /**
   * Created by rtitle on 4/26/18.
   */
-class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with BillingFixtures {
+class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with ParallelTestExecution with BillingFixtures {
 
   // these tests just hit the Leo APIs; they don't interact with notebooks via selenium
   "Leonardo cluster status transitions" - {
