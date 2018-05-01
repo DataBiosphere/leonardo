@@ -2,7 +2,7 @@ import React from 'react';
 import CssBaseline from 'material-ui/CssBaseline';
 
 import ClusterCardList from './ClusterCardList';
-//import CreateClusterModalButton from './CreateClusterModalButton';
+import CreateClusterModalButton from './CreateClusterModalButton';
 import LeonardoAppBar from './LeonardoAppBar';
 
 
@@ -132,13 +132,11 @@ class ListStateContainer extends React.Component {
             clusterModels={this.state.clusters}
           />
         </div>
-
-
-        <div>
-             CreateClusterModalButton placeholder
-        </div>
-
-
+        <CreateClusterModalButton
+          googleAuthToken={this.props.googleAuthToken}
+          cardsRefreshHandler={this.state.clusterListRefreshCallback}
+          errorHandler={this.props.errorHandler}
+        />
       </div>
     );
   }
