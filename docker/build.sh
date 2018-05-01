@@ -19,6 +19,8 @@ HELP_TEXT="$(cat <<EOF
            Users of gcr should have the gcloud tool installed and configured.
    -p | --project: set the project used at either dockerhub or with gcr
            container registries.
+   -n | --notebook-repo: (default: --project) the repo to push the notebooks
+           image. Can be a dockerhub or GCR repo. 
    -h | --help: print help text.
 
  Examples:
@@ -70,8 +72,13 @@ while [ "$1" != "" ]; do
             ;;
         -p | --project)
             shift
-            echo "project = $1"
+            echo "project == $1"
             DOCKER_PROJECT=$1
+            ;;
+        -n | --notebook-repo)
+            shift
+            echo "notebook-repo == $1"
+            NOTEBOOK_REPO=$1
             ;;
         -h | --help)
             PRINT_HELP=true
@@ -100,12 +107,14 @@ if [[ $DOCKER_REGISTRY == "dockerhub" ]]; then
   REPO="${DOCKER_PROJECT}"
   IMAGE="${REPO}/${TARGET}"
   DOCKER_REMOTES_BINARY="docker"
+  NOTEBOOK_REPO="${NOTEBOOK_REPO:-$REPO}"
 elif [[ $DOCKER_REGISTRY == "gcr" ]]; then
   DOCKER_PROJECT="${DOCKER_PROJECT:-$(gcloud config get-value project)}"
   # Domain scoped project IDs need to be modified to work with GCR.
   REPO="gcr.io/$(sed "s_:_/_" <<< "${DOCKER_PROJECT}")"
   IMAGE="${REPO}/${TARGET}"
   DOCKER_REMOTES_BINARY="gcloud docker --"
+  NOTEBOOK_REPO="${NOTEBOOK_REPO:-$REPO}"
 else
   echo "The docker registry must be either 'dockerhub' or 'gcr'"
   echo "Provided value: ${DOCKER_REGISTRY} is not allowed."
@@ -159,7 +168,7 @@ function docker_cmd()
         fi
 
         # builds the juptyer notebooks docker image that goes on dataproc clusters
-        bash ./jupyter-docker/build.sh build "${REPO}" "${DOCKER_TAG}"
+        bash ./jupyter-docker/build.sh build "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
 
         docker build -t "${IMAGE}:${DOCKER_TAG}" .
         cd automation
@@ -173,7 +182,7 @@ function docker_cmd()
             echo "pushing $TESTS_IMAGE docker image..."
             $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${DOCKER_TAG_TESTS}
             # pushes the juptyer notebooks docker image that goes on dataproc clusters
-            bash ./jupyter-docker/build.sh push "${REPO}" "${DOCKER_TAG}"
+            bash ./jupyter-docker/build.sh push "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
         fi
     else
         echo "Not a valid docker option!  Choose either build or push (which includes build)"
