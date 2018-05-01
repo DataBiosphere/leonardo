@@ -23,6 +23,16 @@ case object Python3 extends Kernel {
   def cssSelectorString: String = "[title='Create a new notebook with Python 3']"
 }
 
+case object PySpark2 extends Kernel {
+  def string: String = "PySpark 2"
+  def cssSelectorString: String = "[title='Create a new notebook with PySpark 2']"
+}
+
+case object PySpark3 extends Kernel {
+  def string: String = "PySpark 3"
+  def cssSelectorString: String = "[title='Create a new notebook with PySpark 3']"
+}
+
 case object RKernel extends Kernel {
   def string: String = "R"
   def cssSelectorString: String = "[title='Create a new notebook with R']"

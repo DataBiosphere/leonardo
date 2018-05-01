@@ -236,7 +236,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
         notebookPage.executeCell("1+1") shouldBe Some("2")
         notebookPage.executeCell(getPythonVersion) shouldBe Some("3.4.2")
         notebookPage.executeCell(getBxPython).get should include("Copyright (c)")
-        notebookPage.executeCell(sparkJob).get should include("Pi is roughly ")
+        //notebookPage.executeCell(sparkJob).get should include("Pi is roughly ")
       }
     }
 
