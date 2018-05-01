@@ -6,18 +6,22 @@ import { CircularProgress } from 'material-ui/Progress';
 import Tooltip from 'material-ui/Tooltip';
 
 import green from 'material-ui/colors/green';
+import grey from 'material-ui/colors/grey';
 import yellow from 'material-ui/colors/yellow';
 import red from 'material-ui/colors/red';
 
 
 const statusColorIconMap = {
   Creating: {iconType: "progress", iconName: null,       color: green[500]},
+  Starting: {iconType: "progress", iconName: null,       color: green[500]},
+  Stopping: {iconType: "progress", iconName: null,       color: yellow[800]},
   Updating: {iconType: "progress", iconName: null,       color: yellow[800]},
   Deleting: {iconType: "progress", iconName: null,       color: red[800]},
   Running:  {iconType: "icon",     iconName: "computer", color: green[500]},
   Deleted:  {iconType: "icon",     iconName: "computer", color: red[800]},
   Unknown:  {iconType: "icon",     iconName: "info",     color: yellow[800]},
-  Error:    {iconType: "icon",     iconName: "info",     color: red[800]}
+  Error:    {iconType: "icon",     iconName: "info",     color: red[800]},
+  Stopped:  {iconType: "icon",     iconName: "computer", color: grey[700]}
 }
 
 
