@@ -26,7 +26,10 @@ const clusterRegex = /^[a-z][a-z0-9-]{0,25}[a-z0-9]$/;
 const validMachineTypes = [
   "n1-standard-2",
   "n1-standard-4",
-  "n1-standard-8"];
+  "n1-standard-8",
+  "n1-standard-16",
+  "n1-highmem-8",
+  "n1-highmem-16"];
 
 const validDiskSizes = [200, 500, 1000];
 
@@ -188,6 +191,9 @@ class UnstyledCreateClusterForm extends React.Component {
               <MenuItem value={"n1-standard-2"}>2 cores, 7.5 GB</MenuItem>
               <MenuItem value={"n1-standard-4"}>4 cores, 15 GB</MenuItem>
               <MenuItem value={"n1-standard-8"}>8 cores, 30 GB</MenuItem>
+              <MenuItem value={"n1-highmem-8"}>8 cores, 52 GB</MenuItem>
+              <MenuItem value={"n1-standard-16"}>16 cores, 60 GB</MenuItem>
+              <MenuItem value={"n1-highmem-16"}>16 cores, 104 GB</MenuItem>
             </Select>
           </FormControl>
           <FormControl className={classes.mediumFormControl}>
