@@ -7,7 +7,7 @@ import Typography from 'material-ui/Typography';
 import { withStyles } from 'material-ui/styles';
 
 import ConnectButton from './ConnectButton'
-//import DeleteDialog from './DeleteDialog'
+import DeleteDialog from './DeleteDialog'
 import StatusIcon from './StatusIcon'
 
 
@@ -109,13 +109,13 @@ class ClusterCard extends React.Component {
           clusterStatus={this.state.clusterStatus}
           clusterModel={model}
         />
-
-
-      <div>
-                        Delete Dialog Placeholder
-      </div>
-
-
+        <DeleteDialog
+          clusterStatus={this.state.clusterStatus}
+          errorHandler={this.props.errorHandler}
+          cardClusterDeleteCallback={this.setClusterStatusDeleting}
+          googleAuthToken={this.props.googleAuthToken}
+          clusterModel={model}
+        />
       </CardActions>
       </Card>
       </Grid>
