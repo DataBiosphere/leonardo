@@ -20,7 +20,7 @@ trait SamProvider extends Retry with LazyLogging {
   protected def getLeoServiceAccountAndKey: (WorkbenchEmail, File)
 
   protected lazy val samServer = config.as[String]("samServer")
-  protected lazy val cacheEnabled = config.getBoolean("petTokenCacheEnabled")
+  protected lazy val cacheEnabled = config.getOrElse("petTokenCacheEnabled", true)
   protected lazy val cacheExpiryTime = config.getAs[FiniteDuration]("petTokenCacheExpiryTime").getOrElse(60 minutes)
   protected lazy val cacheMaxSize = config.getAs[Int]("petTokenCacheMaxSize").getOrElse(1000)
   protected lazy val (leoEmail, leoPemFile) = getLeoServiceAccountAndKey

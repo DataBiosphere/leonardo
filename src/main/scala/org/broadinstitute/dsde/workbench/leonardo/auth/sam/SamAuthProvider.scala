@@ -32,7 +32,7 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
   private val samRetryInterval = 100 milliseconds
   private val samRetryTimeout = 300 milliseconds
 
-  private lazy val notebookAuthCacheEnabled = config.getBoolean("notebookAuthCacheEnabled")
+  private lazy val notebookAuthCacheEnabled = config.getOrElse("notebookAuthCacheEnabled", true)
   private lazy val notebookAuthCacheMaxSize = config.getAs[Int]("notebookAuthCacheMaxSize").getOrElse(1000)
   private lazy val notebookAuthCacheExpiryTime = config.getAs[FiniteDuration]("notebookAuthCacheExpiryTime").getOrElse(15 minutes)
 
