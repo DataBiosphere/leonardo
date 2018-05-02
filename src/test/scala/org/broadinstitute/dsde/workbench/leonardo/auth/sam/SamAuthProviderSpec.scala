@@ -185,7 +185,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     }
 
     providerThrowing401.notifyClusterCreated(userInfo.userEmail, project, name1).failed.futureValue shouldBe a [ApiException]
-    verify(samClientThrowing401, times(4)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
+    verify(samClientThrowing401, times(3)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
 
     // should retry 500s
     val samClientThrowing500 = mock[MockSwaggerSamClient]
@@ -198,7 +198,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     }
 
     providerThrowing500.notifyClusterCreated(userInfo.userEmail, project, name1).failed.futureValue shouldBe a [ApiException]
-    verify(samClientThrowing500, times(4)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
+    verify(samClientThrowing500, times(3)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
 
     // should not retry 404s
     val samClientThrowing404 = mock[MockSwaggerSamClient]
@@ -228,7 +228,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     }
 
     providerThrowing401.notifyClusterDeleted(userInfo.userEmail, userInfo.userEmail, project, name1).failed.futureValue shouldBe a [ApiException]
-    verify(samClientThrowing401, times(4)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
+    verify(samClientThrowing401, times(3)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
 
     // should retry 500s
     val samClientThrowing500 = mock[MockSwaggerSamClient]
@@ -241,7 +241,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     }
 
     providerThrowing500.notifyClusterDeleted(userInfo.userEmail, userInfo.userEmail, project, name1).failed.futureValue shouldBe a [ApiException]
-    verify(samClientThrowing500, times(4)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
+    verify(samClientThrowing500, times(3)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
 
     // should not retry 400s
     val samClientThrowing400 = mock[MockSwaggerSamClient]
