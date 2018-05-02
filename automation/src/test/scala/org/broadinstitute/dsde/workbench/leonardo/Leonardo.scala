@@ -138,14 +138,6 @@ object Leonardo extends RestClient with LazyLogging {
     }
   }
 
-  object util {
-    def invalidateSamCache(googleProject: GoogleProject)(implicit token: AuthToken): String = {
-      val path = s"api/invalidateSamCache/${googleProject.value}"
-      logger.info(s"Invalidating Sam cache: POST /$path")
-      postRequest(url + path)
-    }
-  }
-
   object notebooks {
     def handleContentItemResponse(response: String): ContentItem = {
       mapper.readValue(response, classOf[ContentItem])

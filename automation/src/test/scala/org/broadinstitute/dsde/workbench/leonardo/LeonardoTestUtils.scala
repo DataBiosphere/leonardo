@@ -337,7 +337,6 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     withCleanBillingProject(hermioneCreds) { projectName =>
       val project = GoogleProject(projectName)
       Orchestration.billing.addUserToBillingProject(projectName, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
-      Leonardo.util.invalidateSamCache(project)(ronAuthToken)
       testCode(project)(ronAuthToken)
     }
   }
