@@ -38,8 +38,6 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with TestLeoRoutes 
   it should "200 if you're on the whitelist" in isolatedDbTest {
     Get(s"/api/isWhitelisted") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
-
-      validateCookie { header[`Set-Cookie`] }
     }
   }
 

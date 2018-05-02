@@ -136,7 +136,14 @@ object Leonardo extends RestClient with LazyLogging {
       logger.info(s"Starting cluster: POST /$path")
       postRequest(url + path)
     }
+  }
 
+  object util {
+    def invalidateSamCache(googleProject: GoogleProject)(implicit token: AuthToken): String = {
+      val path = s"api/invalidateSamCache/${googleProject.value}"
+      logger.info(s"Invalidating Sam cache: POST /$path")
+      postRequest(url + path)
+    }
   }
 
   object notebooks {

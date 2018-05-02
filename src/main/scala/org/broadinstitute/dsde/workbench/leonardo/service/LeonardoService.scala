@@ -9,6 +9,8 @@ import cats.implicits._
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.leonardo.auth.LeoAuthProviderHelper
+import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
@@ -97,11 +99,23 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     immutable.Map("startup-script" -> s"docker exec -d ${dataprocConfig.jupyterServerName} /usr/local/bin/jupyter notebook")
   }
 
+  // TODO remove this
   def isWhitelisted(userInfo: UserInfo): Future[Boolean] = {
     if( whitelist contains userInfo.userEmail.value.toLowerCase ) {
       Future.successful(true)
     } else {
       Future.failed(new AuthorizationError(Some(userInfo.userEmail)))
+    }
+  }
+
+  def invalidateSamCache(userInfo: UserInfo, project: GoogleProject): Future[Unit] = {
+    val resolvedAuthProvider = authProvider match {
+      case h: LeoAuthProviderHelper => h.wrappedAuthProvider
+      case _ => authProvider
+    }
+    resolvedAuthProvider match {
+      case s: SamAuthProvider => Future(s.samClient.invalidatePetAccessToken(userInfo.userEmail, project))
+      case _ => Future.successful(())
     }
   }
 

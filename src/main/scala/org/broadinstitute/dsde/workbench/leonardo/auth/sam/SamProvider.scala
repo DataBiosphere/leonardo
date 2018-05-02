@@ -23,6 +23,6 @@ trait SamProvider extends Retry with LazyLogging {
   protected lazy val cacheExpiryTime = config.getAs[FiniteDuration]("petTokenCacheExpiryTime").getOrElse(60 minutes)
   protected lazy val cacheMaxSize = config.getAs[Int]("petTokenCacheMaxSize").getOrElse(1000)
   protected lazy val (leoEmail, leoPemFile) = getLeoServiceAccountAndKey
-  protected lazy val samClient = new SwaggerSamClient(samServer, cacheExpiryTime, cacheMaxSize, leoEmail, leoPemFile)
+  protected[leonardo] lazy val samClient = new SwaggerSamClient(samServer, cacheExpiryTime, cacheMaxSize, leoEmail, leoPemFile)
   override val system = ActorSystem("leonardo-sam-provider")
 }

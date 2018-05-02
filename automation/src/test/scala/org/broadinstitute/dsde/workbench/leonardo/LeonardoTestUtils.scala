@@ -335,8 +335,9 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   // https://stackoverflow.com/questions/14072061/function-literal-with-multiple-implicit-arguments
   def withProject(testCode: GoogleProject => UserAuthToken => Any): Unit = {
     withCleanBillingProject(hermioneCreds) { projectName =>
-      Orchestration.billing.addUserToBillingProject(projectName, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
       val project = GoogleProject(projectName)
+      Orchestration.billing.addUserToBillingProject(projectName, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+      Leonardo.util.invalidateSamCache(project)(ronAuthToken)
       testCode(project)(ronAuthToken)
     }
   }
