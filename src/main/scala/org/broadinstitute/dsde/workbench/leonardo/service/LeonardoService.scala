@@ -99,23 +99,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     immutable.Map("startup-script" -> s"docker exec -d ${dataprocConfig.jupyterServerName} /usr/local/bin/jupyter notebook")
   }
 
-  // TODO remove this
   def isWhitelisted(userInfo: UserInfo): Future[Boolean] = {
     if( whitelist contains userInfo.userEmail.value.toLowerCase ) {
       Future.successful(true)
     } else {
       Future.failed(new AuthorizationError(Some(userInfo.userEmail)))
-    }
-  }
-
-  def invalidateSamCache(userInfo: UserInfo, project: GoogleProject): Future[Unit] = {
-    val resolvedAuthProvider = authProvider match {
-      case h: LeoAuthProviderHelper => h.wrappedAuthProvider
-      case _ => authProvider
-    }
-    resolvedAuthProvider match {
-      case s: SamAuthProvider => Future(s.samClient.invalidatePetAccessToken(userInfo.userEmail, project))
-      case _ => Future.successful(())
     }
   }
 

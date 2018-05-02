@@ -42,6 +42,15 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
   def leoRoutes: Route =
     requireUserInfo { userInfo =>
       setTokenCookie(userInfo, tokenCookieName) {
+        path("isWhitelisted") {
+          get {
+            complete {
+              leonardoService.isWhitelisted(userInfo).map { _ =>
+                StatusCodes.OK
+              }
+            }
+          }
+        } ~
         pathPrefix("cluster" / Segment / Segment) { (googleProject, clusterName) =>
           pathEndOrSingleSlash {
             put {
@@ -99,33 +108,9 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
       }
     }
 
-  private def privateRoutes: Route =
-    requireUserInfo { userInfo =>
-      // TODO remove this
-      path("isWhitelisted") {
-        get {
-          complete {
-            leonardoService.isWhitelisted(userInfo).map { _ =>
-              StatusCodes.OK
-            }
-          }
-        }
-      } ~
-      // used for integration testing; not exposed in Swagger
-      path("invalidateSamCache" / Segment) { project =>
-        post {
-          complete {
-            leonardoService.invalidateSamCache(userInfo, GoogleProject(project)).map { _ =>
-              StatusCodes.NoContent
-            }
-          }
-        }
-      }
-    }
-
   def route: Route = (logRequestResult & handleExceptions(myExceptionHandler)) {
     swaggerRoutes ~ unauthedRoutes ~ proxyRoutes ~ statusRoutes ~
-    pathPrefix("api") { leoRoutes ~ privateRoutes }
+    pathPrefix("api") { leoRoutes }
   }
 
   private val myExceptionHandler = {

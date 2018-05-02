@@ -32,6 +32,7 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
   private val samRetryInterval = 100 milliseconds
   private val samRetryTimeout = 300 milliseconds
 
+  private lazy val notebookAuthCacheEnabled = config.getBoolean("notebookAuthCacheEnabled")
   private lazy val notebookAuthCacheMaxSize = config.getAs[Int]("notebookAuthCacheMaxSize").getOrElse(1000)
   private lazy val notebookAuthCacheExpiryTime = config.getAs[FiniteDuration]("notebookAuthCacheExpiryTime").getOrElse(15 minutes)
 
@@ -96,8 +97,12 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     * @return If the userEmail has permission on this individual notebook cluster to perform this action
     */
   override def hasNotebookClusterPermission(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-    // Consult the notebook auth cache
-    notebookAuthCache.get(NotebookAuthCacheKey(userInfo, action, googleProject, clusterName, executionContext))
+    // Consult the notebook auth cache if enabled
+    if (notebookAuthCacheEnabled) {
+      notebookAuthCache.get(NotebookAuthCacheKey(userInfo, action, googleProject, clusterName, executionContext))
+    } else {
+      hasNotebookClusterPermissionInternal(userInfo, action, googleProject, clusterName)
+    }
   }
 
   private def hasNotebookClusterPermissionInternal(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {

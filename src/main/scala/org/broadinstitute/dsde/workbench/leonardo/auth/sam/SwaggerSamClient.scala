@@ -22,7 +22,7 @@ import scala.concurrent.duration.FiniteDuration
 
 case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)
 
-class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cacheMaxSize: Int, leoEmail: WorkbenchEmail, leoPem: File) extends LazyLogging {
+class SwaggerSamClient(samBasePath: String, cacheEnabled: Boolean, cacheExpiryTime: FiniteDuration, cacheMaxSize: Int, leoEmail: WorkbenchEmail, leoPem: File) extends LazyLogging {
 
   private val httpTransport = GoogleNetHttpTransport.newTrustedTransport
   private val jsonFactory = JacksonFactory.getDefaultInstance
@@ -62,7 +62,11 @@ class SwaggerSamClient(samBasePath: String, cacheExpiryTime: FiniteDuration, cac
 
   //"Fast" lookup of pet's access token, using the cache.
   def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject): String = {
-    petTokenCache.get(UserEmailAndProject(userEmail, googleProject))
+    if (cacheEnabled) {
+      petTokenCache.get(UserEmailAndProject(userEmail, googleProject))
+    } else {
+      getPetAccessTokenFromSam(userEmail, googleProject)
+    }
   }
 
   def invalidatePetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject): Unit = {

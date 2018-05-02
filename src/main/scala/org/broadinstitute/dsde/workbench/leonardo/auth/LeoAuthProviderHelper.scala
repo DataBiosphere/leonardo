@@ -36,7 +36,7 @@ object LeoAuthProviderHelper {
   }
 }
 
-class LeoAuthProviderHelper(private[leonardo] val wrappedAuthProvider: LeoAuthProvider, authConfig: Config, serviceAccountProvider: ServiceAccountProvider)(implicit system: ActorSystem)
+class LeoAuthProviderHelper(wrappedAuthProvider: LeoAuthProvider, authConfig: Config, serviceAccountProvider: ServiceAccountProvider)(implicit system: ActorSystem)
   extends LeoAuthProvider(authConfig, serviceAccountProvider) with FutureSupport with LazyLogging {
 
   // Default timeout is specified in reference.conf
