@@ -249,7 +249,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       // create or update instances in the DB
       _ <- persistInstances(instances)
       // this sets the cluster status to stopped and clears the cluster IP
-      _ <- dbRef.inTransaction { _.clusterQuery.setToStopped(cluster.googleId) }
+      _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Stopped) }
     } yield ShutdownActor()
   }
 
