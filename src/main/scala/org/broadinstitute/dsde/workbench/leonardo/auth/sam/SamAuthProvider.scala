@@ -30,7 +30,7 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
 
   // This causes Leo to try Sam calls up to 3 times, sleeping 100 milliseconds between each try
   private val samRetryInterval = 100 milliseconds
-  private val samRetryTimeout = 300 milliseconds
+  private val samRetryTimeout = 200 milliseconds
 
   private lazy val notebookAuthCacheEnabled = config.getOrElse("notebookAuthCacheEnabled", true)
   private lazy val notebookAuthCacheMaxSize = config.getAs[Int]("notebookAuthCacheMaxSize").getOrElse(1000)
