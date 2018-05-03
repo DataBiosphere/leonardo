@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.net.URL
+import java.net.{URL, URLEncoder}
 import java.time.Instant
 import java.util.UUID
 
@@ -172,7 +172,8 @@ object Leonardo extends RestClient with LazyLogging {
     }
 
     def getContentItem(googleProject: GoogleProject, clusterName: ClusterName, contentPath: String, includeContent: Boolean = true)(implicit token: AuthToken): ContentItem = {
-      val path = contentsPath(googleProject, clusterName, contentPath) + (if(includeContent) "?content=1" else "")
+      val encodedContentPath = URLEncoder.encode(contentPath, "UTF-8")
+      val path = contentsPath(googleProject, clusterName, encodedContentPath) + (if(includeContent) "?content=1" else "")
       logger.info(s"Get notebook contents: GET /$path")
       val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
       handleContentItemResponse(parseResponse(getRequest(url + path, httpHeaders = List(cookie))))

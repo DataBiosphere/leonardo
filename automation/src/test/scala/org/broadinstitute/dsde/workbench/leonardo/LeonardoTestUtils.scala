@@ -466,7 +466,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
         // create a notebook file to delocalize
         withNewNotebook(cluster) { notebookPage =>
-          notebookPage.executeCell(s"""! echo -n "$fileToDelocalizeContents" > $fileToDelocalize""")
+          notebookPage.executeCell(s"""! echo -n "$fileToDelocalizeContents" > "$fileToDelocalize"""")
 
           val localizeRequest = Map(
             fileToLocalize -> GcsPath(bucketName, bucketObjectToLocalize).toUri,
