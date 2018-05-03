@@ -10,6 +10,9 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, LeoAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
+import org.broadinstitute.dsde.workbench.model.WorkbenchException
+
+import scala.concurrent.Future
 
 object ClusterMonitorSupervisor {
   def props(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider): Props =
@@ -17,11 +20,20 @@ object ClusterMonitorSupervisor {
 
   sealed trait ClusterSupervisorMessage
   case class RegisterLeoService(service: LeonardoService) extends ClusterSupervisorMessage
-  case class ClusterCreated(cluster: Cluster) extends ClusterSupervisorMessage
+
+  // sent after a cluster is created by the user
+  case class ClusterCreated(cluster: Cluster, stopAfterCreate: Boolean = false) extends ClusterSupervisorMessage
+  // sent after a cluster is deleted by the user
   case class ClusterDeleted(cluster: Cluster, recreate: Boolean = false) extends ClusterSupervisorMessage
-  case class RecreateCluster(cluster: Cluster) extends ClusterSupervisorMessage
+  // sent after a cluster is stopped by the user
   case class ClusterStopped(cluster: Cluster) extends ClusterSupervisorMessage
+  // sent after a cluster is started by the user
   case class ClusterStarted(cluster: Cluster) extends ClusterSupervisorMessage
+
+  // sent after cluster creation fails, and the cluster should be recreated
+  case class RecreateCluster(cluster: Cluster) extends ClusterSupervisorMessage
+  // sent after cluster creation succeeds, and the cluster should be stopped
+  case class StopClusterAfterCreation(cluster: Cluster) extends ClusterSupervisorMessage
 }
 
 class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider) extends Actor with LazyLogging {
@@ -33,13 +45,13 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
     case RegisterLeoService(service) =>
       leoService = service
 
-    case ClusterCreated(cluster) =>
+    case ClusterCreated(cluster, stopAfterCreate) =>
       logger.info(s"Monitoring cluster ${cluster.projectNameString} for initialization.")
-      startClusterMonitorActor(cluster)
+      startClusterMonitorActor(cluster, if (stopAfterCreate) Some(StopClusterAfterCreation(cluster)) else None)
 
     case ClusterDeleted(cluster, recreate) =>
       logger.info(s"Monitoring cluster ${cluster.projectNameString} for deletion.")
-      startClusterMonitorActor(cluster, recreate)
+      startClusterMonitorActor(cluster, if (recreate) Some(RecreateCluster(cluster)) else None)
 
     case RecreateCluster(cluster) =>
       if (monitorConfig.recreateCluster) {
@@ -50,10 +62,26 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
           cluster.jupyterUserScriptUri,
           Some(cluster.machineConfig))
         leoService.internalCreateCluster(cluster.creator, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest).failed.foreach { e =>
-          logger.error("Error occurred recreating cluster", e)
+          logger.error(s"Error occurred recreating cluster ${cluster.projectNameString}", e)
         }
       } else {
         logger.warn(s"Received RecreateCluster message for cluster ${cluster.projectNameString} but cluster recreation is disabled.")
+      }
+
+    case StopClusterAfterCreation(cluster) =>
+      logger.info(s"Stopping cluster ${cluster.projectNameString} after creation...")
+      dbRef.inTransaction { dataAccess =>
+        dataAccess.clusterQuery.getByGoogleId(cluster.googleId)
+      }.flatMap {
+        case Some(resolvedCluster) if resolvedCluster.status.isStoppable =>
+          leoService.internalStopCluster(resolvedCluster.creator, resolvedCluster)
+        case Some(resolvedCluster) =>
+          logger.warn(s"Unable to stop cluster ${resolvedCluster.projectNameString} in status ${resolvedCluster.status.toString} after creation.")
+          Future.successful(())
+        case None =>
+          Future.failed(new WorkbenchException(s"Cluster ${cluster.projectNameString} not found in the database"))
+      }.failed.foreach { e =>
+        logger.error(s"Error occurred stopping cluster ${cluster.projectNameString} after creation", e)
       }
 
     case ClusterStopped(cluster) =>
@@ -69,11 +97,14 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
     context.actorOf(ClusterMonitorActor.props(cluster, monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, clusterDnsCache, authProvider))
   }
 
-  def startClusterMonitorActor(cluster: Cluster, recreate: Boolean = false): Unit = {
+  def startClusterMonitorActor(cluster: Cluster, watchMessageOpt: Option[ClusterSupervisorMessage] = None): Unit = {
     val child = createChildActor(cluster)
 
-    if (recreate && monitorConfig.recreateCluster) {
-      context.watchWith(child, RecreateCluster(cluster))
+    watchMessageOpt.foreach {
+      case RecreateCluster(_) if !monitorConfig.recreateCluster =>
+        // don't recreate clusters if not configured to do so
+      case watchMsg =>
+        context.watchWith(child, watchMsg)
     }
   }
 

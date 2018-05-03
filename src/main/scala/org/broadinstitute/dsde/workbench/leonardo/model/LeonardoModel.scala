@@ -25,7 +25,8 @@ import spray.json._
 case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[GcsPath] = None,
                           jupyterUserScriptUri: Option[GcsPath] = None,
-                          machineConfig: Option[MachineConfig] = None)
+                          machineConfig: Option[MachineConfig] = None,
+                          stopAfterCreation: Boolean = false)
 
 // A resource that is required by a cluster
 case class ClusterResource(value: String) extends ValueObject
@@ -259,7 +260,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     }
   }
 
-  implicit val ClusterRequestFormat = jsonFormat4(ClusterRequest)
+  implicit val ClusterRequestFormat = jsonFormat5(ClusterRequest)
 
   implicit val ClusterResourceFormat = ValueObjectFormat(ClusterResource)
 
