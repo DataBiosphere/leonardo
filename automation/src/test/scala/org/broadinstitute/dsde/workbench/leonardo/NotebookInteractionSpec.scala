@@ -96,7 +96,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       val localizeDataFileName = "localize_data_async.txt"
       val localizeDataContents = "Hello World"
 
-      withLocalizeDelocalizeFiles(ronCluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName) =>
+      withLocalizeDelocalizeFiles(ronCluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
         // call localize; this should return 200
         Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, localizeRequest, async = true)
 
@@ -127,7 +127,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       val localizeDataFileName = "localize_data_aync.txt"
       val localizeDataContents = "Hello World"
 
-      withLocalizeDelocalizeFiles(ronCluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName) =>
+      withLocalizeDelocalizeFiles(ronCluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
         // call localize; this should return 200
         Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, localizeRequest, async = false)
 
@@ -160,28 +160,20 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       val localizeDataFileName = "localize data with spaces.txt"
       val localizeDataContents = "Localize data"
 
-      withLocalizeDelocalizeFiles(ronCluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName) =>
+      withLocalizeDelocalizeFiles(ronCluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
         // call localize; this should return 200
         Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, localizeRequest, async = false)
 
-        // check that the files are immediately at their destinations
-        verifyLocalizeDelocalize(ronCluster, localizeFileName, localizeFileContents, GcsPath(bucketName, GcsObjectName(delocalizeFileName)), delocalizeFileContents, localizeDataFileName, localizeDataContents)
+        // check that the files are at their destinations
+        implicit val patienceConfig: PatienceConfig = storagePatience
 
-        // call localize again with bad data. This should still return 500 since we're in sync mode.
-        val badLocalize = Map("file.out" -> "gs://nobuckethere")
-        val thrown = the [RestException] thrownBy {
-          Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, badLocalize, async = false)
-        }
-        // why doesn't `RestException` have a status code field?
-        thrown.message should include ("500 : Internal Server Error")
-        thrown.message should include ("Error occurred localizing")
-        thrown.message should include ("See localization.log for details.")
+        // the localized files should exist on the notebook VM
+        notebookPage.executeCell(s"""! cat "${localizeFileName}"""") shouldBe Some(localizeFileContents)
+        notebookPage.executeCell(s"""! cat "${localizeDataFileName}"""") shouldBe Some(localizeDataContents)
 
-        // it should not have localized this file
-        val contentThrown = the [RestException] thrownBy {
-          Leonardo.notebooks.getContentItem(ronCluster.googleProject, ronCluster.clusterName, "file.out", includeContent = false)
-        }
-        contentThrown.message should include ("No such file or directory: file.out")
+        // the delocalized file should exist in the Google bucket
+        val bucketData = googleStorageDAO.getObject(bucketName, GcsObjectName(delocalizeFileName)).futureValue
+        bucketData.map(_.toString) shouldBe Some(delocalizeFileContents)
       }
     }
 

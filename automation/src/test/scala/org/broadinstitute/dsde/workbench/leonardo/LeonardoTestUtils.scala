@@ -450,7 +450,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   def withLocalizeDelocalizeFiles[T](cluster: Cluster, fileToLocalize: String, fileToLocalizeContents: String,
                                      fileToDelocalize: String, fileToDelocalizeContents: String,
-                                     dataFileName: String, dataFileContents: String)(testCode: (Map[String, String], GcsBucketName) => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+                                     dataFileName: String, dataFileContents: String)(testCode: (Map[String, String], GcsBucketName, NotebookPage) => T)
+                                    (implicit webDriver: WebDriver, token: AuthToken): T = {
     implicit val patienceConfig: PatienceConfig = storagePatience
 
     withNewGoogleBucket(cluster.googleProject) { bucketName =>
@@ -474,7 +475,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
             dataFileName -> s"data:text/plain;base64,${Base64.getEncoder.encodeToString(dataFileContents.getBytes(StandardCharsets.UTF_8))}"
           )
 
-          val testResult = Try(testCode(localizeRequest, bucketName))
+          val testResult = Try(testCode(localizeRequest, bucketName, notebookPage))
 
           // Verify and save the localization.log file to test output to aid in debugging
           Try(verifyAndSaveLocalizationLog(cluster)) match {
