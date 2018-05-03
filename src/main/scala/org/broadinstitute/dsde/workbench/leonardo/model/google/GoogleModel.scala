@@ -74,7 +74,7 @@ object ClusterStatus extends Enum[ClusterStatus] {
   val monitoredStatuses: Set[ClusterStatus] = Set(Unknown, Creating, Updating, Deleting, Stopping, Starting)
 
   // Can a user stop this cluster?
-  val stoppableStatuses: Set[ClusterStatus] = Set(Unknown, Running, Updating, Error, Starting)
+  val stoppableStatuses: Set[ClusterStatus] = Set(Unknown, Running, Updating, Starting)
 
   // Can a user start this cluster?
   val startableStatuses: Set[ClusterStatus] = Set(Stopped, Stopping)
