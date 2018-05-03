@@ -13,6 +13,7 @@ import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 
 import scala.concurrent.duration._
 import scala.collection.JavaConverters._
+import scala.language.postfixOps
 
 class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with BeforeAndAfterAll with BillingFixtures {
   /*
@@ -30,6 +31,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
     gpAllocProject = claimGPAllocProject(hermioneCreds, List(ronEmail))
     billingProject = GoogleProject(gpAllocProject.projectName)
     ronCluster = try {
+
       createNewCluster(billingProject)(ronAuthToken)
     } catch {
       case e: Throwable =>
@@ -283,20 +285,6 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
           """.stripMargin
 
         notebookPage.executeCell(httpGetTest) shouldBe Some("200")
-      }
-    }
-
-    //Test to check if extensions are installed correctly
-    //Using nbtranslate extension from here:
-    //https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
-    "should install user specified notebook extensions" in withWebDriver { implicit driver =>
-      val clusterName = ClusterName("user-jupyter-ext" + makeRandomId())
-      withNewCluster(billingProject, clusterName, ClusterRequest(Map(), Option(testJupyterExtensionUri), None)) { cluster =>
-        withNewNotebook(cluster) { notebookPage =>
-          notebookPage.executeCell("1 + 1") shouldBe Some("2")
-          //Check if the mark up was translated correctly
-          notebookPage.translateMarkup("Hello") should include("Bonjour")
-        }
       }
     }
 

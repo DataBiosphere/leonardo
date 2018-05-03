@@ -228,8 +228,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "create two clusters with same name with only one active" in isolatedDbTest {
-    //create first cluster
-    leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
+    // create first cluster
+    val cluster = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
 
     // check that the cluster was created
     gdDAO.clusters should contain key (name1)
@@ -237,10 +237,17 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // delete the cluster
     leo.deleteCluster(userInfo, project, name1).futureValue
 
-    //recreate cluster with same project and cluster name
+    // recreate cluster with same project and cluster name
+    // should throw ClusterAlreadyExistsException since the cluster is still Deleting
+    leo.createCluster(userInfo, project, name1, testClusterRequest).failed.futureValue shouldBe a [ClusterAlreadyExistsException]
+
+    // flip the cluster to Deleted in the database
+    dbFutureValue { _.clusterQuery.completeDeletion(cluster.googleId) }
+
+    // recreate cluster with same project and cluster name
     leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
 
-    //confirm cluster was created
+    // confirm cluster was created
     gdDAO.clusters should contain key (name1)
   }
 
@@ -276,7 +283,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // the cluster has transitioned to the Deleting state (Cluster Monitor will later transition it to Deleted)
 
-    dbFutureValue { _.clusterQuery.getClusterByName(project, name1) }.map(_.status) shouldBe Some(ClusterStatus.Deleting)
+    dbFutureValue { _.clusterQuery.getActiveClusterByName(project, name1) }.map(_.status) shouldBe Some(ClusterStatus.Deleting)
 
     // the auth provider should have not yet been notified of deletion
     verify(spyProvider, never).notifyClusterDeleted(mockitoEq(userInfo.userEmail), mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(name1))(any[ExecutionContext])
@@ -539,6 +546,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // populate some instances for the cluster
     dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse.googleId), Seq(masterInstance, workerInstance1, workerInstance2)) }
+
+    // set the cluster to Running
+    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.googleId, IP("1.2.3.4")) }
 
     // stop the cluster
     leo.stopCluster(userInfo, project, name1).futureValue

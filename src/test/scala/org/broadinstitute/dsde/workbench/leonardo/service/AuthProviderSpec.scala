@@ -234,7 +234,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       clusterCreateExc shouldBe a [RuntimeException]
 
       // no cluster should have been made
-      val clusterLookup = dbFutureValue { _.clusterQuery.getClusterByName(project, name1) }
+      val clusterLookup = dbFutureValue { _.clusterQuery.getActiveClusterByName(project, name1) }
       clusterLookup shouldBe 'empty
 
       // check that the cluster does not exist
