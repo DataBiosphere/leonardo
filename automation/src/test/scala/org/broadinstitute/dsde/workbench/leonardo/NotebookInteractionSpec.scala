@@ -152,6 +152,39 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       }
     }
 
+    "should localize files with spaces in the name" in withWebDriver { implicit driver =>
+      val localizeFileName = "localize with spaces.txt"
+      val localizeFileContents = "Localize"
+      val delocalizeFileName = "delocalize with spaces.txt"
+      val delocalizeFileContents = "Delocalize"
+      val localizeDataFileName = "localize data with spaces.txt"
+      val localizeDataContents = "Localize data"
+
+      withLocalizeDelocalizeFiles(ronCluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName) =>
+        // call localize; this should return 200
+        Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, localizeRequest, async = false)
+
+        // check that the files are immediately at their destinations
+        verifyLocalizeDelocalize(ronCluster, localizeFileName, localizeFileContents, GcsPath(bucketName, GcsObjectName(delocalizeFileName)), delocalizeFileContents, localizeDataFileName, localizeDataContents)
+
+        // call localize again with bad data. This should still return 500 since we're in sync mode.
+        val badLocalize = Map("file.out" -> "gs://nobuckethere")
+        val thrown = the [RestException] thrownBy {
+          Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, badLocalize, async = false)
+        }
+        // why doesn't `RestException` have a status code field?
+        thrown.message should include ("500 : Internal Server Error")
+        thrown.message should include ("Error occurred localizing")
+        thrown.message should include ("See localization.log for details.")
+
+        // it should not have localized this file
+        val contentThrown = the [RestException] thrownBy {
+          Leonardo.notebooks.getContentItem(ronCluster.googleProject, ronCluster.clusterName, "file.out", includeContent = false)
+        }
+        contentThrown.message should include ("No such file or directory: file.out")
+      }
+    }
+
     "should do cross domain cookie auth" in withWebDriver { implicit driver =>
       withDummyClientPage(ronCluster) { dummyClientPage =>
         // opens the notebook list page without setting a cookie
