@@ -175,10 +175,10 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     await condition isKernelShutdown
   }
 
-  def restartKernel(): Unit = {
+  def restartKernel(timeout: FiniteDuration = 1 minute): Unit = {
     click on kernelMenu
     click on (await enabled restartKernelSelection)
     click on (await enabled restartKernelConfirmationSelection)
-    await condition isKernelReady
+    await condition (isKernelReady, timeout.toSeconds)
   }
 }

@@ -11,7 +11,7 @@ import scala.concurrent.duration.{FiniteDuration, SECONDS}
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 
-class MockSwaggerSamClient extends SwaggerSamClient("fake/path", new FiniteDuration(1, SECONDS), 0, WorkbenchEmail("fake-user@example.com"), new File("fake-pem")) {
+class MockSwaggerSamClient extends SwaggerSamClient("fake/path", true, new FiniteDuration(1, SECONDS), 0, WorkbenchEmail("fake-user@example.com"), new File("fake-pem")) {
 
   val billingProjects: mutable.Map[(GoogleProject, WorkbenchEmail), Set[String]] =  new TrieMap()
   val notebookClusters: mutable.Map[(GoogleProject, ClusterName, WorkbenchEmail), Set[String]] = new TrieMap()

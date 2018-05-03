@@ -92,7 +92,7 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
   private def hostToIpEntry(c: Cluster): (Host, IP) = host(c) -> c.hostIp.get
 
   private def projectNameToHostEntry(c: Cluster): ((GoogleProject, ClusterName), GetClusterResponse) = {
-    if (c.status.isPaused)
+    if (c.status.isStartable)
       (c.googleProject, c.clusterName) -> ClusterPaused
     else if (c.hostIp.isDefined)
       (c.googleProject, c.clusterName) -> ClusterReady(host(c))
