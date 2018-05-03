@@ -1,3 +1,4 @@
+import distutils.util
 import subprocess
 import os
 import tornado
@@ -93,7 +94,11 @@ class LocalizeHandler(IPythonHandler):
     if not all(map(lambda v: type(v) is unicode, pathdict.values())):
       raise HTTPError(400, "Body must be JSON object of type string/string")
 
-    async = self.get_query_argument('async', False)
+    try:
+      raw = self.get_query_argument('async', 'false')
+      async = distutils.util.strtobool(raw)
+    except ValueError:
+      raise HTTPError(400, "Could not parse async parameter as a boolean: '{}'".format(raw))
 
     if async:
       #complete the request HERE, without waiting for the localize to run
