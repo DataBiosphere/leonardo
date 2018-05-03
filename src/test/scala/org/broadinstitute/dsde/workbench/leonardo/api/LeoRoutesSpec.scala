@@ -14,6 +14,7 @@ import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.FlatSpec
 
 import scala.concurrent.duration._
+import slick.dbio.DBIO
 import spray.json._
 
 class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with TestLeoRoutes with TestComponent {
@@ -36,9 +37,9 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with TestLeoRoutes 
 
   it should "200 if you're on the whitelist" in isolatedDbTest {
     Get(s"/api/isWhitelisted") ~> timedLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.OK
-
       validateCookie { header[`Set-Cookie`] }
+
+      status shouldEqual StatusCodes.OK
     }
   }
 
@@ -204,11 +205,28 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with TestLeoRoutes 
 
       validateCookie { header[`Set-Cookie`] }
     }
+
+    // stopping a creating cluster should return 409
+    Post(s"/api/cluster/${googleProject.value}/${clusterName.value}/stop") ~> timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.Conflict
+    }
+
+    // simulate the cluster transitioning to Running
+    dbFutureValue { dataAccess =>
+      dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName).flatMap {
+        case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.googleId, IP("1.2.3.4"))
+        case None => DBIO.successful(0)
+      }
+    }
+
+    // stop should now return 202
     Post(s"/api/cluster/${googleProject.value}/${clusterName.value}/stop") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
 
       validateCookie { header[`Set-Cookie`] }
     }
+
+    // starting a stopping cluster should also return 202
     Post(s"/api/cluster/${googleProject.value}/${clusterName.value}/start") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
 
