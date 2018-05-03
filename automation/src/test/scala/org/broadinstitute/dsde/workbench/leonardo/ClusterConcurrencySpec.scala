@@ -38,6 +38,19 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
       }
     }
 
+    // create -> wait -> error -> stop (conflict) -> delete
+    "should not be able to stop an errored cluster" in {
+      withProject { project => implicit token =>
+        logger.info(s"${project.value}: should not be able to stop an errored cluster")
+
+        withNewErroredCluster(project) { cluster =>
+          val caught = the [RestException] thrownBy stopCluster(cluster.googleProject, cluster.clusterName, monitor = false)
+          caught.message should include(""""statusCode":409""")
+        }
+      }
+
+    }
+
     // create -> no wait -> delete
     "should delete a creating cluster" in withWebDriver { implicit driver =>
       withProject { project => implicit token =>

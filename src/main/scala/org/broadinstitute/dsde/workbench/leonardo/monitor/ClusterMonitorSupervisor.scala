@@ -73,8 +73,11 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
       dbRef.inTransaction { dataAccess =>
         dataAccess.clusterQuery.getByGoogleId(cluster.googleId)
       }.flatMap {
-        case Some(resolvedCluster) =>
+        case Some(resolvedCluster) if resolvedCluster.status.isStoppable =>
           leoService.internalStopCluster(resolvedCluster.creator, resolvedCluster)
+        case Some(resolvedCluster) =>
+          logger.warn(s"Unable to stop cluster ${resolvedCluster.projectNameString} in status ${resolvedCluster.status.toString} after creation.")
+          Future.successful(())
         case None =>
           Future.failed(new WorkbenchException(s"Cluster ${cluster.projectNameString} not found in the database"))
       }.failed.foreach { e =>
