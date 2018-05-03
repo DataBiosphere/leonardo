@@ -39,7 +39,7 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
     }
 
     // create -> wait -> error -> stop (conflict) -> delete
-    "should not be able to stop an errored cluster" in {
+    "should not be able to stop an errored cluster" in withWebDriver { implicit driver =>
       withProject { project => implicit token =>
         logger.info(s"${project.value}: should not be able to stop an errored cluster")
 
