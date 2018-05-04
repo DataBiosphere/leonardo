@@ -6,16 +6,19 @@ import tempfile
 import unittest
 from datetime import timedelta
 from nbformat.v4 import new_notebook
+import tornado
+from tornado.testing import AsyncTestCase, gen_test
 from unittest.mock import patch
 
 # Import this first; see https://github.com/jupyter/notebook/issues/2798
 import notebook.transutils
 import jupyter_delocalize
 
-class TestDelocalizingContentsManager(unittest.TestCase):
+class TestDelocalizingContentsManager(AsyncTestCase):
   """DelocalizingContentsManager tests"""
 
   def setUp(self):
+    super(TestDelocalizingContentsManager, self).setUp()
     self.orig_ttl = jupyter_delocalize.METADATA_TTL
     jupyter_delocalize.METADATA_TTL = timedelta()
     self.manager = jupyter_delocalize.DelocalizingContentsManager(
@@ -31,6 +34,13 @@ class TestDelocalizingContentsManager(unittest.TestCase):
     jupyter_delocalize.METADATA_TTL = self.orig_ttl
     shutil.rmtree(self.manager.root_dir)
     shutil.rmtree(self.out_dir)
+    super(TestDelocalizingContentsManager, self).tearDown()
+
+  def _await_tornado(self):
+    # We spawn the delocalize processes in a Tornado callback, which executes
+    # asynchronously.
+    self.io_loop.add_callback(self.stop)
+    self.wait()
 
   def _save_new_notebook(self, path):
     content = new_notebook()
@@ -39,6 +49,7 @@ class TestDelocalizingContentsManager(unittest.TestCase):
         'content': content,
         'format': 'text'
     }, path=path)
+    self._await_tornado()
     return content.dict()
 
   def _save_delocalize_config(self, dir_path, config=None):
@@ -51,6 +62,15 @@ class TestDelocalizingContentsManager(unittest.TestCase):
         'content': json.dumps(config),
         'format': 'text'
     }, path=dir_path + '/.delocalize.json')
+    self._await_tornado()
+
+  def _rename_file(self, from_path, to_path):
+    self.manager.rename_file(from_path, to_path)
+    self._await_tornado()
+
+  def _delete_file(self, path):
+    self.manager.delete_file(path)
+    self._await_tornado()
 
   def test_save_normal(self):
     want = self._save_new_notebook('dir/foo.ipynb')
@@ -90,7 +110,7 @@ class TestDelocalizingContentsManager(unittest.TestCase):
 
   def test_rename_normal(self):
     want = self._save_new_notebook('dir/foo.ipynb')
-    self.manager.rename_file('dir/foo.ipynb', 'dir/bar.ipynb')
+    self._rename_file('dir/foo.ipynb', 'dir/bar.ipynb')
 
     self.assertFalse(os.path.isfile(self.manager.root_dir + '/dir/foo.ipynb'))
     with open(self.manager.root_dir + '/dir/bar.ipynb', 'r') as got:
@@ -99,7 +119,7 @@ class TestDelocalizingContentsManager(unittest.TestCase):
   def test_rename_delocalize(self):
     self._save_delocalize_config('dir')
     want = self._save_new_notebook('dir/foo.ipynb')
-    self.manager.rename_file('dir/foo.ipynb', 'dir/bar.ipynb')
+    self._rename_file('dir/foo.ipynb', 'dir/bar.ipynb')
 
     self.assertFalse(os.path.isfile(self.out_dir + '/foo.ipynb'))
     self.assertFalse(os.path.isfile(self.manager.root_dir + '/foo.ipynb'))
@@ -114,7 +134,7 @@ class TestDelocalizingContentsManager(unittest.TestCase):
         'pattern': 'foo'
     })
     want = self._save_new_notebook('dir/foo.ipynb')
-    self.manager.rename_file('dir/foo.ipynb', 'dir/bar.ipynb')
+    self._rename_file('dir/foo.ipynb', 'dir/bar.ipynb')
 
     # The delocalization behavior for foo.ipynb in this case is unspecified;
     # currently it won't delete the file, but would be better if it did.
@@ -125,14 +145,14 @@ class TestDelocalizingContentsManager(unittest.TestCase):
 
   def test_delete_normal(self):
     self._save_new_notebook('foo.ipynb')
-    self.manager.delete_file('foo.ipynb')
+    self._delete_file('foo.ipynb')
 
     self.assertFalse(os.path.isfile(self.manager.root_dir + '/foo.ipynb'))
 
   def test_delete_delocalize(self):
     self._save_delocalize_config('.')
     self._save_new_notebook('foo.ipynb')
-    self.manager.delete_file('foo.ipynb')
+    self._delete_file('foo.ipynb')
 
     self.assertFalse(os.path.isfile(self.out_dir + '/foo.ipynb'))
     self.assertFalse(os.path.isfile(self.manager.root_dir + '/foo.ipynb'))
@@ -145,13 +165,13 @@ class TestDelocalizingContentsManager(unittest.TestCase):
         'destination': self.out_dir,
         'pattern': 'doesnt match'
     })
-    self.manager.delete_file('foo.ipynb')
+    self._delete_file('foo.ipynb')
 
     self.assertTrue(os.path.isfile(self.out_dir + '/foo.ipynb'))
     self.assertFalse(os.path.isfile(self.manager.root_dir + '/foo.ipynb'))
 
   def test_metadata_cache(self):
-    delocalize.METADATA_TTL = timedelta(minutes=5)
+    jupyter_delocalize.METADATA_TTL = timedelta(minutes=5)
     # Stub out and advance time manually.
     now = datetime.datetime(2018, 3, 20)
     self.manager._now = lambda: now
