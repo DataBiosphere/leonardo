@@ -131,9 +131,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
     log 'Installing Jupydocker kernelspecs...'
 
-    # Create directories for PySpark kernels (Python kernel directories are somehow already created at this point)
-    docker exec -u root -d ${JUPYTER_SERVER_NAME} mkdir ${KERNELSPEC_HOME}/pyspark{2,3}
-
     # Change Python and PySpark 2 and 3 kernel specs to allow each to have its own spark
     docker exec -u root -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/kernelspec.sh ${JUPYTER_HOME} ${KERNELSPEC_HOME}
 

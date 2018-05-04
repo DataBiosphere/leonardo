@@ -13,6 +13,7 @@ import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 
 import scala.concurrent.duration._
 import scala.collection.JavaConverters._
+import scala.language.postfixOps
 
 class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with BeforeAndAfterAll with BillingFixtures {
   /*
@@ -30,6 +31,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
     gpAllocProject = claimGPAllocProject(hermioneCreds, List(ronEmail))
     billingProject = GoogleProject(gpAllocProject.projectName)
     ronCluster = try {
+
       createNewCluster(billingProject)(ronAuthToken)
     } catch {
       case e: Throwable =>
@@ -94,7 +96,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       val localizeDataFileName = "localize_data_async.txt"
       val localizeDataContents = "Hello World"
 
-      withLocalizeDelocalizeFiles(ronCluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName) =>
+      withLocalizeDelocalizeFiles(ronCluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
         // call localize; this should return 200
         Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, localizeRequest, async = true)
 
@@ -125,7 +127,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       val localizeDataFileName = "localize_data_aync.txt"
       val localizeDataContents = "Hello World"
 
-      withLocalizeDelocalizeFiles(ronCluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName) =>
+      withLocalizeDelocalizeFiles(ronCluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
         // call localize; this should return 200
         Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, localizeRequest, async = false)
 
@@ -147,6 +149,31 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
           Leonardo.notebooks.getContentItem(ronCluster.googleProject, ronCluster.clusterName, "file.out", includeContent = false)
         }
         contentThrown.message should include ("No such file or directory: file.out")
+      }
+    }
+
+    "should localize files with spaces in the name" in withWebDriver { implicit driver =>
+      val localizeFileName = "localize with spaces.txt"
+      val localizeFileContents = "Localize"
+      val delocalizeFileName = "delocalize with spaces.txt"
+      val delocalizeFileContents = "Delocalize"
+      val localizeDataFileName = "localize data with spaces.txt"
+      val localizeDataContents = "Localize data"
+
+      withLocalizeDelocalizeFiles(ronCluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
+        // call localize; this should return 200
+        Leonardo.notebooks.localize(ronCluster.googleProject, ronCluster.clusterName, localizeRequest, async = false)
+
+        // check that the files are at their destinations
+        implicit val patienceConfig: PatienceConfig = storagePatience
+
+        // the localized files should exist on the notebook VM
+        notebookPage.executeCell(s"""! cat "${localizeFileName}"""") shouldBe Some(localizeFileContents)
+        notebookPage.executeCell(s"""! cat "${localizeDataFileName}"""") shouldBe Some(localizeDataContents)
+
+        // the delocalized file should exist in the Google bucket
+        val bucketData = googleStorageDAO.getObject(bucketName, GcsObjectName(delocalizeFileName)).futureValue
+        bucketData.map(_.toString) shouldBe Some(delocalizeFileContents)
       }
     }
 

@@ -12,7 +12,8 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, UserAuthToken}
 import org.broadinstitute.dsde.workbench.config.{Config, Credentials}
-import org.broadinstitute.dsde.workbench.service.{RestException, Sam}
+import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
+import org.broadinstitute.dsde.workbench.service.{Orchestration, RestException, Sam}
 import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
@@ -34,7 +35,7 @@ import scala.util.{Failure, Random, Success, Try}
 case class TimeResult[R](result:R, duration:FiniteDuration)
 
 trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures {
-  this: Suite =>
+  this: Suite with BillingFixtures =>
 
   val swatTestBucket = "gs://leonardo-swat-test-bucket-do-not-delete"
   val incorrectJupyterExtensionUri = swatTestBucket + "/"
@@ -60,6 +61,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   val storagePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
   val tenSeconds = FiniteDuration(10, SECONDS)
   val startPatience = PatienceConfig(timeout = scaled(Span(5, Minutes)), interval = scaled(Span(1, Seconds)))
+  val getAfterCreatePatience = PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(1, Seconds)))
 
   // TODO: show diffs as screenshot or other test output?
   def compareFilesExcludingIPs(left: File, right: File): Unit = {
@@ -114,46 +116,61 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     cluster
   }
 
-  // creates a cluster and checks to see that it reaches the Running state
-  def createAndMonitor(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(implicit token: AuthToken): Cluster = {
+  def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, monitor: Boolean)(implicit token: AuthToken): Cluster = {
     // Google doesn't seem to like simultaneous cluster creates.  Add 0-30 sec jitter
     Thread sleep Random.nextInt(30000)
 
     val clusterTimeResult = time(Leonardo.cluster.create(googleProject, clusterName, clusterRequest))
-    val cluster = clusterTimeResult.result
-    clusterCheck(cluster, googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest)
     //TODO Uncomment the following line when the response time is truly less than 10s
     //clusterTimeResult.duration should be < tenSeconds
     logger.info("Time to get cluster create response::" + clusterTimeResult.duration)
 
+    // verify the create cluster response
+    clusterCheck(clusterTimeResult.result, googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest)
+
     // verify with get()
-    val creatingCluster = clusterCheck(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest)
+    val creatingCluster = eventually {
+      clusterCheck(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest)
+    }(getAfterCreatePatience, implicitly[Position])
 
-    // wait for "Running" or error (fail fast)
-    implicit val patienceConfig: PatienceConfig = clusterPatience
-    val actualCluster = Try {
-      eventually {
-        clusterCheck(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName, Seq(ClusterStatus.Running, ClusterStatus.Error), clusterRequest)
+    if (monitor) {
+      // wait for "Running", "Stopped", or error (fail fast)
+      implicit val patienceConfig: PatienceConfig = clusterPatience
+      val expectedStatuses = if (clusterRequest.stopAfterCreation) {
+        Seq(ClusterStatus.Stopped, ClusterStatus.Error)
+      } else {
+        Seq(ClusterStatus.Running, ClusterStatus.Error)
       }
-    }
+      val runningOrErroredCluster = Try {
+        eventually {
+          clusterCheck(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName, expectedStatuses, clusterRequest)
+        }
+      }
 
-    // Save the cluster init log file whether or not the cluster created successfully
-    implicit val ec = ExecutionContext.global
-    saveDataprocLogFiles(creatingCluster).recover { case e =>
-      logger.error(s"Error occurred saving Dataproc log files for cluster ${cluster.googleProject}/${cluster.clusterName}", e)
-      None
-    }.futureValue match {
-      case Some((initLog, startupLog)) =>
-        logger.info(s"Saved Dataproc init log file for cluster ${cluster.googleProject}/${cluster.clusterName} to ${initLog.getAbsolutePath}")
-        logger.info(s"Saved Dataproc startup log file for cluster ${cluster.googleProject}/${cluster.clusterName} to ${startupLog.getAbsolutePath}")
-      case None => logger.warn(s"Could not obtain Dataproc log files for cluster ${cluster.googleProject}/${cluster.clusterName}")
-    }
+      // Save the cluster init log file whether or not the cluster created successfully
+      implicit val ec = ExecutionContext.global
+      saveDataprocLogFiles(creatingCluster).recover { case e =>
+        logger.error(s"Error occurred saving Dataproc log files for cluster ${creatingCluster.googleProject}/${creatingCluster.clusterName}", e)
+        None
+      }.futureValue match {
+        case Some((initLog, startupLog)) =>
+          logger.info(s"Saved Dataproc init log file for cluster ${creatingCluster.googleProject}/${creatingCluster.clusterName} to ${initLog.getAbsolutePath}")
+          logger.info(s"Saved Dataproc startup log file for cluster ${creatingCluster.googleProject}/${creatingCluster.clusterName} to ${startupLog.getAbsolutePath}")
+        case None => logger.warn(s"Could not obtain Dataproc log files for cluster ${creatingCluster.googleProject}/${creatingCluster.clusterName}")
+      }
 
-    actualCluster.get
+      runningOrErroredCluster.get
+    } else {
+      creatingCluster
+    }
   }
 
-  // deletes a cluster and checks to see that it reaches the Deleted state
-  def deleteAndMonitor(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): Unit = {
+  // creates a cluster and checks to see that it reaches the Running state
+  def createAndMonitor(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(implicit token: AuthToken): Cluster = {
+    createCluster(googleProject, clusterName, clusterRequest, monitor = true)
+  }
+
+  def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName, monitor: Boolean)(implicit token: AuthToken): Unit = {
     try {
       Leonardo.cluster.delete(googleProject, clusterName) shouldBe
         "The request has been accepted for processing, but the processing has not been completed."
@@ -163,15 +180,38 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       case e: Exception => throw e
     }
 
-    // wait until not found or in "Deleted" state
-    implicit val patienceConfig: PatienceConfig = clusterPatience
-    eventually {
-      val statusOpt = Leonardo.cluster.listIncludingDeleted().find(_.clusterName == clusterName).map(_.status)
-      statusOpt getOrElse ClusterStatus.Deleted shouldBe ClusterStatus.Deleted
+    if (monitor) {
+      monitorDelete(googleProject, clusterName)
     }
   }
 
-  def stopAndMonitor(googleProject: GoogleProject, clusterName: ClusterName)(implicit webDriver: WebDriver, token: AuthToken): Unit = {
+  def monitorDelete(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): Unit = {
+    // wait until not found or in "Deleted" state
+    implicit val patienceConfig: PatienceConfig = clusterPatience
+    eventually {
+      val allStatus: Set[ClusterStatus] = Leonardo.cluster.listIncludingDeleted()
+        .filter(c => c.clusterName == clusterName && c.googleProject == googleProject)
+        .map(_.status)
+        .toSet
+
+      val isDeleted = if (allStatus.isEmpty || allStatus == Set(ClusterStatus.Deleted)) {
+        logger.info(s"Cluster ${googleProject.value}/${clusterName.string} is deleted")
+        true
+      } else {
+        logger.info(s"Cluster ${googleProject.value}/${clusterName.string} is not deleted yet")
+        false
+      }
+
+      isDeleted shouldBe true
+    }
+  }
+
+  // deletes a cluster and checks to see that it reaches the Deleted state
+  def deleteAndMonitor(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): Unit = {
+    deleteCluster(googleProject, clusterName, monitor = true)
+  }
+
+  def stopCluster(googleProject: GoogleProject, clusterName: ClusterName, monitor: Boolean)(implicit webDriver: WebDriver, token: AuthToken): Unit = {
     Leonardo.cluster.stop(googleProject, clusterName) shouldBe
       "The request has been accepted for processing, but the processing has not been completed."
 
@@ -179,55 +219,72 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     val stoppingCluster = Leonardo.cluster.get(googleProject, clusterName)
     stoppingCluster.status shouldBe ClusterStatus.Stopping
 
-    // wait until in Stopped state
-    implicit val patienceConfig: PatienceConfig = clusterPatience
-    eventually {
-      val status = Leonardo.cluster.get(googleProject, clusterName).status
-      status shouldBe ClusterStatus.Stopped
-    }
+    if (monitor) {
+      // wait until in Stopped state
+      implicit val patienceConfig: PatienceConfig = clusterPatience
+      eventually {
+        val status = Leonardo.cluster.get(googleProject, clusterName).status
+        status shouldBe ClusterStatus.Stopped
+      }
 
-    // Verify notebook error
-    val caught = the [RestException] thrownBy {
-      Leonardo.notebooks.getApi(googleProject, clusterName)
+      // Verify notebook error
+      val caught = the [RestException] thrownBy {
+        Leonardo.notebooks.getApi(googleProject, clusterName)
+      }
+      caught.message shouldBe s"""{"statusCode":422,"source":"leonardo","causes":[],"exceptionClass":"org.broadinstitute.dsde.workbench.leonardo.service.ClusterPausedException","stackTrace":[],"message":"Cluster ${googleProject.value}/${clusterName.string} is stopped. Start your cluster before proceeding."}"""
     }
-    caught.message shouldBe s"""{"statusCode":422,"source":"leonardo","causes":[],"exceptionClass":"org.broadinstitute.dsde.workbench.leonardo.service.ClusterPausedException","stackTrace":[],"message":"Cluster ${googleProject.value}/${clusterName.string} is stopped. Start your cluster before proceeding."}"""
   }
 
-  def startAndMonitor(googleProject: GoogleProject, clusterName: ClusterName)(implicit webDriver: WebDriver, token: AuthToken): Unit = {
+  def stopAndMonitor(googleProject: GoogleProject, clusterName: ClusterName)(implicit webDriver: WebDriver, token: AuthToken): Unit = {
+    stopCluster(googleProject, clusterName, monitor = true)
+  }
+
+  def startCluster(googleProject: GoogleProject, clusterName: ClusterName, monitor: Boolean)(implicit webDriver: WebDriver, token: AuthToken): Unit = {
     Leonardo.cluster.start(googleProject, clusterName) shouldBe
       "The request has been accepted for processing, but the processing has not been completed."
 
     // verify with get()
-    val stoppingCluster = Leonardo.cluster.get(googleProject, clusterName)
-    stoppingCluster.status shouldBe ClusterStatus.Starting
+    val startingCluster = Leonardo.cluster.get(googleProject, clusterName)
+    startingCluster.status shouldBe ClusterStatus.Starting
 
-    // wait until in Running state
-    implicit val patienceConfig: PatienceConfig = clusterPatience
-    eventually {
-      val status = Leonardo.cluster.get(googleProject, clusterName).status
-      status shouldBe ClusterStatus.Running
+    if (monitor) {
+      // wait until in Running state
+      implicit val patienceConfig: PatienceConfig = clusterPatience
+      eventually {
+        val status = Leonardo.cluster.get(googleProject, clusterName).status
+        status shouldBe ClusterStatus.Running
+      }
+
+      // TODO cluster is not proxyable yet even after Google says it's ok
+      eventually {
+        logger.info("Checking if cluster is proxyable yet")
+        val getResult = Try(Leonardo.notebooks.getApi(googleProject, clusterName))
+        getResult.isSuccess shouldBe true
+        getResult.get should not include "ProxyException"
+
+      }(startPatience, implicitly[Position])
+
+      logger.info("Sleeping 1 minute to make sure restarted cluster is proxyable")
+      Thread.sleep(60*1000)
     }
+  }
 
-    // TODO cluster is not proxyable yet even after Google says it's ok
-    eventually {
-      logger.info("Checking if cluster is proxyable yet")
-      val getResult = Try(Leonardo.notebooks.getApi(googleProject, clusterName))
-      getResult.isSuccess shouldBe true
-      getResult.get should not include "ProxyException"
-
-    }(startPatience, implicitly[Position])
-
-    logger.info("Sleeping 1 minute to make sure restarted cluster is proxyable")
-    Thread.sleep(60*1000)
+  def startAndMonitor(googleProject: GoogleProject, clusterName: ClusterName)(implicit webDriver: WebDriver, token: AuthToken): Unit = {
+    startCluster(googleProject, clusterName, monitor = true)
   }
 
   def randomClusterName: ClusterName = ClusterName(s"automation-test-a${makeRandomId().toLowerCase}z")
 
   def defaultClusterRequest: ClusterRequest = ClusterRequest(Map("foo" -> makeRandomId()))
 
-  def createNewCluster(googleProject: GoogleProject, name: ClusterName = randomClusterName, request: ClusterRequest = defaultClusterRequest)(implicit token: AuthToken): Cluster = {
-    val cluster = createAndMonitor(googleProject, name, request)
-    cluster.status shouldBe ClusterStatus.Running
+  def createNewCluster(googleProject: GoogleProject, name: ClusterName = randomClusterName, request: ClusterRequest = defaultClusterRequest, monitor: Boolean = true)(implicit token: AuthToken): Cluster = {
+    val cluster = createCluster(googleProject, name, request, monitor)
+    if (monitor) {
+      cluster.status shouldBe (if (request.stopAfterCreation) ClusterStatus.Stopped else ClusterStatus.Running)
+    } else {
+      cluster.status shouldBe ClusterStatus.Creating
+    }
+
     cluster
   }
 
@@ -278,13 +335,26 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     samPetEmail
   }
 
-  def withNewCluster[T](googleProject: GoogleProject, name: ClusterName = randomClusterName, request: ClusterRequest = defaultClusterRequest)(testCode: Cluster => T)(implicit token: AuthToken): T = {
-    val cluster = createNewCluster(googleProject, name, request)
+  // Wrapper for BillingFixtures.withCleanBillingProject which sets up a project with Hermione as owner, and Ron as a user
+  // testCode is curried so the token can be made implicit:
+  // https://stackoverflow.com/questions/14072061/function-literal-with-multiple-implicit-arguments
+  def withProject(testCode: GoogleProject => UserAuthToken => Any): Unit = {
+    withCleanBillingProject(hermioneCreds) { projectName =>
+      val project = GoogleProject(projectName)
+      Orchestration.billing.addUserToBillingProject(projectName, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+      testCode(project)(ronAuthToken)
+    }
+  }
+
+  def withNewCluster[T](googleProject: GoogleProject, name: ClusterName = randomClusterName, request: ClusterRequest = defaultClusterRequest, monitorCreate: Boolean = true, monitorDelete: Boolean = true)
+                       (testCode: Cluster => T)
+                       (implicit token: AuthToken): T = {
+    val cluster = createNewCluster(googleProject, name, request, monitorCreate)
     val testResult: Try[T] = Try {
       testCode(cluster)
     }
     // delete before checking testCode status, which may throw
-    deleteAndMonitor(googleProject, cluster.clusterName)
+    deleteCluster(googleProject, cluster.clusterName, monitorDelete)
     testResult.get
   }
 
@@ -385,7 +455,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   def withLocalizeDelocalizeFiles[T](cluster: Cluster, fileToLocalize: String, fileToLocalizeContents: String,
                                      fileToDelocalize: String, fileToDelocalizeContents: String,
-                                     dataFileName: String, dataFileContents: String)(testCode: (Map[String, String], GcsBucketName) => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+                                     dataFileName: String, dataFileContents: String)(testCode: (Map[String, String], GcsBucketName, NotebookPage) => T)
+                                    (implicit webDriver: WebDriver, token: AuthToken): T = {
     implicit val patienceConfig: PatienceConfig = storagePatience
 
     withNewGoogleBucket(cluster.googleProject) { bucketName =>
@@ -401,7 +472,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
         // create a notebook file to delocalize
         withNewNotebook(cluster) { notebookPage =>
-          notebookPage.executeCell(s"""! echo -n "$fileToDelocalizeContents" > $fileToDelocalize""")
+          notebookPage.executeCell(s"""! echo -n "$fileToDelocalizeContents" > "$fileToDelocalize"""")
 
           val localizeRequest = Map(
             fileToLocalize -> GcsPath(bucketName, bucketObjectToLocalize).toUri,
@@ -409,7 +480,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
             dataFileName -> s"data:text/plain;base64,${Base64.getEncoder.encodeToString(dataFileContents.getBytes(StandardCharsets.UTF_8))}"
           )
 
-          val testResult = Try(testCode(localizeRequest, bucketName))
+          val testResult = Try(testCode(localizeRequest, bucketName, notebookPage))
 
           // Verify and save the localization.log file to test output to aid in debugging
           Try(verifyAndSaveLocalizationLog(cluster)) match {
@@ -584,4 +655,6 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       case other => fail(s"Unexpected kernel: $other")
     }
   }
+
+  def noop[A](x: A): Unit = ()
 }

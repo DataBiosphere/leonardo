@@ -148,34 +148,24 @@ trait ClusterComponent extends LeoComponent {
 
     // find* and get* methods do query the INSTANCE table
 
-    def findByName(project: GoogleProject, name: ClusterName) = {
-      clusterQueryWithInstancesAndErrorsAndLabels.filter { _._1.googleProject === project.value }.filter { _._1.clusterName === name.value }
-    }
-
-    def getClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
-      findByName(project, name).result map { recs =>
-        unmarshalClustersWithInstancesAndLabels(recs).headOption
-      }
-    }
-
     def getActiveClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
       clusterQueryWithInstancesAndErrorsAndLabels
         .filter { _._1.googleProject === project.value }
         .filter { _._1.clusterName === name.value }
-        .filter{_._1.destroyedDate === Timestamp.from(dummyDate)}
+        .filter { _._1.destroyedDate === Timestamp.from(dummyDate) }
         .result map { recs =>
-        unmarshalClustersWithInstancesAndLabels(recs).headOption
-      }
+          unmarshalClustersWithInstancesAndLabels(recs).headOption
+        }
     }
 
     def getDeletingClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
       clusterQueryWithInstancesAndErrorsAndLabels
         .filter { _._1.googleProject === project.value }
         .filter { _._1.clusterName === name.value }
-        .filter{_._1.status === ClusterStatus.Deleting.toString}
+        .filter { _._1.status === ClusterStatus.Deleting.toString }
         .result map { recs =>
-        unmarshalClustersWithInstancesAndLabels(recs).headOption
-      }
+          unmarshalClustersWithInstancesAndLabels(recs).headOption
+        }
     }
 
     def getByGoogleId(googleId: UUID): DBIO[Option[Cluster]] = {
@@ -212,12 +202,14 @@ trait ClusterComponent extends LeoComponent {
 
     def markPendingDeletion(googleId: UUID): DBIO[Int] = {
       clusterQuery.filter(_.googleId === googleId)
-        .map(c => (c.destroyedDate, c.status, c.hostIp))
-        .update(Timestamp.from(Instant.now()), ClusterStatus.Deleting.toString, None)
+        .map(c => (c.status, c.hostIp))
+        .update(ClusterStatus.Deleting.toString, None)
     }
 
     def completeDeletion(googleId: UUID): DBIO[Int] = {
-      updateClusterStatus(googleId, ClusterStatus.Deleted)
+      clusterQuery.filter(_.googleId === googleId)
+        .map(c => (c.destroyedDate, c.status, c.hostIp))
+        .update(Timestamp.from(Instant.now()), ClusterStatus.Deleted.toString, None)
     }
 
     def setToRunning(googleId: UUID, hostIp: IP): DBIO[Int] = {
@@ -226,10 +218,10 @@ trait ClusterComponent extends LeoComponent {
         .update((ClusterStatus.Running.toString, Option(hostIp.value)))
     }
 
-    def setToStopped(googleId: UUID): DBIO[Int] = {
+    def setToStopping(googleId: UUID): DBIO[Int] = {
       clusterQuery.filter { _.googleId === googleId }
         .map(c => (c.status, c.hostIp))
-        .update((ClusterStatus.Stopped.toString, None))
+        .update((ClusterStatus.Stopping.toString, None))
     }
 
     def updateClusterStatus(googleId: UUID, newStatus: ClusterStatus): DBIO[Int] = {

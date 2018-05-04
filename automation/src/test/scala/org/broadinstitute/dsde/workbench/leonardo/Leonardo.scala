@@ -136,7 +136,6 @@ object Leonardo extends RestClient with LazyLogging {
       logger.info(s"Starting cluster: POST /$path")
       postRequest(url + path)
     }
-
   }
 
   object notebooks {

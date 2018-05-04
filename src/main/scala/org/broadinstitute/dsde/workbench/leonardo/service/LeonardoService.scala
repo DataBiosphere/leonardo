@@ -9,6 +9,8 @@ import cats.implicits._
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.leonardo.auth.LeoAuthProviderHelper
+import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
@@ -17,7 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, SecondaryWorker, Worker}
+import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
@@ -31,7 +33,7 @@ import scala.collection.Map
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.Source
 import scala.util.control.NonFatal
-import scala.util.{Failure, Success}
+import scala.util.Failure
 
 case class AuthorizationError(email: Option[WorkbenchEmail] = None)
   extends LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is unauthorized", StatusCodes.Unauthorized)
@@ -39,8 +41,14 @@ case class AuthorizationError(email: Option[WorkbenchEmail] = None)
 case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: ClusterName)
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} not found", StatusCodes.NotFound)
 
-case class ClusterAlreadyExistsException(googleProject: GoogleProject, clusterName: ClusterName)
-  extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} already exists", StatusCodes.Conflict)
+case class ClusterAlreadyExistsException(googleProject: GoogleProject, clusterName: ClusterName, status: ClusterStatus)
+  extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} already exists in ${status.toString} status", StatusCodes.Conflict)
+
+case class ClusterCannotBeStoppedException(googleProject: GoogleProject, clusterName: ClusterName, status: ClusterStatus)
+  extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} cannot be stopped in ${status.toString} status", StatusCodes.Conflict)
+
+case class ClusterCannotBeStartedException(googleProject: GoogleProject, clusterName: ClusterName, status: ClusterStatus)
+  extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} cannot be started in ${status.toString} status", StatusCodes.Conflict)
 
 case class InitializationFileException(googleProject: GoogleProject, clusterName: ClusterName, errorMessage: String)
   extends LeoException(s"Unable to process initialization files for ${googleProject.value}/${clusterName.value}. Returned message: $errorMessage", StatusCodes.Conflict)
@@ -140,11 +148,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                             googleProject: GoogleProject,
                             clusterName: ClusterName,
                             clusterRequest: ClusterRequest): Future[Cluster] = {
-    // Check if the google project has a cluster with the same name. If not, we can create it
+    // Check if the google project has an active cluster with the same name. If not, we can create it
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName)
     } flatMap {
-      case Some(_) => throw ClusterAlreadyExistsException(googleProject, clusterName)
+      case Some(existingCluster) => throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
       case None =>
         val augmentedClusterRequest = addClusterDefaultLabels(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
         val clusterFuture = for {
@@ -156,7 +164,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, GcsPath(initBucket, GcsObjectName("")), serviceAccountKeyOpt.map(_.id)))
         } yield {
           // Notify the cluster monitor that the cluster has been created
-          clusterMonitorSupervisor ! ClusterCreated(savedCluster)
+          clusterMonitorSupervisor ! ClusterCreated(savedCluster, clusterRequest.stopAfterCreation)
           savedCluster
         }
 
@@ -252,12 +260,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         }
 
         // Update the cluster status to Stopping
-        _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Stopping) }
+        _ <- dbRef.inTransaction { _.clusterQuery.setToStopping(cluster.googleId) }
       } yield {
         clusterMonitorSupervisor ! ClusterStopped(cluster.copy(status = ClusterStatus.Stopping))
       }
 
-    } else Future.successful(())
+    } else Future.failed(ClusterCannotBeStoppedException(cluster.googleProject, cluster.clusterName, cluster.status))
   }
 
   def startCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Unit] = {
@@ -291,7 +299,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         clusterMonitorSupervisor ! ClusterStarted(cluster.copy(status = ClusterStatus.Starting))
       }
 
-    } else Future.successful(())
+    } else Future.failed(ClusterCannotBeStartedException(cluster.googleProject, cluster.clusterName, cluster.status))
   }
 
   def listClusters(userInfo: UserInfo, params: LabelMap): Future[Seq[Cluster]] = {

@@ -178,7 +178,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFutureValue { _.clusterQuery.listActive() } should contain theSameElementsAs Seq(c2, c3)
     val c1status = dbFutureValue { _.clusterQuery.getByGoogleId(c1.googleId) }.get
     c1status.status shouldEqual ClusterStatus.Deleting
-    c1status.destroyedDate shouldBe 'nonEmpty
+    c1status.destroyedDate shouldBe None
     c1status.hostIp shouldBe None
     c1status.instances shouldBe c1.instances
 
@@ -186,14 +186,14 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq(c3)
     val c2status = dbFutureValue { _.clusterQuery.getByGoogleId(c2.googleId) }.get
     c2status.status shouldEqual ClusterStatus.Deleting
-    assert(c2status.destroyedDate.nonEmpty)
+    c2status.destroyedDate shouldBe None
     c2status.hostIp shouldBe None
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(c3.googleId) } shouldEqual 1
     dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq()
     val c3status = dbFutureValue { _.clusterQuery.getByGoogleId(c3.googleId) }.get
     c3status.status shouldEqual ClusterStatus.Deleting
-    assert(c3status.destroyedDate.nonEmpty)
+    c3status.destroyedDate shouldBe None
     c3status.hostIp shouldBe None
   }
 
@@ -313,10 +313,10 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
     dbFutureValue { _.clusterQuery.save(c1, gcsPath( "gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1
     // note: this does not update the instance records
-    dbFutureValue { _.clusterQuery.setToStopped(c1.googleId) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.setToStopping(c1.googleId) } shouldEqual 1
     dbFutureValue { _.clusterQuery.getByGoogleId(c1.googleId) } shouldEqual Some(
       c1.copy(
-        status = ClusterStatus.Stopped,
+        status = ClusterStatus.Stopping,
         hostIp = None
       )
     )

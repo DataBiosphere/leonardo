@@ -243,7 +243,21 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     providerThrowing500.notifyClusterDeleted(userInfo.userEmail, userInfo.userEmail, project, name1).failed.futureValue shouldBe a [ApiException]
     verify(samClientThrowing500, times(3)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
 
-    // should not retry 404s
+    // should not retry 400s
+    val samClientThrowing400 = mock[MockSwaggerSamClient]
+    when {
+      samClientThrowing400.deleteNotebookClusterResource(mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(name1))
+    } thenThrow new ApiException(400, "bad request")
+
+    val providerThrowing400 = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider) {
+      override lazy val samClient = samClientThrowing400
+    }
+
+    providerThrowing400.notifyClusterDeleted(userInfo.userEmail, userInfo.userEmail, project, name1).failed.futureValue shouldBe a [ApiException]
+    verify(samClientThrowing400, never).invalidatePetAccessToken(any[WorkbenchEmail], any[GoogleProject])
+  }
+
+  "notifyClusterDeleted should recover 404s from Sam" in isolatedDbTest {
     val samClientThrowing404 = mock[MockSwaggerSamClient]
     when {
       samClientThrowing404.deleteNotebookClusterResource(mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(name1))
@@ -253,7 +267,9 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
       override lazy val samClient = samClientThrowing404
     }
 
-    providerThrowing404.notifyClusterDeleted(userInfo.userEmail, userInfo.userEmail, project, name1).failed.futureValue shouldBe a [ApiException]
+    // provider should not throw an exception
+    providerThrowing404.notifyClusterDeleted(userInfo.userEmail, userInfo.userEmail, project, name1).futureValue shouldBe (())
+    // request should not have been retried
     verify(samClientThrowing404, never).invalidatePetAccessToken(any[WorkbenchEmail], any[GoogleProject])
   }
 
