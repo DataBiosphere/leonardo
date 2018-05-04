@@ -6,7 +6,6 @@ import tempfile
 import unittest
 from datetime import timedelta
 from nbformat.v4 import new_notebook
-import tornado
 from tornado.testing import AsyncTestCase, gen_test
 from unittest.mock import patch
 
