@@ -3,6 +3,7 @@ import json
 import os
 import re
 import subprocess
+import tornado
 from notebook.services.contents.filemanager import FileContentsManager
 
 METADATA_TTL = timedelta(minutes=5)
@@ -36,7 +37,6 @@ class DelocalizingContentsManager(FileContentsManager):
 
   # TODO:
   # - Support GCS version preconditions on save
-  # - Try shifting the delocalization logic into a background thread
   # - Support a recursive option in .delocalize.json
   # - Invalidate the cache when a new .delocalize.json file is written
 
@@ -103,11 +103,16 @@ class DelocalizingContentsManager(FileContentsManager):
   def _remote_path(self, meta, os_path):
     return meta['destination'] + '/' + os.path.basename(os_path)
 
+  @tornado.gen.coroutine
   def _log_and_call_file_cmd(self, args):
     with open('delocalization.log', 'a', buffering=1) as locout:
       cmd = self.file_cmd + args
       locout.write(' '.join(cmd) + '\n')
       subprocess.call(cmd, stderr=locout)
+
+  def _log_and_call_file_cmd_async(self, args):
+    tornado.ioloop.IOLoop.current().spawn_callback(
+        self._log_and_call_file_cmd, args)
 
   def save(self, model, path=''):
     ret = super(DelocalizingContentsManager, self).save(model, path)
@@ -119,7 +124,7 @@ class DelocalizingContentsManager(FileContentsManager):
     if not meta or self._should_skip_file(meta, os_path):
       return ret
 
-    self._log_and_call_file_cmd(
+    self._log_and_call_file_cmd_async(
         ['cp', os_path, self._remote_path(meta, os_path)])
     return ret
 
@@ -137,7 +142,7 @@ class DelocalizingContentsManager(FileContentsManager):
       # whether this operation is even supported in the Jupyter UI.
       return
 
-    self._log_and_call_file_cmd([
+    self._log_and_call_file_cmd_async([
         'mv',
         self._remote_path(old_meta, old_os_path),
         self._remote_path(new_meta, new_os_path)
@@ -150,6 +155,6 @@ class DelocalizingContentsManager(FileContentsManager):
     if not meta or self._should_skip_file(meta, os_path):
       return
 
-    self._log_and_call_file_cmd([
+    self._log_and_call_file_cmd_async([
         'rm', self._remote_path(meta, os_path),
     ])
