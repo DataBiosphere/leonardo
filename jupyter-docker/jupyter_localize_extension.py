@@ -1,6 +1,6 @@
+import distutils.util
 import subprocess
 import os
-import pipes
 import tornado
 from tornado import gen
 from tornado.web import HTTPError
@@ -25,8 +25,13 @@ class LocalizeHandler(IPythonHandler):
 
   def _localize_gcs_uri(self, locout, source, dest):
     """Localizes an entry where either the source or destination is a gs: path.
-    Simply invokes gsutil in a subprocess. Quotes paths to remove any shell naughtiness."""
-    cmd = ['gsutil', '-m', '-q', 'cp', '-R', '-c', '-e', pipes.quote(source), pipes.quote(dest)]
+    Simply invokes gsutil in a subprocess."""
+
+    # Use a sequence of arguments with Shell=False. The subprocess module takes care
+    # of quoting/escaping arguments. See:
+    #   https://docs.python.org/2/library/subprocess.html#subprocess.call
+    #   https://docs.python.org/2/library/subprocess.html#frequently-used-arguments
+    cmd = ['gsutil', '-m', '-q', 'cp', '-R', '-c', '-e', source, dest]
     locout.write(' '.join(cmd) + '\n')
     result = subprocess.call(cmd, stderr=locout)
     return result == 0
@@ -89,7 +94,11 @@ class LocalizeHandler(IPythonHandler):
     if not all(map(lambda v: type(v) is unicode, pathdict.values())):
       raise HTTPError(400, "Body must be JSON object of type string/string")
 
-    async = self.get_query_argument('async', False)
+    try:
+      raw = self.get_query_argument('async', 'false')
+      async = distutils.util.strtobool(raw)
+    except ValueError:
+      raise HTTPError(400, "Could not parse async parameter as a boolean: '{}'".format(raw))
 
     if async:
       #complete the request HERE, without waiting for the localize to run
