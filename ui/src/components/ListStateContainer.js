@@ -49,12 +49,11 @@ class ListStateContainer extends React.Component {
    */
   refreshListFromApi = () => {
     // Construct the request URI.
-    var listUri = "/api/clusters?";
+    var listUri = "/api/clusters?includeDeleted=false";
     if (this.state.perUserFilter) {
       var creatorFilter = encodeURIComponent("creator=" + this.props.googleProfile.email);
-      listUri = listUri + creatorFilter + "&";
+      listUri = listUri + "&" + "_labels=" + creatorFilter;
     }
-    listUri = listUri + "includeDeleted=false";
     // Begin the GET request and register callbacks.
     return fetch(
       listUri,
