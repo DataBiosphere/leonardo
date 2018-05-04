@@ -212,6 +212,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
         }
       }
     }
+    
     "should create a notebook with a working Python 3 kernel and import installed packages" in withWebDriver { implicit driver =>
       Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
 
@@ -223,20 +224,21 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
           """import bx.bitset
             |bx.bitset.sys.copyright""".stripMargin
         val sparkJob =
-          """import random
-            |NUM_SAMPLES=20
-            |def inside(p):
-            |    x, y = random.random(), random.random()
-            |    return x*x + y*y < 1
+          """try:
+            |    name = sc.appName
             |
-            |count = sc.parallelize(range(0, NUM_SAMPLES)) \
-            |             .filter(inside).count()
-            |print("Pi is roughly %f" % (4.0 * count / NUM_SAMPLES))""".stripMargin
+            |except NameError as err:
+            |    print(err)""".stripMargin
 
         notebookPage.executeCell("1+1") shouldBe Some("2")
         notebookPage.executeCell(getPythonVersion) shouldBe Some("3.4.2")
         notebookPage.executeCell(getBxPython).get should include("Copyright (c)")
-        notebookPage.executeCell(sparkJob).get should include("Pi is roughly ")
+
+        // As proof of not having Spark installed:
+        // We should get an error upon attempting to access the SparkContext object 'sc'
+        // since Python kernels do not include Spark.
+        val sparkErrorMessage = "name 'sc' is not defined"
+        notebookPage.executeCell(sparkJob).get shouldBe sparkErrorMessage
       }
     }
 
@@ -272,7 +274,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
         // http://httr.r-lib.org//index.html
 
         // it may take a little while to install
-        val installTimeout = 2 minutes
+        val installTimeout = 2.minutes
 
         notebookPage.executeCell("""install.packages("httr")""", installTimeout).get should include ("Installing package into '/home/jupyter-user/.rpackages'")
 
@@ -312,6 +314,29 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
         withNewNotebook(ronCluster, kernel) { notebookPage =>
           // verify that tensorflow is installed
           verifyTensorFlow(notebookPage, kernel)
+        }
+      }
+    }
+
+    val pySparkJob =
+      """import random
+        |NUM_SAMPLES=20
+        |def inside(p):
+        |    x, y = random.random(), random.random()
+        |    return x*x + y*y < 1
+        |
+        |count = sc.parallelize(range(0, NUM_SAMPLES)) \
+        |             .filter(inside).count()
+        |print("Pi is roughly %f" % (4.0 * count / NUM_SAMPLES))""".stripMargin
+
+    Seq(PySpark2, PySpark3).foreach { kernel =>
+      s"should be able to run a Spark job with a ${kernel.string} kernel" in withWebDriver { implicit driver =>
+        Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+
+        withNewNotebook(ronCluster, kernel) { notebookPage =>
+          val cellResult = notebookPage.executeCell(pySparkJob).get
+          cellResult should include("Pi is roughly ")
+          cellResult.toLowerCase should not include "error"
         }
       }
     }
