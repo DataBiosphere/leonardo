@@ -325,7 +325,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
   }
 
-  def withNewNotebook[T](cluster: Cluster, kernel: Kernel = Python2)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+  def withNewNotebook[T](cluster: Cluster, kernel: Kernel = PySpark2)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
       notebooksListPage.withNewNotebook(kernel) { notebookPage =>
         testCode(notebookPage)

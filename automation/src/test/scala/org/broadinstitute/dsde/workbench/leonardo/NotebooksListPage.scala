@@ -60,7 +60,7 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
     result.get
   }
 
-  def withNewNotebook[T](kernel: Kernel = Python2)(testCode: NotebookPage => T): T = {
+  def withNewNotebook[T](kernel: Kernel = PySpark2)(testCode: NotebookPage => T): T = {
     switchToNewTab {
       click on (await enabled(newButton, 30))
       click on (await enabled cssSelector(kernel.cssSelectorString))

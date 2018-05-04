@@ -223,22 +223,10 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
         val getBxPython =
           """import bx.bitset
             |bx.bitset.sys.copyright""".stripMargin
-        val sparkJob =
-          """try:
-            |    name = sc.appName
-            |
-            |except NameError as err:
-            |    print(err)""".stripMargin
 
         notebookPage.executeCell("1+1") shouldBe Some("2")
         notebookPage.executeCell(getPythonVersion) shouldBe Some("3.4.2")
         notebookPage.executeCell(getBxPython).get should include("Copyright (c)")
-
-        // As proof of not having Spark installed:
-        // We should get an error upon attempting to access the SparkContext object 'sc'
-        // since Python kernels do not include Spark.
-        val sparkErrorMessage = "name 'sc' is not defined"
-        notebookPage.executeCell(sparkJob).get shouldBe sparkErrorMessage
       }
     }
 
@@ -302,6 +290,13 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       }
     }
 
+    val sparkCommandToFail =
+      """try:
+        |    name = sc.appName
+        |
+        |except NameError as err:
+        |    print(err)""".stripMargin
+
     Seq(Python2, Python3).foreach { kernel =>
       s"should be able to pip install packages using ${kernel.string}" in withWebDriver { implicit driver =>
         withNewNotebook(ronCluster, kernel) { notebookPage =>
@@ -316,25 +311,35 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
           verifyTensorFlow(notebookPage, kernel)
         }
       }
+
+      s"should NOT be able to run Spark using ${kernel.string}" in withWebDriver { implicit driver =>
+        withNewNotebook(ronCluster, kernel) { notebookPage =>
+          // As proof of not having Spark installed:
+          // We should get an error upon attempting to access the SparkContext object 'sc'
+          // since Python kernels do not include Spark installation.
+          val sparkErrorMessage = "name 'sc' is not defined"
+          notebookPage.executeCell(sparkCommandToFail).get shouldBe sparkErrorMessage
+        }
+      }
     }
 
-    val pySparkJob =
-      """import random
-        |NUM_SAMPLES=20
-        |def inside(p):
-        |    x, y = random.random(), random.random()
-        |    return x*x + y*y < 1
-        |
-        |count = sc.parallelize(range(0, NUM_SAMPLES)) \
-        |             .filter(inside).count()
-        |print("Pi is roughly %f" % (4.0 * count / NUM_SAMPLES))""".stripMargin
-
     Seq(PySpark2, PySpark3).foreach { kernel =>
+      val sparkJobToSucceed =
+        """import random
+          |NUM_SAMPLES=20
+          |def inside(p):
+          |    x, y = random.random(), random.random()
+          |    return x*x + y*y < 1
+          |
+          |count = sc.parallelize(range(0, NUM_SAMPLES)) \
+          |             .filter(inside).count()
+          |print("Pi is roughly %f" % (4.0 * count / NUM_SAMPLES))""".stripMargin
+
       s"should be able to run a Spark job with a ${kernel.string} kernel" in withWebDriver { implicit driver =>
         Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
 
         withNewNotebook(ronCluster, kernel) { notebookPage =>
-          val cellResult = notebookPage.executeCell(pySparkJob).get
+          val cellResult = notebookPage.executeCell(sparkJobToSucceed).get
           cellResult should include("Pi is roughly ")
           cellResult.toLowerCase should not include "error"
         }
