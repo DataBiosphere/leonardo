@@ -90,8 +90,8 @@ testGrouping in Test := {
       .withOutputStrategy(Some(sbt.StdoutOutput))
       .withRunJVMOptions(
         Vector(
-          s"-Dlogback.configurationFile=${(Test / baseDirectory).value.getAbsolutePath}/logback-test.xml",
-          s"-Djava.util.logging.config.file=${(Test / baseDirectory).value.getAbsolutePath}/logback-test.xml",
+          s"-Dlogback.configurationFile=${(Test / baseDirectory).value.getAbsolutePath}/src/test/resources/logback-test.xml",
+          s"-Djava.util.logging.config.file=${(Test / baseDirectory).value.getAbsolutePath}/src/test/resources/logback-test.xml",
           s"-Dtest.name=${test.name}",
           s"-Ddir.name=${(Test / baseDirectory).value}",
           s"-Dheadless=${Option(System.getProperty("headless")).getOrElse("false")}",
