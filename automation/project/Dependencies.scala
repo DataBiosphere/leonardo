@@ -5,9 +5,9 @@ object Dependencies {
   val akkaV = "2.4.17"
   val akkaHttpV = "10.0.5"
 
-  val workbenchModelV   = "0.10-6800f3a"
-  val workbenchGoogleV  = "0.16-847c3ff"
-  val serviceTestV = "0.8-cd592ce"
+  val workbenchModelV   = "0.11-2ce3359"
+  val workbenchGoogleV  = "0.16-f93ea51"
+  val serviceTestV = "0.8-dfa4d3a"
 
   val excludeWorkbenchModel =   ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-model_2.11")
   val excludeWorkbenchGoogle =   ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-google_2.11")
@@ -41,8 +41,8 @@ object Dependencies {
     "com.typesafe.akka"   %%  "akka-testkit"        % akkaV     % "test",
     "com.typesafe.akka"   %%  "akka-slf4j"          % akkaV,
     "org.specs2"          %%  "specs2-core"   % "3.7"  % "test",
-    "org.scalatest"       %%  "scalatest"     % "3.0.1"   % "test",
-    "org.seleniumhq.selenium" % "selenium-java" % "3.8.1" % "test",
+    "org.scalatest"       %%  "scalatest"     % "3.0.5"   % "test",
+    "org.seleniumhq.selenium" % "selenium-java" % "2.45.0" % "test",
     "com.typesafe.scala-logging" %% "scala-logging" % "3.1.0",
     "org.apache.commons" % "commons-text" % "1.2",
 

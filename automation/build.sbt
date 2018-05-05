@@ -7,7 +7,7 @@ import scala.collection.JavaConverters._
 lazy val leonardoTests = project.in(file("."))
   .settings(rootSettings:_*)
 
-version := "1.1"
+version := "1.0"
 
 /**
   * sbt forking jvm -- sbt provides 2 testing modes: forked vs not forked.
