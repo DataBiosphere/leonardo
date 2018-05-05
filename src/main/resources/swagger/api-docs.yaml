@@ -685,6 +685,7 @@ definitions:
           a cluster in Stopped state. Otherwise, the end result will be a cluster in Running state.
           Defaults to false.
         type: boolean
+        default: false
 
   ClusterError:
     description: 'Errors encountered on cluster create'
