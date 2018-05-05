@@ -73,7 +73,7 @@ case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[String] = None,
                           jupyterUserScriptUri: Option[String] = None,
                           machineConfig: Option[MachineConfig] = None,
-                          stopAfterCreation: Boolean = false)
+                          stopAfterCreation: Option[Boolean] = None)
 
 case class ClusterError(errorMessage: String,
                         errorCode: Int,
