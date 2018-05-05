@@ -136,7 +136,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     if (monitor) {
       // wait for "Running", "Stopped", or error (fail fast)
       implicit val patienceConfig: PatienceConfig = clusterPatience
-      val expectedStatuses = if (clusterRequest.stopAfterCreation) {
+      val expectedStatuses = if (clusterRequest.stopAfterCreation.getOrElse(false)) {
         Seq(ClusterStatus.Stopped, ClusterStatus.Error)
       } else {
         Seq(ClusterStatus.Running, ClusterStatus.Error)
@@ -280,7 +280,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   def createNewCluster(googleProject: GoogleProject, name: ClusterName = randomClusterName, request: ClusterRequest = defaultClusterRequest, monitor: Boolean = true)(implicit token: AuthToken): Cluster = {
     val cluster = createCluster(googleProject, name, request, monitor)
     if (monitor) {
-      cluster.status shouldBe (if (request.stopAfterCreation) ClusterStatus.Stopped else ClusterStatus.Running)
+      cluster.status shouldBe (if (request.stopAfterCreation.getOrElse(false)) ClusterStatus.Stopped else ClusterStatus.Running)
     } else {
       cluster.status shouldBe ClusterStatus.Creating
     }
