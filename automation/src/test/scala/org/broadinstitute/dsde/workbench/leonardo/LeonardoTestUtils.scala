@@ -395,7 +395,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
   }
 
-  def withNewNotebook[T](cluster: Cluster, kernel: Kernel = Python2)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+  def withNewNotebook[T](cluster: Cluster, kernel: Kernel = PySpark2)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
       notebooksListPage.withNewNotebook(kernel) { notebookPage =>
         testCode(notebookPage)
@@ -630,8 +630,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   def pipInstall(notebookPage: NotebookPage, kernel: Kernel, packageName: String): Unit = {
     val pip = kernel match {
-      case Python2 => "pip2"
-      case Python3 => "pip3"
+      case Python2 | PySpark2 => "pip2"
+      case Python3 | PySpark3 => "pip3"
       case _ => throw new IllegalArgumentException(s"Can't pip install in a ${kernel.string} kernel")
     }
 

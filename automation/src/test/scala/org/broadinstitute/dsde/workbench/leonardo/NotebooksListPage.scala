@@ -23,6 +23,16 @@ case object Python3 extends Kernel {
   def cssSelectorString: String = "[title='Create a new notebook with Python 3']"
 }
 
+case object PySpark2 extends Kernel {
+  def string: String = "PySpark 2"
+  def cssSelectorString: String = "[title='Create a new notebook with PySpark 2']"
+}
+
+case object PySpark3 extends Kernel {
+  def string: String = "PySpark 3"
+  def cssSelectorString: String = "[title='Create a new notebook with PySpark 3']"
+}
+
 case object RKernel extends Kernel {
   def string: String = "R"
   def cssSelectorString: String = "[title='Create a new notebook with R']"
@@ -50,7 +60,7 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
     result.get
   }
 
-  def withNewNotebook[T](kernel: Kernel = Python2)(testCode: NotebookPage => T): T = {
+  def withNewNotebook[T](kernel: Kernel = PySpark2)(testCode: NotebookPage => T): T = {
     switchToNewTab {
       click on (await enabled(newButton, 30))
       click on (await enabled cssSelector(kernel.cssSelectorString))
