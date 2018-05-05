@@ -154,7 +154,7 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
     // set the "stop after creation" flag
     "should stop a cluster after creation" in withWebDriver { implicit driver =>
       withProject { project => implicit token =>
-        val request = defaultClusterRequest.copy(stopAfterCreation = true)
+        val request = defaultClusterRequest.copy(stopAfterCreation = Some(true))
         withNewCluster(project, request = request) { cluster =>
           // no-op; just verify the cluster is stopped
         }

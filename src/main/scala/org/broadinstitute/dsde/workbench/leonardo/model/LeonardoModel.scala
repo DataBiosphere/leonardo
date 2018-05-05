@@ -26,7 +26,7 @@ case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[GcsPath] = None,
                           jupyterUserScriptUri: Option[GcsPath] = None,
                           machineConfig: Option[MachineConfig] = None,
-                          stopAfterCreation: Boolean = false)
+                          stopAfterCreation: Option[Boolean] = None)
 
 // A resource that is required by a cluster
 case class ClusterResource(value: String) extends ValueObject

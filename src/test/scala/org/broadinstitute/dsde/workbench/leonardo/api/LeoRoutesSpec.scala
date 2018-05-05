@@ -240,6 +240,26 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with TestLeoRoutes 
     }
   }
 
+  it should "create a cluster with stopAfterCreation specified" in {
+    val stopAfterCreation = ClusterRequest(Map.empty, Some(extensionPath), Some(userScriptPath), stopAfterCreation = Some(true))
+
+    Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", stopAfterCreation.toJson) ~>
+      timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+
+      validateCookie { header[`Set-Cookie`] }
+    }
+
+    val noStopAfterCreation = ClusterRequest(Map.empty, Some(extensionPath), Some(userScriptPath), stopAfterCreation = Some(false))
+
+    Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", noStopAfterCreation.toJson) ~>
+      timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+
+      validateCookie { header[`Set-Cookie`] }
+    }
+  }
+
   private def serviceAccountLabels: Map[String, String] = {
     (
       clusterServiceAccount(googleProject).map { sa => Map("clusterServiceAccount" -> sa.value) } getOrElse Map.empty
