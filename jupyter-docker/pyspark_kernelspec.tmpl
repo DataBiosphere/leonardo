@@ -1,0 +1,16 @@
+{
+ "language": "python",
+ "display_name": "PySpark ${PY_VERSION}",
+ "argv": [
+  "python${PY_VERSION}",
+  "-m",
+  "ipykernel_launcher",
+  "-f",
+  "{connection_file}"
+ ],
+ "env": {
+  "PYSPARK_PYTHON": "python${PY_VERSION}",
+  "PYTHONSTARTUP": "/usr/lib/spark/python/pyspark/shell.py",
+  "PYSPARK_SUBMIT_ARGS": "--master yarn-client pyspark-shell"
+ }
+}
