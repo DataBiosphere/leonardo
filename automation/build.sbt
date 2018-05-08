@@ -66,13 +66,8 @@ Test / javaOptions ++= Seq({
   props.stringPropertyNames().asScala.toList.map { key => s"-D$key=${props.getProperty(key)}"}.mkString(" ")
 })
 
-val envirn = System.getenv()
-Test / javaOptions ++= Seq(envirn)
-
-
 testGrouping in Test := {
   (definedTests in Test).value.map { test =>
-    println("Test / testOptions: ${Test / javaOptions).value}")
     /**
       * debugging print out:
       *
