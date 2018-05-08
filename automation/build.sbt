@@ -11,7 +11,7 @@ version := "1.0"
 
 /**
   * sbt forking jvm -- sbt provides 2 testing modes: forked vs not forked.
-  * -- forked: each task (test class) is executed sequentially in a forked JVM.
+  * -- forked: each task (test class) is executed in a forked JVM.
   *    Test results are segregated, easy to read.
   * -- not forked: all tasks (test classes) are executed in same sbt JVM.
   *    Test results are not segregated, hard to read.
@@ -30,12 +30,12 @@ Test / fork := true
 Test / testForkedParallel := true
 
 /**
-  * When fork, use the base directory as the working directory
+  * When forking, use the base directory as the working directory
   */
 Test / baseDirectory := (baseDirectory in ThisBuild).value
 
 /*
- * Enables (true) or disables (false) parallel execution of tasks.
+ * Enables (true) or disables (false) parallel execution of tasks (test classes).
  * In not-forked mode: test classes are run in parallel in different threads, in same sbt jvm.
  * In forked mode: each test class runs tests in sequential order, in a separated jvm.
  */
@@ -51,7 +51,7 @@ Test / logBuffered := false
   *  setting the limit on Tags.ForkedTestGroup tag, which is 1 by default.
   *  Warning: can't set too high (set at 10 would crashes OS)
   */
-Global / concurrentRestrictions := Seq(Tags.limit(Tags.ForkedTestGroup, 4))
+Global / concurrentRestrictions := Seq(Tags.limit(Tags.ForkedTestGroup, 3))
 
 /**
   * Forked JVM options
@@ -66,10 +66,13 @@ Test / javaOptions ++= Seq({
   props.stringPropertyNames().asScala.toList.map { key => s"-D$key=${props.getProperty(key)}"}.mkString(" ")
 })
 
+val envirn = System.getenv()
+Test / javaOptions ++= Seq(envirn)
+
 
 testGrouping in Test := {
   (definedTests in Test).value.map { test =>
-
+    println("Test / testOptions: ${Test / javaOptions).value}")
     /**
       * debugging print out:
       *
