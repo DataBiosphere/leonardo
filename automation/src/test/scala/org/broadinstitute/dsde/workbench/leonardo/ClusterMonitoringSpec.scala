@@ -191,10 +191,8 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
     }
 
     "should install multiple user specified notebook extensions" in withWebDriver { implicit driver =>
-      val clusterName = ClusterName("user-jupyter-ext" + makeRandomId())
-      withCleanBillingProject(hermioneCreds) { projectName =>
-        val project = GoogleProject(projectName)
-        implicit val token = hermioneAuthToken
+      withProject { project => implicit token =>
+        val clusterName = ClusterName("user-jupyter-ext" + makeRandomId())
         withNewCluster(project, clusterName, ClusterRequest(userJupyterExtensionConfig = Some(multiExtensionClusterRequest))) { cluster =>
           withNewNotebook(cluster, Python3) { notebookPage =>
             //Check if the mark up was translated correctly

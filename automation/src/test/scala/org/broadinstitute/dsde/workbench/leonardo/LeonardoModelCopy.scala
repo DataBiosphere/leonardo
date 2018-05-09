@@ -78,8 +78,7 @@ case class ClusterRequest(labels: LabelMap = Map(),
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
                                       serverExtensions: Map[String, String] = Map(),
-                                      combinedExtensions: Map[String, String] = Map()
-                                     )
+                                      combinedExtensions: Map[String, String] = Map())
 
 
 case class ClusterError(errorMessage: String,
