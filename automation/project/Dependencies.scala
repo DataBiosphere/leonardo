@@ -41,9 +41,9 @@ object Dependencies {
     "com.typesafe.akka"   %%  "akka-testkit"        % akkaV     % "test",
     "com.typesafe.akka"   %%  "akka-slf4j"          % akkaV,
     "org.specs2"          %%  "specs2-core"   % "3.7"  % "test",
-    "org.scalatest"       %%  "scalatest"     % "3.0.1"   % "test",
-    "org.seleniumhq.selenium" % "selenium-java" % "3.8.1" % "test",
-    "com.typesafe.scala-logging" %% "scala-logging" % "3.1.0",
+    "org.scalatest"       %%  "scalatest"     % "3.0.5"   % "test",
+    "org.seleniumhq.selenium" % "selenium-java" % "3.11.0" % "test",
+    "com.typesafe.scala-logging" %% "scala-logging" % "3.8.0",
     "org.apache.commons" % "commons-text" % "1.2",
 
     workbenchModel,
