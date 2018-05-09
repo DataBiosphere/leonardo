@@ -12,7 +12,6 @@ object Settings {
 
   //coreDefaultSettings + defaultConfigs = the now deprecated defaultSettings
   val commonBuildSettings = Defaults.coreDefaultSettings ++ Defaults.defaultConfigs ++ Seq(
-    javaOptions += "-Xmx2G",
     javacOptions ++= Seq("-source", "1.8", "-target", "1.8")
   )
 
@@ -26,8 +25,7 @@ object Settings {
   )
 
   val testSettings = List(
-    testOptions in Test += Tests.Argument("-oF", "-u", "test-reports"),
-    parallelExecution in Test := true
+    testOptions in Test += Tests.Argument("-oFD", "-u", "test-reports", "-fW", "test-reports/TEST-summary.log")
   )
 
   //common settings for all sbt subprojects
