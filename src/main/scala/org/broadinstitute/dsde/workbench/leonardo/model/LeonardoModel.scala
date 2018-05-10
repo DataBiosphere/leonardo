@@ -9,6 +9,7 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.Semigroup
 import cats.implicits._
 import com.typesafe.config.ConfigFactory
+import enumeratum.{Enum, EnumEntry}
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster._
@@ -254,6 +255,15 @@ object ClusterInitValues {
       clusterRequest.userJupyterExtensionConfig.map(x => x.nbExtensions.values.mkString(" ")).getOrElse(""),
       clusterRequest.userJupyterExtensionConfig.map(x => x.combinedExtensions.values.mkString(" ")).getOrElse("")
     )
+}
+
+sealed trait ExtensionType extends EnumEntry
+object ExtensionType extends Enum[ExtensionType] {
+  val values = findValues
+
+  case object NBExtension extends ExtensionType
+  case object ServerExtension extends ExtensionType
+  case object CombinedExtension extends ExtensionType
 }
 
 object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {

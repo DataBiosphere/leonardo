@@ -443,7 +443,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     gcsUriOpt match {
       case Right(gcsPath) =>
         if (gcsPath.toUri.length > bucketPathMaxLength)
-          throw BucketObjectException(gcsUri)
+          Future.failed(BucketObjectException(gcsUri))
         serviceAccountProvider.getAccessToken(userEmail, googleProject).flatMap {
           case Some(token) =>
             petGoogleStorageDAO(token).objectExists(gcsPath.bucketName, gcsPath.objectName).map {
@@ -456,7 +456,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
             }
           case None => Future.successful(())
         }
-      case Left(err) => throw BucketObjectException(gcsUri)
+      case Left(err) => Future.failed(BucketObjectException(gcsUri))
     }
   }
 

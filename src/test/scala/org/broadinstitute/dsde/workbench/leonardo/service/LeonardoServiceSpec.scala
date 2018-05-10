@@ -389,6 +389,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
           |"${proxyConfig.jupyterProxyDockerImage}"
           |"${jupyterUserScriptUri.toUri}"
           |"${GcsPath(initBucketPath, GcsObjectName(ClusterInitValues.serviceAccountCredentialsFilename)).toUri}"
+          |"${testClusterRequestWithExtensionAndScript.userJupyterExtensionConfig.get.serverExtensions.values.mkString(" ")}"
+          |"${testClusterRequestWithExtensionAndScript.userJupyterExtensionConfig.get.nbExtensions.values.mkString(" ")}"
+          |"${testClusterRequestWithExtensionAndScript.userJupyterExtensionConfig.get.combinedExtensions.values.mkString(" ")}"
           |""".stripMargin
 
     result shouldEqual expected

@@ -124,9 +124,6 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       // get status
       val clusterStatus = leo.getActiveClusterDetails(userInfo, project, name1).futureValue
 
-      println(cluster1)
-      println(clusterStatus)
-
       cluster1 shouldEqual clusterStatus
 
       // list
