@@ -148,7 +148,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     fi
 
     #Install NbExtensions
-    if [ ! -z ${JUPYTER_NB_EXTENSIONS} ] ; then
+    if [ ! -z "${JUPYTER_NB_EXTENSIONS}" ] ; then
       for ext in ${JUPYTER_NB_EXTENSIONS}
       do
         log 'Installing Jupyter NB extension...'
@@ -164,7 +164,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     fi
 
     #Install serverExtensions
-    if [ ! -z ${JUPYTER_SERVER_EXTENSIONS} ] ; then
+    if [ ! -z "${JUPYTER_SERVER_EXTENSIONS}" ] ; then
       for ext in ${JUPYTER_SERVER_EXTENSIONS}
       do
         log 'Installing Jupyter server extension...'
@@ -180,7 +180,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     fi
 
     #Install serverExtensions
-    if [ ! -z ${JUPYTER_COMBINED_EXTENSIONS} ] ; then
+    if [ ! -z "${JUPYTER_COMBINED_EXTENSIONS}" ] ; then
       for ext in ${JUPYTER_COMBINED_EXTENSIONS}
       do
         log 'Installing Jupyter combined extension...'
