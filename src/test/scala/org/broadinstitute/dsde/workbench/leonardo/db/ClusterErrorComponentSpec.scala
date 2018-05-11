@@ -33,7 +33,8 @@ class ClusterErrorComponentSpec extends TestComponent with FlatSpecLike with Com
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
       Some(GcsBucketName("testStagingBucket1")),
       List.empty,
-      Set.empty)
+      Set.empty,
+      None)
 
     lazy val timestamp = Instant.now().truncatedTo(ChronoUnit.SECONDS)
     val clusterError = ClusterError("Some Error", 10, timestamp)

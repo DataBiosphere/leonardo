@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="vkumra" id="extensions">
+        <createTable tableName="NOTEBOOK_EXTENSIONS">
+            <column name="clusterId" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="extensionType" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="path" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex indexName="FK_EXTENSION_CLUSTER_ID" tableName="NOTEBOOK_EXTENSIONS">
+            <column name="clusterId"/>
+        </createIndex>
+        <addForeignKeyConstraint baseColumnNames="clusterId" baseTableName="NOTEBOOK_EXTENSIONS" constraintName="FK_EXTENSION_CLUSTER_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="CLUSTER"/>
+    </changeSet>
+</databaseChangeLog>
