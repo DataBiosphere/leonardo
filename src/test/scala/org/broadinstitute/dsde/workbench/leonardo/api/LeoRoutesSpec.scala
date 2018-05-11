@@ -50,7 +50,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with TestLeoRoutes 
   }
 
   it should "200 when creating and getting cluster" in isolatedDbTest {
-    val newCluster = ClusterRequest(Map.empty, Some(extensionPath), Some(userScriptPath))
+    val newCluster = ClusterRequest(Map.empty, Some(extensionPath), Some(userScriptPath), None, None, Some(UserJupyterExtensionConfig(Map("abc" ->"def"))))
 
     Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~>
       timedLeoRoutes.route ~> check {

@@ -63,6 +63,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   val startPatience = PatienceConfig(timeout = scaled(Span(5, Minutes)), interval = scaled(Span(1, Seconds)))
   val getAfterCreatePatience = PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(1, Seconds)))
 
+  val multiExtensionClusterRequest = UserJupyterExtensionConfig(Map("translate"->testJupyterExtensionUri, "map"->"gmaps"),Map("jupyterlab"->"jupyterlab"), Map("pizza"->"pizzabutton"))
+
   // TODO: show diffs as screenshot or other test output?
   def compareFilesExcludingIPs(left: File, right: File): Unit = {
 
@@ -86,7 +88,11 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
     val dummyClusterSa = WorkbenchEmail("dummy-cluster")
     val dummyNotebookSa = WorkbenchEmail("dummy-notebook")
-    val expected = clusterRequest.labels ++ DefaultLabels(clusterName, googleProject, creator, Some(dummyClusterSa), Some(dummyNotebookSa), clusterRequest.jupyterExtensionUri, clusterRequest.jupyterUserScriptUri).toMap
+    val jupyterExtensions = clusterRequest.userJupyterExtensionConfig match {
+      case Some(x) => x.nbExtensions ++ x.combinedExtensions ++ x.serverExtensions
+      case None => Map()
+    }
+    val expected = clusterRequest.labels ++ DefaultLabels(clusterName, googleProject, creator, Some(dummyClusterSa), Some(dummyNotebookSa), clusterRequest.jupyterExtensionUri, clusterRequest.jupyterUserScriptUri).toMap ++ jupyterExtensions
 
     (seen - "clusterServiceAccount" - "notebookServiceAccount") shouldBe (expected - "clusterServiceAccount" - "notebookServiceAccount")
   }

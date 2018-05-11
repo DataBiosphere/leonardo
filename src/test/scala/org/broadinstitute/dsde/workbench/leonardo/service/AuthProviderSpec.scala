@@ -79,7 +79,8 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
     jupyterUserScriptUri = None,
     stagingBucket = Some(GcsBucketName("testStagingBucket1")), 
     List.empty,
-    Set.empty
+    Set.empty,
+    None
   )
 
   val gdDAO = new MockGoogleDataprocDAO

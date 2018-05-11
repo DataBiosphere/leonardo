@@ -221,10 +221,21 @@ ADD spark_install_hail.sh $HAIL_HOME/
 ADD jupyter_notebook_config.py $JUPYTER_HOME/
 ADD jupyter_localize_extension.py $JUPYTER_HOME/custom/
 ADD jupyter_delocalize.py $JUPYTER_HOME/custom/
-ADD jupyter_install_notebook_extension.sh $JUPYTER_HOME/
+ADD scripts/extension-installation/jupyter_install_notebook_extension.sh $JUPYTER_HOME/
+ADD scripts/extension-installation/jupyter_install_server_extension.sh $JUPYTER_HOME/
+ADD scripts/extension-installation/jupyter_install_combined_extension.sh $JUPYTER_HOME/
+ADD scripts/extension-installation/jupyter_pip_install_notebook_extension.sh $JUPYTER_HOME/
+ADD scripts/extension-installation/jupyter_pip_install_server_extension.sh $JUPYTER_HOME/
+ADD scripts/extension-installation/jupyter_pip_install_combined_extension.sh $JUPYTER_HOME/
+
 
 RUN chown -R $USER:users $JUPYTER_HOME \
  && chmod +x $JUPYTER_HOME/jupyter_install_notebook_extension.sh \
+ && chmod +x $JUPYTER_HOME/jupyter_install_server_extension.sh \
+ && chmod +x $JUPYTER_HOME/jupyter_install_combined_extension.sh \
+ && chmod +x $JUPYTER_HOME/jupyter_pip_install_notebook_extension.sh \
+ && chmod +x $JUPYTER_HOME/jupyter_pip_install_server_extension.sh \
+ && chmod +x $JUPYTER_HOME/jupyter_pip_install_combined_extension.sh \
  && chmod +x $HAIL_HOME/spark_install_hail.sh \
  && chmod +x $JUPYTER_HOME/kernelspec.sh
 

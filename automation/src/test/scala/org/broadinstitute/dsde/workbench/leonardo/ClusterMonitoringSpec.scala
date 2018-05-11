@@ -133,48 +133,47 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
     }
 
     "should pause and resume a cluster with preemptible instances" in withWebDriver { implicit driver =>
-      withProject { project => implicit token =>
-        withNewGoogleBucket(project) { bucket =>
-          implicit val patienceConfig: PatienceConfig = storagePatience
+      withProject { project =>
+        implicit token =>
+          withNewGoogleBucket(project) { bucket =>
+            implicit val patienceConfig: PatienceConfig = storagePatience
 
-          val srcPath = parseGcsPath("gs://genomics-public-data/1000-genomes/vcf/ALL.chr20.integrated_phase1_v3.20101123.snps_indels_svs.genotypes.vcf").right.get
-          val destPath = GcsPath(bucket, GcsObjectName("chr20.vcf"))
-          googleStorageDAO.copyObject(srcPath.bucketName, srcPath.objectName, destPath.bucketName, destPath.objectName).futureValue
+            val srcPath = parseGcsPath("gs://genomics-public-data/1000-genomes/vcf/ALL.chr20.integrated_phase1_v3.20101123.snps_indels_svs.genotypes.vcf").right.get
+            val destPath = GcsPath(bucket, GcsObjectName("chr20.vcf"))
+            googleStorageDAO.copyObject(srcPath.bucketName, srcPath.objectName, destPath.bucketName, destPath.objectName).futureValue
 
-          val ronProxyGroup = Sam.user.proxyGroup(ronEmail)
-          val ronPetEntity = GcsEntity(ronProxyGroup, Group)
-          googleStorageDAO.setObjectAccessControl(destPath.bucketName, destPath.objectName, ronPetEntity, Reader).futureValue
+            val ronProxyGroup = Sam.user.proxyGroup(ronEmail)
+            val ronPetEntity = GcsEntity(ronProxyGroup, Group)
+            googleStorageDAO.setObjectAccessControl(destPath.bucketName, destPath.objectName, ronPetEntity, Reader).futureValue
 
-          val request = ClusterRequest(machineConfig = Option(MachineConfig(
-            // need at least 2 regular workers to enable preemptibles
-            numberOfWorkers = Option(2),
-            numberOfPreemptibleWorkers = Option(10)
-          )))
+            val request = ClusterRequest(machineConfig = Option(MachineConfig(
+              // need at least 2 regular workers to enable preemptibles
+              numberOfWorkers = Option(2),
+              numberOfPreemptibleWorkers = Option(10)
+            )))
 
-          withNewCluster(project, request = request) { cluster =>
-            // Verify a Hail job uses preemptibes
-            withNewNotebook(cluster) { notebookPage =>
-              verifyHailImport(notebookPage, destPath, cluster.clusterName)
-              notebookPage.saveAndCheckpoint()
-            }
+            withNewCluster(project, request = request) { cluster =>
+              // Verify a Hail job uses preemptibes
+              withNewNotebook(cluster) { notebookPage =>
+                verifyHailImport(notebookPage, destPath, cluster.clusterName)
+                notebookPage.saveAndCheckpoint()
+              }
 
-            // Stop the cluster
-            stopAndMonitor(cluster.googleProject, cluster.clusterName)
+              // Stop the cluster
+              stopAndMonitor(cluster.googleProject, cluster.clusterName)
 
-            // Start the cluster
-            startAndMonitor(cluster.googleProject, cluster.clusterName)
+              // Start the cluster
+              startAndMonitor(cluster.googleProject, cluster.clusterName)
 
-            // Verify the Hail import again in a new notebook
-            withNewNotebook(cluster) { notebookPage =>
-              verifyHailImport(notebookPage, destPath, cluster.clusterName)
-              notebookPage.saveAndCheckpoint()
+              // Verify the Hail import again in a new notebook
+              withNewNotebook(cluster) { notebookPage =>
+                verifyHailImport(notebookPage, destPath, cluster.clusterName)
+                notebookPage.saveAndCheckpoint()
+              }
             }
           }
-        }
       }
-
     }
-
     //Test to check if extensions are installed correctly
     //Using nbtranslate extension from here:
     //https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
@@ -191,6 +190,22 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
       }
     }
 
+    "should install multiple user specified notebook extensions" in withWebDriver { implicit driver =>
+      withProject { project => implicit token =>
+        val clusterName = ClusterName("user-jupyter-ext" + makeRandomId())
+        withNewCluster(project, clusterName, ClusterRequest(userJupyterExtensionConfig = Some(multiExtensionClusterRequest))) { cluster =>
+          withNewNotebook(cluster, Python3) { notebookPage =>
+            //Check if the mark up was translated correctly
+            val nbExt = notebookPage.executeCell("! jupyter nbextension list")
+            nbExt.get should include("jupyter-gmaps/extension  enabled")
+            nbExt.get should include("pizzabutton/index  enabled")
+            nbExt.get should include("my_ext/main  enabled")
+            val serverExt = notebookPage.executeCell("! jupyter serverextension list")
+            serverExt.get should include("pizzabutton  enabled")
+            serverExt.get should include("jupyterlab  enabled")
+          }
+        }
+      }
+    }
   }
-
 }
