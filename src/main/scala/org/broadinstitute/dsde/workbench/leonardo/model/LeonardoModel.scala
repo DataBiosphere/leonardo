@@ -9,6 +9,7 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.Semigroup
 import cats.implicits._
 import com.typesafe.config.ConfigFactory
+import enumeratum.{Enum, EnumEntry}
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster._
@@ -26,7 +27,14 @@ case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[GcsPath] = None,
                           jupyterUserScriptUri: Option[GcsPath] = None,
                           machineConfig: Option[MachineConfig] = None,
-                          stopAfterCreation: Option[Boolean] = None)
+                          stopAfterCreation: Option[Boolean] = None,
+                          userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None)
+
+
+case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
+                                      serverExtensions: Map[String, String] = Map(),
+                                      combinedExtensions: Map[String, String] = Map())
+
 
 // A resource that is required by a cluster
 case class ClusterResource(value: String) extends ValueObject
@@ -58,7 +66,8 @@ case class Cluster(clusterName: ClusterName,
                    jupyterUserScriptUri: Option[GcsPath],
                    stagingBucket: Option[GcsBucketName],
                    errors: List[ClusterError],
-                   instances: Set[Instance]) {
+                   instances: Set[Instance],
+                   userJupyterExtensionConfig: Option[UserJupyterExtensionConfig]) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.value}"
   def nonPreemptibleInstances: Set[Instance] = instances.filterNot(_.dataprocRole == Some(SecondaryWorker))
 }
@@ -92,7 +101,8 @@ object Cluster {
         jupyterUserScriptUri = clusterRequest.jupyterUserScriptUri,
         stagingBucket = Some(stagingBucket),
         errors = List.empty,
-        instances = Set.empty
+        instances = Set.empty,
+        userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig
       )
   }
 
@@ -119,7 +129,8 @@ object Cluster {
       jupyterUserScriptUri = clusterRequest.jupyterUserScriptUri,
       stagingBucket = None,
       errors = List.empty,
-      instances = Set.empty
+      instances = Set.empty,
+      userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig
     )
   }
 
@@ -145,7 +156,6 @@ case class DefaultLabels(clusterName: ClusterName,
                          creator: WorkbenchEmail,
                          clusterServiceAccount: Option[WorkbenchEmail],
                          notebookServiceAccount: Option[WorkbenchEmail],
-                         notebookExtension: Option[GcsPath],
                          notebookUserScript: Option[GcsPath])
 
 // Provides ways of combining MachineConfigs with Leo defaults
@@ -211,7 +221,11 @@ case class ClusterInitValues(googleProject: String,
                              jupyterServiceAccountCredentials: String,
                              jupyterCustomJsUri: String,
                              jupyterGoogleSignInJsUri: String,
-                             userEmailLoginHint: String)
+                             userEmailLoginHint: String,
+                             jupyterServerExtensions: String,
+                             jupyterNbExtensions: String,
+                             jupyterCombinedExtensions: String
+                            )
 
 object ClusterInitValues {
   val serviceAccountCredentialsFilename = "service-account-credentials.json"
@@ -236,8 +250,20 @@ object ClusterInitValues {
       serviceAccountKey.map(_ => GcsPath(initBucketName, GcsObjectName(serviceAccountCredentialsFilename)).toUri).getOrElse(""),
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterCustomJs.value)).toUri,
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterGoogleSignInJs.value)).toUri,
-      userEmailLoginHint.value
+      userEmailLoginHint.value,
+      clusterRequest.userJupyterExtensionConfig.map(x => x.serverExtensions.values.mkString(" ")).getOrElse(""),
+      clusterRequest.userJupyterExtensionConfig.map(x => x.nbExtensions.values.mkString(" ")).getOrElse(""),
+      clusterRequest.userJupyterExtensionConfig.map(x => x.combinedExtensions.values.mkString(" ")).getOrElse("")
     )
+}
+
+sealed trait ExtensionType extends EnumEntry
+object ExtensionType extends Enum[ExtensionType] {
+  val values = findValues
+
+  case object NBExtension extends ExtensionType
+  case object ServerExtension extends ExtensionType
+  case object CombinedExtension extends ExtensionType
 }
 
 object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
@@ -260,7 +286,9 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     }
   }
 
-  implicit val ClusterRequestFormat = jsonFormat5(ClusterRequest)
+  implicit val UserClusterExtensionConfigFormat = jsonFormat3(UserJupyterExtensionConfig.apply)
+
+  implicit val ClusterRequestFormat = jsonFormat6(ClusterRequest)
 
   implicit val ClusterResourceFormat = ValueObjectFormat(ClusterResource)
 
@@ -268,9 +296,9 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val ClusterErrorFormat = jsonFormat3(ClusterError.apply)
 
-  implicit val ClusterFormat = jsonFormat18(Cluster.apply)
+  implicit val ClusterFormat = jsonFormat19(Cluster.apply)
 
-  implicit val DefaultLabelsFormat = jsonFormat7(DefaultLabels.apply)
+  implicit val DefaultLabelsFormat = jsonFormat6(DefaultLabels.apply)
 
-  implicit val ClusterInitValuesFormat = jsonFormat17(ClusterInitValues.apply)
+  implicit val ClusterInitValuesFormat = jsonFormat20(ClusterInitValues.apply)
 }
