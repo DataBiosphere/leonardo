@@ -38,7 +38,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       jupyterUserScriptUri = None,
       Some(GcsBucketName("testStagingBucket1")),
       List.empty,
-      Set(masterInstance, workerInstance1, workerInstance2)
+      Set(masterInstance, workerInstance1, workerInstance2),
+      Some(userExtConfig)
     )
 
     val c1witherr1 = Cluster(
@@ -59,7 +60,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       jupyterUserScriptUri = None,
       Some(GcsBucketName("testStagingBucket1")),
       List(err1),
-      Set(masterInstance, workerInstance1, workerInstance2)
+      Set(masterInstance, workerInstance1, workerInstance2),
+      Some(userExtConfig)
     )
 
     val c2 = Cluster(
@@ -80,7 +82,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
       Some(GcsBucketName("testStagingBucket2")),
       List.empty,
-      Set.empty
+      Set.empty,
+      None
     )
 
     val c3 = Cluster(
@@ -101,7 +104,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
       Some(GcsBucketName("testStagingBucket3")),
       List.empty,
-      Set.empty
+      Set.empty, None
     )
 
 
@@ -145,7 +148,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
       Some(GcsBucketName("testStagingBucket4")),
       List.empty,
-      Set.empty
+      Set.empty,
+      None
     )
     dbFailure { _.clusterQuery.save(c4, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
 
@@ -170,7 +174,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
       Some(GcsBucketName("testStagingBucket5")),
       List.empty,
-      Set.empty
+      Set.empty,
+      None
     )
     dbFailure { _.clusterQuery.save(c5, gcsPath("gs://bucket5"), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
 
@@ -216,7 +221,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       jupyterUserScriptUri = None,
       Some(GcsBucketName("testStagingBucket1")),
       List.empty,
-      Set.empty
+      Set.empty,
+      None
     )
 
     val c2 = Cluster(
@@ -237,7 +243,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
       Some(GcsBucketName("testStagingBucket2")),
       List.empty,
-      Set.empty
+      Set.empty,
+      None
     )
 
     val c3 = Cluster(
@@ -258,7 +265,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
       Some(GcsBucketName("testStagingBucket3")),
       List.empty,
-      Set.empty
+      Set.empty,
+      None
     )
 
     dbFutureValue { _.clusterQuery.save(c1, gcsPath( "gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1
@@ -308,7 +316,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       jupyterUserScriptUri = None,
       Some(GcsBucketName("testStagingBucket1")),
       List.empty,
-      Set(masterInstance, workerInstance1, workerInstance2)
+      Set(masterInstance, workerInstance1, workerInstance2),
+      None
     )
 
     dbFutureValue { _.clusterQuery.save(c1, gcsPath( "gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1
@@ -344,7 +353,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       jupyterUserScriptUri = None,
       Some(GcsBucketName("testStagingBucket1")),
       List.empty,
-      Set(masterInstance)
+      Set(masterInstance),
+      None
     )
 
     dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1

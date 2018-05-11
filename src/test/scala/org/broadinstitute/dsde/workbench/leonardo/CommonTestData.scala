@@ -47,12 +47,12 @@ trait CommonTestData { this: ScalaFutures =>
   val serviceAccountsConfig = config.getConfig("serviceAccounts.config")
 
   val singleNodeDefaultMachineConfig = MachineConfig(Some(clusterDefaultsConfig.numberOfWorkers), Some(clusterDefaultsConfig.masterMachineType), Some(clusterDefaultsConfig.masterDiskSize))
-  val testClusterRequest = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), None)
-  val testClusterRequestWithExtensionAndScript = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(jupyterExtensionUri), Some(jupyterUserScriptUri))
+  val testClusterRequest = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), None, None, None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))))
+  val testClusterRequestWithExtensionAndScript = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(jupyterExtensionUri), Some(jupyterUserScriptUri), None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))))
 
 
   val serviceAccountInfo = new ServiceAccountInfo(Option(WorkbenchEmail("testServiceAccount1@example.com")), Option(WorkbenchEmail("testServiceAccount2@example.com")))
-  val testCluster = new Cluster(name1, new UUID(1, 1), project, serviceAccountInfo, MachineConfig(), Cluster.getClusterUrl(project, name1, clusterUrlBase), OperationName("op"), ClusterStatus.Running, None, userEmail, Instant.now(), None, Map(), Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript"))), Some(GcsBucketName("testStagingBucket1")), List.empty, Set.empty)
+  val testCluster = new Cluster(name1, new UUID(1, 1), project, serviceAccountInfo, MachineConfig(), Cluster.getClusterUrl(project, name1, clusterUrlBase), OperationName("op"), ClusterStatus.Running, None, userEmail, Instant.now(), None, Map(), Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript"))), Some(GcsBucketName("testStagingBucket1")), List.empty, Set.empty, None)
 
 
   // TODO look into parameterized tests so both provider impls can both be tested
@@ -60,6 +60,7 @@ trait CommonTestData { this: ScalaFutures =>
   val serviceAccountProvider = new MockPetClusterServiceAccountProvider(serviceAccountsConfig)
   val whitelistAuthProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider)
 
+  val userExtConfig = UserJupyterExtensionConfig(Map("nbExt1"->"abc", "nbExt2"->"def"), Map("serverExt1"->"pqr"), Map("combinedExt1"->"xyz"))
 
   protected def clusterServiceAccount(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Option[WorkbenchEmail] = {
     serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject).futureValue

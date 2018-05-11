@@ -4,17 +4,19 @@ import java.sql.SQLException
 import java.time.Instant
 import java.util.UUID
 
+import org.broadinstitute.dsde.workbench.leonardo.model.ExtensionType
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
-import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.model.google._
+import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ServiceAccountInfo, UserJupyterExtensionConfig}
+import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, MachineConfig, OperationName}
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.scalatest.FlatSpecLike
 
 import scala.util.Random
 
-class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils {
+class ExtensionComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils{
+  "ExtensionComponent" should "save, get,and delete" in isolatedDbTest {
 
-  "LabelComponent" should "save, get,and delete" in isolatedDbTest {
+
     val c1 = Cluster(
       clusterName = name1,
       googleId = UUID.randomUUID(),
@@ -59,41 +61,18 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTest
       None
     )
 
-    val c2Map = Map("bam" -> "true", "sample" -> "NA12878")
-
     val missingId = Random.nextLong()
-    dbFutureValue { _.labelQuery.getAllForCluster(missingId) } shouldEqual Map.empty
-    dbFutureValue { _.labelQuery.get(missingId, "missing") } shouldEqual None
-    dbFailure { _.labelQuery.save(missingId, "key1", "value1") } shouldBe a [SQLException]
+    dbFutureValue { _.extensionQuery.getAllForCluster(missingId) } shouldEqual UserJupyterExtensionConfig(Map(), Map(), Map())
+    dbFailure { _.extensionQuery.save(missingId, ExtensionType.NBExtension.toString, "extName", "extValue") } shouldBe a [SQLException]
 
     dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1
     val c1Id = dbFutureValue { _.clusterQuery.getIdByGoogleId(c1.googleId) }.get
+    dbFutureValue { _.extensionQuery.saveAllForCluster(c1Id, Some(userExtConfig)) }
+    dbFutureValue { _.extensionQuery.getAllForCluster(c1Id) } shouldEqual userExtConfig
 
-    dbFutureValue { _.labelQuery.save(c1Id, "key1", "value1") } shouldEqual 1
-    dbFutureValue { _.labelQuery.getAllForCluster(c1Id) } shouldEqual Map("key1" -> "value1")
-    dbFutureValue { _.labelQuery.get(c1Id, "key1") } shouldEqual Some("value1")
 
     dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id)) } shouldEqual c2
     val c2Id = dbFutureValue { _.clusterQuery.getIdByGoogleId(c2.googleId) }.get
-
-    dbFutureValue { _.labelQuery.saveAllForCluster(c2Id, c2Map) }
-    dbFutureValue { _.labelQuery.getAllForCluster(c2Id) } shouldEqual c2Map
-    dbFutureValue { _.labelQuery.get(c2Id, "bam") } shouldEqual Some("true")
-    dbFutureValue { _.labelQuery.getAllForCluster(c1Id) } shouldEqual Map("key1" -> "value1")
-
-    // (cluster, key) unique key test
-
-    val c2NewMap = Map("sample" -> "NA12879")
-
-    dbFailure { _.labelQuery.save(c1Id, "key1", "newvalue") } shouldBe a[SQLException]
-    dbFailure { _.labelQuery.saveAllForCluster(c2Id, c2NewMap) } shouldBe a[SQLException]
-
-    dbFutureValue { _.labelQuery.delete(c1Id, "key1") } shouldEqual 1
-    dbFutureValue { _.labelQuery.delete(c1Id, "key1") } shouldEqual 0
-    dbFutureValue { _.labelQuery.getAllForCluster(c1Id) } shouldEqual Map.empty
-
-    dbFutureValue { _.labelQuery.deleteAllForCluster(c2Id) } shouldEqual 2
-    dbFutureValue { _.labelQuery.deleteAllForCluster(c2Id) } shouldEqual 0
-    dbFutureValue { _.labelQuery.getAllForCluster(c2Id) } shouldEqual Map.empty
-   }
+    dbFutureValue { _.extensionQuery.save(c2Id, ExtensionType.NBExtension.toString, "extName", "extValue") } shouldBe 1
+  }
 }

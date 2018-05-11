@@ -665,6 +665,9 @@ definitions:
       labels:
         type: object
         description: The labels to be placed on the cluster. Of type Map[String,String]
+      userJupyterExtensionConfig:
+        $ref: "#/definitions/UserJupyterExtensionConfig"
+        description: Jupyter extensions to be installed in the notebook
       jupyterExtensionUri:
         type: string
         description: |
@@ -738,7 +741,24 @@ definitions:
         description: |
           Optional, the number of preemptible workers. If unspecified, the default number is 0. Ignored if numberOfWorkers is 0.
           For more information, see https://cloud.google.com/compute/docs/instances/preemptible
-
+  UserJupyterExtensionConfig:
+    description: 'Specification of Jupyter Extensions to be installed on the cluster'
+    properties:
+      nbExtensions:
+        type: object
+        description: |
+          Optional, map of extension name and nbExtension. The nbExtension can either be a tar.gz file on google storage or a python package.
+          Example, {"ext1":"gs://bucket/extension.tar.gz", "pipExt":"python-package"}
+      serverExtensions:
+        type: object
+        description: |
+          Optional, map of extension name and server extension. The serverExtensions can either be a tar.gz file on google storage or a python package.
+          Example, {"ext1":"gs://bucket/extension.tar.gz", "pipExt":"python-package"}
+      combinedExtensions:
+        type: object
+        description: |
+          Optional, map of extension name and notebook plus server extension. The extension can either be a tar.gz file on google storage or a python package.
+          Example, {"ext1":"gs://bucket/extension.tar.gz", "pipExt":"python-package"}
   SubsystemStatus:
     description: status of a subsystem Leonardo depends on
     type: object
