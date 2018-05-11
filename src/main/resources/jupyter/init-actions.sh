@@ -152,7 +152,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
       for ext in ${JUPYTER_NB_EXTENSIONS}
       do
         log 'Installing Jupyter NB extension...'
-        if [[ $ext == 'gs://'* && $ext == *'.tar.gz' ]]; then
+        if [[ $ext == 'gs://'* ]]; then
           gsutil cp $ext /etc
           JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
           docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
@@ -168,7 +168,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
       for ext in ${JUPYTER_SERVER_EXTENSIONS}
       do
         log 'Installing Jupyter server extension...'
-        if [[ $ext == 'gs://'* && $ext == *'.tar.gz' ]]; then
+        if [[ $ext == 'gs://'* ]]; then
           gsutil cp $ext /etc
           JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
           docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
@@ -180,12 +180,12 @@ if [[ "${ROLE}" == 'Master' ]]; then
     fi
 
     #Install serverExtensions
-    if [ ! -z "${JUPYTER_COMBINED_EXTENSIONS}" ] ; then
+    if [ ! -z "${JUPYTER_COMBINED_EXTENSIONS}"  ] ; then
       for ext in ${JUPYTER_COMBINED_EXTENSIONS}
       do
         log 'Installing Jupyter combined extension...'
         log $ext
-        if [[ $ext == 'gs://'* && $ext == *'.tar.gz' ]]; then
+        if [[ $ext == 'gs://'* ]]; then
           gsutil cp $ext /etc
           JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
           docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
