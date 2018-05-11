@@ -91,7 +91,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     name = FirewallRuleName(proxyConfig.firewallRuleName),
     protocol = FirewallRuleProtocol(proxyConfig.jupyterProtocol),
     ports = List(FirewallRulePort(proxyConfig.jupyterPort.toString)),
-    network = FirewallRuleNetwork(proxyConfig.firewallVPCNetwork),
+    network = VPCNetworkName(proxyConfig.firewallVPCNetwork),
     targetTags = List(NetworkTag(proxyConfig.networkTag)))
 
   // Startup script to install on the cluster master node. This is needed to support pause/resume clusters.

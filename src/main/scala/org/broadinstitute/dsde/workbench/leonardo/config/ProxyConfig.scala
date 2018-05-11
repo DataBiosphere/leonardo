@@ -8,6 +8,7 @@ case class ProxyConfig(
                         proxyServerName: String,
                         firewallRuleName: String,
                         firewallVPCNetwork: String,
+                        firewallVPCSubnet: String,
                         networkTag: String,
                         jupyterPort: Int,
                         jupyterProtocol: String,
