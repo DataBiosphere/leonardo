@@ -169,7 +169,6 @@ function make_jar()
 
 function docker_cmd()
 {
-    echo "running docker_cmd with $DOCKER_CMD"
     if [ $DOCKER_CMD = "build" ] || [ $DOCKER_CMD = "push" ]; then
         echo "building $IMAGE docker image..."
         if [ "$ENV" != "dev" ] && [ "$ENV" != "alpha" ] && [ "$ENV" != "staging" ] && [ "$ENV" != "perf" ]; then
