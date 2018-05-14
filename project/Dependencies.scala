@@ -7,12 +7,12 @@ object Dependencies {
   val googleV       = "1.22.0"
   val scalaLoggingV = "3.9.0"
   val scalaTestV    = "3.0.5"
-  val slickV        = "3.2.1"
+  val slickV        = "3.2.3"
 
-  val workbenchUtilV    = "0.2-d97f551"
+  val workbenchUtilV    = "0.3-0e9d080"
   val workbenchModelV   = "0.11-2ce3359"
-  val workbenchGoogleV  = "0.16-2ce3359"
-  val workbenchMetricsV = "0.3-d97f551"
+  val workbenchGoogleV  = "0.16-0027221"
+  val workbenchMetricsV = "0.3-1b977d7"
 
   val samV =  "1.0-5cdffb4"
 
@@ -62,7 +62,7 @@ object Dependencies {
 
   val slick: ModuleID =     "com.typesafe.slick" %% "slick"                 % slickV
   val hikariCP: ModuleID =  "com.typesafe.slick" %% "slick-hikaricp"        % slickV
-  val mysql: ModuleID =     "mysql"               % "mysql-connector-java"  % "6.0.6"
+  val mysql: ModuleID =     "mysql"               % "mysql-connector-java"  % "8.0.11"
   val liquibase: ModuleID = "org.liquibase"       % "liquibase-core"        % "3.5.3"
 
   val rootDependencies = Seq(
