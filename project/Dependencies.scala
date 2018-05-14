@@ -1,12 +1,12 @@
 import sbt._
 
 object Dependencies {
-  val akkaV         = "2.5.11"
-  val akkaHttpV     = "10.1.0"
-  val jacksonV      = "2.9.2"
+  val akkaV         = "2.5.12"
+  val akkaHttpV     = "10.1.1"
+  val jacksonV      = "2.9.5"
   val googleV       = "1.22.0"
-  val scalaLoggingV = "3.7.2"
-  val scalaTestV    = "3.0.1"
+  val scalaLoggingV = "3.9.0"
+  val scalaTestV    = "3.0.5"
   val slickV        = "3.2.1"
 
   val workbenchUtilV    = "0.2-d97f551"
@@ -26,13 +26,13 @@ object Dependencies {
   val jacksonDatabind: ModuleID =    "com.fasterxml.jackson.core" % "jackson-databind"    % jacksonV
   val jacksonCore: ModuleID =        "com.fasterxml.jackson.core" % "jackson-core"        % jacksonV
 
-  val logbackClassic: ModuleID = "ch.qos.logback"             %  "logback-classic" % "1.2.2"
-  val ravenLogback: ModuleID =   "com.getsentry.raven"        %  "raven-logback"   % "7.8.6"
+  val logbackClassic: ModuleID = "ch.qos.logback"             %  "logback-classic" % "1.2.3"
+  val ravenLogback: ModuleID =   "com.getsentry.raven"        %  "raven-logback"   % "8.0.3"
   val scalaLogging: ModuleID =   "com.typesafe.scala-logging" %% "scala-logging"   % scalaLoggingV
   val swaggerUi: ModuleID =      "org.webjars"                %  "swagger-ui"      % "2.2.5"
-  val ficus: ModuleID =          "com.iheart"                 %% "ficus"           % "1.4.0"
+  val ficus: ModuleID =          "com.iheart"                 %% "ficus"           % "1.4.3"
   val cats: ModuleID =           "org.typelevel"              %% "cats"            % "0.9.0"
-  val httpClient: ModuleID =     "org.apache.httpcomponents"  % "httpclient"       % "4.5.3"  // upgrading a transitive dependency to avoid security warnings
+  val httpClient: ModuleID =     "org.apache.httpcomponents"  % "httpclient"       % "4.5.5"  // upgrading a transitive dependency to avoid security warnings
   val enumeratum: ModuleID =     "com.beachape"               %% "enumeratum"      % "1.5.12"
 
   val akkaActor: ModuleID =         "com.typesafe.akka"   %%  "akka-actor"           % akkaV
