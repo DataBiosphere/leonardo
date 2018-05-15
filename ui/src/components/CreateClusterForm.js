@@ -62,11 +62,22 @@ class HiddenSpinner extends React.Component {
 class UnstyledCreateClusterForm extends React.Component {
   constructor(props) {
     super(props);
+    // Initialize project with default value (if applicable).
+    var project = "";
+    var projectEntryDisabled = false
+    if (process.env.REACT_APP_DEFAULT_PROJECT) {
+      project = process.env.REACT_APP_DEFAULT_PROJECT;
+    }
+    if (process.env.REACT_APP_DISABLE_PROJECT_ENTRY == 'true') {
+      projectEntryDisabled = true;
+    }
+
     this.state = {
       clusterName: "",
-      googleProject: "",
+      googleProject: project,
       machineType: DEFAULT_MASTER_MACHINE_TYPE,
       workerMachineType: DEFAULT_WORKER_MACHINE_TYPE,
+      projectEntryDisabled: projectEntryDisabled,
       diskSize: 200,
       createRequestValid: false,
       requestInProgress: false,
@@ -94,6 +105,7 @@ class UnstyledCreateClusterForm extends React.Component {
 
     var createRequest = {
       labels: {},
+      stopAfterCreation: false,
       machineConfig: {
         // Worker config.
         numberOfWorkers: this.state.numberOfWorkers,
@@ -106,6 +118,9 @@ class UnstyledCreateClusterForm extends React.Component {
 
       }
     };
+    if (process.env.REACT_APP_STARTUP_SCRIPT_URI) {
+      createRequest["jupyterUserScriptUri"] = process.env.REACT_APP_STARTUP_SCRIPT_URI;
+    }
     // Use fetch to send a put request, and register success/fail callbacks.
     fetch(
       createApiUrl(this.state.googleProject, this.state.clusterName),
@@ -159,6 +174,7 @@ class UnstyledCreateClusterForm extends React.Component {
               value={this.state.googleProject}
               onChange={this.handleChange("googleProject")}
               margin="normal"
+              disabled={this.state.projectEntryDisabled}
             />
           </FormControl>
         </div>
