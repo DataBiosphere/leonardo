@@ -129,6 +129,7 @@ RUN apt-get install -yq --no-install-recommends \
  && pip install google-cloud \
  && pip install --ignore-installed firecloud==0.16.7 \
  && pip install -U scikit-learn \
+ && pip install statsmodels==0.8.0 \
  && pip install ggplot \
  && pip install bokeh \
  && pip install pyfasta \
@@ -158,6 +159,7 @@ RUN apt-get install -yq --no-install-recommends python3 \
  && pip3 install google-cloud \
  && pip3 install --ignore-installed firecloud==0.16.7 \
  && pip3 install -U scikit-learn \
+ && pip3 install statsmodels==0.8.0 \
  && pip3 install ggplot \
  && pip3 install bokeh \
  && pip3 install pyfasta \
