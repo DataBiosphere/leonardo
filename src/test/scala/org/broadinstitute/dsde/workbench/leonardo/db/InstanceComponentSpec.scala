@@ -33,7 +33,8 @@ class InstanceComponentSpec extends TestComponent with FlatSpecLike with CommonT
     Some(GcsBucketName("testStagingBucket1")),
     List.empty,
     Set.empty,
-    None
+    None,
+    Instant.now()
   )
 
   "InstanceComponent" should "save and get instances" in isolatedDbTest {

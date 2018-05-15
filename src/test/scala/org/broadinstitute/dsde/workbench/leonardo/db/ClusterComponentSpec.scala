@@ -19,7 +19,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
     lazy val err1 = ClusterError("some failure", 10, Instant.now().truncatedTo(ChronoUnit.SECONDS))
     lazy val c1UUID = UUID.randomUUID()
-    lazy val createdDate = Instant.now()
+    lazy val createdDate, dateAccessed = Instant.now()
     val c1 = Cluster(
       clusterName = name1,
       googleId = c1UUID,
@@ -39,7 +39,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       Some(GcsBucketName("testStagingBucket1")),
       List.empty,
       Set(masterInstance, workerInstance1, workerInstance2),
-      Some(userExtConfig)
+      Some(userExtConfig),
+      dateAccessed
     )
 
     val c1witherr1 = Cluster(
@@ -61,7 +62,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       Some(GcsBucketName("testStagingBucket1")),
       List(err1),
       Set(masterInstance, workerInstance1, workerInstance2),
-      Some(userExtConfig)
+      Some(userExtConfig),
+      dateAccessed
     )
 
     val c2 = Cluster(
@@ -83,7 +85,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       Some(GcsBucketName("testStagingBucket2")),
       List.empty,
       Set.empty,
-      None
+      None,
+      dateAccessed
     )
 
     val c3 = Cluster(
@@ -104,7 +107,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
       Some(GcsBucketName("testStagingBucket3")),
       List.empty,
-      Set.empty, None
+      Set.empty,
+      None,
+      dateAccessed
     )
 
 
@@ -149,7 +154,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       Some(GcsBucketName("testStagingBucket4")),
       List.empty,
       Set.empty,
-      None
+      None,
+      Instant.now()
     )
     dbFailure { _.clusterQuery.save(c4, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
 
@@ -175,7 +181,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       Some(GcsBucketName("testStagingBucket5")),
       List.empty,
       Set.empty,
-      None
+      None,
+      Instant.now()
     )
     dbFailure { _.clusterQuery.save(c5, gcsPath("gs://bucket5"), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
 
@@ -222,7 +229,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       Some(GcsBucketName("testStagingBucket1")),
       List.empty,
       Set.empty,
-      None
+      None,
+      Instant.now()
     )
 
     val c2 = Cluster(
@@ -244,7 +252,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       Some(GcsBucketName("testStagingBucket2")),
       List.empty,
       Set.empty,
-      None
+      None,
+      Instant.now()
     )
 
     val c3 = Cluster(
@@ -266,7 +275,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       Some(GcsBucketName("testStagingBucket3")),
       List.empty,
       Set.empty,
-      None
+      None,
+      Instant.now()
     )
 
     dbFutureValue { _.clusterQuery.save(c1, gcsPath( "gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1
@@ -298,6 +308,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
   }
 
   it should "stop and start a cluster" in isolatedDbTest {
+    lazy val dateaccessed = Instant.now()
     val c1 = Cluster(
       clusterName = name1,
       googleId = UUID.randomUUID(),
@@ -317,21 +328,28 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       Some(GcsBucketName("testStagingBucket1")),
       List.empty,
       Set(masterInstance, workerInstance1, workerInstance2),
-      None
+      None,
+      dateaccessed
     )
 
     dbFutureValue { _.clusterQuery.save(c1, gcsPath( "gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1
     // note: this does not update the instance records
     dbFutureValue { _.clusterQuery.setToStopping(c1.googleId) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.getByGoogleId(c1.googleId) } shouldEqual Some(
+    val c2: Option[Cluster] = dbFutureValue { _.clusterQuery.getByGoogleId(c1.googleId) }
+    c2.map(_.copy( dateAccessed = dateaccessed)) shouldEqual Some(
       c1.copy(
         status = ClusterStatus.Stopping,
-        hostIp = None
+        hostIp = None,
+        dateAccessed = dateaccessed
       )
     )
+    c2.map(_.dateAccessed).get should be > c1.dateAccessed
 
     dbFutureValue { _.clusterQuery.setToRunning(c1.googleId, c1.hostIp.get) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.getByGoogleId(c1.googleId) } shouldEqual Some(c1)
+
+    val c3 = dbFutureValue { _.clusterQuery.getByGoogleId(c1.googleId) }
+    c3.map(_.copy( dateAccessed = dateaccessed)) shouldEqual Some(c1.copy(dateAccessed = dateaccessed))
+    c3.map(_.dateAccessed) should be > c2.map(_.dateAccessed)
   }
 
   it should "merge instances" in isolatedDbTest {
@@ -354,7 +372,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       Some(GcsBucketName("testStagingBucket1")),
       List.empty,
       Set(masterInstance),
-      None
+      None,
+      Instant.now()
     )
 
     dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1

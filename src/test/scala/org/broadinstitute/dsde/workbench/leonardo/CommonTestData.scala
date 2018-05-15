@@ -52,7 +52,7 @@ trait CommonTestData { this: ScalaFutures =>
 
 
   val serviceAccountInfo = new ServiceAccountInfo(Option(WorkbenchEmail("testServiceAccount1@example.com")), Option(WorkbenchEmail("testServiceAccount2@example.com")))
-  val testCluster = new Cluster(name1, new UUID(1, 1), project, serviceAccountInfo, MachineConfig(), Cluster.getClusterUrl(project, name1, clusterUrlBase), OperationName("op"), ClusterStatus.Running, None, userEmail, Instant.now(), None, Map(), Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript"))), Some(GcsBucketName("testStagingBucket1")), List.empty, Set.empty, None)
+  val testCluster = new Cluster(name1, new UUID(1, 1), project, serviceAccountInfo, MachineConfig(), Cluster.getClusterUrl(project, name1, clusterUrlBase), OperationName("op"), ClusterStatus.Running, None, userEmail, Instant.now(), None, Map(), Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript"))), Some(GcsBucketName("testStagingBucket1")), List.empty, Set.empty, None, Instant.now())
 
 
   // TODO look into parameterized tests so both provider impls can both be tested

@@ -56,7 +56,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     Some(GcsBucketName("testStagingBucket1")),
     List.empty,
     Set.empty,
-    Some(userExtConfig)
+    Some(userExtConfig),
+    Instant.now()
   )
 
   val deletingCluster = Cluster(
@@ -78,7 +79,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     Some(GcsBucketName("testStagingBucket1")),
     List.empty,
     Set(masterInstance, workerInstance1, workerInstance2),
-    None
+    None,
+    Instant.now()
   )
 
   val stoppingCluster = Cluster(
@@ -100,7 +102,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     Some(GcsBucketName("testStagingBucket1")),
     List.empty,
     Set(masterInstance, workerInstance1, workerInstance2),
-    None
+    None,
+    Instant.now()
   )
 
   val startingCluster = Cluster(
@@ -122,7 +125,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     Some(GcsBucketName("testStagingBucket1")),
     List.empty,
     Set(masterInstance, workerInstance1, workerInstance2),
-    None
+    None,
+    Instant.now()
   )
 
   val clusterInstances = Map(Master -> Set(masterInstance.key),

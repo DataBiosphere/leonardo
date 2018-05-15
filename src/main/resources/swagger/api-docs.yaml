@@ -612,6 +612,9 @@ definitions:
         type: array
         items:
           $ref: '#/definitions/Instance'
+      dateAccessed:
+        type: string
+        description: The date and time the cluster was last accessed, in ISO-8601 format
 
   InstanceKey:
     description: ''

@@ -36,7 +36,8 @@ class ExtensionComponentSpec extends TestComponent with FlatSpecLike with Common
       Some(GcsBucketName("testStagingBucket1")),
       List.empty,
       Set.empty,
-      None
+      None,
+      Instant.now()
     )
 
     val c2 = Cluster(
@@ -58,7 +59,8 @@ class ExtensionComponentSpec extends TestComponent with FlatSpecLike with Common
       Some(GcsBucketName("testStagingBucket2")),
       List.empty,
       Set.empty,
-      None
+      None,
+      Instant.now()
     )
 
     val missingId = Random.nextLong()
