@@ -19,7 +19,8 @@ class ClusterCardList extends React.Component {
     var models = this.props.clusterModels;
     for (var i = 0; i < models.length; i++) {
       var model = models[i];
-      var clusterKey = model.googleProject + "/" + model.clusterName;
+      // Any difference in status should trigger card re-render.
+      var clusterKey = model.googleProject + "/" + model.clusterName + "/" + model.status;
       clusterCards.push(
         <ClusterCard
           oauthClientId={this.props.oauthClientId}
