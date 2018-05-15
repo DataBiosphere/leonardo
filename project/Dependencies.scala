@@ -4,7 +4,7 @@ object Dependencies {
   val akkaV         = "2.5.12"
   val akkaHttpV     = "10.1.1"
   val jacksonV      = "2.9.5"
-  val googleV       = "1.22.0"
+  val googleV       = "1.23.0"
   val scalaLoggingV = "3.9.0"
   val scalaTestV    = "3.0.5"
   val slickV        = "3.2.3"
@@ -43,7 +43,7 @@ object Dependencies {
   val akkaTestKit: ModuleID =       "com.typesafe.akka"   %%  "akka-testkit"         % akkaV     % "test"
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka"   %%  "akka-http-testkit"    % akkaHttpV % "test"
 
-  val googleDataproc: ModuleID =    "com.google.apis"     % "google-api-services-dataproc" % s"v1-rev53-$googleV" excludeAll(excludeGuavaJDK5)
+  val googleDataproc: ModuleID =    "com.google.apis"     % "google-api-services-dataproc" % s"v1-rev91-$googleV" excludeAll(excludeGuavaJDK5)
   val googleRpc: ModuleID = "io.grpc" % "grpc-core" % "1.12.0"
   val googleOAuth2: ModuleID = "com.google.auth" % "google-auth-library-oauth2-http" % "0.9.1"
 
