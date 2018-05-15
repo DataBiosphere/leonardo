@@ -569,6 +569,7 @@ definitions:
       - status
       - createdDate
       - labels
+      - dateAccessed
     properties:
       clusterName:
         type: string
