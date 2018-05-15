@@ -45,6 +45,7 @@ GIT_BRANCH="${BRANCH:-$(git rev-parse --abbrev-ref HEAD)}"
 DOCKER_REGISTRY="dockerhub"  # Must be either "dockerhub" or "gcr"
 DOCKER_CMD=""
 ENV=${ENV:-""}  # if env is not set, push an image with branch name
+SERVICE_ACCOUNT_KEY_FILE=""  # default to no service account
 
 MAKE_JAR=false
 RUN_DOCKER=false
