@@ -33,7 +33,7 @@ object Dependencies {
   val ficus: ModuleID =          "com.iheart"                 %% "ficus"           % "1.4.3"
   val cats: ModuleID =           "org.typelevel"              %% "cats"            % "0.9.0"
   val httpClient: ModuleID =     "org.apache.httpcomponents"  % "httpclient"       % "4.5.5"  // upgrading a transitive dependency to avoid security warnings
-  val enumeratum: ModuleID =     "com.beachape"               %% "enumeratum"      % "1.5.12"
+  val enumeratum: ModuleID =     "com.beachape"               %% "enumeratum"      % "1.5.13"
 
   val akkaActor: ModuleID =         "com.typesafe.akka"   %%  "akka-actor"           % akkaV
   val akkaContrib: ModuleID =       "com.typesafe.akka"   %%  "akka-contrib"         % akkaV
@@ -48,7 +48,7 @@ object Dependencies {
   val googleOAuth2: ModuleID = "com.google.auth" % "google-auth-library-oauth2-http" % "0.9.1"
 
   val scalaTest: ModuleID = "org.scalatest" %% "scalatest"    % scalaTestV % "test"
-  val mockito: ModuleID =   "org.mockito"    % "mockito-core" % "2.7.22"   % "test"
+  val mockito: ModuleID =   "org.mockito"    % "mockito-core" % "2.18.3"   % "test"
 
   // Exclude workbench-libs transitive dependencies so we can control the library versions individually.
   // workbench-google pulls in workbench-{util, model, metrics} and workbench-metrics pulls in workbench-util.
