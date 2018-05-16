@@ -615,7 +615,9 @@ definitions:
           $ref: '#/definitions/Instance'
       dateAccessed:
         type: string
-        description: The date and time the cluster was last accessed, in ISO-8601 format
+        description: |
+          The date and time the cluster was last accessed, in ISO-8601 format. Date accessed is defined as the lastest date
+           when the cluster was created or updated or when the notebook was accessed.
 
   InstanceKey:
     description: ''

@@ -104,8 +104,7 @@ object Cluster {
         errors = List.empty,
         instances = Set.empty,
         userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
-        Instant.now()
-      )
+        dateAccessed = Instant.now())
   }
 
   def createDummyForDeletion(clusterRequest: ClusterRequest,
@@ -133,8 +132,7 @@ object Cluster {
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
-      Instant.now()
-    )
+      dateAccessed = Instant.now())
   }
 
   // TODO it's hacky to re-parse the Leo config in the model object.

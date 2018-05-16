@@ -215,16 +215,18 @@ trait ClusterComponent extends LeoComponent {
         .update(Timestamp.from(Instant.now()), ClusterStatus.Deleted.toString, None)
     }
 
-    def setToRunning(googleId: UUID, hostIp: IP): DBIO[Int] = {
+    def updateClusterStatusAndHostIp(googleId: UUID, status: ClusterStatus, hostIp: Option[IP] = None): DBIO[Int] = {
       clusterQuery.filter { _.googleId === googleId }
         .map(c => (c.status, c.hostIp, c.dateAccessed))
-        .update((ClusterStatus.Running.toString, Option(hostIp.value), Timestamp.from(Instant.now)))
+        .update((status.toString, hostIp.map(_.value), Timestamp.from(Instant.now)))
+    }
+
+    def setToRunning(googleId: UUID, hostIp: IP): DBIO[Int] = {
+      updateClusterStatusAndHostIp(googleId, ClusterStatus.Running, Some(hostIp))
     }
 
     def setToStopping(googleId: UUID): DBIO[Int] = {
-      clusterQuery.filter { _.googleId === googleId }
-        .map(c => (c.status, c.hostIp, c.dateAccessed))
-        .update((ClusterStatus.Stopping.toString, None, Timestamp.from(Instant.now)))
+      updateClusterStatusAndHostIp(googleId, ClusterStatus.Stopping)
     }
 
     def updateClusterStatus(googleId: UUID, newStatus: ClusterStatus): DBIO[Int] = {

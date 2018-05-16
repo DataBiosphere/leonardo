@@ -19,7 +19,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
     lazy val err1 = ClusterError("some failure", 10, Instant.now().truncatedTo(ChronoUnit.SECONDS))
     lazy val c1UUID = UUID.randomUUID()
-    lazy val createdDate, dateAccessed = Instant.now()
+    val createdDate, dateAccessed = Instant.now()
     val c1 = Cluster(
       clusterName = name1,
       googleId = c1UUID,
@@ -308,8 +308,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
   }
 
   it should "stop and start a cluster" in isolatedDbTest {
-    lazy val dateaccessed = Instant.now()
-    val c1 = Cluster(
+    val dateAccessed = Instant.now()
+    val initialCluster = Cluster(
       clusterName = name1,
       googleId = UUID.randomUUID(),
       googleProject = project,
@@ -329,27 +329,27 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       List.empty,
       Set(masterInstance, workerInstance1, workerInstance2),
       None,
-      dateaccessed
+      dateAccessed
     )
 
-    dbFutureValue { _.clusterQuery.save(c1, gcsPath( "gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1
+    dbFutureValue { _.clusterQuery.save(initialCluster, gcsPath( "gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual initialCluster
     // note: this does not update the instance records
-    dbFutureValue { _.clusterQuery.setToStopping(c1.googleId) } shouldEqual 1
-    val c2: Option[Cluster] = dbFutureValue { _.clusterQuery.getByGoogleId(c1.googleId) }
-    c2.map(_.copy( dateAccessed = dateaccessed)) shouldEqual Some(
-      c1.copy(
+    dbFutureValue { _.clusterQuery.setToStopping(initialCluster.googleId) } shouldEqual 1
+    val stoppedCluster = dbFutureValue { _.clusterQuery.getByGoogleId(initialCluster.googleId) }
+    stoppedCluster.map(_.copy(dateAccessed = dateAccessed)) shouldEqual Some(
+      initialCluster.copy(
         status = ClusterStatus.Stopping,
         hostIp = None,
-        dateAccessed = dateaccessed
+        dateAccessed = dateAccessed
       )
     )
-    c2.map(_.dateAccessed).get should be > c1.dateAccessed
 
-    dbFutureValue { _.clusterQuery.setToRunning(c1.googleId, c1.hostIp.get) } shouldEqual 1
+    stoppedCluster.map(_.dateAccessed).get should be > initialCluster.dateAccessed
 
-    val c3 = dbFutureValue { _.clusterQuery.getByGoogleId(c1.googleId) }
-    c3.map(_.copy( dateAccessed = dateaccessed)) shouldEqual Some(c1.copy(dateAccessed = dateaccessed))
-    c3.map(_.dateAccessed) should be > c2.map(_.dateAccessed)
+    dbFutureValue { _.clusterQuery.setToRunning(initialCluster.googleId, initialCluster.hostIp.get) } shouldEqual 1
+    val runningCluster = dbFutureValue { _.clusterQuery.getByGoogleId(initialCluster.googleId) }
+    runningCluster.map(_.copy(dateAccessed = dateAccessed)) shouldEqual Some(initialCluster.copy(dateAccessed = dateAccessed))
+    runningCluster.map(_.dateAccessed) should be > stoppedCluster.map(_.dateAccessed)
   }
 
   it should "merge instances" in isolatedDbTest {
