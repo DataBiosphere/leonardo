@@ -20,7 +20,10 @@ HELP_TEXT="$(cat <<EOF
    -p | --project: set the project used at either dockerhub or with gcr
            container registries.
    -n | --notebook-repo: (default: --project) the repo to push the notebooks
-           image. Can be a dockerhub or GCR repo. 
+           image. Can be a dockerhub or GCR repo.
+   -k | --service-account-key-file: (optional) path to a service account key json
+           file. If set, the script will call "gcloud auth activate-service-account".
+           Otherwise, the script will not authenticate with gcloud.
    -h | --help: print help text.
 
  Examples:
@@ -42,6 +45,7 @@ GIT_BRANCH="${BRANCH:-$(git rev-parse --abbrev-ref HEAD)}"
 DOCKER_REGISTRY="dockerhub"  # Must be either "dockerhub" or "gcr"
 DOCKER_CMD=""
 ENV=${ENV:-""}  # if env is not set, push an image with branch name
+SERVICE_ACCOUNT_KEY_FILE=""  # default to no service account
 
 MAKE_JAR=false
 RUN_DOCKER=false
@@ -79,6 +83,11 @@ while [ "$1" != "" ]; do
             shift
             echo "notebook-repo == $1"
             NOTEBOOK_REPO=$1
+            ;;
+        -k | --service-account-key-file)
+            shift
+            echo "service-account-key-file == $1"
+            SERVICE_ACCOUNT_KEY_FILE=$1
             ;;
         -h | --help)
             PRINT_HELP=true
@@ -123,6 +132,12 @@ fi
 
 TESTS_IMAGE=$IMAGE-tests
 
+# Run gcloud auth if a service account key file was specified.
+if [[ -n $SERVICE_ACCOUNT_KEY_FILE ]]; then
+  TMP_DIR=$(mktemp -d tmp-XXXXXX)
+  export CLOUDSDK_CONFIG=$(pwd)/${TMP_DIR}
+  gcloud auth activate-service-account --key-file="${SERVICE_ACCOUNT_KEY_FILE}"
+fi
 
 function make_jar()
 {
@@ -189,6 +204,15 @@ function docker_cmd()
     fi
 }
 
+function cleanup()
+{
+    echo "cleaning up..."
+    if [[ -n $SERVICE_ACCOUNT_KEY_FILE ]]; then
+      gcloud auth revoke
+      rm -rf ${CLOUDSDK_CONFIG}
+    fi
+}
+
 if $MAKE_JAR; then
   make_jar
 fi
@@ -196,3 +220,5 @@ fi
 if $RUN_DOCKER; then
   docker_cmd
 fi
+
+cleanup
