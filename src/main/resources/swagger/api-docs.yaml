@@ -389,7 +389,7 @@ paths:
           required: true
           schema:
             type: object
-            description:
+            description: ''
             example:
               "~/file.txt" : "gs://somebucket/file.txt"
               "~/directory" : "gs://somebucket/*"
@@ -589,9 +589,7 @@ definitions:
         type: string
         description: Google's operation ID for the cluster
       status:
-        type: string
-        enum: *CLUSTERSTATUS
-        description: The current state of the cluster
+        $ref: "#/definitions/ClusterStatus"
       hostIp:
         type: string
         description: The IP address of the cluster master node
@@ -646,9 +644,7 @@ definitions:
         type: string
         description: Google's unique id for this instance
       status:
-        type: string
-        enum: *INSTANCESTATUS
-        description: The current state of the instance
+        $ref: "#/definitions/InstanceStatus"
       ip:
         type: string
         description: The public IP address of the instance, if any
