@@ -12,7 +12,7 @@ object Settings {
 
   val commonResolvers = List(
     "artifactory-releases" at artifactory + "libs-release",
-    "artifactory-snapshots" at artifactory + "libs-snapshot"
+    "artifactory-snapshots" at artifactory + "libs-snapshot",
   )
 
   //coreDefaultSettings + defaultConfigs = the now deprecated defaultSettings
@@ -40,7 +40,7 @@ object Settings {
   val commonSettings =
     commonBuildSettings ++ commonAssemblySettings ++ commonTestSettings ++ List(
     organization  := "org.broadinstitute.dsde.workbench",
-    scalaVersion  := "2.12.3",
+    scalaVersion  := "2.12.6",
     resolvers ++= commonResolvers,
     scalacOptions ++= commonCompilerSettings
   )
