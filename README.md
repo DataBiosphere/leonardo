@@ -96,4 +96,3 @@ to repo `broadinstitute/leonardo-notebooks`
 ````
 bash ./jupyter-docker/build.sh push <TAG NAME>
 ````
-
