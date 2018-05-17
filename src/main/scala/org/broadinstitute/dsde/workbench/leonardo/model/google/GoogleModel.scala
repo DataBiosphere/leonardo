@@ -93,9 +93,10 @@ case class IP(value: String) extends ValueObject
 case class NetworkTag(value: String) extends ValueObject
 case class FirewallRuleName(value: String) extends ValueObject
 case class FirewallRulePort(value: String) extends ValueObject
-case class FirewallRuleNetwork(value: String) extends ValueObject
 case class FirewallRuleProtocol(value: String) extends ValueObject
-case class FirewallRule(name: FirewallRuleName, protocol: FirewallRuleProtocol, ports: List[FirewallRulePort], network: FirewallRuleNetwork, targetTags: List[NetworkTag])
+case class VPCNetworkName(value: String) extends ValueObject
+case class VPCSubnetName(value: String) extends ValueObject
+case class FirewallRule(name: FirewallRuleName, protocol: FirewallRuleProtocol, ports: List[FirewallRulePort], network: VPCNetworkName, targetTags: List[NetworkTag])
 
 // Instance status
 // See: https://cloud.google.com/compute/docs/instances/checking-instance-status
@@ -162,7 +163,7 @@ object GoogleJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val FirewallRuleNameFormat = ValueObjectFormat(FirewallRuleName)
   implicit val FirewallRulePortFormat = ValueObjectFormat(FirewallRulePort)
   implicit val FirewallRuleProtocolFormat = ValueObjectFormat(FirewallRuleProtocol)
-  implicit val FirewallRuleNetworkFormat = ValueObjectFormat(FirewallRuleNetwork)
+  implicit val VPCNetworkNameFormat = ValueObjectFormat(VPCNetworkName)
   implicit val FirewallRuleFormat = jsonFormat5(FirewallRule)
 
   implicit val InstanceNameFormat = ValueObjectFormat(InstanceName)
