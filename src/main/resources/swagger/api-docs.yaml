@@ -616,7 +616,7 @@ definitions:
       dateAccessed:
         type: string
         description: |
-          The date and time the cluster was last accessed, in ISO-8601 format. Date accessed is defined as the lastest date
+          The date and time the cluster was last accessed, in ISO-8601 format.Date accessed is defined as the latest date
            when the cluster was created or updated or when the notebook was accessed.
 
   InstanceKey:

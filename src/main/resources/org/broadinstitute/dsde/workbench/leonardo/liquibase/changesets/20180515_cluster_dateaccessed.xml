@@ -7,10 +7,14 @@
             </column>
         </addColumn>
     </changeSet>
+
+    <changeSet id="set dateAccessed to createdDate when dateAccessed is NULL" author="vkumra">
+        <sql>UPDATE CLUSTER SET dateAccessed = createdDate WHERE dateAccessed IS NULL</sql>
+    </changeSet>
+
     <changeSet id="make dateAccessed not null" author="vkumra">
         <addNotNullConstraint columnDataType="TIMESTAMP(6)"
                               columnName="dateAccessed"
-                              defaultNullValue="createdDate"
                               tableName="CLUSTER"/>
     </changeSet>
 </databaseChangeLog>
