@@ -69,6 +69,7 @@ package object config {
       config.getString("proxyServerName"),
       config.getString("firewallRuleName"),
       config.getString("firewallVPCNetwork"),
+      config.getString("firewallVPCSubnet"),
       config.getString("networkTag"),
       config.getInt("jupyterPort"),
       config.getString("jupyterProtocol"),

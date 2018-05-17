@@ -13,6 +13,7 @@ start() {
     echo "starting up mysql container..."
     docker run --name $CONTAINER \
                -e MYSQL_ROOT_PASSWORD=leonardo-test \
+               -e 'MYSQL_ROOT_HOST=%' \
                -e MYSQL_USER=leonardo-test \
                -e MYSQL_PASSWORD=leonardo-test \
                -e MYSQL_DATABASE=leotestdb \
