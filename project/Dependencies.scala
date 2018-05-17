@@ -1,18 +1,18 @@
 import sbt._
 
 object Dependencies {
-  val akkaV         = "2.5.11"
-  val akkaHttpV     = "10.1.0"
-  val jacksonV      = "2.9.2"
-  val googleV       = "1.22.0"
-  val scalaLoggingV = "3.7.2"
-  val scalaTestV    = "3.0.1"
-  val slickV        = "3.2.1"
+  val akkaV         = "2.5.12"
+  val akkaHttpV     = "10.1.1"
+  val jacksonV      = "2.9.5"
+  val googleV       = "1.23.0"
+  val scalaLoggingV = "3.9.0"
+  val scalaTestV    = "3.0.5"
+  val slickV        = "3.2.3"
 
-  val workbenchUtilV    = "0.2-d97f551"
+  val workbenchUtilV    = "0.3-0e9d080"
   val workbenchModelV   = "0.11-2ce3359"
-  val workbenchGoogleV  = "0.16-2ce3359"
-  val workbenchMetricsV = "0.3-d97f551"
+  val workbenchGoogleV  = "0.16-c5b80d2"
+  val workbenchMetricsV = "0.3-c5b80d2"
 
   val samV =  "1.0-5cdffb4"
 
@@ -26,14 +26,14 @@ object Dependencies {
   val jacksonDatabind: ModuleID =    "com.fasterxml.jackson.core" % "jackson-databind"    % jacksonV
   val jacksonCore: ModuleID =        "com.fasterxml.jackson.core" % "jackson-core"        % jacksonV
 
-  val logbackClassic: ModuleID = "ch.qos.logback"             %  "logback-classic" % "1.2.2"
-  val ravenLogback: ModuleID =   "com.getsentry.raven"        %  "raven-logback"   % "7.8.6"
+  val logbackClassic: ModuleID = "ch.qos.logback"             %  "logback-classic" % "1.2.3"
+  val ravenLogback: ModuleID =   "com.getsentry.raven"        %  "raven-logback"   % "8.0.3"
   val scalaLogging: ModuleID =   "com.typesafe.scala-logging" %% "scala-logging"   % scalaLoggingV
   val swaggerUi: ModuleID =      "org.webjars"                %  "swagger-ui"      % "2.2.5"
-  val ficus: ModuleID =          "com.iheart"                 %% "ficus"           % "1.4.0"
+  val ficus: ModuleID =          "com.iheart"                 %% "ficus"           % "1.4.3"
   val cats: ModuleID =           "org.typelevel"              %% "cats"            % "0.9.0"
-  val httpClient: ModuleID =     "org.apache.httpcomponents"  % "httpclient"       % "4.5.3"  // upgrading a transitive dependency to avoid security warnings
-  val enumeratum: ModuleID =     "com.beachape"               %% "enumeratum"      % "1.5.12"
+  val httpClient: ModuleID =     "org.apache.httpcomponents"  % "httpclient"       % "4.5.5"  // upgrading a transitive dependency to avoid security warnings
+  val enumeratum: ModuleID =     "com.beachape"               %% "enumeratum"      % "1.5.13"
 
   val akkaActor: ModuleID =         "com.typesafe.akka"   %%  "akka-actor"           % akkaV
   val akkaContrib: ModuleID =       "com.typesafe.akka"   %%  "akka-contrib"         % akkaV
@@ -43,12 +43,12 @@ object Dependencies {
   val akkaTestKit: ModuleID =       "com.typesafe.akka"   %%  "akka-testkit"         % akkaV     % "test"
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka"   %%  "akka-http-testkit"    % akkaHttpV % "test"
 
-  val googleDataproc: ModuleID =    "com.google.apis"     % "google-api-services-dataproc" % s"v1-rev53-$googleV" excludeAll(excludeGuavaJDK5)
-  val googleRpc: ModuleID = "io.grpc" % "grpc-core" % "1.5.0"
-  val googleOAuth2: ModuleID = "com.google.auth" % "google-auth-library-oauth2-http" % "0.9.0"
+  val googleDataproc: ModuleID =    "com.google.apis"     % "google-api-services-dataproc" % s"v1-rev91-$googleV" excludeAll(excludeGuavaJDK5)
+  val googleRpc: ModuleID = "io.grpc" % "grpc-core" % "1.12.0"
+  val googleOAuth2: ModuleID = "com.google.auth" % "google-auth-library-oauth2-http" % "0.9.1"
 
   val scalaTest: ModuleID = "org.scalatest" %% "scalatest"    % scalaTestV % "test"
-  val mockito: ModuleID =   "org.mockito"    % "mockito-core" % "2.7.22"   % "test"
+  val mockito: ModuleID =   "org.mockito"    % "mockito-core" % "2.18.3"   % "test"
 
   // Exclude workbench-libs transitive dependencies so we can control the library versions individually.
   // workbench-google pulls in workbench-{util, model, metrics} and workbench-metrics pulls in workbench-util.
@@ -62,7 +62,7 @@ object Dependencies {
 
   val slick: ModuleID =     "com.typesafe.slick" %% "slick"                 % slickV
   val hikariCP: ModuleID =  "com.typesafe.slick" %% "slick-hikaricp"        % slickV
-  val mysql: ModuleID =     "mysql"               % "mysql-connector-java"  % "6.0.6"
+  val mysql: ModuleID =     "mysql"               % "mysql-connector-java"  % "8.0.11"
   val liquibase: ModuleID = "org.liquibase"       % "liquibase-core"        % "3.5.3"
 
   val rootDependencies = Seq(
