@@ -6,10 +6,6 @@ import scala.concurrent.duration.FiniteDuration
 case class ProxyConfig(
                         jupyterProxyDockerImage: String,
                         proxyServerName: String,
-                        firewallRuleName: String,
-                        firewallVPCNetwork: String,
-                        firewallVPCSubnet: String,
-                        networkTag: String,
                         jupyterPort: Int,
                         jupyterProtocol: String,
                         jupyterDomain: String,

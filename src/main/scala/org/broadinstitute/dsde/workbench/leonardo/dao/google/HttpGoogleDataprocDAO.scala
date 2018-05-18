@@ -31,8 +31,9 @@ import scala.util.Try
 class HttpGoogleDataprocDAO(appName: String,
                             googleCredentialMode: GoogleCredentialMode,
                             override val workbenchMetricBaseName: String,
-                            defaultNetworkTag: NetworkTag,
-                            defaultVPCSubnet: VPCSubnetName,
+                            networkTag: NetworkTag,
+                            vpcNetwork: Option[VPCNetworkName],
+                            vpcSubnet: Option[VPCSubnetName],
                             defaultRegion: String)
                            (implicit override val system: ActorSystem, override val executionContext: ExecutionContext)
   extends AbstractHttpGoogleDAO(appName, googleCredentialMode, workbenchMetricBaseName) with GoogleDataprocDAO {
@@ -190,10 +191,20 @@ class HttpGoogleDataprocDAO(appName: String,
   private def getClusterConfig(machineConfig: MachineConfig, initScript: GcsPath, clusterServiceAccount: Option[WorkbenchEmail], credentialsFileName: Option[String], stagingBucket: GcsBucketName): DataprocClusterConfig = {
     // Create a GceClusterConfig, which has the common config settings for resources of Google Compute Engine cluster instances,
     // applicable to all instances in the cluster.
-    // Set the network tag, network, and subnet. This allows the creaed GCE instances to be exposed by Leo's firewall rule.
-    val gceClusterConfig = new GceClusterConfig()
-      .setTags(List(defaultNetworkTag.value).asJava)
-      .setSubnetworkUri(defaultVPCSubnet.value)
+    // Set the network tag, network, and subnet. This allows the created GCE instances to be exposed by Leo's firewall rule.
+    val gceClusterConfig = {
+      val baseConfig = new GceClusterConfig()
+        .setTags(List(networkTag.value).asJava)
+
+      (vpcNetwork, vpcSubnet) match {
+        case (_, Some(subnet)) =>
+          baseConfig.setSubnetworkUri(subnet.value)
+        case (Some(network), _) =>
+          baseConfig.setNetworkUri(network.value)
+        case _ =>
+          baseConfig
+      }
+    }
 
     // Set the cluster service account, if present.
     // This is the service account passed to the create cluster API call.

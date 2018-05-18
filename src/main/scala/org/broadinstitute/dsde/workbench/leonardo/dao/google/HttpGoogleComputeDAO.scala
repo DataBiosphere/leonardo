@@ -118,9 +118,9 @@ class HttpGoogleComputeDAO(appName: String,
     * To think about: do we want to remove this rule if a google project no longer has any clusters? */
   private def addFirewallRule(googleProject: GoogleProject, firewallRule: FirewallRule): Future[Unit] = {
     val allowed = new Allowed().setIPProtocol(firewallRule.protocol.value).setPorts(firewallRule.ports.map(_.value).asJava)
-    // note: network not used
     val googleFirewall = new Firewall()
       .setName(firewallRule.name.value)
+      .setNetwork(firewallRule.network.map(_.value).orNull)
       .setTargetTags(firewallRule.targetTags.map(_.value).asJava)
       .setAllowed(List(allowed).asJava)
 

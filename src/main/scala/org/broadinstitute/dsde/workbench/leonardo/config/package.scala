@@ -23,7 +23,11 @@ package object config {
       GoogleProject(config.getString("leoGoogleProject")),
       config.getString("dataprocDockerImage"),
       config.getString("clusterUrlBase"),
-      config.getString("jupyterServerName")
+      config.getString("jupyterServerName"),
+      config.getString("firewallRuleName"),
+      config.getString("networkTag"),
+      config.getAs[String]("vpcNetwork"),
+      config.getAs[String]("vpcSubnet")
     )
   }
 
@@ -67,10 +71,6 @@ package object config {
     ProxyConfig(
       config.getString("jupyterProxyDockerImage"),
       config.getString("proxyServerName"),
-      config.getString("firewallRuleName"),
-      config.getString("firewallVPCNetwork"),
-      config.getString("firewallVPCSubnet"),
-      config.getString("networkTag"),
       config.getInt("jupyterPort"),
       config.getString("jupyterProtocol"),
       config.getString("jupyterDomain"),
