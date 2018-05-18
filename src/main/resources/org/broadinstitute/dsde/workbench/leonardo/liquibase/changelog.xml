@@ -20,4 +20,5 @@
     <include file="changesets/20180205_cluster-error.xml" relativeToChangelogFile="true" />
     <include file="changesets/20180216_instance.xml" relativeToChangelogFile="true" />
     <include file="changesets/20180503_extensions.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20180515_cluster_dateaccessed.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>
