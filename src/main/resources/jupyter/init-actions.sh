@@ -126,6 +126,14 @@ if [[ "${ROLE}" == 'Master' ]]; then
       gcloud docker --authorize-only
     fi
 
+    log 'Pulling the $JUPYTER_DOCKER_IMAGE image'
+
+    docker pull ${JUPYTER_DOCKER_IMAGE}
+
+    log 'Pulling the $PROXY_DOCKER_IMAGE image'
+
+    docker pull ${PROXY_DOCKER_IMAGE}
+
     log 'Starting up the Jupydocker...'
 
     # Run docker-compose. This mounts Hadoop, Spark, and other resources inside the docker container.
