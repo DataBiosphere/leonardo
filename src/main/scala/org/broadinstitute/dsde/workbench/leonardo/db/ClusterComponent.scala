@@ -239,6 +239,10 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
+    def updateDateAccessed(googleId: UUID, dateAccessed: Instant): DBIO[Int] = {
+      clusterQuery.filter { _.googleId === googleId }.map(_.dateAccessed).update(Timestamp.from(dateAccessed))
+    }
+
     def listByLabels(labelMap: LabelMap, includeDeleted: Boolean): DBIO[Seq[Cluster]] = {
       val clusterStatusQuery = if (includeDeleted) clusterQueryWithLabels else clusterQueryWithLabels.filterNot { _._1.status === "Deleted" }
       val query = if (labelMap.isEmpty) {
