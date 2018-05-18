@@ -34,7 +34,8 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTest
       Some(GcsBucketName("testStagingBucket1")),
       List.empty,
       Set.empty,
-      None
+      None,
+      Instant.now()
     )
 
     val c2 = Cluster(
@@ -56,7 +57,8 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTest
       Some(GcsBucketName("testStagingBucket2")),
       List.empty,
       Set.empty,
-      None
+      None,
+      Instant.now()
     )
 
     val c2Map = Map("bam" -> "true", "sample" -> "NA12878")
