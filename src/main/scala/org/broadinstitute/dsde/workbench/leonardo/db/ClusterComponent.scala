@@ -26,7 +26,8 @@ case class ClusterRecord(id: Long,
                          initBucket: String,
                          machineConfig: MachineConfigRecord,
                          serviceAccountInfo: ServiceAccountInfoRecord,
-                         stagingBucket: Option[String]
+                         stagingBucket: Option[String],
+                         dateAccessed: Timestamp
                         )
 
 case class MachineConfigRecord(numberOfWorkers: Int,
@@ -63,14 +64,15 @@ trait ClusterComponent extends LeoComponent {
     def operationName =               column[String]            ("operationName",         O.Length(254))
     def status =                      column[String]            ("status",                O.Length(254))
     def hostIp =                      column[Option[String]]    ("hostIp",                O.Length(254))
-    def creator =                     column[String]            ("creator",                O.Length(254))
+    def creator =                     column[String]            ("creator",               O.Length(254))
     def createdDate =                 column[Timestamp]         ("createdDate",           O.SqlType("TIMESTAMP(6)"))
     def destroyedDate =               column[Timestamp]         ("destroyedDate",         O.SqlType("TIMESTAMP(6)"))
     def jupyterExtensionUri =         column[Option[String]]    ("jupyterExtensionUri",   O.Length(1024))
-    def jupyterUserScriptUri =        column[Option[String]]    ("jupyterUserScriptUri",     O.Length(1024))
+    def jupyterUserScriptUri =        column[Option[String]]    ("jupyterUserScriptUri",  O.Length(1024))
     def initBucket =                  column[String]            ("initBucket",            O.Length(1024))
     def serviceAccountKeyId =         column[Option[String]]    ("serviceAccountKeyId",   O.Length(254))
     def stagingBucket =               column[Option[String]]    ("stagingBucket",         O.Length(254))
+    def dateAccessed =                column[Timestamp]         ("dateAccessed",          O.SqlType("TIMESTAMP(6)"))
 
     def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName), unique = true)
 
@@ -82,23 +84,23 @@ trait ClusterComponent extends LeoComponent {
       id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
       createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
       (numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers),
-      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket
+      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket, dateAccessed
     ).shaped <> ({
       case (id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
-            createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket, machineConfig, serviceAccountInfo, stagingBucket) =>
+            createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket, machineConfig, serviceAccountInfo, stagingBucket, dateAccessed) =>
         ClusterRecord(
           id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
           createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
           MachineConfigRecord.tupled.apply(machineConfig),
           ServiceAccountInfoRecord.tupled.apply(serviceAccountInfo),
-          stagingBucket)
+          stagingBucket, dateAccessed)
     }, { c: ClusterRecord =>
       def mc(_mc: MachineConfigRecord) = MachineConfigRecord.unapply(_mc).get
       def sa(_sa: ServiceAccountInfoRecord) = ServiceAccountInfoRecord.unapply(_sa).get
       Some((
         c.id, c.clusterName, c.googleId, c.googleProject, c.operationName, c.status, c.hostIp, c.creator,
         c.createdDate, c.destroyedDate, c.jupyterExtensionUri, c.jupyterUserScriptUri, c.initBucket,
-        mc(c.machineConfig), sa(c.serviceAccountInfo), c.stagingBucket
+        mc(c.machineConfig), sa(c.serviceAccountInfo), c.stagingBucket, c.dateAccessed
       ))
     })
   }
@@ -213,20 +215,22 @@ trait ClusterComponent extends LeoComponent {
         .update(Timestamp.from(Instant.now()), ClusterStatus.Deleted.toString, None)
     }
 
-    def setToRunning(googleId: UUID, hostIp: IP): DBIO[Int] = {
+    def updateClusterStatusAndHostIp(googleId: UUID, status: ClusterStatus, hostIp: Option[IP]): DBIO[Int] = {
       clusterQuery.filter { _.googleId === googleId }
-        .map(c => (c.status, c.hostIp))
-        .update((ClusterStatus.Running.toString, Option(hostIp.value)))
+        .map(c => (c.status, c.hostIp, c.dateAccessed))
+        .update((status.toString, hostIp.map(_.value), Timestamp.from(Instant.now)))
+    }
+
+    def setToRunning(googleId: UUID, hostIp: IP): DBIO[Int] = {
+      updateClusterStatusAndHostIp(googleId, ClusterStatus.Running, Some(hostIp))
     }
 
     def setToStopping(googleId: UUID): DBIO[Int] = {
-      clusterQuery.filter { _.googleId === googleId }
-        .map(c => (c.status, c.hostIp))
-        .update((ClusterStatus.Stopping.toString, None))
+      updateClusterStatusAndHostIp(googleId, ClusterStatus.Stopping, None)
     }
 
     def updateClusterStatus(googleId: UUID, newStatus: ClusterStatus): DBIO[Int] = {
-      clusterQuery.filter { _.googleId === googleId }.map(_.status).update(newStatus.toString)
+      clusterQuery.filter { _.googleId === googleId }.map(c => (c.status, c.dateAccessed)).update(newStatus.toString, Timestamp.from(Instant.now))
     }
 
     def getClusterStatus(googleId: UUID): DBIO[Option[ClusterStatus]] = {
@@ -297,7 +301,8 @@ trait ClusterComponent extends LeoComponent {
           cluster.serviceAccountInfo.notebookServiceAccount.map(_.value),
           serviceAccountKeyId.map(_.value)
         ),
-        cluster.stagingBucket.map(_.value)
+        cluster.stagingBucket.map(_.value),
+        Timestamp.from(cluster.dateAccessed)
       )
     }
 
@@ -366,7 +371,8 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.stagingBucket map GcsBucketName,
         errors map clusterErrorQuery.unmarshallClusterErrorRecord,
         instanceRecords map (ClusterComponent.this.instanceQuery.unmarshalInstance) toSet,
-        ClusterComponent.this.extensionQuery.unmarshallExtensions(userJupyterExtensionConfig)
+        ClusterComponent.this.extensionQuery.unmarshallExtensions(userJupyterExtensionConfig),
+        clusterRecord.dateAccessed.toInstant
       )
     }
   }

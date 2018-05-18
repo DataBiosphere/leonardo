@@ -80,7 +80,8 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
     stagingBucket = Some(GcsBucketName("testStagingBucket1")), 
     List.empty,
     Set.empty,
-    None
+    None,
+    Instant.now()
   )
 
   val gdDAO = new MockGoogleDataprocDAO

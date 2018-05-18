@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="vkumra" id="cluster_dateAccessed">
+        <addColumn tableName="CLUSTER">
+            <column name="dateAccessed" type="TIMESTAMP(6)">
+                <constraints nullable="true" />
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="set dateAccessed to createdDate when dateAccessed is NULL" author="vkumra">
+        <sql>UPDATE CLUSTER SET dateAccessed = createdDate WHERE dateAccessed IS NULL</sql>
+    </changeSet>
+
+    <changeSet id="make dateAccessed not null" author="vkumra">
+        <addNotNullConstraint columnDataType="TIMESTAMP(6)"
+                              columnName="dateAccessed"
+                              tableName="CLUSTER"/>
+    </changeSet>
+</databaseChangeLog>
