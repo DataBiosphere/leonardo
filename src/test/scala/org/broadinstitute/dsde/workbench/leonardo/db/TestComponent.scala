@@ -24,7 +24,6 @@ trait TestComponent extends Matchers with ScalaFutures
   // clean up after tests
   def isolatedDbTest[T](testCode: => T): T = {
     try {
-      // TODO: why is cleaning up at the end of tests not enough?
       dbFutureValue { _ => DbSingleton.ref.dataAccess.truncateAll() }
       testCode
     } catch {

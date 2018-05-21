@@ -69,7 +69,7 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
     }
   }
 
-  override def getClusterErrorDetails(operationName: OperationName): Future[Option[ClusterErrorDetails]] = {
+  override def getClusterErrorDetails(operationName: Option[OperationName]): Future[Option[ClusterErrorDetails]] = {
     Future.successful(None)
   }
 

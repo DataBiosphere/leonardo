@@ -194,7 +194,7 @@ class ClusterMonitorActor(val cluster: Cluster,
         // to the supervisor telling it to recreate the cluster.
         logger.info(s"Cluster ${cluster.projectNameString} is in an error state with $errorDetails. Attempting to recreate...")
         dbRef.inTransaction { dataAccess =>
-          dataAccess.clusterQuery.markPendingDeletion(cluster.googleId)
+          dataAccess.clusterQuery.markPendingDeletion(cluster.id)
         } map { _ =>
           ShutdownActor(Some(ClusterDeleted(cluster, recreate = true)))
         }
@@ -203,7 +203,7 @@ class ClusterMonitorActor(val cluster: Cluster,
         logger.warn(s"Cluster ${cluster.projectNameString} is in an error state with $errorDetails'. Unable to recreate cluster.")
         for {
           // update the cluster status to Error
-          _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Error) }
+          _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Error) }
           // Remove the Dataproc Worker IAM role for the pet service account
           // Only happens if the cluster was created with the pet service account.
           _ <-  removeIamRolesForUser
@@ -231,7 +231,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       _ <- persistInstances(Set.empty)
 
       _ <- dbRef.inTransaction { dataAccess =>
-        dataAccess.clusterQuery.completeDeletion(cluster.googleId)
+        dataAccess.clusterQuery.completeDeletion(cluster.id)
       }
       _ <- authProvider.notifyClusterDeleted(cluster.creator, cluster.creator, cluster.googleProject, cluster.clusterName)
     } yield ShutdownActor()
@@ -249,7 +249,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       // create or update instances in the DB
       _ <- persistInstances(instances)
       // this sets the cluster status to stopped and clears the cluster IP
-      _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Stopped) }
+      _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Stopped) }
     } yield ShutdownActor()
   }
 
@@ -264,8 +264,8 @@ class ClusterMonitorActor(val cluster: Cluster,
       googleStatus <- gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName)
       googleInstances <- getClusterInstances
 
-      runningInstanceCount = googleInstances.filter(_.status == InstanceStatus.Running).size
-      stoppedInstanceCount = googleInstances.filter(i => i.status == InstanceStatus.Stopped || i.status == InstanceStatus.Terminated).size
+      runningInstanceCount = googleInstances.count(_.status == InstanceStatus.Running)
+      stoppedInstanceCount = googleInstances.count(i => i.status == InstanceStatus.Stopped || i.status == InstanceStatus.Terminated)
 
       result <- googleStatus match {
         case Unknown | Creating | Updating =>
@@ -391,6 +391,6 @@ class ClusterMonitorActor(val cluster: Cluster,
   }
 
   private def getDbClusterStatus: Future[ClusterStatus] = {
-    dbRef.inTransaction { _.clusterQuery.getClusterStatus(cluster.googleId) } map { _.getOrElse(ClusterStatus.Unknown) }
+    dbRef.inTransaction { _.clusterQuery.getClusterStatus(cluster.id) } map { _.getOrElse(ClusterStatus.Unknown) }
   }
 }

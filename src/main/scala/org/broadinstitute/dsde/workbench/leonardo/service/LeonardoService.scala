@@ -216,7 +216,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         _ <- gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)
         // Change the cluster status to Deleting in the database
         // Note this also changes the instance status to Deleting
-        _ <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.googleId))
+        _ <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.id))
       } yield {
         // Notify the cluster monitor supervisor of cluster deletion.
         // This will kick off polling until the cluster is actually deleted in Google.
@@ -293,7 +293,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         }
 
         // Update the cluster status to Starting
-        _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Starting) }
+        _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Starting) }
       } yield {
         clusterMonitorSupervisor ! ClusterStarted(cluster.copy(status = ClusterStatus.Starting))
       }
