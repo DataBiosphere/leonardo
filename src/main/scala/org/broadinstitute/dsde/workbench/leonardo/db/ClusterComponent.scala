@@ -170,6 +170,7 @@ trait ClusterComponent extends LeoComponent {
         }
     }
 
+    // TODO: Check if this should be removed and its usages replaced by getById
     def getByGoogleId(googleId: UUID): DBIO[Option[Cluster]] = {
       clusterQueryWithInstancesAndErrorsAndLabels.filter { _._1.googleId === googleId }.result map { recs =>
         unmarshalClustersWithInstancesAndLabels(recs).headOption
@@ -220,18 +221,18 @@ trait ClusterComponent extends LeoComponent {
         .update(Timestamp.from(Instant.now()), ClusterStatus.Deleted.toString, None)
     }
 
-    def updateClusterStatusAndHostIp(googleId: Option[UUID], status: ClusterStatus, hostIp: Option[IP]): DBIO[Int] = {
-      clusterQuery.filter { _.googleId === googleId }
+    def updateClusterStatusAndHostIp(id: Long, status: ClusterStatus, hostIp: Option[IP]): DBIO[Int] = {
+      clusterQuery.filter { _.id === id }
         .map(c => (c.status, c.hostIp, c.dateAccessed))
         .update((status.toString, hostIp.map(_.value), Timestamp.from(Instant.now)))
     }
 
-    def setToRunning(googleId: Option[UUID], hostIp: IP): DBIO[Int] = {
-      updateClusterStatusAndHostIp(googleId, ClusterStatus.Running, Some(hostIp))
+    def setToRunning(id: Long, hostIp: IP): DBIO[Int] = {
+      updateClusterStatusAndHostIp(id, ClusterStatus.Running, Some(hostIp))
     }
 
-    def setToStopping(googleId: Option[UUID]): DBIO[Int] = {
-      updateClusterStatusAndHostIp(googleId, ClusterStatus.Stopping, None)
+    def setToStopping(id: Long): DBIO[Int] = {
+      updateClusterStatusAndHostIp(id, ClusterStatus.Stopping, None)
     }
 
     def updateClusterStatus(id: Long, newStatus: ClusterStatus): DBIO[Int] = {

@@ -85,27 +85,27 @@ object Cluster {
              machineConfig: MachineConfig,
              clusterUrlBase: String,
              stagingBucket: GcsBucketName): Cluster = {
-    new Cluster(
-        clusterName = clusterName,
-        googleId = Some(operation.uuid),
-        googleProject = googleProject,
-        serviceAccountInfo = serviceAccountInfo,
-        machineConfig = machineConfig,
-        clusterUrl = getClusterUrl(googleProject, clusterName, clusterUrlBase),
-        operationName = Some(operation.name),
-        status = ClusterStatus.Creating,
-        hostIp = None,
-        creator = userEmail,
-        createdDate = Instant.now(),
-        destroyedDate = None,
-        labels = clusterRequest.labels,
-        jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
-        jupyterUserScriptUri = clusterRequest.jupyterUserScriptUri,
-        stagingBucket = Some(stagingBucket),
-        errors = List.empty,
-        instances = Set.empty,
-        userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
-        dateAccessed = Instant.now())
+    Cluster(
+      clusterName = clusterName,
+      googleId = Some(operation.uuid),
+      googleProject = googleProject,
+      serviceAccountInfo = serviceAccountInfo,
+      machineConfig = machineConfig,
+      clusterUrl = getClusterUrl(googleProject, clusterName, clusterUrlBase),
+      operationName = Some(operation.name),
+      status = ClusterStatus.Creating,
+      hostIp = None,
+      creator = userEmail,
+      createdDate = Instant.now(),
+      destroyedDate = None,
+      labels = clusterRequest.labels,
+      jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
+      jupyterUserScriptUri = clusterRequest.jupyterUserScriptUri,
+      stagingBucket = Some(stagingBucket),
+      errors = List.empty,
+      instances = Set.empty,
+      userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
+      dateAccessed = Instant.now())
   }
 
   def createDummyForDeletion(clusterRequest: ClusterRequest,
@@ -113,7 +113,7 @@ object Cluster {
                              clusterName: ClusterName,
                              googleProject: GoogleProject,
                              serviceAccountInfo: ServiceAccountInfo): Cluster = {
-    new Cluster(
+    Cluster(
       clusterName = clusterName,
       googleId = Some(UUID.randomUUID),
       googleProject = googleProject,

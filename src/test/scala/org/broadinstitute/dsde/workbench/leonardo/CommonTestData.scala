@@ -52,28 +52,28 @@ trait CommonTestData { this: ScalaFutures =>
 
 
   val serviceAccountInfo = new ServiceAccountInfo(Option(WorkbenchEmail("testServiceAccount1@example.com")), Option(WorkbenchEmail("testServiceAccount2@example.com")))
-  val testCluster = new Cluster(
-    clusterName = name1,
-    googleId =  new UUID(1, 1),
-    googleProject = project,
-    serviceAccountInfo = serviceAccountInfo,
-    machineConfig = MachineConfig(),
-    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    operationName = OperationName("op"),
-    status = ClusterStatus.Running,
-    hostIp = None,
-    creator = userEmail,
-    createdDate = Instant.now(),
-    destroyedDate = None,
-    labels = Map(),
-    jupyterExtensionUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),
-    jupyterUserScriptUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript"))),
-    stagingBucket = Some(GcsBucketName("testStagingBucket1")),
-    errors = List.empty,
-    instances = Set.empty,
-    userJupyterExtensionConfig = None,
-    dateAccessed = Instant.now())
-
+  val testCluster =
+    Cluster(
+      clusterName = name1,
+      googleId =  Option(new UUID(1, 1)),
+      googleProject = project,
+      serviceAccountInfo = serviceAccountInfo,
+      machineConfig = MachineConfig(),
+      clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
+      operationName = Option(OperationName("op")),
+      status = ClusterStatus.Running,
+      hostIp = None,
+      creator = userEmail,
+      createdDate = Instant.now(),
+      destroyedDate = None,
+      labels = Map(),
+      jupyterExtensionUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),
+      jupyterUserScriptUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript"))),
+      stagingBucket = Some(GcsBucketName("testStagingBucket1")),
+      errors = List.empty,
+      instances = Set.empty,
+      userJupyterExtensionConfig = None,
+      dateAccessed = Instant.now())
 
   // TODO look into parameterized tests so both provider impls can both be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData
