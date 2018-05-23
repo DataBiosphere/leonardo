@@ -96,7 +96,7 @@ case class FirewallRulePort(value: String) extends ValueObject
 case class FirewallRuleProtocol(value: String) extends ValueObject
 case class VPCNetworkName(value: String) extends ValueObject
 case class VPCSubnetName(value: String) extends ValueObject
-case class FirewallRule(name: FirewallRuleName, protocol: FirewallRuleProtocol, ports: List[FirewallRulePort], network: VPCNetworkName, targetTags: List[NetworkTag])
+case class FirewallRule(name: FirewallRuleName, protocol: FirewallRuleProtocol, ports: List[FirewallRulePort], network: Option[VPCNetworkName], targetTags: List[NetworkTag])
 
 // Instance status
 // See: https://cloud.google.com/compute/docs/instances/checking-instance-status
