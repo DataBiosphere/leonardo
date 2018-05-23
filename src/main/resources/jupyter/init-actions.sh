@@ -158,7 +158,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
           docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
           docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
         else
-          docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/jupyter_pip_install_notebook_extension.sh $ext
+          docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/jupyter_pip_install_notebook_extension.sh $ext
         fi
       done
     fi
@@ -172,9 +172,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
           gsutil cp $ext /etc
           JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
           docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-          docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/jupyter_install_server_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+          docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/jupyter_install_server_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
         else
-          docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/jupyter_pip_install_server_extension.sh $ext
+          docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/jupyter_pip_install_server_extension.sh $ext
         fi
       done
     fi
@@ -189,9 +189,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
           gsutil cp $ext /etc
           JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
           docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-          docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/jupyter_install_combined_extension.sh ${JUPYTER_EXTENSION_ARCHIVE}
+          docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/jupyter_install_combined_extension.sh ${JUPYTER_EXTENSION_ARCHIVE}
         else
-          docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/jupyter_pip_install_combined_extension.sh $ext
+          docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/jupyter_pip_install_combined_extension.sh $ext
         fi
       done
     fi
