@@ -134,12 +134,12 @@ if [[ "${ROLE}" == 'Master' ]]; then
     log 'Installing Jupydocker kernelspecs...'
 
     # Change Python and PySpark 2 and 3 kernel specs to allow each to have its own spark
-    docker exec -u root -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/kernelspec.sh ${JUPYTER_HOME} ${KERNELSPEC_HOME}
+    docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/kernelspec.sh ${JUPYTER_HOME} ${KERNELSPEC_HOME}
 
     log 'Installing Hail additions to Jupydocker spark.conf...'
 
     # Install the Hail additions to Spark conf.
-    docker exec -u root -d ${JUPYTER_SERVER_NAME} /etc/hail/spark_install_hail.sh
+    docker exec -u root ${JUPYTER_SERVER_NAME} /etc/hail/spark_install_hail.sh
 
     # Copy the actual service account JSON file into the Jupyter docker container.
     if [ ! -z ${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} ] ; then
@@ -151,14 +151,14 @@ if [[ "${ROLE}" == 'Master' ]]; then
     if [ ! -z "${JUPYTER_NB_EXTENSIONS}" ] ; then
       for ext in ${JUPYTER_NB_EXTENSIONS}
       do
-        log 'Installing Jupyter NB extension...'
+        log 'Installing Jupyter NB extension [$ext]...'
         if [[ $ext == 'gs://'* ]]; then
           gsutil cp $ext /etc
           JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
           docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-          docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+          docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
         else
-          docker exec -d -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/jupyter_pip_install_notebook_extension.sh $ext
+          docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/jupyter_pip_install_notebook_extension.sh $ext
         fi
       done
     fi
@@ -167,7 +167,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     if [ ! -z "${JUPYTER_SERVER_EXTENSIONS}" ] ; then
       for ext in ${JUPYTER_SERVER_EXTENSIONS}
       do
-        log 'Installing Jupyter server extension...'
+        log 'Installing Jupyter server extension [$ext]...'
         if [[ $ext == 'gs://'* ]]; then
           gsutil cp $ext /etc
           JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
@@ -183,7 +183,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     if [ ! -z "${JUPYTER_COMBINED_EXTENSIONS}"  ] ; then
       for ext in ${JUPYTER_COMBINED_EXTENSIONS}
       do
-        log 'Installing Jupyter combined extension...'
+        log 'Installing Jupyter combined extension [$ext]...'
         log $ext
         if [[ $ext == 'gs://'* ]]; then
           gsutil cp $ext /etc
@@ -201,7 +201,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
       log 'Installing Jupyter custom.js...'
       gsutil cp ${JUPYTER_CUSTOM_JS_URI} /etc
       JUPYTER_CUSTOM_JS=`basename ${JUPYTER_CUSTOM_JS_URI}`
-      docker exec -d ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
+      docker exec ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
       docker cp /etc/${JUPYTER_CUSTOM_JS} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
     fi
 
@@ -210,18 +210,18 @@ if [[ "${ROLE}" == 'Master' ]]; then
       log 'Installing Google sign in extension...'
       gsutil cp ${JUPYTER_GOOGLE_SIGN_IN_JS_URI} /etc
       JUPYTER_GOOGLE_SIGN_IN_JS=`basename ${JUPYTER_GOOGLE_SIGN_IN_JS_URI}`
-      docker exec -d ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
+      docker exec ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
       docker cp /etc/${JUPYTER_GOOGLE_SIGN_IN_JS} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
     fi
 
     # If a Jupyter user script was specified, copy it into the jupyter docker container.
     if [ ! -z ${JUPYTER_USER_SCRIPT_URI} ] ; then
-      log 'Installing Jupyter user extension...'
+      log 'Installing Jupyter user extension [$JUPYTER_USER_SCRIPT_URI]...'
       gsutil cp ${JUPYTER_USER_SCRIPT_URI} /etc
       JUPYTER_USER_SCRIPT=`basename ${JUPYTER_USER_SCRIPT_URI}`
       docker cp /etc/${JUPYTER_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
-      docker exec -u root -d ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
-      docker exec -u root -d -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
+      docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
+      docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
     fi
 
 
