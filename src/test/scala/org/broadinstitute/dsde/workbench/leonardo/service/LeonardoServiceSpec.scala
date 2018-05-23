@@ -88,7 +88,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // check the firewall rule was created for the project
     computeDAO.firewallRules should contain key (project)
-    computeDAO.firewallRules(project).name.value shouldBe proxyConfig.firewallRuleName
+    computeDAO.firewallRules(project).name.value shouldBe dataprocConfig.firewallRuleName
 
     // should have created init and staging buckets
     val initBucketOpt = storageDAO.buckets.keys.find(_.value.startsWith("leoinit-"+name1.value))
@@ -358,7 +358,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName2 = ClusterName("test-cluster-2")
 
     // Our google project should have no firewall rules
-    computeDAO.firewallRules should not contain (project, proxyConfig.firewallRuleName)
+    computeDAO.firewallRules should not contain (project, dataprocConfig.firewallRuleName)
 
     // create the first cluster, this should create a firewall rule in our project
     leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
@@ -522,7 +522,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // check the firewall rule was created for the project
     computeDAO.firewallRules should contain key (project)
-    computeDAO.firewallRules(project).name.value shouldBe proxyConfig.firewallRuleName
+    computeDAO.firewallRules(project).name.value shouldBe dataprocConfig.firewallRuleName
 
     //staging bucket lives on!
     storageDAO.buckets.keys.find(bucket => bucket.value.contains("leoinit-")).size shouldBe 0

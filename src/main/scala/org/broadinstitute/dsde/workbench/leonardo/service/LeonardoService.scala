@@ -9,8 +9,6 @@ import cats.implicits._
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.leonardo.auth.LeoAuthProviderHelper
-import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
@@ -87,11 +85,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private val includeDeletedKey = "includeDeleted"
 
   private lazy val firewallRule = FirewallRule(
-    name = FirewallRuleName(proxyConfig.firewallRuleName),
+    name = FirewallRuleName(dataprocConfig.firewallRuleName),
     protocol = FirewallRuleProtocol(proxyConfig.jupyterProtocol),
     ports = List(FirewallRulePort(proxyConfig.jupyterPort.toString)),
-    network = VPCNetworkName(proxyConfig.firewallVPCNetwork),
-    targetTags = List(NetworkTag(proxyConfig.networkTag)))
+    network = dataprocConfig.vpcNetwork.map(VPCNetworkName),
+    targetTags = List(NetworkTag(dataprocConfig.networkTag)))
 
   // Startup script to install on the cluster master node. This is needed to support pause/resume clusters.
   private lazy val masterInstanceStartupScript: immutable.Map[String, String] = {
