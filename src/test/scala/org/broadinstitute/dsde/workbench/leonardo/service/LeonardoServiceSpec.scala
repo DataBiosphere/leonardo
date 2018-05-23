@@ -242,7 +242,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.createCluster(userInfo, project, name1, testClusterRequest).failed.futureValue shouldBe a [ClusterAlreadyExistsException]
 
     // flip the cluster to Deleted in the database
-    dbFutureValue { _.clusterQuery.completeDeletion(cluster.googleId) }
+    dbFutureValue { _.clusterQuery.completeDeletion(cluster.id) }
 
     // recreate cluster with same project and cluster name
     leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
@@ -459,15 +459,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName3 = ClusterName("test-cluster-3")
     val cluster3 = leo.createCluster(userInfo, project, clusterName3, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
-    dbFutureValue(dataAccess =>
-      dataAccess.clusterQuery.completeDeletion(cluster3.googleId)
-    )
+    dbFutureValue { _.clusterQuery.completeDeletion(cluster3.id) }
 
     leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
     leo.listClusters(userInfo, Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
     leo.listClusters(userInfo, Map("includeDeleted" -> "true")).futureValue.toSet.size shouldBe 3
   }
-
 
   it should "list clusters with labels" in isolatedDbTest {
     // create a couple clusters
@@ -553,7 +550,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse.googleId), Seq(masterInstance, workerInstance1, workerInstance2)) }
 
     // set the cluster to Running
-    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.googleId, IP("1.2.3.4")) }
+    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
 
     // stop the cluster
     leo.stopCluster(userInfo, project, name1).futureValue
@@ -583,7 +580,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // populate some instances for the cluster and set its status to Stopped
     dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse.googleId), Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped))) }
-    dbFutureValue { _.clusterQuery.updateClusterStatus(clusterCreateResponse.googleId, ClusterStatus.Stopped) }
+    dbFutureValue { _.clusterQuery.updateClusterStatus(clusterCreateResponse.id, ClusterStatus.Stopped) }
 
     // start the cluster
     leo.startCluster(userInfo, project, name1).futureValue

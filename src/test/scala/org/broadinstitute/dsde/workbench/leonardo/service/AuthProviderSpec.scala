@@ -63,12 +63,12 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
 
   val c1 = Cluster(
     clusterName = name1,
-    googleId = UUID.randomUUID(),
+    googleId = Option(UUID.randomUUID()),
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    operationName = OperationName("op1"),
+    operationName = Option(OperationName("op1")),
     status = ClusterStatus.Unknown,
     hostIp = Some(IP("numbers.and.dots")),
     creator = userEmail,
@@ -77,12 +77,11 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
     labels = Map("bam" -> "yes", "vcf" -> "no"),
     jupyterExtensionUri = None,
     jupyterUserScriptUri = None,
-    stagingBucket = Some(GcsBucketName("testStagingBucket1")), 
-    List.empty,
-    Set.empty,
-    None,
-    Instant.now()
-  )
+    stagingBucket = Some(GcsBucketName("testStagingBucket1")),
+    errors = List.empty,
+    instances = Set.empty,
+    userJupyterExtensionConfig = None,
+    dateAccessed = Instant.now())
 
   val gdDAO = new MockGoogleDataprocDAO
   val computeDAO = new MockGoogleComputeDAO
