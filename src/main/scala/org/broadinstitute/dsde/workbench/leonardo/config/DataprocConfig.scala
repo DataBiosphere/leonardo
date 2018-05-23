@@ -8,5 +8,9 @@ case class DataprocConfig(
                            leoGoogleProject: GoogleProject,
                            dataprocDockerImage: String,
                            clusterUrlBase: String,
-                           jupyterServerName: String
+                           jupyterServerName: String,
+                           firewallRuleName: String,
+                           networkTag: String,
+                           vpcNetwork: Option[String],
+                           vpcSubnet: Option[String]
                          )
