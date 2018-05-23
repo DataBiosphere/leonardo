@@ -11,6 +11,8 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GcsPathSupport, GoogleProject, ServiceAccountKeyId, parseGcsPath}
 
+import scala.concurrent.Future
+
 case class ClusterRecord(id: Long,
                          clusterName: String,
                          googleId: Option[UUID],
@@ -171,10 +173,11 @@ trait ClusterComponent extends LeoComponent {
     }
 
     // TODO: Check if this should be removed and its usages replaced by getById
-    def getByGoogleId(googleId: UUID): DBIO[Option[Cluster]] = {
-      clusterQueryWithInstancesAndErrorsAndLabels.filter { _._1.googleId === googleId }.result map { recs =>
+    def getByGoogleId(googleId: Option[UUID]): DBIO[Option[Cluster]] = googleId match {
+      case Some(gId) => clusterQueryWithInstancesAndErrorsAndLabels.filter { _._1.googleId === gId }.result map { recs =>
         unmarshalClustersWithInstancesAndLabels(recs).headOption
       }
+      case None => DBIO.successful(None)
     }
 
     def getById(id: Long): DBIO[Option[Cluster]] = {

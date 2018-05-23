@@ -39,35 +39,34 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
   val creatingCluster = Cluster(
     clusterName = name1,
-    googleId = UUID.randomUUID(),
+    googleId = Option(UUID.randomUUID()),
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    operationName = OperationName("op1"),
+    operationName = Option(OperationName("op1")),
     status = ClusterStatus.Creating,
     hostIp = None,
     creator = userEmail,
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"),
-    None,
-    None,
-    Some(GcsBucketName("testStagingBucket1")),
-    List.empty,
-    Set.empty,
-    Some(userExtConfig),
-    Instant.now()
-  )
+    jupyterExtensionUri = None,
+    jupyterUserScriptUri = None,
+    stagingBucket = Some(GcsBucketName("testStagingBucket1")),
+    errors = List.empty,
+    instances = Set.empty,
+    userJupyterExtensionConfig = Some(userExtConfig),
+    dateAccessed = Instant.now())
 
   val deletingCluster = Cluster(
     clusterName = name2,
-    googleId = UUID.randomUUID(),
+    googleId = Option(UUID.randomUUID()),
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
-    operationName = OperationName("op1"),
+    operationName = Option(OperationName("op1")),
     status = ClusterStatus.Deleting,
     hostIp = None,
     creator = userEmail,
@@ -76,58 +75,55 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     labels = Map("bam" -> "yes", "vcf" -> "no"),
     jupyterExtensionUri = Some(jupyterExtensionUri),
     jupyterUserScriptUri = Some(jupyterUserScriptUri),
-    Some(GcsBucketName("testStagingBucket1")),
-    List.empty,
-    Set(masterInstance, workerInstance1, workerInstance2),
-    None,
-    Instant.now()
-  )
+    stagingBucket = Some(GcsBucketName("testStagingBucket1")),
+    errors = List.empty,
+    instances = Set(masterInstance, workerInstance1, workerInstance2),
+    userJupyterExtensionConfig = None,
+    dateAccessed = Instant.now())
 
   val stoppingCluster = Cluster(
     clusterName = name3,
-    googleId = UUID.randomUUID(),
+    googleId = Option(UUID.randomUUID()),
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    operationName = OperationName("op1"),
+    operationName = Option(OperationName("op1")),
     status = ClusterStatus.Stopping,
     hostIp = None,
     creator = userEmail,
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"),
-    None,
-    None,
-    Some(GcsBucketName("testStagingBucket1")),
-    List.empty,
-    Set(masterInstance, workerInstance1, workerInstance2),
-    None,
-    Instant.now()
-  )
+    jupyterExtensionUri = None,
+    jupyterUserScriptUri = None,
+    stagingBucket = Some(GcsBucketName("testStagingBucket1")),
+    errors = List.empty,
+    instances = Set(masterInstance, workerInstance1, workerInstance2),
+    userJupyterExtensionConfig = None,
+    dateAccessed = Instant.now())
 
   val startingCluster = Cluster(
     clusterName = name3,
-    googleId = UUID.randomUUID(),
+    googleId = Option(UUID.randomUUID()),
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    operationName = OperationName("op1"),
+    operationName = Option(OperationName("op1")),
     status = ClusterStatus.Starting,
     hostIp = None,
     creator = userEmail,
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"),
-    None,
-    None,
-    Some(GcsBucketName("testStagingBucket1")),
-    List.empty,
-    Set(masterInstance, workerInstance1, workerInstance2),
-    None,
-    Instant.now()
-  )
+    jupyterExtensionUri = None,
+    jupyterUserScriptUri = None,
+    stagingBucket = Some(GcsBucketName("testStagingBucket1")),
+    errors = List.empty,
+    instances = Set(masterInstance, workerInstance1, workerInstance2),
+    userJupyterExtensionConfig = None,
+    dateAccessed = Instant.now())
 
   val clusterInstances = Map(Master -> Set(masterInstance.key),
                              Worker -> Set(workerInstance1.key, workerInstance2.key))
@@ -357,7 +353,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(clusterInstances)
 
     when {
-      dao.getClusterErrorDetails(mockitoEq(OperationName("op1")))
+      dao.getClusterErrorDetails(mockitoEq(Option(OperationName("op1"))))
     } thenReturn Future.successful(None)
 
     val iamDAO = mock[GoogleIamDAO]
@@ -400,7 +396,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(ClusterStatus.Error)
 
     when {
-      gdDAO.getClusterErrorDetails(mockitoEq(OperationName("op1")))
+      gdDAO.getClusterErrorDetails(mockitoEq(Option(OperationName("op1"))))
     } thenReturn Future.successful(Some(ClusterErrorDetails(Code.CANCELLED.value, Some("test message"))))
 
     when {
@@ -523,7 +519,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     }
 
     when {
-      gdDAO.getClusterErrorDetails(mockitoEq(OperationName("op1")))
+      gdDAO.getClusterErrorDetails(mockitoEq(Option(OperationName("op1"))))
     } thenReturn Future.successful(Some(ClusterErrorDetails(Code.UNKNOWN.value, Some("Test message"))))
 
     when {
@@ -534,7 +530,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     when {
       gdDAO.createCluster(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), any[MachineConfig], any[GcsPath], any[Option[WorkbenchEmail]], any[Option[String]], any[GcsBucketName])
     } thenReturn Future.successful {
-      Operation(creatingCluster.operationName, newClusterId)
+      Operation(creatingCluster.operationName.get, newClusterId)
     }
 
     when {
@@ -682,7 +678,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual creatingCluster
     val creatingCluster2 = creatingCluster.copy(
       clusterName = ClusterName(creatingCluster.clusterName.value + "_2"),
-      googleId = UUID.randomUUID(),
+      googleId = Option(UUID.randomUUID()),
       hostIp = Option(IP("5.6.7.8"))
     )
     dbFutureValue { _.clusterQuery.save(creatingCluster2, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual creatingCluster2
