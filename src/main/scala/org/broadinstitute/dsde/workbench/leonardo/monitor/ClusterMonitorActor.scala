@@ -145,7 +145,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       _ <- persistInstances(instances)
       // update DB after auth futures finish
       _ <- dbRef.inTransaction { dataAccess =>
-        dataAccess.clusterQuery.setToRunning(cluster.googleId, publicIp)
+        dataAccess.clusterQuery.setToRunning(cluster.id, publicIp)
       }
       // Remove the Dataproc Worker IAM role for the cluster service account.
       // Only happens if the cluster was created with a service account other

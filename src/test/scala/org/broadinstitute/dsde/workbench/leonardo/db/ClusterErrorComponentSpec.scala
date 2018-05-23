@@ -17,12 +17,12 @@ class ClusterErrorComponentSpec extends TestComponent with FlatSpecLike with Com
   "ClusterErrorComponent" should "save, and get" in isolatedDbTest {
     val c1 = Cluster(
       clusterName = name1,
-      googleId = UUID.randomUUID(),
+      googleId = Option(UUID.randomUUID()),
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
       machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, name1),
-      operationName = OperationName("op1"),
+      operationName = Option(OperationName("op1")),
       status = ClusterStatus.Creating,
       hostIp = None,
       creator = userEmail,
@@ -31,11 +31,11 @@ class ClusterErrorComponentSpec extends TestComponent with FlatSpecLike with Com
       labels = Map.empty,
       jupyterExtensionUri = Some(jupyterExtensionUri),
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      Some(GcsBucketName("testStagingBucket1")),
-      List.empty,
-      Set.empty,
-      None,
-      Instant.now())
+      stagingBucket = Some(GcsBucketName("testStagingBucket1")),
+      errors = List.empty,
+      instances = Set.empty,
+      userJupyterExtensionConfig = None,
+      dateAccessed = Instant.now())
 
     lazy val timestamp = Instant.now().truncatedTo(ChronoUnit.SECONDS)
     val clusterError = ClusterError("Some Error", 10, timestamp)

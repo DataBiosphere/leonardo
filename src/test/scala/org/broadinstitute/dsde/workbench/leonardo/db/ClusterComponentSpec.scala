@@ -14,8 +14,6 @@ import org.scalatest.FlatSpecLike
 import org.scalatest.compatible.Assertion
 
 class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils {
-  import ClusterComponentSpec._
-
   "ClusterComponent" should "list, save, get, and delete" in isolatedDbTest {
     dbFutureValue { _.clusterQuery.list() } shouldEqual Seq()
 
@@ -384,23 +382,5 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
     assertEquivalent(updatedC1Again) { dbFutureValue { _.clusterQuery.mergeInstances(updatedC1Again) } }
     assertEquivalent(updatedC1) { dbFutureValue { _.clusterQuery.getById(updatedC1Id) }.get }
-  }
-}
-
-object ClusterComponentSpec {
-  import org.scalatest.Matchers._
-
-  // Equivalence means clusters have the same fields when ignoring the id field
-  private[db] def assertEquivalent(cs1: Set[Cluster])(cs2: Set[Cluster]): Assertion = {
-    val fixedId = 0
-
-    val cs1WithFixedId = cs1 foreach { _.copy(id = fixedId) }
-    val cs2WithFixedId = cs2 foreach { _.copy(id = fixedId) }
-
-    cs1WithFixedId shouldEqual cs2WithFixedId
-  }
-
-  private[db] def assertEquivalent(c1: Cluster)(c2: Cluster): Assertion = {
-    assertEquivalent(Set(c1))(Set(c2))
   }
 }

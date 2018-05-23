@@ -17,12 +17,12 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTest
   "LabelComponent" should "save, get,and delete" in isolatedDbTest {
     val c1 = Cluster(
       clusterName = name1,
-      googleId = UUID.randomUUID(),
+      googleId = Option(UUID.randomUUID()),
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-      operationName = OperationName("op1"),
+      operationName = Option(OperationName("op1")),
       status = ClusterStatus.Creating,
       hostIp = None,
       creator = userEmail,
@@ -31,35 +31,33 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTest
       labels = Map.empty,
       jupyterExtensionUri = Some(jupyterExtensionUri),
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      Some(GcsBucketName("testStagingBucket1")),
-      List.empty,
-      Set.empty,
-      None,
-      Instant.now()
-    )
+      stagingBucket = Some(GcsBucketName("testStagingBucket1")),
+      errors = List.empty,
+      instances = Set.empty,
+      userJupyterExtensionConfig = None,
+      dateAccessed = Instant.now())
 
     val c2 = Cluster(
       clusterName = name2,
-      googleId = UUID.randomUUID(),
+      googleId = Option(UUID.randomUUID()),
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
-      operationName = OperationName("op2"),
+      operationName = Option(OperationName("op2")),
       status = ClusterStatus.Unknown,
       hostIp = Some(IP("sure, this is an IP address")),
       creator = userEmail,
       createdDate = Instant.now(),
       destroyedDate = None,
       labels = Map.empty,
-      None,
-      None,
-      Some(GcsBucketName("testStagingBucket2")),
-      List.empty,
-      Set.empty,
-      None,
-      Instant.now()
-    )
+      jupyterExtensionUri = None,
+      jupyterUserScriptUri = None,
+      stagingBucket = Some(GcsBucketName("testStagingBucket2")),
+      errors = List.empty,
+      instances = Set.empty,
+      userJupyterExtensionConfig = None,
+      dateAccessed = Instant.now())
 
     val c2Map = Map("bam" -> "true", "sample" -> "NA12878")
 

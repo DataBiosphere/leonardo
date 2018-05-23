@@ -16,12 +16,12 @@ class InstanceComponentSpec extends TestComponent with FlatSpecLike with CommonT
 
   val c1 = Cluster(
     clusterName = name1,
-    googleId = UUID.randomUUID(),
+    googleId = Option(UUID.randomUUID()),
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    operationName = OperationName("op1"),
+    operationName = Option(OperationName("op1")),
     status = ClusterStatus.Unknown,
     hostIp = Some(IP("numbers.and.dots")),
     creator = userEmail,
@@ -30,12 +30,11 @@ class InstanceComponentSpec extends TestComponent with FlatSpecLike with CommonT
     labels = Map("bam" -> "yes", "vcf" -> "no"),
     jupyterExtensionUri = None,
     jupyterUserScriptUri = None,
-    Some(GcsBucketName("testStagingBucket1")),
-    List.empty,
-    Set.empty,
-    None,
-    Instant.now()
-  )
+    stagingBucket = Some(GcsBucketName("testStagingBucket1")),
+    errors = List.empty,
+    instances = Set.empty,
+    userJupyterExtensionConfig = None,
+    dateAccessed = Instant.now())
 
   "InstanceComponent" should "save and get instances" in isolatedDbTest {
     dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), None) } shouldEqual c1

@@ -259,7 +259,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         }
 
         // Update the cluster status to Stopping
-        _ <- dbRef.inTransaction { _.clusterQuery.setToStopping(cluster.googleId) }
+        _ <- dbRef.inTransaction { _.clusterQuery.setToStopping(cluster.id) }
       } yield {
         clusterMonitorSupervisor ! ClusterStopped(cluster.copy(status = ClusterStatus.Stopping))
       }
