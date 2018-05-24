@@ -22,7 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterDateAccessedActor.updateDateAccessed
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterDateAccessedActor.UpdateDateAccessed
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -122,7 +122,7 @@ class ProxyService(proxyConfig: ProxyConfig,
 
   private def proxyInternal(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest): Future[HttpResponse] = {
     logger.debug(s"Received proxy request for user user $userInfo")
-    clusterDateAccessedActor ! updateDateAccessed(clusterName, googleProject, Instant.now())
+    clusterDateAccessedActor ! UpdateDateAccessed(clusterName, googleProject, Instant.now())
     getTargetHost(googleProject, clusterName) flatMap {
       case ClusterReady(targetHost) =>
         // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a

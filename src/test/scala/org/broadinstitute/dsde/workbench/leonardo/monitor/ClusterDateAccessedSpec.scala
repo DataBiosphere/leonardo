@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ServiceAccountInfo}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, MachineConfig, OperationName}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterDateAccessedActor.updateDateAccessed
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterDateAccessedActor.UpdateDateAccessed
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
 import org.scalatest.concurrent.Eventually.eventually
@@ -51,7 +51,7 @@ class ClusterDateAccessedSpec extends TestKit(ActorSystem("leonardotest")) with
       _.clusterQuery.save(testCluster1, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual testCluster1
     val currentTime = Instant.now()
     val dateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(autoFreezeconfig, DbSingleton.ref))
-    dateAccessedActor ! updateDateAccessed(testCluster1.clusterName, testCluster1.googleProject, currentTime)
+    dateAccessedActor ! UpdateDateAccessed(testCluster1.clusterName, testCluster1.googleProject, currentTime)
     eventually(timeout(Span(5, Seconds))) {
       val c1 = dbFutureValue { _.clusterQuery.getByGoogleId(testCluster1.googleId) }
       c1.map(_.dateAccessed).get shouldBe currentTime

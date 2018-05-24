@@ -243,7 +243,7 @@ trait ClusterComponent extends LeoComponent {
       clusterQuery.filter { _.googleId === googleId }.filter { _.dateAccessed < Timestamp.from(dateAccessed)}.map(_.dateAccessed).update(Timestamp.from(dateAccessed))
     }
 
-    def updateDateAccessedByProjectandName(googleProject: GoogleProject, clusterName: ClusterName, dateAccessed: Instant): DBIO[Int] = {
+    def updateDateAccessedByProjectAndName(googleProject: GoogleProject, clusterName: ClusterName, dateAccessed: Instant): DBIO[Int] = {
       clusterQuery.getActiveClusterByName(googleProject, clusterName) flatMap {
         case Some(c) => clusterQuery.updateDateAccessed(c.googleId, dateAccessed)
         case None => DBIO.successful(0)
