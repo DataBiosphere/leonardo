@@ -40,7 +40,7 @@ class ServiceAccountProviderHelper(wrappedServiceAccountProvider: ServiceAccount
 
   // Default timeout is specified in reference.conf
   private lazy val providerTimeout = config.as[FiniteDuration]("providerTimeout")
-  private implicit val scheudler = system.scheduler
+  private implicit val scheduler = system.scheduler
 
   private def safeCall[T](future: => Future[T])(implicit executionContext: ExecutionContext): Future[T] = {
     val exceptionHandler: PartialFunction[Throwable, Future[Nothing]] = {
