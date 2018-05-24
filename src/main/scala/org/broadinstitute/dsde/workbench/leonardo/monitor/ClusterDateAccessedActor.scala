@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.AutoFreezeConfig
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterDateAccessedActor.{flush, updateDateAccessed}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterDateAccessedActor.{Flush, UpdateDateAccessed}
 import scala.concurrent.duration._
 
 object ClusterDateAccessedActor {
@@ -19,9 +19,9 @@ object ClusterDateAccessedActor {
 
   sealed trait ClusterAccessDateMessage
 
-  case class updateDateAccessed(clusterName: ClusterName, googleProject: GoogleProject, dateAccessed: Instant) extends ClusterAccessDateMessage
+  case class UpdateDateAccessed(clusterName: ClusterName, googleProject: GoogleProject, dateAccessed: Instant) extends ClusterAccessDateMessage
 
-  case class flush() extends ClusterAccessDateMessage
+  case object Flush extends ClusterAccessDateMessage
 
 }
 
@@ -33,23 +33,23 @@ class ClusterDateAccessedActor(autoFreezeConfig: AutoFreezeConfig, dbRef: DbRefe
 
   override def preStart(): Unit = {
     super.preStart()
-    system.scheduler.schedule(0 seconds, autoFreezeConfig.dateAccessedMonitorScheduler, self, flush())
+    system.scheduler.schedule(autoFreezeConfig.dateAccessedMonitorScheduler, autoFreezeConfig.dateAccessedMonitorScheduler, self, Flush)
   }
 
   override def receive: Receive = {
-    case updateDateAccessed(clusterName, googleProject, dateAccessed) =>
+    case UpdateDateAccessed(clusterName, googleProject, dateAccessed) =>
       dateAccessedMap = dateAccessedMap + ((clusterName, googleProject) -> dateAccessed)
 
-    case flush() => {
+    case Flush => {
       dateAccessedMap.map(da => updateDateAccessed(da._1._1, da._1._2, da._2))
-      dateAccessedMap = dateAccessedMap.empty
+      dateAccessedMap = Map.empty
     }
   }
 
   private def updateDateAccessed(clusterName: ClusterName, googleProject: GoogleProject, dateAccessed: Instant) = {
     logger.info(s"Update dateAccessed for $clusterName in project $googleProject to $dateAccessed")
     dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.updateDateAccessedByProjectandName(googleProject, clusterName, dateAccessed)
+      dataAccess.clusterQuery.updateDateAccessedByProjectAndName(googleProject, clusterName, dateAccessed)
     }
   }
 }
