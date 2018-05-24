@@ -87,4 +87,13 @@ package object config {
   implicit val samConfigReader: ValueReader[SamConfig] = ValueReader.relative { config =>
     SamConfig(config.getString("server"))
   }
+
+  implicit val autoFreezeConfigReader: ValueReader[AutoFreezeConfig] = ValueReader.relative { config =>
+    AutoFreezeConfig(
+      toScalaDuration(config.getDuration("dateAccessedMonitorScheduler")),
+      toScalaDuration(config.getDuration("autoFreezeAfter")),
+      toScalaDuration(config.getDuration("autoFreezeCheckScheduler"))
+    )
+
+  }
 }
