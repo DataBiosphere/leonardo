@@ -11,7 +11,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.scalatest.FlatSpecLike
-import org.scalatest.compatible.Assertion
 
 class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils {
   "ClusterComponent" should "list, save, get, and delete" in isolatedDbTest {
@@ -176,7 +175,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFailure { _.clusterQuery.save(c4, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(c1Id) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.listActive() } should contain theSameElementsAs Seq(c2, c3)
+    assertEquivalent(Set(c2, c3)) { dbFutureValue { _.clusterQuery.listActive() }.toSet }
+
     val c1status = dbFutureValue { _.clusterQuery.getById(c1Id) }.get
     c1status.status shouldEqual ClusterStatus.Deleting
     c1status.destroyedDate shouldBe None

@@ -20,6 +20,7 @@ import scala.concurrent.ExecutionContext
 // values common to multiple tests, to reduce boilerplate
 
 trait CommonTestData { this: ScalaFutures =>
+  val name0 = ClusterName("name0")
   val name1 = ClusterName("name1")
   val name2 = ClusterName("name2")
   val name3 = ClusterName("name3")
