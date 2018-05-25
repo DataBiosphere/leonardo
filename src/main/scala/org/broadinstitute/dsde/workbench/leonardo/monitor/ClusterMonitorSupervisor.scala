@@ -36,8 +36,6 @@ object ClusterMonitorSupervisor {
   case class StopClusterAfterCreation(cluster: Cluster) extends ClusterSupervisorMessage
   // Auto freeze idle clusters
   case object AutoFreezeClusters extends ClusterSupervisorMessage
-
-
 }
 
 class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig) extends Actor with LazyLogging {
@@ -106,7 +104,6 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
 
     case AutoFreezeClusters =>
       autoFreezeClusters
-
   }
 
   def createChildActor(cluster: Cluster): ActorRef = {
