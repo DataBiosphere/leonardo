@@ -51,7 +51,7 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest")) with Fl
     super.afterAll()
   }
 
-  "ClusterDateAccessedMonitor" should "update date accessed" in isolatedDbTest {
+  "ClusterSupervisorMonitor" should "auto freeze the cluster" in isolatedDbTest {
 
     val gdDAO = mock[GoogleDataprocDAO]
 
@@ -68,7 +68,6 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest")) with Fl
     }
 
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
-
     dbFutureValue {
       _.clusterQuery.save(runningCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id))
     } shouldEqual runningCluster
@@ -76,7 +75,7 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest")) with Fl
       DbSingleton.ref, system.deadLetters, authProvider, autoFreezeconfig))
     new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, clusterSupervisorActor, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper)
 
-    eventually(timeout(Span(300, Seconds))) {
+    eventually(timeout(Span(30, Seconds))) {
       val c1 = dbFutureValue {
         _.clusterQuery.getByGoogleId(runningCluster.googleId)
       }
