@@ -11,6 +11,8 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GcsPathSupport, GoogleProject, ServiceAccountKeyId, parseGcsPath}
 
+import scala.concurrent.duration.FiniteDuration
+
 case class ClusterRecord(id: Long,
                          clusterName: String,
                          googleId: UUID,
@@ -248,6 +250,10 @@ trait ClusterComponent extends LeoComponent {
         case Some(c) => clusterQuery.updateDateAccessed(c.googleId, dateAccessed)
         case None => DBIO.successful(0)
       }
+    }
+
+    def getClusterReadyToAutoFreeze(idleTime: FiniteDuration): DBIO[Seq[Cluster]] = {
+      clusterQueryWithLabels.filter(_._1.dateAccessed < Timestamp.from(Instant.now().minusSeconds(idleTime.toMinutes))).result map { recs => unmarshalClustersWithLabels(recs)}
     }
 
     def listByLabels(labelMap: LabelMap, includeDeleted: Boolean): DBIO[Seq[Cluster]] = {
