@@ -252,7 +252,7 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    def getClusterReadyToAutoFreeze(idleTime: FiniteDuration): DBIO[Seq[Cluster]] = {
+    def getClustersReadyToAutoFreeze(idleTime: FiniteDuration): DBIO[Seq[Cluster]] = {
       clusterQueryWithInstancesAndErrorsAndLabels.filter(_._1.dateAccessed < Timestamp.from(Instant.now().minusSeconds(idleTime.toSeconds)))
           .filter(_._1.status inSetBind ClusterStatus.stoppableStatuses.map(_.toString)).result map { recs => unmarshalClustersWithInstancesAndLabels(recs)}
     }

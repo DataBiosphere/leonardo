@@ -123,13 +123,15 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
 
   def autoFreezeClusters: Future[Unit] = {
     val clusterList = dbRef.inTransaction {
-      _.clusterQuery.getClusterReadyToAutoFreeze(autoFreezeConfig.autoFreezeAfter)
+      _.clusterQuery.getClustersReadyToAutoFreeze(autoFreezeConfig.autoFreezeAfter)
     }
     clusterList map { cl =>
-      cl.foreach(c => {
+      cl.foreach { c =>
         logger.info(s"Auto freezing cluster ${c.clusterName} in project ${c.googleProject}")
-        leoService.internalStopCluster(c)
-      })
+        leoService.internalStopCluster(c).failed.foreach { e =>
+          logger.warn(s"Error occurred auto freezing cluster ${c.projectNameString}", e)
+        }
+      }
     }
   }
 

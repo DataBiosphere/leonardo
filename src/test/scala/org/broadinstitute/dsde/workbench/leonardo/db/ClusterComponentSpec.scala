@@ -11,6 +11,8 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.scalatest.FlatSpecLike
+import org.scalatest.concurrent.Eventually.eventually
+import org.scalatest.time.{Seconds, Span}
 
 class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils {
 
@@ -398,4 +400,63 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFutureValue { _.clusterQuery.getByGoogleId(c1.googleId) } shouldBe Some(updatedC1Again)
   }
 
+  it should "get list of clusters to auto freeze" in isolatedDbTest {
+    val c1 = Cluster(
+      clusterName = name1,
+      googleId = UUID.randomUUID(),
+      googleProject = project,
+      serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
+      machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
+      clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
+      operationName = OperationName("op1"),
+      status = ClusterStatus.Running,
+      hostIp = Some(IP("numbers.and.dots")),
+      creator = userEmail,
+      createdDate = Instant.now(),
+      destroyedDate = None,
+      labels = Map("bam" -> "yes", "vcf" -> "no"),
+      jupyterExtensionUri = None,
+      jupyterUserScriptUri = None,
+      Some(GcsBucketName("testStagingBucket1")),
+      List.empty,
+      Set(masterInstance),
+      None,
+      Instant.now()
+    )
+
+    val c2 = Cluster(
+      clusterName = name2,
+      googleId = UUID.randomUUID(),
+      googleProject = project,
+      serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
+      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
+      clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
+      operationName = OperationName("op2"),
+      status = ClusterStatus.Stopped,
+      hostIp = None,
+      creator = userEmail,
+      createdDate = Instant.now(),
+      destroyedDate = None,
+      labels = Map.empty,
+      jupyterExtensionUri = Some(jupyterExtensionUri),
+      jupyterUserScriptUri = Some(jupyterUserScriptUri),
+      Some(GcsBucketName("testStagingBucket2")),
+      List.empty,
+      Set.empty,
+      None,
+      Instant.now()
+    )
+
+    dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1
+    dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c2
+
+    dbFutureValue { _.clusterQuery.getClustersReadyToAutoFreeze(autoFreezeconfig.autoFreezeAfter) } shouldBe List.empty
+
+    eventually(timeout(Span(30, Seconds))) {
+      val autoFreezeList = dbFutureValue { _.clusterQuery.getClustersReadyToAutoFreeze(autoFreezeconfig.autoFreezeAfter) }
+      autoFreezeList should contain (c1)
+      //c2 is already stopped
+      autoFreezeList should not contain c2
+    }
+  }
 }
