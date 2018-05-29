@@ -226,7 +226,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
 
     log 'Starting Jupyter Notebook...'
-    docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_NOTEBOOK}
+    docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_NOTEBOOK_CMD}
     log 'All done!'
 fi
 
