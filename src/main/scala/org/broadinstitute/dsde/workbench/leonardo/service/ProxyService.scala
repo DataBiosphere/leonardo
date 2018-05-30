@@ -122,8 +122,6 @@ class ProxyService(proxyConfig: ProxyConfig,
 
   private def proxyInternal(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest): Future[HttpResponse] = {
     logger.debug(s"Received proxy request for user user $userInfo")
-    clusterDateAccessedActor ! UpdateDateAccessed(clusterName, googleProject, Instant.now())
-
     getTargetHost(googleProject, clusterName) flatMap {
       case ClusterReady(targetHost) =>
         // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
