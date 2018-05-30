@@ -37,7 +37,7 @@ fi
 if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_HOME=/etc/jupyter
     JUPYTER_USER_HOME=/home/jupyter-user
-    JUPYTER_NOTEBOOK_CMD="/usr/local/bin/jupyter notebook > ${JUPYTER_USER_HOME}/jupyter.log 2>&1"
+    JUPYTER_NOTEBOOK_CMD="/usr/local/bin/jupyter notebook &> ${JUPYTER_USER_HOME}/jupyter.log"
     KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
 
     # The following values are populated by Leo when a cluster is created.
