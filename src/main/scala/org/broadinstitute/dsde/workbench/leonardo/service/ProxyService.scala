@@ -123,11 +123,13 @@ class ProxyService(proxyConfig: ProxyConfig,
   private def proxyInternal(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest): Future[HttpResponse] = {
     logger.debug(s"Received proxy request for user user $userInfo")
     clusterDateAccessedActor ! UpdateDateAccessed(clusterName, googleProject, Instant.now())
+
     getTargetHost(googleProject, clusterName) flatMap {
       case ClusterReady(targetHost) =>
         // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
         // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
         // The presence of this header distinguishes WebSocket from http requests.
+        clusterDateAccessedActor ! UpdateDateAccessed(clusterName, googleProject, Instant.now())
         val responseFuture = request.header[UpgradeToWebSocket] match {
           case Some(upgrade) => handleWebSocketRequest(targetHost, request, upgrade)
           case None => handleHttpRequest(targetHost, request)
@@ -143,6 +145,7 @@ class ProxyService(proxyConfig: ProxyConfig,
       case ClusterNotFound =>
         throw ClusterNotFoundException(googleProject, clusterName)
     }
+
   }
 
   private def handleHttpRequest(targetHost: Host, request: HttpRequest): Future[HttpResponse] = {
