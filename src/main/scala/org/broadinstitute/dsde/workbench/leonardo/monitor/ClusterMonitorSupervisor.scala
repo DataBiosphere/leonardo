@@ -4,7 +4,7 @@ import akka.actor.SupervisorStrategy.Restart
 import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, DataprocConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, LeoAuthProvider}
@@ -15,8 +15,8 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchException
 import scala.concurrent.Future
 
 object ClusterMonitorSupervisor {
-  def props(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider): Props =
-    Props(new ClusterMonitorSupervisor(monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, clusterDnsCache, authProvider))
+  def props(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig): Props =
+    Props(new ClusterMonitorSupervisor(monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, clusterDnsCache, authProvider, autoFreezeConfig))
 
   sealed trait ClusterSupervisorMessage
   case class RegisterLeoService(service: LeonardoService) extends ClusterSupervisorMessage
@@ -34,13 +34,22 @@ object ClusterMonitorSupervisor {
   case class RecreateCluster(cluster: Cluster) extends ClusterSupervisorMessage
   // sent after cluster creation succeeds, and the cluster should be stopped
   case class StopClusterAfterCreation(cluster: Cluster) extends ClusterSupervisorMessage
+  // Auto freeze idle clusters
+  case object AutoFreezeClusters extends ClusterSupervisorMessage
 }
 
-class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider) extends Actor with LazyLogging {
+class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig) extends Actor with LazyLogging {
   import context.dispatcher
 
   var leoService: LeonardoService = _
 
+  import context._
+
+  override def preStart(): Unit = {
+    super.preStart()
+    if(autoFreezeConfig.enableAutoFreeze)
+      system.scheduler.schedule(autoFreezeConfig.autoFreezeCheckScheduler, autoFreezeConfig.autoFreezeCheckScheduler, self, AutoFreezeClusters)
+  }
   override def receive: Receive = {
     case RegisterLeoService(service) =>
       leoService = service
@@ -76,7 +85,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
         dataAccess.clusterQuery.getByGoogleId(cluster.googleId)
       }.flatMap {
         case Some(resolvedCluster) if resolvedCluster.status.isStoppable =>
-          leoService.internalStopCluster(resolvedCluster.creator, resolvedCluster)
+          leoService.internalStopCluster(resolvedCluster)
         case Some(resolvedCluster) =>
           logger.warn(s"Unable to stop cluster ${resolvedCluster.projectNameString} in status ${resolvedCluster.status.toString} after creation.")
           Future.successful(())
@@ -93,6 +102,9 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
     case ClusterStarted(cluster) =>
       logger.info(s"Monitoring cluster ${cluster.projectNameString} after starting.")
       startClusterMonitorActor(cluster)
+
+    case AutoFreezeClusters =>
+      autoFreezeClusters
   }
 
   def createChildActor(cluster: Cluster): ActorRef = {
@@ -107,6 +119,20 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
         // don't recreate clusters if not configured to do so
       case watchMsg =>
         context.watchWith(child, watchMsg)
+    }
+  }
+
+  def autoFreezeClusters: Future[Unit] = {
+    val clusterList = dbRef.inTransaction {
+      _.clusterQuery.getClustersReadyToAutoFreeze(autoFreezeConfig.autoFreezeAfter)
+    }
+    clusterList map { cl =>
+      cl.foreach { c =>
+        logger.info(s"Auto freezing cluster ${c.clusterName} in project ${c.googleProject}")
+        leoService.internalStopCluster(c).failed.foreach { e =>
+          logger.warn(s"Error occurred auto freezing cluster ${c.projectNameString}", e)
+        }
+      }
     }
   }
 
