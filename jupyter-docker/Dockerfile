@@ -187,7 +187,8 @@ RUN apt-get -t jessie-cran34 install -y --no-install-recommends \
     gfortran \
     gcc \
     libcurl4-openssl-dev \
-    libssl-dev
+    libssl-dev \
+    libxml2-dev
 
 RUN R -e 'install.packages(c( \
     "repr",  \
