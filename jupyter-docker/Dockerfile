@@ -177,7 +177,8 @@ ENV PIP_USER=true
 # R Kernel
 #######################
 
-RUN apt-get -t jessie-cran34 install -y --no-install-recommends \
+RUN apt-get update \
+ && apt-get -t jessie-cran34 install -y --no-install-recommends \
     r-base \
     r-base-dev \
     r-recommended \
