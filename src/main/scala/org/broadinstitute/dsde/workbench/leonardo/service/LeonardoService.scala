@@ -231,11 +231,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually stop it
       _ <- checkClusterPermission(userInfo, StopStartCluster, cluster, throw401 = true)
 
-      _ <- internalStopCluster(userInfo.userEmail, cluster)
+      _ <- internalStopCluster(cluster)
     } yield ()
   }
 
-  def internalStopCluster(userEmail: WorkbenchEmail, cluster: Cluster): Future[Unit] = {
+  def internalStopCluster(cluster: Cluster): Future[Unit] = {
     if (cluster.status.isStoppable) {
       for {
         // First remove all its preemptible instances in Google, if any
