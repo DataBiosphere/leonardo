@@ -401,7 +401,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
   }
 
   it should "get list of clusters to auto freeze" in isolatedDbTest {
-    val c1 = Cluster(
+    val runningCluster = Cluster(
       clusterName = name1,
       googleId = UUID.randomUUID(),
       googleProject = project,
@@ -424,7 +424,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       Instant.now()
     )
 
-    val c2 = Cluster(
+    val stoppedCluster = Cluster(
       clusterName = name2,
       googleId = UUID.randomUUID(),
       googleProject = project,
@@ -447,16 +447,16 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       Instant.now()
     )
 
-    dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1
-    dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c2
+    dbFutureValue { _.clusterQuery.save(runningCluster, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual runningCluster
+    dbFutureValue { _.clusterQuery.save(stoppedCluster, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual stoppedCluster
 
     dbFutureValue { _.clusterQuery.getClustersReadyToAutoFreeze(autoFreezeconfig.autoFreezeAfter) } shouldBe List.empty
 
     eventually(timeout(Span(30, Seconds))) {
       val autoFreezeList = dbFutureValue { _.clusterQuery.getClustersReadyToAutoFreeze(autoFreezeconfig.autoFreezeAfter) }
-      autoFreezeList should contain (c1)
+      autoFreezeList should contain (runningCluster)
       //c2 is already stopped
-      autoFreezeList should not contain c2
+      autoFreezeList should not contain stoppedCluster
     }
   }
 }

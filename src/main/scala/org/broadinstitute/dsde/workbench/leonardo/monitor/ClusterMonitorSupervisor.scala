@@ -47,7 +47,8 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
 
   override def preStart(): Unit = {
     super.preStart()
-    system.scheduler.schedule(autoFreezeConfig.autoFreezeCheckScheduler, autoFreezeConfig.autoFreezeCheckScheduler, self, AutoFreezeClusters)
+    if(autoFreezeConfig.enableAutoFreeze)
+      system.scheduler.schedule(autoFreezeConfig.autoFreezeCheckScheduler, autoFreezeConfig.autoFreezeCheckScheduler, self, AutoFreezeClusters)
   }
   override def receive: Receive = {
     case RegisterLeoService(service) =>
