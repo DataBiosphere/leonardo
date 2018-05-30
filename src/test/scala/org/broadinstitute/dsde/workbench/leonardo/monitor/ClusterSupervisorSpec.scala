@@ -50,8 +50,8 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest")) with Fl
     TestKit.shutdownActorSystem(system)
     super.afterAll()
   }
-
-  "ClusterSupervisorMonitor" should "auto freeze the cluster" in isolatedDbTest {
+  //TODO: Remove ignore once auto freeze is enabled
+  "ClusterSupervisorMonitor" should "auto freeze the cluster" ignore isolatedDbTest {
 
     val gdDAO = mock[GoogleDataprocDAO]
 
