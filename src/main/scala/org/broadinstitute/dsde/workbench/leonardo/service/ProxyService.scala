@@ -143,7 +143,6 @@ class ProxyService(proxyConfig: ProxyConfig,
       case ClusterNotFound =>
         throw ClusterNotFoundException(googleProject, clusterName)
     }
-
   }
 
   private def handleHttpRequest(targetHost: Host, request: HttpRequest): Future[HttpResponse] = {
