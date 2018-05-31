@@ -315,7 +315,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
         val installTimeout = 2.minutes
 
         val installOutput = notebookPage.executeCell("""devtools::install_github("mlr-org/mlr")""", installTimeout)
-        installOutput should be 'defined
+        installOutput shouldBe 'defined
         installOutput.get should include ("Installing mlr")
         installOutput.get should not include ("Installation failed")
 
