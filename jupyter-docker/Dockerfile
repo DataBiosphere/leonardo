@@ -177,6 +177,8 @@ ENV PIP_USER=true
 # R Kernel
 #######################
 
+ENV LC_ALL en_US.UTF-8
+
 RUN apt-get update \
  && apt-get -t jessie-cran34 install -y --no-install-recommends \
     r-base \

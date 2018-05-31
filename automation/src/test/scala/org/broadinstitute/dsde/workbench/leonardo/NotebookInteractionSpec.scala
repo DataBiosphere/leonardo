@@ -325,6 +325,16 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       }
     }
 
+    // See https://github.com/DataBiosphere/leonardo/issues/398
+    "should set LC_ALL environment variable" in withWebDriver { implicit driver =>
+      Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+
+      withNewNotebook(ronCluster, RKernel) { notebookPage =>
+        // Some R libraries (e.g. mlr) require this to display histograms, etc
+        notebookPage.executeCell("""Sys.getenv("LC_ALL")""") shouldBe Some("en_US.UTF-8")
+      }
+    }
+
     //Test to check if extensions are installed correctly
     //Using nbtranslate extension from here:
     //https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
