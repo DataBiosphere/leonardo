@@ -22,6 +22,7 @@ RUN echo "deb $DEBIAN_REPO/debian jessie main"                   > /etc/apt/sour
  && apt-get -yq dist-upgrade \
  && apt-get install -yq --no-install-recommends \
     nano \
+    sudo \
     wget \
     gnupg \
     ca-certificates \
