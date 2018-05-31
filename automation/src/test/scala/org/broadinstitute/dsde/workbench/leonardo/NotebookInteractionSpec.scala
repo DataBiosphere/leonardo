@@ -303,27 +303,6 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       }
     }
 
-    // See https://github.com/DataBiosphere/leonardo/issues/398
-    "should be able to install mlr" in withWebDriver { implicit driver =>
-      Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
-
-      withNewNotebook(ronCluster, RKernel) { notebookPage =>
-        // mlr: machine learning in R
-        // https://github.com/mlr-org/mlr
-
-        // it may take a little while to install
-        val installTimeout = 2.minutes
-
-        val installOutput = notebookPage.executeCell("""devtools::install_github("mlr-org/mlr")""", installTimeout)
-        installOutput should be 'defined
-        installOutput.get should include ("Installing mlr")
-        installOutput.get should not include ("Installation failed")
-
-        // Make sure it was installed correctly; if not, this will return an error
-        notebookPage.executeCell("library(mlr)") shouldBe None
-      }
-    }
-
     //Test to check if extensions are installed correctly
     //Using nbtranslate extension from here:
     //https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
