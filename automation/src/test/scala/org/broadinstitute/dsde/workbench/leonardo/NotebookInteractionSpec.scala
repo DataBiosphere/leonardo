@@ -320,7 +320,8 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
         installOutput.get should not include ("Installation failed")
 
         // Make sure it was installed correctly; if not, this will return an error
-        notebookPage.executeCell("library(mlr)") shouldBe None
+        notebookPage.executeCell("library(mlr)") shouldBe Some("Loading required package: ParamHelpers")
+        notebookPage.executeCell(""""mlr" %in% installed.packages()""") shouldBe Some("TRUE")
       }
     }
 
