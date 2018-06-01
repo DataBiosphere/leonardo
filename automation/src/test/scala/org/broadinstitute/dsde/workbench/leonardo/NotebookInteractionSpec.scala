@@ -331,7 +331,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
 
       withNewNotebook(ronCluster, RKernel) { notebookPage =>
         // Some R libraries (e.g. mlr) require this to display histograms, etc
-        notebookPage.executeCell("""Sys.getenv("LC_ALL")""") shouldBe Some("en_US.UTF-8")
+        notebookPage.executeCell("""Sys.getenv("LC_ALL")""") shouldBe Some("'en_US.UTF-8'")
       }
     }
 
