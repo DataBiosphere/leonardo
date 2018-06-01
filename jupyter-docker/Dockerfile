@@ -178,7 +178,10 @@ ENV PIP_USER=true
 # R Kernel
 #######################
 
-RUN apt-get -t jessie-cran34 install -y --no-install-recommends \
+ENV LC_ALL en_US.UTF-8
+
+RUN apt-get update \
+ && apt-get -t jessie-cran34 install -y --no-install-recommends \
     r-base \
     r-base-dev \
     r-recommended \
@@ -188,7 +191,8 @@ RUN apt-get -t jessie-cran34 install -y --no-install-recommends \
     gfortran \
     gcc \
     libcurl4-openssl-dev \
-    libssl-dev
+    libssl-dev \
+    libxml2-dev
 
 RUN R -e 'install.packages(c( \
     "repr",  \
