@@ -274,7 +274,7 @@ class ClusterMonitorActor(val cluster: Cluster,
         case Unknown | Creating | Updating =>
           Future.successful(NotReadyCluster(googleStatus, googleInstances))
         // Take care we don't restart a Deleting or Stopping cluster if google hasn't updated their status yet
-        case Running if clusterStatus != Deleting && clusterStatus != Stopping && runningInstanceCount == googleInstances.size && jupyterProxyAvailable =>
+        case Running if (clusterStatus != Deleting && clusterStatus != Stopping && runningInstanceCount == googleInstances.size) || (clusterStatus == Starting && jupyterProxyAvailable) =>
           getMasterIp.map {
             case Some(ip) => ReadyCluster(ip, googleInstances)
             case None =>
