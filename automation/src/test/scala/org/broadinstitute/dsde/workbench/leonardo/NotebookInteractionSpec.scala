@@ -326,12 +326,24 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
     }
 
     // See https://github.com/DataBiosphere/leonardo/issues/398
-    "should set LC_ALL environment variable" in withWebDriver { implicit driver =>
+    "should use UTF-8 encoding" in withWebDriver { implicit driver =>
       Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
 
       withNewNotebook(ronCluster, RKernel) { notebookPage =>
-        // Some R libraries (e.g. mlr) require this to display histograms, etc
+        // Check the locale is set to en_US.UTF-8
         notebookPage.executeCell("""Sys.getenv("LC_ALL")""") shouldBe Some("'en_US.UTF-8'")
+
+        // Make sure unicode characters display correctly
+        notebookPage.executeCell("""install.packages("skimr")""")
+
+        val output = notebookPage.executeCell(
+          """library(skimr)
+            |data(iris)
+            |skim(iris)""".stripMargin)
+
+        output shouldBe 'defined
+        output.get should not include ("<U+")
+        output.get should include ("▂▇▅▇▆▅▂▂")
       }
     }
 
