@@ -45,7 +45,7 @@ class HttpGoogleDataprocDAO(appName: String,
 
   private lazy val oauth2Scopes = List(Oauth2Scopes.USERINFO_EMAIL, Oauth2Scopes.USERINFO_PROFILE)
   private lazy val bigqueryScopes = List(BigqueryScopes.BIGQUERY)
-  private lazy val cloudSourceRepositoryScopes = List(CloudSourceRepositoriesScopes.SOURCE_FULL_CONTROL)
+  private lazy val cloudSourceRepositoryScopes = List(CloudSourceRepositoriesScopes.SOURCE_READ_ONLY)
 
   private lazy val dataproc = {
     new Dataproc.Builder(httpTransport, jsonFactory, googleCredential)
