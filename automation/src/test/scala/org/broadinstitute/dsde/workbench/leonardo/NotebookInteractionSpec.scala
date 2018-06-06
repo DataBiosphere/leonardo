@@ -291,7 +291,10 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
         // it may take a little while to install
         val installTimeout = 2.minutes
 
-        notebookPage.executeCell("""install.packages("httr")""", installTimeout).get should include ("Installing package into '/home/jupyter-user/.rpackages'")
+        val output = notebookPage.executeCell("""install.packages("httr")""", installTimeout)
+        output shouldBe 'defined
+        output.get should include ("Installing package into")
+        output.get should include ("/home/jupyter-user/.rpackages")
 
         val httpGetTest =
           """library(httr)
