@@ -12,6 +12,7 @@ import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig}
+import org.broadinstitute.dsde.workbench.leonardo.dao.JupyterProxyDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache.{ClusterReady, GetClusterResponse, ProcessReadyCluster}
@@ -32,8 +33,8 @@ object ClusterMonitorActor {
   /**
     * Creates a Props object used for creating a {{{ClusterMonitorActor}}}.
     */
-  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider): Props =
-    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, clusterDnsCache, authProvider))
+  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider, jupyterProxyDAO: JupyterProxyDAO): Props =
+    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, clusterDnsCache, authProvider, jupyterProxyDAO))
 
   // ClusterMonitorActor messages:
 
@@ -65,7 +66,8 @@ class ClusterMonitorActor(val cluster: Cluster,
                           val googleStorageDAO: GoogleStorageDAO,
                           val dbRef: DbReference,
                           val clusterDnsCache: ActorRef,
-                          val authProvider: LeoAuthProvider) extends Actor with LazyLogging {
+                          val authProvider: LeoAuthProvider,
+                          val jupyterProxyDAO: JupyterProxyDAO) extends Actor with LazyLogging {
   import context._
 
   override def preStart(): Unit = {
@@ -262,6 +264,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       clusterStatus <- getDbClusterStatus
 
       googleStatus <- gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName)
+      jupyterProxyAvailable <- jupyterProxyDAO.getStatus(cluster.googleProject, cluster.clusterName)
       googleInstances <- getClusterInstances
 
       runningInstanceCount = googleInstances.filter(_.status == InstanceStatus.Running).size
@@ -271,7 +274,7 @@ class ClusterMonitorActor(val cluster: Cluster,
         case Unknown | Creating | Updating =>
           Future.successful(NotReadyCluster(googleStatus, googleInstances))
         // Take care we don't restart a Deleting or Stopping cluster if google hasn't updated their status yet
-        case Running if clusterStatus != Deleting && clusterStatus != Stopping && runningInstanceCount == googleInstances.size =>
+        case Running if clusterStatus != Deleting && clusterStatus != Stopping && runningInstanceCount == googleInstances.size && jupyterProxyAvailable =>
           getMasterIp.map {
             case Some(ip) => ReadyCluster(ip, googleInstances)
             case None =>
