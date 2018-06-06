@@ -15,6 +15,7 @@ import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.dataproc.Dataproc
 import com.google.api.services.dataproc.model.{Cluster => DataprocCluster, ClusterConfig => DataprocClusterConfig, ClusterStatus => DataprocClusterStatus, Operation => DataprocOperation, _}
 import com.google.api.services.oauth2.{Oauth2, Oauth2Scopes}
+import com.google.api.services.sourcerepo.v1.CloudSourceRepositoriesScopes
 import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, SecondaryWorker, Worker}
@@ -44,6 +45,7 @@ class HttpGoogleDataprocDAO(appName: String,
 
   private lazy val oauth2Scopes = List(Oauth2Scopes.USERINFO_EMAIL, Oauth2Scopes.USERINFO_PROFILE)
   private lazy val bigqueryScopes = List(BigqueryScopes.BIGQUERY)
+  private lazy val cloudSourceRepositoryScopes = List(CloudSourceRepositoriesScopes.SOURCE_FULL_CONTROL)
 
   private lazy val dataproc = {
     new Dataproc.Builder(httpTransport, jsonFactory, googleCredential)
@@ -209,7 +211,7 @@ class HttpGoogleDataprocDAO(appName: String,
     // Set the cluster service account, if present.
     // This is the service account passed to the create cluster API call.
     clusterServiceAccount.foreach { serviceAccountEmail =>
-      gceClusterConfig.setServiceAccount(serviceAccountEmail.value).setServiceAccountScopes((oauth2Scopes ++ bigqueryScopes).asJava)
+      gceClusterConfig.setServiceAccount(serviceAccountEmail.value).setServiceAccountScopes((oauth2Scopes ++ bigqueryScopes ++ cloudSourceRepositoryScopes).asJava)
     }
 
     // Create a NodeInitializationAction, which specifies the executable to run on a node.
