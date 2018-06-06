@@ -46,6 +46,7 @@ object Dependencies {
   val googleDataproc: ModuleID =    "com.google.apis"     % "google-api-services-dataproc" % s"v1-rev91-$googleV" excludeAll(excludeGuavaJDK5)
   val googleRpc: ModuleID = "io.grpc" % "grpc-core" % "1.12.0"
   val googleOAuth2: ModuleID = "com.google.auth" % "google-auth-library-oauth2-http" % "0.9.1"
+  val googleSourceRepositories: ModuleID = "com.google.apis" % "google-api-services-sourcerepo" % s"v1-rev21-$googleV" excludeAll(excludeGuavaJDK5)
 
   val scalaTest: ModuleID = "org.scalatest" %% "scalatest"    % scalaTestV % "test"
   val mockito: ModuleID =   "org.mockito"    % "mockito-core" % "2.18.3"   % "test"
@@ -92,6 +93,7 @@ object Dependencies {
     googleDataproc,
     googleRpc,
     googleOAuth2,
+    googleSourceRepositories,
 
     scalaTest,
     mockito,
