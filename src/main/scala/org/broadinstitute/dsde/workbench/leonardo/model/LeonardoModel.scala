@@ -169,7 +169,7 @@ object MachineConfigOps {
 
   private implicit val machineConfigSemigroup = new Semigroup[MachineConfig] {
     def combine(defined: MachineConfig, default: MachineConfig): MachineConfig = {
-      val minimumDiskSize = 100
+      val minimumDiskSize = 10
       defined.numberOfWorkers match {
         case None | Some(0) => MachineConfig(Some(0), defined.masterMachineType.orElse(default.masterMachineType),
           checkNegativeValue(defined.masterDiskSize.orElse(default.masterDiskSize)).map(s => math.max(minimumDiskSize, s)))

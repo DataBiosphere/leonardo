@@ -721,7 +721,7 @@ definitions:
       masterDiskSize:
         type: integer
         description: |
-          Optional, the size of the disk on the master node. Minimum size is 100GB. If unspecified, default size is 500GB.
+          Optional, the size of the disk on the master node. Minimum size is 10GB. If unspecified, default size is 500GB.
       workerMachineType:
         type: string
         description: |
@@ -731,7 +731,7 @@ definitions:
       workerDiskSize:
         type: integer
         description: |
-          Optional, the size of the disk on the master node. Minimum size is 100GB. If unspecified, default size is 500GB.
+          Optional, the size of the disk on the master node. Minimum size is 10GB. If unspecified, default size is 500GB.
           Ignored if numberOfWorkers is 0.
       numberOfWorkerLocalSSDs:
         type: integer
