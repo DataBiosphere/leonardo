@@ -21,4 +21,5 @@
     <include file="changesets/20180216_instance.xml" relativeToChangelogFile="true" />
     <include file="changesets/20180503_extensions.xml" relativeToChangelogFile="true" />
     <include file="changesets/20180515_cluster_dateaccessed.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20180607_master_disk_size.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>
