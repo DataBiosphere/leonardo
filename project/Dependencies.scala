@@ -1,7 +1,7 @@
 import sbt._
 
 object Dependencies {
-  val akkaV         = "2.5.12"
+  val akkaV         = "2.5.13"
   val akkaHttpV     = "10.1.1"
   val jacksonV      = "2.9.5"
   val googleV       = "1.23.0"
