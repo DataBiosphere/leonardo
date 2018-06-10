@@ -193,6 +193,28 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
+    // for testing
+    private[leonardo] def getId(googleProject: GoogleProject,
+                                clusterName: ClusterName,
+                                destroyedDateOpt: Option[Instant]): DBIO[Option[Long]] = {
+      val partialQuery =
+        clusterQuery
+          .filter { _.googleProject === googleProject.value }
+          .filter { _.clusterName === clusterName.value }
+
+      destroyedDateOpt match {
+        case Some(destroyedDate) =>
+          partialQuery
+            .filter { _.destroyedDate === Timestamp.from(destroyedDate) }
+            .result
+            .map { recs => recs.headOption map { _.id } }
+        case None =>
+          partialQuery
+            .result
+            .map { recs => recs.headOption map { _.id } }
+      }
+    }
+
     def getInitBucket(project: GoogleProject, name: ClusterName): DBIO[Option[GcsPath]] = {
       clusterQuery
         .filter { _.googleProject === project.value }
