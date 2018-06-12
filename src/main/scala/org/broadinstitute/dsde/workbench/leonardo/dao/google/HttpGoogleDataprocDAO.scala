@@ -402,6 +402,7 @@ class HttpGoogleDataprocDAO(appName: String,
         case e: IllegalArgumentException =>
           val msg = s"Illegal argument passed to Google request for ${project.value} ${context.map(c => s"/ $c").getOrElse("")}. Message: ${e.getMessage}"
           logger.error(msg, e)
+          println("I'm here")
           throw new WorkbenchException(msg, e)
       }
     }
