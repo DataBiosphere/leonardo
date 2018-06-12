@@ -192,11 +192,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - instances are populated in the DB
   // - monitor actor shuts down
   "ClusterMonitorActor" should "monitor until RUNNING state" in isolatedDbTest {
-    dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual creatingCluster
-
-    val id = dbFutureValue {
-      _.clusterQuery.getId(creatingCluster.googleProject, creatingCluster.clusterName, creatingCluster.destroyedDate)
-    }.get
+    val updatedCreatingCluster = dbFutureValue { _.clusterQuery.save(creatingCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) }
+    assertEquivalent(creatingCluster) { updatedCreatingCluster }
 
     val gdDAO = mock[GoogleDataprocDAO]
     when {
@@ -238,7 +235,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val authProvider = mock[LeoAuthProvider]
 
     withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, false) { actor =>
-      actor ! ClusterCreated(creatingCluster.copy(id = id))
+      actor ! ClusterCreated(updatedCreatingCluster)
       expectMsgClass(1 second, classOf[Terminated])
       val updatedCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName) }
       updatedCluster shouldBe 'defined

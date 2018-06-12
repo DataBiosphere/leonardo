@@ -114,7 +114,7 @@ trait ClusterComponent extends LeoComponent {
         _ <- labelQuery.saveAllForCluster(clusterId, cluster.labels)
         _ <- instanceQuery.saveAllForCluster(clusterId, cluster.instances.toSeq)
         _ <- extensionQuery.saveAllForCluster(clusterId, cluster.userJupyterExtensionConfig)
-      } yield cluster
+      } yield cluster.copy(id = clusterId)
     }
 
     def mergeInstances(cluster: Cluster): DBIO[Cluster] = {
@@ -197,22 +197,14 @@ trait ClusterComponent extends LeoComponent {
     private[leonardo] def getId(googleProject: GoogleProject,
                                 clusterName: ClusterName,
                                 destroyedDateOpt: Option[Instant]): DBIO[Option[Long]] = {
-      val partialQuery =
-        clusterQuery
-          .filter { _.googleProject === googleProject.value }
-          .filter { _.clusterName === clusterName.value }
+      val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
 
-      destroyedDateOpt match {
-        case Some(destroyedDate) =>
-          partialQuery
-            .filter { _.destroyedDate === Timestamp.from(destroyedDate) }
-            .result
-            .map { recs => recs.headOption map { _.id } }
-        case None =>
-          partialQuery
-            .result
-            .map { recs => recs.headOption map { _.id } }
-      }
+      clusterQuery
+        .filter { _.googleProject === googleProject.value }
+        .filter { _.clusterName === clusterName.value }
+        .filter { _.destroyedDate === Timestamp.from(destroyedDate) }
+        .result
+        .map { recs => recs.headOption map { _.id } }
     }
 
     def getInitBucket(project: GoogleProject, name: ClusterName): DBIO[Option[GcsPath]] = {
