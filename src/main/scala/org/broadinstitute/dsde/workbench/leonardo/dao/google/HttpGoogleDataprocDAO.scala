@@ -188,9 +188,14 @@ class HttpGoogleDataprocDAO(appName: String,
     val request = oauth2.tokeninfo().setAccessToken(accessToken)
     retryWhen500orGoogleError(() => executeGoogleRequest(request)).map { tokenInfo =>
       (UserInfo(OAuth2BearerToken(accessToken), WorkbenchUserId(tokenInfo.getUserId), WorkbenchEmail(tokenInfo.getEmail), tokenInfo.getExpiresIn.toInt), Instant.now().plusSeconds(tokenInfo.getExpiresIn.toInt))
-    }.handleGoogleException(GoogleProject(""), Some("oauth"))
-  } recover {
-    case e: IllegalArgumentException => throw AuthorizationError()
+    } recover {
+    case e: GoogleJsonResponseException =>
+      val msg = s"Call to Google OAuth API failed. Status: ${e.getStatusCode}. Message: ${e.getDetails.getMessage}"
+      logger.error(msg, e)
+      throw new WorkbenchException(msg, e)
+    case e: IllegalArgumentException =>
+      throw AuthorizationError()
+    }
   }
 
   private def getClusterConfig(machineConfig: MachineConfig, initScript: GcsPath, clusterServiceAccount: Option[WorkbenchEmail], credentialsFileName: Option[String], stagingBucket: GcsBucketName): DataprocClusterConfig = {
@@ -402,7 +407,6 @@ class HttpGoogleDataprocDAO(appName: String,
         case e: IllegalArgumentException =>
           val msg = s"Illegal argument passed to Google request for ${project.value} ${context.map(c => s"/ $c").getOrElse("")}. Message: ${e.getMessage}"
           logger.error(msg, e)
-          println("I'm here")
           throw new WorkbenchException(msg, e)
       }
     }
