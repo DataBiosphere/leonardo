@@ -4,6 +4,7 @@ import java.net.URL
 import java.time.Instant
 import java.util.UUID
 
+import akka.Done
 import akka.http.scaladsl.model.headers.{Cookie, HttpCookiePair}
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.databind.DeserializationFeature
@@ -196,7 +197,7 @@ object Leonardo extends RestClient with LazyLogging {
       Http().bindAndHandle(route, "0.0.0.0", 9090)
     }
 
-    def stopServer(bindingFuture: Future[Http.ServerBinding]): Future[Unit] = {
+    def stopServer(bindingFuture: Future[Http.ServerBinding]): Future[Done] = {
       logger.info("Stopping local server")
       bindingFuture.flatMap(_.unbind())
     }

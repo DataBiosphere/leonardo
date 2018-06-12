@@ -468,13 +468,13 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     withNewGoogleBucket(cluster.googleProject) { bucketName =>
       // give the user's pet owner access to the bucket
       val petServiceAccount = Sam.user.petServiceAccountEmail(cluster.googleProject.value)
-      googleStorageDAO.setBucketAccessControl(bucketName, GcsEntity(petServiceAccount, GcsEntityTypes.User), GcsRoles.Owner).futureValue
+      googleStorageDAO.setBucketAccessControl(bucketName, EmailGcsEntity(GcsEntityTypes.User, petServiceAccount), GcsRoles.Owner).futureValue
 
       // create a bucket object to localize
       val bucketObjectToLocalize = GcsObjectName(fileToLocalize)
       withNewBucketObject(bucketName, bucketObjectToLocalize, fileToLocalizeContents, "text/plain") { objectName =>
         // give the user's pet read access to the object
-        googleStorageDAO.setObjectAccessControl(bucketName, objectName, GcsEntity(petServiceAccount, GcsEntityTypes.User), GcsRoles.Reader).futureValue
+        googleStorageDAO.setObjectAccessControl(bucketName, objectName, EmailGcsEntity(GcsEntityTypes.User, petServiceAccount), GcsRoles.Reader).futureValue
 
         // create a notebook file to delocalize
         withNewNotebook(cluster) { notebookPage =>
