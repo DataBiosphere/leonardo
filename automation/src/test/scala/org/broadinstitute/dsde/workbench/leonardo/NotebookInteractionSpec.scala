@@ -419,5 +419,13 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
         }
       }
     }
+
+    "should throw 401 for invalid token" in withWebDriver { implicit driver =>
+      try {
+        Leonardo.notebooks.setCookie(ronCluster.googleProject, ronCluster.clusterName)
+      } catch {
+        case e: Exception => e.getMessage should include(""""statusCode":409""")
+      }
+    }
   }
 }

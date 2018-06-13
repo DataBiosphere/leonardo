@@ -177,6 +177,12 @@ object Leonardo extends RestClient with LazyLogging {
       val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
       handleContentItemResponse(parseResponse(getRequest(url + path, httpHeaders = List(cookie))))
     }
+
+    def setCookie(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver): String = {
+      val path = notebooksPath(googleProject, clusterName) + "/setCookie"
+      logger.info(s"Set cookie: GET /$path")
+      parseResponse(getRequest(url + path))
+    }
   }
 
   object dummyClient {
