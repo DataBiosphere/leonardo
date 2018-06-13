@@ -105,9 +105,9 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     ClusterDnsCache.HostToIp = Map.empty
 
     // save the clusters to the db
-    dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1
-    dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id)) } shouldEqual c2
-    dbFutureValue { _.clusterQuery.save(c3, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } shouldEqual c3
+    assertEquivalent(c1) { dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } }
+    assertEquivalent(c2) { dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id)) } }
+    assertEquivalent(c3) { dbFutureValue { _.clusterQuery.save(c3, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } }
 
     // maps should be populated
     eventually {
@@ -136,9 +136,9 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     ClusterDnsCache.HostToIp = Map.empty
 
     // save the clusters to the db
-    dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1
-    dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id)) } shouldEqual c2
-    dbFutureValue { _.clusterQuery.save(c3, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } shouldEqual c3
+    assertEquivalent(c1) { dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } }
+    assertEquivalent(c2) { dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id)) } }
+    assertEquivalent(c3) { dbFutureValue { _.clusterQuery.save(c3, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } }
 
     // we have not yet executed a DNS cache refresh cycle
 

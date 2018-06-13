@@ -199,13 +199,11 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), None) }
 
       // status should work for this user
-      val clusterStatus = leo.getActiveClusterDetails(userInfo, project, name1).futureValue
-      clusterStatus shouldBe c1
+      assertEquivalent(c1) { leo.getActiveClusterDetails(userInfo, project, name1).futureValue }
 
       // list should work for this user
       //list all clusters should be fine, but empty
-      val clusterList = leo.listClusters(userInfo, Map()).futureValue
-      clusterList shouldBe Seq(c1)
+      assertEquivalent(Set(c1)) { leo.listClusters(userInfo, Map()).futureValue.toSet }
 
       //connect should 401
       val httpRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
