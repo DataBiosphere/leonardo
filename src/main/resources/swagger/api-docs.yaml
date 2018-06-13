@@ -84,7 +84,8 @@ paths:
         - in: query
           name: _labels
           description: |
-            Optional label key-value pairs to filter results by. Example: key1=val1,key2=val2.
+            Optional label key-value pairs to filter results by. Example: Querying by key1=val1,key2=val2
+            returns all clusters that contain the key1/val1 and key2/val2 labels (possibly among other labels).
 
             Note: this string format is a workaround because Swagger doesn't support free-form
             query string parameters. The recommended way to use this endpoint is to specify the

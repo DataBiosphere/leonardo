@@ -111,9 +111,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       dateAccessed = dateAccessed
     )
 
-    dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), None) } shouldEqual c1
-    dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id)) } shouldEqual c2
-    dbFutureValue { _.clusterQuery.save(c3, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } shouldEqual c3
+    assertEquivalent(c1) { dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), None) } }
+    assertEquivalent(c2) { dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id)) } }
+    assertEquivalent(c3) { dbFutureValue { _.clusterQuery.save(c3, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } }
 
     // Get the cluster id's assigned by the database (since the id field is auto incremented) to use further below
     val c1Id =  dbFutureValue { _.clusterQuery.getIdByGoogleId(c1.googleId)}.get
@@ -184,7 +184,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     c1status.instances shouldBe c1.instances
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(c2Id) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq(c3)
+    assertEquivalent(Set(c3)) { dbFutureValue { _.clusterQuery.listActive() }.toSet }
     val c2status = dbFutureValue { _.clusterQuery.getById(c2Id) }.get
     c2status.status shouldEqual ClusterStatus.Deleting
     c2status.destroyedDate shouldBe None
@@ -278,7 +278,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     assertEquivalent(Set.empty[Cluster]) { dbFutureValue { _.clusterQuery.listByLabels(Map("a" -> "b"), false) }.toSet }
     assertEquivalent(Set.empty[Cluster]) { dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "b"), false) }.toSet }
     assertEquivalent(Set.empty[Cluster]) { dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "c"), false) }.toSet }
-    assertEquivalent(Set.empty[Cluster]) { dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no"), true) }.toSet }
+    assertEquivalent(Set(c1)) { dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no"), true) }.toSet }
     assertEquivalent(Set(c1)) { dbFutureValue { _.clusterQuery.listByLabels(Map("foo" -> "bar", "vcf" -> "no"), true) }.toSet }
     assertEquivalent(Set(c1)) { dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), true) }.toSet }
     assertEquivalent(Set(c3)) { dbFutureValue { _.clusterQuery.listByLabels(Map("a" -> "b"), true) }.toSet }
