@@ -23,7 +23,11 @@ package object config {
       GoogleProject(config.getString("leoGoogleProject")),
       config.getString("dataprocDockerImage"),
       config.getString("clusterUrlBase"),
-      config.getString("jupyterServerName")
+      config.getString("jupyterServerName"),
+      config.getString("firewallRuleName"),
+      config.getString("networkTag"),
+      config.getAs[String]("vpcNetwork"),
+      config.getAs[String]("vpcSubnet")
     )
   }
 
@@ -67,10 +71,6 @@ package object config {
     ProxyConfig(
       config.getString("jupyterProxyDockerImage"),
       config.getString("proxyServerName"),
-      config.getString("firewallRuleName"),
-      config.getString("firewallVPCNetwork"),
-      config.getString("firewallVPCSubnet"),
-      config.getString("networkTag"),
       config.getInt("jupyterPort"),
       config.getString("jupyterProtocol"),
       config.getString("jupyterDomain"),
@@ -86,5 +86,15 @@ package object config {
 
   implicit val samConfigReader: ValueReader[SamConfig] = ValueReader.relative { config =>
     SamConfig(config.getString("server"))
+  }
+
+  implicit val autoFreezeConfigReader: ValueReader[AutoFreezeConfig] = ValueReader.relative { config =>
+    AutoFreezeConfig(
+      config.getBoolean("enableAutoFreeze"),
+      toScalaDuration(config.getDuration("dateAccessedMonitorScheduler")),
+      toScalaDuration(config.getDuration("autoFreezeAfter")),
+      toScalaDuration(config.getDuration("autoFreezeCheckScheduler"))
+    )
+
   }
 }

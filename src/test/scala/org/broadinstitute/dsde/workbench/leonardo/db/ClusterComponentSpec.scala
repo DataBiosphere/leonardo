@@ -11,6 +11,8 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.scalatest.FlatSpecLike
+import org.scalatest.concurrent.Eventually.eventually
+import org.scalatest.time.{Seconds, Span}
 
 class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils {
   "ClusterComponent" should "list, save, get, and delete" in isolatedDbTest {
@@ -382,5 +384,67 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
     assertEquivalent(updatedC1Again) { dbFutureValue { _.clusterQuery.mergeInstances(updatedC1Again) } }
     assertEquivalent(updatedC1) { dbFutureValue { _.clusterQuery.getById(updatedC1Id) }.get }
+  }
+
+  it should "get list of clusters to auto freeze" in isolatedDbTest {
+    val runningCluster = Cluster(
+      clusterName = name1,
+      googleId = Option(UUID.randomUUID()),
+      googleProject = project,
+      serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
+      machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
+      clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
+      operationName = Option(OperationName("op1")),
+      status = ClusterStatus.Running,
+      hostIp = Some(IP("numbers.and.dots")),
+      creator = userEmail,
+      createdDate = Instant.now(),
+      destroyedDate = None,
+      labels = Map("bam" -> "yes", "vcf" -> "no"),
+      jupyterExtensionUri = None,
+      jupyterUserScriptUri = None,
+      stagingBucket = Some(GcsBucketName("testStagingBucket1")),
+      errors = List.empty,
+      instances = Set(masterInstance),
+      userJupyterExtensionConfig = None,
+      dateAccessed = Instant.now()
+    )
+
+    val stoppedCluster = Cluster(
+      clusterName = name2,
+      googleId = Option(UUID.randomUUID()),
+      googleProject = project,
+      serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
+      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
+      clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
+      operationName = Option(OperationName("op2")),
+      status = ClusterStatus.Stopped,
+      hostIp = None,
+      creator = userEmail,
+      createdDate = Instant.now(),
+      destroyedDate = None,
+      labels = Map.empty,
+      jupyterExtensionUri = Some(jupyterExtensionUri),
+      jupyterUserScriptUri = Some(jupyterUserScriptUri),
+      stagingBucket = Some(GcsBucketName("testStagingBucket2")),
+      errors = List.empty,
+      instances = Set.empty,
+      userJupyterExtensionConfig = None,
+      dateAccessed = Instant.now()
+    )
+
+    assertEquivalent(runningCluster) { dbFutureValue { _.clusterQuery.save(runningCluster, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } }
+    assertEquivalent(stoppedCluster) { dbFutureValue { _.clusterQuery.save(stoppedCluster, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } }
+
+    dbFutureValue { _.clusterQuery.getClustersReadyToAutoFreeze(autoFreezeconfig.autoFreezeAfter) } shouldBe List.empty
+
+    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
+    
+    eventually(timeout(Span(30, Seconds))) {
+      val autoFreezeList = dbFutureValue { _.clusterQuery.getClustersReadyToAutoFreeze(autoFreezeconfig.autoFreezeAfter) }
+      autoFreezeList should contain (runningCluster)
+      //c2 is already stopped
+      autoFreezeList should not contain stoppedCluster
+    }
   }
 }

@@ -6,7 +6,7 @@ import org.broadinstitute.dsde.workbench.leonardo.TestExecutionContext
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
-import org.scalatest.{Assertion, FlatSpec, Matchers}
+import org.scalatest.{Assertion, Matchers}
 import slick.dbio.DBIO
 import slick.jdbc.JdbcProfile
 

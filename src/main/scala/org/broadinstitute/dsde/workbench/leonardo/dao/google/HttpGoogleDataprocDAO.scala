@@ -15,6 +15,7 @@ import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.dataproc.Dataproc
 import com.google.api.services.dataproc.model.{Cluster => DataprocCluster, ClusterConfig => DataprocClusterConfig, ClusterStatus => DataprocClusterStatus, Operation => DataprocOperation, _}
 import com.google.api.services.oauth2.{Oauth2, Oauth2Scopes}
+import com.google.api.services.sourcerepo.v1.CloudSourceRepositoriesScopes
 import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, SecondaryWorker, Worker}
@@ -31,8 +32,9 @@ import scala.util.Try
 class HttpGoogleDataprocDAO(appName: String,
                             googleCredentialMode: GoogleCredentialMode,
                             override val workbenchMetricBaseName: String,
-                            defaultNetworkTag: NetworkTag,
-                            defaultVPCSubnet: VPCSubnetName,
+                            networkTag: NetworkTag,
+                            vpcNetwork: Option[VPCNetworkName],
+                            vpcSubnet: Option[VPCSubnetName],
                             defaultRegion: String)
                            (implicit override val system: ActorSystem, override val executionContext: ExecutionContext)
   extends AbstractHttpGoogleDAO(appName, googleCredentialMode, workbenchMetricBaseName) with GoogleDataprocDAO {
@@ -43,6 +45,7 @@ class HttpGoogleDataprocDAO(appName: String,
 
   private lazy val oauth2Scopes = List(Oauth2Scopes.USERINFO_EMAIL, Oauth2Scopes.USERINFO_PROFILE)
   private lazy val bigqueryScopes = List(BigqueryScopes.BIGQUERY)
+  private lazy val cloudSourceRepositoryScopes = List(CloudSourceRepositoriesScopes.SOURCE_READ_ONLY)
 
   private lazy val dataproc = {
     new Dataproc.Builder(httpTransport, jsonFactory, googleCredential)
@@ -191,15 +194,25 @@ class HttpGoogleDataprocDAO(appName: String,
   private def getClusterConfig(machineConfig: MachineConfig, initScript: GcsPath, clusterServiceAccount: Option[WorkbenchEmail], credentialsFileName: Option[String], stagingBucket: GcsBucketName): DataprocClusterConfig = {
     // Create a GceClusterConfig, which has the common config settings for resources of Google Compute Engine cluster instances,
     // applicable to all instances in the cluster.
-    // Set the network tag, network, and subnet. This allows the creaed GCE instances to be exposed by Leo's firewall rule.
-    val gceClusterConfig = new GceClusterConfig()
-      .setTags(List(defaultNetworkTag.value).asJava)
-      .setSubnetworkUri(defaultVPCSubnet.value)
+    // Set the network tag, network, and subnet. This allows the created GCE instances to be exposed by Leo's firewall rule.
+    val gceClusterConfig = {
+      val baseConfig = new GceClusterConfig()
+        .setTags(List(networkTag.value).asJava)
+
+      (vpcNetwork, vpcSubnet) match {
+        case (_, Some(subnet)) =>
+          baseConfig.setSubnetworkUri(subnet.value)
+        case (Some(network), _) =>
+          baseConfig.setNetworkUri(network.value)
+        case _ =>
+          baseConfig
+      }
+    }
 
     // Set the cluster service account, if present.
     // This is the service account passed to the create cluster API call.
     clusterServiceAccount.foreach { serviceAccountEmail =>
-      gceClusterConfig.setServiceAccount(serviceAccountEmail.value).setServiceAccountScopes((oauth2Scopes ++ bigqueryScopes).asJava)
+      gceClusterConfig.setServiceAccount(serviceAccountEmail.value).setServiceAccountScopes((oauth2Scopes ++ bigqueryScopes ++ cloudSourceRepositoryScopes).asJava)
     }
 
     // Create a NodeInitializationAction, which specifies the executable to run on a node.

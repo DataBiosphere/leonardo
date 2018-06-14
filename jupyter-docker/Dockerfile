@@ -22,6 +22,7 @@ RUN echo "deb $DEBIAN_REPO/debian jessie main"                   > /etc/apt/sour
  && apt-get -yq dist-upgrade \
  && apt-get install -yq --no-install-recommends \
     nano \
+    sudo \
     wget \
     gnupg \
     ca-certificates \
@@ -31,6 +32,12 @@ RUN echo "deb $DEBIAN_REPO/debian jessie main"                   > /etc/apt/sour
     procps \
     # to support userScript pip installs via git
     git \
+    locales \
+
+ # Uncomment en_US.UTF-8 for inclusion in generation
+ && sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen \
+ # Generate locale
+ && locale-gen \
 
  # google-cloud-sdk separately because it need lsb-release and other prereqs installed above
  && export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" \
@@ -39,6 +46,8 @@ RUN echo "deb $DEBIAN_REPO/debian jessie main"                   > /etc/apt/sour
  && apt-get update \
  && apt-get install -yq --no-install-recommends \
     google-cloud-sdk
+
+ENV LC_ALL en_US.UTF-8
 
 #######################
 # Java
@@ -177,7 +186,8 @@ ENV PIP_USER=true
 # R Kernel
 #######################
 
-RUN apt-get -t jessie-cran34 install -y --no-install-recommends \
+RUN apt-get update \
+ && apt-get -t jessie-cran34 install -y --no-install-recommends \
     r-base \
     r-base-dev \
     r-recommended \
@@ -187,7 +197,8 @@ RUN apt-get -t jessie-cran34 install -y --no-install-recommends \
     gfortran \
     gcc \
     libcurl4-openssl-dev \
-    libssl-dev
+    libssl-dev \
+    libxml2-dev
 
 RUN R -e 'install.packages(c( \
     "repr",  \

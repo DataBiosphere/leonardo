@@ -12,6 +12,7 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GcsPathSupport, GoogleProject, ServiceAccountKeyId, parseGcsPath}
 
 import scala.concurrent.Future
+import scala.concurrent.duration.FiniteDuration
 
 case class ClusterRecord(id: Long,
                          clusterName: String,
@@ -260,6 +261,22 @@ trait ClusterComponent extends LeoComponent {
       clusterQuery.filter { _.id === id }.map(_.status).result.headOption map { statusOpt =>
         statusOpt map ClusterStatus.withName
       }
+    }
+
+    def updateDateAccessed(id: Long, dateAccessed: Instant): DBIO[Int] = {
+      clusterQuery.filter { _.id === id }.filter { _.dateAccessed < Timestamp.from(dateAccessed)}.map(_.dateAccessed).update(Timestamp.from(dateAccessed))
+    }
+
+    def updateDateAccessedByProjectAndName(googleProject: GoogleProject, clusterName: ClusterName, dateAccessed: Instant): DBIO[Int] = {
+      clusterQuery.getActiveClusterByName(googleProject, clusterName) flatMap {
+        case Some(c) => clusterQuery.updateDateAccessed(c.id, dateAccessed)
+        case None => DBIO.successful(0)
+      }
+    }
+
+    def getClustersReadyToAutoFreeze(idleTime: FiniteDuration): DBIO[Seq[Cluster]] = {
+      clusterQueryWithInstancesAndErrorsAndLabels.filter(_._1.dateAccessed < Timestamp.from(Instant.now().minusSeconds(idleTime.toSeconds)))
+          .filter(_._1.status inSetBind ClusterStatus.stoppableStatuses.map(_.toString)).result map { recs => unmarshalClustersWithInstancesAndLabels(recs)}
     }
 
     def listByLabels(labelMap: LabelMap, includeDeleted: Boolean): DBIO[Seq[Cluster]] = {

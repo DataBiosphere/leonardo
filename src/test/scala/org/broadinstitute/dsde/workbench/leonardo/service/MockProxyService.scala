@@ -18,7 +18,7 @@ import scala.concurrent.{ExecutionContext, Future}
   */
 class MockProxyService(proxyConfig: ProxyConfig, gdDAO: GoogleDataprocDAO, dbRef: DbReference, authProvider: LeoAuthProvider)
                       (implicit system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext)
-  extends ProxyService(proxyConfig: ProxyConfig, gdDAO: GoogleDataprocDAO,  dbRef: DbReference, system.deadLetters, authProvider) {
+  extends ProxyService(proxyConfig: ProxyConfig, gdDAO: GoogleDataprocDAO,  dbRef: DbReference, system.deadLetters, authProvider, system.deadLetters) {
 
   override def getTargetHost(googleProject: GoogleProject, clusterName: ClusterName): Future[GetClusterResponse] =
     Future.successful(ClusterReady(Host("localhost")))

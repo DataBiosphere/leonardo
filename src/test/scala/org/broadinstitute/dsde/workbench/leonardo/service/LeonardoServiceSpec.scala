@@ -88,7 +88,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // check the firewall rule was created for the project
     computeDAO.firewallRules should contain key (project)
-    computeDAO.firewallRules(project).name.value shouldBe proxyConfig.firewallRuleName
+    computeDAO.firewallRules(project).name.value shouldBe dataprocConfig.firewallRuleName
 
     // should have created init and staging buckets
     val initBucketOpt = storageDAO.buckets.keys.find(_.value.startsWith("leoinit-"+name1.value))
@@ -179,11 +179,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "create a standard cluster with 2 workers and override too-small disk sizes with minimum disk size" in isolatedDbTest {
-    val machineConfig = MachineConfig(Some(2), Some("test-master-machine-type"), Some(50), Some("test-worker-machine-type"), Some(10), Some(3), Some(4))
+    val machineConfig = MachineConfig(Some(2), Some("test-master-machine-type"), Some(5), Some("test-worker-machine-type"), Some(5), Some(3), Some(4))
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(machineConfig))
 
     val clusterCreateResponse = leo.createCluster(userInfo, project, name1, clusterRequestWithMachineConfig).futureValue
-    clusterCreateResponse.machineConfig shouldEqual MachineConfig(Some(2), Some("test-master-machine-type"), Some(100), Some("test-worker-machine-type"), Some(100), Some(3), Some(4))
+    clusterCreateResponse.machineConfig shouldEqual MachineConfig(Some(2), Some("test-master-machine-type"), Some(10), Some("test-worker-machine-type"), Some(10), Some(3), Some(4))
   }
 
   it should "throw OneWorkerSpecifiedInClusterRequestException when create a 1 worker cluster" in isolatedDbTest {
@@ -358,7 +358,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName2 = ClusterName("test-cluster-2")
 
     // Our google project should have no firewall rules
-    computeDAO.firewallRules should not contain (project, proxyConfig.firewallRuleName)
+    computeDAO.firewallRules should not contain (project, dataprocConfig.firewallRuleName)
 
     // create the first cluster, this should create a firewall rule in our project
     leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
@@ -519,7 +519,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // check the firewall rule was created for the project
     computeDAO.firewallRules should contain key (project)
-    computeDAO.firewallRules(project).name.value shouldBe proxyConfig.firewallRuleName
+    computeDAO.firewallRules(project).name.value shouldBe dataprocConfig.firewallRuleName
 
     //staging bucket lives on!
     storageDAO.buckets.keys.find(bucket => bucket.value.contains("leoinit-")).size shouldBe 0

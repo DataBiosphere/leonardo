@@ -291,7 +291,10 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
         // it may take a little while to install
         val installTimeout = 2.minutes
 
-        notebookPage.executeCell("""install.packages("httr")""", installTimeout).get should include ("Installing package into '/home/jupyter-user/.rpackages'")
+        val output = notebookPage.executeCell("""install.packages("httr")""", installTimeout)
+        output shouldBe 'defined
+        output.get should include ("Installing package into")
+        output.get should include ("/home/jupyter-user/.rpackages")
 
         val httpGetTest =
           """library(httr)
@@ -300,6 +303,50 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
           """.stripMargin
 
         notebookPage.executeCell(httpGetTest) shouldBe Some("200")
+      }
+    }
+
+    // See https://github.com/DataBiosphere/leonardo/issues/398
+    "should be able to install mlr" in withWebDriver { implicit driver =>
+      Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+
+      withNewNotebook(ronCluster, RKernel) { notebookPage =>
+        // mlr: machine learning in R
+        // https://github.com/mlr-org/mlr
+
+        // it may take a little while to install
+        val installTimeout = 5.minutes
+
+        val installOutput = notebookPage.executeCell("""devtools::install_github("mlr-org/mlr")""", installTimeout)
+        installOutput shouldBe 'defined
+        installOutput.get should include ("Installing mlr")
+        installOutput.get should not include ("Installation failed")
+
+        // Make sure it was installed correctly; if not, this will return an error
+        notebookPage.executeCell("library(mlr)") shouldBe Some("Loading required package: ParamHelpers")
+        notebookPage.executeCell(""""mlr" %in% installed.packages()""") shouldBe Some("TRUE")
+      }
+    }
+
+    // See https://github.com/DataBiosphere/leonardo/issues/398
+    "should use UTF-8 encoding" in withWebDriver { implicit driver =>
+      Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+
+      withNewNotebook(ronCluster, RKernel) { notebookPage =>
+        // Check the locale is set to en_US.UTF-8
+        notebookPage.executeCell("""Sys.getenv("LC_ALL")""") shouldBe Some("'en_US.UTF-8'")
+
+        // Make sure unicode characters display correctly
+        notebookPage.executeCell("""install.packages("skimr")""")
+
+        val output = notebookPage.executeCell(
+          """library(skimr)
+            |data(iris)
+            |skim(iris)""".stripMargin)
+
+        output shouldBe 'defined
+        output.get should not include ("<U+")
+        output.get should include ("▂▇▅▇▆▅▂▂")
       }
     }
 
