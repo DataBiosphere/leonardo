@@ -264,22 +264,32 @@ class ClusterMonitorActor(val cluster: Cluster,
       clusterStatus <- getDbClusterStatus
 
       googleStatus <- gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName)
-      jupyterProxyAvailable <- jupyterProxyDAO.getStatus(cluster.googleProject, cluster.clusterName)
+
       googleInstances <- getClusterInstances
 
-      runningInstanceCount = googleInstances.filter(_.status == InstanceStatus.Running).size
-      stoppedInstanceCount = googleInstances.filter(i => i.status == InstanceStatus.Stopped || i.status == InstanceStatus.Terminated).size
+      runningInstanceCount = googleInstances.count(_.status == InstanceStatus.Running)
+      stoppedInstanceCount = googleInstances.count(i => i.status == InstanceStatus.Stopped || i.status == InstanceStatus.Terminated)
 
       result <- googleStatus match {
         case Unknown | Creating | Updating =>
           Future.successful(NotReadyCluster(googleStatus, googleInstances))
         // Take care we don't restart a Deleting or Stopping cluster if google hasn't updated their status yet
-        case Running if (clusterStatus != Deleting && clusterStatus != Stopping && runningInstanceCount == googleInstances.size) || (clusterStatus == Starting && jupyterProxyAvailable) =>
+        case Running if clusterStatus != Deleting && clusterStatus != Stopping && clusterStatus != Starting && runningInstanceCount == googleInstances.size =>
           getMasterIp.map {
             case Some(ip) => ReadyCluster(ip, googleInstances)
-            case None =>
-              NotReadyCluster(ClusterStatus.Running, googleInstances)
+            case None => NotReadyCluster(ClusterStatus.Running, googleInstances)
           }
+        case Running if clusterStatus == Starting && runningInstanceCount== googleInstances.size =>
+            getMasterIp.map {
+              case Some(ip) =>
+                isProxyAvailable(clusterStatus, ip).map { isProxyable: Boolean =>
+                  if(isProxyable)
+                    ReadyCluster(ip, googleInstances)
+                  else
+                    NotReadyCluster(ClusterStatus.Running, googleInstances)
+                }
+              case None => Future.successful(NotReadyCluster(ClusterStatus.Running, googleInstances))
+            }.flatten
         // Take care we don't fail a Deleting or Stopping cluster if google hasn't updated their status yet
         case Error if clusterStatus != Deleting && clusterStatus != Stopping =>
           gdDAO.getClusterErrorDetails(cluster.operationName).map {
@@ -293,6 +303,15 @@ class ClusterMonitorActor(val cluster: Cluster,
         case _ => Future.successful(NotReadyCluster(googleStatus, googleInstances))
       }
     } yield result
+  }
+
+  private def isProxyAvailable(clusterStatus: ClusterStatus, ip: IP): Future[Boolean] = {
+    for {
+      _ <- ensureClusterReadyForProxying(ip, clusterStatus)
+      proxyAvailable <- jupyterProxyDAO.getStatus(cluster.googleProject, cluster.clusterName)
+    } yield {
+      proxyAvailable
+    }
   }
 
   private def persistInstances(instances: Set[Instance]): Future[Unit] = {

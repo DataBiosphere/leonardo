@@ -9,9 +9,7 @@ import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.leonardo.service.{ClusterNotFoundException, ClusterNotReadyException, ClusterPausedException, ProxyException}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -20,18 +18,11 @@ class HttpJupyterProxyDAO(val baseJupyterProxyURL: String, val clusterDnsCache: 
   val http = Http(system)
 
   override def getStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = {
-
     getTargetHost(googleProject, clusterName) flatMap {
-      case ClusterReady(targetHost) =>
-        executeJupyterProxyRequest(HttpRequest(uri = s"http://${targetHost.toString}/$googleProject/$clusterName/api/status"))
-      case ClusterNotReady =>
-        throw ClusterNotReadyException(googleProject, clusterName)
-      case ClusterPaused =>
-        throw ClusterPausedException(googleProject, clusterName)
-      case ClusterNotFound =>
-        throw ClusterNotFoundException(googleProject, clusterName)
-      }
+      case ClusterReady(targetHost) => executeJupyterProxyRequest(HttpRequest(uri = Uri(s"https://${targetHost.toString}/notebooks/$googleProject/$clusterName/api/status")))
+      case _ => Future.successful(false)
     }
+  }
 
   protected def getTargetHost(googleProject: GoogleProject, clusterName: ClusterName): Future[GetClusterResponse] = {
     implicit val timeout: Timeout = Timeout(5 seconds)
@@ -39,12 +30,10 @@ class HttpJupyterProxyDAO(val baseJupyterProxyURL: String, val clusterDnsCache: 
   }
 
   private def executeJupyterProxyRequest(httpRequest: HttpRequest): Future[Boolean] = {
-    logger.info(httpRequest.toString)
     http.singleRequest(httpRequest) flatMap { response =>
-      logger.info(response.toString)
       if (response.status.isSuccess)
         Future.successful(true)
-       else
+      else
         Future.successful(false)
     }
   }
