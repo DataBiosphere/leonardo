@@ -9,7 +9,7 @@ import akka.testkit.TestKit
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.leonardo.dao.JupyterProxyDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.JupyterDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
@@ -167,7 +167,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     super.afterAll()
   }
 
-  def createClusterSupervisor(gdDAO: GoogleDataprocDAO, computeDAO: GoogleComputeDAO, iamDAO: GoogleIamDAO, storageDAO: GoogleStorageDAO, authProvider: LeoAuthProvider, jupyterDAO: JupyterProxyDAO): ActorRef = {
+  def createClusterSupervisor(gdDAO: GoogleDataprocDAO, computeDAO: GoogleComputeDAO, iamDAO: GoogleIamDAO, storageDAO: GoogleStorageDAO, authProvider: LeoAuthProvider, jupyterDAO: JupyterDAO): ActorRef = {
     val cacheActor = system.actorOf(ClusterDnsCache.props(proxyConfig, DbSingleton.ref))
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
@@ -178,7 +178,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     supervisorActor
   }
 
-  def withClusterSupervisor[T](gdDAO: GoogleDataprocDAO, computeDAO: GoogleComputeDAO, iamDAO: GoogleIamDAO, storageDAO: GoogleStorageDAO, authProvider: LeoAuthProvider, jupyterDAO: JupyterProxyDAO = mockJupyterDAO, runningChild: Boolean = true)(testCode: ActorRef => T): T = {
+  def withClusterSupervisor[T](gdDAO: GoogleDataprocDAO, computeDAO: GoogleComputeDAO, iamDAO: GoogleIamDAO, storageDAO: GoogleStorageDAO, authProvider: LeoAuthProvider, jupyterDAO: JupyterDAO = mockJupyterDAO, runningChild: Boolean = true)(testCode: ActorRef => T): T = {
     val supervisor = createClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, jupyterDAO)
     val testResult = Try(testCode(supervisor))
     testKit watch supervisor
@@ -857,7 +857,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val authProvider = mock[LeoAuthProvider]
 
 
-    val jupyterDAO = mock[JupyterProxyDAO]
+    val jupyterDAO = mock[JupyterDAO]
     when {
       jupyterDAO.getStatus(any[GoogleProject], any[ClusterName])
     } thenReturn Future.successful(true)
@@ -924,7 +924,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val authProvider = mock[LeoAuthProvider]
 
 
-    val jupyterDAO = mock[JupyterProxyDAO]
+    val jupyterDAO = mock[JupyterDAO]
     when {
       jupyterDAO.getStatus(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
     } thenReturn Future.successful(false)

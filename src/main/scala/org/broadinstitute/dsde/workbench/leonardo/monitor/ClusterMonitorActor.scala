@@ -12,7 +12,7 @@ import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.JupyterProxyDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.JupyterDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache.{ClusterReady, GetClusterResponse, ProcessReadyCluster}
@@ -33,7 +33,7 @@ object ClusterMonitorActor {
   /**
     * Creates a Props object used for creating a {{{ClusterMonitorActor}}}.
     */
-  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider, jupyterProxyDAO: JupyterProxyDAO): Props =
+  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider, jupyterProxyDAO: JupyterDAO): Props =
     Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, clusterDnsCache, authProvider, jupyterProxyDAO))
 
   // ClusterMonitorActor messages:
@@ -67,7 +67,7 @@ class ClusterMonitorActor(val cluster: Cluster,
                           val dbRef: DbReference,
                           val clusterDnsCache: ActorRef,
                           val authProvider: LeoAuthProvider,
-                          val jupyterProxyDAO: JupyterProxyDAO) extends Actor with LazyLogging {
+                          val jupyterProxyDAO: JupyterDAO) extends Actor with LazyLogging {
   import context._
 
   override def preStart(): Unit = {

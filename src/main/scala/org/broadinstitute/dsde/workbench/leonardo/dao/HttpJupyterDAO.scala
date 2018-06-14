@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
-class HttpJupyterProxyDAO(val baseJupyterProxyURL: String, val clusterDnsCache: ActorRef)(implicit system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext) extends JupyterProxyDAO with LazyLogging {
+class HttpJupyterDAO(val clusterDnsCache: ActorRef)(implicit system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext) extends JupyterDAO with LazyLogging {
 
   val http = Http(system)
 

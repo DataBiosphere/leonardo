@@ -60,7 +60,6 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   val saPatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
   val storagePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
   val tenSeconds = FiniteDuration(10, SECONDS)
-  val startPatience = PatienceConfig(timeout = scaled(Span(5, Seconds)), interval = scaled(Span(1, Seconds)))
   val getAfterCreatePatience = PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(1, Seconds)))
 
   val multiExtensionClusterRequest = UserJupyterExtensionConfig(Map("translate"->testJupyterExtensionUri, "map"->"gmaps"),Map("jupyterlab"->"jupyterlab"), Map("pizza"->"pizzabutton"))

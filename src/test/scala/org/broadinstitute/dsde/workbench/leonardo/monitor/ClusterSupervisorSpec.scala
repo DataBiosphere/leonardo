@@ -7,7 +7,7 @@ import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.leonardo.dao.MockJupyterProxyDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.MockJupyterDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
@@ -64,7 +64,7 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest")) with Fl
 
     val authProvider = mock[LeoAuthProvider]
 
-    val jupyterProxyDAO = new MockJupyterProxyDAO
+    val jupyterProxyDAO = new MockJupyterDAO
 
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
       new MockGoogleStorageDAO
