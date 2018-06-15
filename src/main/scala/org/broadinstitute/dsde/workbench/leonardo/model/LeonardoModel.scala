@@ -107,35 +107,7 @@ object Cluster {
       userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
       dateAccessed = Instant.now())
   }
-
-  def createDummyForDeletion(clusterRequest: ClusterRequest,
-                             userEmail: WorkbenchEmail,
-                             clusterName: ClusterName,
-                             googleProject: GoogleProject,
-                             serviceAccountInfo: ServiceAccountInfo): Cluster = {
-    Cluster(
-      clusterName = clusterName,
-      googleId = Some(UUID.randomUUID),
-      googleProject = googleProject,
-      serviceAccountInfo = serviceAccountInfo,
-      machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, ClusterDefaultsConfig(0, "", 0, "", 0, 0, 0)),
-      clusterUrl = getClusterUrl(googleProject, clusterName),
-      operationName = Some(OperationName("dummy-operation")),
-      status = ClusterStatus.Creating,
-      hostIp = None,
-      creator = userEmail,
-      createdDate = Instant.now(),
-      destroyedDate = None,
-      labels = clusterRequest.labels,
-      jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
-      jupyterUserScriptUri = clusterRequest.jupyterUserScriptUri,
-      stagingBucket = None,
-      errors = List.empty,
-      instances = Set.empty,
-      userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
-      dateAccessed = Instant.now())
-  }
-
+  
   // TODO it's hacky to re-parse the Leo config in the model object.
   // It would be better to pass the clusterUrlBase config value to the getClusterUrl method as a parameter.
   // The reason we can't always do that is getClusterUrl is called by ClusterComponent, which is not aware of leonardo.conf.
