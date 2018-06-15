@@ -1,6 +1,8 @@
 import sbt._
 
 object Dependencies {
+  val scalaV = "2.12"
+
   val jacksonV = "2.9.5"
   val akkaV = "2.5.13"
   val akkaHttpV = "10.1.2"
@@ -9,8 +11,8 @@ object Dependencies {
   val workbenchGoogleV  = "0.16-f339f30"
   val serviceTestV = "0.9-49b96b1"
 
-  val excludeWorkbenchModel  = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-model_2.11")
-  val excludeWorkbenchGoogle = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-google_2.11")
+  val excludeWorkbenchModel  = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-model_" + scalaV)
+  val excludeWorkbenchGoogle = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-google_" + scalaV)
   val excludeGoogleOauth2    = ExclusionRule(organization = "com.google.apis", name = "google-api-services-oauth2")
   val excludeGoogleApiClient = ExclusionRule(organization = "com.google.api-client", name = "google-api-client")
   val excludeGoogleJsr305    = ExclusionRule(organization = "com.google.code.findbugs", name = "jsr305")
@@ -36,7 +38,7 @@ object Dependencies {
     "com.fasterxml.jackson.core" % "jackson-annotations"  % jacksonV,
     "com.fasterxml.jackson.core" % "jackson-databind"     % jacksonV excludeAll (excludeJacksonAnnotation),
     "com.fasterxml.jackson.core" % "jackson-core"         % jacksonV,
-    "com.fasterxml.jackson.module" % "jackson-module-scala_2.11" % jacksonV,
+    "com.fasterxml.jackson.module" % ("jackson-module-scala_" + scalaV) % jacksonV,
     "ch.qos.logback"  % "logback-classic" % "1.2.3"  % "test",
     "com.google.apis" % "google-api-services-oauth2" % "v1-rev142-1.23.0" excludeAll (
       excludeGuavaJdk5,
