@@ -5,6 +5,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq, clusterSeqEq}
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
@@ -113,9 +114,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       dateAccessed = dateAccessed
     )
 
-    assertEquivalent(c1) { dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) } }
-    assertEquivalent(c2) { dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) } }
-    assertEquivalent(c3) { dbFutureValue { _.clusterQuery.save(c3, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } }
+    dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) } shouldEqual c1
+    dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) } shouldEqual c2
+    dbFutureValue { _.clusterQuery.save(c3, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldEqual c3
 
     // Get the cluster id's assigned by the database (since the id field is auto incremented) to use further below
     val c1Id =  dbFutureValue { _.clusterQuery.getIdByGoogleId(c1.googleId)}.get
@@ -177,7 +178,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFailure { _.clusterQuery.save(c4, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(c1Id) } shouldEqual 1
-    assertEquivalent(Set(c2, c3)) { dbFutureValue { _.clusterQuery.listActive() }.toSet }
+    dbFutureValue { _.clusterQuery.listActive() } should contain theSameElementsAs Seq(c2, c3)
 
     val c1status = dbFutureValue { _.clusterQuery.getById(c1Id) }.get
     c1status.status shouldEqual ClusterStatus.Deleting
@@ -186,7 +187,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     c1status.instances shouldBe c1.instances
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(c2Id) } shouldEqual 1
-    assertEquivalent(Set(c3)) { dbFutureValue { _.clusterQuery.listActive() }.toSet }
+    dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq(c3)
     val c2status = dbFutureValue { _.clusterQuery.getById(c2Id) }.get
     c2status.status shouldEqual ClusterStatus.Deleting
     c2status.destroyedDate shouldBe None
@@ -267,9 +268,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       userJupyterExtensionConfig = None,
       dateAccessed = Instant.now())
 
-    assertEquivalent(c1) { dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } }
-    assertEquivalent(c2) { dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) } }
-    assertEquivalent(c3) { dbFutureValue { _.clusterQuery.save(c3, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } }
+    dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual c1
+    dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) } shouldEqual c2
+    dbFutureValue { _.clusterQuery.save(c3, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldEqual c3
 
     assertEquivalent(Set(c1, c2)) { dbFutureValue { _.clusterQuery.listByLabels(Map.empty, false) }.toSet }
     assertEquivalent(Set(c1)) { dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes"), false) }.toSet }
@@ -382,8 +383,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
         workerInstance1.copy(status = InstanceStatus.Terminated))
     )
 
-    assertEquivalent(updatedC1Again) { dbFutureValue { _.clusterQuery.mergeInstances(updatedC1Again) } }
-    assertEquivalent(updatedC1) { dbFutureValue { _.clusterQuery.getById(updatedC1Id) }.get }
+    dbFutureValue { _.clusterQuery.mergeInstances(updatedC1Again) } shouldEqual updatedC1Again
+    dbFutureValue { _.clusterQuery.getById(updatedC1Id) }.get shouldEqual updatedC1
   }
 
   it should "get list of clusters to auto freeze" in isolatedDbTest {
@@ -407,8 +408,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List.empty,
       instances = Set(masterInstance),
       userJupyterExtensionConfig = None,
-      dateAccessed = Instant.now()
-    )
+      dateAccessed = Instant.now())
 
     val stoppedCluster = Cluster(
       clusterName = name2,
@@ -430,15 +430,12 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      dateAccessed = Instant.now()
-    )
+      dateAccessed = Instant.now())
 
-    assertEquivalent(runningCluster) { dbFutureValue { _.clusterQuery.save(runningCluster, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } }
-    assertEquivalent(stoppedCluster) { dbFutureValue { _.clusterQuery.save(stoppedCluster, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } }
+    dbFutureValue { _.clusterQuery.save(runningCluster, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual runningCluster
+    dbFutureValue { _.clusterQuery.save(stoppedCluster, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual stoppedCluster
 
     dbFutureValue { _.clusterQuery.getClustersReadyToAutoFreeze(autoFreezeconfig.autoFreezeAfter) } shouldBe List.empty
-
-    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
     
     eventually(timeout(Span(30, Seconds))) {
       val autoFreezeList = dbFutureValue { _.clusterQuery.getClustersReadyToAutoFreeze(autoFreezeconfig.autoFreezeAfter) }
