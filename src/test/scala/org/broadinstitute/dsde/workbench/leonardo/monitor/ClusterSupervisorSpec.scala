@@ -68,9 +68,7 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest")) with Fl
     }
 
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
-    dbFutureValue {
-      _.clusterQuery.save(runningCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id))
-    } shouldEqual runningCluster
+    dbFutureValue { _.clusterQuery.save(runningCluster, Option(gcsPath("gs://bucket")), Some(serviceAccountKey.id)) } shouldEqual runningCluster
     val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO, computeDAO, iamDAO, storageDAO,
       DbSingleton.ref, system.deadLetters, authProvider, autoFreezeconfig))
     new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, clusterSupervisorActor, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper)

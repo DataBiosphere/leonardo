@@ -11,7 +11,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GcsPathSupport, GoogleProject, ServiceAccountKeyId, parseGcsPath}
 
-import scala.concurrent.Future
 import scala.concurrent.duration.FiniteDuration
 
 case class ClusterRecord(id: Long,
@@ -76,7 +75,7 @@ trait ClusterComponent extends LeoComponent {
     def stagingBucket =               column[Option[String]]    ("stagingBucket",         O.Length(254))
     def dateAccessed =                column[Timestamp]         ("dateAccessed",          O.SqlType("TIMESTAMP(6)"))
 
-    def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName), unique = true)
+    def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName, destroyedDate), unique = true)
 
     // Can't use the shorthand
     //   def * = (...) <> (ClusterRecord.tupled, ClusterRecord.unapply)
@@ -109,9 +108,9 @@ trait ClusterComponent extends LeoComponent {
 
   object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
-    def save(cluster: Cluster, initBucket: GcsPath, serviceAccountKeyId: Option[ServiceAccountKeyId]): DBIO[Cluster] = {
+    def save(cluster: Cluster, initBucket: Option[GcsPath], serviceAccountKeyId: Option[ServiceAccountKeyId]): DBIO[Cluster] = {
       for {
-        clusterId <- clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster, initBucket.toUri, serviceAccountKeyId)
+        clusterId <- clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster, initBucket.map(_.toUri), serviceAccountKeyId)
         _ <- labelQuery.saveAllForCluster(clusterId, cluster.labels)
         _ <- instanceQuery.saveAllForCluster(clusterId, cluster.instances.toSeq)
         _ <- extensionQuery.saveAllForCluster(clusterId, cluster.userJupyterExtensionConfig)
@@ -213,8 +212,8 @@ trait ClusterComponent extends LeoComponent {
         .filter { _.googleProject === project.value }
         .filter { _.clusterName === name.value }
         .map(_.initBucket)
-        .result map { recs =>
-        recs.headOption.flatten.flatMap(head => parseGcsPath(head).toOption)
+        .result
+        .map { recs => recs.headOption.flatten.flatMap(head => parseGcsPath(head).toOption)
       }
     }
 
@@ -313,7 +312,7 @@ trait ClusterComponent extends LeoComponent {
      * This function should only be called at cluster creation time, when the init bucket doesn't exist.
      */
     private def marshalCluster(cluster: Cluster,
-                               initBucket: String,
+                               initBucket: Option[String],
                                serviceAccountKeyId: Option[ServiceAccountKeyId]): ClusterRecord = {
       ClusterRecord(
         id = 0,    // DB AutoInc
@@ -328,7 +327,7 @@ trait ClusterComponent extends LeoComponent {
         marshalDestroyedDate(cluster.destroyedDate),
         cluster.jupyterExtensionUri map(_.toUri),
         cluster.jupyterUserScriptUri map(_.toUri),
-        Some(initBucket),
+        initBucket,
         MachineConfigRecord(
           cluster.machineConfig.numberOfWorkers.get,   //a cluster should always have numberOfWorkers defined
           cluster.machineConfig.masterMachineType.get, //a cluster should always have masterMachineType defined

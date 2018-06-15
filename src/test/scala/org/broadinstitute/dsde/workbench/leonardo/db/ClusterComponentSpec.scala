@@ -113,9 +113,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       dateAccessed = dateAccessed
     )
 
-    assertEquivalent(c1) { dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), None) } }
-    assertEquivalent(c2) { dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id)) } }
-    assertEquivalent(c3) { dbFutureValue { _.clusterQuery.save(c3, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } }
+    assertEquivalent(c1) { dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) } }
+    assertEquivalent(c2) { dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) } }
+    assertEquivalent(c3) { dbFutureValue { _.clusterQuery.save(c3, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } }
 
     // Get the cluster id's assigned by the database (since the id field is auto incremented) to use further below
     val c1Id =  dbFutureValue { _.clusterQuery.getIdByGoogleId(c1.googleId)}.get
@@ -174,7 +174,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       userJupyterExtensionConfig = None,
       dateAccessed = Instant.now())
 
-    dbFailure { _.clusterQuery.save(c4, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
+    dbFailure { _.clusterQuery.save(c4, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(c1Id) } shouldEqual 1
     assertEquivalent(Set(c2, c3)) { dbFutureValue { _.clusterQuery.listActive() }.toSet }
@@ -267,9 +267,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       userJupyterExtensionConfig = None,
       dateAccessed = Instant.now())
 
-    assertEquivalent(c1) { dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } }
-    assertEquivalent(c2) { dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id)) } }
-    assertEquivalent(c3) { dbFutureValue { _.clusterQuery.save(c3, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } }
+    assertEquivalent(c1) { dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } }
+    assertEquivalent(c2) { dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) } }
+    assertEquivalent(c3) { dbFutureValue { _.clusterQuery.save(c3, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } }
 
     assertEquivalent(Set(c1, c2)) { dbFutureValue { _.clusterQuery.listByLabels(Map.empty, false) }.toSet }
     assertEquivalent(Set(c1)) { dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes"), false) }.toSet }
@@ -314,7 +314,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
         userJupyterExtensionConfig = None,
         dateAccessed = dateAccessed)
 
-    assertEquivalent(initialCluster) { dbFutureValue { _.clusterQuery.save(initialCluster, gcsPath( "gs://bucket1"), Some(serviceAccountKey.id)) } }
+    assertEquivalent(initialCluster) { dbFutureValue { _.clusterQuery.save(initialCluster, Option(gcsPath( "gs://bucket1")), Some(serviceAccountKey.id)) } }
 
     val initialClusterId = dbFutureValue { _.clusterQuery.getIdByGoogleId(initialCluster.googleId)}.get
 
@@ -363,7 +363,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
         userJupyterExtensionConfig = None,
         dateAccessed = Instant.now())
 
-    assertEquivalent(c1) { dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } }
+    assertEquivalent(c1) { dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } }
 
     val updatedC1Id = dbFutureValue { _.clusterQuery.getIdByGoogleId(c1.googleId) }.get
     val updatedC1 = c1.copy(
@@ -433,8 +433,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       dateAccessed = Instant.now()
     )
 
-    assertEquivalent(runningCluster) { dbFutureValue { _.clusterQuery.save(runningCluster, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } }
-    assertEquivalent(stoppedCluster) { dbFutureValue { _.clusterQuery.save(stoppedCluster, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } }
+    assertEquivalent(runningCluster) { dbFutureValue { _.clusterQuery.save(runningCluster, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } }
+    assertEquivalent(stoppedCluster) { dbFutureValue { _.clusterQuery.save(stoppedCluster, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } }
 
     dbFutureValue { _.clusterQuery.getClustersReadyToAutoFreeze(autoFreezeconfig.autoFreezeAfter) } shouldBe List.empty
 

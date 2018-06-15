@@ -105,9 +105,9 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     ClusterDnsCache.HostToIp = Map.empty
 
     // save the clusters to the db
-    assertEquivalent(c1) { dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } }
-    assertEquivalent(c2) { dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id)) } }
-    assertEquivalent(c3) { dbFutureValue { _.clusterQuery.save(c3, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } }
+    assertEquivalent(c1) { dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } }
+    assertEquivalent(c2) { dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) } }
+    assertEquivalent(c3) { dbFutureValue { _.clusterQuery.save(c3, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } }
 
     // maps should be populated
     eventually {
@@ -136,9 +136,9 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     ClusterDnsCache.HostToIp = Map.empty
 
     // save the clusters to the db
-    assertEquivalent(c1) { dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } }
-    assertEquivalent(c2) { dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id)) } }
-    assertEquivalent(c3) { dbFutureValue { _.clusterQuery.save(c3, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } }
+    assertEquivalent(c1) { dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } }
+    assertEquivalent(c2) { dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) } }
+    assertEquivalent(c3) { dbFutureValue { _.clusterQuery.save(c3, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } }
 
     // we have not yet executed a DNS cache refresh cycle
 
@@ -170,8 +170,8 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val newC1 = c1.copy(clusterName = newName1, hostIp = Some(IP("a new IP")), googleId = Option(UUID.randomUUID()))
     val newC2 = c2.copy(clusterName = newName2, hostIp = Some(IP("another new IP")), googleId = Option(UUID.randomUUID()))
 
-    assertEquivalent(newC1) { dbFutureValue { _.clusterQuery.save(newC1, gcsPath("gs://newbucket1"), Some(serviceAccountKey.id)) } }
-    assertEquivalent(newC2) { dbFutureValue { _.clusterQuery.save(newC2, gcsPath("gs://newbucket2"), Some(serviceAccountKey.id)) } }
+    assertEquivalent(newC1) { dbFutureValue { _.clusterQuery.save(newC1, Option(gcsPath("gs://newbucket1")), Some(serviceAccountKey.id)) } }
+    assertEquivalent(newC2) { dbFutureValue { _.clusterQuery.save(newC2, Option(gcsPath("gs://newbucket2")), Some(serviceAccountKey.id)) } }
 
     // add one cluster to cache immediately without waiting for the cycle
 
