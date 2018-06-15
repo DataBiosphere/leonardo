@@ -562,11 +562,9 @@ definitions:
     description: ''
     required:
       - clusterName
-      - googleId
       - googleProject
       - googleServiceAccount
       - machineConfig
-      - operationName
       - status
       - createdDate
       - labels
