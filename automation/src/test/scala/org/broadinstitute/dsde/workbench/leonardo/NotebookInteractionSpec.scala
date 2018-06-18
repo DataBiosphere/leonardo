@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
-import org.broadinstitute.dsde.workbench.model.google.{GcsEntity, GcsEntityTypes, GcsObjectName, GcsPath, GcsRoles, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntity, GcsEntityTypes, GcsObjectName, GcsPath, GcsRoles, GoogleProject}
 import org.scalatest.{BeforeAndAfterAll, FreeSpec}
 
 import scala.concurrent.duration._
@@ -38,7 +38,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       case e: Throwable =>
         logger.error(s"NotebookInteractionSpec: error occurred creating cluster in billing project ${billingProject}", e)
         // clean up billing project here because afterAll() doesn't run if beforeAll() throws an exception
-        gpAllocProject.cleanup(hermioneCreds, List(ronEmail))
+        gpAllocProject.cleanup(hermioneCreds)
         throw e
     }
     new File(downloadDir).mkdirs()
@@ -46,7 +46,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
 
   override def afterAll(): Unit = {
     deleteAndMonitor(billingProject, ronCluster.clusterName)(ronAuthToken)
-    gpAllocProject.cleanup(hermioneCreds, List(ronEmail))
+    gpAllocProject.cleanup(hermioneCreds)
 
     super.afterAll()
   }
@@ -220,14 +220,14 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
       val billingScriptProject = GoogleProject(gpAllocScriptProject.projectName)
       withNewGoogleBucket(billingScriptProject) { bucketName =>
         val ronPetServiceAccount = Sam.user.petServiceAccountEmail(billingProject.value)(ronAuthToken)
-        googleStorageDAO.setBucketAccessControl(bucketName, GcsEntity(ronPetServiceAccount, GcsEntityTypes.User), GcsRoles.Owner)
+        googleStorageDAO.setBucketAccessControl(bucketName, EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount), GcsRoles.Owner)
 
         val userScriptString = "#!/usr/bin/env bash\n\npip2 install arrow"
         val userScriptObjectName = GcsObjectName("user-script.sh")
         val userScriptUri = s"gs://${bucketName.value}/${userScriptObjectName.value}"
 
         withNewBucketObject(bucketName, userScriptObjectName, userScriptString, "text/plain") { objectName =>
-          googleStorageDAO.setObjectAccessControl(bucketName, objectName, GcsEntity(ronPetServiceAccount, GcsEntityTypes.User), GcsRoles.Owner)
+          googleStorageDAO.setObjectAccessControl(bucketName, objectName, EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount), GcsRoles.Owner)
           val clusterName = ClusterName("user-script-cluster" + makeRandomId())
           withNewCluster(billingProject, clusterName, ClusterRequest(Map(), None, Option(userScriptUri))) { cluster =>
             Thread.sleep(10000)
