@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <script src="https://apis.google.com/js/platform.js" async defer></script>
+
+        <!--required for the more complex button-->
+        <script src="https://apis.google.com/js/platform.js?onload=renderButton" async defer></script>
+        <!-- why onload=renderButton and not onload=init like described in https://developers.google.com/identity/sign-in/web/reference#gapi.signin2.render -->
+        <meta name="google-signin-client_id" content="207813348899-cudfdu92hpaiu3pk30f9r0k01f04m5nm.apps.googleusercontent.com">
+    </head>
+    <body>
+        <p>The Simple Button</p>
+        <div class="g-signin2" data-onsuccess="onSignIn"></div>
+        <p>Likely the button I actually want</p>
+        <div id="my-signin2"></div>
+        <script>
+            function onSuccess(googleUser) {
+                console.log('Logged in as: ' + googleUser.getBasicProfile().getName());
+            }
+            function onFailure(error) {
+                console.log(error);
+            }
+            function renderButton() {
+                gapi.signin2.render('my-signin2', {
+                    'scope': 'profile email',
+                    'width': 240,
+                    'height': 50,
+                    'longtitle': true,
+                    'theme': 'dark',
+                    'onsuccess': onSuccess,
+                    'onfailure': onFailure
+                });
+            }
+        </script>
+    </body>
+</html>
