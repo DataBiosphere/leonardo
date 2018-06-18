@@ -6,7 +6,7 @@ This folder contains some example notebooks that can be used in Leonardo. These 
 
 To try out an example notebook, download it to your machine, open Jupyter, and select Upload.
 
-<image here> 
+![Upload a notebook](https://github.com/DataBiosphere/leonardo/tree/develop/example-notebooks/upload.png)
 
 ## List
 
