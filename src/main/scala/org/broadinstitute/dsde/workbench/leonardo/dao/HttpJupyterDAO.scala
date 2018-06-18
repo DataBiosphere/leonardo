@@ -19,7 +19,7 @@ class HttpJupyterDAO(val clusterDnsCache: ActorRef)(implicit system: ActorSystem
 
   override def getStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = {
     getTargetHost(googleProject, clusterName) flatMap {
-      case ClusterReady(targetHost) => executeJupyterProxyRequest(HttpRequest(uri = Uri(s"https://${targetHost.toString}/notebooks/$googleProject/$clusterName/api/status")))
+      case ClusterReady(targetHost) => http.singleRequest(HttpRequest(uri = Uri(s"https://${targetHost.toString}/notebooks/$googleProject/$clusterName/api/status"))) flatMap(response => Future.successful(response.status.isSuccess()))
       case _ => Future.successful(false)
     }
   }
@@ -27,14 +27,5 @@ class HttpJupyterDAO(val clusterDnsCache: ActorRef)(implicit system: ActorSystem
   protected def getTargetHost(googleProject: GoogleProject, clusterName: ClusterName): Future[GetClusterResponse] = {
     implicit val timeout: Timeout = Timeout(5 seconds)
     (clusterDnsCache ? GetByProjectAndName(googleProject, clusterName)).mapTo[GetClusterResponse]
-  }
-
-  private def executeJupyterProxyRequest(httpRequest: HttpRequest): Future[Boolean] = {
-    http.singleRequest(httpRequest) flatMap { response =>
-      if (response.status.isSuccess)
-        Future.successful(true)
-      else
-        Future.successful(false)
-    }
   }
 }

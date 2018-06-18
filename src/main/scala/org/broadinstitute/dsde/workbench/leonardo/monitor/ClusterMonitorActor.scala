@@ -280,16 +280,14 @@ class ClusterMonitorActor(val cluster: Cluster,
             case None => NotReadyCluster(ClusterStatus.Running, googleInstances)
           }
         case Running if clusterStatus == Starting && runningInstanceCount== googleInstances.size =>
-            getMasterIp.map {
-              case Some(ip) =>
-                isProxyAvailable(clusterStatus, ip).map { isProxyable: Boolean =>
-                  if(isProxyable)
-                    ReadyCluster(ip, googleInstances)
-                  else
-                    NotReadyCluster(ClusterStatus.Running, googleInstances)
-                }
-              case None => Future.successful(NotReadyCluster(ClusterStatus.Running, googleInstances))
-            }.flatten
+          getMasterIp.flatMap {
+            case Some(ip) =>
+              isProxyAvailable(clusterStatus, ip).map {
+                case true =>  ReadyCluster(ip, googleInstances)
+                case false => NotReadyCluster(ClusterStatus.Running, googleInstances)
+              }
+            case None => Future.successful(NotReadyCluster(ClusterStatus.Running, googleInstances))
+          }
         // Take care we don't fail a Deleting or Stopping cluster if google hasn't updated their status yet
         case Error if clusterStatus != Deleting && clusterStatus != Stopping =>
           gdDAO.getClusterErrorDetails(cluster.operationName).map {
