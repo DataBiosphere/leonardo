@@ -4,7 +4,8 @@ import java.net.URL
 import java.time.Instant
 import java.util.UUID
 
-import akka.http.scaladsl.model.headers.{Cookie, HttpCookiePair}
+import akka.http.scaladsl.model.headers.{Cookie, HttpCookiePair, OAuth2BearerToken, Authorization}
+//import akka.http.scaladsl.model.headers.{ContentDispositionTypes, `Content-Disposition`, _}
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.typesafe.scalalogging.LazyLogging
@@ -181,7 +182,8 @@ object Leonardo extends RestClient with LazyLogging {
     def setCookie(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver): String = {
       val path = notebooksPath(googleProject, clusterName) + "/setCookie"
       logger.info(s"Set cookie: GET /$path")
-      parseResponse(getRequest(url + path))
+      parseResponse(getRequest(url + path, httpHeaders = List(Authorization(OAuth2BearerToken(token.value)))))
+
     }
   }
 

@@ -24,6 +24,7 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
   var ronCluster : Cluster = _
 
   implicit val ronToken: AuthToken = ronAuthToken
+  val dracoToken: AuthToken = dracoAuthToken
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -421,11 +422,11 @@ class NotebookInteractionSpec extends FreeSpec with LeonardoTestUtils with Befor
     }
 
     "should throw 401 for invalid token" in withWebDriver { implicit driver =>
-      try {
-        Leonardo.notebooks.setCookie(ronCluster.googleProject, ronCluster.clusterName)
-      } catch {
-        case e: Exception => e.getMessage should include(""""statusCode":409""")
+
+      val thrown = the [Exception] thrownBy {
+        Leonardo.notebooks.setCookie(ronCluster.googleProject, ronCluster.clusterName)(dracoToken, driver)
       }
+      thrown.getMessage should include (""""statusCode":401""")
     }
   }
 }
