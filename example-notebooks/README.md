@@ -18,7 +18,8 @@ Here is a current listing of example notebooks. Please keep this up to date if y
    - Python 2 sample notebook which loads the FireCloud data model into pandas objects, interacts with Google Cloud Storage APIs, and runs a basic Hail job.
       - NOTE: references a demo workspace which no longer exists, so won't be runnable as-is.
 3. [Notebooks_Demo_Manning_Lab.ipynb](https://github.com/DataBiosphere/leonardo/tree/develop/example-notebooks/Notebooks_Demo_Manning_Lab.ipynb)
-   - Similar to the above but more involved and runs an analysis of publicly available 1000 genomes data. Developed by Alisa Manning's team for demonstration purposes.
+   - Python 2 notebook which runs an analysis of publicly available 1000 genomes data. Uses FISS for interacting with a FireCloud workspace and pandas and numpy for manipulating data. Runs Hail 0.1 to do some analysis.
+   - Developed by Alisa Manning's team for demonstration purposes.
 4. [Safari_Online_Jupyter_Training.ipynb](https://github.com/DataBiosphere/leonardo/tree/develop/example-notebooks/Safari_Online_Jupyter_Training.ipynb)
    - Adaptation of [Safari online Jupyter training](https://www.safaribooksonline.com/public/online-training-jupyter/) which exercises some basic tools like pandas, numpy, and matplotlib in Python 3. 
 
