@@ -4,6 +4,7 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleCredential
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import com.google.api.client.json.jackson2.JacksonFactory
 import org.broadinstitute.dsde.workbench.auth.AuthToken
+import org.broadinstitute.dsde.workbench.leonardo.LeonardoConfig
 
 import scala.collection.JavaConverters._
 
@@ -23,8 +24,8 @@ case object LeoAuthToken extends AuthToken {
   }
 
   override def buildCredential(): GoogleCredential = {
-    val pemfile = new java.io.File(Config.GCS.pathToQAPem)
-    val email = Config.GCS.qaEmail
+    val pemfile = new java.io.File(LeonardoConfig.GCS.pathToQAPem)
+    val email = LeonardoConfig.GCS.qaEmail
 
     new GoogleCredential.Builder()
       .setTransport(httpTransport)
@@ -37,8 +38,8 @@ case object LeoAuthToken extends AuthToken {
   }
 
   def buildCredential(userEmail: String): GoogleCredential = {
-    val pemfile = new java.io.File(Config.GCS.pathToQAPem)
-    val email = Config.GCS.qaEmail
+    val pemfile = new java.io.File(LeonardoConfig.GCS.pathToQAPem)
+    val email = LeonardoConfig.GCS.qaEmail
 
     new GoogleCredential.Builder()
       .setTransport(httpTransport)
