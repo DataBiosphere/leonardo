@@ -21,3 +21,5 @@ A current list of example notebooks is here. Please keep this up to date if you 
    - Similar to the above but more involved and runs an analysis of publicly available 1000 genomes data. Developed by Alisa Manning's team for demonstration purposes.
 4. [Safari_Online_Jupyter_Training.ipynb](https://github.com/DataBiosphere/leonardo/tree/develop/example-notebooks/Safari_Online_Jupyter_Training.ipynb)
    - Adaptation of [Safari online Jupyter training](https://www.safaribooksonline.com/public/online-training-jupyter/) which exercises some basic tools like pandas, numpy, and matplotlib in Python 3. 
+
+NEEDED: example notebook using R and bigquery.
