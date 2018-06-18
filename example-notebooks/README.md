@@ -10,7 +10,7 @@ To try out an example notebook, download it to your machine, open Jupyter, and s
 
 ## List
 
-A current list of example notebooks is here. Please keep this up to date if you add more.
+Here is a current listing of example notebooks. Please keep this up to date if you add more.
 
 1. [Hail_Tutorial.ipynb](https://github.com/DataBiosphere/leonardo/tree/develop/example-notebooks/Hail_Tutorial.ipynb)
    - Contains the Hail 0.1 (stable) tutorial, adapted from here: https://hail.is/docs/stable/tutorials/hail-overview.html
