@@ -7,7 +7,7 @@ import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorage
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
-import org.broadinstitute.dsde.workbench.model.google.{GcsEntity, GcsObjectName, GcsPath, parseGcsPath}
+import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntity, GcsObjectName, GcsPath, parseGcsPath}
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 
 class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with ParallelTestExecution with BillingFixtures {
@@ -81,7 +81,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
           googleStorageDAO.copyObject(srcPath.bucketName, srcPath.objectName, destPath.bucketName, destPath.objectName).futureValue
 
           val ronProxyGroup = Sam.user.proxyGroup(ronEmail)
-          val ronPetEntity = GcsEntity(ronProxyGroup, Group)
+          val ronPetEntity = EmailGcsEntity(Group, ronProxyGroup)
           googleStorageDAO.setObjectAccessControl(destPath.bucketName, destPath.objectName, ronPetEntity, Reader).futureValue
 
           val request = ClusterRequest(machineConfig = Option(MachineConfig(
@@ -143,7 +143,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
             googleStorageDAO.copyObject(srcPath.bucketName, srcPath.objectName, destPath.bucketName, destPath.objectName).futureValue
 
             val ronProxyGroup = Sam.user.proxyGroup(ronEmail)
-            val ronPetEntity = GcsEntity(ronProxyGroup, Group)
+            val ronPetEntity = EmailGcsEntity(Group, ronProxyGroup)
             googleStorageDAO.setObjectAccessControl(destPath.bucketName, destPath.objectName, ronPetEntity, Reader).futureValue
 
             val request = ClusterRequest(machineConfig = Option(MachineConfig(
