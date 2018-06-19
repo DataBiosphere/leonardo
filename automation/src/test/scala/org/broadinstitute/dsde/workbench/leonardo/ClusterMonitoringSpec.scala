@@ -7,7 +7,7 @@ import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorage
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
-import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntity, GcsObjectName, GcsPath, parseGcsPath}
+import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsObjectName, GcsPath, parseGcsPath}
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 
 class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with ParallelTestExecution with BillingFixtures {
@@ -15,21 +15,22 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
   "Leonardo clusters" - {
 
     // default PetClusterServiceAccountProvider edition
-    "should create a cluster in a different billing project using PetClusterServiceAccountProvider and put the pet's credentials on the cluster" in withWebDriver { implicit driver =>
+    "should create a cluster in a different billing project using PetClusterServiceAccountProvider and put the pet's credentials on the cluster" in {
       withProject { project => implicit token =>
         // Pre-conditions: pet service account exists in this Google project and in Sam
         val petEmail = getAndVerifyPet(project)
 
         // Create a cluster
-
         withNewCluster(project) { cluster =>
           // cluster should have been created with the pet service account
           cluster.serviceAccountInfo.clusterServiceAccount shouldBe Some(petEmail)
           cluster.serviceAccountInfo.notebookServiceAccount shouldBe None
 
-          withNewNotebook(cluster) { notebookPage =>
-            // should not have notebook credentials because Leo is not configured to use a notebook service account
-            verifyNoNotebookCredentials(notebookPage)
+          withWebDriver { implicit driver =>
+            withNewNotebook(cluster) { notebookPage =>
+              // should not have notebook credentials because Leo is not configured to use a notebook service account
+              verifyNoNotebookCredentials(notebookPage)
+            }
           }
         }
 
@@ -42,7 +43,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
     }
 
     // PetNotebookServiceAccountProvider edition.  IGNORE.
-    "should create a cluster in a different billing project using PetNotebookServiceAccountProvider and put the pet's credentials on the cluster" ignore withWebDriver { implicit driver =>
+    "should create a cluster in a different billing project using PetNotebookServiceAccountProvider and put the pet's credentials on the cluster" ignore {
       withProject { project => implicit token =>
         // Pre-conditions: pet service account exists in this Google project and in Sam
         val petEmail = getAndVerifyPet(project)
@@ -54,9 +55,11 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
           cluster.serviceAccountInfo.clusterServiceAccount shouldBe None
           cluster.serviceAccountInfo.notebookServiceAccount shouldBe Some(petEmail)
 
-          withNewNotebook(cluster) { notebookPage =>
-            // should have notebook credentials
-            verifyNotebookCredentials(notebookPage, petEmail)
+          withWebDriver { implicit driver =>
+            withNewNotebook(cluster) { notebookPage =>
+              // should have notebook credentials
+              verifyNotebookCredentials(notebookPage, petEmail)
+            }
           }
         }
 
@@ -71,7 +74,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
     // TODO: we've noticed intermittent failures for this test. See:
     // https://github.com/DataBiosphere/leonardo/issues/204
     // https://github.com/DataBiosphere/leonardo/issues/228
-    "should execute Hail with correct permissions on a cluster with preemptible workers" in withWebDriver { implicit driver =>
+    "should execute Hail with correct permissions on a cluster with preemptible workers" in {
       withProject { project => implicit token =>
         withNewGoogleBucket(project) { bucket =>
           implicit val patienceConfig: PatienceConfig = storagePatience
@@ -91,69 +94,72 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
           )))
 
           withNewCluster(project, request = request) { cluster =>
-            withNewNotebook(cluster) { notebookPage =>
-              verifyHailImport(notebookPage, destPath, cluster.clusterName)
+            withWebDriver { implicit driver =>
+              withNewNotebook(cluster) { notebookPage =>
+                verifyHailImport(notebookPage, destPath, cluster.clusterName)
+              }
             }
           }
         }
       }
     }
 
-    "should pause and resume a cluster" in withWebDriver { implicit driver =>
+    "should pause and resume a cluster" in {
       withProject { project => implicit token =>
         // Create a cluster
         withNewCluster(project) { cluster =>
           val printStr = "Pause/resume test"
 
-          // Create a notebook and execute a cell
-          withNewNotebook(cluster, kernel = Python3) { notebookPage =>
-            notebookPage.executeCell(s"""print("$printStr")""") shouldBe Some(printStr)
-            notebookPage.saveAndCheckpoint()
-          }
+          withWebDriver { implicit driver =>
+            // Create a notebook and execute a cell
+            withNewNotebook(cluster, kernel = Python3) { notebookPage =>
+              notebookPage.executeCell(s"""print("$printStr")""") shouldBe Some(printStr)
+              notebookPage.saveAndCheckpoint()
+            }
 
-          // Stop the cluster
-          stopAndMonitor(cluster.googleProject, cluster.clusterName)
+            // Stop the cluster
+            stopAndMonitor(cluster.googleProject, cluster.clusterName)
 
-          // Start the cluster
-          startAndMonitor(cluster.googleProject, cluster.clusterName)
+            // Start the cluster
+            startAndMonitor(cluster.googleProject, cluster.clusterName)
 
-          // TODO make tests rename notebooks?
-          val notebookPath = new File("Untitled.ipynb")
-          withOpenNotebook(cluster, notebookPath) { notebookPage =>
-            // old output should still exist
-            val firstCell = notebookPage.firstCell
-            notebookPage.cellOutput(firstCell) shouldBe Some(printStr)
-            // execute a new cell to make sure the notebook kernel still works
-            notebookPage.runAllCells()
-            notebookPage.executeCell("sum(range(1,10))") shouldBe Some("45")
+            // TODO make tests rename notebooks?
+            val notebookPath = new File("Untitled.ipynb")
+            withOpenNotebook(cluster, notebookPath) { notebookPage =>
+              // old output should still exist
+              val firstCell = notebookPage.firstCell
+              notebookPage.cellOutput(firstCell) shouldBe Some(printStr)
+              // execute a new cell to make sure the notebook kernel still works
+              notebookPage.runAllCells()
+              notebookPage.executeCell("sum(range(1,10))") shouldBe Some("45")
+            }
           }
         }
-
       }
     }
 
-    "should pause and resume a cluster with preemptible instances" in withWebDriver { implicit driver =>
-      withProject { project =>
-        implicit token =>
-          withNewGoogleBucket(project) { bucket =>
-            implicit val patienceConfig: PatienceConfig = storagePatience
+    "should pause and resume a cluster with preemptible instances" in {
+      withProject { project => implicit token =>
+        withNewGoogleBucket(project) { bucket =>
+          implicit val patienceConfig: PatienceConfig = storagePatience
 
-            val srcPath = parseGcsPath("gs://genomics-public-data/1000-genomes/vcf/ALL.chr20.integrated_phase1_v3.20101123.snps_indels_svs.genotypes.vcf").right.get
-            val destPath = GcsPath(bucket, GcsObjectName("chr20.vcf"))
-            googleStorageDAO.copyObject(srcPath.bucketName, srcPath.objectName, destPath.bucketName, destPath.objectName).futureValue
+          val srcPath = parseGcsPath("gs://genomics-public-data/1000-genomes/vcf/ALL.chr20.integrated_phase1_v3.20101123.snps_indels_svs.genotypes.vcf").right.get
+          val destPath = GcsPath(bucket, GcsObjectName("chr20.vcf"))
+          googleStorageDAO.copyObject(srcPath.bucketName, srcPath.objectName, destPath.bucketName, destPath.objectName).futureValue
 
-            val ronProxyGroup = Sam.user.proxyGroup(ronEmail)
-            val ronPetEntity = EmailGcsEntity(Group, ronProxyGroup)
-            googleStorageDAO.setObjectAccessControl(destPath.bucketName, destPath.objectName, ronPetEntity, Reader).futureValue
+          val ronProxyGroup = Sam.user.proxyGroup(ronEmail)
+          val ronPetEntity = EmailGcsEntity(Group, ronProxyGroup)
+          googleStorageDAO.setObjectAccessControl(destPath.bucketName, destPath.objectName, ronPetEntity, Reader).futureValue
 
-            val request = ClusterRequest(machineConfig = Option(MachineConfig(
-              // need at least 2 regular workers to enable preemptibles
-              numberOfWorkers = Option(2),
-              numberOfPreemptibleWorkers = Option(10)
-            )))
+          val request = ClusterRequest(machineConfig = Option(MachineConfig(
+            // need at least 2 regular workers to enable preemptibles
+            numberOfWorkers = Option(2),
+            numberOfPreemptibleWorkers = Option(10)
+          )))
 
-            withNewCluster(project, request = request) { cluster =>
-              // Verify a Hail job uses preemptibes
+          withNewCluster(project, request = request) { cluster =>
+            // Verify a Hail job uses preemptibes
+            withWebDriver { implicit driver =>
               withNewNotebook(cluster) { notebookPage =>
                 verifyHailImport(notebookPage, destPath, cluster.clusterName)
                 notebookPage.saveAndCheckpoint()
@@ -172,40 +178,47 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
               }
             }
           }
+        }
       }
     }
+
     //Test to check if extensions are installed correctly
     //Using nbtranslate extension from here:
     //https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
-    "should install user specified notebook extensions" in withWebDriver { implicit driver =>
+    "should install user specified notebook extensions" in {
       withProject { project => implicit token =>
         val clusterName = ClusterName("user-jupyter-ext" + makeRandomId())
         withNewCluster(project, clusterName, ClusterRequest(Map(), Option(testJupyterExtensionUri), None)) { cluster =>
-          withNewNotebook(cluster) { notebookPage =>
-            notebookPage.executeCell("1 + 1") shouldBe Some("2")
-            //Check if the mark up was translated correctly
-            notebookPage.translateMarkup("Hello") should include("Bonjour")
+          withWebDriver { implicit driver =>
+            withNewNotebook(cluster) { notebookPage =>
+              notebookPage.executeCell("1 + 1") shouldBe Some("2")
+              //Check if the mark up was translated correctly
+              notebookPage.translateMarkup("Hello") should include("Bonjour")
+            }
           }
         }
       }
     }
 
-    "should install multiple user specified notebook extensions" in withWebDriver { implicit driver =>
+    "should install multiple user specified notebook extensions" in {
       withProject { project => implicit token =>
         val clusterName = ClusterName("user-jupyter-ext" + makeRandomId())
         withNewCluster(project, clusterName, ClusterRequest(userJupyterExtensionConfig = Some(multiExtensionClusterRequest))) { cluster =>
-          withNewNotebook(cluster, Python3) { notebookPage =>
-            //Check if the mark up was translated correctly
-            val nbExt = notebookPage.executeCell("! jupyter nbextension list")
-            nbExt.get should include("jupyter-gmaps/extension  enabled")
-            nbExt.get should include("pizzabutton/index  enabled")
-            nbExt.get should include("my_ext/main  enabled")
-            val serverExt = notebookPage.executeCell("! jupyter serverextension list")
-            serverExt.get should include("pizzabutton  enabled")
-            serverExt.get should include("jupyterlab  enabled")
+          withWebDriver { implicit driver =>
+            withNewNotebook(cluster, Python3) { notebookPage =>
+              //Check if the mark up was translated correctly
+              val nbExt = notebookPage.executeCell("! jupyter nbextension list")
+              nbExt.get should include("jupyter-gmaps/extension  enabled")
+              nbExt.get should include("pizzabutton/index  enabled")
+              nbExt.get should include("my_ext/main  enabled")
+              val serverExt = notebookPage.executeCell("! jupyter serverextension list")
+              serverExt.get should include("pizzabutton  enabled")
+              serverExt.get should include("jupyterlab  enabled")
+            }
           }
         }
       }
     }
   }
+
 }

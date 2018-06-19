@@ -9,10 +9,15 @@ import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
+
 class NotebookPage(override val url: String)(override implicit val authToken: AuthToken, override implicit val webDriver: WebDriver)
   extends JupyterPage {
 
-  override def open(implicit webDriver: WebDriver): NotebookPage = super.open.asInstanceOf[NotebookPage]
+  override def open(implicit webDriver: WebDriver): NotebookPage = {
+    val page: NotebookPage = super.open.asInstanceOf[NotebookPage]
+    awaitReadyKernel()
+    page
+  }
 
   // selects all menus from the header bar
   lazy val menus: Query = cssSelector("[class='dropdown-toggle']")
@@ -131,7 +136,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   }
 
   def cellOutput(cell: WebElement): Option[String] = {
-    val outputs = cell.findElements(By.xpath("../../../..//div[contains(@class, 'output_subarea')]"))
+    val outputs = cell.findElements(By.xpath("../../../..//div[contains(@class,'output_subarea')]"))
     outputs.asScala.headOption.map(_.getText)
   }
   
@@ -142,8 +147,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     click on cell
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
     executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
-    click on runCellButton
-    await condition (!cellsAreRunning, timeout.toSeconds)
+    clickRunCell(timeout)
     await condition (cellIsRendered(cellNumber), timeout.toSeconds)
     cellOutput(cell)
   }
@@ -162,10 +166,10 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     outputCell.getText
   }
 
-  private def changeCodeToMarkdown = {
+  private def changeCodeToMarkdown(): Unit = {
     click on cellMenu
     new Actions(webDriver).moveToElement(cellTypeSubMenu.underlying).perform()
-    await visible(translateCell)
+    await visible translateCell
   }
 
   def shutdownKernel(): Unit = {
@@ -181,4 +185,22 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     click on (await enabled restartKernelConfirmationSelection)
     await condition (isKernelReady, timeout.toSeconds)
   }
+
+  /**
+    * wait for kernel to become ready. default timeout == 2.minutes
+    */
+  def awaitReadyKernel(timeout: FiniteDuration = 2.minutes): Unit = {
+    await condition (
+      !cellsAreRunning &&
+      find(id("notification_kernel")).exists(_.underlying.getCssValue("display") == "none") &&
+      find(id("kernel_indicator_icon")).exists(_.underlying.getAttribute("class") == "kernel_idle_icon"), timeout.toSeconds
+    )
+    await condition (find(id("kernel_indicator_icon")).exists(_.isDisplayed), 5) // adds little time to check isDisplayed to prevent StaleWebElementException
+  }
+
+  def clickRunCell(timeout: FiniteDuration = 2.minutes): Unit = {
+    click on runCellButton
+    awaitReadyKernel(timeout)
+  }
+
 }
