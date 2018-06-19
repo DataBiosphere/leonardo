@@ -11,7 +11,7 @@ import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, UserAuthToken}
-import org.broadinstitute.dsde.workbench.config.{Config, Credentials}
+import org.broadinstitute.dsde.workbench.config.Credentials
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.service.{Orchestration, RestException, Sam}
 import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
@@ -48,9 +48,11 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   logDir.mkdirs
 
   // Ron and Hermione are on the dev Leo whitelist, and Hermione is a Project Owner
+
   lazy val ronCreds: Credentials = Config.Users.NotebooksWhitelisted.getUserCredential("ron")
   lazy val hermioneCreds: Credentials = Config.Users.NotebooksWhitelisted.getUserCredential("hermione")
   lazy val dracoCreds: Credentials = Config.Users.NotebooksWhitelisted.getUserCredential("draco")
+
 
   lazy val ronAuthToken = UserAuthToken(ronCreds)
   lazy val hermioneAuthToken = UserAuthToken(hermioneCreds)
