@@ -19,7 +19,11 @@ class HttpJupyterDAO(val clusterDnsCache: ActorRef)(implicit system: ActorSystem
 
   override def getStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = {
     getTargetHost(googleProject, clusterName) flatMap {
-      case ClusterReady(targetHost) => http.singleRequest(HttpRequest(uri = Uri(s"https://${targetHost.toString}/notebooks/$googleProject/$clusterName/api/status"))) flatMap(response => Future.successful(response.status.isSuccess()))
+      case ClusterReady(targetHost) =>
+        val statusUri = Uri(s"https://${targetHost.toString}/notebooks/$googleProject/$clusterName/api/status")
+        http.singleRequest(HttpRequest(uri = statusUri)) map { response =>
+          response.status.isSuccess
+        }
       case _ => Future.successful(false)
     }
   }
