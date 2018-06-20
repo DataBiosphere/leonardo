@@ -49,14 +49,14 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   // Ron and Hermione are on the dev Leo whitelist, and Hermione is a Project Owner
 
-  lazy val ronCreds: Credentials = LeonardoConfig.Users.Students.getUserCredential("ron")
-  lazy val hermioneCreds: Credentials = LeonardoConfig.Users.Students.getUserCredential("hermione")
-  lazy val dracoCreds: Credentials = LeonardoConfig.Users.Students.getUserCredential("draco")
+  lazy val ronCreds: Credentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential("ron")
+  lazy val hermioneCreds: Credentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential("hermione")
+  lazy val voldyCreds: Credentials = LeonardoConfig.Users.CampaignManager.getUserCredential("voldemort")
 
 
   lazy val ronAuthToken = UserAuthToken(ronCreds)
   lazy val hermioneAuthToken = UserAuthToken(hermioneCreds)
-  lazy val dracoAuthToken = UserAuthToken(dracoCreds)
+  lazy val voldyAuthToken = UserAuthToken(voldyCreds)
   lazy val ronEmail = ronCreds.email
 
   val clusterPatience = PatienceConfig(timeout = scaled(Span(30, Minutes)), interval = scaled(Span(20, Seconds)))
