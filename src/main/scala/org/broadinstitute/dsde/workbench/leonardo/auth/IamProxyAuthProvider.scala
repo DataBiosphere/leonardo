@@ -15,10 +15,14 @@ import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, IamPermiss
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class IamProxyAuthProvider(config: Config, serviceAccountProvider: ServiceAccountProvider)(implicit val system: ActorSystem) extends LeoAuthProvider(config, serviceAccountProvider) {
+class IamProxyAuthProvider(config: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(config, serviceAccountProvider) {
+
+  // Create implicit actor needed by the GoogleIamDAO.
+  implicit val system = ActorSystem("iam-proxy-auth-actor-system")
 
   val applicationName: String = config.getValue("applicationName").toString()
   val requiredPermissions: Set[IamPermission] = config.as[Set[String]]("requiredProjectIamPermissions").map(p => IamPermission(p))
+
 
   protected def petGoogleIamDao(token: String)(implicit executionContext: ExecutionContext): GoogleIamDAO = {
     new HttpGoogleIamDAO(applicationName, Token(() => token), "google")
@@ -26,8 +30,9 @@ class IamProxyAuthProvider(config: Config, serviceAccountProvider: ServiceAccoun
 
   protected def checkUserAccess(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     val iamDAO: GoogleIamDAO = petGoogleIamDao(userInfo.accessToken.token)
-    val foundPermissions = iamDAO.testIamPermission(googleProject, requiredPermissions)
-    Future.successful(requiredPermissions == foundPermissions)
+    iamDAO.testIamPermission(googleProject, requiredPermissions).map { foundPermissions =>
+      foundPermissions == requiredPermissions
+    }
   }
 
   /**
