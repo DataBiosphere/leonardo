@@ -227,30 +227,12 @@ RUN R -e 'install.packages(c( \
 # Utilities
 #######################
 
-ADD kernelspec.sh $JUPYTER_HOME/
-ADD python_kernelspec.tmpl $JUPYTER_HOME/
-ADD pyspark_kernelspec.tmpl $JUPYTER_HOME/
-ADD spark_install_hail.sh $HAIL_HOME/
-ADD jupyter_notebook_config.py $JUPYTER_HOME/
-ADD jupyter_localize_extension.py $JUPYTER_HOME/custom/
-ADD jupyter_delocalize.py $JUPYTER_HOME/custom/
-ADD scripts/extension-installation/jupyter_install_notebook_extension.sh $JUPYTER_HOME/
-ADD scripts/extension-installation/jupyter_install_server_extension.sh $JUPYTER_HOME/
-ADD scripts/extension-installation/jupyter_install_combined_extension.sh $JUPYTER_HOME/
-ADD scripts/extension-installation/jupyter_pip_install_notebook_extension.sh $JUPYTER_HOME/
-ADD scripts/extension-installation/jupyter_pip_install_server_extension.sh $JUPYTER_HOME/
-ADD scripts/extension-installation/jupyter_pip_install_combined_extension.sh $JUPYTER_HOME/
-
+ADD scripts $JUPYTER_HOME/scripts
+ADD custom/jupyter_delocalize.py $JUPYTER_HOME/custom/
+ADD custom/jupyter_localize_extension.py $JUPYTER_HOME/custom/
 
 RUN chown -R $USER:users $JUPYTER_HOME \
- && chmod +x $JUPYTER_HOME/jupyter_install_notebook_extension.sh \
- && chmod +x $JUPYTER_HOME/jupyter_install_server_extension.sh \
- && chmod +x $JUPYTER_HOME/jupyter_install_combined_extension.sh \
- && chmod +x $JUPYTER_HOME/jupyter_pip_install_notebook_extension.sh \
- && chmod +x $JUPYTER_HOME/jupyter_pip_install_server_extension.sh \
- && chmod +x $JUPYTER_HOME/jupyter_pip_install_combined_extension.sh \
- && chmod +x $HAIL_HOME/spark_install_hail.sh \
- && chmod +x $JUPYTER_HOME/kernelspec.sh
+ && chmod -R +x $JUPYTER_HOME/scripts/*.sh
 
 # This is a hacky way to get the ui to stop flickering as a result of kernel switches, restarts and reconnects from within a notebook
 # This edits the already built main.min.js file to prevent the notebook from scheduling a reconnect when a websocket is in a closing state
