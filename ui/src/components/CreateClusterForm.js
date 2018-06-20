@@ -64,12 +64,9 @@ class UnstyledCreateClusterForm extends React.Component {
     super(props);
     // Initialize project with default value (if applicable).
     var project = "";
-    var projectEntryDisabled = false
-    if (process.env.REACT_APP_DEFAULT_PROJECT) {
-      project = process.env.REACT_APP_DEFAULT_PROJECT;
-    }
-    if (process.env.REACT_APP_DISABLE_PROJECT_ENTRY == 'true') {
-      projectEntryDisabled = true;
+    var projectEntryDisabled = window.GlobalReactConfig.DISABLE_PROJECT_ENTRY
+    if (window.GlobalReactConfig.DEFAULT_PROJECT) {
+      project = window.GlobalReactConfig.DEFAULT_PROJECT;
     }
 
     this.state = {
@@ -118,8 +115,8 @@ class UnstyledCreateClusterForm extends React.Component {
 
       }
     };
-    if (process.env.REACT_APP_STARTUP_SCRIPT_URI) {
-      createRequest["jupyterUserScriptUri"] = process.env.REACT_APP_STARTUP_SCRIPT_URI;
+    if (window.GlobalReactConfig.STARTUP_SCRIPT_URI) {
+      createRequest["jupyterUserScriptUri"] = window.GlobalReactConfig.STARTUP_SCRIPT_URI;
     }
     // Use fetch to send a put request, and register success/fail callbacks.
     fetch(
