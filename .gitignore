@@ -17,6 +17,7 @@ test-output/
 *.pid
 *.pyc
 __pycache__
+.DS_Store
 
 # Automation exclusions
 automation/chrome/
