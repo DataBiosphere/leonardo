@@ -23,8 +23,8 @@ class DummyClientPage(override val url: String)(implicit val authToken: AuthToke
     new NotebooksListPage(currentUrl)
   }
 
-  override def awaitLoaded: DummyClientPage = {
-    await enabled notebookLink
+  override def awaitLoaded(): DummyClientPage = {
+    await enabled (notebookLink, 120)
     this
   }
 
