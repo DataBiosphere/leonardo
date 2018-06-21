@@ -1,4 +1,3 @@
-
 {
   "FILTER_TO_CURRENT_USER": false,
   "FILTER_TO_CURRENT_USER_COMMENT": "boolean, whether to filter the cluster list to the logged-in user.",

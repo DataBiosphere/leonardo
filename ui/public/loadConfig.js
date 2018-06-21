@@ -1,6 +1,5 @@
 // Load a json config.
 
-
 // Run loader as an anonymous function to protect the global namespace.
 // This function accesses a file "config.json" expected to be at the
 // root of the server and loads it into the global `GlobalReactConfig`.
