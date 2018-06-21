@@ -134,7 +134,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     log 'Installing Jupydocker kernelspecs...'
 
     # Change Python and PySpark 2 and 3 kernel specs to allow each to have its own spark
-    docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS} ${KERNELSPEC_HOME}
+    docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
 
     log 'Installing Hail additions to Jupydocker spark.conf...'
 
