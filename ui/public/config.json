@@ -1,0 +1,22 @@
+{
+  "FILTER_TO_CURRENT_USER": false,
+  "FILTER_TO_CURRENT_USER_COMMENT": "boolean, whether to filter the cluster list to the logged-in user.",
+
+  "DEPLOY_ENVIRONMENT": "local",
+  "DEPLOY_ENVIRONMENT_COMMENT": "Uses mock APIs when set to 'local': allowed values 'local' and 'prod'.",
+
+  "OAUTH_CLIENT_ID": "---client-id---",
+  "OAUTH_CLIENT_ID_COMMENT": "OAuth client ID",
+
+  "DEFAULT_PROJECT": "---project-id---",
+  "DEFAULT_PROJECT_COMMENT": "Provide a default project for users (populated in cluster creation form).",
+
+  "DISABLE_PROJECT_ENTRY": false,
+  "DISABLE_PROJECT_ENTRY_COMMENT": "Boolean, if true, disable project entry for users.",
+
+  "STARTUP_SCRIPT_URI": "",
+  "STARTUP_SCRIPT_URI_COMMENT": "A 'gs://' path to a cluster init script. If present, this will be provided as the jupyterUserScriptUri param",
+
+  "EXTRA_GOOGLE_SCOPES": "",
+  "EXTRA_GOOGLE_SCOPES_COMMENT": "Space separated list of google scopes to request in addition to email and profile"
+}
