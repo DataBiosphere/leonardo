@@ -1,0 +1,81 @@
+package org.broadinstitute.dsde.workbench.leonardo
+
+import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
+import org.broadinstitute.dsde.workbench.service.RestException
+import org.scalatest.{FreeSpec, ParallelTestExecution}
+
+class ClusterExceptionSpec extends FreeSpec with LeonardoTestUtils with ParallelTestExecution with BillingFixtures {
+
+  "Leonardo clusters" - {
+
+    // create -> wait -> error -> stop (conflict) -> delete
+    "should not be able to stop an errored cluster" in {
+      withProject { project => implicit token =>
+        logger.info(s"${project.value}: should not be able to stop an errored cluster")
+
+        withNewErroredCluster(project) { cluster =>
+          withWebDriver { implicit driver =>
+            val caught = the[RestException] thrownBy stopCluster(cluster.googleProject, cluster.clusterName, monitor = false)
+            caught.message should include(""""statusCode":409""")
+          }
+        }
+      }
+    }
+
+    // create -> create again (conflict) -> delete
+    "should not be able to create 2 clusters with the same name" in {
+      withProject { project => implicit token =>
+        logger.info(s"${project.value}: should not be able to create 2 clusters with the same name")
+
+        withNewCluster(project, monitorCreate = false, monitorDelete = true) { cluster =>
+          val caught = the[RestException] thrownBy createNewCluster(project, cluster.clusterName, monitor = false)
+          caught.message should include(""""statusCode":409""")
+        }
+      }
+    }
+
+    // create -> wait -> delete -> no wait -> create (conflict)
+    "should not be able to recreate a deleting cluster" in {
+      withProject { project => implicit token =>
+        logger.info(s"${project.value}: should not be able to recreate a deleting cluster")
+
+        val cluster = withNewCluster(project, monitorCreate = true, monitorDelete = false)(identity)
+
+        val caught = the[RestException] thrownBy createNewCluster(project, cluster.clusterName)
+        caught.message should include(""""statusCode":409""")
+
+        monitorDelete(project, cluster.clusterName)
+      }
+    }
+
+
+    // create -> no wait -> stop (conflict) -> delete
+    "should not be able to stop a creating cluster" in {
+      withProject { project => implicit token =>
+        logger.info(s"${project.value}: should not be able to stop a creating cluster")
+
+        withNewCluster(project, monitorCreate = false, monitorDelete = true) { cluster =>
+          withWebDriver { implicit driver =>
+            val caught = the[RestException] thrownBy stopCluster(project, cluster.clusterName, monitor = false)
+            caught.message should include(""""statusCode":409""")
+          }
+        }
+      }
+    }
+
+    "should throw 401 for invalid token" in {
+      withProject { project => implicit token =>
+        withNewCluster(project, monitorCreate = true, monitorDelete = false) { cluster =>
+          withWebDriver { implicit driver =>
+            val thrown = the[Exception] thrownBy {
+              Leonardo.notebooks.setCookie(cluster.googleProject, cluster.clusterName)(voldyAuthToken, driver)
+            }
+            thrown.getMessage should include(""""statusCode":401""")
+          }
+        }
+      }
+    }
+
+  }
+
+}
