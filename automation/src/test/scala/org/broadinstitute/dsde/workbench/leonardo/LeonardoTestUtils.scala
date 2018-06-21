@@ -38,8 +38,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   this: Suite with BillingFixtures =>
 
   val swatTestBucket = "gs://leonardo-swat-test-bucket-do-not-delete"
-  val incorrectJupyterExtensionUri = swatTestBucket + "/"
-  val testJupyterExtensionUri = swatTestBucket + "/my_ext.tar.gz"
+  val incorrectJupyterExtensionUri: String = swatTestBucket + "/"
+  val testJupyterExtensionUri: String = swatTestBucket + "/my_ext.tar.gz"
 
   // must align with run-tests.sh and hub-compose-fiab.yml
   val downloadDir = "chrome/downloads"
@@ -48,7 +48,6 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   logDir.mkdirs
 
   // Ron and Hermione are on the dev Leo whitelist, and Hermione is a Project Owner
-
   lazy val ronCreds: Credentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential("ron")
   lazy val hermioneCreds: Credentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential("hermione")
   lazy val voldyCreds: Credentials = LeonardoConfig.Users.CampaignManager.getUserCredential("voldemort")
@@ -64,7 +63,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   val saPatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
   val storagePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
   val tenSeconds = FiniteDuration(10, SECONDS)
-  val getAfterCreatePatience = PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(1, Seconds)))
+  val startPatience = PatienceConfig(timeout = scaled(Span(5, Minutes)), interval = scaled(Span(1, Seconds)))
+  val getAfterCreatePatience = PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(2, Seconds)))
 
   val multiExtensionClusterRequest = UserJupyterExtensionConfig(Map("translate"->testJupyterExtensionUri, "map"->"gmaps"),Map("jupyterlab"->"jupyterlab"), Map("pizza"->"pizzabutton"))
 
@@ -157,7 +157,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       }
 
       // Save the cluster init log file whether or not the cluster created successfully
-      implicit val ec = ExecutionContext.global
+      implicit val ec: ExecutionContextExecutor = ExecutionContext.global
       saveDataprocLogFiles(creatingCluster).recover { case e =>
         logger.error(s"Error occurred saving Dataproc log files for cluster ${creatingCluster.googleProject}/${creatingCluster.clusterName}", e)
         None
@@ -220,7 +220,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     deleteCluster(googleProject, clusterName, monitor = true)
   }
 
-  def stopCluster(googleProject: GoogleProject, clusterName: ClusterName, monitor: Boolean)(implicit webDriver: WebDriver, token: AuthToken): Unit = {
+  def stopCluster(googleProject: GoogleProject, clusterName: ClusterName, monitor: Boolean)(implicit token: AuthToken): Unit = {
     Leonardo.cluster.stop(googleProject, clusterName) shouldBe
       "The request has been accepted for processing, but the processing has not been completed."
 
@@ -244,12 +244,12 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
   }
 
-  def stopAndMonitor(googleProject: GoogleProject, clusterName: ClusterName)(implicit webDriver: WebDriver, token: AuthToken): Unit = {
-    stopCluster(googleProject, clusterName, monitor = true)
+  def stopAndMonitor(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): Unit = {
+    stopCluster(googleProject, clusterName, monitor = true)(token)
   }
 
-  def startCluster(googleProject: GoogleProject, clusterName: ClusterName, monitor: Boolean)(implicit webDriver: WebDriver, token: AuthToken): Unit = {
-    Leonardo.cluster.start(googleProject, clusterName) shouldBe
+  def startCluster(googleProject: GoogleProject, clusterName: ClusterName, monitor: Boolean)(implicit token: AuthToken): Unit = {
+    Leonardo.cluster.start(googleProject, clusterName)(token) shouldBe
       "The request has been accepted for processing, but the processing has not been completed."
 
     // verify with get()
@@ -271,8 +271,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
   }
 
-  def startAndMonitor(googleProject: GoogleProject, clusterName: ClusterName)(implicit webDriver: WebDriver, token: AuthToken): Unit = {
-    startCluster(googleProject, clusterName, monitor = true)
+  def startAndMonitor(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): Unit = {
+    startCluster(googleProject, clusterName, monitor = true)(token)
   }
 
   def randomClusterName: ClusterName = ClusterName(s"automation-test-a${makeRandomId().toLowerCase}z")
@@ -282,7 +282,9 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   def createNewCluster(googleProject: GoogleProject, name: ClusterName = randomClusterName, request: ClusterRequest = defaultClusterRequest, monitor: Boolean = true)(implicit token: AuthToken): Cluster = {
     val cluster = createCluster(googleProject, name, request, monitor)
     if (monitor) {
-      cluster.status shouldBe (if (request.stopAfterCreation.getOrElse(false)) ClusterStatus.Stopped else ClusterStatus.Running)
+      withClue(s"Monitoring Cluster status: $name") {
+        cluster.status shouldBe (if (request.stopAfterCreation.getOrElse(false)) ClusterStatus.Stopped else ClusterStatus.Running)
+      }
     } else {
       cluster.status shouldBe ClusterStatus.Creating
     }
@@ -601,7 +603,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   def saveDataprocLogFiles(cluster: Cluster)(implicit executionContext: ExecutionContext): Future[Option[(File, File)]] = {
     def downloadLogFile(contentStream: ByteArrayOutputStream, fileName: String): File = {
       // .log suffix is needed so it shows up as a Jenkins build artifact
-      val downloadFile = new File(logDir, s"${cluster.googleProject.value}-${cluster.clusterName.string}-${fileName}.log")
+      val downloadFile = new File(logDir, s"${cluster.googleProject.value}-${cluster.clusterName.string}-$fileName.log")
       val fos = new FileOutputStream(downloadFile)
       fos.write(contentStream.toByteArray)
       fos.close()

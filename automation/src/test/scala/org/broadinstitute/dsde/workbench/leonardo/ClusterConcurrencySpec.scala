@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
-import org.broadinstitute.dsde.workbench.service.RestException
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 
 /**
@@ -38,21 +37,8 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
       }
     }
 
-    // create -> wait -> error -> stop (conflict) -> delete
-    "should not be able to stop an errored cluster" in withWebDriver { implicit driver =>
-      withProject { project => implicit token =>
-        logger.info(s"${project.value}: should not be able to stop an errored cluster")
-
-        withNewErroredCluster(project) { cluster =>
-          val caught = the [RestException] thrownBy stopCluster(cluster.googleProject, cluster.clusterName, monitor = false)
-          caught.message should include(""""statusCode":409""")
-        }
-      }
-
-    }
-
     // create -> no wait -> delete
-    "should delete a creating cluster" in withWebDriver { implicit driver =>
+    "should delete a creating cluster" in {
       withProject { project => implicit token =>
         logger.info(s"${project.value}: should delete a creating cluster")
 
@@ -61,34 +47,8 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
       }
     }
 
-    // create -> create again (conflict) -> delete
-    "should not be able to create 2 clusters with the same name" in withWebDriver { implicit driver =>
-      withProject { project => implicit token =>
-        logger.info(s"${project.value}: should not be able to create 2 clusters with the same name")
-
-        withNewCluster(project, monitorCreate = false, monitorDelete = true) { cluster =>
-          val caught = the[RestException] thrownBy createNewCluster(project, cluster.clusterName, monitor = false)
-          caught.message should include(""""statusCode":409""")
-        }
-      }
-    }
-
-    // create -> wait -> delete -> no wait -> create (conflict)
-    "should not be able to recreate a deleting cluster" in withWebDriver { implicit driver =>
-      withProject { project => implicit token =>
-        logger.info(s"${project.value}: should not be able to recreate a deleting cluster")
-
-        val cluster = withNewCluster(project, monitorCreate = true, monitorDelete = false)(identity)
-
-        val caught = the[RestException] thrownBy createNewCluster(project, cluster.clusterName)
-        caught.message should include(""""statusCode":409""")
-
-        monitorDelete(project, cluster.clusterName)
-      }
-    }
-
     // create -> wait -> delete -> no wait -> delete
-    "should not be able to delete a deleting cluster" in withWebDriver { implicit driver =>
+    "should not be able to delete a deleting cluster" in {
       withProject { project => implicit token =>
         logger.info(s"${project.value}: should not be able to delete a deleting cluster")
 
@@ -99,20 +59,8 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
       }
     }
 
-    // create -> no wait -> stop (conflict) -> delete
-    "should not be able to stop a creating cluster" in withWebDriver { implicit driver =>
-      withProject { project => implicit token =>
-        logger.info(s"${project.value}: should not be able to stop a creating cluster")
-
-        withNewCluster(project, monitorCreate = false, monitorDelete = true) { cluster =>
-          val caught = the[RestException] thrownBy stopCluster(project, cluster.clusterName, monitor = false)
-          caught.message should include(""""statusCode":409""")
-        }
-      }
-    }
-
     // create -> wait -> stop -> no wait -> start -> delete
-    "should be able to start a stopping cluster" in withWebDriver { implicit driver =>
+    "should be able to start a stopping cluster" in {
       withProject { project => implicit token =>
         logger.info(s"${project.value}: should be able to start a stopping cluster")
 
@@ -128,31 +76,32 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
     }
 
     // create -> wait -> stop -> wait -> delete
-    "should be able to delete a stopped cluster" in withWebDriver { implicit driver =>
+    "should be able to delete a stopped cluster" in {
       withProject { project => implicit token =>
         logger.info(s"${project.value}: should be able to delete a stopped cluster")
 
         withNewCluster(project) { cluster =>
           // delete after stop is complete
-          stopAndMonitor(cluster.googleProject, cluster.clusterName)
+          stopAndMonitor(cluster.googleProject, cluster.clusterName)(token)
         }
       }
     }
 
     // create -> wait -> stop -> no wait -> delete
-    "should be able to delete a stopping cluster" in withWebDriver { implicit driver =>
+    "should be able to delete a stopping cluster" in {
       withProject { project => implicit token =>
         logger.info(s"${project.value}: should be able to delete a stopping cluster")
-
-        withNewCluster(project) { cluster =>
-          // delete without waiting for the stop to complete
-          stopCluster(cluster.googleProject, cluster.clusterName, monitor = false)
+        withWebDriver { implicit driver =>
+          withNewCluster(project) { cluster =>
+            // delete without waiting for the stop to complete
+            stopCluster(cluster.googleProject, cluster.clusterName, monitor = false)
+          }
         }
       }
     }
 
     // set the "stop after creation" flag
-    "should stop a cluster after creation" in withWebDriver { implicit driver =>
+    "should stop a cluster after creation" in {
       withProject { project => implicit token =>
         val request = defaultClusterRequest.copy(stopAfterCreation = Some(true))
         withNewCluster(project, request = request) { cluster =>
@@ -161,4 +110,5 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
       }
     }
   }
+
 }
