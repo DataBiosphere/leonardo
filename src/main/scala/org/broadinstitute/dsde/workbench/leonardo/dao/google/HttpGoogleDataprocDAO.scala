@@ -20,7 +20,7 @@ import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, SecondaryWorker, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.service.AuthorizationError
+import org.broadinstitute.dsde.workbench.leonardo.service.{AuthorizationError, BucketObjectAccessException}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject}
@@ -65,9 +65,15 @@ class HttpGoogleDataprocDAO(appName: String,
 
     val request = dataproc.projects().regions().clusters().create(googleProject.value, defaultRegion, cluster)
 
-    retryWhen500orGoogleError(() => executeGoogleRequest(request)).map { op =>
+    retryWithRecoverWhen500orGoogleError { () =>
+      executeGoogleRequest(request)
+    } {
+      case e: GoogleJsonResponseException if e.getStatusCode == 403 &&
+        (e.getDetails.getErrors.asScala.head.getDomain.equalsIgnoreCase("usageLimits")) => throw BucketObjectAccessException.apply(clusterServiceAccount, initScript, e.getMessage)
+    }.map { op =>
       Operation(OperationName(op.getName), getOperationUUID(op))
     }.handleGoogleException(googleProject, Some(clusterName.value))
+
   }
 
   override def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName): Future[Unit] = {

@@ -53,8 +53,8 @@ case class InitializationFileException(googleProject: GoogleProject, clusterName
 case class BucketObjectException(gcsUri: String)
   extends LeoException(s"The provided GCS URI is invalid or unparseable: ${gcsUri}", StatusCodes.BadRequest)
 
-case class BucketObjectAccessException(userEmail: WorkbenchEmail, gcsUri: GcsPath)
-  extends LeoException(s"${userEmail.value} does not have access to ${gcsUri.toUri}", StatusCodes.Forbidden)
+case class BucketObjectAccessException(userEmail: Option[WorkbenchEmail], gcsUri: GcsPath, errorMessage: String)
+  extends LeoException(s"${userEmail.map(e => s"'${e.value}'").getOrElse("Your account")} does not have access to ${gcsUri.toUri}. Returned message: $errorMessage", StatusCodes.Forbidden)
 
 case class ParseLabelsException(labelString: String)
   extends LeoException(s"Could not parse label string: $labelString. Expected format [key1=value1,key2=value2,...]", StatusCodes.BadRequest)
@@ -450,7 +450,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
             } recover {
               case e: HttpResponseException if e.getStatusCode == StatusCodes.Forbidden.intValue =>
                 logger.error(s"User $userEmail does not have access to ${gcsPath.bucketName} / ${gcsPath.objectName}")
-                throw BucketObjectAccessException(userEmail, gcsPath)
+                throw BucketObjectAccessException(Some(userEmail), gcsPath, e.getMessage)
             }
           case None => Future.successful(())
         }
