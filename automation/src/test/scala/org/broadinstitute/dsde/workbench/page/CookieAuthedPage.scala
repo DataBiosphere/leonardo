@@ -5,6 +5,8 @@ import org.broadinstitute.dsde.workbench.service.test.WebBrowserUtil
 import org.openqa.selenium.WebDriver
 import org.scalatest.selenium.Page
 
+import scala.util.{Failure, Success, Try}
+
 trait CookieAuthedPage[P <: Page] extends Page with PageUtil[P] with WebBrowserUtil { self: P =>
   implicit val authToken: AuthToken
 
@@ -12,6 +14,9 @@ trait CookieAuthedPage[P <: Page] extends Page with PageUtil[P] with WebBrowserU
   override def open(implicit webDriver: WebDriver): P = {
     go to this
     addCookie("LeoToken", authToken.value)
-    super.open
+    Try (super.open) match {
+      case Success(page) => page
+      case Failure(_) => super.open // anonymously retry open
+    }
   }
 }
