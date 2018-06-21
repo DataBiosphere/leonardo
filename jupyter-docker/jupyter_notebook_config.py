@@ -23,3 +23,11 @@ c.NotebookApp.nbserver_extensions = {
     'jupyter_localize_extension': True,
 }
 c.NotebookApp.contents_manager_class = 'jupyter_delocalize.DelocalizingContentsManager'
+
+# Unset Content-Security-Policy so Jupyter can be rendered in an iframe
+# See https://jupyter-notebook.readthedocs.io/en/latest/public_server.html?highlight=server#embedding-the-notebook-in-another-website
+c.NotebookApp.tornado_settings = {
+    'headers': {
+        'Content-Security-Policy': ""
+    }
+}
