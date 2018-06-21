@@ -59,6 +59,9 @@ case class BucketObjectAccessException(userEmail: WorkbenchEmail, gcsUri: GcsPat
 case class DataprocDisabledException(errorMsg: String)
   extends LeoException(s"${errorMsg}", StatusCodes.Forbidden)
 
+case class DataprocDisabledException(errorMsg: String)
+  extends LeoException(s"${errorMsg}", StatusCodes.Forbidden)
+
 case class ParseLabelsException(labelString: String)
   extends LeoException(s"Could not parse label string: $labelString. Expected format [key1=value1,key2=value2,...]", StatusCodes.BadRequest)
 

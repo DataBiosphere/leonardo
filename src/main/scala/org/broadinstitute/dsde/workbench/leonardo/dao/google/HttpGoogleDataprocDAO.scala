@@ -68,8 +68,8 @@ class HttpGoogleDataprocDAO(appName: String,
     retryWithRecoverWhen500orGoogleError { () =>
       executeGoogleRequest(request)
     } {
-      case e: GoogleJsonResponseException if (e.getStatusCode == 403) && (e.getMessage contains "Compute Engine API has not been used")
-        => throw DataprocDisabledException(e.getMessage)
+      case e: GoogleJsonResponseException if e.getStatusCode == 403 &&
+        (e.getDetails.getErrors.asScala.head.getDomain.equalsIgnoreCase("usageLimits")) => throw BucketObjectAccessException.apply(clusterServiceAccount, initScript, e.getMessage)
     }.map { op =>
       Operation(OperationName(op.getName), getOperationUUID(op))
     }.handleGoogleException(googleProject, Some(clusterName.value))
