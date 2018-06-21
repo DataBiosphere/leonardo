@@ -232,7 +232,7 @@ ADD custom/jupyter_delocalize.py $JUPYTER_HOME/custom/
 ADD custom/jupyter_localize_extension.py $JUPYTER_HOME/custom/
 
 RUN chown -R $USER:users $JUPYTER_HOME \
- && chmod -R +x $JUPYTER_HOME/scripts/*.sh
+ && find $JUPYTER_HOME/scripts -name '*.sh' -type f | xargs chmod +x
 
 # This is a hacky way to get the ui to stop flickering as a result of kernel switches, restarts and reconnects from within a notebook
 # This edits the already built main.min.js file to prevent the notebook from scheduling a reconnect when a websocket is in a closing state
