@@ -24,7 +24,7 @@ object ClusterEnrichments {
     new Equality[Seq[Cluster]] {
       def areEqual(as: Seq[Cluster], bs: Any): Boolean = {
         bs match {
-          case cs: Seq[Cluster] => as.zip(cs) forall { case (first, second) => clusterEq.areEqual(first, second)}
+          case cs: Seq[_] => as.zip(cs) forall { case (first, second) => clusterEq.areEqual(first, second)}
           case _ => false
         }
       }
