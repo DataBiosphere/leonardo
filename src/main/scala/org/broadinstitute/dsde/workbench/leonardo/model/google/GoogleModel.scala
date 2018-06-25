@@ -17,6 +17,8 @@ case class ClusterName(value: String) extends ValueObject
 case class InstanceName(value: String) extends ValueObject
 case class ZoneUri(value: String) extends ValueObject
 case class MachineType(value: String) extends ValueObject
+case class Autopause(value: String) extends ValueObject
+case class AutopauseThreshold(value: Int) extends ValueObject
 
 // Cluster machine configuration
 case class MachineConfig(numberOfWorkers: Option[Int] = None,
@@ -30,6 +32,7 @@ case class MachineConfig(numberOfWorkers: Option[Int] = None,
 // Dataproc Operation
 case class OperationName(value: String) extends ValueObject
 case class Operation(name: OperationName, uuid: UUID)
+//case class Autopause(autopause: Boolean, autopauseThreshold: Int)
 
 // Dataproc Role (master, worker, secondary worker)
 sealed trait DataprocRole extends EnumEntry with Product with Serializable

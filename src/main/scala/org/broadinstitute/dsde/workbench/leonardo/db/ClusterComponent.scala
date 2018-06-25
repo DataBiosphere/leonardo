@@ -29,7 +29,9 @@ case class ClusterRecord(id: Long,
                          machineConfig: MachineConfigRecord,
                          serviceAccountInfo: ServiceAccountInfoRecord,
                          stagingBucket: Option[String],
-                         dateAccessed: Timestamp
+                         dateAccessed: Timestamp,
+                         autopause: Boolean,
+                         autopauseThreshold: Int
                         )
 
 case class MachineConfigRecord(numberOfWorkers: Int,
@@ -75,6 +77,8 @@ trait ClusterComponent extends LeoComponent {
     def serviceAccountKeyId =         column[Option[String]]    ("serviceAccountKeyId",   O.Length(254))
     def stagingBucket =               column[Option[String]]    ("stagingBucket",         O.Length(254))
     def dateAccessed =                column[Timestamp]         ("dateAccessed",          O.SqlType("TIMESTAMP(6)"))
+    def autopause =                    column[Boolean]            ("autopause")
+    def autopauseThreshold =                  column[Int]             ("autopauseThreshold")
 
     def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName), unique = true)
 
@@ -86,23 +90,23 @@ trait ClusterComponent extends LeoComponent {
       id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
       createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
       (numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers),
-      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket, dateAccessed
+      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket, dateAccessed, autopause, autopauseThreshold
     ).shaped <> ({
       case (id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
-            createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket, machineConfig, serviceAccountInfo, stagingBucket, dateAccessed) =>
+            createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket, machineConfig, serviceAccountInfo, stagingBucket, dateAccessed, autopause, autopauseThreshold) =>
         ClusterRecord(
           id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
           createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
           MachineConfigRecord.tupled.apply(machineConfig),
           ServiceAccountInfoRecord.tupled.apply(serviceAccountInfo),
-          stagingBucket, dateAccessed)
+          stagingBucket, dateAccessed, autopause, autopauseThreshold)
     }, { c: ClusterRecord =>
       def mc(_mc: MachineConfigRecord) = MachineConfigRecord.unapply(_mc).get
       def sa(_sa: ServiceAccountInfoRecord) = ServiceAccountInfoRecord.unapply(_sa).get
       Some((
         c.id, c.clusterName, c.googleId, c.googleProject, c.operationName, c.status, c.hostIp, c.creator,
         c.createdDate, c.destroyedDate, c.jupyterExtensionUri, c.jupyterUserScriptUri, c.initBucket,
-        mc(c.machineConfig), sa(c.serviceAccountInfo), c.stagingBucket, c.dateAccessed
+        mc(c.machineConfig), sa(c.serviceAccountInfo), c.stagingBucket, c.dateAccessed, c.autopause, c.autopauseThreshold
       ))
     })
   }
@@ -320,7 +324,9 @@ trait ClusterComponent extends LeoComponent {
           serviceAccountKeyId.map(_.value)
         ),
         cluster.stagingBucket.map(_.value),
-        Timestamp.from(cluster.dateAccessed)
+        Timestamp.from(cluster.dateAccessed),
+        cluster.autopause.value,
+        cluster.autopauseThreshold.value
       )
     }
 
@@ -370,6 +376,7 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.serviceAccountInfo.clusterServiceAccount.map(WorkbenchEmail),
         clusterRecord.serviceAccountInfo.notebookServiceAccount.map(WorkbenchEmail))
 
+
       Cluster(
         name,
         clusterRecord.googleId,
@@ -390,7 +397,9 @@ trait ClusterComponent extends LeoComponent {
         errors map clusterErrorQuery.unmarshallClusterErrorRecord,
         instanceRecords map (ClusterComponent.this.instanceQuery.unmarshalInstance) toSet,
         ClusterComponent.this.extensionQuery.unmarshallExtensions(userJupyterExtensionConfig),
-        clusterRecord.dateAccessed.toInstant
+        clusterRecord.dateAccessed.toInstant,
+        clusterRecord.autopause,
+        clusterRecord.autopauseThreshold
       )
     }
   }
