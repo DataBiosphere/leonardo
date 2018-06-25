@@ -68,7 +68,9 @@ case class Cluster(clusterName: ClusterName,
                    errors: List[ClusterError],
                    instances: Set[Instance],
                    userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
-                   dateAccessed: Instant) {
+                   dateAccessed: Instant,
+                   autopause: Boolean,
+                   autopauseThreshold: Int) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.value}"
   def nonPreemptibleInstances: Set[Instance] = instances.filterNot(_.dataprocRole == Some(SecondaryWorker))
 }
@@ -83,7 +85,9 @@ object Cluster {
              serviceAccountInfo: ServiceAccountInfo,
              machineConfig: MachineConfig,
              clusterUrlBase: String,
-             stagingBucket: GcsBucketName): Cluster = {
+             stagingBucket: GcsBucketName,
+             autopause: Boolean,
+             autopauseThreshold: Int): Cluster = {
     Cluster(
         clusterName = clusterName,
         googleId = operation.uuid,
@@ -104,7 +108,9 @@ object Cluster {
         errors = List.empty,
         instances = Set.empty,
         userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
-        dateAccessed = Instant.now())
+        dateAccessed = Instant.now(),
+        autopause = autopause,
+        autopauseThreshold = if (autopause) autopauseThreshold else 30)
   }
 
   def createDummyForDeletion(clusterRequest: ClusterRequest,
@@ -132,7 +138,9 @@ object Cluster {
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
-      dateAccessed = Instant.now())
+      dateAccessed = Instant.now(),
+      autopause = true,
+      autopauseThreshold = 30)
   }
 
   // TODO it's hacky to re-parse the Leo config in the model object.
