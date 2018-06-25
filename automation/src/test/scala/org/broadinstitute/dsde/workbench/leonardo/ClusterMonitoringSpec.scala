@@ -10,6 +10,8 @@ import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsObjectName, GcsPath, parseGcsPath}
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 
+import scala.util.Try
+
 class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with ParallelTestExecution with BillingFixtures {
 
   "Leonardo clusters" - {
@@ -214,6 +216,37 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
               val serverExt = notebookPage.executeCell("! jupyter serverextension list")
               serverExt.get should include("pizzabutton  enabled")
               serverExt.get should include("jupyterlab  enabled")
+            }
+          }
+        }
+      }
+    }
+
+    "should install JupyterLab" in {
+      withProject { project => implicit token =>
+        withNewCluster(project, request = ClusterRequest(userJupyterExtensionConfig = Some(jupyterLabExtensionClusterRequest))) { cluster =>
+          withWebDriver { implicit driver =>
+            // Check that the /lab URL is accessible
+            val getResult = Try(Leonardo.lab.getApi(project, cluster.clusterName))
+            getResult.isSuccess shouldBe true
+            getResult.get should not include "ProxyException"
+
+            // Check that localization still works
+            // See https://github.com/DataBiosphere/leonardo/issues/417, where installing JupyterLab
+            // broke the initialization of jupyter_localize_extension.py.
+            val localizeFileName = "localize_sync.txt"
+            val localizeFileContents = "Sync localize test"
+            val delocalizeFileName = "delocalize_sync.txt"
+            val delocalizeFileContents = "Sync delocalize test"
+            val localizeDataFileName = "localize_data_aync.txt"
+            val localizeDataContents = "Hello World"
+
+            withLocalizeDelocalizeFiles(cluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
+              // call localize; this should return 200
+              Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, localizeRequest, async = false)
+
+              // check that the files are immediately at their destinations
+              verifyLocalizeDelocalize(cluster, localizeFileName, localizeFileContents, GcsPath(bucketName, GcsObjectName(delocalizeFileName)), delocalizeFileContents, localizeDataFileName, localizeDataContents)
             }
           }
         }
