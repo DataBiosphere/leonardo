@@ -69,7 +69,7 @@ class HttpGoogleDataprocDAO(appName: String,
       executeGoogleRequest(request)
     } {
       case e: GoogleJsonResponseException if e.getStatusCode == 403 &&
-        (e.getDetails.getErrors.asScala.head.getDomain.equalsIgnoreCase("usageLimits")) => throw BucketObjectAccessException.apply(clusterServiceAccount, initScript, e.getMessage)
+        (e.getMessage contains "Access Not Configured") => throw DataprocDisabledException(e.getMessage)
     }.map { op =>
       Operation(OperationName(op.getName), getOperationUUID(op))
     }.handleGoogleException(googleProject, Some(clusterName.value))
