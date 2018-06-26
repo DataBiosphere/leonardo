@@ -44,14 +44,6 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with CommonTestData
     override val userInfo: UserInfo = timedUserInfo
   }
 
-//  def clusterServiceAccount(googleProject: GoogleProject): Option[WorkbenchEmail] = {
-//    serviceAccountProvider.getClusterServiceAccount(defaultUserInfo, googleProject).futureValue
-//  }
-//
-//  def notebookServiceAccount(googleProject: GoogleProject): Option[WorkbenchEmail] = {
-//    serviceAccountProvider.getNotebookServiceAccount(defaultUserInfo, googleProject).futureValue
-//  }
-
   private[api] def validateCookie(setCookie: Option[`Set-Cookie`],
                              expectedCookie: HttpCookiePair = tokenCookie,
                              age: Long = tokenAge): Unit = {

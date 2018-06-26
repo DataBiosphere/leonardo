@@ -30,8 +30,6 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
   val googleProject = "dsp-leo-test"
   val unauthorizedTokenCookie = HttpCookiePair("LeoToken", "unauthorized")
   val expiredTokenCookie = HttpCookiePair("LeoToken", "expired")
-  //  val serviceAccountEmail = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
-  //  val userEmail = WorkbenchEmail("user1@example.com")
 
   val routeTest = this
 
