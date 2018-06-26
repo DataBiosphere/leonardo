@@ -19,8 +19,9 @@ fragment = os.environ['GOOGLE_PROJECT'] + '/' + os.environ['CLUSTER_NAME']
 c.NotebookApp.base_url = '/notebooks/' + fragment + '/'
 c.NotebookApp.webapp_settings = {'static_url_prefix':'/notebooks/' + fragment + '/static/'}
 
+# This is also specified in run-jupyter.sh
 c.NotebookApp.nbserver_extensions = {
-    'jupyter_localize_extension': True,
+    'jupyter_localize_extension': True
 }
 c.NotebookApp.contents_manager_class = 'jupyter_delocalize.DelocalizingContentsManager'
 
