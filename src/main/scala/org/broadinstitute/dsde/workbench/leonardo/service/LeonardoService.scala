@@ -96,7 +96,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   // Startup script to install on the cluster master node. This is needed to support pause/resume clusters.
   private lazy val masterInstanceStartupScript: immutable.Map[String, String] = {
-    immutable.Map("startup-script" -> s"docker exec -d ${dataprocConfig.jupyterServerName} /usr/local/bin/jupyter notebook")
+    immutable.Map("startup-script" -> s"docker exec -d ${dataprocConfig.jupyterServerName} /etc/jupyter/scripts/run-jupyter.sh")
   }
 
   def isWhitelisted(userInfo: UserInfo): Future[Boolean] = {

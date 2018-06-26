@@ -67,6 +67,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   val getAfterCreatePatience = PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(2, Seconds)))
 
   val multiExtensionClusterRequest = UserJupyterExtensionConfig(Map("translate"->testJupyterExtensionUri, "map"->"gmaps"),Map("jupyterlab"->"jupyterlab"), Map("pizza"->"pizzabutton"))
+  val jupyterLabExtensionClusterRequest = UserJupyterExtensionConfig(serverExtensions = Map("jupyterlab" -> "jupyterlab"))
 
   // TODO: show diffs as screenshot or other test output?
   def compareFilesExcludingIPs(left: File, right: File): Unit = {
