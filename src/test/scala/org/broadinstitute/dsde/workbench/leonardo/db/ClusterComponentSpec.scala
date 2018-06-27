@@ -314,7 +314,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
         userJupyterExtensionConfig = None,
         dateAccessed = dateAccessed)
 
-    assertEquivalent(initialCluster) { dbFutureValue { _.clusterQuery.save(initialCluster, Option(gcsPath( "gs://bucket1")), Some(serviceAccountKey.id)) } }
+    dbFutureValue { _.clusterQuery.save(initialCluster, Option(gcsPath( "gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual initialCluster
 
     val initialClusterId = dbFutureValue { _.clusterQuery.getIdByGoogleId(initialCluster.googleId)}.get
 
@@ -326,7 +326,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       status = ClusterStatus.Stopping,
       hostIp = None,
       dateAccessed = dateAccessed)
-    assertEquivalent(expectedStoppedCluster) { stoppedCluster.copy(dateAccessed = dateAccessed) }
+    stoppedCluster.copy(dateAccessed = dateAccessed) shouldEqual expectedStoppedCluster
     stoppedCluster.dateAccessed should be > initialCluster.dateAccessed
 
     dbFutureValue { _.clusterQuery.setToRunning(initialClusterId, initialCluster.hostIp.get) } shouldEqual 1
@@ -335,7 +335,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     val expectedRunningCluster = initialCluster.copy(
       id = runningClusterId,
       dateAccessed = dateAccessed)
-    assertEquivalent(expectedRunningCluster) { runningCluster.copy(dateAccessed = dateAccessed) }
+    runningCluster.copy(dateAccessed = dateAccessed) shouldEqual expectedRunningCluster
     runningCluster.dateAccessed should be > stoppedCluster.dateAccessed
   }
 
@@ -363,7 +363,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
         userJupyterExtensionConfig = None,
         dateAccessed = Instant.now())
 
-    assertEquivalent(c1) { dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } }
+    dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual c1
 
     val updatedC1Id = dbFutureValue { _.clusterQuery.getIdByGoogleId(c1.googleId) }.get
     val updatedC1 = c1.copy(
@@ -373,8 +373,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
         workerInstance1.copy(status = InstanceStatus.Provisioning),
         workerInstance2.copy(status = InstanceStatus.Provisioning)))
 
-    assertEquivalent(updatedC1) { dbFutureValue { _.clusterQuery.mergeInstances(updatedC1) } }
-    assertEquivalent(updatedC1) { dbFutureValue { _.clusterQuery.getById(updatedC1Id) }.get }
+    dbFutureValue { _.clusterQuery.mergeInstances(updatedC1) } shouldEqual updatedC1
+    dbFutureValue { _.clusterQuery.getById(updatedC1Id) }.get shouldEqual updatedC1
 
     val updatedC1Again = c1.copy(
       instances = Set(
