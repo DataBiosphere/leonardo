@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.db
 import java.time.Instant
 import java.util.UUID
 
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ServiceAccountInfo}
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
@@ -37,14 +38,14 @@ class InstanceComponentSpec extends TestComponent with FlatSpecLike with CommonT
     dateAccessed = Instant.now())
 
   "InstanceComponent" should "save and get instances" in isolatedDbTest {
-    assertEquivalent(c1) { dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) } }
+    dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) } shouldEqual c1
     dbFutureValue { _.instanceQuery.save(getClusterId(c1.googleId), masterInstance) } shouldEqual 1
     dbFutureValue { _.instanceQuery.getInstanceByKey(masterInstance.key) } shouldEqual Some(masterInstance)
     dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(c1.googleId)) } shouldEqual Seq(masterInstance)
   }
 
   it should "update status and ip" in isolatedDbTest {
-    assertEquivalent(c1) { dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) } }
+    dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) } shouldEqual c1
     dbFutureValue { _.instanceQuery.save(getClusterId(c1.googleId), masterInstance) } shouldEqual 1
     dbFutureValue { _.instanceQuery.updateStatusAndIpForCluster(getClusterId(c1.googleId), InstanceStatus.Provisioning, Some(IP("4.5.6.7"))) } shouldEqual 1
     val updated = dbFutureValue { _.instanceQuery.getInstanceByKey(masterInstance.key) }
@@ -54,7 +55,7 @@ class InstanceComponentSpec extends TestComponent with FlatSpecLike with CommonT
   }
 
   it should "merge instances" in isolatedDbTest {
-    assertEquivalent(c1) { dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) } }
+    dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) } shouldEqual c1
     dbFutureValue { _.instanceQuery.save(getClusterId(c1.googleId), masterInstance) } shouldEqual 1
 
     val addedWorkers = Seq(masterInstance, workerInstance1, workerInstance2)
