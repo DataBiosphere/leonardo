@@ -35,7 +35,7 @@ services:
         - DEPLOY_ENVIRONMENT=prod
         - OAUTH_CLIENT_ID=TEMPLATE_VAR_OAUTH2_CLIENT_ID
         - DEFAULT_PROJECT=''
-        - DISABLE_PROJECT_ENTRY=true
+        - DISABLE_PROJECT_ENTRY=false
         - STARTUP_SCRIPT_URI=''
         - EXTRA_GOOGLE_SCOPES=''
 
