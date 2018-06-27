@@ -5,6 +5,7 @@ import java.time.Instant
 import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.leonardo.model.ExtensionType
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ServiceAccountInfo, UserJupyterExtensionConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, MachineConfig, OperationName}
@@ -63,12 +64,12 @@ class ExtensionComponentSpec extends TestComponent with FlatSpecLike with Common
     dbFutureValue { _.extensionQuery.getAllForCluster(missingId) } shouldEqual UserJupyterExtensionConfig(Map(), Map(), Map())
     dbFailure { _.extensionQuery.save(missingId, ExtensionType.NBExtension.toString, "extName", "extValue") } shouldBe a [SQLException]
 
-    assertEquivalent(c1) { dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } }
+    dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual c1
     val c1Id = dbFutureValue { _.clusterQuery.getIdByGoogleId(c1.googleId) }.get
     dbFutureValue { _.extensionQuery.saveAllForCluster(c1Id, Some(userExtConfig)) }
     dbFutureValue { _.extensionQuery.getAllForCluster(c1Id) } shouldEqual userExtConfig
 
-    assertEquivalent(c2) { dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) } }
+    dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) } shouldEqual c2
     val c2Id = dbFutureValue { _.clusterQuery.getIdByGoogleId(c2.googleId) }.get
     dbFutureValue { _.extensionQuery.save(c2Id, ExtensionType.NBExtension.toString, "extName", "extValue") } shouldBe 1
   }
