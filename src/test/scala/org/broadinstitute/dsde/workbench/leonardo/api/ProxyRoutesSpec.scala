@@ -163,10 +163,10 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
     //  - `upgradeResponse` is a Future[WebSocketUpgradeResponse] that completes or fails when the connection succeeds or fails.
     //  - `result` is a Future[String] with the stream completion from the incoming sink.
     val (upgradeResponse, result) =
-    outgoing
-      .viaMat(webSocketFlow)(Keep.right)
-      .toMat(incoming)(Keep.both)
-      .run()
+      outgoing
+        .viaMat(webSocketFlow)(Keep.right)
+        .toMat(incoming)(Keep.both)
+        .run()
 
     // The connection future should have returned the HTTP 101 status code
     upgradeResponse.futureValue.response.status shouldBe StatusCodes.SwitchingProtocols
