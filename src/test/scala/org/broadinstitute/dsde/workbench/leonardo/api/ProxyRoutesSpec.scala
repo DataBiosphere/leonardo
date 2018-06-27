@@ -1,18 +1,17 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
+import akka.http.scaladsl.Http
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
+import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.{ContentDispositionTypes, `Content-Disposition`, _}
 import akka.http.scaladsl.model.ws.{TextMessage, WebSocketRequest}
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
-import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.HttpMethods._
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.GcsPathUtils
 import org.broadinstitute.dsde.workbench.leonardo.service.TestProxy
 import org.broadinstitute.dsde.workbench.leonardo.service.TestProxy.Data
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll, FlatSpec}
@@ -23,7 +22,7 @@ import scala.concurrent.duration._
 /**
   * Created by rtitle on 8/10/17.
   */
-class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfter with ScalatestRouteTest with ScalaFutures with TestLeoRoutes with TestProxy with TestComponent with GcsPathUtils {
+class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfter with ScalatestRouteTest with ScalaFutures with CommonTestData with TestLeoRoutes with TestProxy with TestComponent with GcsPathUtils {
   implicit val patience = PatienceConfig(timeout = scaled(Span(30, Seconds)))
   implicit val routeTimeout = RouteTestTimeout(10 seconds)
 
@@ -31,8 +30,6 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
   val googleProject = "dsp-leo-test"
   val unauthorizedTokenCookie = HttpCookiePair("LeoToken", "unauthorized")
   val expiredTokenCookie = HttpCookiePair("LeoToken", "expired")
-  val serviceAccountEmail = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
-  val userEmail = WorkbenchEmail("user1@example.com")
 
   val routeTest = this
 
@@ -142,7 +139,7 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
   it should "remove utf-8'' from content-disposition header filenames" in {
     // The TestProxy adds the Content-Disposition header to the response, we can't do it from here
     Get(s"/notebooks/$googleProject/$clusterName/content-disposition-test").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
-      responseAs[HttpResponse].headers should contain (`Content-Disposition`(ContentDispositionTypes.attachment, Map("filename" -> "notebook.ipynb")))
+      responseAs[HttpResponse].headers should contain(`Content-Disposition`(ContentDispositionTypes.attachment, Map("filename" -> "notebook.ipynb")))
     }
   }
 
@@ -184,7 +181,7 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
     // login request with Authorization header should succeed and return a Set-Cookie header
     Get(s"/notebooks/$googleProject/$clusterName/setCookie")
       .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
-      .addHeader(Origin("http://example.com"))  ~> leoRoutes.route ~> check {
+      .addHeader(Origin("http://example.com")) ~> leoRoutes.route ~> check {
       validateCookie(setCookie = header[`Set-Cookie`], age = 3600)
 
       validateCors(origin = Some("http://example.com"))
@@ -197,7 +194,7 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
   it should "handle preflight OPTIONS requests" in {
     Options(s"/notebooks/$googleProject/$clusterName/setCookie")
       .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
-      .addHeader(Origin("http://example.com"))  ~> leoRoutes.route ~> check {
+      .addHeader(Origin("http://example.com")) ~> leoRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.NoContent
       header[`Set-Cookie`] shouldBe None
@@ -207,7 +204,7 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
 
   it should "401 when not given an Authorization header" in {
     Get(s"/notebooks/$googleProject/$clusterName/setCookie")
-      .addHeader(Origin("http://example.com"))  ~> leoRoutes.route ~> check {
+      .addHeader(Origin("http://example.com")) ~> leoRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.Unauthorized
     }
@@ -216,7 +213,7 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
   it should "404 when using a non-white-listed user" in {
     Get(s"/notebooks/$googleProject/$clusterName/setCookie")
       .addHeader(Authorization(OAuth2BearerToken(unauthorizedTokenCookie.value)))
-      .addHeader(Origin("http://example.com"))  ~> leoRoutes.route ~> check {
+      .addHeader(Origin("http://example.com")) ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
   }
@@ -224,7 +221,7 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
   it should "401 when using an expired token" in {
     Get(s"/notebooks/$googleProject/$clusterName")
       .addHeader(Authorization(OAuth2BearerToken(expiredTokenCookie.value)))
-      .addHeader(Origin("http://example.com"))  ~> leoRoutes.route ~> check {
+      .addHeader(Origin("http://example.com")) ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.Unauthorized
     }
   }
@@ -269,7 +266,7 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
 
   private def validateCors(origin: Option[String] = None, optionsRequest: Boolean = false): Unit = {
     // Issue 272: CORS headers should not be double set
-    headers.filter(_.is(`Access-Control-Allow-Origin`.lowercaseName)).size shouldBe 1
+    headers.count(_.is(`Access-Control-Allow-Origin`.lowercaseName)) shouldBe 1
     header[`Access-Control-Allow-Origin`] shouldBe origin.map(`Access-Control-Allow-Origin`(_)).orElse(Some(`Access-Control-Allow-Origin`.*))
     header[`Access-Control-Allow-Credentials`] shouldBe Some(`Access-Control-Allow-Credentials`(true))
     header[`Access-Control-Allow-Headers`] shouldBe Some(`Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin"))
@@ -277,7 +274,7 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
     header[`Access-Control-Allow-Methods`] shouldBe (
       if (optionsRequest) Some(`Access-Control-Allow-Methods`(OPTIONS, POST, PUT, GET, DELETE, HEAD, PATCH))
       else None
-    )
+      )
   }
 }
 
