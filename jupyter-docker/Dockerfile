@@ -120,6 +120,7 @@ RUN apt-get update \
     python-tk \
     liblzo2-dev \
     libz-dev \
+    texlive-xetex \
 
  # NOTE! not sure why, but this must run before pip installation
  && useradd -m -s /bin/bash -N -u $UID $USER \
