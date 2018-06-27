@@ -3,13 +3,15 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.time.Instant
 import java.util.UUID
 
-import akka.http.scaladsl.model.headers.OAuth2BearerToken
+import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
+import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SwaggerConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.MockJupyterDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockJupyterDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData, _}
@@ -54,16 +56,27 @@ trait CommonTestData { this: ScalaFutures =>
   val testClusterRequestWithExtensionAndScript = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(jupyterExtensionUri), Some(jupyterUserScriptUri), None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))))
 
 
+
+  val mockSamDAO = new MockSamDAO
+  val mockGoogleDataprocDAO = new MockGoogleDataprocDAO
+  val mockGoogleComputeDAO = new MockGoogleComputeDAO
+
+  val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
+  val tokenAge = 500000
+  val tokenName = "LeoToken"
+  val tokenValue = "accessToken"
+  val tokenCookie = HttpCookiePair(tokenName, tokenValue)
+
   val serviceAccountInfo = new ServiceAccountInfo(Option(WorkbenchEmail("testServiceAccount1@example.com")), Option(WorkbenchEmail("testServiceAccount2@example.com")))
   val testCluster = new Cluster(
     clusterName = name1,
-    googleId =  new UUID(1, 1),
+    googleId =  UUID.randomUUID(),
     googleProject = project,
     serviceAccountInfo = serviceAccountInfo,
-    machineConfig = MachineConfig(),
+    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
     operationName = OperationName("op"),
-    status = ClusterStatus.Running,
+    status = ClusterStatus.Unknown,
     hostIp = None,
     creator = userEmail,
     createdDate = Instant.now(),
