@@ -4,13 +4,12 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.scalatest.FlatSpecLike
-
-
 
 class ClusterErrorComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils {
 
@@ -40,7 +39,7 @@ class ClusterErrorComponentSpec extends TestComponent with FlatSpecLike with Com
     lazy val timestamp = Instant.now().truncatedTo(ChronoUnit.SECONDS)
     val clusterError = ClusterError("Some Error", 10, timestamp)
 
-    assertEquivalent(c1) { dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } }
+    dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual c1
     val c1Id = dbFutureValue {
       _.clusterQuery.getIdByGoogleId(c1.googleId)
     }.get
