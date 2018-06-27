@@ -16,7 +16,7 @@ class ConfigLoader extends React.Component {
   /**
    * Load configuration from static assets.
    */
-  loadConfig = () => {
+  loadConfig() {
     fetch("/config.json")
       .then((response) => {
         if (response.status < 200 || response.status >= 300) {
