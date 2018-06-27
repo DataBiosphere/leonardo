@@ -9,6 +9,7 @@ import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import com.typesafe.config.ConfigFactory
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq, clusterSetEq}
 import org.broadinstitute.dsde.workbench.leonardo.GcsPathUtils
 import org.broadinstitute.dsde.workbench.leonardo.auth.MockLeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
@@ -30,8 +31,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDA
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 import org.mockito.Mockito
-
-import scala.concurrent.Future
 
 class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers with MockitoSugar with TestComponent with ScalaFutures with OptionValues with GcsPathUtils with TestProxy with BeforeAndAfterAll {
   val name1 = ClusterName("name1")
@@ -199,11 +198,11 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) }
 
       // status should work for this user
-      assertEquivalent(c1) { leo.getActiveClusterDetails(userInfo, project, name1).futureValue }
+      leo.getActiveClusterDetails(userInfo, project, name1).futureValue shouldEqual c1
 
       // list should work for this user
       //list all clusters should be fine, but empty
-      assertEquivalent(Set(c1)) { leo.listClusters(userInfo, Map()).futureValue.toSet }
+      leo.listClusters(userInfo, Map()).futureValue.toSet shouldEqual Set(c1)
 
       //connect should 401
       val httpRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
