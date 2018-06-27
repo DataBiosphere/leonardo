@@ -180,7 +180,7 @@ trait ClusterComponent extends LeoComponent {
       case None => DBIO.successful(None)
     }
 
-    def getById(id: Long): DBIO[Option[Cluster]] = {
+    def getClusterById(id: Long): DBIO[Option[Cluster]] = {
       clusterQueryWithInstancesAndErrorsAndLabels.filter { _._1.id === id }.result map { recs =>
         unmarshalClustersWithInstancesAndLabels(recs).headOption
       }
@@ -193,18 +193,26 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    // for testing
-    private[leonardo] def getId(googleProject: GoogleProject,
-                                clusterName: ClusterName,
-                                destroyedDateOpt: Option[Instant]): DBIO[Option[Long]] = {
-      val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
+    private[leonardo] def getIdByCluster(cluster: Cluster): DBIO[Option[Long]] = {
+      getIdByCluster(cluster.googleProject, cluster.clusterName, cluster.destroyedDate)
+    }
 
-      clusterQuery
-        .filter { _.googleProject === googleProject.value }
-        .filter { _.clusterName === clusterName.value }
-        .filter { _.destroyedDate === Timestamp.from(destroyedDate) }
-        .result
-        .map { recs => recs.headOption map { _.id } }
+    private[leonardo] def getIdByCluster(googleProject: GoogleProject,
+                                         clusterName: ClusterName,
+                                         destroyedDateOpt: Option[Instant]): DBIO[Option[Long]] = {
+      clusterQueryWithInstancesAndErrorsAndLabelsByUniqueKey(googleProject, clusterName, destroyedDateOpt)
+        .map { recs => recs.headOption map { _._1.id } }
+    }
+
+    private[leonardo] def getClusterByUniqueKey(cluster: Cluster): DBIO[Option[Cluster]] = {
+      getClusterByUniqueKey(cluster.googleProject, cluster.clusterName, cluster.destroyedDate)
+    }
+
+    private[leonardo] def getClusterByUniqueKey(googleProject: GoogleProject,
+                                                clusterName: ClusterName,
+                                                destroyedDateOpt: Option[Instant]): DBIO[Option[Cluster]] = {
+      clusterQueryWithInstancesAndErrorsAndLabelsByUniqueKey(googleProject, clusterName, destroyedDateOpt)
+        .map { recs => unmarshalClustersWithInstancesAndLabels(recs).headOption }
     }
 
     def getInitBucket(project: GoogleProject, name: ClusterName): DBIO[Option[GcsPath]] = {
@@ -433,4 +441,15 @@ trait ClusterComponent extends LeoComponent {
     } yield (cluster, instance, error, label, extension)
   }
 
+  private def clusterQueryWithInstancesAndErrorsAndLabelsByUniqueKey(googleProject: GoogleProject,
+                                                                     clusterName: ClusterName,
+                                                                     destroyedDateOpt: Option[Instant]) = {
+    val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
+
+    clusterQueryWithInstancesAndErrorsAndLabels
+      .filter { _._1.googleProject === googleProject.value }
+      .filter { _._1.clusterName === clusterName.value }
+      .filter { _._1.destroyedDate === Timestamp.from(destroyedDate) }
+      .result
+  }
 }

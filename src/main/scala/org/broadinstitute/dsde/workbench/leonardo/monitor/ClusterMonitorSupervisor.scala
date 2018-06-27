@@ -82,7 +82,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
     case StopClusterAfterCreation(cluster) =>
       logger.info(s"Stopping cluster ${cluster.projectNameString} after creation...")
       dbRef.inTransaction { dataAccess =>
-        dataAccess.clusterQuery.getById(cluster.id)
+        dataAccess.clusterQuery.getClusterById(cluster.id)
       }.flatMap {
         case Some(resolvedCluster) if resolvedCluster.status.isStoppable =>
           leoService.internalStopCluster(resolvedCluster)

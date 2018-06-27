@@ -478,7 +478,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       actor ! ClusterDeleted(savedDeletingCluster)
       expectMsgClass(1 second, classOf[Terminated])
 
-      val updatedCluster = dbFutureValue { _.clusterQuery.getByGoogleId(deletingCluster.googleId) }
+      val updatedCluster = dbFutureValue { _.clusterQuery.getClusterById(savedDeletingCluster.id) }
       updatedCluster shouldBe 'defined
       updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Deleted)
       updatedCluster.flatMap(_.hostIp) shouldBe None
@@ -620,7 +620,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       expectMsgClass(1 second, classOf[Terminated])
       expectMsgClass(1 second, classOf[Terminated])
 
-      val oldCluster = dbFutureValue { _.clusterQuery.getByGoogleId(creatingCluster.googleId) }
+      val oldCluster = dbFutureValue { _.clusterQuery.getClusterById(savedCreatingCluster.id) }
       oldCluster shouldBe 'defined
       oldCluster.map(_.status) shouldBe Some(ClusterStatus.Deleted)
       oldCluster.flatMap(_.hostIp) shouldBe None

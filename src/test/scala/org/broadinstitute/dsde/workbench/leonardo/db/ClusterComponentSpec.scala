@@ -140,9 +140,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     val c1WithErrId =  dbFutureValue { _.clusterQuery.getIdByGoogleId(c1.googleId)}.get
     val c1WithErrAssignedId = c1WithErr.copy(id = c1WithErrId)
 
-    dbFutureValue { _.clusterQuery.getById(c1Id) } shouldEqual Some(c1WithErrAssignedId)
-    dbFutureValue { _.clusterQuery.getById(c2Id) } shouldEqual Some(c2WithAssignedId)
-    dbFutureValue { _.clusterQuery.getById(c3Id) } shouldEqual Some(c3WithAssignedId)
+    dbFutureValue { _.clusterQuery.getClusterById(c1Id) } shouldEqual Some(c1WithErrAssignedId)
+    dbFutureValue { _.clusterQuery.getClusterById(c2Id) } shouldEqual Some(c2WithAssignedId)
+    dbFutureValue { _.clusterQuery.getClusterById(c3Id) } shouldEqual Some(c3WithAssignedId)
 
     dbFutureValue { _.clusterQuery.getServiceAccountKeyId(c1.googleProject, c1.clusterName) } shouldEqual None
     dbFutureValue { _.clusterQuery.getServiceAccountKeyId(c2.googleProject, c2.clusterName) } shouldEqual Some(serviceAccountKey.id)
@@ -180,7 +180,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFutureValue { _.clusterQuery.markPendingDeletion(c1Id) } shouldEqual 1
     dbFutureValue { _.clusterQuery.listActive() } should contain theSameElementsAs Seq(c2, c3)
 
-    val c1status = dbFutureValue { _.clusterQuery.getById(c1Id) }.get
+    val c1status = dbFutureValue { _.clusterQuery.getClusterById(c1Id) }.get
     c1status.status shouldEqual ClusterStatus.Deleting
     c1status.destroyedDate shouldBe None
     c1status.hostIp shouldBe None
@@ -188,14 +188,14 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(c2Id) } shouldEqual 1
     dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq(c3)
-    val c2status = dbFutureValue { _.clusterQuery.getById(c2Id) }.get
+    val c2status = dbFutureValue { _.clusterQuery.getClusterById(c2Id) }.get
     c2status.status shouldEqual ClusterStatus.Deleting
     c2status.destroyedDate shouldBe None
     c2status.hostIp shouldBe None
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(c3Id) } shouldEqual 1
     dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq()
-    val c3status = dbFutureValue { _.clusterQuery.getById(c3Id) }.get
+    val c3status = dbFutureValue { _.clusterQuery.getClusterById(c3Id) }.get
     c3status.status shouldEqual ClusterStatus.Deleting
     c3status.destroyedDate shouldBe None
     c3status.hostIp shouldBe None
@@ -321,7 +321,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     // note: this does not update the instance records
     dbFutureValue { _.clusterQuery.setToStopping(initialClusterId) } shouldEqual 1
     val stoppedClusterId = dbFutureValue { _.clusterQuery.getIdByGoogleId(initialCluster.googleId)}.get
-    val stoppedCluster = dbFutureValue { _.clusterQuery.getById(stoppedClusterId) }.get
+    val stoppedCluster = dbFutureValue { _.clusterQuery.getClusterById(stoppedClusterId) }.get
     val expectedStoppedCluster = initialCluster.copy(
       status = ClusterStatus.Stopping,
       hostIp = None,
@@ -331,7 +331,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
     dbFutureValue { _.clusterQuery.setToRunning(initialClusterId, initialCluster.hostIp.get) } shouldEqual 1
     val runningClusterId = dbFutureValue { _.clusterQuery.getIdByGoogleId(initialCluster.googleId) }.get
-    val runningCluster = dbFutureValue { _.clusterQuery.getById(runningClusterId) }.get
+    val runningCluster = dbFutureValue { _.clusterQuery.getClusterById(runningClusterId) }.get
     val expectedRunningCluster = initialCluster.copy(
       id = runningClusterId,
       dateAccessed = dateAccessed)
@@ -374,7 +374,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
         workerInstance2.copy(status = InstanceStatus.Provisioning)))
 
     dbFutureValue { _.clusterQuery.mergeInstances(updatedC1) } shouldEqual updatedC1
-    dbFutureValue { _.clusterQuery.getById(updatedC1Id) }.get shouldEqual updatedC1
+    dbFutureValue { _.clusterQuery.getClusterById(updatedC1Id) }.get shouldEqual updatedC1
 
     val updatedC1Again = c1.copy(
       instances = Set(
@@ -383,7 +383,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     )
 
     dbFutureValue { _.clusterQuery.mergeInstances(updatedC1Again) } shouldEqual updatedC1Again
-    dbFutureValue { _.clusterQuery.getById(updatedC1Id) }.get shouldEqual updatedC1
+    dbFutureValue { _.clusterQuery.getClusterById(updatedC1Id) }.get shouldEqual updatedC1
   }
 
   it should "get list of clusters to auto freeze" in isolatedDbTest {
