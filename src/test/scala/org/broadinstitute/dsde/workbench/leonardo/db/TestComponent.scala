@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
 import java.time.Instant
-import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.leonardo.TestExecutionContext
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
@@ -33,10 +32,6 @@ trait TestComponent extends Matchers with ScalaFutures with LeoComponent {
     } finally {
       dbFutureValue { _ => DbSingleton.ref.dataAccess.truncateAll() }
     }
-  }
-
-  protected def getClusterId(googleId: Option[UUID]): Long = {
-    dbFutureValue { _.clusterQuery.getIdByGoogleId(googleId) }.get
   }
 
   protected def getClusterId(cluster: Cluster): Long = {
