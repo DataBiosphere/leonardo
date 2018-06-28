@@ -172,14 +172,6 @@ trait ClusterComponent extends LeoComponent {
         }
     }
 
-    // TODO: Check if this should be removed and its usages replaced by getById
-    def getByGoogleId(googleId: Option[UUID]): DBIO[Option[Cluster]] = googleId match {
-      case Some(gId) => clusterQueryWithInstancesAndErrorsAndLabels.filter { _._1.googleId === gId }.result map { recs =>
-        unmarshalClustersWithInstancesAndLabels(recs).headOption
-      }
-      case None => DBIO.successful(None)
-    }
-
     def getClusterById(id: Long): DBIO[Option[Cluster]] = {
       clusterQueryWithInstancesAndErrorsAndLabels.filter { _._1.id === id }.result map { recs =>
         unmarshalClustersWithInstancesAndLabels(recs).headOption
@@ -204,6 +196,8 @@ trait ClusterComponent extends LeoComponent {
         .map { recs => recs.headOption map { _._1.id } }
     }
 
+    // Convenience method for tests, in several of which we define a cluster and later on need
+    // to retrieve its updated status, etc. but don't know its id to look up
     private[leonardo] def getClusterByUniqueKey(cluster: Cluster): DBIO[Option[Cluster]] = {
       getClusterByUniqueKey(cluster.googleProject, cluster.clusterName, cluster.destroyedDate)
     }

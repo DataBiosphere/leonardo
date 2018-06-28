@@ -559,7 +559,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key (name1)
 
     // cluster status should be Stopping in the DB
-    dbFutureValue { _.clusterQuery.getByGoogleId(clusterCreateResponse.googleId) }.get.status shouldBe ClusterStatus.Stopping
+//    dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.status shouldBe ClusterStatus.Stopping
+    dbFutureValue { _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse) }.get.status shouldBe ClusterStatus.Stopping
 
     // instance status should still be Running in the DB
     // the ClusterMonitorActor is what updates instance status
@@ -589,7 +590,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key (name1)
 
     // cluster status should be Starting in the DB
-    dbFutureValue { _.clusterQuery.getByGoogleId(clusterCreateResponse.googleId) }.get.status shouldBe ClusterStatus.Starting
+    dbFutureValue { _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse) }.get.status shouldBe ClusterStatus.Starting
 
     // instance status should still be Stopped in the DB
     // the ClusterMonitorActor is what updates instance status

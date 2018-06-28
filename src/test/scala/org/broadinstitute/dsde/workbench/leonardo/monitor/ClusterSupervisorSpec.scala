@@ -20,8 +20,9 @@ import org.scalatest.mockito.MockitoSugar
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.concurrent.Eventually.eventually
 
-class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll with TestComponent with CommonTestData with GcsPathUtils {
-  testKit =>
+class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
+  with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll
+  with TestComponent with CommonTestData with GcsPathUtils { testKit =>
 
   val runningCluster = Cluster(
     clusterName = name1,
@@ -50,6 +51,7 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest")) with Fl
     TestKit.shutdownActorSystem(system)
     super.afterAll()
   }
+  
   //TODO: Remove ignore once auto freeze is enabled
   "ClusterSupervisorMonitor" should "auto freeze the cluster" ignore isolatedDbTest {
 
@@ -68,17 +70,18 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest")) with Fl
     }
 
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
-    dbFutureValue { _.clusterQuery.save(runningCluster, Option(gcsPath("gs://bucket")), Some(serviceAccountKey.id)) } shouldEqual runningCluster
+    val savedRunningCluster = dbFutureValue { _.clusterQuery.save(runningCluster, Option(gcsPath("gs://bucket")), Some(serviceAccountKey.id)) }
+
+    savedRunningCluster shouldEqual runningCluster
+
     val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO, computeDAO, iamDAO, storageDAO,
       DbSingleton.ref, system.deadLetters, authProvider, autoFreezeconfig))
+
     new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, clusterSupervisorActor, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper)
 
     eventually(timeout(Span(30, Seconds))) {
-      val c1 = dbFutureValue {
-        _.clusterQuery.getByGoogleId(runningCluster.googleId)
-      }
-      c1.map(_.status).get shouldBe ClusterStatus.Stopping
+      val c1 = dbFutureValue { _.clusterQuery.getClusterById(savedRunningCluster.id) }
+      c1.map(_.status) shouldBe Some(ClusterStatus.Stopping)
     }
   }
-
 }
