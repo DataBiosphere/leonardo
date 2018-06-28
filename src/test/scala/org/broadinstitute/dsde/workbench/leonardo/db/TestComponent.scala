@@ -34,4 +34,14 @@ trait TestComponent extends Matchers with ScalaFutures with LeoComponent {
   protected def getClusterId(googleId: Option[UUID]): Long = {
     dbFutureValue { _.clusterQuery.getIdByGoogleId(googleId) }.get
   }
+//
+//  protected def getClusterId(cluster: Cluster): Long = {
+//    getClusterId(cluster.googleProject, cluster.clusterName, cluster.destroyedDate)
+//  }
+//
+//  protected def getClusterId(googleProject: GoogleProject,
+//                             clusterName: ClusterName,
+//                             destroyedDateOpt: Option[Instant]): Long = {
+//    dbFutureValue { _.clusterQuery.getIdByUniqueKey(googleProject, clusterName, destroyedDateOpt) }.get
+//  }
 }

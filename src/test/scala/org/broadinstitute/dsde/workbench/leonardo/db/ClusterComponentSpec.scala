@@ -314,8 +314,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
     // note: this does not update the instance records
     dbFutureValue { _.clusterQuery.setToStopping(savedInitialCluster.id) } shouldEqual 1
-    val stoppedClusterId = dbFutureValue { _.clusterQuery.getIdByGoogleId(initialCluster.googleId)}.get
-    val stoppedCluster = dbFutureValue { _.clusterQuery.getClusterById(stoppedClusterId) }.get
+    val stoppedCluster = dbFutureValue { _.clusterQuery.getClusterById(savedInitialCluster.id) }.get
     val expectedStoppedCluster = initialCluster.copy(
       status = ClusterStatus.Stopping,
       hostIp = None,
@@ -324,10 +323,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     stoppedCluster.dateAccessed should be > initialCluster.dateAccessed
 
     dbFutureValue { _.clusterQuery.setToRunning(savedInitialCluster.id, initialCluster.hostIp.get) } shouldEqual 1
-    val runningClusterId = dbFutureValue { _.clusterQuery.getIdByGoogleId(initialCluster.googleId) }.get
-    val runningCluster = dbFutureValue { _.clusterQuery.getClusterById(runningClusterId) }.get
+    val runningCluster = dbFutureValue { _.clusterQuery.getClusterById(savedInitialCluster.id) }.get
     val expectedRunningCluster = initialCluster.copy(
-      id = runningClusterId,
+      id = savedInitialCluster.id,
       dateAccessed = dateAccessed)
     runningCluster.copy(dateAccessed = dateAccessed) shouldEqual expectedRunningCluster
     runningCluster.dateAccessed should be > stoppedCluster.dateAccessed
@@ -357,18 +355,18 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
         userJupyterExtensionConfig = None,
         dateAccessed = Instant.now())
 
-    dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual c1
+    val savedC1 = dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) }
+    savedC1 shouldEqual c1
 
-    val updatedC1Id = dbFutureValue { _.clusterQuery.getIdByGoogleId(c1.googleId) }.get
     val updatedC1 = c1.copy(
-      id = updatedC1Id,
+      id = savedC1.id,
       instances = Set(
         masterInstance.copy(status = InstanceStatus.Provisioning),
         workerInstance1.copy(status = InstanceStatus.Provisioning),
         workerInstance2.copy(status = InstanceStatus.Provisioning)))
 
     dbFutureValue { _.clusterQuery.mergeInstances(updatedC1) } shouldEqual updatedC1
-    dbFutureValue { _.clusterQuery.getClusterById(updatedC1Id) }.get shouldEqual updatedC1
+    dbFutureValue { _.clusterQuery.getClusterById(savedC1.id) }.get shouldEqual updatedC1
 
     val updatedC1Again = c1.copy(
       instances = Set(
@@ -377,7 +375,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     )
 
     dbFutureValue { _.clusterQuery.mergeInstances(updatedC1Again) } shouldEqual updatedC1Again
-    dbFutureValue { _.clusterQuery.getClusterById(updatedC1Id) }.get shouldEqual updatedC1
+    dbFutureValue { _.clusterQuery.getClusterById(savedC1.id) }.get shouldEqual updatedC1
   }
 
   it should "get list of clusters to auto freeze" in isolatedDbTest {

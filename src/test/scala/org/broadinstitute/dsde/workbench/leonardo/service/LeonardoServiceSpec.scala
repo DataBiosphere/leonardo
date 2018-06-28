@@ -317,7 +317,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key name1
 
     // populate some instances for the cluster
-    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse.googleId), Seq(masterInstance, workerInstance1, workerInstance2)) }
+    dbFutureValue {
+      _.instanceQuery.saveAllForCluster(
+        getClusterId(clusterCreateResponse.googleId), Seq(masterInstance, workerInstance1, workerInstance2))
+    }
 
     // delete the cluster
     leo.deleteCluster(userInfo, project, name1).futureValue
