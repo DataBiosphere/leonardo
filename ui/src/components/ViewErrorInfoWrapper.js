@@ -7,7 +7,7 @@ import Dialog, {
   DialogTitle,
 } from 'material-ui/Dialog';
 
-import GoogleSignInWrapper from './GoogleSignInWrapper'
+import ConfigLoader from './ConfigLoader'
 
 
 /**
@@ -61,7 +61,7 @@ class ViewErrorInfoWrapper extends React.Component {
             </Button>
           </DialogActions>
         </Dialog>
-        <GoogleSignInWrapper errorHandler={this.showErrorMessage} />
+        <ConfigLoader errorHandler={this.showErrorMessage} />
       </div>
     );
   }

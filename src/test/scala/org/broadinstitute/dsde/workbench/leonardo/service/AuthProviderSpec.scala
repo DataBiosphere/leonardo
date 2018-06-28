@@ -3,68 +3,37 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 import java.time.Instant
 import java.util.UUID
 
-import akka.http.scaladsl.model.{HttpRequest, StatusCodes, Uri}
 import akka.http.scaladsl.model.HttpMethods._
-import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
+import akka.http.scaladsl.model.{HttpRequest, StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import com.typesafe.config.ConfigFactory
-import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq, clusterSetEq}
-import org.broadinstitute.dsde.workbench.leonardo.GcsPathUtils
+
+import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
+import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleIamDAO, MockGoogleStorageDAO}
+
 import org.broadinstitute.dsde.workbench.leonardo.auth.MockLeoAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.model.google._
+import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
-import org.mockito.Mockito._
-import org.scalatest.mockito.MockitoSugar
-import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers, OptionValues}
-import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq, clusterSetEq}
+import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.mockito.Mockito
+import org.mockito.Mockito._
+import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.mockito.MockitoSugar
+import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers, OptionValues}
 
-class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers with MockitoSugar with TestComponent with ScalaFutures with OptionValues with GcsPathUtils with TestProxy with BeforeAndAfterAll {
-  val name1 = ClusterName("name1")
-  val project = GoogleProject("dsp-leo-test")
-  val userInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
-  val userEmail = WorkbenchEmail("user1@example.com")
-  val serviceAccountEmail = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
+class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers with MockitoSugar with TestComponent with ScalaFutures with OptionValues with GcsPathUtils with TestProxy with BeforeAndAfterAll with CommonTestData{
   val clusterName = name1.value
   val googleProject = project.value
-
-  val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
-  val whitelist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
-  val dataprocConfig = config.as[DataprocConfig]("dataproc")
-  val proxyConfig = config.as[ProxyConfig]("proxy")
-  val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
-  val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
-  val swaggerConfig = config.as[SwaggerConfig]("swagger")
-  val mockGoogleIamDAO = new MockGoogleIamDAO
-  val mockSamDAO = new MockSamDAO
-  val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
-  val clusterUrlBase = dataprocConfig.clusterUrlBase
-
-  val routeTest = this
-
-  private val testClusterRequest = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), None)
-  private val serviceAccountProvider = new MockPetClusterServiceAccountProvider(config.getConfig("serviceAccounts.config"))
-  private val alwaysYesProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), serviceAccountProvider)
-  private val alwaysNoProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysNoProviderConfig"), serviceAccountProvider)
 
   val c1 = Cluster(
     clusterName = name1,
     googleId = Option(UUID.randomUUID()),
     googleProject = project,
-    serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
+    serviceAccountInfo = serviceAccountInfo,
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
     operationName = Option(OperationName("op1")),
@@ -82,13 +51,14 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
     userJupyterExtensionConfig = None,
     dateAccessed = Instant.now())
 
-  val gdDAO = new MockGoogleDataprocDAO
-  val computeDAO = new MockGoogleComputeDAO
-  val iamDAO = new MockGoogleIamDAO
-  val storageDAO = new MockGoogleStorageDAO
-  val samDAO = new MockSamDAO
-  val tokenCookie = HttpCookiePair("LeoToken", "me")
-  val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
+  val routeTest = this
+
+  private val alwaysYesProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), serviceAccountProvider)
+  private val alwaysNoProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysNoProviderConfig"), serviceAccountProvider)
+
+  val mockGoogleIamDAO = new MockGoogleIamDAO
+  val mockGoogleStorageDAO = new MockGoogleStorageDAO
+  val bucketHelper = new BucketHelper(dataprocConfig, mockGoogleDataprocDAO, mockGoogleComputeDAO, mockGoogleStorageDAO, serviceAccountProvider)
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -104,11 +74,11 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
       new MockGoogleStorageDAO
     }
-    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, computeDAO, iamDAO, storageDAO ,mockPetGoogleStorageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper)
+    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, mockGoogleDataprocDAO, mockGoogleComputeDAO , mockGoogleIamDAO, mockGoogleStorageDAO ,mockPetGoogleStorageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper)
   }
 
   def proxyWithAuthProvider(authProvider: LeoAuthProvider): ProxyService = {
-    new MockProxyService(proxyConfig, gdDAO, DbSingleton.ref, authProvider)
+    new MockProxyService(proxyConfig, mockGoogleDataprocDAO, DbSingleton.ref, authProvider)
   }
 
   "Leo with an AuthProvider" - {
@@ -236,7 +206,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       clusterLookup shouldBe 'empty
 
       // check that the cluster does not exist
-      gdDAO.clusters should not contain key (name1)
+      mockGoogleDataprocDAO.clusters should not contain key (name1)
 
       // creation and deletion notifications should have been fired
       verify(spyProvider).notifyClusterCreated(userEmail, project, name1)

@@ -7,6 +7,7 @@ import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.MockJupyterDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
@@ -65,6 +66,8 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
 
     val authProvider = mock[LeoAuthProvider]
 
+    val jupyterProxyDAO = new MockJupyterDAO
+
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
       new MockGoogleStorageDAO
     }
@@ -75,7 +78,7 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
     savedRunningCluster shouldEqual runningCluster
 
     val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO, computeDAO, iamDAO, storageDAO,
-      DbSingleton.ref, system.deadLetters, authProvider, autoFreezeconfig))
+      DbSingleton.ref, system.deadLetters, authProvider, autoFreezeconfig, jupyterProxyDAO))
 
     new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, clusterSupervisorActor, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper)
 

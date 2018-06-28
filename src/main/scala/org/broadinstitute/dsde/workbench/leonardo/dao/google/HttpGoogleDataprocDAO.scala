@@ -20,6 +20,7 @@ import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, SecondaryWorker, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
+import org.broadinstitute.dsde.workbench.leonardo.service.{AuthorizationError, BucketObjectAccessException, DataprocDisabledException}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject}
@@ -64,9 +65,15 @@ class HttpGoogleDataprocDAO(appName: String,
 
     val request = dataproc.projects().regions().clusters().create(googleProject.value, defaultRegion, cluster)
 
-    retryWhen500orGoogleError(() => executeGoogleRequest(request)).map { op =>
+    retryWithRecoverWhen500orGoogleError { () =>
+      executeGoogleRequest(request)
+    } {
+      case e: GoogleJsonResponseException if e.getStatusCode == 403 &&
+        (e.getMessage contains "Access Not Configured") => throw DataprocDisabledException(e.getMessage)
+    }.map { op =>
       Operation(OperationName(op.getName), getOperationUUID(op))
     }.handleGoogleException(googleProject, Some(clusterName.value))
+
   }
 
   override def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName): Future[Unit] = {
@@ -188,7 +195,15 @@ class HttpGoogleDataprocDAO(appName: String,
     val request = oauth2.tokeninfo().setAccessToken(accessToken)
     retryWhen500orGoogleError(() => executeGoogleRequest(request)).map { tokenInfo =>
       (UserInfo(OAuth2BearerToken(accessToken), WorkbenchUserId(tokenInfo.getUserId), WorkbenchEmail(tokenInfo.getEmail), tokenInfo.getExpiresIn.toInt), Instant.now().plusSeconds(tokenInfo.getExpiresIn.toInt))
-    }.handleGoogleException(GoogleProject(""), Some("oauth"))
+    } recover {
+        case e: GoogleJsonResponseException =>
+          val msg = s"Call to Google OAuth API failed. Status: ${e.getStatusCode}. Message: ${e.getDetails.getMessage}"
+          logger.error(msg, e)
+          throw new WorkbenchException(msg, e)
+        // Google throws IllegalArgumentException when passed an invalid token. Handle this case and rethrow a 401.
+        case e: IllegalArgumentException =>
+          throw AuthorizationError()
+      }
   }
 
   private def getClusterConfig(machineConfig: MachineConfig, initScript: GcsPath, clusterServiceAccount: Option[WorkbenchEmail], credentialsFileName: Option[String], stagingBucket: GcsBucketName): DataprocClusterConfig = {

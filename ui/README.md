@@ -24,8 +24,12 @@ Add a dependency:
 
 ### Environment configuration
 
-Edit the contents of the `.env` file to inject environmental
-variables into the project. Every variable that begins with
-`REACT_APP_*` will be available via the global
-`process.env.REACT_APP_<NAME>`. Variables set in `.env` become
-hard coded during build.
+Edit the contents of public/config.json. This file is loaded
+synchronously during application startup into the global variable
+`GlobalReactConfig`.
+
+The UI can be dockerized and each value in the config.json may
+be passed as an environmental variable thanks to a shell script
+that manages these substitutions. As a result, if any new
+config variables are added, the file "write_config.sh" should
+be updated to be made aware of the new values.

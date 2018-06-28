@@ -3,12 +3,15 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.time.Instant
 import java.util.UUID
 
-import akka.http.scaladsl.model.headers.OAuth2BearerToken
+import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
+import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SwaggerConfig}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockJupyterDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData, _}
@@ -48,35 +51,46 @@ trait CommonTestData { this: ScalaFutures =>
   val serviceAccountsConfig = config.getConfig("serviceAccounts.config")
   val autoFreezeconfig = config.as[AutoFreezeConfig]("autoFreeze")
   val monitorConfig = config.as[MonitorConfig]("monitor")
-
+  val mockJupyterDAO = new MockJupyterDAO
   val singleNodeDefaultMachineConfig = MachineConfig(Some(clusterDefaultsConfig.numberOfWorkers), Some(clusterDefaultsConfig.masterMachineType), Some(clusterDefaultsConfig.masterDiskSize))
   val testClusterRequest = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), None, None, None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))))
   val testClusterRequestWithExtensionAndScript = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(jupyterExtensionUri), Some(jupyterUserScriptUri), None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))))
 
 
+
+  val mockSamDAO = new MockSamDAO
+  val mockGoogleDataprocDAO = new MockGoogleDataprocDAO
+  val mockGoogleComputeDAO = new MockGoogleComputeDAO
+
+  val defaultUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 0)
+  val tokenAge = 500000
+  val tokenName = "LeoToken"
+  val tokenValue = "accessToken"
+  val tokenCookie = HttpCookiePair(tokenName, tokenValue)
+
   val serviceAccountInfo = new ServiceAccountInfo(Option(WorkbenchEmail("testServiceAccount1@example.com")), Option(WorkbenchEmail("testServiceAccount2@example.com")))
-  val testCluster =
-    Cluster(
-      clusterName = name1,
-      googleId =  Option(new UUID(1, 1)),
-      googleProject = project,
-      serviceAccountInfo = serviceAccountInfo,
-      machineConfig = MachineConfig(),
-      clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-      operationName = Option(OperationName("op")),
-      status = ClusterStatus.Running,
-      hostIp = None,
-      creator = userEmail,
-      createdDate = Instant.now(),
-      destroyedDate = None,
-      labels = Map(),
-      jupyterExtensionUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),
-      jupyterUserScriptUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript"))),
-      stagingBucket = Some(GcsBucketName("testStagingBucket1")),
-      errors = List.empty,
-      instances = Set.empty,
-      userJupyterExtensionConfig = None,
-      dateAccessed = Instant.now())
+
+  val testCluster = new Cluster(
+    clusterName = name1,
+    googleId =  Option(UUID.randomUUID()),
+    googleProject = project,
+    serviceAccountInfo = serviceAccountInfo,
+    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
+    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
+    operationName = Option(OperationName("op")),
+    status = ClusterStatus.Unknown,
+    hostIp = None,
+    creator = userEmail,
+    createdDate = Instant.now(),
+    destroyedDate = None,
+    labels = Map(),
+    jupyterExtensionUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),
+    jupyterUserScriptUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript"))),
+    stagingBucket = Some(GcsBucketName("testStagingBucket1")),
+    errors = List.empty,
+    instances = Set.empty,
+    userJupyterExtensionConfig = None,
+    dateAccessed = Instant.now())
 
   // TODO look into parameterized tests so both provider impls can both be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData

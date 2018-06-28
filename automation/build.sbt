@@ -51,7 +51,7 @@ Test / logBuffered := false
   *  setting the limit on Tags.ForkedTestGroup tag, which is 1 by default.
   *  Warning: can't set too high (set at 10 would crashes OS)
   */
-Global / concurrentRestrictions := Seq(Tags.limit(Tags.ForkedTestGroup, 3))
+Global / concurrentRestrictions := Seq(Tags.limit(Tags.ForkedTestGroup, 5))
 
 /**
   * Forked JVM options
@@ -94,7 +94,7 @@ testGrouping in Test := {
           s"-Ddir.name=${(Test / baseDirectory).value}",
           s"-Dheadless=${Option(System.getProperty("headless")).getOrElse("false")}",
           s"-Djsse.enableSNIExtension=${Option(System.getProperty("jsse.enableSNIExtension")).getOrElse("false")}"))
-    new Tests.Group(
+    Tests.Group(
       name = test.name,
       tests = Seq(test),
       runPolicy = Tests.SubProcess(options)
