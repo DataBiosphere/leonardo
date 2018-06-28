@@ -54,12 +54,12 @@ class IamProxyAuthProvider(config: Config, serviceAccountProvider: ServiceAccoun
       }
     )
 
-  protected def petGoogleIamDao(token: String)(implicit executionContext: ExecutionContext): GoogleIamDAO = {
+  protected def userGoogleIamDao(token: String)(implicit executionContext: ExecutionContext): GoogleIamDAO = {
     new HttpGoogleIamDAO(applicationName, Token(() => token), "google")
   }
 
   protected def checkUserAccessFromIam(userEmail: WorkbenchEmail, userToken: OAuth2BearerToken, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-    val iamDAO: GoogleIamDAO = petGoogleIamDao(userToken.token)
+    val iamDAO: GoogleIamDAO = userGoogleIamDao(userToken.token)
     iamDAO.testIamPermission(googleProject, requiredPermissions).map {
       foundPermissions => {
         foundPermissions == requiredPermissions
@@ -105,7 +105,7 @@ class IamProxyAuthProvider(config: Config, serviceAccountProvider: ServiceAccoun
     */
   override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterName)])(implicit executionContext: ExecutionContext): Future[List[(GoogleProject, ClusterName)]] = {
     // Check each project for user-access exactly once, then filter by project.
-    val projects = clusters.map(lv => lv._1).toSet.toList
+    val projects = clusters.map(lv => lv._1).toSet
     val projectAccess = projects.map(p => p.value -> checkUserAccess(userInfo, p)).toMap
     clusters.traverseFilter { c =>
       projectAccess(c._1.value).map {
