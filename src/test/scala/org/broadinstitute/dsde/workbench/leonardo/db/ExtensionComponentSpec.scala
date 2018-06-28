@@ -64,13 +64,13 @@ class ExtensionComponentSpec extends TestComponent with FlatSpecLike with Common
     dbFutureValue { _.extensionQuery.getAllForCluster(missingId) } shouldEqual UserJupyterExtensionConfig(Map(), Map(), Map())
     dbFailure { _.extensionQuery.save(missingId, ExtensionType.NBExtension.toString, "extName", "extValue") } shouldBe a [SQLException]
 
-    dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual c1
-    val c1Id = dbFutureValue { _.clusterQuery.getIdByGoogleId(c1.googleId) }.get
-    dbFutureValue { _.extensionQuery.saveAllForCluster(c1Id, Some(userExtConfig)) }
-    dbFutureValue { _.extensionQuery.getAllForCluster(c1Id) } shouldEqual userExtConfig
+    val savedC1 = dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) }
+    savedC1 shouldEqual c1
+    dbFutureValue { _.extensionQuery.saveAllForCluster(savedC1.id, Some(userExtConfig)) }
+    dbFutureValue { _.extensionQuery.getAllForCluster(savedC1.id) } shouldEqual userExtConfig
 
-    dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) } shouldEqual c2
-    val c2Id = dbFutureValue { _.clusterQuery.getIdByGoogleId(c2.googleId) }.get
-    dbFutureValue { _.extensionQuery.save(c2Id, ExtensionType.NBExtension.toString, "extName", "extValue") } shouldBe 1
+    val savedC2 = dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) }
+    savedC2 shouldEqual c2
+    dbFutureValue { _.extensionQuery.save(savedC2.id, ExtensionType.NBExtension.toString, "extName", "extValue") } shouldBe 1
   }
 }
