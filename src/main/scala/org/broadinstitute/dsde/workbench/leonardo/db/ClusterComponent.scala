@@ -185,15 +185,14 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    private[leonardo] def getIdByCluster(cluster: Cluster): DBIO[Option[Long]] = {
-      getIdByCluster(cluster.googleProject, cluster.clusterName, cluster.destroyedDate)
+    private[leonardo] def getIdByUniqueKey(cluster: Cluster): DBIO[Option[Long]] = {
+      getIdByUniqueKey(cluster.googleProject, cluster.clusterName, cluster.destroyedDate)
     }
 
-    private[leonardo] def getIdByCluster(googleProject: GoogleProject,
-                                         clusterName: ClusterName,
-                                         destroyedDateOpt: Option[Instant]): DBIO[Option[Long]] = {
-      clusterQueryWithInstancesAndErrorsAndLabelsByUniqueKey(googleProject, clusterName, destroyedDateOpt)
-        .map { recs => recs.headOption map { _._1.id } }
+    private[leonardo] def getIdByUniqueKey(googleProject: GoogleProject,
+                                           clusterName: ClusterName,
+                                           destroyedDateOpt: Option[Instant]): DBIO[Option[Long]] = {
+      getClusterByUniqueKey(googleProject, clusterName, destroyedDateOpt).map(_.map(_.id))
     }
 
     // Convenience method for tests, in several of which we define a cluster and later on need

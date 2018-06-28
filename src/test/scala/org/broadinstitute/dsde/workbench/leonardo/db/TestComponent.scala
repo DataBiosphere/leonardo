@@ -16,8 +16,8 @@ trait TestComponent extends Matchers with ScalaFutures with LeoComponent {
   override implicit val executionContext: ExecutionContext = TestExecutionContext.testExecutionContext
   implicit override val patienceConfig = PatienceConfig(timeout = scaled(Span(10, Seconds)))
 
-  def dbFutureValue[T](f: (DataAccess) => DBIO[T]): T = DbSingleton.ref.inTransaction(f).futureValue
-  def dbFailure[T](f: (DataAccess) => DBIO[T]): Throwable = DbSingleton.ref.inTransaction(f).failed.futureValue
+  def dbFutureValue[T](f: DataAccess => DBIO[T]): T = DbSingleton.ref.inTransaction(f).futureValue
+  def dbFailure[T](f: DataAccess => DBIO[T]): Throwable = DbSingleton.ref.inTransaction(f).failed.futureValue
 
   // clean up after tests
   def isolatedDbTest[T](testCode: => T): T = {

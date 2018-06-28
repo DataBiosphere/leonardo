@@ -176,7 +176,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       persistInstances(instances),
       // save cluster errors to the DB
       dbRef.inTransaction { dataAccess =>
-        val clusterId = dataAccess.clusterQuery.getIdByGoogleId(cluster.googleId)
+        val clusterId = dataAccess.clusterQuery.getIdByUniqueKey(cluster)
         clusterId flatMap {
           case Some(a) => dataAccess.clusterErrorQuery.save(a, ClusterError(errorDetails.message.getOrElse("Error not available"), errorDetails.code, Instant.now))
           case None => {
