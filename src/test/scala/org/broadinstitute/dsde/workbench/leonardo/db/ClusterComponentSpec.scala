@@ -114,35 +114,30 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       dateAccessed = dateAccessed
     )
 
-    dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) } shouldEqual c1
-    dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) } shouldEqual c2
-    dbFutureValue { _.clusterQuery.save(c3, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldEqual c3
+    val savedC1 = dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) }
+    savedC1 shouldEqual c1
 
-    // Get the cluster id's assigned by the database (since the id field is auto incremented) to use further below
-    val c1Id =  dbFutureValue { _.clusterQuery.getIdByGoogleId(c1.googleId)}.get
-    val c2Id =  dbFutureValue { _.clusterQuery.getIdByGoogleId(c2.googleId)}.get
-    val c3Id =  dbFutureValue { _.clusterQuery.getIdByGoogleId(c3.googleId)}.get
+    val savedC2 = dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) }
+    savedC2 shouldEqual c2
 
-    val c1WithAssignedId = c1.copy(id = c1Id)
-    val c2WithAssignedId = c2.copy(id = c2Id)
-    val c3WithAssignedId = c3.copy(id = c3Id)
+    val savedC3 = dbFutureValue { _.clusterQuery.save(c3, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) }
+    savedC3 shouldEqual c3
 
     // instances are returned by list* methods
-    val expectedClusters123 = Seq(c1WithAssignedId, c2WithAssignedId, c3WithAssignedId).map(_.copy(instances = Set.empty))
+    val expectedClusters123 = Seq(savedC1, savedC2, savedC3).map(_.copy(instances = Set.empty))
     dbFutureValue { _.clusterQuery.list() } should contain theSameElementsAs expectedClusters123
 
     // instances are returned by get* methods
-    dbFutureValue { _.clusterQuery.getActiveClusterByName(c1.googleProject, c1.clusterName) } shouldEqual Some(c1WithAssignedId)
-    dbFutureValue { _.clusterQuery.getActiveClusterByName(c2.googleProject, c2.clusterName) } shouldEqual Some(c2WithAssignedId)
-    dbFutureValue { _.clusterQuery.getActiveClusterByName(c3.googleProject, c3.clusterName) } shouldEqual Some(c3WithAssignedId)
+    dbFutureValue { _.clusterQuery.getActiveClusterByName(c1.googleProject, c1.clusterName) } shouldEqual Some(savedC1)
+    dbFutureValue { _.clusterQuery.getActiveClusterByName(c2.googleProject, c2.clusterName) } shouldEqual Some(savedC2)
+    dbFutureValue { _.clusterQuery.getActiveClusterByName(c3.googleProject, c3.clusterName) } shouldEqual Some(savedC3)
 
-    dbFutureValue { _.clusterErrorQuery.save(c1Id, err1) }
-    val c1WithErrId =  dbFutureValue { _.clusterQuery.getIdByGoogleId(c1.googleId)}.get
-    val c1WithErrAssignedId = c1WithErr.copy(id = c1WithErrId)
+    dbFutureValue { _.clusterErrorQuery.save(savedC1.id, err1) }
+    val c1WithErrAssignedId = c1WithErr.copy(id = savedC1.id)
 
-    dbFutureValue { _.clusterQuery.getClusterById(c1Id) } shouldEqual Some(c1WithErrAssignedId)
-    dbFutureValue { _.clusterQuery.getClusterById(c2Id) } shouldEqual Some(c2WithAssignedId)
-    dbFutureValue { _.clusterQuery.getClusterById(c3Id) } shouldEqual Some(c3WithAssignedId)
+    dbFutureValue { _.clusterQuery.getClusterById(savedC1.id) } shouldEqual Some(c1WithErrAssignedId)
+    dbFutureValue { _.clusterQuery.getClusterById(savedC2.id) } shouldEqual Some(savedC2)
+    dbFutureValue { _.clusterQuery.getClusterById(savedC3.id) } shouldEqual Some(savedC3)
 
     dbFutureValue { _.clusterQuery.getServiceAccountKeyId(c1.googleProject, c1.clusterName) } shouldEqual None
     dbFutureValue { _.clusterQuery.getServiceAccountKeyId(c2.googleProject, c2.clusterName) } shouldEqual Some(serviceAccountKey.id)
@@ -177,25 +172,25 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
     dbFailure { _.clusterQuery.save(c4, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
 
-    dbFutureValue { _.clusterQuery.markPendingDeletion(c1Id) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.markPendingDeletion(savedC1.id) } shouldEqual 1
     dbFutureValue { _.clusterQuery.listActive() } should contain theSameElementsAs Seq(c2, c3)
 
-    val c1status = dbFutureValue { _.clusterQuery.getClusterById(c1Id) }.get
+    val c1status = dbFutureValue { _.clusterQuery.getClusterById(savedC1.id) }.get
     c1status.status shouldEqual ClusterStatus.Deleting
     c1status.destroyedDate shouldBe None
     c1status.hostIp shouldBe None
     c1status.instances shouldBe c1.instances
 
-    dbFutureValue { _.clusterQuery.markPendingDeletion(c2Id) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.markPendingDeletion(savedC2.id) } shouldEqual 1
     dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq(c3)
-    val c2status = dbFutureValue { _.clusterQuery.getClusterById(c2Id) }.get
+    val c2status = dbFutureValue { _.clusterQuery.getClusterById(savedC2.id) }.get
     c2status.status shouldEqual ClusterStatus.Deleting
     c2status.destroyedDate shouldBe None
     c2status.hostIp shouldBe None
 
-    dbFutureValue { _.clusterQuery.markPendingDeletion(c3Id) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.markPendingDeletion(savedC3.id) } shouldEqual 1
     dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq()
-    val c3status = dbFutureValue { _.clusterQuery.getClusterById(c3Id) }.get
+    val c3status = dbFutureValue { _.clusterQuery.getClusterById(savedC3.id) }.get
     c3status.status shouldEqual ClusterStatus.Deleting
     c3status.destroyedDate shouldBe None
     c3status.hostIp shouldBe None
@@ -314,12 +309,11 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
         userJupyterExtensionConfig = None,
         dateAccessed = dateAccessed)
 
-    dbFutureValue { _.clusterQuery.save(initialCluster, Option(gcsPath( "gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual initialCluster
-
-    val initialClusterId = dbFutureValue { _.clusterQuery.getIdByGoogleId(initialCluster.googleId)}.get
+    val savedInitialCluster = dbFutureValue { _.clusterQuery.save(initialCluster, Option(gcsPath( "gs://bucket1")), Some(serviceAccountKey.id)) }
+    savedInitialCluster shouldEqual initialCluster
 
     // note: this does not update the instance records
-    dbFutureValue { _.clusterQuery.setToStopping(initialClusterId) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.setToStopping(savedInitialCluster.id) } shouldEqual 1
     val stoppedClusterId = dbFutureValue { _.clusterQuery.getIdByGoogleId(initialCluster.googleId)}.get
     val stoppedCluster = dbFutureValue { _.clusterQuery.getClusterById(stoppedClusterId) }.get
     val expectedStoppedCluster = initialCluster.copy(
@@ -329,7 +323,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     stoppedCluster.copy(dateAccessed = dateAccessed) shouldEqual expectedStoppedCluster
     stoppedCluster.dateAccessed should be > initialCluster.dateAccessed
 
-    dbFutureValue { _.clusterQuery.setToRunning(initialClusterId, initialCluster.hostIp.get) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.setToRunning(savedInitialCluster.id, initialCluster.hostIp.get) } shouldEqual 1
     val runningClusterId = dbFutureValue { _.clusterQuery.getIdByGoogleId(initialCluster.googleId) }.get
     val runningCluster = dbFutureValue { _.clusterQuery.getClusterById(runningClusterId) }.get
     val expectedRunningCluster = initialCluster.copy(

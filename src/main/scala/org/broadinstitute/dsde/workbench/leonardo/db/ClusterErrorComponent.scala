@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
 import java.sql.Timestamp
-import java.time.Instant
 
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterError
 
