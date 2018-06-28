@@ -561,6 +561,7 @@ definitions:
   Cluster:
     description: ''
     required:
+      - id
       - clusterName
       - googleProject
       - googleServiceAccount
@@ -570,6 +571,9 @@ definitions:
       - labels
       - dateAccessed
     properties:
+      id:
+        type: string
+        description: The internally-referenced ID of the cluster
       clusterName:
         type: string
         description: The user-supplied name for the cluster

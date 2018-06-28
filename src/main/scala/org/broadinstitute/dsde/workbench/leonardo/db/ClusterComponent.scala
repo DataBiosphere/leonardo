@@ -178,13 +178,6 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    // for testing
-    private[leonardo] def getIdByGoogleId(googleId: Option[UUID]): DBIO[Option[Long]] = {
-      clusterQuery.filter { _.googleId === googleId }.result map { recs =>
-        recs.headOption map { _.id }
-      }
-    }
-
     private[leonardo] def getIdByUniqueKey(cluster: Cluster): DBIO[Option[Long]] = {
       getIdByUniqueKey(cluster.googleProject, cluster.clusterName, cluster.destroyedDate)
     }
