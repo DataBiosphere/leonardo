@@ -21,12 +21,9 @@ class ListStateContainer extends React.Component {
   constructor(props) {
     super(props);
     var refreshCallback = this.refreshListFromApi;
-    var filterUser = true;
-    if (process.env.REACT_APP_DEPLOY_ENVIRONMENT === "local") {
-      refreshCallback = this.fakeListClustersCallback
-    }
-    if (process.env.REACT_APP_FILTER_TO_CURRENT_USER !== "true") {
-      filterUser = false;
+    var filterUser = window.GlobalReactConfig.FILTER_TO_CURRENT_USER;
+    if (window.GlobalReactConfig.DEPLOY_ENVIRONMENT === "local") {
+      refreshCallback = this.fakeListClustersCallback;
     }
     this.state = {
       clusters: [],

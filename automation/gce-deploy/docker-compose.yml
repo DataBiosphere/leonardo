@@ -28,6 +28,17 @@ services:
     links:
       - sqlproxy:sqlproxy
 
+  userinterface:
+      image: gcr.io/TEMPLATE_VAR_DOCKER_PROJECT/leonardo-ui:TEMPLATE_VAR_DOCKER_TAG
+      environment:
+        - FILTER_TO_CURRENT_USER=false
+        - DEPLOY_ENVIRONMENT=prod
+        - OAUTH_CLIENT_ID=TEMPLATE_VAR_OAUTH2_CLIENT_ID
+        - DEFAULT_PROJECT=''
+        - DISABLE_PROJECT_ENTRY=false
+        - STARTUP_SCRIPT_URI=''
+        - EXTRA_GOOGLE_SCOPES=''
+
   sqlproxy:
     image: gcr.io/cloudsql-docker/gce-proxy
     command:
@@ -44,6 +55,7 @@ services:
       - "127.0.0.1:8888:8888"
     links:
       - app:app
+      - userinterface:userinterface
     volumes:
       - /home/ubuntu/app/server.crt:/etc/ssl/certs/server.crt:ro
       - /home/ubuntu/app/server.key:/etc/ssl/private/server.key:ro
@@ -51,20 +63,15 @@ services:
       - /home/ubuntu/app/site.conf:/etc/apache2/sites-available/site.conf
     # logging: {"driver": "syslog", "options": {"tag": "leonardo-proxy"}}
     environment:
-      #oauth callback
+      # Configure auth proxy.
       CALLBACK_URI: https://TEMPLATE_VAR_DOMAIN/oauth2callback
-      LOG_LEVEL: warn
       SERVER_NAME: TEMPLATE_VAR_DOMAIN
-      AUTH_REQUIRE2: Require valid-user
+      LOG_LEVEL: warn
+      AUTH_TYPE: AuthType oauth20
       AUTH_TYPE2: AuthType oauth20
-      ## LDAP based config disabled below
-      #AUTH_REQUIRE2: Require ldap-group ...
-      #AUTH_LDAP_URL2: 'AuthLDAPURL <url>'
-      #AUTH_LDAP_GROUP_ATTR2: 'AuthLDAPGroupAttribute <attribute>'
-      #AUTH_LDAP_BIND_DN2: 'AuthLDAPBindDN "<bind>"'
-      #AUTH_LDAP_BIND_PASSWORD2: 'AuthLDAPBindPassword <password>'
+      AUTH_REQUIRE: Require all granted
       REMOTE_USER_CLAIM: sub
       ENABLE_STACKDRIVER: 'yes'
+      FILTER: AddOutputFilterByType DEFLATE application/json text/plain text/html application/javascript application/x-javascript
       FILTER2: AddOutputFilterByType DEFLATE application/json text/plain text/html application/javascript application/x-javascript
     restart: always
-
