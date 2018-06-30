@@ -23,10 +23,14 @@ const statusInFlux = [
 ]
 
 const unknownStatus = "Unknown";
+const runningStatus = "Running";
+const deletingStatus = "Deleting";
+const deletedStatus = "Deleted";
 
 
-const statusCheckInterval = 30000;  // 30 seconds.
-const maxStatusChecks = 30; // 30 checks, or, 15 minutes.
+const slowStatusCheckInterval = 5*60000;  // Refresh every five minutes for running clusters.
+const fastStatusCheckInterval = 30000;  // 30 seconds.
+const maxFastStatusChecks = 30; // 30 checks, or, 15 minutes.
 
 
 const styles = {
@@ -64,23 +68,57 @@ class ClusterCard extends React.Component {
     super(props);
     this.state = {
       clusterStatus: this.props.clusterModel.status,
-      statusFetches: 0
     };
+    // This tracks internal state and should not be attached to "this.state" since
+    // updates to the component state will trigger rendering.
+    this.fastStatusRefreshes = 0
   }
 
   setClusterStatusDeleting = () => {
     this.setState({ clusterStatus: "Deleting" });
+    this.checkForUpdatedState()
   }
 
   /**
-   * Refresh cluster status if there have been fewer than `maxStatusChecks` prior refreshes.
+   * Manage timing of cluster state re-fetches.
+   * This function will refresh the cluster status every 5 minutes for running clusters
+   * and every 30 seconds for clusters whose state is currently changing. For clusters
+   * that are "in flux", the refreshes will eventually give up and set the status to
+   * unknown.
    */
-  tryRefreshingClusterStatus = () => {
-    // Exit early if too many checks have been done. Set status to unknown.
-    if (this.state.statusFetches > maxStatusChecks) {
-      this.setState({clusterStatus: unknownStatus});
-      return
+  checkForUpdatedState = () => {
+    var nextRefreshTimeout = 0;
+    var tryRefresh = false;
+    if (statusInFlux.indexOf(this.state.clusterStatus) >= 0 && this.fastStatusRefreshes < maxFastStatusChecks) {
+      console.log("Trying fast status update")
+      nextRefreshTimeout = fastStatusCheckInterval
+      tryRefresh = true
+      this.fastStatusRefreshes += 1
+    } else if (this.state.clusterStatus === runningStatus) {
+      console.log("Will try slow status update")
+      nextRefreshTimeout = slowStatusCheckInterval
+      tryRefresh = true
+    } else {
+      console.log("Will not try status update")
+      tryRefresh = false
     }
+    if (tryRefresh) {
+      this.refreshStateFromAPI()
+    }
+    if (nextRefreshTimeout > 0) {
+      // Fuzz the timeout to +/- 5% of the default timeout.
+      nextRefreshTimeout += Math.round(nextRefreshTimeout * ((Math.random() * 0.1) - 0.05))
+      console.log("trying refresh again in time(ms) ==" + nextRefreshTimeout.toString())
+      setTimeout(this.checkForUpdatedState, nextRefreshTimeout)
+    }
+  }
+
+  /**
+   * Refresh cluster status from the Leonardo get-cluster API.
+   https://github.com/goatslacker/alt/issues/283
+   */
+  refreshStateFromAPI = () => {
+    console.log("starting refresh")
     // Path to fetch cluster json.
     var getPath = '/api/cluster/' + this.props.clusterModel.googleProject + '/' + this.props.clusterModel.clusterName;
     // Begin the GET request and register callbacks.
@@ -94,42 +132,54 @@ class ClusterCard extends React.Component {
         credentials: "include"
       }
     )
+    // Validate response is OK.
+    .then((response) => {
+      if (response.status == 404) {
+        return Promise.reject("404/Not Found")
+      }
+      if (response.status < 200 || response.status >= 300) {
+        console.log(response);
+        return Promise.reject("Response status not OK")
+      }
+      console.log("updating after code.")
+      return response;
+    })
     // Validate response content type is application/json.
     .then((response) => {
-      if (response.headers.get("content-type").indexOf("application/json") <= -1) {
-        console.log("List cluster response not of type 'application/json'")
+      var contentType = (response.headers.get("content-type"));
+      if (contentType.indexOf("application/json") <= -1) {
         console.log(response);
-        this.setState({clusterStatus: unknownStatus, statusFetches: 0});
+        return Promise.reject("Content type must be json, not \"" + contentType + "\"")
       }
       return response
     })
-    // Validate response status and throw if not in 200s.
-    .then((response) => {
-      if (response.status < 200 || response.status >= 300) {
-        console.log(response);
-        this.setState({clusterStatus: unknownStatus, statusFetches: 0});
-      }
-      return response;
-    })
-    // Get response json object.
+    // Get get response json promise.
     .then((response) => response.json())
-    // Update the status only if the status is new, otherwise increment the counter.
+    // Update the status only if the status is new.
     .then((responseJson) => {
       if (responseJson.status !== this.state.clusterStatus) {
-        this.setState({clusterStatus: responseJson.status, statusFetches: 0});
-      } else {
-        this.setState({statusFetches: this.state.statusFetches + 1});
+        // In time a new status is found from the API reset the 'fast' counter.
+        this.fastStatusRefreshes = 0;
+        this.setState({clusterStatus: responseJson.status});
       }
     })
-    // Handle any errors.
-    .catch((error) => this.props.errorHandler(error.toString()));
+    // Handle any errors without killing the page or bothering the user.
+    .catch((error) => {
+      if (this.state.clusterStatus === deletingStatus && error === "404/Not Found") {
+        this.setState({clusterStatus: deletedStatus})
+        return
+      }
+      console.log("Error while updating status for " + this.props.clusterModel.clusterName);
+      console.log(error);
+      this.setState({clusterStatus: unknownStatus});
+    });
+  }
+
+  componentWillMount() {
+    this.checkForUpdatedState()
   }
 
   render() {
-    if (statusInFlux.indexOf(this.state.clusterStatus) >= 0) {
-      setTimeout(this.tryRefreshingClusterStatus, statusCheckInterval);
-    }
-
     // Grab variables used for rendering.
     var classes = this.props.classes;
     var model = this.props.clusterModel;
