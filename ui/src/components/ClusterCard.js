@@ -26,6 +26,7 @@ const unknownStatus = "Unknown";
 const runningStatus = "Running";
 const deletingStatus = "Deleting";
 const deletedStatus = "Deleted";
+const errorString404 = "404/Not Found";
 
 
 const slowStatusCheckInterval = 5*60000;  // Refresh every five minutes for running clusters.
@@ -81,41 +82,45 @@ class ClusterCard extends React.Component {
 
   /**
    * Manage timing of cluster state re-fetches.
-   * This function will refresh the cluster status every 5 minutes for running clusters
-   * and every 30 seconds for clusters whose state is currently changing. For clusters
+   * This function will refresh the cluster status every ~5 minutes for running clusters
+   * and every ~30 seconds for clusters whose state is currently changing. For clusters
    * that are "in flux", the refreshes will eventually give up and set the status to
    * unknown.
    */
   checkForUpdatedState = () => {
-    var nextRefreshTimeout = 0;
-    var tryRefresh = false;
-    if (statusInFlux.indexOf(this.state.clusterStatus) >= 0 && this.fastStatusRefreshes < maxFastStatusChecks) {
-      console.log("Trying fast status update")
+    // Default actions; do nothing.
+    var nextRefreshTimeout = 0;  // Timeout for next refresh cycle, 0 == don't refresh again.
+    var refreshFromService = false;  // Should we check the API this cycle?
+    var stateInFlux = (statusInFlux.indexOf(this.state.clusterStatus) >= 0);
+    // Use rapid status-updates up to 30 times when state.clusterStatus is in flux.
+    if (stateInFlux && this.fastStatusRefreshes < maxFastStatusChecks) {
       nextRefreshTimeout = fastStatusCheckInterval
-      tryRefresh = true
+      refreshFromService = true
       this.fastStatusRefreshes += 1
+    // If the fast checks have been expended, set state to unknown and give up.
+    } else if (stateInFlux && this.fastStatusRefreshes >= maxFastStatusChecks) {
+      console.log("Could not determine cluster state after " + maxFastStatusChecks + " attempts.")
+      this.setState({clusterStatus: unknownStatus})
+      refreshFromService = false
+    // When state is 'running' re-check state slowly.
     } else if (this.state.clusterStatus === runningStatus) {
-      console.log("Will try slow status update")
-      nextRefreshTimeout = slowStatusCheckInterval
-      tryRefresh = true
-    } else {
-      console.log("Will not try status update")
-      tryRefresh = false
+      nextRefreshTimeout = slowStatusCheckInterval;
+      refreshFromService = true;
     }
-    if (tryRefresh) {
+
+    // Hit the API if needed.
+    if (refreshFromService) {
       this.refreshStateFromAPI()
     }
+    // Set timeout to run this again. Random fuzz the timeout by +/- 5%.
     if (nextRefreshTimeout > 0) {
-      // Fuzz the timeout to +/- 5% of the default timeout.
       nextRefreshTimeout += Math.round(nextRefreshTimeout * ((Math.random() * 0.1) - 0.05))
-      console.log("trying refresh again in time(ms) ==" + nextRefreshTimeout.toString())
       setTimeout(this.checkForUpdatedState, nextRefreshTimeout)
     }
   }
 
   /**
    * Refresh cluster status from the Leonardo get-cluster API.
-   https://github.com/goatslacker/alt/issues/283
    */
   refreshStateFromAPI = () => {
     console.log("starting refresh")
@@ -135,10 +140,11 @@ class ClusterCard extends React.Component {
     // Validate response is OK.
     .then((response) => {
       if (response.status == 404) {
-        return Promise.reject("404/Not Found")
+        return Promise.reject(errorString404)
       }
       if (response.status < 200 || response.status >= 300) {
         console.log(response);
+        // Rejected promise jumps to "catch" clause.
         return Promise.reject("Response status not OK")
       }
       console.log("updating after code.")
@@ -165,7 +171,8 @@ class ClusterCard extends React.Component {
     })
     // Handle any errors without killing the page or bothering the user.
     .catch((error) => {
-      if (this.state.clusterStatus === deletingStatus && error === "404/Not Found") {
+      // Once a "Deleting" cluster is deleted, expect 404 and update the card accordingly.
+      if (this.state.clusterStatus === deletingStatus && error === errorString404) {
         this.setState({clusterStatus: deletedStatus})
         return
       }
