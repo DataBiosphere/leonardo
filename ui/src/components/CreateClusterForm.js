@@ -18,7 +18,7 @@ const DEFAULT_WORKER_MACHINE_TYPE = "n1-standard-2";
 const DEFAULT_WORKER_DISK_SIZE = 200;
 
 // Regex for GCP Project names.
-const projectRegex = /^[a-z][a-z0-9_-]{0,50}[a-z0-9]$/;
+const projectRegex = /^[a-z][a-z0-9_:.-]{0,50}[a-z0-9]$/;
 
 // Regex for cluster names.
 const clusterRegex = /^[a-z][a-z0-9-]{0,25}[a-z0-9]$/;

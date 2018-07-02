@@ -16,7 +16,7 @@ class ConfigLoader extends React.Component {
   /**
    * Load configuration from static assets.
    */
-  loadConfig() {
+  loadConfig = () => {
     fetch("/config.json")
       .then((response) => {
         if (response.status < 200 || response.status >= 300) {
@@ -36,10 +36,13 @@ class ConfigLoader extends React.Component {
       });
   }
 
+  componentWillMount() {
+    this.loadConfig()
+  }
+
   render() {
     // Load the config before showing sign-in modal.
     if (this.state.configLoading) {
-      this.loadConfig()
       return <div>Loading configuration</div>
     }
     return (<GoogleSignInWrapper errorHandler={this.props.errorHandler} />)
