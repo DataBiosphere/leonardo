@@ -90,9 +90,9 @@ RUN mkdir -p /etc/spark/conf.dist && mkdir -p /etc/hadoop/conf.empty && mkdir -p
  && update-alternatives --install /etc/hadoop/conf hadoop-conf /etc/hadoop/conf.empty 100 \
  && update-alternatives --install /etc/hive/conf hive-conf /etc/hive/conf.dist 100 \
  && mkdir $HAIL_HOME && cd $HAIL_HOME \
- && wget http://storage.googleapis.com/hail-common/builds/0.1/jars/$HAILJAR \
- && wget http://storage.googleapis.com/hail-common/builds/0.1/python/$HAILPYTHON \
- && wget http://storage.googleapis.com/hail-common/distributions/0.1/$HAILZIP \
+ && wget -nv http://storage.googleapis.com/hail-common/builds/0.1/jars/$HAILJAR \
+ && wget -nv http://storage.googleapis.com/hail-common/builds/0.1/python/$HAILPYTHON \
+ && wget -nv http://storage.googleapis.com/hail-common/distributions/0.1/$HAILZIP \
  && cd -
 
 #######################
@@ -129,7 +129,7 @@ RUN apt-get install -yq --no-install-recommends \
  # NOTE! not sure why, but this must run before pip installation
  && useradd -m -s /bin/bash -N -u $UID $USER \
  # jessie's default pip doesn't work well with jupyter 
- && wget https://bootstrap.pypa.io/get-pip.py \
+ && wget -nv https://bootstrap.pypa.io/get-pip.py \
  && python get-pip.py \
 
  # Hail requires decorator
