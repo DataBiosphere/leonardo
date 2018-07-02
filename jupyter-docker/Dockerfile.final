@@ -1,0 +1,36 @@
+# Dockerfile for user-extension of the base docker image.
+# This adds an easy-to-modify place for language extensions
+# that is independent of the construction of the base image
+# and Leonardo specific configuration defined therein.
+#
+# To use this, just modify as needed and run build.sh
+# since this file defines the final published image.
+# to build manually, make sure to run docker build with
+#   --build-arg BASE_IMAGE="my-base-image-and:tag"
+
+ARG BASE_IMAGE
+
+FROM $BASE_IMAGE
+
+##########################
+# Install system packages
+##########################
+USER root
+RUN apt-get update \
+    && apt-get install -y \
+        libnlopt-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+USER $USER
+
+##########################
+# Python and R extensions
+##########################
+
+RUN pip2 install --user \
+        pandas-gbq \
+    && pip3 install --user \
+        pandas-gbq \
+    && R -e 'install.packages(c( \
+        "nloptr"), \
+        repos="https://cran.mtu.edu")'
