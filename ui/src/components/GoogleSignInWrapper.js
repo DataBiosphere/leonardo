@@ -1,5 +1,6 @@
 import React from 'react';
-import Dialog, { DialogContent } from 'material-ui/Dialog';
+import Dialog from '@material-ui/core/Dialog';
+import DialogContent from '@material-ui/core/DialogContent';
 import GoogleLogin from 'react-google-login';
 
 import ListStateContainer from './ListStateContainer'
