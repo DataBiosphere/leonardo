@@ -25,6 +25,7 @@ HELP_TEXT="$(cat <<EOF
    -k | --service-account-key-file: (optional) path to a service account key json
            file. If set, the script will call "gcloud auth activate-service-account".
            Otherwise, the script will not authenticate with gcloud.
+   -ui | --user-interface: (optional) build the user interface docker image.
    -h | --help: print help text.
 
  Examples:
@@ -44,6 +45,7 @@ TARGET="${TARGET:-leonardo}"
 DB_CONTAINER="leonardo-mysql"
 GIT_BRANCH="${BRANCH:-$(git rev-parse --abbrev-ref HEAD)}"
 DOCKER_REGISTRY="dockerhub"  # Must be either "dockerhub" or "gcr"
+BUILD_UI=false
 DOCKER_CMD=""
 DOCKER_TAG=""
 DOCKER_TAG_TESTS=""
@@ -65,6 +67,9 @@ while [ "$1" != "" ]; do
     case $1 in
         jar)
             MAKE_JAR=true
+            ;;
+        -ui | --user-interface)
+            BUILD_UI=true
             ;;
         -d | --docker)
             shift
@@ -194,6 +199,10 @@ function docker_cmd()
 
         # builds the juptyer notebooks docker image that goes on dataproc clusters
         bash ./jupyter-docker/build.sh build "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
+        # Build the UI if specified.
+        if $BUILD_UI; then
+          bash ./ui/build.sh build "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
+        fi
 
         docker build -t "${IMAGE}:${DOCKER_TAG}" .
         cd automation
@@ -208,6 +217,10 @@ function docker_cmd()
             $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${DOCKER_TAG_TESTS}
             # pushes the juptyer notebooks docker image that goes on dataproc clusters
             bash ./jupyter-docker/build.sh push "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
+            # push the UI docker image.
+            if $BUILD_UI; then
+              bash ./ui/build.sh push "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
+            fi
         fi
     else
         echo "Not a valid docker option!  Choose either build or push (which includes build)"
