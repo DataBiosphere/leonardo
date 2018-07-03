@@ -1,14 +1,14 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { withStyles } from 'material-ui/styles';
-import { InputLabel } from 'material-ui/Input';
-import TextField from 'material-ui/TextField';
-import Typography from 'material-ui/Typography';
-import { MenuItem } from 'material-ui/Menu';
-import { FormControl } from 'material-ui/Form';
-import Select from 'material-ui/Select';
-import Button from 'material-ui/Button';
-import { CircularProgress } from 'material-ui/Progress';
+import { withStyles } from '@material-ui/core/styles';
+import InputLabel from '@material-ui/core/InputLabel';
+import TextField from '@material-ui/core/TextField';
+import Typography from '@material-ui/core/Typography';
+import MenuItem from '@material-ui/core/MenuItem';
+import FormControl from '@material-ui/core/FormControl';
+import Select from '@material-ui/core/Select';
+import Button from '@material-ui/core/Button';
+import CircularProgress from '@material-ui/core/CircularProgress';
 
 import { createApiUrl } from '../net'
 
@@ -64,14 +64,19 @@ class UnstyledCreateClusterForm extends React.Component {
     super(props);
     // Initialize project with default value (if applicable).
     var project = "";
+    var startupScript = "";
     var projectEntryDisabled = window.GlobalReactConfig.DISABLE_PROJECT_ENTRY
     if (window.GlobalReactConfig.DEFAULT_PROJECT) {
       project = window.GlobalReactConfig.DEFAULT_PROJECT;
+    }
+    if (window.GlobalReactConfig.STARTUP_SCRIPT_URI) {
+      startupScript = window.GlobalReactConfig.STARTUP_SCRIPT_URI
     }
 
     this.state = {
       clusterName: "",
       googleProject: project,
+      jupyterUserScriptUri: startupScript,
       machineType: DEFAULT_MASTER_MACHINE_TYPE,
       workerMachineType: DEFAULT_WORKER_MACHINE_TYPE,
       projectEntryDisabled: projectEntryDisabled,
@@ -103,6 +108,7 @@ class UnstyledCreateClusterForm extends React.Component {
     var createRequest = {
       labels: {},
       stopAfterCreation: false,
+      jupyterUserScriptUri: this.state.jupyterUserScriptUri,
       machineConfig: {
         // Worker config.
         numberOfWorkers: this.state.numberOfWorkers,
@@ -115,9 +121,6 @@ class UnstyledCreateClusterForm extends React.Component {
 
       }
     };
-    if (window.GlobalReactConfig.STARTUP_SCRIPT_URI) {
-      createRequest["jupyterUserScriptUri"] = window.GlobalReactConfig.STARTUP_SCRIPT_URI;
-    }
     // Use fetch to send a put request, and register success/fail callbacks.
     fetch(
       createApiUrl(this.state.googleProject, this.state.clusterName),
@@ -171,6 +174,7 @@ class UnstyledCreateClusterForm extends React.Component {
               value={this.state.googleProject}
               onChange={this.handleChange("googleProject")}
               margin="normal"
+              required={true}
               disabled={this.state.projectEntryDisabled}
             />
           </FormControl>
@@ -184,6 +188,7 @@ class UnstyledCreateClusterForm extends React.Component {
               value={this.state.clusterName}
               onChange={this.handleChange("clusterName")}
               margin="normal"
+              required={true}
             />
           </FormControl>
         </div>
@@ -218,6 +223,16 @@ class UnstyledCreateClusterForm extends React.Component {
               <MenuItem value={200}>200 GB</MenuItem>
               <MenuItem value={1000}>1000 GB</MenuItem>
             </Select>
+          </FormControl>
+          <FormControl className={classes.xWideFormControl}>
+            <TextField
+              id="jupyterUserScriptUri"
+              label="(optional) startup script gs://... path"
+              value={this.state.jupyterUserScriptUri}
+              onChange={this.handleChange("jupyterUserScriptUri")}
+              margin="dense"
+              fullWidth={true}
+            />
           </FormControl>
         </div>
         <div style={{marginTop: 25}}>
@@ -281,6 +296,10 @@ UnstyledCreateClusterForm.propTypes = {
 
 
 const formSyles = theme => ({
+  xWideFormControl: {
+    margin: theme.spacing.unit,
+    minWidth: 350,
+  },
   wideFormControl: {
     margin: theme.spacing.unit,
     minWidth: 250,

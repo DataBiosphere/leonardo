@@ -1,14 +1,14 @@
 import React from 'react';
 
-import Icon from 'material-ui/Icon';
+import Icon from '@material-ui/core/Icon';
 
-import { CircularProgress } from 'material-ui/Progress';
-import Tooltip from 'material-ui/Tooltip';
+import CircularProgress from '@material-ui/core/CircularProgress';
+import Tooltip from '@material-ui/core/Tooltip';
 
-import green from 'material-ui/colors/green';
-import grey from 'material-ui/colors/grey';
-import yellow from 'material-ui/colors/yellow';
-import red from 'material-ui/colors/red';
+import green from '@material-ui/core/colors/green';
+import grey from '@material-ui/core/colors/grey';
+import yellow from '@material-ui/core/colors/yellow';
+import red from '@material-ui/core/colors/red';
 
 
 const statusColorIconMap = {
