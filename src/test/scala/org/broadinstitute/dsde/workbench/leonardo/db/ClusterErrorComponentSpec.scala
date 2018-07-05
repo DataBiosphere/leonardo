@@ -35,7 +35,8 @@ class ClusterErrorComponentSpec extends TestComponent with FlatSpecLike with Com
       List.empty,
       Set.empty,
       None,
-      Instant.now())
+      Instant.now(),
+      30)
 
     lazy val timestamp = Instant.now().truncatedTo(ChronoUnit.SECONDS)
     val clusterError = ClusterError("Some Error", 10, timestamp)

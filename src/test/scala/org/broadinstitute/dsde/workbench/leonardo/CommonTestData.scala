@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, Workbe
 import org.scalatest.concurrent.ScalaFutures
 
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
 
 // values common to multiple tests, to reduce boilerplate
 
@@ -36,6 +37,8 @@ trait CommonTestData { this: ScalaFutures =>
   val jupyterUserScriptUri = GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh"))
   val serviceAccountKey = ServiceAccountKey(ServiceAccountKeyId("123"), ServiceAccountPrivateKeyData("abcdefg"), Some(Instant.now), Some(Instant.now.plusSeconds(300)))
   val initBucketPath = GcsBucketName("bucket-path")
+  val autopause = true
+  val autopauseThreshold = 30
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
   val whitelistAuthConfig = config.getConfig("auth.whitelistProviderConfig")
@@ -46,14 +49,14 @@ trait CommonTestData { this: ScalaFutures =>
   val clusterDefaultsConfig = config.as[ClusterDefaultsConfig]("clusterDefaults")
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
+  val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
   val clusterUrlBase = dataprocConfig.clusterUrlBase
   val serviceAccountsConfig = config.getConfig("serviceAccounts.config")
-  val autoFreezeconfig = config.as[AutoFreezeConfig]("autoFreeze")
   val monitorConfig = config.as[MonitorConfig]("monitor")
   val mockJupyterDAO = new MockJupyterDAO
   val singleNodeDefaultMachineConfig = MachineConfig(Some(clusterDefaultsConfig.numberOfWorkers), Some(clusterDefaultsConfig.masterMachineType), Some(clusterDefaultsConfig.masterDiskSize))
-  val testClusterRequest = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), None, None, None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))))
-  val testClusterRequestWithExtensionAndScript = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(jupyterExtensionUri), Some(jupyterUserScriptUri), None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))))
+  val testClusterRequest = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), None, None, None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))), Some(true), Some(30))
+  val testClusterRequestWithExtensionAndScript = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(jupyterExtensionUri), Some(jupyterUserScriptUri), None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))), Some(true), Some(30))
 
 
 
@@ -88,7 +91,8 @@ trait CommonTestData { this: ScalaFutures =>
     errors = List.empty,
     instances = Set.empty,
     userJupyterExtensionConfig = None,
-    dateAccessed = Instant.now())
+    dateAccessed = Instant.now(),
+    if (autopause) autopauseThreshold else 0)
 
 
   // TODO look into parameterized tests so both provider impls can both be tested

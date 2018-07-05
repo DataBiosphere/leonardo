@@ -1,15 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
 
-    <changeSet logicalFilePath="leonardo" author="azmina" id="master_disk_size">
+    <changeSet logicalFilePath="leonardo" author="azmina" id="autopause_threshold">
         <addColumn tableName="CLUSTER">
-            <column name="autopause" type="BOOLEAN" defaultValue="true">
-                <constraints nullable="true" />
-            </column>
-        </addColumn>
-        <addColumn tableName="CLUSTER">
-            <column name="autopauseThreshold" type="INT" defaultValue="30">
-                <constraints nullable="true" />
+            <column name="autopauseThreshold" type="INT">
+                <constraints nullable="false" />
             </column>
         </addColumn>
     </changeSet>
