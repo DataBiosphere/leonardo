@@ -35,7 +35,8 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTest
       List.empty,
       Set.empty,
       None,
-      Instant.now()
+      Instant.now(),
+      0
     )
 
     val c2 = Cluster(
@@ -58,7 +59,8 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTest
       List.empty,
       Set.empty,
       None,
-      Instant.now()
+      Instant.now(),
+      0
     )
 
     val c2Map = Map("bam" -> "true", "sample" -> "NA12878")

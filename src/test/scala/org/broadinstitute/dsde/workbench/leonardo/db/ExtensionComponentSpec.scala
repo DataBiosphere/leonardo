@@ -37,7 +37,8 @@ class ExtensionComponentSpec extends TestComponent with FlatSpecLike with Common
       List.empty,
       Set.empty,
       None,
-      Instant.now()
+      Instant.now(),
+      0
     )
 
     val c2 = Cluster(
@@ -60,7 +61,8 @@ class ExtensionComponentSpec extends TestComponent with FlatSpecLike with Common
       List.empty,
       Set.empty,
       None,
-      Instant.now()
+      Instant.now(),
+      0
     )
 
     val missingId = Random.nextLong()

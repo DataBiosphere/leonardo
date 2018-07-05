@@ -44,7 +44,8 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest")) with Fl
     List.empty,
     Set.empty,
     Some(userExtConfig),
-    Instant.now()
+    Instant.now(),
+    0
   )
 
   override def afterAll(): Unit = {
@@ -75,8 +76,8 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest")) with Fl
       _.clusterQuery.save(runningCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id))
     } shouldEqual runningCluster
     val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO, computeDAO, iamDAO, storageDAO,
-      DbSingleton.ref, system.deadLetters, authProvider, autoFreezeconfig, jupyterProxyDAO))
-    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, clusterSupervisorActor, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper)
+      DbSingleton.ref, system.deadLetters, authProvider, autoFreezeConfig, jupyterProxyDAO))
+    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, clusterSupervisorActor, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper)
 
     eventually(timeout(Span(30, Seconds))) {
       val c1 = dbFutureValue {

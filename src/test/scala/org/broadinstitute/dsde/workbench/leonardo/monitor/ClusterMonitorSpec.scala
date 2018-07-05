@@ -58,7 +58,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     List.empty,
     Set.empty,
     Some(userExtConfig),
-    Instant.now()
+    Instant.now(),
+    0
   )
 
   val deletingCluster = Cluster(
@@ -81,7 +82,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     List.empty,
     Set(masterInstance, workerInstance1, workerInstance2),
     None,
-    Instant.now()
+    Instant.now(),
+    0
   )
 
   val stoppingCluster = Cluster(
@@ -104,7 +106,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     List.empty,
     Set(masterInstance, workerInstance1, workerInstance2),
     None,
-    Instant.now()
+    Instant.now(),
+    0
   )
 
   val startingCluster = Cluster(
@@ -127,7 +130,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     List.empty,
     Set(masterInstance, workerInstance1, workerInstance2),
     None,
-    Instant.now()
+    Instant.now(),
+    0
   )
 
   val clusterInstances = Map(Master -> Set(masterInstance.key),
@@ -173,8 +177,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
       new MockGoogleStorageDAO
     }
-    val supervisorActor = system.actorOf(TestClusterSupervisorActor.props(dataprocConfig, gdDAO, computeDAO, iamDAO, storageDAO, DbSingleton.ref, cacheActor, testKit, authProvider, autoFreezeconfig, jupyterDAO))
-    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, supervisorActor, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper)
+    val supervisorActor = system.actorOf(TestClusterSupervisorActor.props(dataprocConfig, gdDAO, computeDAO, iamDAO, storageDAO, DbSingleton.ref, cacheActor, testKit, authProvider, autoFreezeConfig, jupyterDAO))
+    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, supervisorActor, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper)
     supervisorActor
   }
 

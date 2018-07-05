@@ -34,7 +34,8 @@ class InstanceComponentSpec extends TestComponent with FlatSpecLike with CommonT
     List.empty,
     Set.empty,
     None,
-    Instant.now()
+    Instant.now(),
+    0
   )
 
   "InstanceComponent" should "save and get instances" in isolatedDbTest {

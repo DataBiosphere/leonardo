@@ -72,7 +72,9 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
           cluster.jupyterUserScriptUri,
           Some(cluster.machineConfig),
           None,
-          cluster.userJupyterExtensionConfig)
+          cluster.userJupyterExtensionConfig,
+          if (cluster.autopauseThreshold == 0) Some(false) else Some(true),
+          Some(cluster.autopauseThreshold))
         leoService.internalCreateCluster(cluster.creator, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest).failed.foreach { e =>
           logger.error(s"Error occurred recreating cluster ${cluster.projectNameString}", e)
         }
@@ -125,7 +127,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
 
   def autoFreezeClusters: Future[Unit] = {
     val clusterList = dbRef.inTransaction {
-      _.clusterQuery.getClustersReadyToAutoFreeze(autoFreezeConfig.autoFreezeAfter)
+      _.clusterQuery.getClustersReadyToAutoFreeze()
     }
     clusterList map { cl =>
       cl.foreach { c =>
