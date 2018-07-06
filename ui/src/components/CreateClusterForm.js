@@ -108,7 +108,6 @@ class UnstyledCreateClusterForm extends React.Component {
     var createRequest = {
       labels: {},
       stopAfterCreation: false,
-      jupyterUserScriptUri: this.state.jupyterUserScriptUri,
       machineConfig: {
         // Worker config.
         numberOfWorkers: this.state.numberOfWorkers,
@@ -118,9 +117,14 @@ class UnstyledCreateClusterForm extends React.Component {
         // Master config
         masterDiskSize: this.state.diskSize,
         masterMachineType: this.state.machineType
-
       }
     };
+    // User script is only attached if the value is not nullish.
+    var userScriptUri = this.state.jupyterUserScriptUri.trim()
+    if (userScriptUri) {
+      createRequest["jupyterUserScriptUri"] = userScriptUri;
+    }
+
     // Use fetch to send a put request, and register success/fail callbacks.
     fetch(
       createApiUrl(this.state.googleProject, this.state.clusterName),
