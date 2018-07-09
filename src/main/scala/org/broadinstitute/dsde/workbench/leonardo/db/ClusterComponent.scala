@@ -272,24 +272,10 @@ trait ClusterComponent extends LeoComponent {
       val tsdiff = SimpleFunction.ternary[String, Timestamp, Timestamp, Int]("TIMESTAMPDIFF")
       val MINUTE = SimpleLiteral[String]("MINUTE")
 
-      val res = clusterQueryWithInstancesAndErrorsAndLabels
-        .filter { record =>
-          val a = tsdiff(MINUTE, now, record._1.dateAccessed)
-          println(a)
-          val r = record._1.autopauseThreshold
-          a > r
-        }.result
-
-      res.statements.foreach(println)
-      println(res)
 
       clusterQueryWithInstancesAndErrorsAndLabels
-        .filter { record =>
-          val a = tsdiff(MINUTE, now, record._1.dateAccessed)
-          val r = record._1.autopauseThreshold
-          a > r
-        }
-//        .filter(_._1.status inSetBind ClusterStatus.stoppableStatuses.map(_.toString))
+        .filter { record => tsdiff(MINUTE, record._1.dateAccessed, now) >= record._1.autopauseThreshold}
+        .filter(_._1.status inSetBind ClusterStatus.stoppableStatuses.map(_.toString))
         .result map { recs => unmarshalClustersWithInstancesAndLabels(recs)}
     }
 

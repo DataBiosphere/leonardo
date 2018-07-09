@@ -570,6 +570,8 @@ definitions:
       - createdDate
       - labels
       - dateAccessed
+      - autopause
+      - autopauseThreshold
     properties:
       clusterName:
         type: string
@@ -618,6 +620,13 @@ definitions:
         description: |
           The date and time the cluster was last accessed, in ISO-8601 format.
           Date accessed is defined as the last time the cluster was created, modified, or accessed via the proxy.
+      autopause:
+              type: boolean
+              description: Whether autopause feature is enabled for this specific cluster.
+      autopauseThreshold:
+              type: int
+              description: The number of minutes to elapse before the cluster is autopaused. If autopause is set to false, this value is disregarded.
+
 
   InstanceKey:
     description: ''

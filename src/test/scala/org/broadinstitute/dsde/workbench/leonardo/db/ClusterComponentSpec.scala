@@ -414,7 +414,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
   }
 
   it should "get list of clusters to auto freeze" in isolatedDbTest {
-    val runningCluster = Cluster(
+    val runningCluster1 = Cluster(
       clusterName = name1,
       googleId = UUID.randomUUID(),
       googleProject = project,
@@ -434,18 +434,42 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       List.empty,
       Set(masterInstance),
       None,
+      Instant.now().minus(100, ChronoUnit.DAYS),
+      if (autopause) autopauseThreshold else 0
+    )
+
+    val runningCluster2 = Cluster(
+      clusterName = name2,
+      googleId = UUID.randomUUID(),
+      googleProject = project,
+      serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
+      machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
+      clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
+      operationName = OperationName("op2"),
+      status = ClusterStatus.Running,
+      hostIp = Some(IP("numbers.and.dots")),
+      creator = userEmail,
+      createdDate = Instant.now(),
+      destroyedDate = None,
+      labels = Map("bam" -> "yes", "vcf" -> "no"),
+      jupyterExtensionUri = None,
+      jupyterUserScriptUri = None,
+      Some(GcsBucketName("testStagingBucket2")),
+      List.empty,
+      Set(masterInstance),
+      None,
       Instant.now(),
       if (autopause) autopauseThreshold else 0
     )
 
     val stoppedCluster = Cluster(
-      clusterName = name2,
+      clusterName = name3,
       googleId = UUID.randomUUID(),
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
-      operationName = OperationName("op2"),
+      clusterUrl = Cluster.getClusterUrl(project, name3, clusterUrlBase),
+      operationName = OperationName("op3"),
       status = ClusterStatus.Stopped,
       hostIp = None,
       creator = userEmail,
@@ -454,7 +478,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       labels = Map.empty,
       jupyterExtensionUri = Some(jupyterExtensionUri),
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      Some(GcsBucketName("testStagingBucket2")),
+      Some(GcsBucketName("testStagingBucket3")),
       List.empty,
       Set.empty,
       None,
@@ -462,16 +486,15 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       if (autopause) autopauseThreshold else 0
     )
 
-    dbFutureValue { _.clusterQuery.save(runningCluster, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual runningCluster
+    dbFutureValue { _.clusterQuery.save(runningCluster1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual runningCluster1
+    dbFutureValue { _.clusterQuery.save(runningCluster2, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual runningCluster2
     dbFutureValue { _.clusterQuery.save(stoppedCluster, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual stoppedCluster
 
-    dbFutureValue { _.clusterQuery.getClustersReadyToAutoFreeze() } shouldBe List.empty
+    val autoFreezeList = dbFutureValue { _.clusterQuery.getClustersReadyToAutoFreeze() }
+    autoFreezeList should contain (runningCluster1)
+      //c2 is already stopped
+    autoFreezeList should not contain stoppedCluster
+    autoFreezeList should not contain runningCluster2
 
-//    eventually(timeout(Span(30, Seconds))) {
-//      val autoFreezeList = dbFutureValue { _.clusterQuery.getClustersReadyToAutoFreeze() }
-//      autoFreezeList should contain (runningCluster)
-//      //c2 is already stopped
-//      //autoFreezeList should not contain stoppedCluster
-//    }
   }
 }
