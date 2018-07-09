@@ -456,7 +456,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       jupyterUserScriptUri = None,
       Some(GcsBucketName("testStagingBucket2")),
       List.empty,
-      Set(masterInstance),
+      Set(workerInstance1),
       None,
       Instant.now(),
       if (autopause) autopauseThreshold else 0
