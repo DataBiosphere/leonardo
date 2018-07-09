@@ -1,25 +1,26 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
+import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.service.StatusService
 import org.broadinstitute.dsde.workbench.model.UserInfo
-import org.broadinstitute.dsde.workbench.util.health.{HealthMonitor, StatusCheckResponse}
-import org.broadinstitute.dsde.workbench.util.health.Subsystems._
 import org.broadinstitute.dsde.workbench.util.health.StatusJsonSupport._
-import org.scalatest.{FlatSpec, Matchers}
+import org.broadinstitute.dsde.workbench.util.health.Subsystems._
+import org.broadinstitute.dsde.workbench.util.health.{HealthMonitor, StatusCheckResponse}
 import org.scalatest.concurrent.Eventually.eventually
+import org.scalatest.{FlatSpec, Matchers}
 
 import scala.concurrent.duration._
 
 /**
   * Created by rtitle on 10/26/17.
   */
-class StatusRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with TestLeoRoutes with TestComponent {
+class StatusRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with CommonTestData with TestLeoRoutes with TestComponent {
   override implicit val patienceConfig = PatienceConfig(timeout = 1.second)
 
   "GET /status" should "give 200 for ok" in {

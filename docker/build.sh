@@ -21,9 +21,11 @@ HELP_TEXT="$(cat <<EOF
            container registries.
    -n | --notebook-repo: (default: --project) the repo to push the notebooks
            image. Can be a dockerhub or GCR repo.
+   -t | --tag: (default: git banch name) the docker tag used for the images.
    -k | --service-account-key-file: (optional) path to a service account key json
            file. If set, the script will call "gcloud auth activate-service-account".
            Otherwise, the script will not authenticate with gcloud.
+   -ui | --user-interface: (optional) build the user interface docker image.
    -h | --help: print help text.
 
  Examples:
@@ -43,7 +45,10 @@ TARGET="${TARGET:-leonardo}"
 DB_CONTAINER="leonardo-mysql"
 GIT_BRANCH="${BRANCH:-$(git rev-parse --abbrev-ref HEAD)}"
 DOCKER_REGISTRY="dockerhub"  # Must be either "dockerhub" or "gcr"
+BUILD_UI=false
 DOCKER_CMD=""
+DOCKER_TAG=""
+DOCKER_TAG_TESTS=""
 ENV=${ENV:-""}  # if env is not set, push an image with branch name
 SERVICE_ACCOUNT_KEY_FILE=""  # default to no service account
 
@@ -63,6 +68,9 @@ while [ "$1" != "" ]; do
         jar)
             MAKE_JAR=true
             ;;
+        -ui | --user-interface)
+            BUILD_UI=true
+            ;;
         -d | --docker)
             shift
             echo "docker command = $1"
@@ -73,6 +81,11 @@ while [ "$1" != "" ]; do
             shift
             echo "registry == $1"
             DOCKER_REGISTRY=$1
+            ;;
+        -t | --tag)
+            shift
+            echo "docker tag == $1"
+            DOCKER_TAG=$1
             ;;
         -p | --project)
             shift
@@ -172,7 +185,9 @@ function docker_cmd()
 {
     if [ $DOCKER_CMD = "build" ] || [ $DOCKER_CMD = "push" ]; then
         echo "building $IMAGE docker image..."
-        if [ "$ENV" != "dev" ] && [ "$ENV" != "alpha" ] && [ "$ENV" != "staging" ] && [ "$ENV" != "perf" ]; then
+        if [ -n "$DOCKER_TAG" ]; then
+            DOCKER_TAG_TESTS="${DOCKER_TAG}-tests"
+        elif [ "$ENV" != "dev" ] && [ "$ENV" != "alpha" ] && [ "$ENV" != "staging" ] && [ "$ENV" != "perf" ]; then
             DOCKER_TAG=${GIT_BRANCH}
             DOCKER_TAG_TESTS=${GIT_BRANCH}
         else
@@ -184,6 +199,10 @@ function docker_cmd()
 
         # builds the juptyer notebooks docker image that goes on dataproc clusters
         bash ./jupyter-docker/build.sh build "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
+        # Build the UI if specified.
+        if $BUILD_UI; then
+          bash ./ui/build.sh build "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
+        fi
 
         docker build -t "${IMAGE}:${DOCKER_TAG}" .
         cd automation
@@ -198,6 +217,10 @@ function docker_cmd()
             $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${DOCKER_TAG_TESTS}
             # pushes the juptyer notebooks docker image that goes on dataproc clusters
             bash ./jupyter-docker/build.sh push "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
+            # push the UI docker image.
+            if $BUILD_UI; then
+              bash ./ui/build.sh push "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
+            fi
         fi
     else
         echo "Not a valid docker option!  Choose either build or push (which includes build)"

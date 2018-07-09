@@ -4,8 +4,9 @@ import java.net.URL
 import java.time.Instant
 import java.util.UUID
 
-import akka.http.scaladsl.model.headers.{Cookie, HttpCookiePair, OAuth2BearerToken, Authorization}
+import akka.http.scaladsl.model.headers.{Authorization, Cookie, HttpCookiePair, OAuth2BearerToken}
 import akka.Done
+import akka.http.scaladsl.server.Route
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.typesafe.scalalogging.LazyLogging
@@ -104,8 +105,9 @@ object Leonardo extends RestClient with LazyLogging {
     }
 
     def listIncludingDeleted()(implicit token: AuthToken): Seq[Cluster] = {
-      logger.info(s"Listing all clusters including deleted: GET /api/clusters?includeDeleted=true")
-      handleClusterSeqResponse(parseResponse(getRequest(url + "api/clusters?includeDeleted=true")))
+      val path = "api/clusters?includeDeleted=true"
+      // logger.info(s"Listing all clusters including deleted: GET /$path")
+      handleClusterSeqResponse(parseResponse(getRequest(s"$url/$path")))
     }
 
     def create(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(implicit token: AuthToken): Cluster = {
@@ -116,8 +118,9 @@ object Leonardo extends RestClient with LazyLogging {
 
     def get(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): Cluster = {
       val path = clusterPath(googleProject, clusterName)
-      logger.info(s"Get details for cluster: GET /$path")
-      handleClusterResponse(parseResponse(getRequest(url + path)))
+      val cluster = handleClusterResponse(parseResponse(getRequest(url + path)))
+      logger.info(s"GET /$path. Response: $cluster")
+      cluster
     }
 
     def delete(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): String = {
@@ -159,7 +162,7 @@ object Leonardo extends RestClient with LazyLogging {
       new NotebooksListPage(url + path)
     }
 
-    def getApi(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver): String = {
+    def getApi(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): String = {
       val path = notebooksPath(googleProject, clusterName)
       logger.info(s"Get notebook: GET /$path")
       parseResponse(getRequest(url + path))
@@ -187,14 +190,27 @@ object Leonardo extends RestClient with LazyLogging {
     }
   }
 
+  object lab {
+    def labPath(googleProject: GoogleProject, clusterName: ClusterName): String =
+      s"notebooks/${googleProject.value}/${clusterName.string}/lab"
+
+    def getApi(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): String = {
+      val path = labPath(googleProject, clusterName)
+      logger.info(s"Get notebook: GET /$path")
+      parseResponse(getRequest(url + path))
+    }
+
+    // TODO: add JupyterLab selenium test logic
+  }
+
   object dummyClient {
     import akka.http.scaladsl.Http
     import akka.http.scaladsl.model._
     import akka.http.scaladsl.server.Directives.{get => httpGet, _}
 
-    def get(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver) = {
-      val localhost = java.net.InetAddress.getLocalHost().getHostName()
-      val url = s"http://${localhost}:9090/${googleProject.value}/${clusterName.string}/client?token=${token.value}"
+    def get(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver): DummyClientPage = {
+      val localhost = java.net.InetAddress.getLocalHost.getHostName
+      val url = s"http://$localhost:9090/${googleProject.value}/${clusterName.string}/client?token=${token.value}"
       logger.info(s"Get dummy client: $url")
       new DummyClientPage(url).open
     }
@@ -209,7 +225,7 @@ object Leonardo extends RestClient with LazyLogging {
       bindingFuture.flatMap(_.unbind())
     }
 
-    val route =
+    val route: Route =
       path(Segment / Segment / "client") { (googleProject, clusterName) =>
         httpGet {
           parameter('token.as[String]) { token =>

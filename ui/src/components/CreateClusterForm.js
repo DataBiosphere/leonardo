@@ -1,14 +1,14 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { withStyles } from 'material-ui/styles';
-import { InputLabel } from 'material-ui/Input';
-import TextField from 'material-ui/TextField';
-import Typography from 'material-ui/Typography';
-import { MenuItem } from 'material-ui/Menu';
-import { FormControl } from 'material-ui/Form';
-import Select from 'material-ui/Select';
-import Button from 'material-ui/Button';
-import { CircularProgress } from 'material-ui/Progress';
+import { withStyles } from '@material-ui/core/styles';
+import InputLabel from '@material-ui/core/InputLabel';
+import TextField from '@material-ui/core/TextField';
+import Typography from '@material-ui/core/Typography';
+import MenuItem from '@material-ui/core/MenuItem';
+import FormControl from '@material-ui/core/FormControl';
+import Select from '@material-ui/core/Select';
+import Button from '@material-ui/core/Button';
+import CircularProgress from '@material-ui/core/CircularProgress';
 
 import { createApiUrl } from '../net'
 
@@ -18,7 +18,7 @@ const DEFAULT_WORKER_MACHINE_TYPE = "n1-standard-2";
 const DEFAULT_WORKER_DISK_SIZE = 200;
 
 // Regex for GCP Project names.
-const projectRegex = /^[a-z][a-z0-9_-]{0,50}[a-z0-9]$/;
+const projectRegex = /^[a-z][a-z0-9_:.-]{0,50}[a-z0-9]$/;
 
 // Regex for cluster names.
 const clusterRegex = /^[a-z][a-z0-9-]{0,25}[a-z0-9]$/;
@@ -64,17 +64,19 @@ class UnstyledCreateClusterForm extends React.Component {
     super(props);
     // Initialize project with default value (if applicable).
     var project = "";
-    var projectEntryDisabled = false
-    if (process.env.REACT_APP_DEFAULT_PROJECT) {
-      project = process.env.REACT_APP_DEFAULT_PROJECT;
+    var startupScript = "";
+    var projectEntryDisabled = window.GlobalReactConfig.DISABLE_PROJECT_ENTRY
+    if (window.GlobalReactConfig.DEFAULT_PROJECT) {
+      project = window.GlobalReactConfig.DEFAULT_PROJECT;
     }
-    if (process.env.REACT_APP_DISABLE_PROJECT_ENTRY == 'true') {
-      projectEntryDisabled = true;
+    if (window.GlobalReactConfig.STARTUP_SCRIPT_URI) {
+      startupScript = window.GlobalReactConfig.STARTUP_SCRIPT_URI
     }
 
     this.state = {
       clusterName: "",
       googleProject: project,
+      jupyterUserScriptUri: startupScript,
       machineType: DEFAULT_MASTER_MACHINE_TYPE,
       workerMachineType: DEFAULT_WORKER_MACHINE_TYPE,
       projectEntryDisabled: projectEntryDisabled,
@@ -115,12 +117,14 @@ class UnstyledCreateClusterForm extends React.Component {
         // Master config
         masterDiskSize: this.state.diskSize,
         masterMachineType: this.state.machineType
-
       }
     };
-    if (process.env.REACT_APP_STARTUP_SCRIPT_URI) {
-      createRequest["jupyterUserScriptUri"] = process.env.REACT_APP_STARTUP_SCRIPT_URI;
+    // User script is only attached if the value is not nullish.
+    var userScriptUri = this.state.jupyterUserScriptUri.trim()
+    if (userScriptUri) {
+      createRequest["jupyterUserScriptUri"] = userScriptUri;
     }
+
     // Use fetch to send a put request, and register success/fail callbacks.
     fetch(
       createApiUrl(this.state.googleProject, this.state.clusterName),
@@ -174,6 +178,7 @@ class UnstyledCreateClusterForm extends React.Component {
               value={this.state.googleProject}
               onChange={this.handleChange("googleProject")}
               margin="normal"
+              required={true}
               disabled={this.state.projectEntryDisabled}
             />
           </FormControl>
@@ -187,6 +192,7 @@ class UnstyledCreateClusterForm extends React.Component {
               value={this.state.clusterName}
               onChange={this.handleChange("clusterName")}
               margin="normal"
+              required={true}
             />
           </FormControl>
         </div>
@@ -221,6 +227,16 @@ class UnstyledCreateClusterForm extends React.Component {
               <MenuItem value={200}>200 GB</MenuItem>
               <MenuItem value={1000}>1000 GB</MenuItem>
             </Select>
+          </FormControl>
+          <FormControl className={classes.xWideFormControl}>
+            <TextField
+              id="jupyterUserScriptUri"
+              label="(optional) startup script gs://... path"
+              value={this.state.jupyterUserScriptUri}
+              onChange={this.handleChange("jupyterUserScriptUri")}
+              margin="dense"
+              fullWidth={true}
+            />
           </FormControl>
         </div>
         <div style={{marginTop: 25}}>
@@ -284,6 +300,10 @@ UnstyledCreateClusterForm.propTypes = {
 
 
 const formSyles = theme => ({
+  xWideFormControl: {
+    margin: theme.spacing.unit,
+    minWidth: 350,
+  },
   wideFormControl: {
     margin: theme.spacing.unit,
     minWidth: 250,

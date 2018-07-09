@@ -90,9 +90,9 @@ RUN mkdir -p /etc/spark/conf.dist && mkdir -p /etc/hadoop/conf.empty && mkdir -p
  && update-alternatives --install /etc/hadoop/conf hadoop-conf /etc/hadoop/conf.empty 100 \
  && update-alternatives --install /etc/hive/conf hive-conf /etc/hive/conf.dist 100 \
  && mkdir $HAIL_HOME && cd $HAIL_HOME \
- && wget http://storage.googleapis.com/hail-common/builds/0.1/jars/$HAILJAR \
- && wget http://storage.googleapis.com/hail-common/builds/0.1/python/$HAILPYTHON \
- && wget http://storage.googleapis.com/hail-common/distributions/0.1/$HAILZIP \
+ && wget -nv http://storage.googleapis.com/hail-common/builds/0.1/jars/$HAILJAR \
+ && wget -nv http://storage.googleapis.com/hail-common/builds/0.1/python/$HAILPYTHON \
+ && wget -nv http://storage.googleapis.com/hail-common/distributions/0.1/$HAILZIP \
  && cd -
 
 #######################
@@ -129,7 +129,7 @@ RUN apt-get install -yq --no-install-recommends \
  # NOTE! not sure why, but this must run before pip installation
  && useradd -m -s /bin/bash -N -u $UID $USER \
  # jessie's default pip doesn't work well with jupyter 
- && wget https://bootstrap.pypa.io/get-pip.py \
+ && wget -nv https://bootstrap.pypa.io/get-pip.py \
  && python get-pip.py \
 
  # Hail requires decorator
@@ -227,30 +227,13 @@ RUN R -e 'install.packages(c( \
 # Utilities
 #######################
 
-ADD kernelspec.sh $JUPYTER_HOME/
-ADD python_kernelspec.tmpl $JUPYTER_HOME/
-ADD pyspark_kernelspec.tmpl $JUPYTER_HOME/
-ADD spark_install_hail.sh $HAIL_HOME/
 ADD jupyter_notebook_config.py $JUPYTER_HOME/
-ADD jupyter_localize_extension.py $JUPYTER_HOME/custom/
-ADD jupyter_delocalize.py $JUPYTER_HOME/custom/
-ADD scripts/extension-installation/jupyter_install_notebook_extension.sh $JUPYTER_HOME/
-ADD scripts/extension-installation/jupyter_install_server_extension.sh $JUPYTER_HOME/
-ADD scripts/extension-installation/jupyter_install_combined_extension.sh $JUPYTER_HOME/
-ADD scripts/extension-installation/jupyter_pip_install_notebook_extension.sh $JUPYTER_HOME/
-ADD scripts/extension-installation/jupyter_pip_install_server_extension.sh $JUPYTER_HOME/
-ADD scripts/extension-installation/jupyter_pip_install_combined_extension.sh $JUPYTER_HOME/
-
+ADD scripts $JUPYTER_HOME/scripts
+ADD custom/jupyter_delocalize.py $JUPYTER_HOME/custom/
+ADD custom/jupyter_localize_extension.py $JUPYTER_HOME/custom/
 
 RUN chown -R $USER:users $JUPYTER_HOME \
- && chmod +x $JUPYTER_HOME/jupyter_install_notebook_extension.sh \
- && chmod +x $JUPYTER_HOME/jupyter_install_server_extension.sh \
- && chmod +x $JUPYTER_HOME/jupyter_install_combined_extension.sh \
- && chmod +x $JUPYTER_HOME/jupyter_pip_install_notebook_extension.sh \
- && chmod +x $JUPYTER_HOME/jupyter_pip_install_server_extension.sh \
- && chmod +x $JUPYTER_HOME/jupyter_pip_install_combined_extension.sh \
- && chmod +x $HAIL_HOME/spark_install_hail.sh \
- && chmod +x $JUPYTER_HOME/kernelspec.sh
+ && find $JUPYTER_HOME/scripts -name '*.sh' -type f | xargs chmod +x
 
 # This is a hacky way to get the ui to stop flickering as a result of kernel switches, restarts and reconnects from within a notebook
 # This edits the already built main.min.js file to prevent the notebook from scheduling a reconnect when a websocket is in a closing state

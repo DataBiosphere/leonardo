@@ -56,6 +56,9 @@ case class BucketObjectException(gcsUri: String)
 case class BucketObjectAccessException(userEmail: Option[WorkbenchEmail], gcsUri: GcsPath, errorMessage: String)
   extends LeoException(s"${userEmail.map(e => s"'${e.value}'").getOrElse("Your account")} does not have access to ${gcsUri.toUri}. Returned message: $errorMessage", StatusCodes.Forbidden)
 
+case class DataprocDisabledException(errorMsg: String)
+  extends LeoException(s"${errorMsg}", StatusCodes.Forbidden)
+
 case class ParseLabelsException(labelString: String)
   extends LeoException(s"Could not parse label string: $labelString. Expected format [key1=value1,key2=value2,...]", StatusCodes.BadRequest)
 
@@ -94,7 +97,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   // Startup script to install on the cluster master node. This is needed to support pause/resume clusters.
   private lazy val masterInstanceStartupScript: immutable.Map[String, String] = {
-    immutable.Map("startup-script" -> s"docker exec -d ${dataprocConfig.jupyterServerName} /usr/local/bin/jupyter notebook")
+    immutable.Map("startup-script" -> s"docker exec -d ${dataprocConfig.jupyterServerName} /etc/jupyter/scripts/run-jupyter.sh")
   }
 
   def isWhitelisted(userInfo: UserInfo): Future[Boolean] = {

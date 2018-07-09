@@ -1,5 +1,5 @@
 import React from 'react';
-import CssBaseline from 'material-ui/CssBaseline';
+import CssBaseline from '@material-ui/core/CssBaseline';
 
 import ClusterCardList from './ClusterCardList';
 import CreateClusterModalButton from './CreateClusterModalButton';
@@ -21,12 +21,9 @@ class ListStateContainer extends React.Component {
   constructor(props) {
     super(props);
     var refreshCallback = this.refreshListFromApi;
-    var filterUser = true;
-    if (process.env.REACT_APP_DEPLOY_ENVIRONMENT === "local") {
-      refreshCallback = this.fakeListClustersCallback
-    }
-    if (process.env.REACT_APP_FILTER_TO_CURRENT_USER !== "true") {
-      filterUser = false;
+    var filterUser = window.GlobalReactConfig.FILTER_TO_CURRENT_USER;
+    if (window.GlobalReactConfig.DEPLOY_ENVIRONMENT === "local") {
+      refreshCallback = this.fakeListClustersCallback;
     }
     this.state = {
       clusters: [],
@@ -52,7 +49,7 @@ class ListStateContainer extends React.Component {
     var listUri = "/api/clusters?includeDeleted=false";
     if (this.state.perUserFilter) {
       var creatorFilter = encodeURIComponent("creator=" + this.props.googleProfile.email);
-      listUri = listUri + "&" + "_labels=" + creatorFilter;
+      listUri = listUri + "&_labels=" + creatorFilter;
     }
     // Begin the GET request and register callbacks.
     return fetch(

@@ -1,5 +1,6 @@
 import React from 'react';
-import Dialog, { DialogContent } from 'material-ui/Dialog';
+import Dialog from '@material-ui/core/Dialog';
+import DialogContent from '@material-ui/core/DialogContent';
 import GoogleLogin from 'react-google-login';
 
 import ListStateContainer from './ListStateContainer'
@@ -13,11 +14,16 @@ class GoogleSignInWrapper extends React.Component {
 
   constructor(props) {
     super(props);
+    var scopes = "profile email";
+    if (window.GlobalReactConfig.EXTRA_GOOGLE_SCOPES) {
+        scopes = scopes + " " + window.GlobalReactConfig.EXTRA_GOOGLE_SCOPES.trim()
+    }
     this.state = {
       loggedIn: false,
       googleProfile: null,
       googleUser: null,
-      googleToken: null
+      googleToken: null,
+      scopes: scopes
     };
   }
 
@@ -104,7 +110,7 @@ class GoogleSignInWrapper extends React.Component {
         <ListStateContainer
           googleProfile={this.state.googleProfile}
           googleAuthToken={this.state.googleToken}
-          oauthClientId={process.env.REACT_APP_OAUTH_CLIENT_ID}
+          oauthClientId={window.GlobalReactConfig.OAUTH_CLIENT_ID}
           errorHandler={this.props.errorHandler}
         />
       );
@@ -117,13 +123,14 @@ class GoogleSignInWrapper extends React.Component {
         >
           <DialogContent>
           <GoogleLogin
-            clientId={process.env.REACT_APP_OAUTH_CLIENT_ID}
+            clientId={window.GlobalReactConfig.OAUTH_CLIENT_ID}
             buttonText="Login with Google"
             responseType={"id_token code"}
             accessType={"offline"}
             onSuccess={this.initialLoginSuccess}
             onFailure={this.initialLoginFailure}
             prompt={"select_account"}
+            scope={this.state.scopes}
           />
           </DialogContent>
         </Dialog>
