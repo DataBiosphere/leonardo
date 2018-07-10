@@ -1,12 +1,12 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 
-import Icon from 'material-ui/Icon';
-import IconButton from 'material-ui/IconButton';
-import Modal from 'material-ui/Modal';
-import { withStyles } from 'material-ui/styles';
-import Typography from 'material-ui/Typography';
-import Tooltip from 'material-ui/Tooltip';
+import Icon from '@material-ui/core/Icon';
+import IconButton from '@material-ui/core/IconButton';
+import Modal from '@material-ui/core/Modal';
+import { withStyles } from '@material-ui/core/styles';
+import Typography from '@material-ui/core/Typography';
+import Tooltip from '@material-ui/core/Tooltip';
 
 import CreateClusterForm from './CreateClusterForm'
 

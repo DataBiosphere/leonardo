@@ -1,5 +1,5 @@
 import React from 'react';
-import CssBaseline from 'material-ui/CssBaseline';
+import CssBaseline from '@material-ui/core/CssBaseline';
 
 import ClusterCardList from './ClusterCardList';
 import CreateClusterModalButton from './CreateClusterModalButton';
@@ -49,7 +49,7 @@ class ListStateContainer extends React.Component {
     var listUri = "/api/clusters?includeDeleted=false";
     if (this.state.perUserFilter) {
       var creatorFilter = encodeURIComponent("creator=" + this.props.googleProfile.email);
-      listUri = listUri + "&" + "_labels=" + creatorFilter;
+      listUri = listUri + "&_labels=" + creatorFilter;
     }
     // Begin the GET request and register callbacks.
     return fetch(
