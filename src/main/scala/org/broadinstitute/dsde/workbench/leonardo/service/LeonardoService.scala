@@ -161,7 +161,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           // Create the cluster in Google
           (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest)
           // Save the cluster in the database
-          savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, GcsPath(initBucket, GcsObjectName("")), serviceAccountKeyOpt.map(_.id)))
+          savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, Option(GcsPath(initBucket, GcsObjectName(""))), serviceAccountKeyOpt.map(_.id)))
         } yield {
           // Notify the cluster monitor that the cluster has been created
           clusterMonitorSupervisor ! ClusterCreated(savedCluster, clusterRequest.stopAfterCreation.getOrElse(false))
@@ -217,7 +217,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         _ <- gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)
         // Change the cluster status to Deleting in the database
         // Note this also changes the instance status to Deleting
-        _ <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.googleId))
+        _ <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.id))
       } yield {
         // Notify the cluster monitor supervisor of cluster deletion.
         // This will kick off polling until the cluster is actually deleted in Google.
@@ -260,7 +260,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         }
 
         // Update the cluster status to Stopping
-        _ <- dbRef.inTransaction { _.clusterQuery.setToStopping(cluster.googleId) }
+        _ <- dbRef.inTransaction { _.clusterQuery.setToStopping(cluster.id) }
       } yield {
         clusterMonitorSupervisor ! ClusterStopped(cluster.copy(status = ClusterStatus.Stopping))
       }
@@ -294,7 +294,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         }
 
         // Update the cluster status to Starting
-        _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Starting) }
+        _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Starting) }
       } yield {
         clusterMonitorSupervisor ! ClusterStarted(cluster.copy(status = ClusterStatus.Starting))
       }

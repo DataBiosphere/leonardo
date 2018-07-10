@@ -24,7 +24,7 @@ trait GoogleDataprocDAO {
 
   def getClusterStagingBucket(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[GcsBucketName]]
 
-  def getClusterErrorDetails(operationName: OperationName): Future[Option[ClusterErrorDetails]]
+  def getClusterErrorDetails(operationName: Option[OperationName]): Future[Option[ClusterErrorDetails]]
 
   def resizeCluster(googleProject: GoogleProject, clusterName: ClusterName, numWorkers: Option[Int] = None, numPreemptibles: Option[Int] = None): Future[Unit]
 
