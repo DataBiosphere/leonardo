@@ -9,6 +9,7 @@ import java.util.Base64
 import cats.data.OptionT
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
+import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, UserAuthToken}
 import org.broadinstitute.dsde.workbench.config.Credentials
@@ -28,6 +29,7 @@ import org.scalatest.time.{Minutes, Seconds, Span}
 
 import scala.concurrent._
 import scala.concurrent.duration._
+import scala.io.Source
 import scala.language.postfixOps
 import scala.util.{Failure, Random, Success, Try}
 
@@ -36,10 +38,6 @@ case class TimeResult[R](result:R, duration:FiniteDuration)
 
 trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures {
   this: Suite with BillingFixtures =>
-
-  val swatTestBucket = "gs://leonardo-swat-test-bucket-do-not-delete"
-  val incorrectJupyterExtensionUri: String = swatTestBucket + "/"
-  val testJupyterExtensionUri: String = swatTestBucket + "/my_ext.tar.gz"
 
   // must align with run-tests.sh and hub-compose-fiab.yml
   val downloadDir = "chrome/downloads"
@@ -66,8 +64,14 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   val startPatience = PatienceConfig(timeout = scaled(Span(5, Minutes)), interval = scaled(Span(1, Seconds)))
   val getAfterCreatePatience = PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(2, Seconds)))
 
-  val multiExtensionClusterRequest = UserJupyterExtensionConfig(Map("translate"->testJupyterExtensionUri, "map"->"gmaps"),Map("jupyterlab"->"jupyterlab"), Map("pizza"->"pizzabutton"))
-  val jupyterLabExtensionClusterRequest = UserJupyterExtensionConfig(serverExtensions = Map("jupyterlab" -> "jupyterlab"))
+  val multiExtensionClusterRequest = UserJupyterExtensionConfig(
+    nbExtensions = Map("map" -> "gmaps"),
+    serverExtensions = Map("jupyterlab" -> "jupyterlab"),
+    combinedExtensions = Map("pizza" -> "pizzabutton")
+  )
+  val jupyterLabExtensionClusterRequest = UserJupyterExtensionConfig(
+    serverExtensions = Map("jupyterlab" -> "jupyterlab")
+  )
 
   // TODO: show diffs as screenshot or other test output?
   def compareFilesExcludingIPs(left: File, right: File): Unit = {
@@ -365,19 +369,23 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   def withNewErroredCluster[T](googleProject: GoogleProject)(testCode: Cluster => T)(implicit token: AuthToken): T = {
     val name = ClusterName(s"automation-test-a${makeRandomId()}z")
-    val request = ClusterRequest(Map("foo" -> makeRandomId()), Some(incorrectJupyterExtensionUri))
-    val testResult: Try[T] = Try {
-      val cluster = createAndMonitor(googleProject, name, request)
-      cluster.status shouldBe ClusterStatus.Error
-      cluster.errors should have size 1
-      cluster.errors.head.errorMessage should include ("gs://")
-      cluster.errors.head.errorCode should be (3)
-      testCode(cluster)
-    }
+    // Fail a cluster by providing a user script which returns exit status 1
+    val hailUploadFile = ResourceFile("bucket-tests/invalid_user_script.sh")
+    withResourceFileInBucket(googleProject, hailUploadFile, "text/plain") { bucketPath =>
+      val request = ClusterRequest(jupyterUserScriptUri = Some(bucketPath.toUri))
+      val testResult: Try[T] = Try {
+        val cluster = createAndMonitor(googleProject, name, request)
+        cluster.status shouldBe ClusterStatus.Error
+        cluster.errors should have size 1
+        cluster.errors.head.errorMessage should include ("gs://")
+        cluster.errors.head.errorCode should be (3)
+        testCode(cluster)
+      }
 
-    // delete before checking testCode status, which may throw
-    deleteAndMonitor(googleProject, name)
-    testResult.get
+      // delete before checking testCode status, which may throw
+      deleteAndMonitor(googleProject, name)
+      testResult.get
+    }
   }
 
   def withNotebooksListPage[T](cluster: Cluster)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
@@ -456,6 +464,15 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
     // Return the test result, or throw error
     testResult.get
+  }
+
+  def withResourceFileInBucket[T](googleProject: GoogleProject, resourceFile: ResourceFile, objectType: String)(testCode: GcsPath => T)(implicit token: AuthToken): T = {
+    withNewGoogleBucket(googleProject) { bucketName =>
+      val contents = Source.fromFile(resourceFile).mkString
+      withNewBucketObject(bucketName, GcsObjectName(resourceFile.getName), contents,objectType) { bucketObject =>
+        testCode(GcsPath(bucketName, bucketObject))
+      }
+    }
   }
 
   def withLocalizeDelocalizeFiles[T](cluster: Cluster, fileToLocalize: String, fileToLocalizeContents: String,

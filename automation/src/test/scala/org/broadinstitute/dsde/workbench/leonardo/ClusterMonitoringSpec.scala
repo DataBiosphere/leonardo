@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.io.File
 
+import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
@@ -197,13 +198,16 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
     //https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
     "should install user specified notebook extensions" in {
       withProject { project => implicit token =>
-        val clusterName = ClusterName("user-jupyter-ext" + makeRandomId())
-        withNewCluster(project, clusterName, ClusterRequest(Map(), Option(testJupyterExtensionUri), None)) { cluster =>
-          withWebDriver { implicit driver =>
-            withNewNotebook(cluster) { notebookPage =>
-              notebookPage.executeCell("1 + 1") shouldBe Some("2")
-              //Check if the mark up was translated correctly
-              notebookPage.translateMarkup("Hello") should include("Bonjour")
+        val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
+        withResourceFileInBucket(project, translateExtensionFile, "application/x-gzip") { translateExtensionBucketPath =>
+          val clusterName = ClusterName("user-jupyter-ext" + makeRandomId())
+          withNewCluster(project, clusterName, ClusterRequest(Map(), Option(translateExtensionBucketPath.toUri), None)) { cluster =>
+            withWebDriver { implicit driver =>
+              withNewNotebook(cluster) { notebookPage =>
+                notebookPage.executeCell("1 + 1") shouldBe Some("2")
+                //Check if the mark up was translated correctly
+                notebookPage.translateMarkup("Hello") should include("Bonjour")
+              }
             }
           }
         }
@@ -212,18 +216,22 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
 
     "should install multiple user specified notebook extensions" in {
       withProject { project => implicit token =>
-        val clusterName = ClusterName("user-jupyter-ext" + makeRandomId())
-        withNewCluster(project, clusterName, ClusterRequest(userJupyterExtensionConfig = Some(multiExtensionClusterRequest))) { cluster =>
-          withWebDriver { implicit driver =>
-            withNewNotebook(cluster, Python3) { notebookPage =>
-              //Check if the mark up was translated correctly
-              val nbExt = notebookPage.executeCell("! jupyter nbextension list")
-              nbExt.get should include("jupyter-gmaps/extension  enabled")
-              nbExt.get should include("pizzabutton/index  enabled")
-              nbExt.get should include("my_ext/main  enabled")
-              val serverExt = notebookPage.executeCell("! jupyter serverextension list")
-              serverExt.get should include("pizzabutton  enabled")
-              serverExt.get should include("jupyterlab  enabled")
+        val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
+        withResourceFileInBucket(project, translateExtensionFile, "application/x-gzip") { translateExtensionBucketPath =>
+          val clusterName = ClusterName("user-jupyter-ext" + makeRandomId())
+          val extensionConfig = multiExtensionClusterRequest.copy(nbExtensions = multiExtensionClusterRequest.nbExtensions + ("translate" -> translateExtensionBucketPath.toUri))
+          withNewCluster(project, clusterName, ClusterRequest(userJupyterExtensionConfig = Some(extensionConfig))) { cluster =>
+            withWebDriver { implicit driver =>
+              withNewNotebook(cluster, Python3) { notebookPage =>
+                //Check if the mark up was translated correctly
+                val nbExt = notebookPage.executeCell("! jupyter nbextension list")
+                nbExt.get should include("jupyter-gmaps/extension  enabled")
+                nbExt.get should include("pizzabutton/index  enabled")
+                nbExt.get should include("my_ext/main  enabled")
+                val serverExt = notebookPage.executeCell("! jupyter serverextension list")
+                serverExt.get should include("pizzabutton  enabled")
+                serverExt.get should include("jupyterlab  enabled")
+              }
             }
           }
         }
