@@ -144,14 +144,15 @@ class HttpGoogleDataprocDAO(appName: String,
     transformed.value.handleGoogleException(googleProject, clusterName)
   }
 
-  override def getClusterErrorDetails(operationName: OperationName): Future[Option[ClusterErrorDetails]] = {
+  override def getClusterErrorDetails(operationName: Option[OperationName]): Future[Option[ClusterErrorDetails]] = {
     val errorOpt: OptionT[Future, ClusterErrorDetails] = for {
+      operationName <- OptionT.fromOption[Future](operationName)
       operation <- OptionT(getOperation(operationName)) if operation.getDone
       error <- OptionT.fromOption[Future] { Option(operation.getError) }
       code <- OptionT.fromOption[Future] { Option(error.getCode) }
     } yield ClusterErrorDetails(code, Option(error.getMessage))
 
-    errorOpt.value.handleGoogleException(GoogleProject(""), Some(operationName.value))
+    errorOpt.value.handleGoogleException(GoogleProject(""), operationName.map(_.value))
   }
 
   override def resizeCluster(googleProject: GoogleProject, clusterName: ClusterName, numWorkers: Option[Int] = None, numPreemptibles: Option[Int] = None): Future[Unit] = {

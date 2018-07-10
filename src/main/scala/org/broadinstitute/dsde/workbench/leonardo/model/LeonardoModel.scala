@@ -49,13 +49,14 @@ case class ClusterError(errorMessage: String,
 
 // The cluster itself
 // Also the API response for "list clusters" and "get active cluster"
-case class Cluster(clusterName: ClusterName,
-                   googleId: UUID,
+case class Cluster(id: Long = 0, // DB AutoInc
+                   clusterName: ClusterName,
+                   googleId: Option[UUID],
                    googleProject: GoogleProject,
                    serviceAccountInfo: ServiceAccountInfo,
                    machineConfig: MachineConfig,
                    clusterUrl: URL,
-                   operationName: OperationName,
+                   operationName: Option[OperationName],
                    status: ClusterStatus,
                    hostIp: Option[IP],
                    creator: WorkbenchEmail,
@@ -70,7 +71,7 @@ case class Cluster(clusterName: ClusterName,
                    userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
                    dateAccessed: Instant) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.value}"
-  def nonPreemptibleInstances: Set[Instance] = instances.filterNot(_.dataprocRole == Some(SecondaryWorker))
+  def nonPreemptibleInstances: Set[Instance] = instances.filterNot(_.dataprocRole.contains(SecondaryWorker))
 }
 object Cluster {
   type LabelMap = Map[String, String]
@@ -85,56 +86,28 @@ object Cluster {
              clusterUrlBase: String,
              stagingBucket: GcsBucketName): Cluster = {
     Cluster(
-        clusterName = clusterName,
-        googleId = operation.uuid,
-        googleProject = googleProject,
-        serviceAccountInfo = serviceAccountInfo,
-        machineConfig = machineConfig,
-        clusterUrl = getClusterUrl(googleProject, clusterName, clusterUrlBase),
-        operationName = operation.name,
-        status = ClusterStatus.Creating,
-        hostIp = None,
-        userEmail,
-        createdDate = Instant.now(),
-        destroyedDate = None,
-        labels = clusterRequest.labels,
-        jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
-        jupyterUserScriptUri = clusterRequest.jupyterUserScriptUri,
-        stagingBucket = Some(stagingBucket),
-        errors = List.empty,
-        instances = Set.empty,
-        userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
-        dateAccessed = Instant.now())
-  }
-
-  def createDummyForDeletion(clusterRequest: ClusterRequest,
-                             userEmail: WorkbenchEmail,
-                             clusterName: ClusterName,
-                             googleProject: GoogleProject,
-                             serviceAccountInfo: ServiceAccountInfo): Cluster = {
-    Cluster(
       clusterName = clusterName,
-      googleId = UUID.randomUUID,
+      googleId = Some(operation.uuid),
       googleProject = googleProject,
       serviceAccountInfo = serviceAccountInfo,
-      machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, ClusterDefaultsConfig(0, "", 0, "", 0, 0, 0)),
-      clusterUrl = getClusterUrl(googleProject, clusterName),
-      operationName = OperationName("dummy-operation"),
+      machineConfig = machineConfig,
+      clusterUrl = getClusterUrl(googleProject, clusterName, clusterUrlBase),
+      operationName = Some(operation.name),
       status = ClusterStatus.Creating,
       hostIp = None,
-      userEmail,
+      creator = userEmail,
       createdDate = Instant.now(),
       destroyedDate = None,
       labels = clusterRequest.labels,
       jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
       jupyterUserScriptUri = clusterRequest.jupyterUserScriptUri,
-      stagingBucket = None,
+      stagingBucket = Some(stagingBucket),
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
       dateAccessed = Instant.now())
   }
-
+  
   // TODO it's hacky to re-parse the Leo config in the model object.
   // It would be better to pass the clusterUrlBase config value to the getClusterUrl method as a parameter.
   // The reason we can't always do that is getClusterUrl is called by ClusterComponent, which is not aware of leonardo.conf.
@@ -297,7 +270,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val ClusterErrorFormat = jsonFormat3(ClusterError.apply)
 
-  implicit val ClusterFormat = jsonFormat20(Cluster.apply)
+  implicit val ClusterFormat = jsonFormat21(Cluster.apply)
 
   implicit val DefaultLabelsFormat = jsonFormat6(DefaultLabels.apply)
 

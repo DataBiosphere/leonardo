@@ -20,25 +20,25 @@ class ClusterDateAccessedSpec extends TestKit(ActorSystem("leonardotest")) with
 
   val testCluster1 = Cluster(
     clusterName = name1,
-    googleId = UUID.randomUUID(),
+    googleId = Option(UUID.randomUUID()),
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
     machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    operationName = OperationName("op1"),
+    operationName = Option(OperationName("op1")),
     status = ClusterStatus.Running,
     hostIp = None,
     creator = userEmail,
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"),
-    None,
-    None,
-    Some(GcsBucketName("testStagingBucket1")),
-    List.empty,
-    Set.empty,
-    Some(userExtConfig),
-    Instant.now()
+    jupyterExtensionUri = None,
+    jupyterUserScriptUri = None,
+    stagingBucket = Some(GcsBucketName("testStagingBucket1")),
+    errors = List.empty,
+    instances = Set.empty,
+    userJupyterExtensionConfig = Some(userExtConfig),
+    dateAccessed = Instant.now()
   )
 
   override def afterAll(): Unit = {
@@ -47,13 +47,16 @@ class ClusterDateAccessedSpec extends TestKit(ActorSystem("leonardotest")) with
   }
 
   "ClusterDateAccessedMonitor" should "update date accessed" in isolatedDbTest {
-    dbFutureValue {
-      _.clusterQuery.save(testCluster1, gcsPath("gs://bucket"), Some(serviceAccountKey.id)) } shouldEqual testCluster1
+    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
+
+    val savedTestCluster1 = dbFutureValue { _.clusterQuery.save(testCluster1, Option(gcsPath("gs://bucket")), Some(serviceAccountKey.id)) }
+    savedTestCluster1 shouldEqual testCluster1
+
     val currentTime = Instant.now()
     val dateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(autoFreezeconfig, DbSingleton.ref))
     dateAccessedActor ! UpdateDateAccessed(testCluster1.clusterName, testCluster1.googleProject, currentTime)
     eventually(timeout(Span(5, Seconds))) {
-      val c1 = dbFutureValue { _.clusterQuery.getByGoogleId(testCluster1.googleId) }
+      val c1 = dbFutureValue { _.clusterQuery.getClusterById(savedTestCluster1.id) }
       c1.map(_.dateAccessed).get shouldBe currentTime
     }
   }
