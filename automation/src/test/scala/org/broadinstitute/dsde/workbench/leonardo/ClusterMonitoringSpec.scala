@@ -175,7 +175,15 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
 
               // Verify the Hail import again in a new notebook
               withNewNotebook(cluster) { notebookPage =>
-                verifyHailImport(notebookPage, destPath, cluster.clusterName)
+                notebookPage.executeCell("sum(range(1,10))") shouldBe Some("45")
+
+                // TODO: Hail verification is disabled here because Spark sometimes doesn't restart correctly
+                // when a cluster is paused and then resumed. The issue is tracked here:
+                // https://github.com/DataBiosphere/leonardo/issues/459
+                // Re-enable this line once the above issue is fixed.
+                //verifyHailImport(notebookPage, destPath, cluster.clusterName)
+                logger.info("ClusterMonitoringSpec: Hail verification is disabled after pause/resuming a cluster. See https://github.com/DataBiosphere/leonardo/issues/459.")
+
                 notebookPage.saveAndCheckpoint()
               }
             }

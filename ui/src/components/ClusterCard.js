@@ -10,6 +10,7 @@ import { withStyles } from '@material-ui/core/styles';
 
 import ConnectButton from './ConnectButton'
 import DeleteDialog from './DeleteDialog'
+import StartButton from './StartButton'
 import StatusIcon from './StatusIcon'
 
 
@@ -28,6 +29,7 @@ const unknownStatus = "Unknown";
 const runningStatus = "Running";
 const deletingStatus = "Deleting";
 const deletedStatus = "Deleted";
+const stoppedStatus = "Stopped";
 const errorString404 = "404/Not Found";
 
 
@@ -79,7 +81,12 @@ class ClusterCard extends React.Component {
 
   setClusterStatusDeleting = () => {
     this.setState({ clusterStatus: "Deleting" });
-    this.checkForUpdatedState()
+    setTimeout(this.checkForUpdatedState, fastStatusCheckInterval)
+  }
+
+  setClusterStatusStarting = () => {
+    this.setState({ clusterStatus: "Starting" });
+    setTimeout(this.checkForUpdatedState, fastStatusCheckInterval)
   }
 
   /**
@@ -193,6 +200,25 @@ class ClusterCard extends React.Component {
     var classes = this.props.classes;
     var model = this.props.clusterModel;
     var machineCfg = model.machineConfig;
+    var startOrConnect = null;
+    if (this.state.clusterStatus === stoppedStatus) {
+      startOrConnect = (<StartButton
+            errorHandler={this.props.errorHandler}
+            googleAuthToken={this.props.googleAuthToken}
+            updateStatusToStarting={this.setClusterStatusStarting}
+            clusterModel={model}
+          />
+      );
+    } else {
+      startOrConnect = (<ConnectButton
+            oauthClientId={this.props.oauthClientId}
+            errorHandler={this.props.errorHandler}
+            googleAuthToken={this.props.googleAuthToken}
+            clusterStatus={this.state.clusterStatus}
+            clusterModel={model}
+          />
+      );
+    }
     return (
       <Grid item xs={12} sm={10}>
       <Card className={classes.card}>
@@ -230,13 +256,7 @@ class ClusterCard extends React.Component {
         </Typography>
       </CardContent>
       <CardActions>
-        <ConnectButton
-          oauthClientId={this.props.oauthClientId}
-          errorHandler={this.props.errorHandler}
-          googleAuthToken={this.props.googleAuthToken}
-          clusterStatus={this.state.clusterStatus}
-          clusterModel={model}
-        />
+        {startOrConnect}
         <DeleteDialog
           clusterStatus={this.state.clusterStatus}
           errorHandler={this.props.errorHandler}

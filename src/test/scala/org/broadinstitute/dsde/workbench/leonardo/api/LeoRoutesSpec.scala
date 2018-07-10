@@ -214,7 +214,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     // simulate the cluster transitioning to Running
     dbFutureValue { dataAccess =>
       dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName).flatMap {
-        case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.googleId, IP("1.2.3.4"))
+        case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"))
         case None => DBIO.successful(0)
       }
     }

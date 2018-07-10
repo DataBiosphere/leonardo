@@ -147,7 +147,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       _ <- persistInstances(instances)
       // update DB after auth futures finish
       _ <- dbRef.inTransaction { dataAccess =>
-        dataAccess.clusterQuery.setToRunning(cluster.googleId, publicIp)
+        dataAccess.clusterQuery.setToRunning(cluster.id, publicIp)
       }
       // Remove the Dataproc Worker IAM role for the cluster service account.
       // Only happens if the cluster was created with a service account other
@@ -178,7 +178,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       persistInstances(instances),
       // save cluster errors to the DB
       dbRef.inTransaction { dataAccess =>
-        val clusterId = dataAccess.clusterQuery.getIdByGoogleId(cluster.googleId)
+        val clusterId = dataAccess.clusterQuery.getIdByUniqueKey(cluster)
         clusterId flatMap {
           case Some(a) => dataAccess.clusterErrorQuery.save(a, ClusterError(errorDetails.message.getOrElse("Error not available"), errorDetails.code, Instant.now))
           case None => {
@@ -196,7 +196,7 @@ class ClusterMonitorActor(val cluster: Cluster,
         // to the supervisor telling it to recreate the cluster.
         logger.info(s"Cluster ${cluster.projectNameString} is in an error state with $errorDetails. Attempting to recreate...")
         dbRef.inTransaction { dataAccess =>
-          dataAccess.clusterQuery.markPendingDeletion(cluster.googleId)
+          dataAccess.clusterQuery.markPendingDeletion(cluster.id)
         } map { _ =>
           ShutdownActor(Some(ClusterDeleted(cluster, recreate = true)))
         }
@@ -205,7 +205,7 @@ class ClusterMonitorActor(val cluster: Cluster,
         logger.warn(s"Cluster ${cluster.projectNameString} is in an error state with $errorDetails'. Unable to recreate cluster.")
         for {
           // update the cluster status to Error
-          _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Error) }
+          _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Error) }
           // Remove the Dataproc Worker IAM role for the pet service account
           // Only happens if the cluster was created with the pet service account.
           _ <-  removeIamRolesForUser
@@ -233,7 +233,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       _ <- persistInstances(Set.empty)
 
       _ <- dbRef.inTransaction { dataAccess =>
-        dataAccess.clusterQuery.completeDeletion(cluster.googleId)
+        dataAccess.clusterQuery.completeDeletion(cluster.id)
       }
       _ <- authProvider.notifyClusterDeleted(cluster.creator, cluster.creator, cluster.googleProject, cluster.clusterName)
     } yield ShutdownActor()
@@ -251,7 +251,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       // create or update instances in the DB
       _ <- persistInstances(instances)
       // this sets the cluster status to stopped and clears the cluster IP
-      _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.googleId, ClusterStatus.Stopped) }
+      _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Stopped) }
     } yield ShutdownActor()
   }
 
@@ -279,7 +279,7 @@ class ClusterMonitorActor(val cluster: Cluster,
             case Some(ip) => ReadyCluster(ip, googleInstances)
             case None => NotReadyCluster(ClusterStatus.Running, googleInstances)
           }
-        case Running if clusterStatus == Starting && runningInstanceCount== googleInstances.size =>
+        case Running if clusterStatus == Starting && runningInstanceCount == googleInstances.size =>
           getMasterIp.flatMap {
             case Some(ip) =>
               isProxyAvailable(clusterStatus, ip).map {
@@ -385,7 +385,7 @@ class ClusterMonitorActor(val cluster: Cluster,
   }
 
   private def ensureClusterReadyForProxying(ip: IP, clusterStatus: ClusterStatus): Future[Unit] = {
-    // Ensure if the cluster's IP has been picked up by the DNS cache and is ready for proxying.
+    // Ensure that the cluster's IP has been picked up by the DNS cache and is ready for proxying.
     implicit val timeout: Timeout = Timeout(5 seconds)
     (clusterDnsCache ? ProcessReadyCluster(cluster.copy(hostIp = Some(ip), status = clusterStatus)))
       .mapTo[Either[Throwable, GetClusterResponse]]
@@ -411,6 +411,6 @@ class ClusterMonitorActor(val cluster: Cluster,
   }
 
   private def getDbClusterStatus: Future[ClusterStatus] = {
-    dbRef.inTransaction { _.clusterQuery.getClusterStatus(cluster.googleId) } map { _.getOrElse(ClusterStatus.Unknown) }
+    dbRef.inTransaction { _.clusterQuery.getClusterStatus(cluster.id) } map { _.getOrElse(ClusterStatus.Unknown) }
   }
 }
