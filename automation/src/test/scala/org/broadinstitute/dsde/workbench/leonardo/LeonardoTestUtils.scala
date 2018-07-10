@@ -452,10 +452,18 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   }
 
   def withNewBucketObject[T](bucketName: GcsBucketName, objectName: GcsObjectName, fileContents: String, objectType: String)(testCode: GcsObjectName => T): T = {
+    withNewBucketObject(bucketName, objectName, new ByteArrayInputStream(fileContents.getBytes), objectType)(testCode)
+  }
+
+  def withNewBucketObject[T](bucketName: GcsBucketName, objectName: GcsObjectName, localFile: File, objectType: String)(testCode: GcsObjectName => T): T = {
+    withNewBucketObject(bucketName, objectName, new ByteArrayInputStream(Files.readAllBytes(localFile.toPath)), objectType)(testCode)
+  }
+
+  def withNewBucketObject[T](bucketName: GcsBucketName, objectName: GcsObjectName, data: ByteArrayInputStream, objectType: String)(testCode: GcsObjectName => T): T = {
     implicit val patienceConfig: PatienceConfig = storagePatience
 
     // Create google bucket and run test code
-    googleStorageDAO.storeObject(bucketName, objectName, new ByteArrayInputStream(fileContents.getBytes), objectType).futureValue
+    googleStorageDAO.storeObject(bucketName, objectName, data, objectType).futureValue
     val testResult: Try[T] = Try {
       testCode(objectName)
     }
@@ -468,8 +476,14 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   def withResourceFileInBucket[T](googleProject: GoogleProject, resourceFile: ResourceFile, objectType: String)(testCode: GcsPath => T)(implicit token: AuthToken): T = {
     withNewGoogleBucket(googleProject) { bucketName =>
-      val contents = Source.fromFile(resourceFile).mkString
-      withNewBucketObject(bucketName, GcsObjectName(resourceFile.getName), contents,objectType) { bucketObject =>
+      // give the user's pet owner access to the bucket
+      val petServiceAccount = Sam.user.petServiceAccountEmail(googleProject.value)
+      googleStorageDAO.setBucketAccessControl(bucketName, EmailGcsEntity(GcsEntityTypes.User, petServiceAccount), GcsRoles.Owner).futureValue
+
+      withNewBucketObject(bucketName, GcsObjectName(resourceFile.getName), resourceFile, objectType) { bucketObject =>
+        // give the user's pet read access to the object
+        googleStorageDAO.setObjectAccessControl(bucketName, bucketObject, EmailGcsEntity(GcsEntityTypes.User, petServiceAccount), GcsRoles.Reader).futureValue
+
         testCode(GcsPath(bucketName, bucketObject))
       }
     }
