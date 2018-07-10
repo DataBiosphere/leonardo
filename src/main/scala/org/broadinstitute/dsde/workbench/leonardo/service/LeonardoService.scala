@@ -53,8 +53,8 @@ case class InitializationFileException(googleProject: GoogleProject, clusterName
 case class BucketObjectException(gcsUri: String)
   extends LeoException(s"The provided GCS URI is invalid or unparseable: ${gcsUri}", StatusCodes.BadRequest)
 
-case class BucketObjectAccessException(userEmail: Option[WorkbenchEmail], gcsUri: GcsPath, errorMessage: String)
-  extends LeoException(s"${userEmail.map(e => s"'${e.value}'").getOrElse("Your account")} does not have access to ${gcsUri.toUri}. Returned message: $errorMessage", StatusCodes.Forbidden)
+case class BucketObjectAccessException(userEmail: WorkbenchEmail, gcsUri: GcsPath)
+  extends LeoException(s"${userEmail.value} does not have access to ${gcsUri.toUri}", StatusCodes.Forbidden)
 
 case class DataprocDisabledException(errorMsg: String)
   extends LeoException(s"${errorMsg}", StatusCodes.Forbidden)
@@ -360,9 +360,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
       initScript = GcsPath(initBucket, GcsObjectName(clusterResourcesConfig.initActionsScript.value))
       autopauseThreshold = clusterRequest.autopause match {
-        case None => autoFreezeConfig.autoFreezeAfter
+        case None => autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
         case Some(false) => 0
-        case _ => if (clusterRequest.autopauseThreshold == None) autoFreezeConfig.autoFreezeAfter else clusterRequest.autopauseThreshold.get
+        case _ => if (clusterRequest.autopauseThreshold == None) autoFreezeConfig.autoFreezeAfter.toMinutes.toInt else Math.max(0, clusterRequest.autopauseThreshold.get)
       }
       credentialsFileName = serviceAccountInfo.notebookServiceAccount.map(_ => s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}")
       cluster <- gdDAO.createCluster(googleProject, clusterName, machineConfig, initScript, serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket).map { operation =>

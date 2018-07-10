@@ -1,11 +1,20 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+<changeSet logicalFilePath="leonardo" author="azmina" id="autopause_threshold">
+    <addColumn tableName="CLUSTER">
+        <column name="autopauseThreshold" type="INT">
+            <constraints nullable="true" />
+        </column>
+    </addColumn>
+</changeSet>
 
-    <changeSet logicalFilePath="leonardo" author="azmina" id="autopause_threshold">
-        <addColumn tableName="CLUSTER">
-            <column name="autopauseThreshold" type="INT">
-                <constraints nullable="false" />
-            </column>
-        </addColumn>
-    </changeSet>
+<changeSet id="set autopauseThreshold to default when autopauseThreshold is NULL" author="azmina">
+    <sql>UPDATE CLUSTER SET autopauseThreshold = 30 WHERE autopauseThreshold IS NULL</sql>
+</changeSet>
+
+<changeSet id="make autopauseThreshold not null" author="azmina">
+    <addNotNullConstraint columnDataType="INT"
+                          columnName="autopauseThreshold"
+                          tableName="CLUSTER"/>
+</changeSet>
 </databaseChangeLog>
