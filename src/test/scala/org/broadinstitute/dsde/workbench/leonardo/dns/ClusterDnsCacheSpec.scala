@@ -113,20 +113,21 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // maps should be populated
     eventually {
       actorRef.underlyingActor.ProjectNameToHost shouldBe Map(
-        (project, name1) -> ClusterReady(Host(s"${c1.googleId.toString}.jupyter.firecloud.org")),
+        (project, name1) -> ClusterReady(Host(s"${c1.googleId.get.toString}.jupyter.firecloud.org")),
         (project, name2) -> ClusterNotReady,
         (project, name3) -> ClusterPaused
       )
       ClusterDnsCache.HostToIp shouldBe Map(
-        Host(s"${c1.googleId.toString}.jupyter.firecloud.org") -> c1.hostIp.get
+        Host(s"${c1.googleId.get.toString}.jupyter.firecloud.org") -> c1.hostIp.get
       )
     }
 
     // calling GetByProjectAndName should return the correct responses
-    (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.toString}.jupyter.firecloud.org"))
+    (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.get.toString}.jupyter.firecloud.org"))
     (actorRef ? GetByProjectAndName(project, name2)).futureValue shouldBe ClusterNotReady
     (actorRef ? GetByProjectAndName(project, name3)).futureValue shouldBe ClusterPaused
     (actorRef ? GetByProjectAndName(project, ClusterName("bogus"))).futureValue shouldBe ClusterNotFound
+    (actorRef ? GetByProjectAndName(project, name0)).futureValue shouldBe ClusterNotFound
   }
 
   it should "return a ready cluster after a ProcessReadyCluster message" in isolatedDbTest {
@@ -153,14 +154,14 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // the cluster is available in the DNS cache but the other is not
 
-    (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.toString}.jupyter.firecloud.org"))
+    (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.get.toString}.jupyter.firecloud.org"))
     (actorRef ? GetByProjectAndName(project, name2)).futureValue shouldBe ClusterNotFound
     (actorRef ? GetByProjectAndName(project, name3)).futureValue shouldBe ClusterNotFound
 
     // the cycle still eventually populates normally
 
     eventually {
-      (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.toString}.jupyter.firecloud.org"))
+      (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.get.toString}.jupyter.firecloud.org"))
       (actorRef ? GetByProjectAndName(project, name2)).futureValue shouldBe ClusterNotReady
       (actorRef ? GetByProjectAndName(project, name3)).futureValue shouldBe ClusterPaused
     }
@@ -180,18 +181,18 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // the new cluster is available in the DNS cache (as well as the older clusters) but the other is not
 
-    (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.toString}.jupyter.firecloud.org"))
+    (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.get.toString}.jupyter.firecloud.org"))
     (actorRef ? GetByProjectAndName(project, name2)).futureValue shouldBe ClusterNotReady
-    (actorRef ? GetByProjectAndName(project, newName1)).futureValue shouldBe ClusterReady(Host(s"${newC1.googleId.toString}.jupyter.firecloud.org"))
+    (actorRef ? GetByProjectAndName(project, newName1)).futureValue shouldBe ClusterReady(Host(s"${newC1.googleId.get.toString}.jupyter.firecloud.org"))
     (actorRef ? GetByProjectAndName(project, newName2)).futureValue shouldBe ClusterNotFound
 
     // the cycle still eventually populates normally
 
     eventually {
-      (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.toString}.jupyter.firecloud.org"))
+      (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.get.toString}.jupyter.firecloud.org"))
       (actorRef ? GetByProjectAndName(project, name2)).futureValue shouldBe ClusterNotReady
-      (actorRef ? GetByProjectAndName(project, newName1)).futureValue shouldBe ClusterReady(Host(s"${newC1.googleId.toString}.jupyter.firecloud.org"))
-      (actorRef ? GetByProjectAndName(project, newName2)).futureValue shouldBe ClusterReady(Host(s"${newC2.googleId.toString}.jupyter.firecloud.org"))
+      (actorRef ? GetByProjectAndName(project, newName1)).futureValue shouldBe ClusterReady(Host(s"${newC1.googleId.get.toString}.jupyter.firecloud.org"))
+      (actorRef ? GetByProjectAndName(project, newName2)).futureValue shouldBe ClusterReady(Host(s"${newC2.googleId.get.toString}.jupyter.firecloud.org"))
     }
 
   }

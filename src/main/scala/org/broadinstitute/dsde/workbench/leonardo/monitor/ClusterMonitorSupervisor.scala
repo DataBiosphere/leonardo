@@ -53,6 +53,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
   }
   override def receive: Receive = {
     case RegisterLeoService(service) =>
+      println(s"***Supervisor received ScheduleMonitorPass***")
       leoService = service
 
     case ClusterCreated(cluster, stopAfterCreate) =>
