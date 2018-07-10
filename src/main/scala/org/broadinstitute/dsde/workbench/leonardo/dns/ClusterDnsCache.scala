@@ -74,9 +74,6 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
       sender ! processReadyCluster(cluster)
 
     case GetByProjectAndName(googleProject, clusterName) =>
-      println(s"*** ClusterDnsCache.GetByProjectAndName...ProjectNameToHost = $ProjectNameToHost ***")
-      println(s"*** ClusterDnsCache.GetByProjectAndName...googleProject = $googleProject; clusterName = $clusterName ***")
-      println(s"*** ClusterDnsCache.GetByProjectAndName...map query result = ${ProjectNameToHost.getOrElse((googleProject, clusterName), ClusterNotFound)} ***")
       sender ! ProjectNameToHost.getOrElse((googleProject, clusterName), ClusterNotFound)
   }
 

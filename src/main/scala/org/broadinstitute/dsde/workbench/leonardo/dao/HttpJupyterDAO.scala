@@ -21,7 +21,6 @@ class HttpJupyterDAO(val clusterDnsCache: ActorRef)(implicit system: ActorSystem
     getTargetHost(googleProject, clusterName) flatMap {
       case ClusterReady(targetHost) =>
         val statusUri = Uri(s"https://${targetHost.toString}/notebooks/$googleProject/$clusterName/api/status")
-        println(s"*** getStatus()...statusUri = $statusUri ***")
         http.singleRequest(HttpRequest(uri = statusUri)) map { response =>
           response.status.isSuccess
         }

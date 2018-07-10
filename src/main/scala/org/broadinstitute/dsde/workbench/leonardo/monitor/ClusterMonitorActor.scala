@@ -77,35 +77,27 @@ class ClusterMonitorActor(val cluster: Cluster,
 
   override def receive: Receive = {
     case ScheduleMonitorPass =>
-      println(s"*** Actor received ScheduleMonitorPass for cluster ${cluster.clusterName} with ID ${cluster.id}. ***")
       scheduleNextMonitorPass
 
     case QueryForCluster =>
-      println(s"*** Actor received QueryForCluster for cluster ${cluster.clusterName} with ID ${cluster.id}. ***")
       checkCluster pipeTo self
 
     case NotReadyCluster(status, instances) =>
-      println(s"*** Actor received NotReadyCluster for cluster ${cluster.clusterName} with ID ${cluster.id}. ***")
       handleNotReadyCluster(status, instances) pipeTo self
 
     case ReadyCluster(ip, instances) =>
-      println(s"*** Actor received ReadyCluster for cluster ${cluster.clusterName} with ID ${cluster.id}. ***")
       handleReadyCluster(ip, instances) pipeTo self
 
     case FailedCluster(errorDetails, instances) =>
-      println(s"*** Actor received FailedCluster for cluster ${cluster.clusterName} with ID ${cluster.id}. ***")
       handleFailedCluster(errorDetails, instances) pipeTo self
 
     case DeletedCluster =>
-      println(s"*** Actor received DeletedCluster for cluster ${cluster.clusterName} with ID ${cluster.id}. ***")
       handleDeletedCluster pipeTo self
 
     case StoppedCluster(instances) =>
-      println(s"*** Actor received StoppedCluster for cluster ${cluster.clusterName} with ID ${cluster.id}. ***")
       handleStoppedCluster(instances) pipeTo self
 
     case ShutdownActor(notifyParentMsg) =>
-      println(s"*** Actor received ShutdownActor for cluster ${cluster.clusterName} with ID ${cluster.id}. ***")
       notifyParentMsg.foreach(msg => parent ! msg)
       stop(self)
 
@@ -144,7 +136,6 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ShutdownActor
     */
   private def handleReadyCluster(publicIp: IP, instances: Set[Instance]): Future[ClusterMonitorMessage] = {
-    println(s"*** handleReadyCluster() starting for-comprehension ***")
     for {
       clusterStatus <- getDbClusterStatus
       // Remove credentials from instance metadata.
@@ -156,7 +147,6 @@ class ClusterMonitorActor(val cluster: Cluster,
       _ <- persistInstances(instances)
       // update DB after auth futures finish
       _ <- dbRef.inTransaction { dataAccess =>
-        println(s"***handleReadyCluster() right before calling setToRunning() ***")
         dataAccess.clusterQuery.setToRunning(cluster.id, publicIp)
       }
       // Remove the Dataproc Worker IAM role for the cluster service account.
@@ -270,7 +260,6 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ClusterMonitorMessage
     */
   private def checkCluster: Future[ClusterMonitorMessage] = {
-    println(s"*** checkCluster()...starting for-comprehension ***")
     for {
       clusterStatus <- getDbClusterStatus
 
@@ -281,12 +270,6 @@ class ClusterMonitorActor(val cluster: Cluster,
       runningInstanceCount = googleInstances.count(_.status == InstanceStatus.Running)
       stoppedInstanceCount = googleInstances.count(i => i.status == InstanceStatus.Stopped || i.status == InstanceStatus.Terminated)
 
-      dummy1 = println(s"*** checkCluster()...googleStatus = $googleStatus ***")
-      dummy2 = println(s"*** checkCluster()...clusterStatus = $clusterStatus ***")
-      dummy3 = println(s"*** checkCluster()...numGoogleInstances = ${googleInstances.size} ***")
-      dummy4 = println(s"*** checkCluster()...runningInstanceCount = $runningInstanceCount ***")
-      dummy5 = println(s"*** checkCluster()...stoppedInstanceCount = $stoppedInstanceCount ***")
-
       result <- googleStatus match {
         case Unknown | Creating | Updating =>
           Future.successful(NotReadyCluster(googleStatus, googleInstances))
@@ -296,10 +279,9 @@ class ClusterMonitorActor(val cluster: Cluster,
             case Some(ip) => ReadyCluster(ip, googleInstances)
             case None => NotReadyCluster(ClusterStatus.Running, googleInstances)
           }
-        case Running if clusterStatus == Starting && runningInstanceCount== googleInstances.size =>
+        case Running if clusterStatus == Starting && runningInstanceCount == googleInstances.size =>
           getMasterIp.flatMap {
             case Some(ip) =>
-              println(s"*** checkCluster()...ip = $ip ***")
               isProxyAvailable(clusterStatus, ip).map {
                 case true =>  ReadyCluster(ip, googleInstances)
                 case false => NotReadyCluster(ClusterStatus.Running, googleInstances)
@@ -318,18 +300,13 @@ class ClusterMonitorActor(val cluster: Cluster,
           Future.successful(StoppedCluster(googleInstances))
         case _ => Future.successful(NotReadyCluster(googleStatus, googleInstances))
       }
-
-      dummy11 = println(s"*** checkCluster()...result = $result ***")
     } yield result
   }
 
   private def isProxyAvailable(clusterStatus: ClusterStatus, ip: IP): Future[Boolean] = {
-    println(s"*** isProxyAvailable()...starting for-comprehension ***")
     for {
       _ <- ensureClusterReadyForProxying(ip, clusterStatus)
-      dummy1 = println(s"*** isProxyAvailable()...past ensureClusterReadyForProxying() ***")
       proxyAvailable <- jupyterProxyDAO.getStatus(cluster.googleProject, cluster.clusterName)
-      dummy2 = println(s"*** isProxyAvailable()...proxyAvailable = $proxyAvailable ***")
     } yield {
       proxyAvailable
     }
