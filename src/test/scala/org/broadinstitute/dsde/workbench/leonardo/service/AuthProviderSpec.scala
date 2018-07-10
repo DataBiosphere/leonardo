@@ -25,18 +25,17 @@ import org.scalatest.mockito.MockitoSugar
 import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers, OptionValues}
 
 class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers with MockitoSugar with TestComponent with ScalaFutures with OptionValues with GcsPathUtils with TestProxy with BeforeAndAfterAll with CommonTestData{
-
   val clusterName = name1.value
   val googleProject = project.value
 
   val c1 = Cluster(
     clusterName = name1,
-    googleId = UUID.randomUUID(),
+    googleId = Option(UUID.randomUUID()),
     googleProject = project,
     serviceAccountInfo = serviceAccountInfo,
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    operationName = OperationName("op1"),
+    operationName = Option(OperationName("op1")),
     status = ClusterStatus.Unknown,
     hostIp = Some(IP("numbers.and.dots")),
     creator = userEmail,
@@ -46,12 +45,11 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
     jupyterExtensionUri = None,
     jupyterUserScriptUri = None,
     stagingBucket = Some(GcsBucketName("testStagingBucket1")),
-    List.empty,
-    Set.empty,
-    None,
-    Instant.now(),
-    0
-  )
+    errors = List.empty,
+    instances = Set.empty,
+    userJupyterExtensionConfig = None,
+    dateAccessed = Instant.now(),
+    autopauseThreshold = 0)
 
   val routeTest = this
 
@@ -131,7 +129,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
 
       //can't get details on an existing cluster
       //poke a cluster into the database so we actually have something to look for
-      dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), None) }
+      dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) }
 
       val clusterGetResponseException = leo.getActiveClusterDetails(userInfo, c1.googleProject, c1.clusterName).failed.futureValue
       clusterGetResponseException shouldBe a [ClusterNotFoundException]
@@ -167,16 +165,14 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       val proxy = proxyWithAuthProvider(spyProvider)
 
       //poke a cluster into the database so we actually have something to look for
-      dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), None) }
+      dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) }
 
       // status should work for this user
-      val clusterStatus = leo.getActiveClusterDetails(userInfo, project, name1).futureValue
-      clusterStatus shouldBe c1
+      leo.getActiveClusterDetails(userInfo, project, name1).futureValue shouldEqual c1
 
       // list should work for this user
       //list all clusters should be fine, but empty
-      val clusterList = leo.listClusters(userInfo, Map()).futureValue
-      clusterList shouldBe Seq(c1)
+      leo.listClusters(userInfo, Map()).futureValue.toSet shouldEqual Set(c1)
 
       //connect should 401
       val httpRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))

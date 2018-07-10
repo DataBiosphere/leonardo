@@ -21,37 +21,39 @@ import org.scalatest.mockito.MockitoSugar
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.concurrent.Eventually.eventually
 
-class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll with TestComponent with CommonTestData with GcsPathUtils {
-  testKit =>
+class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
+  with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll
+  with TestComponent with CommonTestData with GcsPathUtils { testKit =>
 
   val runningCluster = Cluster(
     clusterName = name1,
-    googleId = UUID.randomUUID(),
+    googleId = Option(UUID.randomUUID()),
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
     machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    operationName = OperationName("op1"),
+    operationName = Option(OperationName("op1")),
     status = ClusterStatus.Running,
     hostIp = None,
     creator = userEmail,
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"),
-    None,
-    None,
-    Some(GcsBucketName("testStagingBucket1")),
-    List.empty,
-    Set.empty,
-    Some(userExtConfig),
-    Instant.now(),
-    0
+    jupyterExtensionUri = None,
+    jupyterUserScriptUri = None,
+    stagingBucket = Some(GcsBucketName("testStagingBucket1")),
+    errors = List.empty,
+    instances = Set.empty,
+    userJupyterExtensionConfig = Some(userExtConfig),
+    dateAccessed = Instant.now(),
+    autopauseThreshold = 0
   )
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
     super.afterAll()
   }
+
   //TODO: Remove ignore once auto freeze is enabled
   "ClusterSupervisorMonitor" should "auto freeze the cluster" ignore isolatedDbTest {
 
@@ -72,19 +74,18 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest")) with Fl
     }
 
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
-    dbFutureValue {
-      _.clusterQuery.save(runningCluster, gcsPath("gs://bucket"), Some(serviceAccountKey.id))
-    } shouldEqual runningCluster
+    val savedRunningCluster = dbFutureValue { _.clusterQuery.save(runningCluster, Option(gcsPath("gs://bucket")), Some(serviceAccountKey.id)) }
+
+    savedRunningCluster shouldEqual runningCluster
+
     val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO, computeDAO, iamDAO, storageDAO,
       DbSingleton.ref, system.deadLetters, authProvider, autoFreezeConfig, jupyterProxyDAO))
+
     new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, clusterSupervisorActor, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper)
 
     eventually(timeout(Span(30, Seconds))) {
-      val c1 = dbFutureValue {
-        _.clusterQuery.getByGoogleId(runningCluster.googleId)
-      }
-      c1.map(_.status).get shouldBe ClusterStatus.Stopping
+      val c1 = dbFutureValue { _.clusterQuery.getClusterById(savedRunningCluster.id) }
+      c1.map(_.status) shouldBe Some(ClusterStatus.Stopping)
     }
   }
-
 }

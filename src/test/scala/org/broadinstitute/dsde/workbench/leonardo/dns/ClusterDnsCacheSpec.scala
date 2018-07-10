@@ -8,6 +8,7 @@ import akka.http.scaladsl.model.Uri.Host
 import akka.pattern.ask
 import akka.testkit.{TestActorRef, TestKit}
 import akka.util.Timeout
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
@@ -33,12 +34,12 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   val c1 = Cluster(
     clusterName = name1,
-    googleId = UUID.randomUUID(),
+    googleId = Option(UUID.randomUUID()),
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    operationName = OperationName("op1"),
+    operationName = Option(OperationName("op1")),
     status = ClusterStatus.Unknown,
     hostIp = Some(IP("numbers.and.dots")),
     creator = userEmail,
@@ -47,61 +48,58 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     labels = Map("bam" -> "yes", "vcf" -> "no"),
     jupyterExtensionUri = Some(jupyterExtensionUri),
     jupyterUserScriptUri = Some(jupyterUserScriptUri),
-    Some(GcsBucketName("testStagingBucket1")),
-    List.empty,
-    Set.empty,
-    None,
-    Instant.now(),
-    0
-  )
+    stagingBucket = Some(GcsBucketName("testStagingBucket1")),
+    errors = List.empty,
+    instances = Set.empty,
+    userJupyterExtensionConfig = None,
+    dateAccessed = Instant.now(),
+    autopauseThreshold = 0)
 
   val c2 = Cluster(
     clusterName = name2,
-    googleId = UUID.randomUUID(),
+    googleId = Option(UUID.randomUUID()),
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
-    operationName = OperationName("op2"),
+    operationName = Option(OperationName("op2")),
     status = ClusterStatus.Creating,
     hostIp = None,
     creator = userEmail,
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = Map.empty,
-    None,
-    None,
-    Some(GcsBucketName("testStagingBucket2")),
-    List.empty,
-    Set.empty,
-    None,
-    Instant.now(),
-    0
-  )
+    jupyterExtensionUri = None,
+    jupyterUserScriptUri = None,
+    stagingBucket = Some(GcsBucketName("testStagingBucket2")),
+    errors = List.empty,
+    instances = Set.empty,
+    userJupyterExtensionConfig = None,
+    dateAccessed = Instant.now(),
+    autopauseThreshold = 0)
 
   val c3 = Cluster(
     clusterName = name3,
-    googleId = UUID.randomUUID(),
+    googleId = Option(UUID.randomUUID()),
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name3, clusterUrlBase),
-    operationName = OperationName("op3"),
+    operationName = Option(OperationName("op3")),
     status = ClusterStatus.Stopping,
     hostIp = None,
     creator = userEmail,
     createdDate = Instant.now(),
     destroyedDate = None,
     labels = Map.empty,
-    None,
-    None,
-    Some(GcsBucketName("testStagingBucket3")),
-    List.empty,
-    Set.empty,
-    None,
-    Instant.now(),
-    0
-  )
+    jupyterExtensionUri = None,
+    jupyterUserScriptUri = None,
+    stagingBucket = Some(GcsBucketName("testStagingBucket3")),
+    errors = List.empty,
+    instances = Set.empty,
+    userJupyterExtensionConfig = None,
+    dateAccessed = Instant.now(),
+    autopauseThreshold = 0)
 
   it should "update maps and return clusters" in isolatedDbTest {
     val actorRef = TestActorRef[ClusterDnsCache](ClusterDnsCache.props(proxyConfig, DbSingleton.ref))
@@ -111,27 +109,28 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     ClusterDnsCache.HostToIp = Map.empty
 
     // save the clusters to the db
-    dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1
-    dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id)) } shouldEqual c2
-    dbFutureValue { _.clusterQuery.save(c3, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } shouldEqual c3
+    dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual c1
+    dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) } shouldEqual c2
+    dbFutureValue { _.clusterQuery.save(c3, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldEqual c3
 
     // maps should be populated
     eventually {
       actorRef.underlyingActor.ProjectNameToHost shouldBe Map(
-        (project, name1) -> ClusterReady(Host(s"${c1.googleId.toString}.jupyter.firecloud.org")),
+        (project, name1) -> ClusterReady(Host(s"${c1.googleId.get.toString}.jupyter.firecloud.org")),
         (project, name2) -> ClusterNotReady,
         (project, name3) -> ClusterPaused
       )
       ClusterDnsCache.HostToIp shouldBe Map(
-        Host(s"${c1.googleId.toString}.jupyter.firecloud.org") -> c1.hostIp.get
+        Host(s"${c1.googleId.get.toString}.jupyter.firecloud.org") -> c1.hostIp.get
       )
     }
 
     // calling GetByProjectAndName should return the correct responses
-    (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.toString}.jupyter.firecloud.org"))
+    (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.get.toString}.jupyter.firecloud.org"))
     (actorRef ? GetByProjectAndName(project, name2)).futureValue shouldBe ClusterNotReady
     (actorRef ? GetByProjectAndName(project, name3)).futureValue shouldBe ClusterPaused
     (actorRef ? GetByProjectAndName(project, ClusterName("bogus"))).futureValue shouldBe ClusterNotFound
+    (actorRef ? GetByProjectAndName(project, name0)).futureValue shouldBe ClusterNotFound
   }
 
   it should "return a ready cluster after a ProcessReadyCluster message" in isolatedDbTest {
@@ -142,9 +141,9 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     ClusterDnsCache.HostToIp = Map.empty
 
     // save the clusters to the db
-    dbFutureValue { _.clusterQuery.save(c1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual c1
-    dbFutureValue { _.clusterQuery.save(c2, gcsPath("gs://bucket2"), Some(serviceAccountKey.id)) } shouldEqual c2
-    dbFutureValue { _.clusterQuery.save(c3, gcsPath("gs://bucket3"), Some(serviceAccountKey.id)) } shouldEqual c3
+    dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual c1
+    dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) } shouldEqual c2
+    dbFutureValue { _.clusterQuery.save(c3, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldEqual c3
 
     // we have not yet executed a DNS cache refresh cycle
 
@@ -158,26 +157,26 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // the cluster is available in the DNS cache but the other is not
 
-    (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.toString}.jupyter.firecloud.org"))
+    (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.get.toString}.jupyter.firecloud.org"))
     (actorRef ? GetByProjectAndName(project, name2)).futureValue shouldBe ClusterNotFound
     (actorRef ? GetByProjectAndName(project, name3)).futureValue shouldBe ClusterNotFound
 
     // the cycle still eventually populates normally
 
     eventually {
-      (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.toString}.jupyter.firecloud.org"))
+      (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.get.toString}.jupyter.firecloud.org"))
       (actorRef ? GetByProjectAndName(project, name2)).futureValue shouldBe ClusterNotReady
       (actorRef ? GetByProjectAndName(project, name3)).futureValue shouldBe ClusterPaused
     }
 
-    val newname1 = ClusterName("newname1")
-    val newname2 = ClusterName("newname2")
+    val newName1 = ClusterName("newname1")
+    val newName2 = ClusterName("newname2")
 
-    val newC1 = c1.copy(clusterName = newname1, hostIp = Some(IP("a new IP")), googleId = UUID.randomUUID())
-    val newC2 = c2.copy(clusterName = newname2, hostIp = Some(IP("another new IP")), googleId = UUID.randomUUID())
+    val newC1 = c1.copy(clusterName = newName1, hostIp = Some(IP("a new IP")), googleId = Option(UUID.randomUUID()))
+    val newC2 = c2.copy(clusterName = newName2, hostIp = Some(IP("another new IP")), googleId = Option(UUID.randomUUID()))
 
-    dbFutureValue { _.clusterQuery.save(newC1, gcsPath("gs://newbucket1"), Some(serviceAccountKey.id)) } shouldEqual newC1
-    dbFutureValue { _.clusterQuery.save(newC2, gcsPath("gs://newbucket2"), Some(serviceAccountKey.id)) } shouldEqual newC2
+    dbFutureValue { _.clusterQuery.save(newC1, Option(gcsPath("gs://newbucket1")), Some(serviceAccountKey.id)) } shouldEqual newC1
+    dbFutureValue { _.clusterQuery.save(newC2, Option(gcsPath("gs://newbucket2")), Some(serviceAccountKey.id)) } shouldEqual newC2
 
     // add one cluster to cache immediately without waiting for the cycle
 
@@ -185,18 +184,18 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // the new cluster is available in the DNS cache (as well as the older clusters) but the other is not
 
-    (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.toString}.jupyter.firecloud.org"))
+    (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.get.toString}.jupyter.firecloud.org"))
     (actorRef ? GetByProjectAndName(project, name2)).futureValue shouldBe ClusterNotReady
-    (actorRef ? GetByProjectAndName(project, newname1)).futureValue shouldBe ClusterReady(Host(s"${newC1.googleId.toString}.jupyter.firecloud.org"))
-    (actorRef ? GetByProjectAndName(project, newname2)).futureValue shouldBe ClusterNotFound
+    (actorRef ? GetByProjectAndName(project, newName1)).futureValue shouldBe ClusterReady(Host(s"${newC1.googleId.get.toString}.jupyter.firecloud.org"))
+    (actorRef ? GetByProjectAndName(project, newName2)).futureValue shouldBe ClusterNotFound
 
     // the cycle still eventually populates normally
 
     eventually {
-      (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.toString}.jupyter.firecloud.org"))
+      (actorRef ? GetByProjectAndName(project, name1)).futureValue shouldBe ClusterReady(Host(s"${c1.googleId.get.toString}.jupyter.firecloud.org"))
       (actorRef ? GetByProjectAndName(project, name2)).futureValue shouldBe ClusterNotReady
-      (actorRef ? GetByProjectAndName(project, newname1)).futureValue shouldBe ClusterReady(Host(s"${newC1.googleId.toString}.jupyter.firecloud.org"))
-      (actorRef ? GetByProjectAndName(project, newname2)).futureValue shouldBe ClusterReady(Host(s"${newC2.googleId.toString}.jupyter.firecloud.org"))
+      (actorRef ? GetByProjectAndName(project, newName1)).futureValue shouldBe ClusterReady(Host(s"${newC1.googleId.get.toString}.jupyter.firecloud.org"))
+      (actorRef ? GetByProjectAndName(project, newName2)).futureValue shouldBe ClusterReady(Host(s"${newC2.googleId.get.toString}.jupyter.firecloud.org"))
     }
 
   }

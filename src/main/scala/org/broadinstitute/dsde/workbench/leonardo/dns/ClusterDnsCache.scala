@@ -74,20 +74,26 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
       sender ! processReadyCluster(cluster)
 
     case GetByProjectAndName(googleProject, clusterName) =>
-      sender ! ProjectNameToHost.get((googleProject, clusterName)).getOrElse(ClusterNotFound)
+      sender ! ProjectNameToHost.getOrElse((googleProject, clusterName), ClusterNotFound)
   }
 
-  def scheduleRefresh = {
+  private def scheduleRefresh = {
     context.system.scheduler.scheduleOnce(proxyConfig.dnsPollPeriod, self, RefreshFromDatabase)
   }
 
-  def queryForClusters: Future[ProcessClusters] ={
+  private def queryForClusters: Future[ProcessClusters] ={
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.listActive()
     }.map(ProcessClusters.apply)
   }
 
-  private def host(c: Cluster): Host = Host(c.googleId.toString + proxyConfig.jupyterDomain)
+  private def host(c: Cluster): Host = {
+    val googleId = c.googleId
+    val assumption = s"Google ID for Google project/cluster ${c.googleProject}/${c.clusterName} must not be undefined."
+    assert(googleId.isDefined, assumption)
+
+    Host(googleId.get.toString + proxyConfig.jupyterDomain)
+  }
 
   private def hostToIpEntry(c: Cluster): (Host, IP) = host(c) -> c.hostIp.get
 
@@ -100,7 +106,7 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
       (c.googleProject, c.clusterName) -> ClusterNotReady
   }
 
-  def processClusters(clusters: Seq[Cluster]): Unit = {
+  private def processClusters(clusters: Seq[Cluster]): Unit = {
     // Only populate the HostToIp map for clusters with an IP address
     val clustersWithIp = clusters.filter(_.hostIp.isDefined)
     ClusterDnsCache.HostToIp = clustersWithIp.map(hostToIpEntry).toMap
@@ -111,7 +117,7 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
     logger.debug(s"Saved ${clusters.size} clusters to DNS cache, ${clustersWithIp.size} with IPs")
   }
 
-  def processReadyCluster(cluster: Cluster): Either[Throwable, GetClusterResponse] = {
+  private def processReadyCluster(cluster: Cluster): Either[Throwable, GetClusterResponse] = {
     if (cluster.hostIp.isEmpty) {
       Left(ClusterNotReadyException(cluster.googleProject, cluster.clusterName))
     } else {

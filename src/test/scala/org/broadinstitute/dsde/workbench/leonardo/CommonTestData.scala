@@ -24,6 +24,7 @@ import scala.concurrent.duration._
 // values common to multiple tests, to reduce boilerplate
 
 trait CommonTestData { this: ScalaFutures =>
+  val name0 = ClusterName("name0")
   val name1 = ClusterName("name1")
   val name2 = ClusterName("name2")
   val name3 = ClusterName("name3")
@@ -71,14 +72,15 @@ trait CommonTestData { this: ScalaFutures =>
   val tokenCookie = HttpCookiePair(tokenName, tokenValue)
 
   val serviceAccountInfo = new ServiceAccountInfo(Option(WorkbenchEmail("testServiceAccount1@example.com")), Option(WorkbenchEmail("testServiceAccount2@example.com")))
+
   val testCluster = new Cluster(
     clusterName = name1,
-    googleId =  UUID.randomUUID(),
+    googleId =  Option(UUID.randomUUID()),
     googleProject = project,
     serviceAccountInfo = serviceAccountInfo,
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    operationName = OperationName("op"),
+    operationName = Option(OperationName("op")),
     status = ClusterStatus.Unknown,
     hostIp = None,
     creator = userEmail,
@@ -93,7 +95,6 @@ trait CommonTestData { this: ScalaFutures =>
     userJupyterExtensionConfig = None,
     dateAccessed = Instant.now(),
     if (autopause) autopauseThreshold else 0)
-
 
   // TODO look into parameterized tests so both provider impls can both be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData
