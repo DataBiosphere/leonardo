@@ -80,7 +80,7 @@ trait ClusterComponent extends LeoComponent {
     def serviceAccountKeyId =         column[Option[String]]    ("serviceAccountKeyId",   O.Length(254))
     def stagingBucket =               column[Option[String]]    ("stagingBucket",         O.Length(254))
     def dateAccessed =                column[Timestamp]         ("dateAccessed",          O.SqlType("TIMESTAMP(6)"))
-    def autopauseThreshold =                  column[Int]             ("autopauseThreshold")
+    def autopauseThreshold =          column[Int]               ("autopauseThreshold")
 
     def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName), unique = true)
 
@@ -258,20 +258,11 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-//    def getClustersReadyToAutoFreeze(): DBIO[Seq[Cluster]] = {
-//      val now = SimpleLiteral[Timestamp]("NOW")
-//      val tsdiff = SimpleFunction.ternary[TimeUnit, Timestamp, Timestamp, Long]("TIMESTAMPDIFF")
-//      val minute = SimpleLiteral[TimeUnit]("MINUTES")
-//
-//      clusterQueryWithInstancesAndErrorsAndLabels
-//        .filter(record => tsdiff(minute, now, record._1.dateAccessed) > record._1.autopauseThreshold)
-//        .filter(_._1.status inSetBind ClusterStatus.stoppableStatuses.map(_.toString)).result map { recs => unmarshalClustersWithInstancesAndLabels(recs)}
-//    }
+
     def getClustersReadyToAutoFreeze(): DBIO[Seq[Cluster]] = {
       val now = SimpleFunction.nullary[Timestamp]("NOW")
       val tsdiff = SimpleFunction.ternary[String, Timestamp, Timestamp, Int]("TIMESTAMPDIFF")
       val MINUTE = SimpleLiteral[String]("MINUTE")
-
 
       clusterQueryWithInstancesAndErrorsAndLabels
         .filter { record => tsdiff(MINUTE, record._1.dateAccessed, now) >= record._1.autopauseThreshold}
@@ -285,7 +276,7 @@ trait ClusterComponent extends LeoComponent {
         clusterStatusQuery
       } else {
         // The trick is to find all clusters that have _at least_ all the labels in labelMap.
-        // In other words, for a given cluster, the labels provided in the query strincg must be
+        // In other words, for a given cluster, the labels provided in the query string must be
         // a subset of its labels in the DB. The following SQL achieves this:
         //
         // select c.*, l.*

@@ -92,7 +92,7 @@ package object config {
     AutoFreezeConfig(
       config.getBoolean("enableAutoFreeze"),
       toScalaDuration(config.getDuration("dateAccessedMonitorScheduler")),
-      config.getInt("autoFreezeAfter"),
+      toScalaDuration(config.getDuration("autoFreezeAfter")),
       toScalaDuration(config.getDuration("autoFreezeCheckScheduler"))
     )
 
