@@ -22,7 +22,6 @@ fi
 build() {
     echo "building jupyter docker image..."
     $DOCKER_BINARY build -t "${DOCKER_REPOSITORY}/leonardo-notebooks:${LEO_BRANCH}" .
-
 }
 
 push() {
