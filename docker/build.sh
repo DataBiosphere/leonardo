@@ -217,7 +217,7 @@ function docker_cmd()
             bash ./jupyter-docker/build.sh push "${NOTEBOOK_REPO}" "${GIT_BRANCH}" "${HASH_TAG}"
             # push the UI docker image.
             if $BUILD_UI; then
-              bash ./ui/build.sh push "${NOTEBOOK_REPO}" "${GIT_BRANCH}"
+              bash ./ui/build.sh push "${NOTEBOOK_REPO}" "${GIT_BRANCH}" "${HASH_TAG}"
             fi
         fi
     else

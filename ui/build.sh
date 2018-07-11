@@ -9,7 +9,8 @@ cd "$(dirname "${0}")"
 # Get command line options.
 JUPYTER_COMMAND="${1}"
 DOCKER_REPOSITORY="${2}"
-JUPYTER_TAG="${3}"
+BRANCH_TAG="${3}"
+HASH_TAG="${4}"
 
 # Set up docker binary - use gcloud docker if pushing to gcr.
 DOCKER_BINARY="docker"
@@ -29,14 +30,15 @@ build_static_app() {
 
 create_docker_image() {
     $DOCKER_BINARY build \
-        --tag "${DOCKER_REPOSITORY}/leonardo-ui:${JUPYTER_TAG}" \
+        --tag "${DOCKER_REPOSITORY}/leonardo-ui:${BRANCH_TAG}" \
         --file ./Dockerfile \
         .
 }
 
 push() {
     echo "pushing jupyter docker image..."
-    $DOCKER_BINARY push "${DOCKER_REPOSITORY}/leonardo-ui:${JUPYTER_TAG}"
+    $DOCKER_BINARY push "${DOCKER_REPOSITORY}/leonardo-ui:${BRANCH_TAG}"
+    $DOCKER_BINARY tag "${DOCKER_REPOSITORY}/leonardo-ui:${BRANCH_TAG}" "${DOCKER_REPOSITORY}/leonardo-ui:${HASH_TAG}"
 }
 
 echo "${JUPYTER_COMMAND}ing the jupyter docker image"
