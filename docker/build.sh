@@ -205,7 +205,7 @@ function docker_cmd()
         docker build -t "${IMAGE}:${DOCKER_TAG}" .
         cd automation
         echo "building $TESTS_IMAGE docker image..."
-        docker build -f Dockerfile-tests -t "${TESTS_IMAGE}:${DOCKER_TAG}" .
+        docker build -f Dockerfile-tests -t "${TESTS_IMAGE}:${DOCKER_TAG_TESTS}" .
         cd ..
 
         if [ $DOCKER_CMD = "push" ]; then
