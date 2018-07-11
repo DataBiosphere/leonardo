@@ -227,7 +227,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
                 val nbExt = notebookPage.executeCell("! jupyter nbextension list")
                 nbExt.get should include("jupyter-gmaps/extension  enabled")
                 nbExt.get should include("pizzabutton/index  enabled")
-                nbExt.get should include("my_ext/main  enabled")
+                nbExt.get should include("translate_nbextension/main  enabled")
                 val serverExt = notebookPage.executeCell("! jupyter serverextension list")
                 serverExt.get should include("pizzabutton  enabled")
                 serverExt.get should include("jupyterlab  enabled")
