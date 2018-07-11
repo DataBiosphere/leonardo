@@ -55,12 +55,6 @@ Once you're done, tear down MySQL.
 ./docker/run-mysql.sh stop leonardo
 ```
 
-### Run Leonardo locally
-This will start leonardo and the database locally and shut them down when it exits. You should be able to access swagger at https://local.broadinstitue.org:30443, but you need to allow it to be unsecured.
-```
-./config/docker-rsync-local-leonardo.sh
-```
-
 ## Building Leonardo docker image
 
 To install git-secrets
