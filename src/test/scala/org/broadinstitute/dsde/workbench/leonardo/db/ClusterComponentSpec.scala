@@ -46,6 +46,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       userJupyterExtensionConfig = Some(userExtConfig),
       dateAccessed = dateAccessed,
       autopauseThreshold = if (autopause) autopauseThreshold else 0
+
     )
 
     val c1WithErr = Cluster(
@@ -70,6 +71,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       userJupyterExtensionConfig = Some(userExtConfig),
       dateAccessed = dateAccessed,
       autopauseThreshold = if (autopause) autopauseThreshold else 0
+
     )
 
     val c2 = Cluster(
@@ -94,6 +96,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       userJupyterExtensionConfig = None,
       dateAccessed = dateAccessed,
       autopauseThreshold = if (autopause) autopauseThreshold else 0
+
     )
 
     val c3 = Cluster(
@@ -117,8 +120,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       instances = Set.empty,
       userJupyterExtensionConfig = None,
       dateAccessed = dateAccessed,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0
-    )
+      autopauseThreshold = if (autopause) autopauseThreshold else 0)
 
     val savedC1 = dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) }
     savedC1 shouldEqual c1
@@ -179,6 +181,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
     dbFailure { _.clusterQuery.save(c4, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
 
+
     dbFutureValue { _.clusterQuery.markPendingDeletion(savedC1.id) } shouldEqual 1
     dbFutureValue { _.clusterQuery.listActive() } should contain theSameElementsAs Seq(c2, c3)
 
@@ -226,6 +229,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       userJupyterExtensionConfig = None,
       dateAccessed = Instant.now(),
       autopauseThreshold = if (autopause) autopauseThreshold else 0)
+
 
     val c2 = Cluster(
       clusterName = name2,
@@ -296,6 +300,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
   it should "stop and start a cluster" in isolatedDbTest {
     val dateAccessed = Instant.now()
+
     val initialCluster =
       Cluster(
         clusterName = name1,
@@ -343,6 +348,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
   }
 
   it should "merge instances" in isolatedDbTest {
+
     val c1 =
       Cluster(
         clusterName = name1,
@@ -418,8 +424,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       clusterName = name2,
       googleId = Option(UUID.randomUUID()),
       googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
-      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
+      serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
+      machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
       operationName = Option(OperationName("op2")),
       status = ClusterStatus.Stopped,

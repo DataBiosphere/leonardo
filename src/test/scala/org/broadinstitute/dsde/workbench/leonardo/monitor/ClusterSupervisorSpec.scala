@@ -55,7 +55,7 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
   }
 
   //TODO: Remove ignore once auto freeze is enabled
-  "ClusterSupervisorMonitor" should "auto freeze the cluster" in isolatedDbTest {
+  "ClusterSupervisorMonitor" should "auto freeze the cluster" ignore isolatedDbTest {
 
     val gdDAO = mock[GoogleDataprocDAO]
 
@@ -80,7 +80,6 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
 
     val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO, computeDAO, iamDAO, storageDAO,
       DbSingleton.ref, system.deadLetters, authProvider, autoFreezeConfig, jupyterProxyDAO))
-
     new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, clusterSupervisorActor, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper)
 
     eventually(timeout(Span(30, Seconds))) {

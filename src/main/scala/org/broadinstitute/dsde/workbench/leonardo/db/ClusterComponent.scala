@@ -13,6 +13,8 @@ import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, G
 
 import java.util.concurrent.TimeUnit
 
+import scala.concurrent.duration.FiniteDuration
+
 import scala.concurrent.duration._
 
 case class ClusterRecord(id: Long,
@@ -34,6 +36,7 @@ case class ClusterRecord(id: Long,
                          dateAccessed: Timestamp,
                          autopauseThreshold: Int
                         )
+
 
 case class MachineConfigRecord(numberOfWorkers: Int,
                                masterMachineType: String,
@@ -399,6 +402,7 @@ trait ClusterComponent extends LeoComponent {
       val serviceAccountInfo = ServiceAccountInfo(
         clusterRecord.serviceAccountInfo.clusterServiceAccount.map(WorkbenchEmail),
         clusterRecord.serviceAccountInfo.notebookServiceAccount.map(WorkbenchEmail))
+
 
       Cluster(
         clusterRecord.id,

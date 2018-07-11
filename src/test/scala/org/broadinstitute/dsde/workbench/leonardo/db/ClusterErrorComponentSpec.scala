@@ -37,6 +37,7 @@ class ClusterErrorComponentSpec extends TestComponent with FlatSpecLike with Com
       dateAccessed = Instant.now(),
       autopauseThreshold = 30)
 
+
     lazy val timestamp = Instant.now().truncatedTo(ChronoUnit.SECONDS)
     val clusterError = ClusterError("Some Error", 10, timestamp)
 
