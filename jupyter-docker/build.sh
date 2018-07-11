@@ -12,9 +12,6 @@ DOCKER_REPOSITORY="${2}"
 LEO_BRANCH="${3}"
 HASH_TAG="${4}"
 
-echo $LEO_BRANCH
-echo $HASH_TAG
-
 
 # Set up docker binary - use gcloud docker if pushing to gcr.
 DOCKER_BINARY="docker"
@@ -31,7 +28,7 @@ build() {
 push() {
     echo "pushing jupyter docker image..."
     $DOCKER_BINARY push "${DOCKER_REPOSITORY}/leonardo-notebooks:${LEO_BRANCH}"
-    $DOCKER_BINARY tag "${DOCKER_REPOSITORY}/leonardo-notebooks:${LEO_BRANCH} ${DOCKER_REPOSITORY}/leonardo-notebooks:${HASH_TAG}"
+    $DOCKER_BINARY tag "${DOCKER_REPOSITORY}/leonardo-notebooks:${LEO_BRANCH}" "${DOCKER_REPOSITORY}/leonardo-notebooks:${HASH_TAG}"
     $DOCKER_BINARY push "${DOCKER_REPOSITORY}/leonardo-notebooks:${HASH_TAG}"
 }
 
