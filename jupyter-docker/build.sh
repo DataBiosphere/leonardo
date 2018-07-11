@@ -27,7 +27,7 @@ build() {
 push() {
     echo "pushing jupyter docker image..."
     $DOCKER_BINARY push "${DOCKER_REPOSITORY}/leonardo-notebooks:${LEO_BRANCH}"
-    $DOCKER_BINARY tag "${DOCKER_REPOSITORY}/leonardo-notebooks:${LEO_BRANCH} ${DOCKER_REPOSITORY}/leonardo-notebooks:${HASH_TAG}"
+    docker tag "${DOCKER_REPOSITORY}/leonardo-notebooks:${LEO_BRANCH} ${DOCKER_REPOSITORY}/leonardo-notebooks:${HASH_TAG}"
     $DOCKER_BINARY push "${DOCKER_REPOSITORY}/leonardo-notebooks:${HASH_TAG}"
 }
 
