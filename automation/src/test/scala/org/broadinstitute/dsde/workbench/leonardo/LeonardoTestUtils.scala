@@ -475,6 +475,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   }
 
   def withResourceFileInBucket[T](googleProject: GoogleProject, resourceFile: ResourceFile, objectType: String)(testCode: GcsPath => T)(implicit token: AuthToken): T = {
+    implicit val patienceConfig: PatienceConfig = storagePatience
+
     withNewGoogleBucket(googleProject) { bucketName =>
       // give the user's pet owner access to the bucket
       val petServiceAccount = Sam.user.petServiceAccountEmail(googleProject.value)
