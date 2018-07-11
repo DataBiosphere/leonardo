@@ -9,9 +9,7 @@ cd "$(dirname "${0}")"
 # Get command line options.
 JUPYTER_COMMAND="${1}"
 DOCKER_REPOSITORY="${2}"
-LEO_BRANCH="${3}"
-
-HASH_TAG=$(git rev-parse origin/$LEO_BRANCH)
+JUPYTER_TAG="${3}"
 
 # Set up docker binary - use gcloud docker if pushing to gcr.
 DOCKER_BINARY="docker"
@@ -21,14 +19,12 @@ fi
 
 build() {
     echo "building jupyter docker image..."
-    $DOCKER_BINARY build -t "${DOCKER_REPOSITORY}/leonardo-notebooks:${LEO_BRANCH}" .
+    $DOCKER_BINARY build -t "${DOCKER_REPOSITORY}/leonardo-notebooks:${JUPYTER_TAG}" .
 }
 
 push() {
     echo "pushing jupyter docker image..."
-    $DOCKER_BINARY push "${DOCKER_REPOSITORY}/leonardo-notebooks:${LEO_BRANCH}"
-    $DOCKER_BINARY tag "${DOCKER_REPOSITORY}/leonardo-notebooks:${LEO_BRANCH} ${DOCKER_REPOSITORY}/leonardo-notebooks:${HASH_TAG}"
-    $DOCKER_BINARY push "${DOCKER_REPOSITORY}/leonardo-notebooks:${HASH_TAG}"
+    $DOCKER_BINARY push "${DOCKER_REPOSITORY}/leonardo-notebooks:${JUPYTER_TAG}"
 }
 
 echo "${JUPYTER_COMMAND}ing the jupyter docker image"
