@@ -187,9 +187,15 @@ function docker_cmd()
         echo "building $IMAGE docker image..."
         if [ -n "$DOCKER_TAG" ]; then
             DOCKER_TAG_TESTS="${DOCKER_TAG}-tests"
-        GIT_SHA=$(git rev-parse origin/${GIT_BRANCH})
-        echo GIT_SHA=$GIT_SHA > env.properties
-        HASH_TAG=${GIT_SHA:0:12}
+        elif [ "$ENV" != "dev" ] && [ "$ENV" != "alpha" ] && [ "$ENV" != "staging" ] && [ "$ENV" != "perf" ]; then
+            DOCKER_TAG=${GIT_BRANCH}
+            DOCKER_TAG_TESTS=${GIT_BRANCH}
+        else
+            GIT_SHA=$(git rev-parse origin/${GIT_BRANCH})
+            echo GIT_SHA=$GIT_SHA > env.properties
+            DOCKER_TAG=${GIT_SHA:0:12}
+            DOCKER_TAG_TESTS=${GIT_SHA:0:12}
+        fi
 
         # builds the juptyer notebooks docker image that goes on dataproc clusters
         bash ./jupyter-docker/build.sh build "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
@@ -198,28 +204,22 @@ function docker_cmd()
           bash ./ui/build.sh build "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
         fi
 
-        docker build -t "${IMAGE}:${HASH_TAG}" .
+        docker build -t "${IMAGE}:${DOCKER_TAG}" .
         cd automation
         echo "building $TESTS_IMAGE docker image..."
-        docker build -f Dockerfile-tests -t "${TESTS_IMAGE}:${HASH_TAG}" .
+        docker build -f Dockerfile-tests -t "${TESTS_IMAGE}:${DOCKER_TAG_TESTS}" .
         cd ..
 
         if [ $DOCKER_CMD = "push" ]; then
             echo "pushing $IMAGE docker image..."
-            $DOCKER_REMOTES_BINARY push $IMAGE:${HASH_TAG}
-            $DOCKER_REMOTES_BINARY tag $IMAGE:${HASH_TAG} $IMAGE:${BRANCH}
-            $DOCKER_REMOTES_BINARY push $IMAGE:${BRANCH}
-
+            $DOCKER_REMOTES_BINARY push $IMAGE:${DOCKER_TAG}
             echo "pushing $TESTS_IMAGE docker image..."
             $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${DOCKER_TAG_TESTS}
-            $DOCKER_REMOTES_BINARY tag $TESTS_IMAGE:${HASH_TAG} $TESTS_IMAGE:${BRANCH}
-            $DOCKER_REMOTES_BINARY tag $TESTS_IMAGE:${BRANCH}
-            
             # pushes the juptyer notebooks docker image that goes on dataproc clusters
-            bash ./jupyter-docker/build.sh push "${NOTEBOOK_REPO}" "${BRANCH}"
+            bash ./jupyter-docker/build.sh push "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
             # push the UI docker image.
             if $BUILD_UI; then
-              bash ./ui/build.sh push "${NOTEBOOK_REPO}" "${BRANCH}"
+              bash ./ui/build.sh push "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
             fi
         fi
     else
