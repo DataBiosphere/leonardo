@@ -211,7 +211,7 @@ function docker_cmd()
             echo "pushing $TESTS_IMAGE docker image..."
             $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${HASH_TAG}
             $DOCKER_REMOTES_BINARY tag $TESTS_IMAGE:${HASH_TAG} $TESTS_IMAGE:${GIT_BRANCH}
-            $DOCKER_REMOTES_BINARY tag $TESTS_IMAGE:${GIT_BRANCH}
+            $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${GIT_BRANCH}
             
             # pushes the juptyer notebooks docker image that goes on dataproc clusters
             bash ./jupyter-docker/build.sh push "${NOTEBOOK_REPO}" "${GIT_BRANCH}"
