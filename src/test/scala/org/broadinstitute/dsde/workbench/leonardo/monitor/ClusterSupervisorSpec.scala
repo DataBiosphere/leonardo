@@ -45,7 +45,8 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
     errors = List.empty,
     instances = Set.empty,
     userJupyterExtensionConfig = Some(userExtConfig),
-    dateAccessed = Instant.now()
+    dateAccessed = Instant.now(),
+    autopauseThreshold = 0
   )
 
   override def afterAll(): Unit = {
@@ -78,9 +79,9 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
     savedRunningCluster shouldEqual runningCluster
 
     val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO, computeDAO, iamDAO, storageDAO,
-      DbSingleton.ref, system.deadLetters, authProvider, autoFreezeconfig, jupyterProxyDAO))
+      DbSingleton.ref, system.deadLetters, authProvider, autoFreezeConfig, jupyterProxyDAO))
 
-    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, clusterSupervisorActor, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper)
+    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, clusterSupervisorActor, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper)
 
     eventually(timeout(Span(30, Seconds))) {
       val c1 = dbFutureValue { _.clusterQuery.getClusterById(savedRunningCluster.id) }
