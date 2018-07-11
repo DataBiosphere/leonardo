@@ -214,7 +214,7 @@ function docker_cmd()
             $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${GIT_BRANCH}
             
             # pushes the juptyer notebooks docker image that goes on dataproc clusters
-            bash ./jupyter-docker/build.sh push "${NOTEBOOK_REPO}" "${GIT_BRANCH}"
+            bash ./jupyter-docker/build.sh push "${NOTEBOOK_REPO}" "${GIT_BRANCH}" "${HASH_TAG}"
             # push the UI docker image.
             if $BUILD_UI; then
               bash ./ui/build.sh push "${NOTEBOOK_REPO}" "${GIT_BRANCH}"

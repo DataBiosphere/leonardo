@@ -10,8 +10,8 @@ cd "$(dirname "${0}")"
 JUPYTER_COMMAND="${1}"
 DOCKER_REPOSITORY="${2}"
 LEO_BRANCH="${3}"
+HASH_TAG="${4}"
 
-HASH_TAG=$(git rev-parse origin/$LEO_BRANCH)
 
 # Set up docker binary - use gcloud docker if pushing to gcr.
 DOCKER_BINARY="docker"
