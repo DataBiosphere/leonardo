@@ -185,14 +185,12 @@ function docker_cmd()
 {
     if [ $DOCKER_CMD = "build" ] || [ $DOCKER_CMD = "push" ]; then
         echo "building $IMAGE docker image..."
-        if [ -n "$DOCKER_TAG" ]; then
-            DOCKER_TAG_TESTS="${DOCKER_TAG}-tests"
         GIT_SHA=$(git rev-parse origin/${GIT_BRANCH})
         echo GIT_SHA=$GIT_SHA > env.properties
         HASH_TAG=${GIT_SHA:0:12}
 
         # builds the juptyer notebooks docker image that goes on dataproc clusters
-        bash ./jupyter-docker/build.sh build "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
+        bash ./jupyter-docker/build.sh build "${NOTEBOOK_REPO}" "${BRANCH}"
         # Build the UI if specified.
         if $BUILD_UI; then
           bash ./ui/build.sh build "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
@@ -211,7 +209,7 @@ function docker_cmd()
             $DOCKER_REMOTES_BINARY push $IMAGE:${BRANCH}
 
             echo "pushing $TESTS_IMAGE docker image..."
-            $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${DOCKER_TAG_TESTS}
+            $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${HASH_TAG}
             $DOCKER_REMOTES_BINARY tag $TESTS_IMAGE:${HASH_TAG} $TESTS_IMAGE:${BRANCH}
             $DOCKER_REMOTES_BINARY tag $TESTS_IMAGE:${BRANCH}
             
