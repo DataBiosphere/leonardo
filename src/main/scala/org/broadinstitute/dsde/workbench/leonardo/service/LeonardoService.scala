@@ -9,7 +9,7 @@ import cats.implicits._
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig, AutoFreezeConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
@@ -71,6 +71,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val clusterDefaultsConfig: ClusterDefaultsConfig,
                       protected val proxyConfig: ProxyConfig,
                       protected val swaggerConfig: SwaggerConfig,
+                      protected val autoFreezeConfig: AutoFreezeConfig,
                       protected val gdDAO: GoogleDataprocDAO,
                       protected val googleComputeDAO: GoogleComputeDAO,
                       protected val googleIamDAO: GoogleIamDAO,
@@ -358,9 +359,14 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Create the cluster
       machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
       initScript = GcsPath(initBucket, GcsObjectName(clusterResourcesConfig.initActionsScript.value))
+      autopauseThreshold = clusterRequest.autopause match {
+        case None => autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
+        case Some(false) => 0
+        case _ => if (clusterRequest.autopauseThreshold == None) autoFreezeConfig.autoFreezeAfter.toMinutes.toInt else Math.max(0, clusterRequest.autopauseThreshold.get)
+      }
       credentialsFileName = serviceAccountInfo.notebookServiceAccount.map(_ => s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}")
       cluster <- gdDAO.createCluster(googleProject, clusterName, machineConfig, initScript, serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket).map { operation =>
-        Cluster.create(clusterRequest, userEmail, clusterName, googleProject, operation, serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, stagingBucket)
+        Cluster.create(clusterRequest, userEmail, clusterName, googleProject, operation, serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, stagingBucket, autopauseThreshold)
       }
     } yield (cluster, initBucket, serviceAccountKeyOpt)
 

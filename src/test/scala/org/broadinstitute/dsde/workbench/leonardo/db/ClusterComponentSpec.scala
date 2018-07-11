@@ -14,6 +14,8 @@ import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.scalatest.FlatSpecLike
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.time.{Seconds, Span}
+import scala.concurrent.duration._
+
 
 class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils {
   "ClusterComponent" should "list, save, get, and delete" in isolatedDbTest {
@@ -42,7 +44,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List.empty,
       instances = Set(masterInstance, workerInstance1, workerInstance2),
       userJupyterExtensionConfig = Some(userExtConfig),
-      dateAccessed = dateAccessed
+      dateAccessed = dateAccessed,
+      autopauseThreshold = if (autopause) autopauseThreshold else 0
+
     )
 
     val c1WithErr = Cluster(
@@ -65,7 +69,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List(err1),
       instances = Set(masterInstance, workerInstance1, workerInstance2),
       userJupyterExtensionConfig = Some(userExtConfig),
-      dateAccessed = dateAccessed
+      dateAccessed = dateAccessed,
+      autopauseThreshold = if (autopause) autopauseThreshold else 0
+
     )
 
     val c2 = Cluster(
@@ -88,7 +94,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      dateAccessed = dateAccessed
+      dateAccessed = dateAccessed,
+      autopauseThreshold = if (autopause) autopauseThreshold else 0
+
     )
 
     val c3 = Cluster(
@@ -111,8 +119,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      dateAccessed = dateAccessed
-    )
+      dateAccessed = dateAccessed,
+      autopauseThreshold = if (autopause) autopauseThreshold else 0)
 
     val savedC1 = dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) }
     savedC1 shouldEqual c1
@@ -168,9 +176,11 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      dateAccessed = Instant.now())
+      dateAccessed = Instant.now(),
+      autopauseThreshold = if (autopause) autopauseThreshold else 0)
 
     dbFailure { _.clusterQuery.save(c4, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
+
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(savedC1.id) } shouldEqual 1
     dbFutureValue { _.clusterQuery.listActive() } should contain theSameElementsAs Seq(c2, c3)
@@ -217,7 +227,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      dateAccessed = Instant.now())
+      dateAccessed = Instant.now(),
+      autopauseThreshold = if (autopause) autopauseThreshold else 0)
+
 
     val c2 = Cluster(
       clusterName = name2,
@@ -239,7 +251,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      dateAccessed = Instant.now())
+      dateAccessed = Instant.now(),
+      autopauseThreshold = if (autopause) autopauseThreshold else 0)
 
     val c3 = Cluster(
       clusterName = name3,
@@ -261,7 +274,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      dateAccessed = Instant.now())
+      dateAccessed = Instant.now(),
+      autopauseThreshold = if (autopause) autopauseThreshold else 0)
 
     dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual c1
     dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) } shouldEqual c2
@@ -286,6 +300,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
   it should "stop and start a cluster" in isolatedDbTest {
     val dateAccessed = Instant.now()
+
     val initialCluster =
       Cluster(
         clusterName = name1,
@@ -307,7 +322,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
         errors = List.empty,
         instances = Set(masterInstance, workerInstance1, workerInstance2),
         userJupyterExtensionConfig = None,
-        dateAccessed = dateAccessed)
+        dateAccessed = dateAccessed,
+        autopauseThreshold = if (autopause) autopauseThreshold else 0)
 
     val savedInitialCluster = dbFutureValue { _.clusterQuery.save(initialCluster, Option(gcsPath( "gs://bucket1")), Some(serviceAccountKey.id)) }
     savedInitialCluster shouldEqual initialCluster
@@ -332,6 +348,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
   }
 
   it should "merge instances" in isolatedDbTest {
+
     val c1 =
       Cluster(
         clusterName = name1,
@@ -353,7 +370,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
         errors = List.empty,
         instances = Set(masterInstance),
         userJupyterExtensionConfig = None,
-        dateAccessed = Instant.now())
+        dateAccessed = Instant.now(),
+        autopauseThreshold = if (autopause) autopauseThreshold else 0)
 
     val savedC1 = dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) }
     savedC1 shouldEqual c1
@@ -379,7 +397,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
   }
 
   it should "get list of clusters to auto freeze" in isolatedDbTest {
-    val runningCluster = Cluster(
+    val runningCluster1 = Cluster(
       clusterName = name1,
       googleId = Option(UUID.randomUUID()),
       googleProject = project,
@@ -399,14 +417,15 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List.empty,
       instances = Set(masterInstance),
       userJupyterExtensionConfig = None,
-      dateAccessed = Instant.now())
+      dateAccessed = Instant.now().minus(100, ChronoUnit.DAYS),
+      autopauseThreshold = if (autopause) autopauseThreshold else 0)
 
-    val stoppedCluster = Cluster(
+    val runningCluster2 = Cluster(
       clusterName = name2,
       googleId = Option(UUID.randomUUID()),
       googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
-      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
+      serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
+      machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
       operationName = Option(OperationName("op2")),
       status = ClusterStatus.Stopped,
@@ -421,18 +440,40 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      dateAccessed = Instant.now())
+      dateAccessed = Instant.now().minus(100, ChronoUnit.DAYS),
+      autopauseThreshold = if (autopause) autopauseThreshold else 0)
 
-    dbFutureValue { _.clusterQuery.save(runningCluster, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual runningCluster
-    dbFutureValue { _.clusterQuery.save(stoppedCluster, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual stoppedCluster
+    val stoppedCluster = Cluster(
+      clusterName = name3,
+      googleId = Option(UUID.randomUUID()),
+      googleProject = project,
+      serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
+      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
+      clusterUrl = Cluster.getClusterUrl(project, name3, clusterUrlBase),
+      operationName = Option(OperationName("op3")),
+      status = ClusterStatus.Stopped,
+      hostIp = None,
+      creator = userEmail,
+      createdDate = Instant.now(),
+      destroyedDate = None,
+      labels = Map.empty,
+      jupyterExtensionUri = Some(jupyterExtensionUri),
+      jupyterUserScriptUri = Some(jupyterUserScriptUri),
+      stagingBucket = Some(GcsBucketName("testStagingBucket3")),
+      errors = List.empty,
+      instances = Set.empty,
+      userJupyterExtensionConfig = None,
+      dateAccessed = Instant.now(),
+      autopauseThreshold = if (autopause) autopauseThreshold else 0)
 
-    dbFutureValue { _.clusterQuery.getClustersReadyToAutoFreeze(autoFreezeconfig.autoFreezeAfter) } shouldBe List.empty
-    
-    eventually(timeout(Span(30, Seconds))) {
-      val autoFreezeList = dbFutureValue { _.clusterQuery.getClustersReadyToAutoFreeze(autoFreezeconfig.autoFreezeAfter) }
-      autoFreezeList should contain (runningCluster)
-      //c2 is already stopped
-      autoFreezeList should not contain stoppedCluster
-    }
+    dbFutureValue { _.clusterQuery.save(runningCluster1, Some(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual runningCluster1
+    dbFutureValue { _.clusterQuery.save(runningCluster2, Some(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual runningCluster2
+    dbFutureValue { _.clusterQuery.save(stoppedCluster, Some(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual stoppedCluster
+
+    val autoFreezeList = dbFutureValue { _.clusterQuery.getClustersReadyToAutoFreeze() }
+    autoFreezeList should contain (runningCluster1)
+    //c2 is already stopped
+    autoFreezeList should not contain stoppedCluster
+    autoFreezeList should not contain runningCluster2
   }
 }

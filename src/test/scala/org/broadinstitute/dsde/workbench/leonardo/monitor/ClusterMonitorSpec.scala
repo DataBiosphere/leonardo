@@ -60,7 +60,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     errors = List.empty,
     instances = Set.empty,
     userJupyterExtensionConfig = Some(userExtConfig),
-    dateAccessed = Instant.now())
+    dateAccessed = Instant.now(),
+    autopauseThreshold = 0)
 
   val deletingCluster = Cluster(
     clusterName = name2,
@@ -82,7 +83,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     errors = List.empty,
     instances = Set(masterInstance, workerInstance1, workerInstance2),
     userJupyterExtensionConfig = None,
-    dateAccessed = Instant.now())
+    dateAccessed = Instant.now(),
+    autopauseThreshold = 0)
 
   val stoppingCluster = Cluster(
     clusterName = name3,
@@ -104,7 +106,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     errors = List.empty,
     instances = Set(masterInstance, workerInstance1, workerInstance2),
     userJupyterExtensionConfig = None,
-    dateAccessed = Instant.now())
+    dateAccessed = Instant.now(),
+    autopauseThreshold = 0)
 
   val startingCluster = Cluster(
     clusterName = name3,
@@ -126,7 +129,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     errors = List.empty,
     instances = Set(masterInstance, workerInstance1, workerInstance2),
     userJupyterExtensionConfig = None,
-    dateAccessed = Instant.now())
+    dateAccessed = Instant.now(),
+    autopauseThreshold = 0)
 
   val clusterInstances = Map(Master -> Set(masterInstance.key),
                              Worker -> Set(workerInstance1.key, workerInstance2.key))
@@ -171,8 +175,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
       new MockGoogleStorageDAO
     }
-    val supervisorActor = system.actorOf(TestClusterSupervisorActor.props(dataprocConfig, gdDAO, computeDAO, iamDAO, storageDAO, DbSingleton.ref, cacheActor, testKit, authProvider, autoFreezeconfig, jupyterDAO))
-    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, supervisorActor, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper)
+    val supervisorActor = system.actorOf(TestClusterSupervisorActor.props(dataprocConfig, gdDAO, computeDAO, iamDAO, storageDAO, DbSingleton.ref, cacheActor, testKit, authProvider, autoFreezeConfig, jupyterDAO))
+    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, supervisorActor, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper)
     supervisorActor
   }
 
@@ -350,7 +354,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   it should "keep monitoring in ERROR state with no error code" in isolatedDbTest {
     val savedCreatingCluster = dbFutureValue { _.clusterQuery.save(creatingCluster, Option(gcsPath("gs://bucket")), Some(serviceAccountKey.id)) }
     creatingCluster shouldEqual savedCreatingCluster
-    
+
     val dao = mock[GoogleDataprocDAO]
     when {
       dao.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))

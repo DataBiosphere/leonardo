@@ -11,7 +11,11 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GcsPathSupport, GoogleProject, ServiceAccountKeyId, parseGcsPath}
 
+import java.util.concurrent.TimeUnit
+
 import scala.concurrent.duration.FiniteDuration
+
+import scala.concurrent.duration._
 
 case class ClusterRecord(id: Long,
                          clusterName: String,
@@ -29,7 +33,10 @@ case class ClusterRecord(id: Long,
                          machineConfig: MachineConfigRecord,
                          serviceAccountInfo: ServiceAccountInfoRecord,
                          stagingBucket: Option[String],
-                         dateAccessed: Timestamp)
+                         dateAccessed: Timestamp,
+                         autopauseThreshold: Int
+                        )
+
 
 case class MachineConfigRecord(numberOfWorkers: Int,
                                masterMachineType: String,
@@ -74,6 +81,7 @@ trait ClusterComponent extends LeoComponent {
     def serviceAccountKeyId =         column[Option[String]]    ("serviceAccountKeyId",   O.Length(254))
     def stagingBucket =               column[Option[String]]    ("stagingBucket",         O.Length(254))
     def dateAccessed =                column[Timestamp]         ("dateAccessed",          O.SqlType("TIMESTAMP(6)"))
+    def autopauseThreshold =          column[Int]               ("autopauseThreshold")
 
     def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName, destroyedDate), unique = true)
 
@@ -85,23 +93,23 @@ trait ClusterComponent extends LeoComponent {
       id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
       createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
       (numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers),
-      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket, dateAccessed
+      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket, dateAccessed, autopauseThreshold
     ).shaped <> ({
       case (id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
-            createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket, machineConfig, serviceAccountInfo, stagingBucket, dateAccessed) =>
+            createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket, machineConfig, serviceAccountInfo, stagingBucket, dateAccessed, autopauseThreshold) =>
         ClusterRecord(
           id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
           createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
           MachineConfigRecord.tupled.apply(machineConfig),
           ServiceAccountInfoRecord.tupled.apply(serviceAccountInfo),
-          stagingBucket, dateAccessed)
+          stagingBucket, dateAccessed, autopauseThreshold)
     }, { c: ClusterRecord =>
       def mc(_mc: MachineConfigRecord) = MachineConfigRecord.unapply(_mc).get
       def sa(_sa: ServiceAccountInfoRecord) = ServiceAccountInfoRecord.unapply(_sa).get
       Some((
         c.id, c.clusterName, c.googleId, c.googleProject, c.operationName, c.status, c.hostIp, c.creator,
         c.createdDate, c.destroyedDate, c.jupyterExtensionUri, c.jupyterUserScriptUri, c.initBucket,
-        mc(c.machineConfig), sa(c.serviceAccountInfo), c.stagingBucket, c.dateAccessed
+        mc(c.machineConfig), sa(c.serviceAccountInfo), c.stagingBucket, c.dateAccessed, c.autopauseThreshold
       ))
     })
   }
@@ -267,9 +275,16 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    def getClustersReadyToAutoFreeze(idleTime: FiniteDuration): DBIO[Seq[Cluster]] = {
-      clusterQueryWithInstancesAndErrorsAndLabels.filter(_._1.dateAccessed < Timestamp.from(Instant.now().minusSeconds(idleTime.toSeconds)))
-          .filter(_._1.status inSetBind ClusterStatus.stoppableStatuses.map(_.toString)).result map { recs => unmarshalClustersWithInstancesAndLabels(recs)}
+
+    def getClustersReadyToAutoFreeze(): DBIO[Seq[Cluster]] = {
+      val now = SimpleFunction.nullary[Timestamp]("NOW")
+      val tsdiff = SimpleFunction.ternary[String, Timestamp, Timestamp, Int]("TIMESTAMPDIFF")
+      val MINUTE = SimpleLiteral[String]("MINUTE")
+
+      clusterQueryWithInstancesAndErrorsAndLabels
+        .filter { record => tsdiff(MINUTE, record._1.dateAccessed, now) >= record._1.autopauseThreshold}
+        .filter(_._1.status inSetBind ClusterStatus.stoppableStatuses.map(_.toString))
+        .result map { recs => unmarshalClustersWithInstancesAndLabels(recs)}
     }
 
     def listByLabels(labelMap: LabelMap, includeDeleted: Boolean): DBIO[Seq[Cluster]] = {
@@ -337,7 +352,8 @@ trait ClusterComponent extends LeoComponent {
           serviceAccountKeyId.map(_.value)
         ),
         cluster.stagingBucket.map(_.value),
-        Timestamp.from(cluster.dateAccessed)
+        Timestamp.from(cluster.dateAccessed),
+        cluster.autopauseThreshold
       )
     }
 
@@ -387,6 +403,7 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.serviceAccountInfo.clusterServiceAccount.map(WorkbenchEmail),
         clusterRecord.serviceAccountInfo.notebookServiceAccount.map(WorkbenchEmail))
 
+
       Cluster(
         clusterRecord.id,
         name,
@@ -408,7 +425,8 @@ trait ClusterComponent extends LeoComponent {
         errors map clusterErrorQuery.unmarshallClusterErrorRecord,
         instanceRecords map ClusterComponent.this.instanceQuery.unmarshalInstance toSet,
         ClusterComponent.this.extensionQuery.unmarshallExtensions(userJupyterExtensionConfig),
-        clusterRecord.dateAccessed.toInstant
+        clusterRecord.dateAccessed.toInstant,
+        clusterRecord.autopauseThreshold
       )
     }
   }
