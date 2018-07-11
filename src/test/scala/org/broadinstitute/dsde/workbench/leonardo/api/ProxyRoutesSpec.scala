@@ -22,7 +22,7 @@ import scala.concurrent.duration._
 /**
   * Created by rtitle on 8/10/17.
   */
-class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfter with ScalatestRouteTest with ScalaFutures with CommonTestData with TestLeoRoutes with TestProxy with TestComponent with GcsPathUtils {
+class fProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfter with ScalatestRouteTest with ScalaFutures with CommonTestData with TestLeoRoutes with TestProxy with TestComponent with GcsPathUtils {
   implicit val patience = PatienceConfig(timeout = scaled(Span(30, Seconds)))
   implicit val routeTimeout = RouteTestTimeout(10 seconds)
 

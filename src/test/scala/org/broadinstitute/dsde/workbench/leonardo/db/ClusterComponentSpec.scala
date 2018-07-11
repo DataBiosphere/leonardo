@@ -460,9 +460,9 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       dateAccessed = Instant.now(),
       autopauseThreshold = if (autopause) autopauseThreshold else 0)
 
-    dbFutureValue { _.clusterQuery.save(runningCluster1, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual runningCluster1
-    dbFutureValue { _.clusterQuery.save(runningCluster2, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual runningCluster2
-    dbFutureValue { _.clusterQuery.save(stoppedCluster, gcsPath("gs://bucket1"), Some(serviceAccountKey.id)) } shouldEqual stoppedCluster
+    dbFutureValue { _.clusterQuery.save(runningCluster1, Some(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual runningCluster1
+    dbFutureValue { _.clusterQuery.save(runningCluster2, Some(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual runningCluster2
+    dbFutureValue { _.clusterQuery.save(stoppedCluster, Some(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual stoppedCluster
 
     val autoFreezeList = dbFutureValue { _.clusterQuery.getClustersReadyToAutoFreeze() }
     autoFreezeList should contain (runningCluster1)

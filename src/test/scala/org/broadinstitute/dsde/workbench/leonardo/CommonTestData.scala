@@ -94,7 +94,7 @@ trait CommonTestData { this: ScalaFutures =>
     instances = Set.empty,
     userJupyterExtensionConfig = None,
     dateAccessed = Instant.now(),
-    if (autopause) autopauseThreshold else 0)
+    autopauseThreshold = if (autopause) autopauseThreshold else 0)
 
   // TODO look into parameterized tests so both provider impls can both be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData

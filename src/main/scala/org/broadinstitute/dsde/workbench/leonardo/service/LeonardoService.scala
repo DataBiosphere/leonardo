@@ -459,7 +459,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
             } recover {
               case e: HttpResponseException if e.getStatusCode == StatusCodes.Forbidden.intValue =>
                 logger.error(s"User $userEmail does not have access to ${gcsPath.bucketName} / ${gcsPath.objectName}")
-                throw BucketObjectAccessException(Some(userEmail), gcsPath, e.getMessage)
+                throw BucketObjectAccessException(userEmail, gcsPath)
             }
           case None => Future.successful(())
         }
