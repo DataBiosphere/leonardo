@@ -190,10 +190,10 @@ function docker_cmd()
         HASH_TAG=${GIT_SHA:0:12}
 
         # builds the juptyer notebooks docker image that goes on dataproc clusters
-        bash ./jupyter-docker/build.sh build "${NOTEBOOK_REPO}" "${BRANCH}"
+        bash ./jupyter-docker/build.sh build "${NOTEBOOK_REPO}" "${GIT_BRANCH}"
         # Build the UI if specified.
         if $BUILD_UI; then
-          bash ./ui/build.sh build "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
+          bash ./ui/build.sh build "${NOTEBOOK_REPO}" "${GIT_BRANCH}"
         fi
 
         docker build -t "${IMAGE}:${HASH_TAG}" .
@@ -205,19 +205,19 @@ function docker_cmd()
         if [ $DOCKER_CMD = "push" ]; then
             echo "pushing $IMAGE docker image..."
             $DOCKER_REMOTES_BINARY push $IMAGE:${HASH_TAG}
-            $DOCKER_REMOTES_BINARY tag $IMAGE:${HASH_TAG} $IMAGE:${BRANCH}
-            $DOCKER_REMOTES_BINARY push $IMAGE:${BRANCH}
+            $DOCKER_REMOTES_BINARY tag $IMAGE:${HASH_TAG} $IMAGE:${GIT_BRANCH}
+            $DOCKER_REMOTES_BINARY push $IMAGE:${GIT_BRANCH}
 
             echo "pushing $TESTS_IMAGE docker image..."
             $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${HASH_TAG}
-            $DOCKER_REMOTES_BINARY tag $TESTS_IMAGE:${HASH_TAG} $TESTS_IMAGE:${BRANCH}
-            $DOCKER_REMOTES_BINARY tag $TESTS_IMAGE:${BRANCH}
+            $DOCKER_REMOTES_BINARY tag $TESTS_IMAGE:${HASH_TAG} $TESTS_IMAGE:${GIT_BRANCH}
+            $DOCKER_REMOTES_BINARY tag $TESTS_IMAGE:${GIT_BRANCH}
             
             # pushes the juptyer notebooks docker image that goes on dataproc clusters
-            bash ./jupyter-docker/build.sh push "${NOTEBOOK_REPO}" "${BRANCH}"
+            bash ./jupyter-docker/build.sh push "${NOTEBOOK_REPO}" "${GIT_BRANCH}"
             # push the UI docker image.
             if $BUILD_UI; then
-              bash ./ui/build.sh push "${NOTEBOOK_REPO}" "${BRANCH}"
+              bash ./ui/build.sh push "${NOTEBOOK_REPO}" "${GIT_BRANCH}"
             fi
         fi
     else
