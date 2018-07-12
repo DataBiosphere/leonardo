@@ -40,6 +40,10 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec {
       }
     }
 
+    "should include Content-Security-Policy in headers" in { clusterFixture =>
+        verifyNotebookHeaders(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
+    }
+
     "should allow BigQuerying in a new billing project" in { clusterFixture =>
       // project owners have the bigquery role automatically, so this also tests granting it to users
       val ownerToken = hermioneAuthToken

@@ -6,6 +6,7 @@ import java.nio.file.Files
 import java.time.Instant
 import java.util.Base64
 
+import akka.http.scaladsl.model.HttpHeader
 import cats.data.OptionT
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
@@ -659,6 +660,12 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       case Python3 => helloOutput shouldBe Some("b'Hello, TensorFlow!'")
       case other => fail(s"Unexpected kernel: $other")
     }
+  }
+
+  def verifyNotebookHeaders(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): Unit ={
+    val headers = Leonardo.notebooks.getApiHeaders(googleProject, clusterName)
+    println(headers)
+    headers.find(_.name == "Content-Security-Policy") shouldBe defined
   }
 
   def noop[A](x: A): Unit = ()
