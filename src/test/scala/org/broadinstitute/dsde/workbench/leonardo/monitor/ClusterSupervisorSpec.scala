@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 import akka.actor.ActorSystem
@@ -20,6 +21,7 @@ import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 import org.scalatest.mockito.MockitoSugar
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.concurrent.Eventually.eventually
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
 class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
   with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll
@@ -45,17 +47,16 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
     errors = List.empty,
     instances = Set.empty,
     userJupyterExtensionConfig = Some(userExtConfig),
-    dateAccessed = Instant.now(),
-    autopauseThreshold = 0
+    dateAccessed = Instant.now().minus(45, ChronoUnit.SECONDS),
+    autopauseThreshold = 1
   )
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
     super.afterAll()
   }
-  
-  //TODO: Remove ignore once auto freeze is enabled
-  "ClusterSupervisorMonitor" should "auto freeze the cluster" ignore isolatedDbTest {
+
+  "ClusterSupervisorMonitor" should "auto freeze the cluster" in isolatedDbTest {
 
     val gdDAO = mock[GoogleDataprocDAO]
 
