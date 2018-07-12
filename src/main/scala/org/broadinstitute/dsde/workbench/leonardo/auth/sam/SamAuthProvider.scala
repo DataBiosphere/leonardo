@@ -107,12 +107,14 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
 
   private def hasNotebookClusterPermissionInternal(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     // if action is connect, check only cluster resource. If action is anything else, either cluster or project must be true
-    Future {
-      val hasNotebookAction = blocking(samClient.hasActionOnNotebookClusterResource(userInfo, googleProject,clusterName, getNotebookActionString(action)))
-      if (action == ConnectToCluster) {
-        hasNotebookAction
-      } else {
-        hasNotebookAction || blocking(samClient.hasActionOnBillingProjectResource(userInfo, googleProject, getProjectActionString(action)))
+    retryUntilSuccessOrTimeout(shouldInvalidateSamCacheAndRetry, s"SamAuthProvider.hasNotebookClusterPermissionInternal call failed for ${googleProject.value}/${clusterName.value}")(samRetryInterval, samRetryTimeout) { () =>
+      Future {
+        val hasNotebookAction = blocking(samClient.hasActionOnNotebookClusterResource(userInfo, googleProject, clusterName, getNotebookActionString(action)))
+        if (action == ConnectToCluster) {
+          hasNotebookAction
+        } else {
+          hasNotebookAction || blocking(samClient.hasActionOnBillingProjectResource(userInfo, googleProject, getProjectActionString(action)))
+        }
       }
     }
   }
@@ -127,8 +129,12 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     */
   override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterName)])(implicit executionContext: ExecutionContext): Future[List[(GoogleProject, ClusterName)]] = {
     for {
-      owningProjects <- Future(blocking(samClient.listOwningProjects(userInfo)).toSet)
-      createdClusters <- Future(blocking(samClient.listCreatedClusters(userInfo)).toSet)
+      owningProjects <- retryableFutureToFuture(retryUntilSuccessOrTimeout(shouldInvalidateSamCacheAndRetry, s"SamAuthProvider.filterUserVisibleClusters.owningProjects call failed")(samRetryInterval, samRetryTimeout) { () =>
+        Future(blocking(samClient.listOwningProjects(userInfo)).toSet)
+      })
+      createdClusters <- retryableFutureToFuture(retryUntilSuccessOrTimeout(shouldInvalidateSamCacheAndRetry, s"SamAuthProvider.filterUserVisibleClusters.createdClusters call failed")(samRetryInterval, samRetryTimeout) { () =>
+        Future(blocking(samClient.listCreatedClusters(userInfo)).toSet)
+      })
     } yield {
       clusters.filter { case (project, name) =>
         owningProjects.contains(project) || createdClusters.contains((project, name))
@@ -150,7 +156,7 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
   override def notifyClusterCreated(creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    retryUntilSuccessOrTimeout(shouldInvalidateSamCacheAndRetry, s"SamAuthProvider.notifyClusterCreated call failed for ${googleProject.value}/${clusterName.value}")(samRetryInterval, samRetryTimeout) { () =>
+    retryUntilSuccessOrTimeout(shouldInvalidateSamCacheAndRetry, s"SamAuthProvider.notifyClusterCreated call failed for ${googleProject.value}/${clusterName.value}")(samRetryInterval, samRetryTimeout) {  () =>
       Future {
         blocking(samClient.createNotebookClusterResource(creatorEmail, googleProject, clusterName))
       }.recover {
