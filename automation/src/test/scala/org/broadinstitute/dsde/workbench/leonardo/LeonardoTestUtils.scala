@@ -670,7 +670,6 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       case Some(headerVal) => headers.find(header => header.name == headerName && header.value.contains(headerVal)) shouldBe defined
       case None => assert(true)
     }
-
   }
 
   def noop[A](x: A): Unit = ()
