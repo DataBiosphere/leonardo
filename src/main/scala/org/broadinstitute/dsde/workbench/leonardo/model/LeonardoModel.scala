@@ -21,6 +21,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model._
 import spray.json._
+import scala.concurrent.duration._
 
 // Create cluster API request
 case class ClusterRequest(labels: LabelMap = Map(),
@@ -28,7 +29,9 @@ case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterUserScriptUri: Option[GcsPath] = None,
                           machineConfig: Option[MachineConfig] = None,
                           stopAfterCreation: Option[Boolean] = None,
-                          userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None)
+                          userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
+                          autopause: Option[Boolean] = None,
+                          autopauseThreshold: Option[Int] = None)
 
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
@@ -69,7 +72,8 @@ case class Cluster(id: Long = 0, // DB AutoInc
                    errors: List[ClusterError],
                    instances: Set[Instance],
                    userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
-                   dateAccessed: Instant) {
+                   dateAccessed: Instant,
+                   autopauseThreshold: Int) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.value}"
   def nonPreemptibleInstances: Set[Instance] = instances.filterNot(_.dataprocRole.contains(SecondaryWorker))
 }
@@ -84,7 +88,8 @@ object Cluster {
              serviceAccountInfo: ServiceAccountInfo,
              machineConfig: MachineConfig,
              clusterUrlBase: String,
-             stagingBucket: GcsBucketName): Cluster = {
+             stagingBucket: GcsBucketName,
+             autopauseThreshold: Int): Cluster = {
     Cluster(
       clusterName = clusterName,
       googleId = Some(operation.uuid),
@@ -105,7 +110,8 @@ object Cluster {
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
-      dateAccessed = Instant.now())
+      dateAccessed = Instant.now(),
+      autopauseThreshold = autopauseThreshold)
   }
   
   // TODO it's hacky to re-parse the Leo config in the model object.
@@ -262,7 +268,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val UserClusterExtensionConfigFormat = jsonFormat3(UserJupyterExtensionConfig.apply)
 
-  implicit val ClusterRequestFormat = jsonFormat6(ClusterRequest)
+  implicit val ClusterRequestFormat = jsonFormat8(ClusterRequest)
 
   implicit val ClusterResourceFormat = ValueObjectFormat(ClusterResource)
 
@@ -270,7 +276,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val ClusterErrorFormat = jsonFormat3(ClusterError.apply)
 
-  implicit val ClusterFormat = jsonFormat21(Cluster.apply)
+  implicit val ClusterFormat = jsonFormat22(Cluster.apply)
 
   implicit val DefaultLabelsFormat = jsonFormat6(DefaultLabels.apply)
 
