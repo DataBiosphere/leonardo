@@ -35,7 +35,8 @@ class InstanceComponentSpec extends TestComponent with FlatSpecLike with CommonT
     errors = List.empty,
     instances = Set.empty,
     userJupyterExtensionConfig = None,
-    dateAccessed = Instant.now())
+    dateAccessed = Instant.now(),
+    autopauseThreshold = 0)
 
   "InstanceComponent" should "save and get instances" in isolatedDbTest {
     val savedC1 = dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) }

@@ -24,4 +24,5 @@
     <include file="changesets/20180516_cluster_remove_googleId_from_primary_key.xml" relativeToChangelogFile="true" />
     <include file="changesets/20180517_cluster_googleId_operationName_initBucket_nullable.xml" relativeToChangelogFile="true" />
     <include file="changesets/20180607_master_disk_size.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20180625_autopause_threshold.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>
