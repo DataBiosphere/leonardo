@@ -662,10 +662,16 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
   }
 
-  def verifyNotebookHeaders(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): Unit ={
-    val headers = Leonardo.notebooks.getApiHeaders(googleProject, clusterName)
+  def verifyNotebookHeaders(url: String, headerName: String, headerValue: Option[String] = None)(implicit token: AuthToken): Unit ={
+    val headers = Leonardo.notebooks.getApiHeaders(url)
     println(headers)
-    headers.find(_.name == "Content-Security-Policy") shouldBe defined
+    headers.find(_.name == headerName) shouldBe defined
+    headerValue match
+    {
+      case Some(headerVal) => headers.find(header => header.name == headerName && header.value==headerVal) shouldBe defined
+      case None => assert(true)
+    }
+
   }
 
   def noop[A](x: A): Unit = ()

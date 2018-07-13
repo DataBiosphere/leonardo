@@ -36,12 +36,17 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec {
           notebookPage.executeCell("1+1") shouldBe Some("2")
           notebookPage.executeCell("2*3") shouldBe Some("6")
           notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
+          verifyNotebookHeaders(notebookPage.currentUrl, "Content-Security-Policy")
         }
       }
     }
 
     "should include Content-Security-Policy in headers" in { clusterFixture =>
-        verifyNotebookHeaders(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster) { notebookPage =>
+          verifyNotebookHeaders(notebookPage.currentUrl, "Content-Security-Policy")
+        }
+      }
     }
 
     "should allow BigQuerying in a new billing project" in { clusterFixture =>

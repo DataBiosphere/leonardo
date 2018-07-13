@@ -161,7 +161,7 @@ object Leonardo extends RestClient with LazyLogging {
       s"${notebooksBasePath(googleProject, clusterName)}/api/localize${if (async) "?async=true" else ""}"
 
     def get(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver): NotebooksListPage = {
-      val path = untitledNotebookPath(googleProject, clusterName)
+      val path = notebooksBasePath(googleProject, clusterName)
       logger.info(s"Get notebook: GET /$path")
       new NotebooksListPage(url + path)
     }
@@ -172,10 +172,9 @@ object Leonardo extends RestClient with LazyLogging {
       parseResponse(getRequest(url + path))
     }
 
-    def getApiHeaders(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): Seq[HttpHeader] = {
-      val path = notebooksBasePath(googleProject, clusterName)+"/notebooks/Untitled.ipynb"
-      logger.info(s"Get notebook: GET /$path")
-      getRequest(url + path).headers
+    def getApiHeaders(notebookUrl: String)(implicit token: AuthToken): Seq[HttpHeader] = {
+      logger.info(s"Get notebook: GET /$notebookUrl")
+      getRequest(notebookUrl).headers
     }
 
     def localize(googleProject: GoogleProject, clusterName: ClusterName, locMap: Map[String, String], async: Boolean = false)(implicit token: AuthToken): String = {
