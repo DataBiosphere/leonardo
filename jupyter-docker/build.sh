@@ -10,6 +10,7 @@ cd "$(dirname "${0}")"
 JUPYTER_COMMAND="${1}"
 DOCKER_REPOSITORY="${2}"
 JUPYTER_TAG="${3}"
+GIT_BRANCH="${4}"
 
 # Set up docker binary - use gcloud docker if pushing to gcr.
 DOCKER_BINARY="docker"
@@ -25,6 +26,9 @@ build() {
 push() {
     echo "pushing jupyter docker image..."
     $DOCKER_BINARY push "${DOCKER_REPOSITORY}/leonardo-notebooks:${JUPYTER_TAG}"
+    $DOCKER_BINARY tag "${DOCKER_REPOSITORY}/leonardo-notebooks:${JUPYTER_TAG}" "${DOCKER_REPOSITORY}/leonardo-notebooks:${GIT_BRANCH}"
+    $DOCKER_BINARY push "${DOCKER_REPOSITORY}/leonardo-notebooks:${GIT_BRANCH}"
+
 }
 
 echo "${JUPYTER_COMMAND}ing the jupyter docker image"

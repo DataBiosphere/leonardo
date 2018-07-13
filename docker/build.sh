@@ -185,14 +185,12 @@ function docker_cmd()
 {
     if [ $DOCKER_CMD = "build" ] || [ $DOCKER_CMD = "push" ]; then
         echo "building $IMAGE docker image..."
+        GIT_SHA=$(git rev-parse origin/${GIT_BRANCH})
+        echo GIT_SHA=$GIT_SHA > env.properties
+
         if [ -n "$DOCKER_TAG" ]; then
             DOCKER_TAG_TESTS="${DOCKER_TAG}-tests"
-        elif [ "$ENV" != "dev" ] && [ "$ENV" != "alpha" ] && [ "$ENV" != "staging" ] && [ "$ENV" != "perf" ]; then
-            DOCKER_TAG=${GIT_BRANCH}
-            DOCKER_TAG_TESTS=${GIT_BRANCH}
         else
-            GIT_SHA=$(git rev-parse origin/${GIT_BRANCH})
-            echo GIT_SHA=$GIT_SHA > env.properties
             DOCKER_TAG=${GIT_SHA:0:12}
             DOCKER_TAG_TESTS=${GIT_SHA:0:12}
         fi
@@ -213,13 +211,19 @@ function docker_cmd()
         if [ $DOCKER_CMD = "push" ]; then
             echo "pushing $IMAGE docker image..."
             $DOCKER_REMOTES_BINARY push $IMAGE:${DOCKER_TAG}
+            $DOCKER_REMOTES_BINARY tag $IMAGE:${DOCKER_TAG} $IMAGE:${GIT_BRANCH}
+            $DOCKER_REMOTES_BINARY push $IMAGE:${GIT_BRANCH}
+
             echo "pushing $TESTS_IMAGE docker image..."
             $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${DOCKER_TAG_TESTS}
+            $DOCKER_REMOTES_BINARY tag $TESTS_IMAGE:${DOCKER_TAG_TESTS} $TESTS_IMAGE:${GIT_BRANCH}
+            $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${GIT_BRANCH}
+            
             # pushes the juptyer notebooks docker image that goes on dataproc clusters
-            bash ./jupyter-docker/build.sh push "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
+            bash ./jupyter-docker/build.sh push "${NOTEBOOK_REPO}" "${DOCKER_TAG}" "${GIT_BRANCH}"
             # push the UI docker image.
             if $BUILD_UI; then
-              bash ./ui/build.sh push "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
+              bash ./ui/build.sh push "${NOTEBOOK_REPO}" "${DOCKER_TAG}" "${GIT_BRANCH}"
             fi
         fi
     else
