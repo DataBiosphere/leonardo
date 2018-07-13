@@ -81,8 +81,10 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     * @return If the given user has permissions in this project to perform the specified action.
     */
   override def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-    Future {
-      blocking(samClient.hasActionOnBillingProjectResource(userInfo, googleProject, getProjectActionString(action)))
+    retryUntilSuccessOrTimeout(shouldInvalidateSamCacheAndRetry, s"SamAuthProvider.hasProjectPermission call failed for ${userInfo.userEmail.value} check in project ${googleProject.value}")(samRetryInterval, samRetryTimeout) { () =>
+      Future {
+        blocking(samClient.hasActionOnBillingProjectResource(userInfo, googleProject, getProjectActionString(action)))
+      }
     }
   }
 
