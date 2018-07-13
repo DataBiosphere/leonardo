@@ -36,7 +36,6 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec {
           notebookPage.executeCell("1+1") shouldBe Some("2")
           notebookPage.executeCell("2*3") shouldBe Some("6")
           notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
-          verifyNotebookHeaders(notebookPage.currentUrl, "Content-Security-Policy")
         }
       }
     }
