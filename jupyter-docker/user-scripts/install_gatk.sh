@@ -10,7 +10,7 @@ if ! [ -f $GATK_ZIP_PATH ]; then
 fi
 
 # unzip with forced overwrite (if necessary) to /bin
-unzip -o $GATK_ZIP_PATH -d /bin/
+unzip -o $GATK_ZIP_PATH -d /etc/
 
 # make a symlink to gatk right inside bin so it's available from the existing PATH
-ln -s /bin/gatk-4.0.6.0/gatk /bin/gatk
+ln -s /etc/gatk-$GATK_VERSION/gatk /bin/gatk
