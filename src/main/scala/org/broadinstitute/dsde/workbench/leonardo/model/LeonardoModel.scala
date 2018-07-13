@@ -80,6 +80,40 @@ case class Cluster(id: Long = 0, // DB AutoInc
 object Cluster {
   type LabelMap = Map[String, String]
 
+//  def create(clusterRequest: ClusterRequest,
+//             userEmail: WorkbenchEmail,
+//             clusterName: ClusterName,
+//             googleProject: GoogleProject,
+//             operation: Operation,
+//             serviceAccountInfo: ServiceAccountInfo,
+//             machineConfig: MachineConfig,
+//             clusterUrlBase: String,
+//             stagingBucket: GcsBucketName,
+//             autopauseThreshold: Int): Cluster = {
+//    Cluster(
+//      clusterName = clusterName,
+//      googleId = Some(operation.uuid),
+//      googleProject = googleProject,
+//      serviceAccountInfo = serviceAccountInfo,
+//      machineConfig = machineConfig,
+//      clusterUrl = getClusterUrl(googleProject, clusterName, clusterUrlBase),
+//      operationName = Some(operation.name),
+//      status = ClusterStatus.Creating,
+//      hostIp = None,
+//      creator = userEmail,
+//      createdDate = Instant.now(),
+//      destroyedDate = None,
+//      labels = clusterRequest.labels,
+//      jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
+//      jupyterUserScriptUri = clusterRequest.jupyterUserScriptUri,
+//      stagingBucket = Some(stagingBucket),
+//      errors = List.empty,
+//      instances = Set.empty,
+//      userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
+//      dateAccessed = Instant.now(),
+//      autopauseThreshold = autopauseThreshold)
+//  }
+
   def create(clusterRequest: ClusterRequest,
              userEmail: WorkbenchEmail,
              clusterName: ClusterName,

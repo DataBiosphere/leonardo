@@ -149,7 +149,8 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  override def notifyClusterCreated(creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  override def notifyClusterCreated(creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)
+                                   (implicit executionContext: ExecutionContext): Future[Unit] = {
     retryUntilSuccessOrTimeout(shouldInvalidateSamCacheAndRetry, s"SamAuthProvider.notifyClusterCreated call failed for ${googleProject.value}/${clusterName.value}")(samRetryInterval, samRetryTimeout) { () =>
       Future {
         blocking(samClient.createNotebookClusterResource(creatorEmail, googleProject, clusterName))
@@ -174,7 +175,8 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     * @param clusterName      The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  override def notifyClusterDeleted(userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  override def notifyClusterDeleted(userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)
+                                   (implicit executionContext: ExecutionContext): Future[Unit] = {
     retryUntilSuccessOrTimeout(shouldInvalidateSamCacheAndRetry, s"SamAuthProvider.notifyClusterDeleted call failed for ${googleProject.value}/${clusterName.value}")(samRetryInterval, samRetryTimeout) { () =>
       Future {
         blocking(samClient.deleteNotebookClusterResource(creatorEmail, googleProject, clusterName))

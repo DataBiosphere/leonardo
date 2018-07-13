@@ -58,7 +58,12 @@ class HttpGoogleDataprocDAO(appName: String,
     new Oauth2.Builder(httpTransport, jsonFactory, null)
       .setApplicationName(appName).build()
 
-  override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, machineConfig: MachineConfig, initScript: GcsPath, clusterServiceAccount: Option[WorkbenchEmail], credentialsFileName: Option[String], stagingBucket: GcsBucketName): Future[Operation] = {
+  override def createCluster(googleProject: GoogleProject,
+                             clusterName: ClusterName,
+                             machineConfig: MachineConfig,
+                             initScript: GcsPath,
+                             clusterServiceAccount: Option[WorkbenchEmail],
+                             credentialsFileName: Option[String], stagingBucket: GcsBucketName): Future[Operation] = {
     val cluster = new DataprocCluster()
       .setClusterName(clusterName.value)
       .setConfig(getClusterConfig(machineConfig, initScript, clusterServiceAccount, credentialsFileName, stagingBucket))
