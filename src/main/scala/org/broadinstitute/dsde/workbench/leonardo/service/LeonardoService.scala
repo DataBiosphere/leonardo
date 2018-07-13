@@ -9,7 +9,7 @@ import cats.implicits._
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig, AutoFreezeConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
@@ -30,7 +30,7 @@ import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.Source
 import scala.util.control.NonFatal
-import scala.util.Failure
+import scala.util.{Failure, Success}
 
 case class AuthorizationError(email: Option[WorkbenchEmail] = None)
   extends LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is unauthorized", StatusCodes.Unauthorized)
@@ -198,43 +198,55 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
-//  def syncInternalCreateCluster(userEmail: WorkbenchEmail,
-//                                serviceAccountInfo: ServiceAccountInfo,
-//                                googleProject: GoogleProject,
-//                                clusterName: ClusterName,
-//                                clusterRequest: ClusterRequest): Future[Cluster] = {
-//    // Check if the google project has an active cluster with the same name. If not, we can create it
-//    dbRef.inTransaction { dataAccess =>
-//      dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName)
-//    } flatMap {
-//      case Some(existingCluster) => throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
-//      case None =>
-//        val augmentedClusterRequest = addClusterDefaultLabels(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
-//        val initialCluster = Cluster.create(clusterRequest, userEmail, clusterName, googleProject, operation,
-//          serviceAccountInfo, autopauseThreshold)
-//        val savedClusterFuture = for {
-//          // Notify the auth provider that the cluster has been created
-//          _ <- authProvider.notifyClusterCreated(userEmail, googleProject, clusterName)
-//          // Create the cluster in Google
-//          (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest)
-//          // Save the cluster in the database
-//          savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, None, None))
-//        } yield {
-//          // Notify the cluster monitor that the cluster has been created
-//          clusterMonitorSupervisor ! ClusterCreated(savedCluster, clusterRequest.stopAfterCreation.getOrElse(false))
-//          savedCluster
-//        }
-//
-//        // If cluster creation failed, createGoogleCluster removes resources in Google.
-//        // We also need to notify our auth provider that the cluster has been deleted.
-//        savedClusterFuture.andThen { case Failure(e) =>
-//          // Don't wait for this future
-//          authProvider.notifyClusterDeleted(userEmail, userEmail, googleProject, clusterName)
-//        }
-//
-//        savedClusterFuture
-//    }
-//  }
+  def syncInternalCreateCluster(userEmail: WorkbenchEmail,
+                                serviceAccountInfo: ServiceAccountInfo,
+                                googleProject: GoogleProject,
+                                clusterName: ClusterName,
+                                clusterRequest: ClusterRequest): Future[Cluster] = {
+    // Check if the google project has an active cluster with the same name. If not, we can create it
+    dbRef.inTransaction { dataAccess =>
+      dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName)
+    } flatMap {
+      case Some(existingCluster) => throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
+      case None =>
+        val augmentedClusterRequest = addClusterDefaultLabels(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
+        val machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
+        val autopauseThreshold = calculateAutopauseThreshold(clusterRequest.autopause, clusterRequest.autopauseThreshold)
+        val initialCluster = Cluster.create(clusterRequest, userEmail, clusterName, googleProject,
+          serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold)
+
+        val attemptToSaveClusterInDb = dbRef.inTransaction(_.clusterQuery.save(initialCluster))
+
+        // For the success case, register callbacks to:
+        attemptToSaveClusterInDb foreach { cluster =>
+          // notify the auth provider and kick off the cluster creation on the Google Dataproc side
+          asyncClusterCreate(userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest)
+              .onComplete {
+                case Success(_) =>
+                  // finally, notify the cluster monitor that the cluster has been created
+                  clusterMonitorSupervisor ! ClusterCreated(cluster, clusterRequest.stopAfterCreation.getOrElse(false))
+                case Failure(_) =>
+                  // If something fails, createGoogleCluster removes resources in Google.
+                  // We also need to notify our auth provider that the cluster has been deleted.
+                  authProvider.notifyClusterDeleted(userEmail, userEmail, googleProject, clusterName)
+              }
+        }
+
+        attemptToSaveClusterInDb
+    }
+  }
+
+  def asyncClusterCreate(userEmail: WorkbenchEmail,
+                         serviceAccountInfo: ServiceAccountInfo,
+                         googleProject: GoogleProject,
+                         clusterName: ClusterName,
+                         clusterRequest: ClusterRequest)= {
+    // notify the AuthProvider
+    authProvider.notifyClusterCreated(userEmail, googleProject, clusterName)
+    // proceed to creating the cluster on the Google side
+    // TODO Update this method so the stuff it returns is saved somewhere (probably via a DB update)
+    createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
+  }
 
   //throws 404 if nonexistent or no permissions
   def getActiveClusterDetails(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Cluster] = {
@@ -435,16 +447,16 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   private def calculateAutopauseThreshold(autopause: Option[Boolean], autopauseThreshold: Option[Int]): Int = {
-    val AutoPauseTurnedOff = 0
+    val AutoPauseOffValue = 0
 
     autopause match {
       case None =>
         autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
       case Some(false) =>
-        AutoPauseTurnedOff
+        AutoPauseOffValue
       case _ =>
         if (autopauseThreshold.isEmpty) autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
-        else Math.max(AutoPauseTurnedOff, autopauseThreshold.get)
+        else Math.max(AutoPauseOffValue, autopauseThreshold.get)
     }
   }
 
