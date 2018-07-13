@@ -150,10 +150,7 @@ object Leonardo extends RestClient with LazyLogging {
 
     def notebooksBasePath(googleProject: GoogleProject, clusterName: ClusterName): String =
       s"notebooks/${googleProject.value}/${clusterName.string}"
-
-    def untitledNotebookPath(googleProject: GoogleProject, clusterName: ClusterName): String =
-      s"notebooks/${googleProject.value}/${clusterName.string}/notebook/Untitled.ipynb"
-
+    
     def contentsPath(googleProject: GoogleProject, clusterName: ClusterName, contentPath: String): String =
       s"${notebooksBasePath(googleProject, clusterName)}/api/contents/$contentPath"
 
