@@ -662,8 +662,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
   }
 
-  def verifyNotebookHeaders(url: String, headerName: String, headerValue: Option[String] = None)(implicit token: AuthToken): Unit ={
-    val headers = Leonardo.notebooks.getApiHeaders(url)
+  def verifyNotebookHeaders(googleProject: GoogleProject, clusterName: ClusterName, headerName: String, headerValue: Option[String] = None)(implicit token: AuthToken): Unit ={
+    val headers = Leonardo.notebooks.getApiHeaders(googleProject, clusterName)
     headers.find(_.name == headerName) shouldBe defined
     headerValue match
     {
