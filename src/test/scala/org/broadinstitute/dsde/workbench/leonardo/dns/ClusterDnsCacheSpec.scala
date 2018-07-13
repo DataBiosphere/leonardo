@@ -52,7 +52,8 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     errors = List.empty,
     instances = Set.empty,
     userJupyterExtensionConfig = None,
-    dateAccessed = Instant.now())
+    dateAccessed = Instant.now(),
+    autopauseThreshold = 0)
 
   val c2 = Cluster(
     clusterName = name2,
@@ -74,7 +75,8 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     errors = List.empty,
     instances = Set.empty,
     userJupyterExtensionConfig = None,
-    dateAccessed = Instant.now())
+    dateAccessed = Instant.now(),
+    autopauseThreshold = 0)
 
   val c3 = Cluster(
     clusterName = name3,
@@ -96,7 +98,8 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     errors = List.empty,
     instances = Set.empty,
     userJupyterExtensionConfig = None,
-    dateAccessed = Instant.now())
+    dateAccessed = Instant.now(),
+    autopauseThreshold = 0)
 
   it should "update maps and return clusters" in isolatedDbTest {
     val actorRef = TestActorRef[ClusterDnsCache](ClusterDnsCache.props(proxyConfig, DbSingleton.ref))

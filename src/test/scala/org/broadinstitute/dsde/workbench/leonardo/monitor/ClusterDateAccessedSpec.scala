@@ -38,7 +38,8 @@ class ClusterDateAccessedSpec extends TestKit(ActorSystem("leonardotest")) with
     errors = List.empty,
     instances = Set.empty,
     userJupyterExtensionConfig = Some(userExtConfig),
-    dateAccessed = Instant.now()
+    dateAccessed = Instant.now(),
+    autopauseThreshold = 0
   )
 
   override def afterAll(): Unit = {
@@ -53,7 +54,7 @@ class ClusterDateAccessedSpec extends TestKit(ActorSystem("leonardotest")) with
     savedTestCluster1 shouldEqual testCluster1
 
     val currentTime = Instant.now()
-    val dateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(autoFreezeconfig, DbSingleton.ref))
+    val dateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, DbSingleton.ref))
     dateAccessedActor ! UpdateDateAccessed(testCluster1.clusterName, testCluster1.googleProject, currentTime)
     eventually(timeout(Span(5, Seconds))) {
       val c1 = dbFutureValue { _.clusterQuery.getClusterById(savedTestCluster1.id) }
