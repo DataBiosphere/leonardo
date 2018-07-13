@@ -17,14 +17,6 @@ c.NotebookApp.allow_origin = '*'
 
 fragment = os.environ['GOOGLE_PROJECT'] + '/' + os.environ['CLUSTER_NAME']
 c.NotebookApp.base_url = '/notebooks/' + fragment + '/'
-#c.NotebookApp.webapp_settings = {'static_url_prefix':'/notebooks/' + fragment + '/static/'}
-
-# c.NotebookApp.webapp_settings = {
-#     'static_url_prefix':'/notebooks/' + fragment + '/static/',
-#     'headers': {
-#         'Content-Security-Policy': "frame-ancestors 'self' 'https://*.appspot.com' 'localhost:3000' "
-#     }
-# }
 
 # This is also specified in run-jupyter.sh
 c.NotebookApp.nbserver_extensions = {
@@ -37,6 +29,6 @@ c.NotebookApp.contents_manager_class = 'jupyter_delocalize.DelocalizingContentsM
 c.NotebookApp.tornado_settings = {
     'static_url_prefix':'/notebooks/' + fragment + '/static/',
     'headers': {
-        'Content-Security-Policy': "frame-ancestors 'self' 'https://*.appspot.com' 'localhost:3000' "
+        'Content-Security-Policy': "frame-ancestors 'self' 'http://localhost:3000' ''https://bvdp-saturn-prod.appspot.com' 'https://bvdp-saturn-dev.appspot.com' "
     }
 }
