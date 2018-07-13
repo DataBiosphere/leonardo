@@ -41,7 +41,10 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec {
     }
 
     "should include Content-Security-Policy in headers" in { clusterFixture =>
-      verifyNotebookHeaders(clusterFixture.billingProject, clusterFixture.cluster.clusterName, "Content-Security-Policy", Some("localhost:3000"))
+      val headers = Leonardo.notebooks.getApiHeaders(clusterFixture.billingProject, clusterFixture.cluster.clusterName)
+      val contentSecurityHeader = headers.find(_.name == "Content-Security-Policy")
+      contentSecurityHeader shouldBe 'defined
+      contentSecurityHeader.get.value should include "https://bvdp-saturn-prod.appspot.com"
     }
 
     "should allow BigQuerying in a new billing project" in { clusterFixture =>
