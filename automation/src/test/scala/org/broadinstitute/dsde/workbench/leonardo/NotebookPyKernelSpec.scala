@@ -43,7 +43,7 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec {
     "should include Content-Security-Policy in headers" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster) { notebookPage =>
-          verifyNotebookHeaders(notebookPage.currentUrl, "Content-Security-Policy")
+          verifyNotebookHeaders(notebookPage.currentUrl, "Content-Security-Policy", Some("localhost:3000"))
         }
       }
     }
