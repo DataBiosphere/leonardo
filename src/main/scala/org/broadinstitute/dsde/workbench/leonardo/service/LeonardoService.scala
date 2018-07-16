@@ -145,7 +145,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       notebookServiceAccountOpt <- serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject)
       serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountOpt, notebookServiceAccountOpt)
 
-      cluster <- internalCreateCluster(userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
+      cluster <- syncInternalCreateCluster(
+        userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
     } yield cluster
   }
 
@@ -207,29 +208,34 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName)
     } flatMap {
-      case Some(existingCluster) => throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
+      case Some(existingCluster) =>
+        throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
       case None =>
-        val augmentedClusterRequest = addClusterDefaultLabels(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
+        val augmentedClusterRequest = addClusterDefaultLabels(
+          serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
         val machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
-        val autopauseThreshold = calculateAutopauseThreshold(clusterRequest.autopause, clusterRequest.autopauseThreshold)
-        val initialCluster = Cluster.create(clusterRequest, userEmail, clusterName, googleProject,
+        val autopauseThreshold = calculateAutopauseThreshold(
+          clusterRequest.autopause, clusterRequest.autopauseThreshold)
+        val initialCluster = Cluster.create(
+          clusterRequest, userEmail, clusterName, googleProject,
           serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold)
 
-        val attemptToSaveClusterInDb = dbRef.inTransaction(_.clusterQuery.save(initialCluster))
+        val attemptToSaveClusterInDb: Future[Cluster] = dbRef.inTransaction(_.clusterQuery.save(initialCluster))
 
-        // For the success case, register callbacks to:
+        // For the success case, register the following callbacks...
         attemptToSaveClusterInDb foreach { cluster =>
-          // notify the auth provider and kick off the cluster creation on the Google Dataproc side
+          // Notify the auth provider and kick off the cluster creation on the Google Dataproc side
           asyncClusterCreate(userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest)
-              .onComplete {
-                case Success(_) =>
-                  // finally, notify the cluster monitor that the cluster has been created
-                  clusterMonitorSupervisor ! ClusterCreated(cluster, clusterRequest.stopAfterCreation.getOrElse(false))
-                case Failure(_) =>
-                  // If something fails, createGoogleCluster removes resources in Google.
-                  // We also need to notify our auth provider that the cluster has been deleted.
-                  authProvider.notifyClusterDeleted(userEmail, userEmail, googleProject, clusterName)
-              }
+            .onComplete {
+              case Success(_) =>
+                // Finally, notify the cluster monitor that the cluster has been created
+                clusterMonitorSupervisor ! ClusterCreated(cluster, clusterRequest.stopAfterCreation.getOrElse(false))
+              case Failure(_) =>
+                // If we didn't succeed, createGoogleCluster removes resources in Google but
+                // we also need to notify our auth provider that the cluster has been deleted.
+                // We won't wait for that deletion, though.
+                authProvider.notifyClusterDeleted(userEmail, userEmail, googleProject, clusterName)
+            }
         }
 
         attemptToSaveClusterInDb
@@ -240,11 +246,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                          serviceAccountInfo: ServiceAccountInfo,
                          googleProject: GoogleProject,
                          clusterName: ClusterName,
-                         clusterRequest: ClusterRequest)= {
-    // notify the AuthProvider
+                         clusterRequest: ClusterRequest): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
+    // Notify the AuthProvider
     authProvider.notifyClusterCreated(userEmail, googleProject, clusterName)
-    // proceed to creating the cluster on the Google side
-    // TODO Update this method so the stuff it returns is saved somewhere (probably via a DB update)
+    // Proceed to creating the cluster on the Google side
+    // TODO Update this method so the stuff it returns is persisted
     createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
   }
 

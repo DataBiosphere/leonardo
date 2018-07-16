@@ -51,30 +51,32 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
 
   it should "200 when creating and getting cluster" in isolatedDbTest {
     val newCluster = ClusterRequest(Map.empty, Some(jupyterExtensionUri), Some(jupyterUserScriptUri), None, None, Some(UserJupyterExtensionConfig(Map("abc" ->"def"))))
+    val clusterNames = Seq(clusterName.value, s"${clusterName.value}-v2")
+    val baseUrl = "/api/cluster"
+    val versionedBaseUrls = Seq(baseUrl, s"$baseUrl/v2")
 
-    Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~>
-      timedLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.OK
-
-      validateCookie { header[`Set-Cookie`] }
+    // PUT endpoints have two versions
+    versionedBaseUrls.zip(clusterNames) foreach { case (url, cn) =>
+      Put(s"$url/${googleProject.value}/$cn", newCluster.toJson) ~>
+        timedLeoRoutes.route ~> check {
+          status shouldEqual StatusCodes.OK
+          validateCookie { header[`Set-Cookie`] }
+      }
     }
 
-    Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~>
-      timedLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.NotImplemented
+    // GET endpoint has a single version
+    clusterNames foreach { cn =>
+      Get(s"/api/cluster/${googleProject.value}/$cn") ~> timedLeoRoutes.route ~> check {
+        status shouldEqual StatusCodes.OK
 
-      validateCookie { header[`Set-Cookie`] }
-    }
+        val responseCluster = responseAs[Cluster]
+        responseCluster.clusterName.value shouldEqual cn
+        responseCluster.serviceAccountInfo.clusterServiceAccount shouldEqual serviceAccountProvider.getClusterServiceAccount(defaultUserInfo, googleProject).futureValue
+        responseCluster.serviceAccountInfo.notebookServiceAccount shouldEqual serviceAccountProvider.getNotebookServiceAccount(defaultUserInfo, googleProject).futureValue
+        responseCluster.jupyterExtensionUri shouldEqual Some(jupyterExtensionUri)
 
-    Get(s"/api/cluster/${googleProject.value}/${clusterName.value}") ~> timedLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.OK
-
-      val responseCluster = responseAs[Cluster]
-      responseCluster.serviceAccountInfo.clusterServiceAccount shouldEqual serviceAccountProvider.getClusterServiceAccount(defaultUserInfo, googleProject).futureValue
-      responseCluster.serviceAccountInfo.notebookServiceAccount shouldEqual serviceAccountProvider.getNotebookServiceAccount(defaultUserInfo, googleProject).futureValue
-      responseCluster.jupyterExtensionUri shouldEqual Some(jupyterExtensionUri)
-
-      validateCookie { header[`Set-Cookie`] }
+        validateCookie { header[`Set-Cookie`] }
+      }
     }
   }
 
