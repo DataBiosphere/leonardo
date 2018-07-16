@@ -6,6 +6,7 @@ import java.nio.file.Files
 import java.time.Instant
 import java.util.Base64
 
+import akka.http.scaladsl.model.HttpHeader
 import cats.data.OptionT
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
