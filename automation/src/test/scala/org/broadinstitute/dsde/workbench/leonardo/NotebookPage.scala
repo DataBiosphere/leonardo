@@ -1,17 +1,20 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import com.typesafe.scalalogging.LazyLogging
 import org.apache.commons.text.StringEscapeUtils
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.openqa.selenium.{By, WebDriver, WebElement}
+import org.openqa.selenium.{By, TimeoutException, WebDriver, WebElement}
 import org.openqa.selenium.interactions.Actions
 
 import scala.collection.JavaConverters._
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import scala.util.{Failure, Success, Try}
 
 
 class NotebookPage(override val url: String)(override implicit val authToken: AuthToken, override implicit val webDriver: WebDriver)
-  extends JupyterPage {
+  extends JupyterPage with LazyLogging {
 
   override def open(implicit webDriver: WebDriver): NotebookPage = {
     val page: NotebookPage = super.open.asInstanceOf[NotebookPage]
@@ -97,15 +100,10 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     find(kernelNotification).exists { e => e.text == "No kernel" }
   }
 
-  // is the kernel ready?
-  def isKernelReady: Boolean = {
-    find(kernelNotification).exists { e => e.text == "Kernel ready" }
-  }
-
   def runAllCells(timeout: FiniteDuration = 60 seconds): Unit = {
     click on cellMenu
     click on (await enabled runAllCellsSelection)
-    await condition (!cellsAreRunning, timeout.toSeconds)
+    awaitReadyKernel(timeout)
   }
 
   def download(): Unit = {
@@ -139,7 +137,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     val outputs = cell.findElements(By.xpath("../../../..//div[contains(@class,'output_subarea')]"))
     outputs.asScala.headOption.map(_.getText)
   }
-  
+
   def executeCell(code: String, timeout: FiniteDuration = 1 minute): Option[String] = {
     await enabled cells
     val cell = lastCell
@@ -179,28 +177,51 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     await condition isKernelShutdown
   }
 
+  /**
+    * Throw TimeoutException if Kernel is not ready after restart when timeout is reached
+    *
+    * @param timeout
+    */
   def restartKernel(timeout: FiniteDuration = 1 minute): Unit = {
+    logger.info("kernel restarting...")
     click on kernelMenu
     click on (await enabled restartKernelSelection)
     click on (await enabled restartKernelConfirmationSelection)
-    await condition (isKernelReady, timeout.toSeconds)
+    await notVisible restartKernelConfirmationSelection
+    await condition (isKernelReady && kernelNotificationText == "none", timeout.toSeconds)
   }
 
-  /**
-    * wait for kernel to become ready. default timeout == 2.minutes
-    */
-  def awaitReadyKernel(timeout: FiniteDuration = 2.minutes): Unit = {
-    await condition (
-      !cellsAreRunning &&
-      find(id("notification_kernel")).exists(_.underlying.getCssValue("display") == "none") &&
-      find(id("kernel_indicator_icon")).exists(_.underlying.getAttribute("class") == "kernel_idle_icon"), timeout.toSeconds
-    )
-    await condition (find(id("kernel_indicator_icon")).exists(_.isDisplayed), 5) // adds little time to check isDisplayed to prevent StaleWebElementException
-  }
+
 
   def clickRunCell(timeout: FiniteDuration = 2.minutes): Unit = {
     click on runCellButton
-    awaitReadyKernel(timeout)
+    Await.ready(awaitReadyKernel, timeout).value.get match {
+      case Success(_) => logger.info("kernel is in ready state.")
+      case Failure(_) =>
+        logger.error("kernel did not change to ready state.")
+        if (isKernelDisconnected) restartKernel(timeout)
+    }
+  }
+
+  /**
+    * wait for kernel to become ready. default timeout == 1.minute
+    *
+    * Throw TimeoutException if Kernel is not ready when timeout is reached
+    */
+  def awaitReadyKernel: Future[Boolean] = {
+    Future(!cellsAreRunning && isKernelReady && kernelNotificationText == "none")
+  }
+
+  def isKernelDisconnected: Boolean = {
+    find(id("kernel_indicator_icon")).exists(_.underlying.getAttribute("class") == "kernel_disconnected_icon")
+  }
+
+  def isKernelReady: Boolean = {
+    find(id("kernel_indicator_icon")).exists(_.underlying.getAttribute("class") == "kernel_idle_icon")
+  }
+
+  def kernelNotificationText: String = {
+    find(id("notification_kernel")).map(_.underlying.getCssValue("display")).getOrElse("")
   }
 
 }

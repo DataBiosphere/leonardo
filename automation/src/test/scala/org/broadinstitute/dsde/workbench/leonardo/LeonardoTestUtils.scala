@@ -40,9 +40,6 @@ case class TimeResult[R](result:R, duration:FiniteDuration)
 trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures {
   this: Suite with BillingFixtures =>
 
-  // must align with run-tests.sh and hub-compose-fiab.yml
-  val downloadDir = "chrome/downloads"
-
   val logDir = new File("output")
   logDir.mkdirs
 
@@ -609,7 +606,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     notebookPage.executeCell(s"! grep Finished ~/hail.log | grep $preemptibleNodePrefix").get should include(preemptibleNodePrefix)
   }
 
-  def uploadDownloadTest(cluster: Cluster, uploadFile: File, timeout: FiniteDuration)(assertion: (File, File) => Any)(implicit webDriver: WebDriver, token: AuthToken): Any = {
+  def uploadDownloadTest(cluster: Cluster, uploadFile: File, timeout: FiniteDuration, fileDownloadDir: String)(assertion: (File, File) => Any)(implicit webDriver: WebDriver, token: AuthToken): Any = {
     cluster.status shouldBe ClusterStatus.Running
     uploadFile.exists() shouldBe true
 
@@ -619,20 +616,10 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
 
     // sanity check the file downloaded correctly
-    val downloadFile = new File(downloadDir, uploadFile.getName)
+    val downloadFile = new File(fileDownloadDir, uploadFile.getName)
     downloadFile.exists() shouldBe true
     downloadFile.isFile() shouldBe true
-    math.abs(System.currentTimeMillis - downloadFile.lastModified()) shouldBe < (timeout.toMillis)
-
-    // move the file to a unique location so it won't interfere with other tests
-    val uniqueDownFile = new File(downloadDir, s"${Instant.now().toString}-${uploadFile.getName}")
-    moveFile(downloadFile, uniqueDownFile)
-
-    // clean up after ourselves
-    uniqueDownFile.deleteOnExit()
-
-    // run the assertion
-    assertion(uploadFile, uniqueDownFile)
+    downloadFile.deleteOnExit()
   }
 
   def saveDataprocLogFiles(cluster: Cluster)(implicit executionContext: ExecutionContext): Future[Option[(File, File)]] = {
