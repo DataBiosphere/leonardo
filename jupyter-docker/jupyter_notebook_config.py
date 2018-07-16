@@ -15,6 +15,8 @@ c.NotebookApp.token = ''
 c.NotebookApp.disable_check_xsrf = True #see https://github.com/nteract/hydrogen/issues/922
 c.NotebookApp.allow_origin = '*'
 
+c.NotebookApp.terminado_settings={'shell_command': ['bash']}
+
 fragment = os.environ['GOOGLE_PROJECT'] + '/' + os.environ['CLUSTER_NAME']
 c.NotebookApp.base_url = '/notebooks/' + fragment + '/'
 c.NotebookApp.webapp_settings = {'static_url_prefix':'/notebooks/' + fragment + '/static/'}
