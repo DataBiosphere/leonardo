@@ -4,8 +4,8 @@
 #   docker build jupyter-docker/ -t broadinstitute/leonardo-notebooks:local
 set -e
 
-DOCKER_IMG=jupyter/minimal-notebook
-CONTAINER=jupyter-server5
+DOCKER_IMG=broadinstitute/leonardo-notebooks:local
+CONTAINER=jupyter-server
 
 start () {
     # check if jupyter is running
@@ -16,10 +16,10 @@ start () {
     fi
 
     echo "Starting Jupyter server container..."
-    docker create -it --rm --name ${CONTAINER} -p 8888:8888 -e GOOGLE_PROJECT=project -e CLUSTER_NAME=cluster "${DOCKER_IMG}"
-    # docker cp jupyter-docker/jupyter_notebook_config.py ${CONTAINER}:/etc/jupyter/jupyter_notebook_config.py
-    # docker cp jupyter-docker/jupyter_localize_extension.py ${CONTAINER}:/etc/jupyter/custom/jupyter_localize_extension.py
-    # docker cp jupyter-docker/jupyter_delocalize.py ${CONTAINER}:/etc/jupyter/custom/jupyter_delocalize.py
+    docker create -it --rm --name ${CONTAINER} -p 8000:8000 -e GOOGLE_PROJECT=project -e CLUSTER_NAME=cluster "${DOCKER_IMG}"
+    docker cp jupyter-docker/jupyter_notebook_config.py ${CONTAINER}:/etc/jupyter/jupyter_notebook_config.py
+    docker cp jupyter-docker/jupyter_localize_extension.py ${CONTAINER}:/etc/jupyter/custom/jupyter_localize_extension.py
+    docker cp jupyter-docker/jupyter_delocalize.py ${CONTAINER}:/etc/jupyter/custom/jupyter_delocalize.py
     # To debug startup failures, add -a here to attach.
     docker start -a ${CONTAINER}
 
