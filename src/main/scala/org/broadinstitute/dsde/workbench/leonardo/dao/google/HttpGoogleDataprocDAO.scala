@@ -63,7 +63,8 @@ class HttpGoogleDataprocDAO(appName: String,
                              machineConfig: MachineConfig,
                              initScript: GcsPath,
                              clusterServiceAccount: Option[WorkbenchEmail],
-                             credentialsFileName: Option[String], stagingBucket: GcsBucketName): Future[Operation] = {
+                             credentialsFileName: Option[String],
+                             stagingBucket: GcsBucketName): Future[Operation] = {
     val cluster = new DataprocCluster()
       .setClusterName(clusterName.value)
       .setConfig(getClusterConfig(machineConfig, initScript, clusterServiceAccount, credentialsFileName, stagingBucket))

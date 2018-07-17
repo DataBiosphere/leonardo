@@ -29,7 +29,10 @@ import spray.json._
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures with OptionValues with CommonTestData {
+class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers
+  with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures
+  with OptionValues with CommonTestData {
+
   private var gdDAO: MockGoogleDataprocDAO = _
   private var computeDAO: MockGoogleComputeDAO = _
   private var iamDAO: MockGoogleIamDAO = _
@@ -75,6 +78,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     notebookServiceAccount(project).map(_ => List(ClusterInitValues.serviceAccountCredentialsFilename)).getOrElse(List.empty)
   ) map(name => GcsObjectName(name))
 
+  // TODO Add cases for v2 of the cluster creation API
   "LeonardoService" should "create a single node cluster with default machine configs" in isolatedDbTest {
     // create the cluster
     val clusterCreateResponse = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue

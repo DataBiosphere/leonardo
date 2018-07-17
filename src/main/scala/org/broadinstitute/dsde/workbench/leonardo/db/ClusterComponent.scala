@@ -110,10 +110,9 @@ trait ClusterComponent extends LeoComponent {
   }
 
   object clusterQuery extends TableQuery(new ClusterTable(_)) {
-
-    def save(cluster: Cluster): DBIO[Cluster] = save(cluster, initBucket = None, serviceAccountKeyId = None)
-
-    def save(cluster: Cluster, initBucket: Option[GcsPath], serviceAccountKeyId: Option[ServiceAccountKeyId]): DBIO[Cluster] = {
+    def save(cluster: Cluster, 
+             initBucket: Option[GcsPath] = None,
+             serviceAccountKeyId: Option[ServiceAccountKeyId] = None): DBIO[Cluster] = {
       for {
         clusterId <- clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster, initBucket.map(_.toUri), serviceAccountKeyId)
         _ <- labelQuery.saveAllForCluster(clusterId, cluster.labels)
