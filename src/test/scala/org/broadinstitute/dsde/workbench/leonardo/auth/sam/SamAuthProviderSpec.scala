@@ -152,6 +152,24 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     samAuthProvider.hasNotebookClusterPermission(userInfo, SyncDataToCluster, project, name1).futureValue shouldBe true
   }
 
+  "should consider userInfo objects with different tokenExpiresIn values as the same" in isolatedDbTest {
+    val samAuthProvider = getSamAuthProvider
+
+    // cache should be empty
+    samAuthProvider.notebookAuthCache.size shouldBe 0
+
+    // populate backing samClient
+    samAuthProvider.samClient.notebookClusters += (project, name1, userInfo.userEmail) -> Set("sync")
+
+    // call provider method
+    samAuthProvider.hasNotebookClusterPermission(userInfo, SyncDataToCluster, project, name1).futureValue shouldBe true
+
+    samAuthProvider.hasNotebookClusterPermission(userInfo.copy(tokenExpiresIn = userInfo.tokenExpiresIn + 10), SyncDataToCluster, project, name1).futureValue shouldBe true
+
+    samAuthProvider.notebookAuthCache.size shouldBe 1
+
+  }
+
   "filterClusters should return clusters that were created by the user or whose project is owned by the user" in isolatedDbTest {
     val samAuthProvider = getSamAuthProvider
 
