@@ -9,7 +9,7 @@ import cats.implicits._
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig, AutoFreezeConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
@@ -30,7 +30,7 @@ import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 import scala.io.Source
 import scala.util.control.NonFatal
-import scala.util.Failure
+import scala.util.{Failure, Success}
 
 case class AuthorizationError(email: Option[WorkbenchEmail] = None)
   extends LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is unauthorized", StatusCodes.Unauthorized)
@@ -135,6 +135,25 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
+  // We complete the API response without waiting for the cluster to be created
+  // on the Google Dataproc side, which happens asynchronously to the request
+  def processClusterCreationRequest(userInfo: UserInfo,
+                                    googleProject: GoogleProject,
+                                    clusterName: ClusterName,
+                                    clusterRequest: ClusterRequest): Future[Cluster] = {
+    for {
+      _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
+
+      // Grab the service accounts from serviceAccountProvider for use later
+      clusterServiceAccountOpt <- serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject)
+      notebookServiceAccountOpt <- serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject)
+      serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountOpt, notebookServiceAccountOpt)
+
+      cluster <- stageClusterCreation(
+        userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
+    } yield cluster
+  }
+
   def createCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
     for {
       _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
@@ -182,6 +201,65 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         clusterFuture
     }
+  }
+
+  def stageClusterCreation(userEmail: WorkbenchEmail,
+                           serviceAccountInfo: ServiceAccountInfo,
+                           googleProject: GoogleProject,
+                           clusterName: ClusterName,
+                           clusterRequest: ClusterRequest): Future[Cluster] = {
+    // Check if the google project has an active cluster with the same name. If not, we can create it
+    dbRef.inTransaction { dataAccess =>
+      dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName)
+    } flatMap {
+      case Some(existingCluster) =>
+        throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
+      case None =>
+        val augmentedClusterRequest = addClusterDefaultLabels(
+          serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
+        val machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
+        val autopauseThreshold = calculateAutopauseThreshold(
+          clusterRequest.autopause, clusterRequest.autopauseThreshold)
+        val initialCluster = Cluster.create(
+          clusterRequest, userEmail, clusterName, googleProject,
+          serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold)
+
+        val attemptToSaveClusterInDb: Future[Cluster] = dbRef.inTransaction(_.clusterQuery.save(initialCluster))
+
+        // For the success case, register the following callbacks...
+        attemptToSaveClusterInDb foreach { cluster =>
+          // Notify the auth provider and kick off the cluster creation on the Google Dataproc side
+          completeClusterCreation(userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest)
+            // TODO Add logging for when the async portion begins and ends for a cluster
+            .onComplete {
+              case Success(_) =>
+                // Finally, notify the cluster monitor that the cluster has been created
+                clusterMonitorSupervisor ! ClusterCreated(cluster, clusterRequest.stopAfterCreation.getOrElse(false))
+              // TODO If the async portion fails we should report the error to the user, probably by setting
+              // the Cluster status to Error in the DB and adding a ClusterError record.
+              case Failure(_) =>
+                // If we didn't succeed, createGoogleCluster removes resources in Google but
+                // we also need to notify our auth provider that the cluster has been deleted.
+                // We won't wait for that deletion, though.
+                authProvider.notifyClusterDeleted(userEmail, userEmail, googleProject, clusterName)
+            }
+        }
+
+        attemptToSaveClusterInDb
+    }
+  }
+
+  // Meant to be run asynchronously to the clusterCreate API request
+  def completeClusterCreation(userEmail: WorkbenchEmail,
+                              serviceAccountInfo: ServiceAccountInfo,
+                              googleProject: GoogleProject,
+                              clusterName: ClusterName,
+                              clusterRequest: ClusterRequest): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
+    // Notify the AuthProvider
+    authProvider.notifyClusterCreated(userEmail, googleProject, clusterName)
+    // Proceed to creating the cluster on the Google side
+    // TODO Update this method so the stuff it returns is persisted
+    createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
   }
 
   //throws 404 if nonexistent or no permissions
@@ -340,45 +418,59 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val stagingBucketName = generateUniqueBucketName("leostaging-"+clusterName.value)
 
     val googleFuture = for {
-
       // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
       _ <- validateClusterRequestBucketObjectUri(userEmail, googleProject, clusterRequest)
 
       // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
       _ <- googleComputeDAO.updateFirewallRule(googleProject, firewallRule)
+
       // Generate a service account key for the notebook service account (if present) to localize on the cluster.
       // We don't need to do this for the cluster service account because its credentials are already
       // on the metadata server.
       serviceAccountKeyOpt <- generateServiceAccountKey(googleProject, serviceAccountInfo.notebookServiceAccount)
+
       // Add Dataproc Worker role to the cluster service account, if present.
       // This is needed to be able to spin up Dataproc clusters.
       // If the Google Compute default service account is being used, this is not necessary.
       _ <- addDataprocWorkerRoleToServiceAccount(googleProject, serviceAccountInfo.clusterServiceAccount)
+
       // Create the bucket in leo's google project and populate with initialization files.
       // ACLs are granted so the cluster service account can access the bucket at initialization time.
       initBucket <- bucketHelper.createInitBucket(googleProject, initBucketName, serviceAccountInfo)
       _ <- initializeBucketObjects(userEmail, googleProject, clusterName, initBucket, clusterRequest, serviceAccountKeyOpt)
+
       // Create the cluster staging bucket. ACLs are granted so the user/pet can access it.
       stagingBucket <- bucketHelper.createStagingBucket(userEmail, googleProject, stagingBucketName, serviceAccountInfo)
+
       // Create the cluster
       machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
       initScript = GcsPath(initBucket, GcsObjectName(clusterResourcesConfig.initActionsScript.value))
-      autopauseThreshold = clusterRequest.autopause match {
-        case None => autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
-        case Some(false) => 0
-        case _ => if (clusterRequest.autopauseThreshold == None) autoFreezeConfig.autoFreezeAfter.toMinutes.toInt else Math.max(0, clusterRequest.autopauseThreshold.get)
-      }
-
+      autopauseThreshold = calculateAutopauseThreshold(clusterRequest.autopause, clusterRequest.autopauseThreshold)
       credentialsFileName = serviceAccountInfo.notebookServiceAccount.map(_ => s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}")
-      cluster <- gdDAO.createCluster(googleProject, clusterName, machineConfig, initScript, serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket).map { operation =>
-        Cluster.create(clusterRequest, userEmail, clusterName, googleProject, operation, serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, stagingBucket, autopauseThreshold)
-      }
+      operation <- gdDAO.createCluster(googleProject, clusterName, machineConfig, initScript,
+        serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket)
+      cluster = Cluster.create(clusterRequest, userEmail, clusterName, googleProject, serviceAccountInfo,
+        machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, Option(operation), Option(stagingBucket))
     } yield (cluster, initBucket, serviceAccountKeyOpt)
 
     // If anything fails, we need to clean up Google resources that might have been created
     googleFuture.andThen { case Failure(t) =>
       // Don't wait for this future
       cleanUpGoogleResourcesOnError(t, googleProject, clusterName, initBucketName, serviceAccountInfo)
+    }
+  }
+
+  private def calculateAutopauseThreshold(autopause: Option[Boolean], autopauseThreshold: Option[Int]): Int = {
+    val AutoPauseOffValue = 0
+
+    autopause match {
+      case None =>
+        autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
+      case Some(false) =>
+        AutoPauseOffValue
+      case _ =>
+        if (autopauseThreshold.isEmpty) autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
+        else Math.max(AutoPauseOffValue, autopauseThreshold.get)
     }
   }
 
