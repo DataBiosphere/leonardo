@@ -53,9 +53,9 @@ ENV LC_ALL en_US.UTF-8
 # Java
 #######################
 
-ENV JAVA_VER jdk1.8.0_171
-ENV JAVA_TGZ jdk-8u171-linux-x64.tar.gz
-ENV JAVA_URL http://download.oracle.com/otn-pub/java/jdk/8u171-b11/512cd62ec5174c3487ac17c61aaa89e8/$JAVA_TGZ
+ENV JAVA_VER jdk1.8.0_181
+ENV JAVA_TGZ jdk-8u181-linux-x64.tar.gz
+ENV JAVA_URL http://download.oracle.com/otn-pub/java/jdk/8u181-b13/96a7b8442fe848ef90c96a2fad6ed6d1/$JAVA_TGZ
 ENV JAVA_HOME /usr/lib/jdk/$JAVA_VER
 
 RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
