@@ -228,20 +228,24 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         // For the success case, register the following callbacks...
         attemptToSaveClusterInDb foreach { cluster =>
-          // Notify the auth provider and kick off the cluster creation on the Google Dataproc side
+          logger.info(s"Attempting to asynchronously create cluster $clusterName " +
+            s"on Google project ${googleProject.value} and notify the AuthProvider")
           completeClusterCreation(userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest)
-            // TODO Add logging for when the async portion begins and ends for a cluster
             .onComplete {
               case Success(_) =>
-                // Finally, notify the cluster monitor that the cluster has been created
+                logger.info(s"Asynchronous cluster creation succeeded for cluster $clusterName " +
+                  s"on Google project ${googleProject.value}. Notifying ClusterMonitorSupervisor about it...")
                 clusterMonitorSupervisor ! ClusterCreated(cluster, clusterRequest.stopAfterCreation.getOrElse(false))
-              // TODO If the async portion fails we should report the error to the user, probably by setting
-              // the Cluster status to Error in the DB and adding a ClusterError record.
               case Failure(_) =>
+                logger.info(s"Failed the asynchronous portion of the creation of cluster $clusterName " +
+                  s"on Google project ${googleProject.value}.")
                 // If we didn't succeed, createGoogleCluster removes resources in Google but
                 // we also need to notify our auth provider that the cluster has been deleted.
                 // We won't wait for that deletion, though.
                 authProvider.notifyClusterDeleted(userEmail, userEmail, googleProject, clusterName)
+
+              // TODO If the async portion fails we should report the error to the user, probably by setting
+              // the Cluster status to Error in the DB and adding a ClusterError record.
             }
         }
 
@@ -256,10 +260,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                               clusterName: ClusterName,
                               clusterRequest: ClusterRequest): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
     // Notify the AuthProvider
-    authProvider.notifyClusterCreated(userEmail, googleProject, clusterName)
-    // Proceed to creating the cluster on the Google side
-    // TODO Update this method so the stuff it returns is persisted
-    createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
+    authProvider.notifyClusterCreated(userEmail, googleProject, clusterName) flatMap { _ =>
+      logger.info(s"Successfully notified the AuthProvider for creation of cluster $clusterName " +
+        s"on Google project ${googleProject.value}. Proceeding to creating the cluster on Google Dataproc...")
+
+      // TODO Update this method so the stuff it returns is persisted
+      createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
+    }
   }
 
   //throws 404 if nonexistent or no permissions
