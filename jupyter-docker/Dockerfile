@@ -1,6 +1,6 @@
 # adapted from https://hub.docker.com/r/jupyter/base-notebook/ AKA https://github.com/jupyter/docker-stacks/tree/master/base-notebook
 
-FROM debian:jessie
+FROM debian:stretch
 
 USER root
 
@@ -12,12 +12,14 @@ ENV DEBIAN_FRONTEND noninteractive
 ENV DEBIAN_REPO http://cdn-fastly.deb.debian.org
 ENV CRAN_REPO http://cran.mtu.edu
 
-RUN echo "deb $DEBIAN_REPO/debian jessie main"                   > /etc/apt/sources.list \
- && echo "deb $DEBIAN_REPO/debian-security jessie/updates main" >> /etc/apt/sources.list \
- && echo "deb $DEBIAN_REPO/debian jessie-backports main"        >> /etc/apt/sources.list \
- && echo "deb $CRAN_REPO/bin/linux/debian jessie-cran34/"       >> /etc/apt/sources.list \
- && apt-key adv --keyserver keys.gnupg.net \
-    --recv-key 'E19F5F87128899B192B1A2C2AD5F960A256A04AF' \
+RUN apt-get update && apt-get install -my wget gnupg && apt-get install -my wget locales
+RUN apt-cache search locales
+RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sources.list \
+ && echo "deb $DEBIAN_REPO/debian-security stretch/updates main" >> /etc/apt/sources.list \
+ && echo "deb $DEBIAN_REPO/debian stretch-backports main"        >> /etc/apt/sources.list \
+ && echo "deb $CRAN_REPO/bin/linux/debian stretch-cran34/"       >> /etc/apt/sources.list \
+ # && apt-key adv --keyserver keys.gnupg.net \
+ #   --recv-key 'E19F5F87128899B192B1A2C2AD5F960A256A04AF' \
  && apt-get update \
  && apt-get -yq dist-upgrade \
  && apt-get install -yq --no-install-recommends \
@@ -38,7 +40,6 @@ RUN echo "deb $DEBIAN_REPO/debian jessie main"                   > /etc/apt/sour
  && sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen \
  # Generate locale
  && locale-gen \
-
  # google-cloud-sdk separately because it need lsb-release and other prereqs installed above
  && export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" \
  && echo "deb http://packages.cloud.google.com/apt $CLOUD_SDK_REPO main" > /etc/apt/sources.list.d/google-cloud-sdk.list \
@@ -119,7 +120,7 @@ RUN apt-get install -yq --no-install-recommends \
 
     # useful for analysis
     python-matplotlib \
-    python-pandas \
+    python-pandas\
     python-seaborn \
     python-tk \
     python-numpy \
@@ -157,26 +158,26 @@ RUN apt-get install -yq --no-install-recommends python3 \
         python3-pandas \
         python3-tk \
         python3-numpy \
- && python3 get-pip.py \
+&& python3 get-pip.py \
  # install the python 3 kernel
- && pip3 install tornado==4.5.3 \
- && pip3 install ipykernel==4.8.2 \
- && python3 -m ipykernel install --name python3 --display-name "Python 3" \
+&& pip3 install tornado==5.1 \
+&& pip3 install ipykernel==4.8.2 \
+&& python3 -m ipykernel install --name python3 --display-name "Python 3" \
  # python 3 packages
- && pip3 install seaborn \
- && pip3 install python-lzo \
- && pip3 install google-cloud \
- && pip3 install --ignore-installed firecloud==0.16.7 \
- && pip3 install -U scikit-learn \
- && pip3 install statsmodels==0.8.0 \
- && pip3 install ggplot \
- && pip3 install bokeh \
- && pip3 install pyfasta \
- && pip3 install pdoc \
- && pip3 install biopython \
- && pip3 install bx-python \
- && pip3 install fastinterval \
- && pip3 install matplotlib-venn
+&& pip3 install seaborn \
+&& pip3 install python-lzo \
+&& pip3 install google-cloud \
+&& pip3 install --ignore-installed firecloud==0.16.7 \
+&& pip3 install -U scikit-learn \
+&& pip3 install statsmodels==0.9.0 \
+&& pip3 install ggplot \
+&& pip3 install bokeh \
+&& pip3 install pyfasta \
+&& pip3 install pdoc \
+&& pip3 install biopython \
+&& pip3 install bx-python \
+&& pip3 install fastinterval \
+&& pip3 install matplotlib-venn
 
 # make pip install to a user directory, instead of a system directory which requires root.
 # this is useful so `pip install` commands can be run in the context of a notebook.
@@ -187,7 +188,7 @@ ENV PIP_USER=true
 #######################
 
 RUN apt-get update \
- && apt-get -t jessie-cran34 install -y --no-install-recommends \
+ && apt-get -t stretch-cran34 install -y --no-install-recommends --allow-unauthenticated \
     r-base \
     r-base-dev \
     r-recommended \
@@ -213,7 +214,8 @@ RUN R -e 'install.packages(c( \
     "dplyr",  \
     "tidyr",  \
     "reshape2",  \
-    "bigrquery"),  \
+    "bigrquery", \
+    "tidyverse"),  \
     repos="https://cran.mtu.edu")' \
  && R -e 'devtools::install_github("IRkernel/IRkernel")' \
  && R -e 'IRkernel::installspec(user=FALSE)' \
