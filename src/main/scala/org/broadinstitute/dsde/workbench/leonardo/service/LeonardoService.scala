@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
 import java.io.File
+import java.time.Instant
 
 import akka.actor.ActorRef
 import akka.http.scaladsl.model.StatusCodes
@@ -194,7 +195,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         // If cluster creation failed, createGoogleCluster removes resources in Google.
         // We also need to notify our auth provider that the cluster has been deleted.
-        clusterFuture.andThen { case Failure(e) =>
+        clusterFuture.andThen { case Failure(_) =>
           // Don't wait for this future
           authProvider.notifyClusterDeleted(userEmail, userEmail, googleProject, clusterName)
         }
@@ -236,16 +237,22 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                 logger.info(s"Asynchronous cluster creation succeeded for cluster $clusterName " +
                   s"on Google project ${googleProject.value}. Notifying ClusterMonitorSupervisor about it...")
                 clusterMonitorSupervisor ! ClusterCreated(cluster, clusterRequest.stopAfterCreation.getOrElse(false))
-              case Failure(_) =>
+              case Failure(e) =>
                 logger.info(s"Failed the asynchronous portion of the creation of cluster $clusterName " +
                   s"on Google project ${googleProject.value}.")
+
                 // If we didn't succeed, createGoogleCluster removes resources in Google but
                 // we also need to notify our auth provider that the cluster has been deleted.
                 // We won't wait for that deletion, though.
                 authProvider.notifyClusterDeleted(userEmail, userEmail, googleProject, clusterName)
 
-              // TODO If the async portion fails we should report the error to the user, probably by setting
-              // the Cluster status to Error in the DB and adding a ClusterError record.
+              // We also want to record the error in database for future reference.
+                val errorMessage = s"Asynchronous creation of cluster $clusterName on Google project" +
+                  s"${googleProject.value} failed with ${e.getMessage}."
+                // TODO Make errorCode field nullable in ClusterErrorComponent and pass None below
+                val dummyErrorCode = -1
+                val errorInfo = ClusterError(errorMessage, dummyErrorCode, Instant.now)
+                dbRef.inTransaction(_.clusterErrorQuery.save(cluster.id, errorInfo))
             }
         }
 
