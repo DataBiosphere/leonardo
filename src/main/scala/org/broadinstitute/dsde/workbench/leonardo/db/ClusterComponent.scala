@@ -9,10 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GcsPathSupport, GoogleProject, ServiceAccountKeyId, parseGcsPath}
-
-import java.util.concurrent.TimeUnit
-import scala.concurrent.duration._
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GcsPathSupport, GoogleProject, ServiceAccountKey, ServiceAccountKeyId, parseGcsPath}
 
 case class ClusterRecord(id: Long,
                          clusterName: String,
@@ -224,6 +221,22 @@ trait ClusterComponent extends LeoComponent {
         .map { recs => recs.headOption.flatten.map(ServiceAccountKeyId) }
     }
 
+    def getClusterStatus(id: Long): DBIO[Option[ClusterStatus]] = {
+      clusterQuery.filter { _.id === id }.map(_.status).result.headOption map { statusOpt =>
+        statusOpt map ClusterStatus.withName
+      }
+    }
+
+    def getClustersReadyToAutoFreeze(): DBIO[Seq[Cluster]] = {
+      val now = SimpleFunction.nullary[Timestamp]("NOW")
+      val tsdiff = SimpleFunction.ternary[String, Timestamp, Timestamp, Int]("TIMESTAMPDIFF")
+      val minute = SimpleLiteral[String]("MINUTE")
+
+      clusterQueryWithInstancesAndErrorsAndLabels.filter { record => tsdiff(minute, record._1.dateAccessed, now) >= record._1.autopauseThreshold}
+        .filter(_._1.status inSetBind ClusterStatus.stoppableStatuses.map(_.toString))
+        .result map { recs => unmarshalClustersWithInstancesAndLabels(recs)}
+    }
+
     def markPendingDeletion(id: Long): DBIO[Int] = {
       clusterQuery.filter(_.id === id)
         .map(c => (c.status, c.hostIp))
@@ -242,22 +255,19 @@ trait ClusterComponent extends LeoComponent {
         .update((status.toString, hostIp.map(_.value), Timestamp.from(Instant.now)))
     }
 
-    def setToRunning(id: Long, hostIp: IP): DBIO[Int] = {
-      updateClusterStatusAndHostIp(id, ClusterStatus.Running, Some(hostIp))
-    }
+    def updateAsyncClusterCreationFields(initBucket: Option[GcsBucketName],
+                                         serviceAccountKey: Option[ServiceAccountKey],
+                                         cluster: Cluster): DBIO[Int] = {
+      val valuesToInsert = (initBucket.map(_.value), serviceAccountKey.map(_.id.value),
+        cluster.googleId, cluster.operationName.map(_.value), cluster.stagingBucket.map(_.value))
 
-    def setToStopping(id: Long): DBIO[Int] = {
-      updateClusterStatusAndHostIp(id, ClusterStatus.Stopping, None)
+      clusterQuery.filter { _.id === cluster.id }
+        .map(c => (c.initBucket, c.serviceAccountKeyId, c.googleId, c.operationName, c.stagingBucket))
+        .update(valuesToInsert)
     }
 
     def updateClusterStatus(id: Long, newStatus: ClusterStatus): DBIO[Int] = {
       clusterQuery.filter { _.id === id }.map(c => (c.status, c.dateAccessed)).update(newStatus.toString, Timestamp.from(Instant.now))
-    }
-
-    def getClusterStatus(id: Long): DBIO[Option[ClusterStatus]] = {
-      clusterQuery.filter { _.id === id }.map(_.status).result.headOption map { statusOpt =>
-        statusOpt map ClusterStatus.withName
-      }
     }
 
     def updateDateAccessed(id: Long, dateAccessed: Instant): DBIO[Int] = {
@@ -271,14 +281,12 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    def getClustersReadyToAutoFreeze(): DBIO[Seq[Cluster]] = {
-      val now = SimpleFunction.nullary[Timestamp]("NOW")
-      val tsdiff = SimpleFunction.ternary[String, Timestamp, Timestamp, Int]("TIMESTAMPDIFF")
-      val MINUTE = SimpleLiteral[String]("MINUTE")
+    def setToRunning(id: Long, hostIp: IP): DBIO[Int] = {
+      updateClusterStatusAndHostIp(id, ClusterStatus.Running, Some(hostIp))
+    }
 
-      clusterQueryWithInstancesAndErrorsAndLabels.filter { record => tsdiff(MINUTE, record._1.dateAccessed, now) >= record._1.autopauseThreshold}
-        .filter(_._1.status inSetBind ClusterStatus.stoppableStatuses.map(_.toString))
-        .result map { recs => unmarshalClustersWithInstancesAndLabels(recs)}
+    def setToStopping(id: Long): DBIO[Int] = {
+      updateClusterStatusAndHostIp(id, ClusterStatus.Stopping, None)
     }
 
     def listByLabels(labelMap: LabelMap, includeDeleted: Boolean): DBIO[Seq[Cluster]] = {

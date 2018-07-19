@@ -230,7 +230,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         attemptToSaveClusterInDb foreach { cluster =>
           logger.info(s"Attempting to asynchronously create cluster $clusterName " +
             s"on Google project ${googleProject.value} and notify the AuthProvider")
-          completeClusterCreation(userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest)
+          completeClusterCreation(userEmail, cluster, augmentedClusterRequest)
             .onComplete {
               case Success(_) =>
                 logger.info(s"Asynchronous cluster creation succeeded for cluster $clusterName " +
@@ -255,17 +255,19 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   // Meant to be run asynchronously to the clusterCreate API request
   def completeClusterCreation(userEmail: WorkbenchEmail,
-                              serviceAccountInfo: ServiceAccountInfo,
-                              googleProject: GoogleProject,
-                              clusterName: ClusterName,
-                              clusterRequest: ClusterRequest): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
-    // Notify the AuthProvider
-    authProvider.notifyClusterCreated(userEmail, googleProject, clusterName) flatMap { _ =>
-      logger.info(s"Successfully notified the AuthProvider for creation of cluster $clusterName " +
-        s"on Google project ${googleProject.value}. Proceeding to creating the cluster on Google Dataproc...")
-
-      // TODO Update this method so the stuff it returns is persisted
-      createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
+                              cluster: Cluster,
+                              clusterRequest: ClusterRequest): Future[Unit] = {
+    for {
+      _ <- authProvider.notifyClusterCreated(userEmail, cluster.googleProject, cluster.clusterName)
+      _ = logger.info(s"Successfully notified the AuthProvider for creation of cluster ${cluster.clusterName} " +
+        s"on Google project ${cluster.googleProject.value}. Proceeding to creating the cluster on Google Dataproc...")
+      (_, initBucket, serviceAccountKey) <- createGoogleCluster(userEmail, cluster, clusterRequest)
+    } yield {
+      logger.info(s"Successfully finished asynchronously creating the cluster ${cluster.clusterName} " +
+        s"on Google project ${cluster.googleProject.value}. Proceeding to updating the database cluster record...")
+      dbRef.inTransaction {
+        _.clusterQuery.updateAsyncClusterCreationFields(Option(initBucket), serviceAccountKey, cluster)
+      }
     }
   }
 
@@ -408,6 +410,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       case None => throw ClusterNotFoundException(googleProject, clusterName)
       case Some(cluster) => DBIO.successful(cluster)
     }
+  }
+
+  private[service] def createGoogleCluster(userEmail: WorkbenchEmail,
+                                           cluster: Cluster,
+                                           clusterRequest: ClusterRequest)
+                                          (implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
+    createGoogleCluster(userEmail, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest)
   }
 
   /* Creates a cluster in the given google project:
