@@ -9,6 +9,9 @@ import cats.data.OptionT
 import cats.implicits._
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
+import com.google.api.services.bigquery.BigqueryScopes
+import com.google.api.services.oauth2.Oauth2Scopes
+import com.google.api.services.sourcerepo.v1.CloudSourceRepositoriesScopes
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
@@ -109,6 +112,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private lazy val masterInstanceStartupScript: immutable.Map[String, String] = {
     immutable.Map("startup-script" -> s"docker exec -d ${dataprocConfig.jupyterServerName} /bin/bash -c '/etc/jupyter/scripts/run-jupyter.sh || /usr/local/bin/jupyter notebook'")
   }
+
+  private val oauth2Scopes = List(Oauth2Scopes.USERINFO_EMAIL, Oauth2Scopes.USERINFO_PROFILE)
+  private val bigqueryScopes = List(BigqueryScopes.BIGQUERY)
+  private val cloudSourceRepositoryScopes = List(CloudSourceRepositoriesScopes.SOURCE_READ_ONLY)
 
   def isWhitelisted(userInfo: UserInfo): Future[Boolean] = {
     if( whitelist contains userInfo.userEmail.value.toLowerCase ) {
@@ -389,15 +396,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         // Now stop each instance individually
         _ <- Future.traverse(cluster.nonPreemptibleInstances) { instance =>
-          // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
-          instance.dataprocRole match {
-            case Some(Master) =>
-              googleComputeDAO.addInstanceMetadata(instance.key, masterInstanceStartupScript).flatMap { _ =>
-                googleComputeDAO.stopInstance(instance.key)
-              }
-            case _ =>
-              googleComputeDAO.stopInstance(instance.key)
-          }
+          googleComputeDAO.stopInstance(instance.key)
         }
 
         // Update the cluster status to Stopping
@@ -431,7 +430,24 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         // Start each instance individually
         _ <- Future.traverse(cluster.nonPreemptibleInstances) { instance =>
-          googleComputeDAO.startInstance(instance.key)
+          instance.dataprocRole match {
+            // On the master node:
+            //  - install a startup script on the master node so Jupyter starts back up
+            //  - reset the service account and scopes on this instance
+            //  - then start the instance
+            case Some(Master) =>
+              for {
+                _ <- googleComputeDAO.addInstanceMetadata(instance.key, masterInstanceStartupScript)
+                _ <- cluster.serviceAccountInfo.clusterServiceAccount match {
+                  case Some(serviceAccount) => googleComputeDAO.setServiceAccount(instance.key, serviceAccount, (oauth2Scopes ++ bigqueryScopes ++ cloudSourceRepositoryScopes))
+                  case None => Future.successful(())
+                }
+                _ <- googleComputeDAO.startInstance(instance.key)
+              } yield ()
+
+            case _ =>
+              googleComputeDAO.startInstance(instance.key)
+          }
         }
 
         // Update the cluster status to Starting
@@ -510,7 +526,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       autopauseThreshold = calculateAutopauseThreshold(clusterRequest.autopause, clusterRequest.autopauseThreshold)
       credentialsFileName = serviceAccountInfo.notebookServiceAccount.map(_ => s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}")
       operation <- gdDAO.createCluster(googleProject, clusterName, machineConfig, initScript,
-        serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket)
+        serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket, (oauth2Scopes ++ bigqueryScopes ++ cloudSourceRepositoryScopes))
       cluster = Cluster.create(clusterRequest, userEmail, clusterName, googleProject, serviceAccountInfo,
         machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, Option(operation), Option(stagingBucket))
     } yield (cluster, initBucket, serviceAccountKeyOpt)

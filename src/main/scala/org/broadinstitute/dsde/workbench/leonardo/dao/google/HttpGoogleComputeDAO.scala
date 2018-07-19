@@ -11,7 +11,7 @@ import com.google.api.client.http.HttpResponseException
 import com.google.api.services.cloudresourcemanager.CloudResourceManager
 import com.google.api.services.compute.model.Firewall.Allowed
 import com.google.api.services.compute.model.Metadata.Items
-import com.google.api.services.compute.model.{Firewall, Metadata, Instance => GoogleInstance}
+import com.google.api.services.compute.model.{Firewall, InstancesSetServiceAccountRequest, Metadata, Instance => GoogleInstance}
 import com.google.api.services.compute.{Compute, ComputeScopes}
 import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
@@ -154,6 +154,13 @@ class HttpGoogleComputeDAO(appName: String,
     } {
       case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => None
     }
+  }
+
+  override def setServiceAccount(instanceKey: InstanceKey, serviceAccountEmail: WorkbenchEmail, serviceAccountScopes: Seq[String]): Future[Unit] = {
+    val request = compute.instances().setServiceAccount(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value,
+      new InstancesSetServiceAccountRequest().setEmail(serviceAccountEmail.value).setScopes(serviceAccountScopes.asJava))
+
+    retryWhen500orGoogleError(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
   }
 
   /**

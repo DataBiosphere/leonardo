@@ -57,4 +57,8 @@ class MockGoogleComputeDAO extends GoogleComputeDAO {
     val rng = new Random
     Future.successful(Some(rng.nextLong()))
   }
+
+  override def setServiceAccount(instanceKey: InstanceKey, serviceAccountEmail: WorkbenchEmail, serviceAccountScopes: Seq[String]): Future[Unit] = {
+    Future.successful(())
+  }
 }
