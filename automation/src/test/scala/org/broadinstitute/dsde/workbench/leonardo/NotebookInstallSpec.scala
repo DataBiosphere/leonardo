@@ -1,5 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import java.io.File
+import java.time.Instant
+
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles, GoogleProject}
@@ -28,6 +31,43 @@ class NotebookInstallSpec extends ClusterFixtureSpec {
       }
     }
 
+    "should download file as pdf" in { clusterFixture =>
+      withNewGoogleBucket(clusterFixture.billingProject) { bucketName =>
+        val ronPetServiceAccount = Sam.user.petServiceAccountEmail(clusterFixture.billingProject.value)(ronAuthToken)
+        googleStorageDAO.setBucketAccessControl(bucketName, EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount), GcsRoles.Owner)
+
+        val userScriptString = "#!/usr/bin/env bash\n\npip install nbconvert\napt-get install -yq pandoc texlive-xetex"
+        val userScriptObjectName = GcsObjectName("user-script-downloadaspdf.sh")
+        val userScriptUri = s"gs://${bucketName.value}/${userScriptObjectName.value}"
+
+        withNewBucketObject(bucketName, userScriptObjectName, userScriptString, "text/plain") { objectName =>
+          googleStorageDAO.setObjectAccessControl(bucketName, objectName, EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount), GcsRoles.Owner)
+          val clusterName = ClusterName("user-script-cluster" + makeRandomId())
+
+          withNewCluster(clusterFixture.billingProject, clusterName, ClusterRequest(Map(), None, Option(userScriptUri))) { cluster =>
+            Thread.sleep(10000)
+            withWebDriver(downloadDir) { implicit driver =>
+              withNewNotebook(cluster) { notebookPage =>
+                notebookPage.executeCell("1+1") shouldBe Some("2")
+                notebookPage.downloadAsPdf()
+                val notebookName = notebookPage.currentUrl.substring(notebookPage.currentUrl.lastIndexOf('/') + 1, notebookPage.currentUrl.lastIndexOf('?')).replace(".ipynb",".pdf")
+                // sanity check the file downloaded correctly
+                val downloadFile = new File(downloadDir, notebookName)
+                downloadFile.exists() shouldBe true
+                downloadFile.isFile() shouldBe true
+
+                // move the file to a unique location so it won't interfere with other tests
+                val uniqueDownFile = new File(downloadDir, s"${Instant.now().toString}-${notebookName}")
+                moveFile(downloadFile, uniqueDownFile)
+
+                // clean up after ourselves
+                uniqueDownFile.deleteOnExit()
+              }
+            }
+          }(ronAuthToken)
+        }
+      }
+    }
     // requires a new cluster because we want to pass in a user script in the cluster request
     "should allow user to create a cluster with a script" in { clusterFixture =>
       withWebDriver { implicit driver =>

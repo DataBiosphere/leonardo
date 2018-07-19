@@ -615,7 +615,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
     withNotebookUpload(cluster, uploadFile) { notebook =>
       notebook.runAllCells(timeout)
-      notebook.download()
+      notebook.downloadAsIpynb()
     }
 
     // sanity check the file downloaded correctly

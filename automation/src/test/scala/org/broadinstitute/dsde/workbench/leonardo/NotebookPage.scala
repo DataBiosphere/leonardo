@@ -49,7 +49,10 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     findAll(submenus).filter { e => e.text == "Cell Type" }.toList.head
   }
   // File -> Download as -> ipynb
-  lazy val downloadSelection: Query = cssSelector("[id='download_ipynb']")
+  lazy val downloadSelectionAsIpynb: Query = cssSelector("[id='download_ipynb']")
+
+  // File -> Download as -> pdf
+  lazy val downloadSelectionAsPdf: Query = cssSelector("[id='download_pdf']")
 
   // File -> Save and Checkpoint
   lazy val saveAndCheckpointSelection: Query = cssSelector("[id='save_checkpoint']")
@@ -108,12 +111,20 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     await condition (!cellsAreRunning, timeout.toSeconds)
   }
 
-  def download(): Unit = {
+  def downloadAsIpynb(): Unit = {
     click on fileMenu
     // TODO move to WebBrowser in automation lib so we can instead do:
     // hover over downloadSubMenu
     new Actions(webDriver).moveToElement(downloadSubMenu.underlying).perform()
-    click on (await enabled downloadSelection)
+    click on (await enabled downloadSelectionAsIpynb)
+  }
+
+  def downloadAsPdf(): Unit = {
+    click on fileMenu
+    // TODO move to WebBrowser in automation lib so we can instead do:
+    // hover over downloadSubMenu
+    new Actions(webDriver).moveToElement(downloadSubMenu.underlying).perform()
+    click on (await enabled downloadSelectionAsPdf)
   }
 
   def saveAndCheckpoint(): Unit = {
