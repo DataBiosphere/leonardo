@@ -268,12 +268,15 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       _ <- authProvider.notifyClusterCreated(userEmail, cluster.googleProject, cluster.clusterName)
       _ = logger.info(s"Successfully notified the AuthProvider for creation of cluster ${cluster.clusterName} " +
         s"on Google project ${cluster.googleProject.value}. Proceeding to creating the cluster on Google Dataproc...")
-      (_, initBucket, serviceAccountKey) <- createGoogleCluster(userEmail, cluster, clusterRequest)
+      (googleCluster, initBucket, serviceAccountKey) <- createGoogleCluster(userEmail, cluster, clusterRequest)
     } yield {
       logger.info(s"Successfully finished asynchronously creating the cluster ${cluster.clusterName} " +
         s"on Google project ${cluster.googleProject.value}. Proceeding to updating the database cluster record...")
       dbRef.inTransaction {
-        _.clusterQuery.updateAsyncClusterCreationFields(Option(initBucket), serviceAccountKey, cluster)
+        // We overwrite googleCluster.id with the DB-assigned one that was obtained when we first
+        // inserted the record into the DB prior to completing the createCluster request
+        _.clusterQuery
+          .updateAsyncClusterCreationFields(Option(initBucket), serviceAccountKey, googleCluster.copy(id = cluster.id))
       }
     }
   }

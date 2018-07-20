@@ -100,6 +100,14 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     Get(s"/api/cluster/${googleProject.value}/notyourcluster") ~> invalidUserLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
+
+    Put(s"/api/cluster/v2/${googleProject.value}/notyourcluster-v2", newCluster.toJson) ~> leoRoutes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+    }
+
+    Get(s"/api/cluster/${googleProject.value}/notyourcluster-v2") ~> invalidUserLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.NotFound
+    }
   }
 
   it should "202 when deleting a cluster" in isolatedDbTest{
@@ -109,6 +117,15 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
       status shouldEqual StatusCodes.OK
     }
     Delete(s"/api/cluster/${googleProject.value}/${clusterName.value}") ~> timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+
+      validateCookie { header[`Set-Cookie`] }
+    }
+
+    Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}-v2", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+    }
+    Delete(s"/api/cluster/${googleProject.value}/${clusterName.value}-v2") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
 
       validateCookie { header[`Set-Cookie`] }
@@ -132,9 +149,16 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
 
   it should "list clusters" in isolatedDbTest {
     val newCluster = ClusterRequest(Map.empty, None)
-    for (i <- 1 to 10) {
+
+    for (i <- 1 to 5) {
       Put(s"/api/cluster/${googleProject.value}/${clusterName.value}-$i", newCluster.toJson) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.OK
+      }
+    }
+
+    for (i <- 6 to 10) {
+      Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}-$i", newCluster.toJson) ~> leoRoutes.route ~> check {
+        status shouldEqual StatusCodes.Accepted
       }
     }
 

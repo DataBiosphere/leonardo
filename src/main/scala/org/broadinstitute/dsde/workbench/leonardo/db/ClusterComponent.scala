@@ -258,12 +258,10 @@ trait ClusterComponent extends LeoComponent {
     def updateAsyncClusterCreationFields(initBucket: Option[GcsBucketName],
                                          serviceAccountKey: Option[ServiceAccountKey],
                                          cluster: Cluster): DBIO[Int] = {
-      val valuesToInsert = (initBucket.map(_.value), serviceAccountKey.map(_.id.value),
-        cluster.googleId, cluster.operationName.map(_.value), cluster.stagingBucket.map(_.value))
-
       clusterQuery.filter { _.id === cluster.id }
         .map(c => (c.initBucket, c.serviceAccountKeyId, c.googleId, c.operationName, c.stagingBucket))
-        .update(valuesToInsert)
+        .update(initBucket.map(_.value), serviceAccountKey.map(_.id.value), cluster.googleId,
+          cluster.operationName.map(_.value), cluster.stagingBucket.map(_.value))
     }
 
     def updateClusterStatus(id: Long, newStatus: ClusterStatus): DBIO[Int] = {
