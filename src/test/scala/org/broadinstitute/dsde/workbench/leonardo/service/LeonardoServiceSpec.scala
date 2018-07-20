@@ -853,6 +853,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // populate some instances for the cluster
     dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2)) }
+    computeDAO.instances ++= Seq(masterInstance, workerInstance1, workerInstance2).map(i => i.key -> i).toMap
 
     // set the cluster to Running
     dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
@@ -872,6 +873,15 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse)) }
     instances.size shouldBe 3
     instances.map(_.status).toSet shouldBe Set(InstanceStatus.Running)
+
+    // computeDAO should have been called for all instances
+    computeDAO.instances.mapValues(_.status) shouldBe Map(
+      masterInstance.key -> InstanceStatus.Stopped,
+      workerInstance1.key -> InstanceStatus.Stopped,
+      workerInstance2.key -> InstanceStatus.Stopped)
+     // metadata and service account should not be set (that happens at resume time)
+    computeDAO.instanceMetadata shouldBe 'empty
+    computeDAO.instanceServiceAccounts shouldBe 'empty
   }
 
   it should "stop a cluster created via v2 API" in isolatedDbTest {
@@ -890,6 +900,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // populate some instances for the cluster
     dbFutureValue { _.instanceQuery.saveAllForCluster(
         getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2)) }
+    computeDAO.instances ++= Seq(masterInstance, workerInstance1, workerInstance2).map(i => i.key -> i).toMap
 
     // set the cluster to Running
     dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
@@ -909,6 +920,15 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse)) }
     instances.size shouldBe 3
     instances.map(_.status).toSet shouldBe Set(InstanceStatus.Running)
+
+    // computeDAO should have been called for all instances
+    computeDAO.instances.mapValues(_.status) shouldBe Map(
+      masterInstance.key -> InstanceStatus.Stopped,
+      workerInstance1.key -> InstanceStatus.Stopped,
+      workerInstance2.key -> InstanceStatus.Stopped)
+     // metadata and service account should not be set (that happens at resume time)
+    computeDAO.instanceMetadata shouldBe 'empty
+    computeDAO.instanceServiceAccounts shouldBe 'empty
   }
 
   it should "start a cluster" in isolatedDbTest {
@@ -924,6 +944,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // populate some instances for the cluster and set its status to Stopped
     dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped))) }
     dbFutureValue { _.clusterQuery.updateClusterStatus(clusterCreateResponse.id, ClusterStatus.Stopped) }
+    computeDAO.instances ++= Seq(masterInstance, workerInstance1, workerInstance2).map(i => i.key -> i).toMap
 
     // start the cluster
     leo.startCluster(userInfo, project, name1).futureValue
@@ -942,6 +963,20 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
     instances.size shouldBe 3
     instances.map(_.status).toSet shouldBe Set(InstanceStatus.Stopped)
+
+    // computeDAO should have been called for all instances
+    computeDAO.instances.mapValues(_.status) shouldBe Map(
+      masterInstance.key -> InstanceStatus.Running,
+      workerInstance1.key -> InstanceStatus.Running,
+      workerInstance2.key -> InstanceStatus.Running)
+     // metadata and service account should be set on the master instance only
+    computeDAO.instanceMetadata shouldBe Map(masterInstance.key -> leo.masterInstanceStartupScript)
+     // service account should be set on all instances
+    computeDAO.instanceServiceAccounts shouldBe
+      Map(
+        masterInstance.key -> (samClient.serviceAccount, leo.serviceAccountScopes),
+        workerInstance1.key -> (samClient.serviceAccount, leo.serviceAccountScopes),
+        workerInstance2.key -> (samClient.serviceAccount, leo.serviceAccountScopes))
   }
 
   it should "start a cluster created via v2 API" in isolatedDbTest {
@@ -960,6 +995,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // populate some instances for the cluster and set its status to Stopped
     dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped))) }
     dbFutureValue { _.clusterQuery.updateClusterStatus(clusterCreateResponse.id, ClusterStatus.Stopped) }
+    computeDAO.instances ++= Seq(masterInstance, workerInstance1, workerInstance2).map(i => i.key -> i).toMap
 
     // start the cluster
     leo.startCluster(userInfo, project, name1).futureValue
@@ -976,6 +1012,20 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse)) }
     instances.size shouldBe 3
     instances.map(_.status).toSet shouldBe Set(InstanceStatus.Stopped)
+
+    // computeDAO should have been called for all instances
+    computeDAO.instances.mapValues(_.status) shouldBe Map(
+      masterInstance.key -> InstanceStatus.Running,
+      workerInstance1.key -> InstanceStatus.Running,
+      workerInstance2.key -> InstanceStatus.Running)
+     // metadata and service account should be set on the master instance only
+    computeDAO.instanceMetadata shouldBe Map(masterInstance.key -> leo.masterInstanceStartupScript)
+     // service account should be set on all instances
+    computeDAO.instanceServiceAccounts shouldBe
+      Map(
+        masterInstance.key -> (samClient.serviceAccount, leo.serviceAccountScopes),
+        workerInstance1.key -> (samClient.serviceAccount, leo.serviceAccountScopes),
+        workerInstance2.key -> (samClient.serviceAccount, leo.serviceAccountScopes))
   }
 
   type ClusterCreationInput = (UserInfo, GoogleProject, ClusterName, ClusterRequest)

@@ -109,13 +109,14 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   //
   // The || clause is included because older clusters may not have the run-jupyter.sh script installed,
   // so we need to fall back running `jupyter notebook` directly. See https://github.com/DataBiosphere/leonardo/issues/481.
-  private lazy val masterInstanceStartupScript: immutable.Map[String, String] = {
+  private[service] lazy val masterInstanceStartupScript: immutable.Map[String, String] = {
     immutable.Map("startup-script" -> s"docker exec -d ${dataprocConfig.jupyterServerName} /bin/bash -c '/etc/jupyter/scripts/run-jupyter.sh || /usr/local/bin/jupyter notebook'")
   }
 
   private val oauth2Scopes = List(Oauth2Scopes.USERINFO_EMAIL, Oauth2Scopes.USERINFO_PROFILE)
   private val bigqueryScopes = List(BigqueryScopes.BIGQUERY)
   private val cloudSourceRepositoryScopes = List(CloudSourceRepositoriesScopes.SOURCE_READ_ONLY)
+  private[service] val serviceAccountScopes = oauth2Scopes ++ bigqueryScopes ++ cloudSourceRepositoryScopes
 
   def isWhitelisted(userInfo: UserInfo): Future[Boolean] = {
     if( whitelist contains userInfo.userEmail.value.toLowerCase ) {
@@ -439,7 +440,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
               for {
                 _ <- googleComputeDAO.addInstanceMetadata(instance.key, masterInstanceStartupScript)
                 _ <- cluster.serviceAccountInfo.clusterServiceAccount match {
-                  case Some(serviceAccount) => googleComputeDAO.setServiceAccount(instance.key, serviceAccount, (oauth2Scopes ++ bigqueryScopes ++ cloudSourceRepositoryScopes))
+                  case Some(serviceAccount) => googleComputeDAO.setServiceAccount(instance.key, serviceAccount, serviceAccountScopes)
                   case None => Future.successful(())
                 }
                 _ <- googleComputeDAO.startInstance(instance.key)
@@ -526,7 +527,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       autopauseThreshold = calculateAutopauseThreshold(clusterRequest.autopause, clusterRequest.autopauseThreshold)
       credentialsFileName = serviceAccountInfo.notebookServiceAccount.map(_ => s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}")
       operation <- gdDAO.createCluster(googleProject, clusterName, machineConfig, initScript,
-        serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket, (oauth2Scopes ++ bigqueryScopes ++ cloudSourceRepositoryScopes))
+        serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket, serviceAccountScopes)
       cluster = Cluster.create(clusterRequest, userEmail, clusterName, googleProject, serviceAccountInfo,
         machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, Option(operation), Option(stagingBucket))
     } yield (cluster, initBucket, serviceAccountKeyOpt)

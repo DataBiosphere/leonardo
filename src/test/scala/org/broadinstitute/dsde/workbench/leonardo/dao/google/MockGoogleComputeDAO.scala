@@ -1,4 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao.google
+
 import org.broadinstitute.dsde.workbench.leonardo.model.google.InstanceStatus.{Running, Stopped}
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -16,6 +17,7 @@ class MockGoogleComputeDAO extends GoogleComputeDAO {
   val instances: mutable.Map[InstanceKey, Instance] = new TrieMap()
   val firewallRules: mutable.Map[GoogleProject, FirewallRule] = new TrieMap()
   val instanceMetadata: mutable.Map[InstanceKey, Map[String, String]] = new TrieMap()
+  val instanceServiceAccounts: mutable.Map[InstanceKey, (WorkbenchEmail, Seq[String])] = new TrieMap()
 
   override def getInstance(instanceKey: InstanceKey): Future[Option[Instance]] = {
     Future.successful(instances.get(instanceKey))
@@ -36,16 +38,12 @@ class MockGoogleComputeDAO extends GoogleComputeDAO {
   }
 
   override def addInstanceMetadata(instanceKey: InstanceKey, metadata: Map[String, String]): Future[Unit] = {
-    instanceMetadata.get(instanceKey).foreach { existingMetadata =>
-      instanceMetadata += instanceKey -> (existingMetadata ++ metadata)
-    }
+    instanceMetadata += instanceKey -> metadata
     Future.successful(())
   }
 
   override def updateFirewallRule(googleProject: GoogleProject, firewallRule: FirewallRule): Future[Unit] = {
-    if (!firewallRules.contains(googleProject)) {
-      firewallRules += googleProject -> firewallRule
-    }
+    firewallRules += googleProject -> firewallRule
     Future.successful(())
   }
 
@@ -59,6 +57,7 @@ class MockGoogleComputeDAO extends GoogleComputeDAO {
   }
 
   override def setServiceAccount(instanceKey: InstanceKey, serviceAccountEmail: WorkbenchEmail, serviceAccountScopes: Seq[String]): Future[Unit] = {
+    instanceServiceAccounts += instanceKey -> (serviceAccountEmail, serviceAccountScopes)
     Future.successful(())
   }
 }
