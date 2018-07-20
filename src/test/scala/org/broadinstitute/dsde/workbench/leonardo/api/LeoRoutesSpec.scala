@@ -51,21 +51,25 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
 
   it should "200 when creating and getting cluster" in isolatedDbTest {
     val newCluster = ClusterRequest(Map.empty, Some(jupyterExtensionUri), Some(jupyterUserScriptUri), None, None, Some(UserJupyterExtensionConfig(Map("abc" ->"def"))))
-    val clusterNames = Seq(clusterName.value, s"${clusterName.value}-v2")
-    val baseUrl = "/api/cluster"
-    val versionedBaseUrls = Seq(baseUrl, s"$baseUrl/v2")
+    val clusterNameV1 = clusterName.value
+    val clusterNameV2 = s"${clusterName.value}-v2"
 
-    // PUT endpoints have two versions
-    versionedBaseUrls.zip(clusterNames) foreach { case (url, cn) =>
-      Put(s"$url/${googleProject.value}/$cn", newCluster.toJson) ~>
-        timedLeoRoutes.route ~> check {
-          status shouldEqual StatusCodes.OK
-          validateCookie { header[`Set-Cookie`] }
-      }
+    // PUT endpoint v1
+    Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~>
+      timedLeoRoutes.route ~> check {
+        status shouldEqual StatusCodes.OK
+        validateCookie { header[`Set-Cookie`] }
+    }
+
+    // PUT endpoint v2
+    Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}-v2", newCluster.toJson) ~>
+      timedLeoRoutes.route ~> check {
+        status shouldEqual StatusCodes.Accepted
+        validateCookie { header[`Set-Cookie`] }
     }
 
     // GET endpoint has a single version
-    clusterNames foreach { cn =>
+    Seq(clusterNameV1, clusterNameV2) foreach { cn =>
       Get(s"/api/cluster/${googleProject.value}/$cn") ~> timedLeoRoutes.route ~> check {
         status shouldEqual StatusCodes.OK
 
