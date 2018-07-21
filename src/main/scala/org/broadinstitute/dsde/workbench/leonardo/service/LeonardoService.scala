@@ -527,40 +527,42 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
 
   private def validateClusterRequestBucketObjectUri(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    for {
+    val transformed = for {
+      // Get a pet token from Sam. If we can't get a token, we won't do validation but won't fail cluster creation.
+      petToken <- OptionT(serviceAccountProvider.getAccessToken(userEmail, googleProject))
+
+      // Validate the user script URI
       _ <- clusterRequest.jupyterUserScriptUri match {
-        case Some(userScriptUri) => validateBucketObjectUri(userEmail, googleProject, userScriptUri.toUri)
-        case None => Future.successful(())
+        case Some(userScriptUri) => OptionT.liftF[Future, Unit](validateBucketObjectUri(userEmail, petToken, googleProject, userScriptUri.toUri))
+        case None => OptionT.pure[Future, Unit](())
       }
 
+      // Validate the extension URIs
       _ <- clusterRequest.userJupyterExtensionConfig match {
         case Some(config) =>
           val extensionsToValidate = (config.nbExtensions.values ++ config.serverExtensions.values ++ config.combinedExtensions.values).filter(_.startsWith("gs://"))
-          Future.traverse(extensionsToValidate)(x => validateBucketObjectUri(userEmail, googleProject, x))
-        case None => Future.successful(())
+          OptionT.liftF(Future.traverse(extensionsToValidate)(x => validateBucketObjectUri(userEmail, petToken, googleProject, x)))
+        case None => OptionT.pure[Future, Unit](())
       }
-    } yield()
-  }
-  private[service] def validateBucketObjectUri(userEmail: WorkbenchEmail, googleProject: GoogleProject, gcsUri: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
+    } yield ()
 
+    transformed.value.void
+  }
+
+  private[service] def validateBucketObjectUri(userEmail: WorkbenchEmail, userToken: String, googleProject: GoogleProject, gcsUri: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
     val gcsUriOpt = parseGcsPath(gcsUri)
     gcsUriOpt match {
+      case Left(_) => Future.failed(BucketObjectException(gcsUri))
+      case Right(gcsPath) if gcsPath.toUri.length > bucketPathMaxLength => Future.failed(BucketObjectException(gcsUri))
       case Right(gcsPath) =>
-        if (gcsPath.toUri.length > bucketPathMaxLength)
-          Future.failed(BucketObjectException(gcsUri))
-        serviceAccountProvider.getAccessToken(userEmail, googleProject).flatMap {
-          case Some(token) =>
-            petGoogleStorageDAO(token).objectExists(gcsPath.bucketName, gcsPath.objectName).map {
-              case true => ()
-              case false => throw BucketObjectException(gcsPath.toUri)
-            } recover {
-              case e: HttpResponseException if e.getStatusCode == StatusCodes.Forbidden.intValue =>
-                logger.error(s"User $userEmail does not have access to ${gcsPath.bucketName} / ${gcsPath.objectName}")
-                throw BucketObjectAccessException(userEmail, gcsPath)
-            }
-          case None => Future.successful(())
+        petGoogleStorageDAO(userToken).objectExists(gcsPath.bucketName, gcsPath.objectName).map {
+          case true => ()
+          case false => throw BucketObjectException(gcsPath.toUri)
+        } recover {
+          case e: HttpResponseException if e.getStatusCode == StatusCodes.Forbidden.intValue =>
+            logger.error(s"User ${userEmail.value} does not have access to ${gcsPath.bucketName} / ${gcsPath.objectName}")
+            throw BucketObjectAccessException(userEmail, gcsPath)
         }
-      case Left(err) => Future.failed(BucketObjectException(gcsUri))
     }
   }
 
