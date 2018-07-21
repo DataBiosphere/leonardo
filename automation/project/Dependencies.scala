@@ -45,6 +45,11 @@ object Dependencies {
       excludeApacheHttpClient,
       excludeGoogleJsr305,
       excludeJacksonCore),
+    "com.google.apis" % "google-api-services-sourcerepo" % s"v1-rev21-1.23.0" excludeAll (
+      excludeGuavaJdk5,
+      excludeApacheHttpClient,
+      excludeGoogleJsr305,
+      excludeJacksonCore),
     "com.google.api-client" % "google-api-client"   % "1.23.0" excludeAll (
       excludeGuavaJdk5,
       excludeApacheHttpClient,

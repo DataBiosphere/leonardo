@@ -26,7 +26,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
         val petEmail = getAndVerifyPet(project)
 
         // Create a cluster
-        withNewCluster(project, apiVersion = V2) { cluster =>
+        withNewCluster(project, kernel = PySpark2, apiVersion = V2) { cluster =>
           // cluster should have been created with the pet service account
           cluster.serviceAccountInfo.clusterServiceAccount shouldBe Some(petEmail)
           cluster.serviceAccountInfo.notebookServiceAccount shouldBe None
@@ -34,7 +34,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
           withWebDriver { implicit driver =>
             withNewNotebook(cluster) { notebookPage =>
               // should not have notebook credentials because Leo is not configured to use a notebook service account
-              verifyNoNotebookCredentials(notebookPage)
+              verifyNoNotebookCredentials(notebookPage, PySpark2, petEmail)
             }
           }
         }
@@ -113,12 +113,15 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
       withProject { project => implicit token =>
         // Create a cluster
         withNewCluster(project, monitorDelete = false, apiVersion = V2) { cluster =>
+          val petEmail = getAndVerifyPet(project)
           val printStr = "Pause/resume test"
 
           withWebDriver { implicit driver =>
             // Create a notebook and execute a cell
             withNewNotebook(cluster, kernel = Python3) { notebookPage =>
               notebookPage.executeCell(s"""print("$printStr")""") shouldBe Some(printStr)
+              // Also verify the credentials on the cluster
+              verifyNoNotebookCredentials(notebookPage, Python3, petEmail)
               notebookPage.saveAndCheckpoint()
             }
 
@@ -137,6 +140,9 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
               // execute a new cell to make sure the notebook kernel still works
               notebookPage.runAllCells()
               notebookPage.executeCell("sum(range(1,10))") shouldBe Some("45")
+              // The credentials should be correct after pause/resume
+              // See https://github.com/DataBiosphere/leonardo/issues/495.
+              verifyNoNotebookCredentials(notebookPage, Python3, petEmail)
             }
           }
         }

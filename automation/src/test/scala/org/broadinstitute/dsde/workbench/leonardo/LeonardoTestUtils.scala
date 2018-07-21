@@ -7,6 +7,9 @@ import java.util.Base64
 
 import cats.data.OptionT
 import cats.implicits._
+import com.google.api.services.bigquery.BigqueryScopes
+import com.google.api.services.oauth2.Oauth2Scopes
+import com.google.api.services.sourcerepo.v1.CloudSourceRepositoriesScopes
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
@@ -68,6 +71,12 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   val jupyterLabExtensionClusterRequest = UserJupyterExtensionConfig(
     serverExtensions = Map("jupyterlab" -> "jupyterlab")
   )
+
+  val expectedServiceAccountScopes = List(
+    Oauth2Scopes.USERINFO_EMAIL,
+    Oauth2Scopes.USERINFO_PROFILE,
+    BigqueryScopes.BIGQUERY,
+    CloudSourceRepositoriesScopes.SOURCE_READ_ONLY)
 
   // TODO: show diffs as screenshot or other test output?
   def compareFilesExcludingIPs(left: File, right: File): Unit = {
@@ -343,22 +352,30 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     nbEmail.get should include (expectedEmail.value)
   }
 
-  // TODO: is there a way to check the cluster credentials on the metadata server?
   def verifyNoNotebookCredentials(notebookPage: NotebookPage): Unit = {
     // verify google-authn
     notebookPage.executeCell("import google.auth") shouldBe None
     notebookPage.executeCell("credentials, project_id = google.auth.default()") shouldBe None
-    notebookPage.executeCell("print credentials.service_account_email") shouldBe Some("default")
-
+    notebookPage.executeCell("print(credentials.service_account_email)") shouldBe Some("None")
+    notebookPage.executeCell("print(credentials.scopes)") shouldBe Some("None")
     // verify FISS
     notebookPage.executeCell("import firecloud.api as fapi") shouldBe None
     notebookPage.executeCell("fiss_credentials, project = fapi.google.auth.default()") shouldBe None
-    notebookPage.executeCell("print fiss_credentials.service_account_email") shouldBe Some("default")
-
+    notebookPage.executeCell("print(fiss_credentials.service_account_email)") shouldBe Some("default")
+    notebookPage.executeCell("print(fiss_credentials.scopes)") shouldBe Some("None")
     // verify Spark
-    notebookPage.executeCell("hadoop_config = sc._jsc.hadoopConfiguration()") shouldBe None
-    notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.enable')") shouldBe Some("None")
-    notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.json.keyfile')") shouldBe Some("None")
+    if (kernel == PySpark2 || kernel == PySpark3) {
+      notebookPage.executeCell("hadoop_config = sc._jsc.hadoopConfiguration()") shouldBe None
+      notebookPage.executeCell("print(hadoop_config.get('google.cloud.auth.service.account.enable'))") shouldBe Some("None")
+      notebookPage.executeCell("print(hadoop_config.get('google.cloud.auth.service.account.json.keyfile'))") shouldBe Some("None")
+    }
+     // verify metadata server
+    val metadata = notebookPage.executeCell("""!curl "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/?recursive=true" -H "Metadata-Flavor: Google"""")
+    metadata shouldBe 'defined
+    metadata.get should include (expectedEmail.value)
+    expectedScopes.foreach { scope =>
+      metadata.get should include (scope)
+    }  
   }
 
   def getAndVerifyPet(project: GoogleProject)(implicit token: AuthToken): WorkbenchEmail = {
