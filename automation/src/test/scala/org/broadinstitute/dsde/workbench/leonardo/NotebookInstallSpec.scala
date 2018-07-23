@@ -100,7 +100,7 @@ class NotebookInstallSpec extends ClusterFixtureSpec {
         withWebDriver { implicit driver =>
           withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
             // install tensorflow
-            pipInstall(notebookPage, kernel, "tensorflow")
+            pipInstall(notebookPage, kernel, "tensorflow==1.9.0")
             notebookPage.saveAndCheckpoint()
           }
         }
