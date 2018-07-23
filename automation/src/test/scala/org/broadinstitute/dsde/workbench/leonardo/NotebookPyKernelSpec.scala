@@ -63,6 +63,18 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec {
       }
     }
 
+    "should update dateAccessed if the notebook is open" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster) { notebookPage =>
+          val firstApiCall = Leonardo.cluster.get(clusterFixture.billingProject, clusterFixture.cluster.clusterName)
+          //Sleeping for 90s to simulate idle notebook
+          logger.info("Sleeping for 90s to simulate idle notebook")
+          Thread.sleep(90000)
+          val secondApiCall = Leonardo.cluster.get(clusterFixture.billingProject, clusterFixture.cluster.clusterName)
+          firstApiCall.dateAccessed should be < secondApiCall.dateAccessed
+        }
+      }
+    }
   }
 
 }

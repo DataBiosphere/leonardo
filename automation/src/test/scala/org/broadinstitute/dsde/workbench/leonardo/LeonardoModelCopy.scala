@@ -66,7 +66,8 @@ case class Cluster(clusterName: ClusterName,
                    jupyterExtensionUri: Option[GcsPath],
                    jupyterUserScriptUri: Option[GcsPath],
                    stagingBucket:Option[GcsBucketName],
-                   errors:List[ClusterError]
+                   errors:List[ClusterError],
+                   dateAccessed: Instant
                   )
 
 case class ClusterRequest(labels: LabelMap = Map(),
