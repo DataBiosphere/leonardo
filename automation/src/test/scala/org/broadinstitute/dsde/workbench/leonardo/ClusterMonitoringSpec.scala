@@ -32,7 +32,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
           cluster.serviceAccountInfo.notebookServiceAccount shouldBe None
 
           withWebDriver { implicit driver =>
-            withNewNotebook(cluster) { notebookPage =>
+            withNewNotebook(cluster, PySpark2) { notebookPage =>
               // should not have notebook credentials because Leo is not configured to use a notebook service account
               verifyNoNotebookCredentials(notebookPage, PySpark2, petEmail)
             }
