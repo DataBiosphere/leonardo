@@ -179,7 +179,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } flatMap {
       case Some(existingCluster) => throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
       case None =>
-        val augmentedClusterRequest = addClusterDefaultLabels(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
+        val augmentedClusterRequest = addClusterLabels(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
         val clusterFuture = for {
           // Notify the auth provider that the cluster has been created
           _ <- authProvider.notifyClusterCreated(userEmail, googleProject, clusterName)
@@ -216,13 +216,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       case Some(existingCluster) =>
         throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
       case None =>
-        val augmentedClusterRequest = addClusterDefaultLabels(
+        val augmentedClusterRequest = addClusterLabels(
           serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
         val machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
         val autopauseThreshold = calculateAutopauseThreshold(
           clusterRequest.autopause, clusterRequest.autopauseThreshold)
         val initialCluster = Cluster.create(
-          clusterRequest, userEmail, clusterName, googleProject,
+          augmentedClusterRequest, userEmail, clusterName, googleProject,
           serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold)
 
         val attemptToSaveClusterInDb: Future[Cluster] = dbRef.inTransaction(_.clusterQuery.save(initialCluster))
@@ -695,13 +695,15 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
-  private[service] def addClusterDefaultLabels(serviceAccountInfo: ServiceAccountInfo, googleProject: GoogleProject, clusterName: ClusterName, creator: WorkbenchEmail, clusterRequest: ClusterRequest): ClusterRequest = {
+  private[service] def addClusterLabels(serviceAccountInfo: ServiceAccountInfo,
+                                        googleProject: GoogleProject,
+                                        clusterName: ClusterName,
+                                        creator: WorkbenchEmail,
+                                        clusterRequest: ClusterRequest): ClusterRequest = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultLabels(clusterName, googleProject, creator,
       serviceAccountInfo.clusterServiceAccount, serviceAccountInfo.notebookServiceAccount, clusterRequest.jupyterUserScriptUri)
       .toJson.asJsObject.fields.mapValues(labelValue => labelValue.convertTo[String])
-
-
 
     //Add UserJupyterUri to NbExtension
     val userJupyterExt = clusterRequest.jupyterExtensionUri match {
@@ -719,9 +721,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val allLabels = clusterRequest.labels ++ defaultLabels ++ nbExtensions ++ serverExtensions ++ combinedExtension
 
     val updatedUserJupyterExtensionConfig = if(nbExtensions.isEmpty && serverExtensions.isEmpty && combinedExtension.isEmpty) None else Some(UserJupyterExtensionConfig(nbExtensions, serverExtensions, combinedExtension))
+
     // check the labels do not contain forbidden keys
     if (allLabels.contains(includeDeletedKey))
       throw IllegalLabelKeyException(includeDeletedKey)
-    else clusterRequest.copy(labels = allLabels).copy(userJupyterExtensionConfig = updatedUserJupyterExtensionConfig)
+    else clusterRequest
+      .copy(labels = allLabels)
+      .copy(userJupyterExtensionConfig = updatedUserJupyterExtensionConfig)
   }
 }
