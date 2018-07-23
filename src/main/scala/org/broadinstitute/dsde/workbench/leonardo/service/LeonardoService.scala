@@ -563,7 +563,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         // See https://github.com/DataBiosphere/leonardo/issues/460
         // Note GoogleStorageDAO already retries 500 and other errors internally, so we just need to catch 401s here.
         // We might think about moving the retry-on-401 logic inside GoogleStorageDAO.
-        val gcsFuture: Future[Boolean] = retryUntilSuccessOrTimeout(whenGoogle401, s"GCS object validation failed for user [${userEmail.value}] and object [${gcsUri}]")(interval = 1 second, timeout = 3 seconds) { () =>
+        val gcsFuture: Future[Boolean] = retryUntilSuccessOrTimeout(whenGoogle401, s"GCS object validation failed for user [${userEmail.value}] and token [$userToken] and object [${gcsUri}]")(interval = 1 second, timeout = 3 seconds) { () =>
           petGoogleStorageDAO(userToken).objectExists(gcsPath.bucketName, gcsPath.objectName)
         }
         gcsFuture.map {
