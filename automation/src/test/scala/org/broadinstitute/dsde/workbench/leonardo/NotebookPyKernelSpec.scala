@@ -67,10 +67,9 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec {
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster) { notebookPage =>
           val firstApiCall = Leonardo.cluster.get(clusterFixture.billingProject, clusterFixture.cluster.clusterName)
-          println(firstApiCall.dateAccessed)
+          //Sleeping for 90s to simulate idle notebook
           Thread.sleep(90000)
           val secondApiCall = Leonardo.cluster.get(clusterFixture.billingProject, clusterFixture.cluster.clusterName)
-          println(secondApiCall.dateAccessed)
           firstApiCall.dateAccessed should be < secondApiCall.dateAccessed
         }
       }
