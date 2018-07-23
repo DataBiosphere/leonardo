@@ -1,6 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.attribute.PosixFilePermission
+import java.time.Instant
+import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.service.Sam
@@ -8,7 +12,7 @@ import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorage
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
-import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsObjectName, GcsPath, parseGcsPath}
+import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsPath, GcsRoles, parseGcsPath}
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 
 import scala.util.Try
@@ -268,6 +272,71 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
         }
       }
     }
+
+    "should download file as pdf" in {
+      withProject { project => implicit token =>
+        withNewGoogleBucket(project) { bucketName =>
+
+          val ronPetServiceAccount = Sam.user.petServiceAccountEmail(project.value)(ronAuthToken)
+          googleStorageDAO.setBucketAccessControl(bucketName, EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount), GcsRoles.Owner)
+
+          val userScriptString = "#!/usr/bin/env bash\n\npip install nbconvert\napt-get install -yq pandoc texlive-xetex"
+          val userScriptObjectName = GcsObjectName("user-script-downloadaspdf.sh")
+          val userScriptUri = s"gs://${bucketName.value}/${userScriptObjectName.value}"
+
+          withNewBucketObject(bucketName, userScriptObjectName, userScriptString, "application/pdf") { objectName =>
+            googleStorageDAO.setObjectAccessControl(bucketName, objectName, EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount), GcsRoles.Owner)
+            val clusterName = ClusterName("user-script-cluster" + makeRandomId())
+
+            withNewCluster(project, clusterName, ClusterRequest(Map(), None, Option(userScriptUri)), monitorDelete = false) { cluster =>
+              val download = makeTempDownloadDirectory()
+              withWebDriver(download) { implicit driver =>
+                withNewNotebook(cluster) { notebookPage =>
+                  notebookPage.executeCell("1+1") shouldBe Some("2")
+                  notebookPage.downloadAsPdf()
+                  val notebookName = notebookPage.currentUrl.substring(notebookPage.currentUrl.lastIndexOf('/') + 1, notebookPage.currentUrl.lastIndexOf('?')).replace(".ipynb", ".pdf")
+                  // sanity check the file downloaded correctly
+                  val downloadFile = new File(download, notebookName)
+                  downloadFile.deleteOnExit()
+                  logger.info(s"download: $downloadFile")
+                  implicit val patienceConfig: PatienceConfig = getAfterCreatePatience
+                  eventually {
+                    assert(downloadFile.exists(), s"Timed out (${patienceConfig.timeout} seconds) waiting for file.exists $downloadFile")
+                    assert(downloadFile.isFile(), s"Timed out (${patienceConfig.timeout} seconds) waiting for file.isFile $downloadFile")
+                  }
+                }
+              }
+            }(ronAuthToken)
+          }
+        }
+      }
+    }
+  }
+
+  private def makeTempDownloadDirectory(): String = {
+    /*
+     * This might work some day if docker permissions get straightened out... or it might not be
+     * needed. For now, we instead `chmod 777` the directory in run-tests.sh.
+    new File("chrome").mkdirs()
+    val downloadPath = Files.createTempDirectory(Paths.get("chrome"), "downloads")
+    val permissions = Set(PosixFilePermission.OWNER_WRITE, PosixFilePermission.GROUP_WRITE, PosixFilePermission.OTHERS_WRITE)
+    Files.setPosixFilePermissions(downloadPath, permissions.asJava)
+    downloadPath.toString
+     */
+
+    val downloadPath = s"chrome/downloads/${UUID.randomUUID()}"
+    val dir = new File(downloadPath)
+    dir.deleteOnExit()
+    dir.mkdirs()
+    val path = dir.toPath
+    logger.info(s"mkdir: $path")
+    val permissions = Set(
+      PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_EXECUTE,
+      PosixFilePermission.GROUP_WRITE, PosixFilePermission.GROUP_READ, PosixFilePermission.GROUP_EXECUTE,
+      PosixFilePermission.OTHERS_WRITE, PosixFilePermission.OTHERS_READ, PosixFilePermission.OTHERS_EXECUTE)
+    import scala.collection.JavaConverters._
+    Files.setPosixFilePermissions(path, permissions.asJava)
+    path.toString
   }
 
 }
