@@ -578,7 +578,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   private def whenGoogle401(t: Throwable): Boolean = t match {
-    case g: GoogleJsonResponseException if g.getStatusCode == StatusCodes.Unauthorized => true
+    case g: GoogleJsonResponseException if g.getStatusCode == StatusCodes.Unauthorized.intValue => true
     case _ => false
   }
 
