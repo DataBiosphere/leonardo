@@ -67,10 +67,9 @@ function startTimer() {
 
     function statusCheck() {
         var xhttp = new XMLHttpRequest();
-        xhttp.open("GET", "/notebooks/$googleProject/$clusterName/api/status", true);
+        xhttp.open("GET", "/notebooks/" + googleProject + "/" + clusterName + "/api/status", true);
         xhttp.send();
     }
-
     setInterval(statusCheck, 60000)
 }
 
