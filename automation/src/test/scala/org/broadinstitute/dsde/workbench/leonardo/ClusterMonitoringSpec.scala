@@ -315,7 +315,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
 
   private def createTempDownloadDirectory(): String = {
     val basePath: Path = Paths.get(s"chrome/downloads")
-    val path: Path = Files.createTempDirectory(basePath, null)
+    val path: Path = Files.createTempDirectory(basePath, "temp")
     logger.info(s"mkdir: $path")
     val permissions = Set(
       PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_EXECUTE,
