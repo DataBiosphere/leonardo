@@ -431,24 +431,20 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         // Start each instance individually
         _ <- Future.traverse(cluster.nonPreemptibleInstances) { instance =>
-          instance.dataprocRole match {
-            // On the master node:
-            //  - install a startup script on the master node so Jupyter starts back up
-            //  - reset the service account and scopes on this instance
-            //  - then start the instance
-            case Some(Master) =>
-              for {
-                _ <- googleComputeDAO.addInstanceMetadata(instance.key, masterInstanceStartupScript)
-                _ <- cluster.serviceAccountInfo.clusterServiceAccount match {
-                  case Some(serviceAccount) => googleComputeDAO.setServiceAccount(instance.key, serviceAccount, serviceAccountScopes)
-                  case None => Future.successful(())
-                }
-                _ <- googleComputeDAO.startInstance(instance.key)
-              } yield ()
-
-            case _ =>
-              googleComputeDAO.startInstance(instance.key)
-          }
+          for {
+            // install a startup script on the master node so Jupyter starts back up
+            _ <- instance.dataprocRole match {
+              case Some(Master) => googleComputeDAO.addInstanceMetadata(instance.key, masterInstanceStartupScript)
+              case _ => Future.successful(())
+            }
+            // reset the cluster service account and scopes on each instance
+            _ <- cluster.serviceAccountInfo.clusterServiceAccount match {
+              case Some(serviceAccount) => googleComputeDAO.setServiceAccount(instance.key, serviceAccount, serviceAccountScopes)
+              case None => Future.successful(())
+            }
+            // start up each instance
+            _ <- googleComputeDAO.startInstance(instance.key)
+          } yield ()
         }
 
         // Update the cluster status to Starting
