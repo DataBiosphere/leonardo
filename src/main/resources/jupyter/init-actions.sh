@@ -228,6 +228,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
     log 'Starting Jupyter Notebook...'
     docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/run-jupyter.sh
     log 'All done!'
+else
+    apt-get install -yq --no-install-recommends python3
+
 fi
 
 
