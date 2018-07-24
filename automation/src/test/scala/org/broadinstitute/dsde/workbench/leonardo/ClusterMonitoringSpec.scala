@@ -277,7 +277,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
       withProject { project => implicit token =>
         withNewGoogleBucket(project) { bucketName =>
 
-          val ronPetServiceAccount = Sam.user.petServiceAccountEmail(project.value)(ronAuthToken)
+          val ronPetServiceAccount = getAndVerifyPet(project)(ronAuthToken)
           googleStorageDAO.setBucketAccessControl(bucketName, EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount), GcsRoles.Owner)
 
           val userScriptString = "#!/usr/bin/env bash\n\npip install nbconvert\napt-get install -yq pandoc texlive-xetex"
