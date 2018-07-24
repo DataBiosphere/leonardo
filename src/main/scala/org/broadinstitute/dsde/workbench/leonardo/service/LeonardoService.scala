@@ -276,7 +276,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         // We overwrite googleCluster.id with the DB-assigned one that was obtained when we first
         // inserted the record into the DB prior to completing the createCluster request
         _.clusterQuery
-          .updateAsyncClusterCreationFields(Option(initBucket), serviceAccountKey, googleCluster.copy(id = cluster.id))
+          .updateAsyncClusterCreationFields(
+            Option(GcsPath(initBucket, GcsObjectName(""))), serviceAccountKey, googleCluster.copy(id = cluster.id))
       }
     }
   }
