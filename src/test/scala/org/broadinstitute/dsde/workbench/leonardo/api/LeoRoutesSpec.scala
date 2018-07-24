@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
-import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.model.headers.{OAuth2BearerToken, `Set-Cookie`}
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.testkit.TestDuration
@@ -51,25 +51,17 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
 
   it should "200 when creating and getting cluster" in isolatedDbTest {
     val newCluster = ClusterRequest(Map.empty, Some(jupyterExtensionUri), Some(jupyterUserScriptUri), None, None, Some(UserJupyterExtensionConfig(Map("abc" ->"def"))))
-    val clusterNameV1 = clusterName.value
-    val clusterNameV2 = s"${clusterName.value}-v2"
 
-    // PUT endpoint v1
-    Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~>
-      timedLeoRoutes.route ~> check {
-        status shouldEqual StatusCodes.OK
-        validateCookie { header[`Set-Cookie`] }
-    }
+    forallClusterCreationVersions(clusterName) { (version, clstrName, statusCode) =>
+      Put(s"/api/cluster$version/${googleProject.value}/$clstrName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
+        status shouldEqual statusCode
 
-    // PUT endpoint v2
-    Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}-v2", newCluster.toJson) ~>
-      timedLeoRoutes.route ~> check {
-        status shouldEqual StatusCodes.Accepted
         validateCookie { header[`Set-Cookie`] }
+      }
     }
 
     // GET endpoint has a single version
-    Seq(clusterNameV1, clusterNameV2) foreach { cn =>
+    Seq(s"${clusterName.value}", s"${clusterName.value}-v2") foreach { cn =>
       Get(s"/api/cluster/${googleProject.value}/$cn") ~> timedLeoRoutes.route ~> check {
         status shouldEqual StatusCodes.OK
 
@@ -183,9 +175,17 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
 
   it should "list clusters with labels" in isolatedDbTest {
     val newCluster = ClusterRequest(Map.empty, None)
-    for (i <- 1 to 10) {
-      Put(s"/api/cluster/${googleProject.value}/${clusterName.value}-$i", newCluster.copy(labels = Map(s"label$i" -> s"value$i")).toJson) ~> leoRoutes.route ~> check {
+    def clusterWithLabels(i: Int) = newCluster.copy(labels = Map(s"label$i" -> s"value$i"))
+
+    for (i <- 1 to 5) {
+      Put(s"/api/cluster/${googleProject.value}/${clusterName.value}-$i", clusterWithLabels(i).toJson) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.OK
+      }
+    }
+
+    for (i <- 6 to 10) {
+      Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}-$i", clusterWithLabels(i).toJson) ~> leoRoutes.route ~> check {
+        status shouldEqual StatusCodes.Accepted
       }
     }
 
@@ -236,38 +236,40 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
 
   it should "202 when stopping and starting a cluster" in isolatedDbTest {
     val newCluster = ClusterRequest(Map.empty, None)
+    
+    forallClusterCreationVersions(clusterName) { (version, clstrName, statusCode) =>
+      Put(s"/api/cluster$version/${googleProject.value}/$clstrName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
+        status shouldEqual statusCode
 
-    Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.OK
-
-      validateCookie { header[`Set-Cookie`] }
-    }
-
-    // stopping a creating cluster should return 409
-    Post(s"/api/cluster/${googleProject.value}/${clusterName.value}/stop") ~> timedLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.Conflict
-    }
-
-    // simulate the cluster transitioning to Running
-    dbFutureValue { dataAccess =>
-      dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName).flatMap {
-        case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"))
-        case None => DBIO.successful(0)
+        validateCookie { header[`Set-Cookie`] }
       }
-    }
 
-    // stop should now return 202
-    Post(s"/api/cluster/${googleProject.value}/${clusterName.value}/stop") ~> timedLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
+      // stopping a creating cluster should return 409
+      Post(s"/api/cluster/${googleProject.value}/$clstrName/stop") ~> timedLeoRoutes.route ~> check {
+        status shouldEqual StatusCodes.Conflict
+      }
 
-      validateCookie { header[`Set-Cookie`] }
-    }
+      // simulate the cluster transitioning to Running
+      dbFutureValue { dataAccess =>
+        dataAccess.clusterQuery.getActiveClusterByName(googleProject, ClusterName(clstrName)).flatMap {
+          case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"))
+          case None => DBIO.successful(0)
+        }
+      }
 
-    // starting a stopping cluster should also return 202
-    Post(s"/api/cluster/${googleProject.value}/${clusterName.value}/start") ~> timedLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
+      // stop should now return 202
+      Post(s"/api/cluster/${googleProject.value}/$clstrName/stop") ~> timedLeoRoutes.route ~> check {
+        status shouldEqual StatusCodes.Accepted
 
-      validateCookie { header[`Set-Cookie`] }
+        validateCookie { header[`Set-Cookie`] }
+      }
+
+      // starting a stopping cluster should also return 202
+      Post(s"/api/cluster/${googleProject.value}/$clstrName/start") ~> timedLeoRoutes.route ~> check {
+        status shouldEqual StatusCodes.Accepted
+
+        validateCookie { header[`Set-Cookie`] }
+      }
     }
   }
 
@@ -296,5 +298,15 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     ) ++ (
       notebookServiceAccount(googleProject).map { sa => Map("notebookServiceAccount" -> sa.value) } getOrElse Map.empty
     )
+  }
+
+  private def forallClusterCreationVersions(baseClusterName: ClusterName)
+                                           (testCode: (String, String, StatusCode) => Any) = {
+    val v1Params = ("", baseClusterName.value, StatusCodes.OK)
+    val v2Params = ("/v2", s"${baseClusterName.value}-v2", StatusCodes.Accepted)
+
+    Seq(v1Params, v2Params) foreach {
+      case (version, clstrName, statusCode) => testCode(version, clstrName, statusCode)
+    }
   }
 }
