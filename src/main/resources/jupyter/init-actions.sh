@@ -229,6 +229,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/run-jupyter.sh
     log 'All done!'
 else
+    update_apt_get
     apt-get install -yq --no-install-recommends python3.5
 
 fi
