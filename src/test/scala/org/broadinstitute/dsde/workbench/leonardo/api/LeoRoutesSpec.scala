@@ -85,42 +85,30 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
   it should "404 when getting a cluster as a non-white-listed user" in isolatedDbTest {
     val newCluster = ClusterRequest(Map.empty, None)
 
-    Put(s"/api/cluster/${googleProject.value}/notyourcluster", newCluster.toJson) ~> leoRoutes.route ~> check {
-      status shouldEqual StatusCodes.OK
-    }
+    forallClusterCreationVersions(ClusterName("not-your-cluster")) { (version, clstrName, statusCode) =>
+      Put(s"/api/cluster$version/${googleProject.value}/$clstrName", newCluster.toJson) ~> leoRoutes.route ~> check {
+        status shouldEqual statusCode
+      }
 
-    Get(s"/api/cluster/${googleProject.value}/notyourcluster") ~> invalidUserLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.NotFound
-    }
-
-    Put(s"/api/cluster/v2/${googleProject.value}/notyourcluster-v2", newCluster.toJson) ~> leoRoutes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
-    }
-
-    Get(s"/api/cluster/${googleProject.value}/notyourcluster-v2") ~> invalidUserLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.NotFound
+      Get(s"/api/cluster/${googleProject.value}/$clstrName") ~> invalidUserLeoRoutes.route ~> check {
+        status shouldEqual StatusCodes.NotFound
+      }
     }
   }
 
   it should "202 when deleting a cluster" in isolatedDbTest{
     val newCluster = ClusterRequest(Map.empty, None)
 
-    Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.OK
-    }
-    Delete(s"/api/cluster/${googleProject.value}/${clusterName.value}") ~> timedLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
+    forallClusterCreationVersions(clusterName) { (version, clstrName, statusCode) =>
+      Put(s"/api/cluster$version/${googleProject.value}/$clstrName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
+        status shouldEqual statusCode
+      }
 
-      validateCookie { header[`Set-Cookie`] }
-    }
+      Delete(s"/api/cluster/${googleProject.value}/$clstrName") ~> timedLeoRoutes.route ~> check {
+        status shouldEqual StatusCodes.Accepted
 
-    Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.value}-v2", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
-    }
-    Delete(s"/api/cluster/${googleProject.value}/${clusterName.value}-v2") ~> timedLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
-
-      validateCookie { header[`Set-Cookie`] }
+        validateCookie { header[`Set-Cookie`] }
+      }
     }
   }
 
@@ -283,11 +271,14 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     it should s"create a cluster with stopAfterCreation = $stopAfterCreation" in isolatedDbTest {
       val request = ClusterRequest(Map.empty, Some(jupyterExtensionUri), Some(jupyterUserScriptUri), stopAfterCreation = Some(stopAfterCreation))
 
-      Put(s"/api/cluster/${googleProject.value}/${clusterName.value}", request.toJson) ~>
-        timedLeoRoutes.route ~> check {
-        status shouldEqual StatusCodes.OK
+      forallClusterCreationVersions(clusterName) { (version, clstrName, statusCode) =>
+        Put(s"/api/cluster$version/${googleProject.value}/$clstrName", request.toJson) ~> timedLeoRoutes.route ~> check {
+          status shouldEqual statusCode
 
-        validateCookie { header[`Set-Cookie`] }
+          validateCookie {
+            header[`Set-Cookie`]
+          }
+        }
       }
     }
   }
