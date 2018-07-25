@@ -532,7 +532,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private def validateClusterRequestBucketObjectUri(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[Unit] = {
     val transformed = for {
       // Get a pet token from Sam. If we can't get a token, we won't do validation but won't fail cluster creation.
-      petToken <- OptionT(serviceAccountProvider.getAccessToken(userEmail, googleProject))
+      petToken <- OptionT(serviceAccountProvider.getAccessToken(userEmail, googleProject).recover { case e =>
+        logger.warn(s"Could not acquire pet service account access token for user ${userEmail.value} in project ${googleProject.value}. " +
+          s"Skipping validation of bucket objects in the cluster request.", e)
+        None
+      })
 
       // Validate the user script URI
       _ <- clusterRequest.jupyterUserScriptUri match {
@@ -549,6 +553,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       }
     } yield ()
 
+    // Because of how OptionT works, `transformed.value` returns a Future[Option[Unit]]. `void` converts this to a Future[Unit].
     transformed.value.void
   }
 
@@ -563,7 +568,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         // See https://github.com/DataBiosphere/leonardo/issues/460
         // Note GoogleStorageDAO already retries 500 and other errors internally, so we just need to catch 401s here.
         // We might think about moving the retry-on-401 logic inside GoogleStorageDAO.
-        val gcsFuture: Future[Boolean] = retryUntilSuccessOrTimeout(whenGoogle401, s"GCS object validation failed for user [${userEmail.value}] and token [$userToken] and object [${gcsUri}]")(interval = 1 second, timeout = 3 seconds) { () =>
+        val errorMessage = s"GCS object validation failed for user [${userEmail.value}] and token [$userToken] and object [${gcsUri}]"
+        val gcsFuture: Future[Boolean] = retryUntilSuccessOrTimeout(whenGoogle401, errorMessage)(interval = 1 second, timeout = 3 seconds) { () =>
           petGoogleStorageDAO(userToken).objectExists(gcsPath.bucketName, gcsPath.objectName)
         }
         gcsFuture.map {
