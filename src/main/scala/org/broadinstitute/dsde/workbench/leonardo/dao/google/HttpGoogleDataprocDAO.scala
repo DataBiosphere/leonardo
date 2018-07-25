@@ -75,7 +75,7 @@ class HttpGoogleDataprocDAO(appName: String,
       executeGoogleRequest(request)
     } {
       case e: GoogleJsonResponseException if e.getStatusCode == 403 &&
-        (e.getMessage contains "Access Not Configured") => throw DataprocDisabledException(e.getMessage)
+        (e.getDetails.getErrors.get(0).getReason == "accessNotConfigured") => throw DataprocDisabledException(e.getMessage)
     }.map { op =>
       Operation(OperationName(op.getName), getOperationUUID(op))
     }.handleGoogleException(googleProject, Some(clusterName.value))
