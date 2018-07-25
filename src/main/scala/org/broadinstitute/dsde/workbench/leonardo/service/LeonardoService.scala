@@ -579,6 +579,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           case e: HttpResponseException if e.getStatusCode == StatusCodes.Forbidden.intValue =>
             logger.error(s"User ${userEmail.value} does not have access to ${gcsPath.bucketName} / ${gcsPath.objectName}")
             throw BucketObjectAccessException(userEmail, gcsPath)
+          case e if whenGoogle401(e) =>
+            logger.warn(s"Could not validate object [${gcsUri}] as user [${userEmail.value}]", e)
+            ()
         }
     }
   }
