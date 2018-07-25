@@ -2,10 +2,11 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 
 import java.io.File
 
-import akka.actor.ActorRef
+import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.model.StatusCodes
 import cats.data.OptionT
 import cats.implicits._
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
@@ -23,11 +24,13 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervis
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.util.Retry
 import slick.dbio.DBIO
 import spray.json._
 
 import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration._
 import scala.io.Source
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success}
@@ -83,7 +86,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val serviceAccountProvider: ServiceAccountProvider,
                       protected val whitelist: Set[String],
                       protected val bucketHelper: BucketHelper)
-                     (implicit val executionContext: ExecutionContext) extends LazyLogging {
+                     (implicit val executionContext: ExecutionContext,
+                      implicit override val system: ActorSystem) extends LazyLogging with Retry {
 
   private val bucketPathMaxLength = 1024
   private val includeDeletedKey = "includeDeleted"
@@ -525,43 +529,66 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } getOrElse Future.successful(())
   }
 
-
   private def validateClusterRequestBucketObjectUri(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    for {
+    val transformed = for {
+      // Get a pet token from Sam. If we can't get a token, we won't do validation but won't fail cluster creation.
+      petToken <- OptionT(serviceAccountProvider.getAccessToken(userEmail, googleProject).recover { case e =>
+        logger.warn(s"Could not acquire pet service account access token for user ${userEmail.value} in project ${googleProject.value}. " +
+          s"Skipping validation of bucket objects in the cluster request.", e)
+        None
+      })
+
+      // Validate the user script URI
       _ <- clusterRequest.jupyterUserScriptUri match {
-        case Some(userScriptUri) => validateBucketObjectUri(userEmail, googleProject, userScriptUri.toUri)
-        case None => Future.successful(())
+        case Some(userScriptUri) => OptionT.liftF[Future, Unit](validateBucketObjectUri(userEmail, petToken, userScriptUri.toUri))
+        case None => OptionT.pure[Future, Unit](())
       }
 
+      // Validate the extension URIs
       _ <- clusterRequest.userJupyterExtensionConfig match {
         case Some(config) =>
           val extensionsToValidate = (config.nbExtensions.values ++ config.serverExtensions.values ++ config.combinedExtensions.values).filter(_.startsWith("gs://"))
-          Future.traverse(extensionsToValidate)(x => validateBucketObjectUri(userEmail, googleProject, x))
-        case None => Future.successful(())
+          OptionT.liftF(Future.traverse(extensionsToValidate)(x => validateBucketObjectUri(userEmail, petToken, x)))
+        case None => OptionT.pure[Future, Unit](())
       }
-    } yield()
-  }
-  private[service] def validateBucketObjectUri(userEmail: WorkbenchEmail, googleProject: GoogleProject, gcsUri: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
+    } yield ()
 
+    // Because of how OptionT works, `transformed.value` returns a Future[Option[Unit]]. `void` converts this to a Future[Unit].
+    transformed.value.void
+  }
+
+  private[service] def validateBucketObjectUri(userEmail: WorkbenchEmail, userToken: String, gcsUri: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
+    logger.debug(s"Validating user [${userEmail.value}] has access to bucket object ${gcsUri}")
     val gcsUriOpt = parseGcsPath(gcsUri)
     gcsUriOpt match {
+      case Left(_) => Future.failed(BucketObjectException(gcsUri))
+      case Right(gcsPath) if gcsPath.toUri.length > bucketPathMaxLength => Future.failed(BucketObjectException(gcsUri))
       case Right(gcsPath) =>
-        if (gcsPath.toUri.length > bucketPathMaxLength)
-          Future.failed(BucketObjectException(gcsUri))
-        serviceAccountProvider.getAccessToken(userEmail, googleProject).flatMap {
-          case Some(token) =>
-            petGoogleStorageDAO(token).objectExists(gcsPath.bucketName, gcsPath.objectName).map {
-              case true => ()
-              case false => throw BucketObjectException(gcsPath.toUri)
-            } recover {
-              case e: HttpResponseException if e.getStatusCode == StatusCodes.Forbidden.intValue =>
-                logger.error(s"User $userEmail does not have access to ${gcsPath.bucketName} / ${gcsPath.objectName}")
-                throw BucketObjectAccessException(userEmail, gcsPath)
-            }
-          case None => Future.successful(())
+        // Retry 401s from Google here because they can be thrown spuriously with valid credentials.
+        // See https://github.com/DataBiosphere/leonardo/issues/460
+        // Note GoogleStorageDAO already retries 500 and other errors internally, so we just need to catch 401s here.
+        // We might think about moving the retry-on-401 logic inside GoogleStorageDAO.
+        val errorMessage = s"GCS object validation failed for user [${userEmail.value}] and token [$userToken] and object [${gcsUri}]"
+        val gcsFuture: Future[Boolean] = retryUntilSuccessOrTimeout(whenGoogle401, errorMessage)(interval = 1 second, timeout = 3 seconds) { () =>
+          petGoogleStorageDAO(userToken).objectExists(gcsPath.bucketName, gcsPath.objectName)
         }
-      case Left(err) => Future.failed(BucketObjectException(gcsUri))
+        gcsFuture.map {
+          case true => ()
+          case false => throw BucketObjectException(gcsPath.toUri)
+        } recover {
+          case e: HttpResponseException if e.getStatusCode == StatusCodes.Forbidden.intValue =>
+            logger.error(s"User ${userEmail.value} does not have access to ${gcsPath.bucketName} / ${gcsPath.objectName}")
+            throw BucketObjectAccessException(userEmail, gcsPath)
+          case e if whenGoogle401(e) =>
+            logger.warn(s"Could not validate object [${gcsUri}] as user [${userEmail.value}]", e)
+            ()
+        }
     }
+  }
+
+  private def whenGoogle401(t: Throwable): Boolean = t match {
+    case g: GoogleJsonResponseException if g.getStatusCode == StatusCodes.Unauthorized.intValue => true
+    case _ => false
   }
 
   /* Process the templated cluster init script and put all initialization files in the init bucket */
