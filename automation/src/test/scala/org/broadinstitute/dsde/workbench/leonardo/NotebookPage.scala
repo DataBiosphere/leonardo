@@ -7,7 +7,7 @@ import org.openqa.selenium.{By, TimeoutException, WebDriver, WebElement}
 import org.openqa.selenium.interactions.Actions
 
 import scala.collection.JavaConverters._
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future}
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.{Failure, Success, Try}
@@ -183,7 +183,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     * @param timeout
     */
   def restartKernel(timeout: FiniteDuration = 1 minute): Unit = {
-    logger.info("kernel restarting...")
+    logger.info("restarting kernel ...")
     click on kernelMenu
     click on (await enabled restartKernelSelection)
     click on (await enabled restartKernelConfirmationSelection)
@@ -195,21 +195,19 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
 
   def clickRunCell(timeout: FiniteDuration = 2.minutes): Unit = {
     click on runCellButton
-    Await.ready(awaitReadyKernel, timeout).value.get match {
-      case Success(_) => logger.info("kernel is in ready state.")
+    awaitReadyKernel(timeout)
+  }
+
+  def awaitReadyKernel(timeout: FiniteDuration = 2.minutes): Unit = {
+    implicit val ec: ExecutionContextExecutor = ExecutionContext.global
+    val check = Future(!cellsAreRunning && isKernelReady && kernelNotificationText == "none")
+    Await.ready(check, timeout).value.get match {
+      case Success(_) =>
+        logger.info("kernel is in ready state.")
       case Failure(_) =>
         logger.error("kernel did not change to ready state.")
         if (isKernelDisconnected) restartKernel(timeout)
     }
-  }
-
-  /**
-    * wait for kernel to become ready. default timeout == 1.minute
-    *
-    * Throw TimeoutException if Kernel is not ready when timeout is reached
-    */
-  def awaitReadyKernel: Future[Boolean] = {
-    Future(!cellsAreRunning && isKernelReady && kernelNotificationText == "none")
   }
 
   def isKernelDisconnected: Boolean = {

@@ -12,7 +12,7 @@ import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
-import org.broadinstitute.dsde.workbench.auth.{AuthToken, UserAuthToken}
+import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserAuthToken}
 import org.broadinstitute.dsde.workbench.config.Credentials
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.service.{Orchestration, RestException, Sam}
@@ -49,9 +49,9 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   lazy val voldyCreds: Credentials = LeonardoConfig.Users.CampaignManager.getUserCredential("voldemort")
 
 
-  lazy val ronAuthToken = UserAuthToken(ronCreds)
-  lazy val hermioneAuthToken = UserAuthToken(hermioneCreds)
-  lazy val voldyAuthToken = UserAuthToken(voldyCreds)
+  lazy val ronAuthToken = UserAuthToken(ronCreds, AuthTokenScopes.userLoginScopes)
+  lazy val hermioneAuthToken = UserAuthToken(hermioneCreds, AuthTokenScopes.userLoginScopes)
+  lazy val voldyAuthToken = UserAuthToken(voldyCreds, AuthTokenScopes.userLoginScopes)
   lazy val ronEmail = ronCreds.email
 
   val clusterPatience = PatienceConfig(timeout = scaled(Span(30, Minutes)), interval = scaled(Span(20, Seconds)))
