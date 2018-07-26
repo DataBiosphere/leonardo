@@ -148,9 +148,6 @@ RUN apt-get update \
  && pip install matplotlib-venn \
  # for jupyter_localize_extension
  && pip install python-datauri \
- && pip install pipdeptree \
- && pipdeptree -fl
-
 
 # Python 3 Kernel
 RUN apt-get update \
