@@ -28,7 +28,7 @@ import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.concurrent.ScalaFutures
 import spray.json._
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers
   with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures
@@ -277,54 +277,46 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "throw ClusterAlreadyExistsException when creating a cluster with same name and project as an existing cluster" in isolatedDbTest {
-    // create the first cluster
-    leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
+    forallClusterCreationMethods { (creationMethod, clusterName) =>
+      // create the first cluster
+      creationMethod(userInfo, project, clusterName, testClusterRequest).futureValue
 
-    // creating the same cluster again should throw a ClusterAlreadyExistsException
-    whenReady( leo.createCluster(userInfo, project, name1, testClusterRequest).failed ) { exc =>
-      exc shouldBe a [ClusterAlreadyExistsException]
-    }
-
-    // repeat the same steps for createCluster v2 (i.e. processClusterCreationRequest)
-    leo.processClusterCreationRequest(userInfo, project, name2, testClusterRequest).futureValue
-
-    whenReady( leo.processClusterCreationRequest(userInfo, project, name2, testClusterRequest).failed ) { exc =>
-      exc shouldBe a [ClusterAlreadyExistsException]
+      // creating the same cluster again should throw a ClusterAlreadyExistsException
+      whenReady(creationMethod(userInfo, project, clusterName, testClusterRequest).failed) { exc =>
+        exc shouldBe a[ClusterAlreadyExistsException]
+      }
     }
   }
 
   it should "create two clusters with same name with only one active" in isolatedDbTest {
-    Seq((leo.createCluster _).tupled, (leo.processClusterCreationRequest _).tupled) zip Seq(name1, name2) foreach {
-//    Seq((leo.createCluster _).tupled) zip Seq(name1) foreach {
-//    Seq((leo.processClusterCreationRequest _).tupled) zip Seq(name2) foreach {
-      case (creationMethod, clusterName) =>
-        // create first cluster
-        val cluster = creationMethod(userInfo, project, clusterName, testClusterRequest).futureValue
+    forallClusterCreationMethods { (creationMethod, clusterName) =>
+      // create first cluster
+      val cluster = creationMethod(userInfo, project, clusterName, testClusterRequest).futureValue
 
-        eventually {
-          // check that the cluster was created
-          gdDAO.clusters should contain key(clusterName)
-        }
-        
-        // delete the cluster
-        leo.deleteCluster(userInfo, project, clusterName).futureValue
+      eventually {
+        // check that the cluster was created
+        gdDAO.clusters should contain key(clusterName)
+      }
 
-        // recreate cluster with same project and cluster name
-        // should throw ClusterAlreadyExistsException since the cluster is still Deleting
-        creationMethod(userInfo, project, clusterName, testClusterRequest).failed.futureValue shouldBe a[ClusterAlreadyExistsException]
+      // delete the cluster
+      leo.deleteCluster(userInfo, project, clusterName).futureValue
 
-        // flip the cluster to Deleted in the database
-        dbFutureValue {
-          _.clusterQuery.completeDeletion(cluster.id)
-        }
+      // recreate cluster with same project and cluster name
+      // should throw ClusterAlreadyExistsException since the cluster is still Deleting
+      creationMethod(userInfo, project, clusterName, testClusterRequest).failed.futureValue shouldBe a[ClusterAlreadyExistsException]
 
-        // recreate cluster with same project and cluster name
-        creationMethod(userInfo, project, clusterName, testClusterRequest).futureValue
+      // flip the cluster to Deleted in the database
+      dbFutureValue {
+        _.clusterQuery.completeDeletion(cluster.id)
+      }
 
-        // confirm cluster was created
-        eventually {
-          gdDAO.clusters should contain key(clusterName)
-        }
+      // recreate cluster with same project and cluster name
+      creationMethod(userInfo, project, clusterName, testClusterRequest).futureValue
+
+      // confirm cluster was created
+      eventually {
+        gdDAO.clusters should contain key(clusterName)
+      }
     }
   }
 
@@ -354,7 +346,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // delete the cluster
     leoForTest.deleteCluster(userInfo, project, name1).futureValue
 
-    // check that  the cluster no longer exists
+    // check that the cluster no longer exists
     gdDAO.clusters should not contain key (name1)
     iamDAO.serviceAccountKeys should not contain key (samClient.serviceAccount)
 
@@ -678,4 +670,14 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     instances.size shouldBe 3
     instances.map(_.status).toSet shouldBe Set(InstanceStatus.Stopped)
   }
+
+  type ClusterCreationInput = (UserInfo, GoogleProject, ClusterName, ClusterRequest)
+  type ClusterCreation = ClusterCreationInput => Future[Cluster]
+
+  private def forallClusterCreationMethods(testCode: (ClusterCreation, ClusterName) => Any) = {
+    Seq((leo.createCluster _).tupled, (leo.processClusterCreationRequest _).tupled)
+      .zip(Seq(name1, name2))
+      .foreach {
+        case (creationMethod, clusterName) => testCode(creationMethod, clusterName) }
+      }
 }
