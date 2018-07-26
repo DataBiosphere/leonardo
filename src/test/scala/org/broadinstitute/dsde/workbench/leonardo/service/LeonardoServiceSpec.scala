@@ -208,14 +208,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val machineConfig = MachineConfig(Some(10), Some("test-master-machine-type"), Some(200), Some("test-worker-machine-type"), Some(300), Some(3), Some(4))
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(machineConfig))
 
-    val clusterCreateResponse =
-      leo.createCluster(userInfo, project, name1, clusterRequestWithMachineConfig).futureValue
-    clusterCreateResponse.machineConfig shouldEqual machineConfig
-
-    val clusterCreateResponseV2 =
-      leo.processClusterCreationRequest(userInfo, project, name2, clusterRequestWithMachineConfig).futureValue
-    clusterCreateResponseV2.machineConfig shouldEqual machineConfig
-
+    forallClusterCreationMethods { (creationMethod, clusterName) =>
+      val clusterCreateResponse =
+        creationMethod(userInfo, project, clusterName, clusterRequestWithMachineConfig).futureValue
+      clusterCreateResponse.machineConfig shouldEqual machineConfig
+    }
   }
 
   it should "create a standard cluster with 2 workers and override too-small disk sizes with minimum disk size" in isolatedDbTest {
@@ -223,36 +220,29 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(machineConfig))
     val expectedMachineConfig = MachineConfig(Some(2), Some("test-master-machine-type"), Some(10), Some("test-worker-machine-type"), Some(10), Some(3), Some(4))
 
-    val clusterCreateResponse =
-      leo.createCluster(userInfo, project, name1, clusterRequestWithMachineConfig).futureValue
-    clusterCreateResponse.machineConfig shouldEqual expectedMachineConfig
-
-    val clusterCreateResponseV2 =
-      leo.processClusterCreationRequest(userInfo, project, name2, clusterRequestWithMachineConfig).futureValue
-    clusterCreateResponseV2.machineConfig shouldEqual expectedMachineConfig
+    forallClusterCreationMethods { (creationMethod, clusterName) =>
+      val clusterCreateResponse = creationMethod(userInfo, project, clusterName, clusterRequestWithMachineConfig).futureValue
+      clusterCreateResponse.machineConfig shouldEqual expectedMachineConfig
+    }
   }
 
   it should "throw OneWorkerSpecifiedInClusterRequestException when create a 1 worker cluster" in isolatedDbTest {
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig(Some(1))))
 
-    whenReady(leo.createCluster(userInfo, project, name1, clusterRequestWithMachineConfig).failed) { exc =>
-      exc shouldBe a[OneWorkerSpecifiedInClusterRequestException]
-    }
-
-    whenReady(leo.processClusterCreationRequest(userInfo, project, name2, clusterRequestWithMachineConfig).failed) { exc =>
-      exc shouldBe a[OneWorkerSpecifiedInClusterRequestException]
+    forallClusterCreationMethods { (creationMethod, clusterName) =>
+      whenReady(creationMethod(userInfo, project, clusterName, clusterRequestWithMachineConfig).failed) { exc =>
+        exc shouldBe a[OneWorkerSpecifiedInClusterRequestException]
+      }
     }
   }
 
   it should "throw NegativeIntegerArgumentInClusterRequestException when master disk size in single node cluster request is a negative integer" in isolatedDbTest {
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig(Some(0), Some("test-worker-machine-type"), Some(-30))))
 
-    whenReady(leo.createCluster(userInfo, project, name1, clusterRequestWithMachineConfig).failed) { exc =>
-      exc shouldBe a[NegativeIntegerArgumentInClusterRequestException]
-    }
-
-    whenReady(leo.processClusterCreationRequest(userInfo, project, name2, clusterRequestWithMachineConfig).failed) { exc =>
-      exc shouldBe a[NegativeIntegerArgumentInClusterRequestException]
+    forallClusterCreationMethods { (creationMethod, clusterName) =>
+      whenReady(creationMethod(userInfo, project, clusterName, clusterRequestWithMachineConfig).failed) { exc =>
+        exc shouldBe a[NegativeIntegerArgumentInClusterRequestException]
+      }
     }
   }
 
@@ -260,14 +250,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val machineConfig = MachineConfig(Some(10), Some("test-master-machine-type"), Some(200), Some("test-worker-machine-type"), Some(300), Some(3), Some(-1))
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Option(machineConfig))
 
-    whenReady(leo.createCluster(userInfo, project, name1, clusterRequestWithMachineConfig).failed) { exc =>
-      exc shouldBe a[NegativeIntegerArgumentInClusterRequestException]
+    forallClusterCreationMethods { (creationMethod, clusterName) =>
+      whenReady(creationMethod(userInfo, project, clusterName, clusterRequestWithMachineConfig).failed) { exc =>
+        exc shouldBe a[NegativeIntegerArgumentInClusterRequestException]
+      }
     }
-
-    whenReady(leo.processClusterCreationRequest(userInfo, project, name2, clusterRequestWithMachineConfig).failed) { exc =>
-      exc shouldBe a[NegativeIntegerArgumentInClusterRequestException]
-    }
-
   }
 
   it should "throw ClusterNotFoundException for nonexistent clusters" in isolatedDbTest {
