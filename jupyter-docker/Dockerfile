@@ -53,9 +53,9 @@ ENV LC_ALL en_US.UTF-8
 # Java
 #######################
 
-ENV JAVA_VER jdk1.8.0_171
-ENV JAVA_TGZ jdk-8u171-linux-x64.tar.gz
-ENV JAVA_URL http://download.oracle.com/otn-pub/java/jdk/8u171-b11/512cd62ec5174c3487ac17c61aaa89e8/$JAVA_TGZ
+ENV JAVA_VER jdk1.8.0_181
+ENV JAVA_TGZ jdk-8u181-linux-x64.tar.gz
+ENV JAVA_URL http://download.oracle.com/otn-pub/java/jdk/8u181-b13/96a7b8442fe848ef90c96a2fad6ed6d1/$JAVA_TGZ
 ENV JAVA_HOME /usr/lib/jdk/$JAVA_VER
 
 RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
@@ -112,17 +112,12 @@ ENV PYSPARK_DRIVER_PYTHON_OPTS notebook
 ENV PATH $SPARK_HOME:$SPARK_HOME/python:$SPARK_HOME/bin:$HAIL_HOME:$PATH
 ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip:$JUPYTER_HOME/custom
 
-RUN apt-get install -yq --no-install-recommends \
-    python \
+RUN apt-get update \
+ && apt-get install -yq --no-install-recommends \
+    python\
     python-dev \
     liblzo2-dev \
-
-    # useful for analysis
-    python-matplotlib \
-    python-pandas \
-    python-seaborn \
     python-tk \
-    python-numpy \
     liblzo2-dev \
     libz-dev \
 
@@ -134,11 +129,15 @@ RUN apt-get install -yq --no-install-recommends \
 
  # Hail requires decorator
  && pip install -U decorator==4.2.1 \
+ && pip install numpy==1.15.0 \
+ && python -mpip install matplotlib \
+ && pip install pandas \
+ && pip install seaborn \
  && pip install -U jupyter \
  && pip install google-cloud \
  && pip install --ignore-installed firecloud==0.16.7 \
  && pip install -U scikit-learn \
- && pip install statsmodels==0.8.0 \
+ && pip install statsmodels==0.9.0 \
  && pip install ggplot \
  && pip install bokeh \
  && pip install pyfasta \
@@ -150,25 +149,28 @@ RUN apt-get install -yq --no-install-recommends \
  # for jupyter_localize_extension
  && pip install python-datauri
 
+
 # Python 3 Kernel
-RUN apt-get install -yq --no-install-recommends python3 \
+RUN apt-get update \
+ &&  apt-get install -yq --no-install-recommends python3 \
         python3-dev \
-        python3-matplotlib \
-        python3-pandas \
         python3-tk \
-        python3-numpy \
+
  && python3 get-pip.py \
  # install the python 3 kernel
- && pip3 install tornado==4.5.3 \
+ && pip3 install tornado==5.1 \
  && pip3 install ipykernel==4.8.2 \
  && python3 -m ipykernel install --name python3 --display-name "Python 3" \
  # python 3 packages
- && pip3 install seaborn \
+ && pip install numpy==1.15.0 \
+ && python -mpip install matplotlib \
+ && pip install pandas \
+ && pip install seaborn \
  && pip3 install python-lzo \
  && pip3 install google-cloud \
  && pip3 install --ignore-installed firecloud==0.16.7 \
  && pip3 install -U scikit-learn \
- && pip3 install statsmodels==0.8.0 \
+ && pip3 install statsmodels==0.9.0 \
  && pip3 install ggplot \
  && pip3 install bokeh \
  && pip3 install pyfasta \
