@@ -147,7 +147,8 @@ RUN apt-get update \
  && pip install fastinterval \
  && pip install matplotlib-venn \
  # for jupyter_localize_extension
- && pip install python-datauri \
+ && pip install python-datauri
+
 
 # Python 3 Kernel
 RUN apt-get update \
