@@ -155,7 +155,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } yield cluster
   }
 
-  def createCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest): Future[Cluster] = {
+  def createCluster(userInfo: UserInfo,
+                    googleProject: GoogleProject,
+                    clusterName: ClusterName,
+                    clusterRequest: ClusterRequest): Future[Cluster] = {
     for {
       _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
 

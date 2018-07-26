@@ -27,7 +27,7 @@ import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
 import spray.json._
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers
   with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures
@@ -47,7 +47,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     computeDAO = new MockGoogleComputeDAO
     iamDAO = new MockGoogleIamDAO
     storageDAO = new MockGoogleStorageDAO
-    // Pre-populate the juptyer extenion bucket in the mock storage DAO, as it is passed in some requests
+    // Pre-populate the juptyer extension bucket in the mock storage DAO, as it is passed in some requests
     storageDAO.buckets += jupyterExtensionUri.bucketName -> Set((jupyterExtensionUri.objectName, new ByteArrayInputStream("foo".getBytes())))
 
     samClient = serviceAccountProvider.asInstanceOf[MockPetClusterServiceAccountProvider].mockSwaggerSamClient
@@ -65,7 +65,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     super.afterAll()
   }
 
-  lazy val initFiles = List(
+  lazy val serviceAccountCredentialFile = notebookServiceAccount(project)
+    .map(_ => List(ClusterInitValues.serviceAccountCredentialsFilename))
+    .getOrElse(List.empty)
+
+  lazy val configFiles = List(
     clusterResourcesConfig.clusterDockerCompose.value,
     clusterResourcesConfig.initActionsScript.value,
     clusterFilesConfig.jupyterServerCrt.getName,
@@ -73,12 +77,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterFilesConfig.jupyterRootCaPem.getName,
     clusterResourcesConfig.jupyterProxySiteConf.value,
     clusterResourcesConfig.jupyterCustomJs.value,
-    clusterResourcesConfig.jupyterGoogleSignInJs.value
-  ) ++ (
-    notebookServiceAccount(project).map(_ => List(ClusterInitValues.serviceAccountCredentialsFilename)).getOrElse(List.empty)
-  ) map(name => GcsObjectName(name))
+    clusterResourcesConfig.jupyterGoogleSignInJs.value)
 
-  // TODO Add cases for v2 of the cluster creation API
+  lazy val initFiles = (configFiles ++ serviceAccountCredentialFile)
+    .map(name => GcsObjectName(name))
+
   "LeonardoService" should "create a single node cluster with default machine configs" in isolatedDbTest {
     // create the cluster
     val clusterCreateResponse = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
@@ -132,8 +135,14 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "create a single node cluster with an empty machine config" in isolatedDbTest {
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig()))
-    val clusterCreateResponse = leo.createCluster(userInfo, project, name1, clusterRequestWithMachineConfig).futureValue
+
+    val clusterCreateResponse =
+      leo.createCluster(userInfo, project, name1, clusterRequestWithMachineConfig).futureValue
     clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig
+
+    val clusterCreateResponseV2 =
+      leo.processClusterCreationRequest(userInfo, project, name2, clusterRequestWithMachineConfig).futureValue
+    clusterCreateResponseV2.machineConfig shouldEqual singleNodeDefaultMachineConfig
   }
 
   it should "create a single node cluster with zero workers explicitly defined in machine config" in isolatedDbTest {
