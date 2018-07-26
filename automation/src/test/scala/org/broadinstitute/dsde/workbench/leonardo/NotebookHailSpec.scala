@@ -1,9 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.io.File
 import java.nio.file.Files
-import java.nio.file.attribute.PosixFilePermission
-
 import org.broadinstitute.dsde.workbench.ResourceFile
 
 import scala.concurrent.duration.DurationInt
@@ -22,7 +19,7 @@ class NotebookHailSpec extends ClusterFixtureSpec {
 
       val downloadDir = createDownloadDirectory()
       withWebDriver(downloadDir) { implicit driver =>
-        uploadDownloadTest(clusterFixture.cluster, hailUploadFile, 60.seconds, downloadDir)(compareFilesExcludingIPs)
+        uploadDownloadTest(clusterFixture.cluster, hailUploadFile, 2.minutes, downloadDir)(compareFilesExcludingIPs)
       }
     }
 
