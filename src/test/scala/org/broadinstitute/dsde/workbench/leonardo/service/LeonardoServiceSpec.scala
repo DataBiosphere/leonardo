@@ -137,38 +137,32 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   it should "create a single node cluster with an empty machine config" in isolatedDbTest {
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig()))
 
-    val clusterCreateResponse =
-      leo.createCluster(userInfo, project, name1, clusterRequestWithMachineConfig).futureValue
-    clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig
-
-    val clusterCreateResponseV2 =
-      leo.processClusterCreationRequest(userInfo, project, name2, clusterRequestWithMachineConfig).futureValue
-    clusterCreateResponseV2.machineConfig shouldEqual singleNodeDefaultMachineConfig
+    forallClusterCreationMethods { (creationMethod, clusterName) =>
+      val clusterCreateResponse =
+        creationMethod(userInfo, project, clusterName, clusterRequestWithMachineConfig).futureValue
+      clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig
+    }
   }
 
   it should "create a single node cluster with zero workers explicitly defined in machine config" in isolatedDbTest {
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig(Some(0))))
 
-    val clusterCreateResponse =
-      leo.createCluster(userInfo, project, name1, clusterRequestWithMachineConfig).futureValue
-    clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig
-
-    val clusterCreateResponseV2 =
-      leo.processClusterCreationRequest(userInfo, project, name2, clusterRequestWithMachineConfig).futureValue
-    clusterCreateResponseV2.machineConfig shouldEqual singleNodeDefaultMachineConfig
+    forallClusterCreationMethods { (creationMethod, clusterName) =>
+      val clusterCreateResponse =
+        creationMethod(userInfo, project, clusterName, clusterRequestWithMachineConfig).futureValue
+      clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig
+    }
   }
 
   it should "create a single node cluster with master configs defined" in isolatedDbTest {
     val singleNodeDefinedMachineConfig = MachineConfig(Some(0), Some("test-master-machine-type2"), Some(200))
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(singleNodeDefinedMachineConfig))
 
-    val clusterCreateResponse =
-      leo.createCluster(userInfo, project, name1, clusterRequestWithMachineConfig).futureValue
-    clusterCreateResponse.machineConfig shouldEqual singleNodeDefinedMachineConfig
-
-    val clusterCreateResponseV2 =
-      leo.processClusterCreationRequest(userInfo, project, name2, clusterRequestWithMachineConfig).futureValue
-    clusterCreateResponseV2.machineConfig shouldEqual singleNodeDefinedMachineConfig
+    forallClusterCreationMethods { (creationMethod, clusterName) =>
+      val clusterCreateResponse =
+        creationMethod(userInfo, project, clusterName, clusterRequestWithMachineConfig).futureValue
+      clusterCreateResponse.machineConfig shouldEqual singleNodeDefinedMachineConfig
+    }
   }
 
   it should "create a single node cluster and override worker configs" in isolatedDbTest {
@@ -176,13 +170,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val machineConfig = Some(MachineConfig(Some(0), Some("test-master-machine-type3"), Some(200), Some("test-worker-machine-type"), Some(10), Some(3), Some(4)))
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = machineConfig)
 
-    val clusterCreateResponse =
-      leo.createCluster(userInfo, project, name1, clusterRequestWithMachineConfig).futureValue
-    clusterCreateResponse.machineConfig shouldEqual MachineConfig(Some(0), Some("test-master-machine-type3"), Some(200))
-
-    val clusterCreateResponseV2 =
-      leo.processClusterCreationRequest(userInfo, project, name2, clusterRequestWithMachineConfig).futureValue
-    clusterCreateResponseV2.machineConfig shouldEqual MachineConfig(Some(0), Some("test-master-machine-type3"), Some(200))
+    forallClusterCreationMethods { (creationMethod, clusterName) =>
+      val clusterCreateResponse =
+        creationMethod(userInfo, project, clusterName, clusterRequestWithMachineConfig).futureValue
+      clusterCreateResponse.machineConfig shouldEqual MachineConfig(Some(0), Some("test-master-machine-type3"), Some(200))
+    }
   }
 
   it should "create a standard cluster with 2 workers with default worker configs" in isolatedDbTest {
@@ -195,13 +187,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       Some(clusterDefaultsConfig.numberOfWorkerLocalSSDs),
       Some(clusterDefaultsConfig.numberOfPreemptibleWorkers))
 
-    val clusterCreateResponse =
-      leo.createCluster(userInfo, project, name1, clusterRequestWithMachineConfig).futureValue
-    clusterCreateResponse.machineConfig shouldEqual machineConfigResponse
-
-    val clusterCreateResponseV2 =
-      leo.processClusterCreationRequest(userInfo, project, name2, clusterRequestWithMachineConfig).futureValue
-    clusterCreateResponseV2.machineConfig shouldEqual machineConfigResponse
+    forallClusterCreationMethods { (creationMethod, clusterName) =>
+      val clusterCreateResponse =
+        creationMethod(userInfo, project, clusterName, clusterRequestWithMachineConfig).futureValue
+      clusterCreateResponse.machineConfig shouldEqual machineConfigResponse
+    }
   }
 
   it should "create a standard cluster with 10 workers with defined config" in isolatedDbTest {
