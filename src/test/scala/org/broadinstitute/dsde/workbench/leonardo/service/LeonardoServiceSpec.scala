@@ -24,6 +24,7 @@ import org.broadinstitute.dsde.workbench.model.google._
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.Mockito.{never, verify, _}
 import org.scalatest._
+import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.concurrent.ScalaFutures
 import spray.json._
 
@@ -111,7 +112,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // a service account key should only have been created if using a notebook service account
     if (notebookServiceAccount(project).isDefined) {
-      iamDAO.serviceAccountKeys should contain key samClient.serviceAccount
+      iamDAO.serviceAccountKeys should contain key(samClient.serviceAccount)
     } else {
       iamDAO.serviceAccountKeys should not contain key(samClient.serviceAccount)
     }
@@ -186,8 +187,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "create a standard cluster with 2 workers with default worker configs" in isolatedDbTest {
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig(Some(2))))
-
-    val clusterCreateResponse = leo.createCluster(userInfo, project, name1, clusterRequestWithMachineConfig).futureValue
     val machineConfigResponse = MachineConfig(Some(2),
       Some(clusterDefaultsConfig.masterMachineType),
       Some(clusterDefaultsConfig.masterDiskSize),
@@ -196,24 +195,41 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       Some(clusterDefaultsConfig.numberOfWorkerLocalSSDs),
       Some(clusterDefaultsConfig.numberOfPreemptibleWorkers))
 
+    val clusterCreateResponse =
+      leo.createCluster(userInfo, project, name1, clusterRequestWithMachineConfig).futureValue
     clusterCreateResponse.machineConfig shouldEqual machineConfigResponse
+
+    val clusterCreateResponseV2 =
+      leo.processClusterCreationRequest(userInfo, project, name2, clusterRequestWithMachineConfig).futureValue
+    clusterCreateResponseV2.machineConfig shouldEqual machineConfigResponse
   }
 
   it should "create a standard cluster with 10 workers with defined config" in isolatedDbTest {
     val machineConfig = MachineConfig(Some(10), Some("test-master-machine-type"), Some(200), Some("test-worker-machine-type"), Some(300), Some(3), Some(4))
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(machineConfig))
 
-    val clusterCreateResponse = leo.createCluster(userInfo, project, name1, clusterRequestWithMachineConfig).futureValue
+    val clusterCreateResponse =
+      leo.createCluster(userInfo, project, name1, clusterRequestWithMachineConfig).futureValue
     clusterCreateResponse.machineConfig shouldEqual machineConfig
+
+    val clusterCreateResponseV2 =
+      leo.processClusterCreationRequest(userInfo, project, name2, clusterRequestWithMachineConfig).futureValue
+    clusterCreateResponseV2.machineConfig shouldEqual machineConfig
 
   }
 
   it should "create a standard cluster with 2 workers and override too-small disk sizes with minimum disk size" in isolatedDbTest {
     val machineConfig = MachineConfig(Some(2), Some("test-master-machine-type"), Some(5), Some("test-worker-machine-type"), Some(5), Some(3), Some(4))
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(machineConfig))
+    val expectedMachineConfig = MachineConfig(Some(2), Some("test-master-machine-type"), Some(10), Some("test-worker-machine-type"), Some(10), Some(3), Some(4))
 
-    val clusterCreateResponse = leo.createCluster(userInfo, project, name1, clusterRequestWithMachineConfig).futureValue
-    clusterCreateResponse.machineConfig shouldEqual MachineConfig(Some(2), Some("test-master-machine-type"), Some(10), Some("test-worker-machine-type"), Some(10), Some(3), Some(4))
+    val clusterCreateResponse =
+      leo.createCluster(userInfo, project, name1, clusterRequestWithMachineConfig).futureValue
+    clusterCreateResponse.machineConfig shouldEqual expectedMachineConfig
+
+    val clusterCreateResponseV2 =
+      leo.processClusterCreationRequest(userInfo, project, name2, clusterRequestWithMachineConfig).futureValue
+    clusterCreateResponseV2.machineConfig shouldEqual expectedMachineConfig
   }
 
   it should "throw OneWorkerSpecifiedInClusterRequestException when create a 1 worker cluster" in isolatedDbTest {
@@ -222,12 +238,20 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     whenReady(leo.createCluster(userInfo, project, name1, clusterRequestWithMachineConfig).failed) { exc =>
       exc shouldBe a[OneWorkerSpecifiedInClusterRequestException]
     }
+
+    whenReady(leo.processClusterCreationRequest(userInfo, project, name2, clusterRequestWithMachineConfig).failed) { exc =>
+      exc shouldBe a[OneWorkerSpecifiedInClusterRequestException]
+    }
   }
 
   it should "throw NegativeIntegerArgumentInClusterRequestException when master disk size in single node cluster request is a negative integer" in isolatedDbTest {
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig(Some(0), Some("test-worker-machine-type"), Some(-30))))
 
     whenReady(leo.createCluster(userInfo, project, name1, clusterRequestWithMachineConfig).failed) { exc =>
+      exc shouldBe a[NegativeIntegerArgumentInClusterRequestException]
+    }
+
+    whenReady(leo.processClusterCreationRequest(userInfo, project, name2, clusterRequestWithMachineConfig).failed) { exc =>
       exc shouldBe a[NegativeIntegerArgumentInClusterRequestException]
     }
   }
@@ -239,6 +263,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     whenReady(leo.createCluster(userInfo, project, name1, clusterRequestWithMachineConfig).failed) { exc =>
       exc shouldBe a[NegativeIntegerArgumentInClusterRequestException]
     }
+
+    whenReady(leo.processClusterCreationRequest(userInfo, project, name2, clusterRequestWithMachineConfig).failed) { exc =>
+      exc shouldBe a[NegativeIntegerArgumentInClusterRequestException]
+    }
+
   }
 
   it should "throw ClusterNotFoundException for nonexistent clusters" in isolatedDbTest {
@@ -255,30 +284,48 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     whenReady( leo.createCluster(userInfo, project, name1, testClusterRequest).failed ) { exc =>
       exc shouldBe a [ClusterAlreadyExistsException]
     }
+
+    // repeat the same steps for createCluster v2 (i.e. processClusterCreationRequest)
+    leo.processClusterCreationRequest(userInfo, project, name2, testClusterRequest).futureValue
+
+    whenReady( leo.processClusterCreationRequest(userInfo, project, name2, testClusterRequest).failed ) { exc =>
+      exc shouldBe a [ClusterAlreadyExistsException]
+    }
   }
 
   it should "create two clusters with same name with only one active" in isolatedDbTest {
-    // create first cluster
-    val cluster = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
+    Seq((leo.createCluster _).tupled, (leo.processClusterCreationRequest _).tupled) zip Seq(name1, name2) foreach {
+//    Seq((leo.createCluster _).tupled) zip Seq(name1) foreach {
+//    Seq((leo.processClusterCreationRequest _).tupled) zip Seq(name2) foreach {
+      case (creationMethod, clusterName) =>
+        // create first cluster
+        val cluster = creationMethod(userInfo, project, clusterName, testClusterRequest).futureValue
 
-    // check that the cluster was created
-    gdDAO.clusters should contain key (name1)
+        eventually {
+          // check that the cluster was created
+          gdDAO.clusters should contain key(clusterName)
+        }
+        
+        // delete the cluster
+        leo.deleteCluster(userInfo, project, clusterName).futureValue
 
-    // delete the cluster
-    leo.deleteCluster(userInfo, project, name1).futureValue
+        // recreate cluster with same project and cluster name
+        // should throw ClusterAlreadyExistsException since the cluster is still Deleting
+        creationMethod(userInfo, project, clusterName, testClusterRequest).failed.futureValue shouldBe a[ClusterAlreadyExistsException]
 
-    // recreate cluster with same project and cluster name
-    // should throw ClusterAlreadyExistsException since the cluster is still Deleting
-    leo.createCluster(userInfo, project, name1, testClusterRequest).failed.futureValue shouldBe a [ClusterAlreadyExistsException]
+        // flip the cluster to Deleted in the database
+        dbFutureValue {
+          _.clusterQuery.completeDeletion(cluster.id)
+        }
 
-    // flip the cluster to Deleted in the database
-    dbFutureValue { _.clusterQuery.completeDeletion(cluster.id) }
+        // recreate cluster with same project and cluster name
+        creationMethod(userInfo, project, clusterName, testClusterRequest).futureValue
 
-    // recreate cluster with same project and cluster name
-    leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
-
-    // confirm cluster was created
-    gdDAO.clusters should contain key (name1)
+        // confirm cluster was created
+        eventually {
+          gdDAO.clusters should contain key(clusterName)
+        }
+    }
   }
 
   it should "delete a cluster" in isolatedDbTest {
