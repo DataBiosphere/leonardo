@@ -168,6 +168,7 @@ RUN apt-get update \
  && pip install seaborn \
  && pip3 install python-lzo \
  && pip3 install google-cloud \
+ && pip3 install google-cloud-bigquery \
  && pip3 install --ignore-installed firecloud==0.16.7 \
  && pip3 install -U scikit-learn \
  && pip3 install statsmodels==0.9.0 \
