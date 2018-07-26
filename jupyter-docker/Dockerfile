@@ -119,11 +119,11 @@ RUN apt-get update \
     liblzo2-dev \
 
     # useful for analysis
-    python-matplotlib \
-    python-pandas \
-    python-seaborn \
+    # python-matplotlib \
+    #python-pandas \
+    # python-seaborn \
     python-tk \
-    python-numpy \
+    # python-numpy \
     liblzo2-dev \
     libz-dev \
 
@@ -135,6 +135,10 @@ RUN apt-get update \
 
  # Hail requires decorator
  && pip install -U decorator==4.2.1 \
+ && pip install numpy==1.15.0 \
+ && python -mpip install matplotlib \
+ && pip install pandas \
+ && pip install seaborn \
  && pip install -U jupyter \
  && pip install google-cloud \
  && pip install --ignore-installed firecloud==0.16.7 \
@@ -149,23 +153,29 @@ RUN apt-get update \
  && pip install fastinterval \
  && pip install matplotlib-venn \
  # for jupyter_localize_extension
- && pip install python-datauri
+ && pip install python-datauri \
+ && pip install pipdeptree \
+ && pipdeptree -fl
+
 
 # Python 3 Kernel
 RUN apt-get update \
  &&  apt-get install -yq --no-install-recommends python3 \
         python3-dev \
-        python3-matplotlib \
-        python3-pandas \
+        #python3-matplotlib \
+        #python3-pandas \
         python3-tk \
-        python3-numpy \
+        #python3-numpy \
  && python3 get-pip.py \
  # install the python 3 kernel
  && pip3 install tornado==5.1 \
  && pip3 install ipykernel==4.8.2 \
  && python3 -m ipykernel install --name python3 --display-name "Python 3" \
  # python 3 packages
- && pip3 install seaborn \
+ && pip install numpy==1.15.0 \
+  && python -mpip install matplotlib \
+  && pip install pandas \
+  && pip install seaborn \
  && pip3 install python-lzo \
  && pip3 install google-cloud \
  && pip3 install --ignore-installed firecloud==0.16.7 \
