@@ -136,25 +136,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
-  // We complete the API response without waiting for the cluster to be created
-  // on the Google Dataproc side, which happens asynchronously to the request
-  def processClusterCreationRequest(userInfo: UserInfo,
-                                    googleProject: GoogleProject,
-                                    clusterName: ClusterName,
-                                    clusterRequest: ClusterRequest): Future[Cluster] = {
-    for {
-      _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
-
-      // Grab the service accounts from serviceAccountProvider for use later
-      clusterServiceAccountOpt <- serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject)
-      notebookServiceAccountOpt <- serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject)
-      serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountOpt, notebookServiceAccountOpt)
-
-      cluster <- stageClusterCreation(
-        userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
-    } yield cluster
-  }
-
   def createCluster(userInfo: UserInfo,
                     googleProject: GoogleProject,
                     clusterName: ClusterName,
@@ -186,8 +167,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         val clusterFuture = for {
           // Notify the auth provider that the cluster has been created
           _ <- authProvider.notifyClusterCreated(userEmail, googleProject, clusterName)
+
+          // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
+          _ <- validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest)
+
           // Create the cluster in Google
           (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest)
+
           // Save the cluster in the database
           savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, Option(GcsPath(initBucket, GcsObjectName(""))), serviceAccountKeyOpt.map(_.id)))
         } yield {
@@ -196,7 +182,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           savedCluster
         }
 
-        // If cluster creation failed, createGoogleCluster removes resources in Google.
+        // If cluster creation failed on the Google side, createGoogleCluster removes resources in Google.
         // We also need to notify our auth provider that the cluster has been deleted.
         clusterFuture.andThen { case Failure(_) =>
           // Don't wait for this future
@@ -205,6 +191,25 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         clusterFuture
     }
+  }
+
+  // We complete the API response without waiting for the cluster to be created
+  // on the Google Dataproc side, which happens asynchronously to the request
+  def processClusterCreationRequest(userInfo: UserInfo,
+                                    googleProject: GoogleProject,
+                                    clusterName: ClusterName,
+                                    clusterRequest: ClusterRequest): Future[Cluster] = {
+    for {
+      _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
+
+      // Grab the service accounts from serviceAccountProvider for use later
+      clusterServiceAccountOpt <- serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject)
+      notebookServiceAccountOpt <- serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject)
+      serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountOpt, notebookServiceAccountOpt)
+
+      cluster <- stageClusterCreation(
+        userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
+    } yield cluster
   }
 
   def stageClusterCreation(userEmail: WorkbenchEmail,
@@ -228,7 +233,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           augmentedClusterRequest, userEmail, clusterName, googleProject,
           serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold)
 
-        val attemptToSaveClusterInDb: Future[Cluster] = dbRef.inTransaction(_.clusterQuery.save(initialCluster))
+        // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
+        // and if so, save the cluster creation request parameters in DB
+        val attemptToSaveClusterInDb: Future[Cluster] = validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest)
+          .flatMap { _ => dbRef.inTransaction(_.clusterQuery.save(initialCluster)) }
 
         // For the success case, register the following callbacks...
         attemptToSaveClusterInDb foreach { cluster =>
@@ -271,6 +279,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       _ <- authProvider.notifyClusterCreated(userEmail, cluster.googleProject, cluster.clusterName)
       _ = logger.info(s"Successfully notified the AuthProvider for creation of cluster ${cluster.clusterName} " +
         s"on Google project ${cluster.googleProject.value}. Proceeding to creating the cluster on Google Dataproc...")
+
       (googleCluster, initBucket, serviceAccountKey) <- createGoogleCluster(userEmail, cluster, clusterRequest)
     } yield {
       logger.info(s"Successfully finished asynchronously creating the cluster ${cluster.clusterName} " +
@@ -448,9 +457,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val stagingBucketName = generateUniqueBucketName("leostaging-"+clusterName.value)
 
     val googleFuture = for {
-      // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
-      _ <- validateClusterRequestBucketObjectUri(userEmail, googleProject, clusterRequest)
-
       // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
       _ <- googleComputeDAO.updateFirewallRule(googleProject, firewallRule)
 
@@ -556,7 +562,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
 
-  private def validateClusterRequestBucketObjectUri(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterRequest: ClusterRequest)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  private def validateClusterRequestBucketObjectUri(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterRequest: ClusterRequest)
+                                                   (implicit executionContext: ExecutionContext): Future[Unit] = {
     for {
       _ <- clusterRequest.jupyterUserScriptUri match {
         case Some(userScriptUri) => validateBucketObjectUri(userEmail, googleProject, userScriptUri.toUri)
@@ -571,7 +578,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       }
     } yield()
   }
-  private[service] def validateBucketObjectUri(userEmail: WorkbenchEmail, googleProject: GoogleProject, gcsUri: String)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  private[service] def validateBucketObjectUri(userEmail: WorkbenchEmail, googleProject: GoogleProject, gcsUri: String)
+                                              (implicit executionContext: ExecutionContext): Future[Unit] = {
 
     val gcsUriOpt = parseGcsPath(gcsUri)
     gcsUriOpt match {

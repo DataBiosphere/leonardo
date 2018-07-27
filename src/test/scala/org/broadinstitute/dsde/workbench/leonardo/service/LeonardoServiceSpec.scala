@@ -531,12 +531,15 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "throw a JupyterExtensionException when the extensionUri is too long" in isolatedDbTest {
-    val jupyterExtensionUri = GcsPath(GcsBucketName("bucket"), GcsObjectName(Stream.continually('a').take(1025).mkString))
+    forallClusterCreationMethods { (creationMethod, clusterName) =>
+      val jupyterExtensionUri = GcsPath(GcsBucketName("bucket"), GcsObjectName(Stream.continually('a').take(1025).mkString))
 
-    // create the cluster
-    val response = leo.createCluster(userInfo, project, name1, testClusterRequest.copy(jupyterExtensionUri = Some(jupyterExtensionUri))).failed.futureValue
+      // create the cluster
+      val clusterRequest = testClusterRequest.copy(jupyterExtensionUri = Some(jupyterExtensionUri))
+      val response = creationMethod(userInfo, project, clusterName, clusterRequest).failed.futureValue
 
-    response shouldBe a [BucketObjectException]
+      response shouldBe a[BucketObjectException]
+    }
   }
 
   it should "throw a JupyterExtensionException when the jupyterExtensionUri does not point to a GCS object" in isolatedDbTest {
