@@ -207,9 +207,26 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       notebookServiceAccountOpt <- serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject)
       serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountOpt, notebookServiceAccountOpt)
 
-      cluster <- stageClusterCreation(
+      cluster <- initiateClusterCreation(
         userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
     } yield cluster
+  }
+
+  // If the google project does not have an active cluster with the given name,
+  // we start creating one.
+  def initiateClusterCreation(userEmail: WorkbenchEmail,
+                              serviceAccountInfo: ServiceAccountInfo,
+                              googleProject: GoogleProject,
+                              clusterName: ClusterName,
+                              clusterRequest: ClusterRequest): Future[Cluster] = {
+    dbRef.inTransaction { dataAccess =>
+      dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName)
+    } flatMap {
+      case Some(existingCluster) =>
+        throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
+      case None =>
+        stageClusterCreation(userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
+    }
   }
 
   def stageClusterCreation(userEmail: WorkbenchEmail,
@@ -217,58 +234,51 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                            googleProject: GoogleProject,
                            clusterName: ClusterName,
                            clusterRequest: ClusterRequest): Future[Cluster] = {
-    // Check if the google project has an active cluster with the same name. If not, we can create it
-    dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName)
-    } flatMap {
-      case Some(existingCluster) =>
-        throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
-      case None =>
-        val augmentedClusterRequest = addClusterLabels(
-          serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
-        val machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
-        val autopauseThreshold = calculateAutopauseThreshold(
-          clusterRequest.autopause, clusterRequest.autopauseThreshold)
-        val initialCluster = Cluster.create(
-          augmentedClusterRequest, userEmail, clusterName, googleProject,
-          serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold)
 
-        // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
-        // and if so, save the cluster creation request parameters in DB
-        val attemptToSaveClusterInDb: Future[Cluster] = validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest)
-          .flatMap { _ => dbRef.inTransaction(_.clusterQuery.save(initialCluster)) }
+    val augmentedClusterRequest = addClusterLabels(
+      serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
+    val machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
+    val autopauseThreshold = calculateAutopauseThreshold(
+      clusterRequest.autopause, clusterRequest.autopauseThreshold)
+    val initialCluster = Cluster.create(
+      augmentedClusterRequest, userEmail, clusterName, googleProject,
+      serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold)
 
-        // For the success case, register the following callbacks...
-        attemptToSaveClusterInDb foreach { cluster =>
-          logger.info(s"Attempting to asynchronously create cluster $clusterName " +
-            s"on Google project ${googleProject.value} and notify the AuthProvider")
-          completeClusterCreation(userEmail, cluster, augmentedClusterRequest)
-            .onComplete {
-              case Success(_) =>
-                logger.info(s"Asynchronous cluster creation succeeded for cluster $clusterName " +
-                  s"on Google project ${googleProject.value}. Notifying ClusterMonitorSupervisor about it...")
-                clusterMonitorSupervisor ! ClusterCreated(cluster, clusterRequest.stopAfterCreation.getOrElse(false))
-              case Failure(e) =>
-                logger.info(s"Failed the asynchronous portion of the creation of cluster $clusterName " +
-                  s"on Google project ${googleProject.value}.")
+    // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
+    // and if so, save the cluster creation request parameters in DB
+    val attemptToSaveClusterInDb: Future[Cluster] = validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest)
+      .flatMap { _ => dbRef.inTransaction(_.clusterQuery.save(initialCluster)) }
 
-                // If we didn't succeed, createGoogleCluster removes resources in Google but
-                // we also need to notify our auth provider that the cluster has been deleted.
-                // We won't wait for that deletion, though.
-                authProvider.notifyClusterDeleted(userEmail, userEmail, googleProject, clusterName)
+    // For the success case, register the following callbacks...
+    attemptToSaveClusterInDb foreach { cluster =>
+      logger.info(s"Attempting to asynchronously create cluster $clusterName " +
+        s"on Google project ${googleProject.value} and notify the AuthProvider")
+      completeClusterCreation(userEmail, cluster, augmentedClusterRequest)
+        .onComplete {
+          case Success(_) =>
+            logger.info(s"Asynchronous cluster creation succeeded for cluster $clusterName " +
+              s"on Google project ${googleProject.value}. Notifying ClusterMonitorSupervisor about it...")
+            clusterMonitorSupervisor ! ClusterCreated(cluster, clusterRequest.stopAfterCreation.getOrElse(false))
+          case Failure(e) =>
+            logger.info(s"Failed the asynchronous portion of the creation of cluster $clusterName " +
+              s"on Google project ${googleProject.value}.")
 
-              // We also want to record the error in database for future reference.
-                val errorMessage = s"Asynchronous creation of cluster $clusterName on Google project" +
-                  s"${googleProject.value} failed with ${e.getMessage}."
-                // TODO Make errorCode field nullable in ClusterErrorComponent and pass None below
-                val dummyErrorCode = -1
-                val errorInfo = ClusterError(errorMessage, dummyErrorCode, Instant.now)
-                dbRef.inTransaction(_.clusterErrorQuery.save(cluster.id, errorInfo))
-            }
+            // If we didn't succeed, createGoogleCluster removes resources in Google but
+            // we also need to notify our auth provider that the cluster has been deleted.
+            // We won't wait for that deletion, though.
+            authProvider.notifyClusterDeleted(userEmail, userEmail, googleProject, clusterName)
+
+            // We also want to record the error in database for future reference.
+            val errorMessage = s"Asynchronous creation of cluster $clusterName on Google project" +
+              s"${googleProject.value} failed with ${e.getMessage}."
+            // TODO Make errorCode field nullable in ClusterErrorComponent and pass None below
+            val dummyErrorCode = -1
+            val errorInfo = ClusterError(errorMessage, dummyErrorCode, Instant.now)
+            dbRef.inTransaction(_.clusterErrorQuery.save(cluster.id, errorInfo))
         }
-
-        attemptToSaveClusterInDb
     }
+
+    attemptToSaveClusterInDb
   }
 
   // Meant to be run asynchronously to the clusterCreate API request
