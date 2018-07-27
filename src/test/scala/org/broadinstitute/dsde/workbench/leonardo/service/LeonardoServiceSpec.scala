@@ -569,6 +569,26 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
   }
 
+  it should "list all clusters created with v2 API" in isolatedDbTest {
+    // create a couple clusters
+    val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
+    leo.processClusterCreationRequest(userInfo, project, clusterName1, testClusterRequest).futureValue
+
+    val clusterName2 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
+    val testClusterRequest2 = testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))
+    leo.processClusterCreationRequest(userInfo, project, clusterName2, testClusterRequest2).futureValue
+
+    // We can't just use the responses to processClusterCreationRequest() since it won't contain the fields
+    // that are asynchronously filled in after the call is returned so we're waiting for the asynchronous
+    // operation to finish and then fetching the records with getActiveClusterDetails()
+    eventually {
+      val cluster1 = leo.getActiveClusterDetails(userInfo, project, clusterName1).futureValue
+      val cluster2 = leo.getActiveClusterDetails(userInfo, project, clusterName2).futureValue
+
+      leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    }
+  }
+
   it should "list all active clusters" in isolatedDbTest {
     // create a couple clusters
     val cluster1 = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
