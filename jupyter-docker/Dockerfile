@@ -216,7 +216,7 @@ RUN R -e 'install.packages(c( \
     "tidyr",  \
     "reshape2",  \
     "bigrquery",  \
-   "tidyverse"), \
+    "tidyverse"), \
     repos="https://cran.mtu.edu")' \
  && R -e 'devtools::install_github("IRkernel/IRkernel")' \
  && R -e 'IRkernel::installspec(user=FALSE)' \
