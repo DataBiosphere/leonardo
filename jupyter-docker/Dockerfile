@@ -167,8 +167,13 @@ RUN apt-get update \
  && pip install pandas \
  && pip install seaborn \
  && pip3 install python-lzo \
- && pip3 install google-cloud \
- && pip3 install google-cloud-bigquery \
+ && pip3 install google-api-core==1.3.0 \
+ && pip3 install google-cloud-bigquery==1.4.0 \
+ && pip3 install google-cloud-bigquery-datatransfer==0.1.1 \
+ && pip3 install google-cloud-core==0.28.1 \
+ && pip3 install google-cloud-datastore=1.7.0 \
+ && pip3 install google-cloud-resource-manager==0.28.1 \
+ && pip3 install google-cloud-storage==1.10.0 \
  && pip3 install --ignore-installed firecloud==0.16.7 \
  && pip3 install -U scikit-learn \
  && pip3 install statsmodels==0.9.0 \
