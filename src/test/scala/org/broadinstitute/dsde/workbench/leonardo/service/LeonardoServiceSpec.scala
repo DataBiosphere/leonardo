@@ -610,6 +610,38 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.listClusters(userInfo, Map("includeDeleted" -> "true")).futureValue.toSet.size shouldBe 3
   }
 
+  it should "list all active clusters created with v2 API" in isolatedDbTest {
+    var cluster1, cluster2, cluster3: Cluster = null.asInstanceOf[Cluster]
+
+    // create a couple clusters
+    leo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
+
+    val clusterName2 = ClusterName("test-cluster-2")
+    val testClusterRequest2 = testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))
+    leo.processClusterCreationRequest(userInfo, project, clusterName2, testClusterRequest2).futureValue
+
+    eventually {
+      cluster1 = leo.getActiveClusterDetails(userInfo, project, name1).futureValue
+      cluster2 = leo.getActiveClusterDetails(userInfo, project, clusterName2).futureValue
+
+      leo.listClusters(userInfo, Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
+      leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
+      leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    }
+
+    val clusterName3 = ClusterName("test-cluster-3")
+    val testClusterRequest3 = testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))
+    cluster3 = leo.processClusterCreationRequest(userInfo, project, clusterName3, testClusterRequest3).futureValue
+
+    eventually {
+      dbFutureValue { _.clusterQuery.completeDeletion(cluster3.id) }
+
+      leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
+      leo.listClusters(userInfo, Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
+      leo.listClusters(userInfo, Map("includeDeleted" -> "true")).futureValue.toSet.size shouldBe 3
+    }
+  }
+
   it should "list clusters with labels" in isolatedDbTest {
     // create a couple clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
