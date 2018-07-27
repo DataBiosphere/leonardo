@@ -305,34 +305,41 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
     val leoForTest = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), spyProvider, serviceAccountProvider, whitelist, bucketHelper)
 
-    // check that the cluster does not exist
-    gdDAO.clusters should not contain key (name1)
+    forallClusterCreationMethods(Seq((leoForTest.createCluster _).tupled, (leoForTest.processClusterCreationRequest _).tupled))(Seq(name1, name2)) {
+      (creationMethod, clusterName) =>
+        // check that the cluster does not exist
+        gdDAO.clusters should not contain key(clusterName)
 
-    // create the cluster
-    val clusterCreateResponse = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).futureValue
+        // create the cluster
+        creationMethod(userInfo, project, clusterName, testClusterRequest).futureValue
 
-    // check that the cluster was created
-    gdDAO.clusters should contain key (name1)
-    // a service account key should only have been created if using a notebook service account
-    if (notebookServiceAccount(project).isDefined) {
-      iamDAO.serviceAccountKeys should contain key(samClient.serviceAccount)
-    } else {
-      iamDAO.serviceAccountKeys should not contain key(samClient.serviceAccount)
+        eventually {
+          // check that the cluster was created
+          gdDAO.clusters should contain key (clusterName)
+          // a service account key should only have been created if using a notebook service account
+          if (notebookServiceAccount(project).isDefined) {
+            iamDAO.serviceAccountKeys should contain key (samClient.serviceAccount)
+          } else {
+            iamDAO.serviceAccountKeys should not contain key(samClient.serviceAccount)
+          }
+        }
+        
+        // delete the cluster
+        leoForTest.deleteCluster(userInfo, project, clusterName).futureValue
+
+        // check that the cluster no longer exists
+        gdDAO.clusters should not contain key (clusterName)
+        iamDAO.serviceAccountKeys should not contain key(samClient.serviceAccount)
+
+        // the cluster has transitioned to the Deleting state (Cluster Monitor will later transition it to Deleted)
+
+        dbFutureValue {
+          _.clusterQuery.getActiveClusterByName(project, clusterName)
+        }.map(_.status) shouldBe Some(ClusterStatus.Deleting)
+
+        // the auth provider should have not yet been notified of deletion
+        verify(spyProvider, never).notifyClusterDeleted(mockitoEq(userInfo.userEmail), mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(clusterName))(any[ExecutionContext])
     }
-
-    // delete the cluster
-    leoForTest.deleteCluster(userInfo, project, name1).futureValue
-
-    // check that the cluster no longer exists
-    gdDAO.clusters should not contain key (name1)
-    iamDAO.serviceAccountKeys should not contain key (samClient.serviceAccount)
-
-    // the cluster has transitioned to the Deleting state (Cluster Monitor will later transition it to Deleted)
-
-    dbFutureValue { _.clusterQuery.getActiveClusterByName(project, name1) }.map(_.status) shouldBe Some(ClusterStatus.Deleting)
-
-    // the auth provider should have not yet been notified of deletion
-    verify(spyProvider, never).notifyClusterDeleted(mockitoEq(userInfo.userEmail), mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(name1))(any[ExecutionContext])
   }
 
   it should "delete a cluster that has status Error" in isolatedDbTest {
@@ -651,10 +658,17 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   type ClusterCreationInput = (UserInfo, GoogleProject, ClusterName, ClusterRequest)
   type ClusterCreation = ClusterCreationInput => Future[Cluster]
 
-  private def forallClusterCreationMethods(testCode: (ClusterCreation, ClusterName) => Any) = {
-    Seq((leo.createCluster _).tupled, (leo.processClusterCreationRequest _).tupled)
-      .zip(Seq(name1, name2))
-      .foreach {
-        case (creationMethod, clusterName) => testCode(creationMethod, clusterName) }
-      }
+  private def forallClusterCreationMethods(testCode: (ClusterCreation, ClusterName) => Any): Unit = {
+    forallClusterCreationMethods(Seq((leo.createCluster _).tupled, (leo.processClusterCreationRequest _).tupled))(Seq(name1, name2)) {
+      testCode
+    }
+  }
+
+  private def forallClusterCreationMethods(creationMethods: Seq[ClusterCreation])
+                                          (clusterNames: Seq[ClusterName])
+                                          (testCode: (ClusterCreation, ClusterName) => Any): Unit = {
+    creationMethods
+      .zip(clusterNames)
+      .foreach { case (creationMethod, clusterName) => testCode(creationMethod, clusterName) }
+  }
 }
