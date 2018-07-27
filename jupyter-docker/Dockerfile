@@ -204,17 +204,11 @@ RUN apt-get update \
     libxml2-dev
 
 RUN R -e 'install.packages(c( \
-    "repr",  \
     "IRdisplay",  \
     "evaluate",  \
-    "crayon",  \
     "pbdZMQ",  \
     "devtools",  \
     "uuid",  \
-    "digest",  \
-    "ggplot2",  \
-    "dplyr",  \
-    "tidyr",  \
     "reshape2",  \
     "bigrquery"),  \
     repos="https://cran.mtu.edu")' \
