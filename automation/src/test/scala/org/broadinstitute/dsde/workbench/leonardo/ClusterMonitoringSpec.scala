@@ -1,10 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import java.io.File
-import java.nio.file.{Files, Path, Paths}
-import java.nio.file.attribute.PosixFilePermission
-import java.time.Instant
-import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.service.Sam
@@ -12,7 +8,7 @@ import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorage
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
-import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsPath, GcsRoles, parseGcsPath}
+import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsObjectName, GcsPath, parseGcsPath}
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 
 import scala.util.Try
@@ -276,19 +272,10 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
     "should download file as pdf" in {
       withProject { project => implicit token =>
         withNewGoogleBucket(project) { bucketName =>
+          val enablePdfDownloadScript = ResourceFile("bucket-tests/enable_download_as_pdf.sh")
+          withResourceFileInBucket(project, enablePdfDownloadScript, "text/plain") { bucketPath =>            val clusterName = ClusterName("user-script-cluster" + makeRandomId())
 
-          val ronPetServiceAccount = getAndVerifyPet(project)(ronAuthToken)
-          googleStorageDAO.setBucketAccessControl(bucketName, EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount), GcsRoles.Owner)
-
-          val userScriptString = "#!/usr/bin/env bash\n\npip install nbconvert\napt-get install -yq pandoc texlive-xetex"
-          val userScriptObjectName = GcsObjectName("user-script-downloadaspdf.sh")
-          val userScriptUri = s"gs://${bucketName.value}/${userScriptObjectName.value}"
-
-          withNewBucketObject(bucketName, userScriptObjectName, userScriptString, "application/pdf") { objectName =>
-            googleStorageDAO.setObjectAccessControl(bucketName, objectName, EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount), GcsRoles.Owner)
-            val clusterName = ClusterName("user-script-cluster" + makeRandomId())
-
-            withNewCluster(project, clusterName, ClusterRequest(Map(), None, Option(userScriptUri)), monitorDelete = false) { cluster =>
+            withNewCluster(project, clusterName, ClusterRequest(Map(), None, Option(bucketPath.toUri)), monitorDelete = false) { cluster =>
               val download = createTempDownloadDirectory()
               withWebDriver(download) { implicit driver =>
                 withNewNotebook(cluster) { notebookPage =>
@@ -311,19 +298,6 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
         }
       }
     }
-  }
-
-  private def createTempDownloadDirectory(): String = {
-    val basePath: Path = Paths.get(s"chrome/downloads")
-    val path: Path = Files.createTempDirectory(basePath, "temp")
-    logger.info(s"mkdir: $path")
-    val permissions = Set(
-      PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_EXECUTE,
-      PosixFilePermission.GROUP_WRITE, PosixFilePermission.GROUP_READ, PosixFilePermission.GROUP_EXECUTE,
-      PosixFilePermission.OTHERS_WRITE, PosixFilePermission.OTHERS_READ, PosixFilePermission.OTHERS_EXECUTE)
-    import scala.collection.JavaConverters._
-    Files.setPosixFilePermissions(path, permissions.asJava)
-    path.toString
   }
 
 }
