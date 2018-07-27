@@ -685,9 +685,15 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "throw IllegalLabelKeyException when using a forbidden label" in isolatedDbTest {
-    // cluster should not be allowed to have a label with key of "includeDeleted"
-    val includeDeletedResponse = leo.createCluster(userInfo, project, name1, testClusterRequest.copy(labels = Map("includeDeleted" -> "val"))).failed.futureValue
-    includeDeletedResponse shouldBe a [IllegalLabelKeyException]
+    forallClusterCreationMethods { (creationMethod, clusterName) =>
+      // cluster should not be allowed to have a label with key of "includeDeleted"
+      val modifiedTestClusterRequest = testClusterRequest.copy(labels = Map("includeDeleted" -> "val"))
+      val includeDeletedResponse = creationMethod(userInfo, project, clusterName, modifiedTestClusterRequest).failed.futureValue
+
+      eventually {
+        includeDeletedResponse shouldBe a[IllegalLabelKeyException]
+      }
+    }
   }
 
   it should "list clusters with swagger-style labels" in isolatedDbTest {
