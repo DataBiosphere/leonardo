@@ -3,18 +3,21 @@ package org.broadinstitute.dsde.workbench.leonardo
 import com.typesafe.scalalogging.LazyLogging
 import org.apache.commons.text.StringEscapeUtils
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.openqa.selenium.{By, TimeoutException, WebDriver, WebElement}
+import org.openqa.selenium.{By, WebDriver, WebElement}
 import org.openqa.selenium.interactions.Actions
+import org.scalatest.Assertions
+import org.scalatest.Matchers.convertToAnyShouldWrapper
+import org.scalatest.concurrent.Eventually
+import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
+import org.scalatest.time.{Seconds, Span}
 
 import scala.collection.JavaConverters._
-import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutor, Future}
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import scala.util.{Failure, Success, Try}
 
 
 class NotebookPage(override val url: String)(override implicit val authToken: AuthToken, override implicit val webDriver: WebDriver)
-  extends JupyterPage with LazyLogging {
+  extends JupyterPage with Eventually with LazyLogging {
 
   override def open(implicit webDriver: WebDriver): NotebookPage = {
     val page: NotebookPage = super.open.asInstanceOf[NotebookPage]
@@ -199,14 +202,13 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   }
 
   def awaitReadyKernel(timeout: FiniteDuration = 2.minutes): Unit = {
-    implicit val ec: ExecutionContextExecutor = ExecutionContext.global
-    val check = Future(!cellsAreRunning && isKernelReady && kernelNotificationText == "none")
-    Await.ready(check, timeout).value.get match {
-      case Success(_) =>
-        logger.info("kernel is in ready state.")
-      case Failure(_) =>
-        logger.error("kernel did not change to ready state.")
-        if (isKernelDisconnected) restartKernel(timeout)
+    val time = Timeout(scaled(Span(timeout.toSeconds, Seconds)))
+    val pollInterval = Interval(scaled(Span(10, Seconds)))
+    eventually(time, pollInterval) {
+      val ready = (!cellsAreRunning && isKernelReady && kernelNotificationText == "none")
+      Assertions.withClue(s"Kernel is NOT ready after waiting ${time} seconds.") {
+        ready shouldBe true
+      }
     }
   }
 
