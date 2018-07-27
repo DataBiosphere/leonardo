@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
 import java.io.ByteArrayInputStream
+import java.time.Instant
 import java.util.UUID
 
 import akka.actor.ActorSystem
@@ -757,6 +758,35 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     //staging bucket lives on!
     storageDAO.buckets.keys.find(bucket => bucket.value.contains("leoinit-")).size shouldBe 0
     storageDAO.buckets.keys.find(bucket => bucket.value.contains("leostaging-")).size shouldBe 1
+  }
+
+  it should "delete the init bucket if cluster creation, via v2 API, fails" in isolatedDbTest {
+    // create the cluster
+    val cluster = leo.processClusterCreationRequest(userInfo, project, gdDAO.badClusterName, testClusterRequest).futureValue
+
+    eventually {
+      // check the firewall rule was created for the project
+      computeDAO.firewallRules should contain key (project)
+      computeDAO.firewallRules(project).name.value shouldBe dataprocConfig.firewallRuleName
+
+      //staging bucket lives on!
+      storageDAO.buckets.keys.find(bucket => bucket.value.contains("leoinit-")).size shouldBe 0
+      storageDAO.buckets.keys.find(bucket => bucket.value.contains("leostaging-")).size shouldBe 1
+
+      // verify that a corresponding error record was created in DB
+      val errorRecordOpt = dbFutureValue {_.clusterErrorQuery.get(cluster.id)}
+
+      errorRecordOpt should have size 1
+
+      val errorRecord = errorRecordOpt.head
+
+      val expectedErrorMessage = s"Asynchronous creation of cluster '${cluster.clusterName}' on Google project" +
+        s"'${cluster.googleProject.value}' failed due to 'bad cluster!'."
+
+      errorRecord.errorMessage shouldEqual expectedErrorMessage
+      errorRecord.errorCode shouldEqual -1
+      errorRecord.timestamp should be < Instant.now
+    }
   }
 
   it should "tell you if you're whitelisted" in isolatedDbTest {

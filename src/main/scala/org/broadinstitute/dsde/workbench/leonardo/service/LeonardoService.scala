@@ -214,7 +214,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   // If the google project does not have an active cluster with the given name,
   // we start creating one.
-  def initiateClusterCreation(userEmail: WorkbenchEmail,
+  private def initiateClusterCreation(userEmail: WorkbenchEmail,
                               serviceAccountInfo: ServiceAccountInfo,
                               googleProject: GoogleProject,
                               clusterName: ClusterName,
@@ -229,7 +229,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
-  def stageClusterCreation(userEmail: WorkbenchEmail,
+  private def stageClusterCreation(userEmail: WorkbenchEmail,
                            serviceAccountInfo: ServiceAccountInfo,
                            googleProject: GoogleProject,
                            clusterName: ClusterName,
@@ -251,30 +251,30 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     // For the success case, register the following callbacks...
     attemptToSaveClusterInDb foreach { cluster =>
-      logger.info(s"Attempting to asynchronously create cluster $clusterName " +
+      logger.info(s"Attempting to asynchronously create cluster '$clusterName' " +
         s"on Google project ${googleProject.value} and notify the AuthProvider")
       completeClusterCreation(userEmail, cluster, augmentedClusterRequest)
         .onComplete {
           case Success(_) =>
-            logger.info(s"Asynchronous cluster creation succeeded for cluster $clusterName " +
-              s"on Google project ${googleProject.value}. Notifying ClusterMonitorSupervisor about it...")
+            logger.info(s"Asynchronous cluster creation succeeded for cluster '$clusterName' " +
+              s"on Google project '${googleProject.value}'. Notifying ClusterMonitorSupervisor about it...")
             clusterMonitorSupervisor ! ClusterCreated(cluster, clusterRequest.stopAfterCreation.getOrElse(false))
           case Failure(e) =>
-            logger.info(s"Failed the asynchronous portion of the creation of cluster $clusterName " +
-              s"on Google project ${googleProject.value}.")
-
-            // If we didn't succeed, createGoogleCluster removes resources in Google but
-            // we also need to notify our auth provider that the cluster has been deleted.
-            // We won't wait for that deletion, though.
-            authProvider.notifyClusterDeleted(userEmail, userEmail, googleProject, clusterName)
+            logger.info(s"Failed the asynchronous portion of the creation of cluster '$clusterName' " +
+              s"on Google project '${googleProject.value}'.")
 
             // We also want to record the error in database for future reference.
-            val errorMessage = s"Asynchronous creation of cluster $clusterName on Google project" +
-              s"${googleProject.value} failed with ${e.getMessage}."
+            val errorMessage = s"Asynchronous creation of cluster '$clusterName' on Google project" +
+              s"'${googleProject.value}' failed due to '${e.getMessage}'."
             // TODO Make errorCode field nullable in ClusterErrorComponent and pass None below
             val dummyErrorCode = -1
             val errorInfo = ClusterError(errorMessage, dummyErrorCode, Instant.now)
             dbRef.inTransaction(_.clusterErrorQuery.save(cluster.id, errorInfo))
+
+            // Since we failed, createGoogleCluster removes resources in Google but
+            // we also need to notify our auth provider that the cluster has been deleted.
+            // We won't wait for that deletion, though.
+            authProvider.notifyClusterDeleted(userEmail, userEmail, googleProject, clusterName)
         }
     }
 
@@ -282,7 +282,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   // Meant to be run asynchronously to the clusterCreate API request
-  def completeClusterCreation(userEmail: WorkbenchEmail,
+  private def completeClusterCreation(userEmail: WorkbenchEmail,
                               cluster: Cluster,
                               clusterRequest: ClusterRequest): Future[Unit] = {
     for {
