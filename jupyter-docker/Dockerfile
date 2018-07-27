@@ -171,7 +171,7 @@ RUN apt-get update \
  && pip3 install google-cloud-bigquery==1.4.0 \
  && pip3 install google-cloud-bigquery-datatransfer==0.1.1 \
  && pip3 install google-cloud-core==0.28.1 \
- && pip3 install google-cloud-datastore=1.7.0 \
+ && pip3 install google-cloud-datastore==1.7.0 \
  && pip3 install google-cloud-resource-manager==0.28.1 \
  && pip3 install google-cloud-storage==1.10.0 \
  && pip3 install --ignore-installed firecloud==0.16.7 \
