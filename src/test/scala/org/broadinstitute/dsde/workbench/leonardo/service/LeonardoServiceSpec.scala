@@ -469,6 +469,29 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     computeDAO.firewallRules.filterKeys(_ == project) should have size 1
   }
 
+  it should "create a firewall rule in a project only once when the first cluster is added using v2 API" in isolatedDbTest {
+    val clusterName2 = ClusterName("test-cluster-2")
+
+    // Our google project should have no firewall rules
+    computeDAO.firewallRules should not contain (project, dataprocConfig.firewallRuleName)
+
+    // create the first cluster, this should create a firewall rule in our project
+    leo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
+
+    eventually {
+      // check that there is exactly 1 firewall rule for our project
+      computeDAO.firewallRules.filterKeys(_ == project) should have size 1
+    }
+
+    // create the second cluster. This should check that our project has a firewall rule and not try to add it again
+    leo.processClusterCreationRequest(userInfo, project, clusterName2, testClusterRequest).futureValue
+
+    eventually {
+      // check that there is still exactly 1 firewall rule in our project
+      computeDAO.firewallRules.filterKeys(_ == project) should have size 1
+    }
+  }
+
   it should "template a script using config values" in isolatedDbTest {
     // Create replacements map
     val replacements = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail).toJson.asJsObject.fields
