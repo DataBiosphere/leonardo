@@ -343,20 +343,25 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "delete a cluster that has status Error" in isolatedDbTest {
-    // check that the cluster does not exist
-    gdDAO.clusters should not contain key (gdDAO.errorClusterName)
+    forallClusterCreationMethods(Seq((leo.createCluster _).tupled, (leo.processClusterCreationRequest _).tupled))(gdDAO.errorClusters) {
+      (creationMethod, clusterName) =>
+        // check that the cluster does not exist
+        gdDAO.clusters should not contain key(clusterName)
 
-    // create the cluster
-    val clusterCreateResponse = leo.createCluster(userInfo, project, gdDAO.errorClusterName, testClusterRequest).futureValue
+        // create the cluster
+        creationMethod(userInfo, project, clusterName, testClusterRequest).futureValue
 
-    // check that the cluster was created
-    gdDAO.clusters should contain key gdDAO.errorClusterName
+        eventually {
+          // check that the cluster was created
+          gdDAO.clusters should contain key clusterName
+        }
+        
+        // delete the cluster
+        leo.deleteCluster(userInfo, project, clusterName).futureValue
 
-    // delete the cluster
-    leo.deleteCluster(userInfo, project, gdDAO.errorClusterName).futureValue
-
-    // check that the cluster no longer exists
-    gdDAO.clusters should not contain key (gdDAO.errorClusterName)
+        // check that the cluster no longer exists
+        gdDAO.clusters should not contain key(clusterName)
+    }
   }
 
   it should "delete a cluster's instances" in isolatedDbTest {
