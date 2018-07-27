@@ -559,7 +559,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "list all clusters" in isolatedDbTest {
-    // create a couple clusters
+    // create a couple of clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     val cluster1 = leo.createCluster(userInfo, project, clusterName1, testClusterRequest).futureValue
 
@@ -570,7 +570,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "list all clusters created with v2 API" in isolatedDbTest {
-    // create a couple clusters
+    // create a couple of clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     leo.processClusterCreationRequest(userInfo, project, clusterName1, testClusterRequest).futureValue
 
@@ -590,7 +590,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "list all active clusters" in isolatedDbTest {
-    // create a couple clusters
+    // create a couple of clusters
     val cluster1 = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
 
     val clusterName2 = ClusterName("test-cluster-2")
@@ -613,7 +613,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   it should "list all active clusters created with v2 API" in isolatedDbTest {
     var cluster1, cluster2, cluster3: Cluster = null.asInstanceOf[Cluster]
 
-    // create a couple clusters
+    // create a couple of clusters
     leo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
 
     val clusterName2 = ClusterName("test-cluster-2")
@@ -643,7 +643,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "list clusters with labels" in isolatedDbTest {
-    // create a couple clusters
+    // create a couple of clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     val cluster1 = leo.createCluster(userInfo, project, clusterName1, testClusterRequest).futureValue
 
@@ -660,6 +660,30 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.listClusters(userInfo, Map("abc" -> "def", "pqr" -> "pqr", "xyz" -> "xyz")).futureValue.toSet shouldBe Set(cluster1, cluster2)
   }
 
+  it should "list clusters with labels created with v2 API" in isolatedDbTest {
+    // create a couple of clusters
+    val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
+    leo.processClusterCreationRequest(userInfo, project, clusterName1, testClusterRequest).futureValue
+
+    val clusterName2 = ClusterName(s"test-cluster-2")
+    leo.processClusterCreationRequest(userInfo, project, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
+
+    eventually {
+      val cluster1 = leo.getActiveClusterDetails(userInfo, project, clusterName1).futureValue
+      val cluster2 = leo.getActiveClusterDetails(userInfo, project, clusterName2).futureValue
+
+      leo.listClusters(userInfo, Map("foo" -> "bar")).futureValue.toSet shouldBe Set(cluster1, cluster2)
+      leo.listClusters(userInfo, Map("foo" -> "bar", "bam" -> "yes")).futureValue.toSet shouldBe Set(cluster1)
+      leo.listClusters(userInfo, Map("foo" -> "bar", "bam" -> "yes", "vcf" -> "no")).futureValue.toSet shouldBe Set(cluster1)
+      leo.listClusters(userInfo, Map("a" -> "b")).futureValue.toSet shouldBe Set(cluster2)
+      leo.listClusters(userInfo, Map("foo" -> "bar", "baz" -> "biz")).futureValue.toSet shouldBe Set.empty
+      leo.listClusters(userInfo, Map("A" -> "B")).futureValue.toSet shouldBe Set(cluster2) // labels are not case sensitive because MySQL
+
+      //Assert that extensions were added as labels as well
+      leo.listClusters(userInfo, Map("abc" -> "def", "pqr" -> "pqr", "xyz" -> "xyz")).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    }
+  }
+
   it should "throw IllegalLabelKeyException when using a forbidden label" in isolatedDbTest {
     // cluster should not be allowed to have a label with key of "includeDeleted"
     val includeDeletedResponse = leo.createCluster(userInfo, project, name1, testClusterRequest.copy(labels = Map("includeDeleted" -> "val"))).failed.futureValue
@@ -667,7 +691,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "list clusters with swagger-style labels" in isolatedDbTest {
-    // create a couple clusters
+    // create a couple of clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     val cluster1 = leo.createCluster(userInfo, project, clusterName1, testClusterRequest).futureValue
 
