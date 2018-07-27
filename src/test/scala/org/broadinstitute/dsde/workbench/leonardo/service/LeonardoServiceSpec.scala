@@ -389,6 +389,41 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // check that the instances are still in the DB (they get removed by the ClusterMonitorActor)
     val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse)) }
     instances.toSet shouldBe Set(masterInstance, workerInstance1, workerInstance2)
+
+    // ------------------ Grossly repeating above using v2 of the cluster creation API :( ------------------
+
+    // Create new-ish instances to avoid collisions with the ones used above
+    val masterInstanceV2 = masterInstance.copy(googleId = BigInt(67890))
+    val workerInstance1V2 = workerInstance1.copy(googleId = BigInt(78901))
+    val workerInstance2V2 = workerInstance2.copy(googleId = BigInt(89012))
+
+    // check that the cluster does not exist
+    gdDAO.clusters should not contain key (name2)
+
+    // create the cluster
+    val clusterCreateResponseV2 =
+      leo.processClusterCreationRequest(userInfo, project, name2, testClusterRequest).futureValue
+
+    eventually {
+      // check that the cluster was created
+      gdDAO.clusters should contain key name2
+    }
+    
+    // populate some instances for the cluster
+    dbFutureValue {
+      _.instanceQuery.saveAllForCluster(
+        getClusterId(clusterCreateResponseV2), Seq(masterInstanceV2, workerInstance1V2, workerInstance2V2))
+    }
+
+    // delete the cluster
+    leo.deleteCluster(userInfo, project, name2).futureValue
+
+    // check that the cluster no longer exists
+    gdDAO.clusters should not contain key (name2)
+
+    // check that the instances are still in the DB (they get removed by the ClusterMonitorActor)
+    val instancesV2 = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponseV2)) }
+    instancesV2.toSet shouldBe Set(masterInstanceV2, workerInstance1V2, workerInstance2V2)
   }
 
   it should "throw ClusterNotFoundException when deleting non existent clusters" in isolatedDbTest {
