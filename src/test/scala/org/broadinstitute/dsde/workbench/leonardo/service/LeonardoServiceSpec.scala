@@ -717,6 +717,33 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.listClusters(userInfo, Map("_labels" -> "a,b")).failed.futureValue shouldBe a [ParseLabelsException]
   }
 
+  it should "list clusters with swagger-style labels, created using v2 API" in isolatedDbTest {
+    // create a couple of clusters
+    val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
+    leo.processClusterCreationRequest(userInfo, project, clusterName1, testClusterRequest).futureValue
+
+    val clusterName2 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
+    val testClusterRequest2 = testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))
+    leo.processClusterCreationRequest(userInfo, project, clusterName2, testClusterRequest2).futureValue
+
+    eventually {
+      val cluster1 = leo.getActiveClusterDetails(userInfo, project, clusterName1).futureValue
+      val cluster2 = leo.getActiveClusterDetails(userInfo, project, clusterName2).futureValue
+
+      leo.listClusters(userInfo, Map("_labels" -> "foo=bar")).futureValue.toSet shouldBe Set(cluster1, cluster2)
+      leo.listClusters(userInfo, Map("_labels" -> "foo=bar,bam=yes")).futureValue.toSet shouldBe Set(cluster1)
+      leo.listClusters(userInfo, Map("_labels" -> "foo=bar,bam=yes,vcf=no")).futureValue.toSet shouldBe Set(cluster1)
+      leo.listClusters(userInfo, Map("_labels" -> "a=b")).futureValue.toSet shouldBe Set(cluster2)
+      leo.listClusters(userInfo, Map("_labels" -> "baz=biz")).futureValue.toSet shouldBe Set.empty
+      leo.listClusters(userInfo, Map("_labels" -> "A=B")).futureValue.toSet shouldBe Set(cluster2) // labels are not case sensitive because MySQL
+      leo.listClusters(userInfo, Map("_labels" -> "foo%3Dbar")).failed.futureValue shouldBe a[ParseLabelsException]
+      leo.listClusters(userInfo, Map("_labels" -> "foo=bar;bam=yes")).failed.futureValue shouldBe a[ParseLabelsException]
+      leo.listClusters(userInfo, Map("_labels" -> "foo=bar,bam")).failed.futureValue shouldBe a[ParseLabelsException]
+      leo.listClusters(userInfo, Map("_labels" -> "bogus")).failed.futureValue shouldBe a[ParseLabelsException]
+      leo.listClusters(userInfo, Map("_labels" -> "a,b")).failed.futureValue shouldBe a[ParseLabelsException]
+    }
+  }
+
   it should "delete the init bucket if cluster creation fails" in isolatedDbTest {
     // create the cluster
     val clusterCreateResponse = leo.createCluster(userInfo, project, gdDAO.badClusterName, testClusterRequest).failed.futureValue
