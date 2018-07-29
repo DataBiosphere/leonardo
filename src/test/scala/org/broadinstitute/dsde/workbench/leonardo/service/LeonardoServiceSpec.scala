@@ -81,47 +81,50 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterResourcesConfig.jupyterCustomJs.value,
     clusterResourcesConfig.jupyterGoogleSignInJs.value)
 
-  lazy val initFiles = (configFiles ++ serviceAccountCredentialFile)
-    .map(name => GcsObjectName(name))
+  lazy val initFiles = (configFiles ++ serviceAccountCredentialFile).map(GcsObjectName(_))
 
   "LeonardoService" should "create a single node cluster with default machine configs" in isolatedDbTest {
-    // create the cluster
-    val clusterCreateResponse = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
+    forallClusterCreationMethods { (creationMethod, clusterName) =>
+      // create the cluster
+      val clusterCreateResponse = creationMethod(userInfo, project, clusterName, testClusterRequest).futureValue
 
-    // check the create response has the correct info
-    clusterCreateResponse.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccount(project)
-    clusterCreateResponse.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccount(project)
+      eventually {
+        // check the create response has the correct info
+        clusterCreateResponse.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccount(project)
+        clusterCreateResponse.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccount(project)
 
-    // check the cluster has the correct machine configs
-    clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig
+        // check the cluster has the correct machine configs
+        clusterCreateResponse.machineConfig shouldEqual singleNodeDefaultMachineConfig
 
-    // check the firewall rule was created for the project
-    computeDAO.firewallRules should contain key (project)
-    computeDAO.firewallRules(project).name.value shouldBe dataprocConfig.firewallRuleName
+        // check the firewall rule was created for the project
+        computeDAO.firewallRules should contain key (project)
+        computeDAO.firewallRules(project).name.value shouldBe dataprocConfig.firewallRuleName
 
-    // should have created init and staging buckets
-    val initBucketOpt = storageDAO.buckets.keys.find(_.value.startsWith("leoinit-"+name1.value))
-    initBucketOpt shouldBe 'defined
+        // should have created init and staging buckets
+        val initBucketOpt = storageDAO.buckets.keys.find(_.value.startsWith("leoinit-" + clusterName.value))
+        initBucketOpt shouldBe 'defined
 
-    val stagingBucketOpt = storageDAO.buckets.keys.find(_.value.startsWith("leostaging-"+name1.value))
-    stagingBucketOpt shouldBe 'defined
+        val stagingBucketOpt = storageDAO.buckets.keys.find(_.value.startsWith("leostaging-" + clusterName.value))
+        stagingBucketOpt shouldBe 'defined
 
-    // check the init files were added to the init bucket
-    val initBucketObjects = storageDAO.buckets(initBucketOpt.get).map(_._1).map(objName => GcsPath(initBucketOpt.get, objName))
-    initFiles.foreach(initFile => initBucketObjects should contain (GcsPath(initBucketOpt.get, initFile)))
-    initBucketObjects should contain theSameElementsAs initFiles.map(GcsPath(initBucketOpt.get, _))
+        // check the init files were added to the init bucket
+        val initBucketObjects = storageDAO.buckets(initBucketOpt.get).map(_._1).map(objName => GcsPath(initBucketOpt.get, objName))
+        initFiles.foreach(initFile => initBucketObjects should contain(GcsPath(initBucketOpt.get, initFile)))
+        initBucketObjects should contain theSameElementsAs initFiles.map(GcsPath(initBucketOpt.get, _))
 
-    // a service account key should only have been created if using a notebook service account
-    if (notebookServiceAccount(project).isDefined) {
-      iamDAO.serviceAccountKeys should contain key(samClient.serviceAccount)
-    } else {
-      iamDAO.serviceAccountKeys should not contain key(samClient.serviceAccount)
+        // a service account key should only have been created if using a notebook service account
+        if (notebookServiceAccount(project).isDefined) {
+          iamDAO.serviceAccountKeys should contain key (samClient.serviceAccount)
+        } else {
+          iamDAO.serviceAccountKeys should not contain key(samClient.serviceAccount)
+        }
+
+        val dbInitBucketOpt = dbFutureValue { dataAccess =>
+          dataAccess.clusterQuery.getInitBucket(project, clusterName)
+        }
+        dbInitBucketOpt shouldBe 'defined
+      }
     }
-
-    val dbInitBucketOpt = dbFutureValue { dataAccess =>
-      dataAccess.clusterQuery.getInitBucket(project, name1)
-    }
-    dbInitBucketOpt shouldBe 'defined
   }
 
   it should "create and get a cluster" in isolatedDbTest {
