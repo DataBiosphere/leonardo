@@ -822,8 +822,44 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key (name1)
 
     // cluster status should be Stopping in the DB
-//    dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.status shouldBe ClusterStatus.Stopping
     dbFutureValue { _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse) }.get.status shouldBe ClusterStatus.Stopping
+
+    // instance status should still be Running in the DB
+    // the ClusterMonitorActor is what updates instance status
+    val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse)) }
+    instances.size shouldBe 3
+    instances.map(_.status).toSet shouldBe Set(InstanceStatus.Running)
+  }
+
+  it should "stop a cluster created via v2 API" in isolatedDbTest {
+    // check that the cluster does not exist
+    gdDAO.clusters should not contain key (name1)
+
+    // create the cluster
+    val clusterCreateResponse =
+      leo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
+
+    eventually {
+      // check that the cluster was created
+      gdDAO.clusters should contain key name1
+    }
+    
+    // populate some instances for the cluster
+    dbFutureValue {_.instanceQuery.saveAllForCluster(
+        getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2)) }
+
+    // set the cluster to Running
+    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
+
+    // stop the cluster
+    leo.stopCluster(userInfo, project, name1).futureValue
+
+    // cluster should still exist in Google
+    gdDAO.clusters should contain key (name1)
+
+    // cluster status should be Stopping in the DB
+    val status = dbFutureValue { _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse) }.get.status
+    status shouldBe ClusterStatus.Stopping
 
     // instance status should still be Running in the DB
     // the ClusterMonitorActor is what updates instance status
