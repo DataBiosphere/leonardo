@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{MockPetClusterServiceAccountProvider, MockSwaggerSamClient}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, LeoComponent, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{NegativeIntegerArgumentInClusterRequestException, OneWorkerSpecifiedInClusterRequestException}
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -29,11 +29,12 @@ import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.concurrent.ScalaFutures
 import spray.json._
 
+import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
 class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers
   with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures
-  with OptionValues with CommonTestData {
+  with OptionValues with CommonTestData with LeoComponent {
 
   private var gdDAO: MockGoogleDataprocDAO = _
   private var computeDAO: MockGoogleComputeDAO = _
@@ -128,7 +129,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "create and get a cluster" in isolatedDbTest {
-    // create the cluster
+    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
+    
+    // create a cluster
     val clusterCreateResponse = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
 
     // get the cluster detail
@@ -136,6 +139,45 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // check the create response and get response are the same
     clusterCreateResponse shouldEqual clusterGetResponse
+  }
+
+  it should "create and get a cluster via v2 API" in isolatedDbTest {
+    implicit val patienceConfig = PatienceConfig(timeout = 1.second)
+
+    // create the cluster
+    val clusterRequest = testClusterRequest.copy(
+      machineConfig = Some(singleNodeDefaultMachineConfig),
+      stopAfterCreation = Some(true))
+
+    leo.processClusterCreationRequest(userInfo, project, name1, clusterRequest).futureValue
+    
+    eventually {
+      val createdCluster = leo.getActiveClusterDetails(userInfo, project, name1).futureValue
+
+      createdCluster.id.toInt should be > 0
+      createdCluster.clusterName shouldEqual name1
+      createdCluster.googleId shouldBe defined
+      createdCluster.googleProject shouldBe project
+      createdCluster.serviceAccountInfo.clusterServiceAccount shouldBe clusterServiceAccount(project)
+      createdCluster.serviceAccountInfo.notebookServiceAccount shouldBe notebookServiceAccount(project)
+      createdCluster.machineConfig shouldBe singleNodeDefaultMachineConfig
+      createdCluster.clusterUrl.toString shouldBe s"http://leonardo/${project.value}/${name1.value}"
+      createdCluster.operationName shouldBe Some(OperationName("op-name"))
+      createdCluster.status shouldBe ClusterStatus.Creating
+      createdCluster.hostIp shouldBe None
+      createdCluster.creator shouldBe userEmail
+      createdCluster.createdDate should be < Instant.now
+      createdCluster.destroyedDate shouldBe None
+      createdCluster.jupyterExtensionUri shouldBe None
+      createdCluster.jupyterUserScriptUri shouldBe None
+      createdCluster.stagingBucket.get.value should startWith (s"leostaging-${name1.value}")
+      createdCluster.errors shouldBe List()
+      createdCluster.instances shouldBe Set()
+      createdCluster.userJupyterExtensionConfig shouldBe defined
+      createdCluster.dateAccessed should be >= createdCluster.createdDate
+      createdCluster.dateAccessed should be < Instant.now
+      createdCluster.autopauseThreshold shouldBe 30
+    }
   }
 
   it should "create a single node cluster with an empty machine config" in isolatedDbTest {
@@ -573,7 +615,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
   }
 
-  it should "list all clusters created with v2 API" in isolatedDbTest {
+  it should "list all clusters created via v2 API" in isolatedDbTest {
     // create a couple of clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     leo.processClusterCreationRequest(userInfo, project, clusterName1, testClusterRequest).futureValue
@@ -614,7 +656,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.listClusters(userInfo, Map("includeDeleted" -> "true")).futureValue.toSet.size shouldBe 3
   }
 
-  it should "list all active clusters created with v2 API" in isolatedDbTest {
+  it should "list all active clusters created via v2 API" in isolatedDbTest {
     var cluster1, cluster2, cluster3: Cluster = null.asInstanceOf[Cluster]
 
     // create a couple of clusters
@@ -664,7 +706,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.listClusters(userInfo, Map("abc" -> "def", "pqr" -> "pqr", "xyz" -> "xyz")).futureValue.toSet shouldBe Set(cluster1, cluster2)
   }
 
-  it should "list clusters with labels created with v2 API" in isolatedDbTest {
+  it should "list clusters with labels created via v2 API" in isolatedDbTest {
     // create a couple of clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     leo.processClusterCreationRequest(userInfo, project, clusterName1, testClusterRequest).futureValue
