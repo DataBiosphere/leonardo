@@ -45,7 +45,9 @@ RUN echo "deb $DEBIAN_REPO/debian jessie main"                   > /etc/apt/sour
  && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - \
  && apt-get update \
  && apt-get install -yq --no-install-recommends \
-    google-cloud-sdk
+    google-cloud-sdk \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
 ENV LC_ALL en_US.UTF-8
 
@@ -154,7 +156,9 @@ RUN apt-get update \
  && pip install fastinterval \
  && pip install matplotlib-venn \
  # for jupyter_localize_extension
- && pip install python-datauri
+ && pip install python-datauri \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
 
 # Python 3 Kernel
@@ -191,7 +195,9 @@ RUN apt-get update \
  && pip3 install biopython \
  && pip3 install bx-python \
  && pip3 install fastinterval \
- && pip3 install matplotlib-venn
+ && pip3 install matplotlib-venn \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
 # make pip install to a user directory, instead of a system directory which requires root.
 # this is useful so `pip install` commands can be run in the context of a notebook.
@@ -231,7 +237,9 @@ RUN R -e 'install.packages(c( \
  && R -e 'devtools::install_github("apache/spark@v2.0.2", subdir="R/pkg")' \
  && mkdir -p /home/jupyter-user/.rpackages \
  && echo "R_LIBS=/home/jupyter-user/.rpackages" > /home/jupyter-user/.Renviron \
- && chown -R $USER:users /home/jupyter-user/.rpackages
+ && chown -R $USER:users /home/jupyter-user/.rpackages \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
 #######################
 # Utilities
