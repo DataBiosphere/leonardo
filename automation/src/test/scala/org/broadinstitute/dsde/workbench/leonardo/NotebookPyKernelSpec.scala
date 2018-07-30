@@ -75,5 +75,16 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec {
         }
       }
     }
+
+
+    Seq(Python2, Python3).foreach { kernel =>
+      s"should preinstall google cloud subpackages for ${kernel.string}" in { clusterFixture =>
+        withWebDriver { implicit driver =>
+          withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
+            notebookPage.executeCell("from google.cloud import bigquery\nprint(bigquery.__version__)") shouldBe Some("1.4.0")
+          }
+        }
+      }
+    }
   }
 }
