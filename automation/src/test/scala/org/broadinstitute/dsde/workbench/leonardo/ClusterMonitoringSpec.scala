@@ -268,6 +268,36 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
         }
       }
     }
+
+    "should download file as pdf" in {
+      withProject { project => implicit token =>
+        withNewGoogleBucket(project) { bucketName =>
+          val enablePdfDownloadScript = ResourceFile("bucket-tests/enable_download_as_pdf.sh")
+          withResourceFileInBucket(project, enablePdfDownloadScript, "text/plain") { bucketPath =>            val clusterName = ClusterName("user-script-cluster" + makeRandomId())
+
+            withNewCluster(project, clusterName, ClusterRequest(Map(), None, Option(bucketPath.toUri)), monitorDelete = false) { cluster =>
+              val download = createTempDownloadDirectory()
+              withWebDriver(download) { implicit driver =>
+                withNewNotebook(cluster) { notebookPage =>
+                  notebookPage.executeCell("1+1") shouldBe Some("2")
+                  notebookPage.downloadAsPdf()
+                  val notebookName = notebookPage.currentUrl.substring(notebookPage.currentUrl.lastIndexOf('/') + 1, notebookPage.currentUrl.lastIndexOf('?')).replace(".ipynb", ".pdf")
+                  // sanity check the file downloaded correctly
+                  val downloadFile = new File(download, notebookName)
+                  downloadFile.deleteOnExit()
+                  logger.info(s"download: $downloadFile")
+                  implicit val patienceConfig: PatienceConfig = getAfterCreatePatience
+                  eventually {
+                    assert(downloadFile.exists(), s"Timed out (${patienceConfig.timeout} seconds) waiting for file.exists $downloadFile")
+                    assert(downloadFile.isFile(), s"Timed out (${patienceConfig.timeout} seconds) waiting for file.isFile $downloadFile")
+                  }
+                }
+              }
+            }(ronAuthToken)
+          }
+        }
+      }
+    }
   }
 
 }
