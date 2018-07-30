@@ -14,6 +14,9 @@ require.config({
 // This will be replaced with the real email login hint before uploading to the notebook server.
 var loginHint = $(userEmailLoginHint);
 
+var googleProject = $(googleProject);
+var clusterName = $(clusterName);
+
 // This is refreshed via postMessage from the client app.
 var googleClientId;
 
@@ -61,6 +64,14 @@ function startTimer() {
             setInterval(doAuth, 120000);
         });
     });
+
+
+    function statusCheck() {
+        var xhttp = new XMLHttpRequest();
+        xhttp.open("GET", "/notebooks/" + googleProject + "/" + clusterName + "/api/status", true);
+        xhttp.send();
+    }
+    setInterval(statusCheck, 60000)
 }
 
 function set_cookie(token, expires_in) {

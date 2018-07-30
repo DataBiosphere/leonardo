@@ -684,7 +684,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   // https://github.com/aymericdamien/TensorFlow-Examples/blob/master/notebooks/1_Introduction/helloworld.ipynb
   def verifyTensorFlow(notebookPage: NotebookPage, kernel: Kernel): Unit = {
-    notebookPage.executeCell("import tensorflow as tf") shouldBe None
+    notebookPage.executeCell("import tensorflow as tf")
     notebookPage.executeCell("hello = tf.constant('Hello, TensorFlow!')") shouldBe None
     notebookPage.executeCell("sess = tf.Session()") shouldBe None
     val helloOutput = notebookPage.executeCell("print(sess.run(hello))")
