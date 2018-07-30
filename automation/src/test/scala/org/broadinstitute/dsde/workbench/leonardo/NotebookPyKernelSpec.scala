@@ -82,6 +82,8 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec {
         withWebDriver { implicit driver =>
           withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
             notebookPage.executeCell("from google.cloud import bigquery\nprint(bigquery.__version__)") shouldBe Some("1.4.0")
+            notebookPage.executeCell("from google.cloud import datastore\nprint(datastore.__version__)") shouldBe Some("1.7.0")
+            notebookPage.executeCell("from google.cloud import storage\nprint(storage.__version__)") shouldBe Some("1.10.0")
           }
         }
       }

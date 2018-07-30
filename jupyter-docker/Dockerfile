@@ -134,6 +134,7 @@ RUN apt-get update \
  && pip install pandas \
  && pip install seaborn \
  && pip install -U jupyter \
+ && pip install google-api-core==1.3.0 \
  && pip install google-cloud-bigquery==1.4.0 \
  && pip install google-cloud-bigquery-datatransfer==0.1.1 \
  && pip install google-cloud-core==0.28.1 \
