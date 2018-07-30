@@ -81,6 +81,7 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec {
       s"should preinstall google cloud subpackages for ${kernel.string}" in { clusterFixture =>
         withWebDriver { implicit driver =>
           withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
+            //all other packages cannot be tested for their versions in this manner
             notebookPage.executeCell("from google.cloud import bigquery\nprint(bigquery.__version__)") shouldBe Some("1.4.0")
             notebookPage.executeCell("from google.cloud import datastore\nprint(datastore.__version__)") shouldBe Some("1.7.0")
             notebookPage.executeCell("from google.cloud import storage\nprint(storage.__version__)") shouldBe Some("1.10.0")
