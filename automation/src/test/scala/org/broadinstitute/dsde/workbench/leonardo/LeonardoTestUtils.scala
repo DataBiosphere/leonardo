@@ -2,7 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, File, FileOutputStream}
 import java.nio.charset.StandardCharsets
-import java.nio.file.Files
+import java.nio.file.{Files, Path, Paths}
+import java.nio.file.attribute.PosixFilePermission
 import java.time.Instant
 import java.util.Base64
 
@@ -615,7 +616,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
     withNotebookUpload(cluster, uploadFile) { notebook =>
       notebook.runAllCells(timeout)
-      notebook.download()
+      notebook.downloadAsIpynb()
     }
 
     // sanity check the file downloaded correctly
@@ -696,4 +697,17 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   }
 
   def noop[A](x: A): Unit = ()
+
+  def createTempDownloadDirectory(): String = {
+    val basePath: Path = Paths.get(s"chrome/downloads")
+    val path: Path = Files.createTempDirectory(basePath, "temp")
+    logger.info(s"mkdir: $path")
+    val permissions = Set(
+      PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_EXECUTE,
+      PosixFilePermission.GROUP_WRITE, PosixFilePermission.GROUP_READ, PosixFilePermission.GROUP_EXECUTE,
+      PosixFilePermission.OTHERS_WRITE, PosixFilePermission.OTHERS_READ, PosixFilePermission.OTHERS_EXECUTE)
+    import scala.collection.JavaConverters._
+    Files.setPosixFilePermissions(path, permissions.asJava)
+    path.toString
+  }
 }
