@@ -105,6 +105,7 @@ class NotebookRKernelSpec extends ClusterFixtureSpec {
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
           notebookPage.executeCell("library(tidyverse)").get should not include("there is no package")
+          notebookPage.executeCell("library(tidyverse)").get should include("Attaching packages")
         }
       }
     }
