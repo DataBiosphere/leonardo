@@ -24,7 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.Retry
 import slick.dbio.DBIO
 import spray.json._
@@ -256,29 +256,24 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     // For the success case, register the following callbacks...
     attemptToSaveClusterInDb foreach { cluster =>
       logger.info(s"Attempting to asynchronously create cluster '$clusterName' " +
-        s"on Google project ${googleProject.value} and notify the AuthProvider")
+        s"on Google project $googleProject and notify the AuthProvider")
       completeClusterCreation(userEmail, cluster, augmentedClusterRequest)
         .onComplete {
           case Success(_) =>
             logger.info(s"Asynchronous cluster creation succeeded for cluster '$clusterName' " +
-              s"on Google project '${googleProject.value}'. Notifying ClusterMonitorSupervisor about it...")
+              s"on Google project '$googleProject'. Notifying ClusterMonitorSupervisor about it...")
             clusterMonitorSupervisor ! ClusterCreated(cluster, clusterRequest.stopAfterCreation.getOrElse(false))
           case Failure(e) =>
-            logger.info(s"Failed the asynchronous portion of the creation of cluster '$clusterName' " +
-              s"on Google project '${googleProject.value}'.")
-
-            // We also want to record the error in database for future reference.
-            val errorMessage = s"Asynchronous creation of cluster '$clusterName' on Google project" +
-              s"'${googleProject.value}' failed due to '${e.getMessage}'."
-            // TODO Make errorCode field nullable in ClusterErrorComponent and pass None below
-            val dummyErrorCode = -1
-            val errorInfo = ClusterError(errorMessage, dummyErrorCode, Instant.now)
-            dbRef.inTransaction(_.clusterErrorQuery.save(cluster.id, errorInfo))
+            logger.error(s"Failed the asynchronous portion of the creation of cluster '$clusterName' " +
+              s"on Google project '$googleProject'.", e)
 
             // Since we failed, createGoogleCluster removes resources in Google but
             // we also need to notify our auth provider that the cluster has been deleted.
             // We won't wait for that deletion, though.
             authProvider.notifyClusterDeleted(userEmail, userEmail, googleProject, clusterName)
+
+            // We also want to record the error in database for future reference.
+            persistErrorInDb(e, clusterName, cluster.id, googleProject)
         }
     }
 
@@ -291,20 +286,22 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                               clusterRequest: ClusterRequest): Future[Unit] = {
     for {
       _ <- authProvider.notifyClusterCreated(userEmail, cluster.googleProject, cluster.clusterName)
+
       _ = logger.info(s"Successfully notified the AuthProvider for creation of cluster ${cluster.clusterName} " +
-        s"on Google project ${cluster.googleProject.value}. Proceeding to creating the cluster on Google Dataproc...")
+        s"on Google project ${cluster.googleProject}. Proceeding to creating the cluster on Google Dataproc...")
 
       (googleCluster, initBucket, serviceAccountKey) <- createGoogleCluster(userEmail, cluster, clusterRequest)
+
+      // We overwrite googleCluster.id with the DB-assigned one that was obtained when we first
+      // inserted the record into the DB prior to completing the createCluster request
+      _ <- dbRef.inTransaction {
+              _.clusterQuery
+                .updateAsyncClusterCreationFields(
+                  Option(GcsPath(initBucket, GcsObjectName(""))), serviceAccountKey, googleCluster.copy(id = cluster.id))
+           }
     } yield {
       logger.info(s"Successfully finished asynchronously creating the cluster ${cluster.clusterName} " +
-        s"on Google project ${cluster.googleProject.value}. Proceeding to updating the database cluster record...")
-      dbRef.inTransaction {
-        // We overwrite googleCluster.id with the DB-assigned one that was obtained when we first
-        // inserted the record into the DB prior to completing the createCluster request
-        _.clusterQuery
-          .updateAsyncClusterCreationFields(
-            Option(GcsPath(initBucket, GcsObjectName(""))), serviceAccountKey, googleCluster.copy(id = cluster.id))
-      }
+        s"on Google project ${cluster.googleProject}. Proceeding to updating the database cluster record...")
     }
   }
 
@@ -524,8 +521,29 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
+  private def persistErrorInDb(e: Throwable,
+                               clusterName: ClusterName,
+                               clusterId: Long,
+                               googleProject: GoogleProject): Future[Int] = {
+    val errorMessage = e match {
+      case leoEx: LeoException =>
+        ErrorReport.loggableString(leoEx.toErrorReport)
+      case _ =>
+        s"Asynchronous creation of cluster '$clusterName' on Google project " +
+          s"'$googleProject' failed due to '${e.toString}'."
+    }
+
+    // TODO Make errorCode field nullable in ClusterErrorComponent and pass None below
+    // See https://github.com/DataBiosphere/leonardo/issues/512
+    val dummyErrorCode = -1
+
+    val errorInfo = ClusterError(errorMessage, dummyErrorCode, Instant.now)
+
+    dbRef.inTransaction(_.clusterErrorQuery.save(clusterId, errorInfo))
+  }
+
   private[service] def cleanUpGoogleResourcesOnError(throwable: Throwable, googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[Unit] = {
-    logger.error(s"Cluster creation failed in Google for ${googleProject.value} / ${clusterName.value}. Cleaning up resources in Google...")
+    logger.error(s"Cluster creation failed in Google for $googleProject / ${clusterName.value}. Cleaning up resources in Google...")
 
     // Clean up resources in Google
 
@@ -580,7 +598,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val transformed = for {
       // Get a pet token from Sam. If we can't get a token, we won't do validation but won't fail cluster creation.
       petToken <- OptionT(serviceAccountProvider.getAccessToken(userEmail, googleProject).recover { case e =>
-        logger.warn(s"Could not acquire pet service account access token for user ${userEmail.value} in project ${googleProject.value}. " +
+        logger.warn(s"Could not acquire pet service account access token for user ${userEmail.value} in project $googleProject. " +
           s"Skipping validation of bucket objects in the cluster request.", e)
         None
       })

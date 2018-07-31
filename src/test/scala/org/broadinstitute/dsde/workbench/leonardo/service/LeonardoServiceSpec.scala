@@ -825,10 +825,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
       val errorRecord = errorRecordOpt.head
 
-      val expectedErrorMessage = s"Asynchronous creation of cluster '${cluster.clusterName}' on Google project" +
-        s"'${cluster.googleProject.value}' failed due to 'bad cluster!'."
+      val expectedErrorMessage = s"Asynchronous creation of cluster '${cluster.clusterName}' on Google project " +
+        s"'${cluster.googleProject}' failed"
 
-      errorRecord.errorMessage shouldEqual expectedErrorMessage
+      errorRecord.errorMessage should startWith (expectedErrorMessage)
       errorRecord.errorCode shouldEqual -1
       errorRecord.timestamp should be < Instant.now.plusSeconds(1) // add a sec to prevent approximation errors
     }
