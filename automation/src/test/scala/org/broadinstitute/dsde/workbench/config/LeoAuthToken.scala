@@ -16,7 +16,7 @@ case object LeoAuthToken extends AuthToken {
 
   override val httpTransport: NetHttpTransport = GoogleNetHttpTransport.newTrustedTransport
   override val jsonFactory: JacksonFactory = JacksonFactory.getDefaultInstance
-  override val authScopes = Seq("profile", "email", "openid", "https://www.googleapis.com/auth/devstorage.full_control", "https://www.googleapis.com/auth/cloud-platform")
+  val authScopes = Seq("profile", "email", "openid")
 
   def getUserToken(userEmail: String): LeoAuthToken = {
     val cred = buildCredential(userEmail)
