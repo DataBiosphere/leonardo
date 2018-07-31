@@ -219,7 +219,9 @@ RUN apt-get update \
     gcc \
     libcurl4-openssl-dev \
     libssl-dev \
-    libxml2-dev
+    libxml2-dev \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
 RUN R -e 'install.packages(c( \
     "IRdisplay",  \
@@ -237,9 +239,7 @@ RUN R -e 'install.packages(c( \
  && R -e 'devtools::install_github("apache/spark@v2.0.2", subdir="R/pkg")' \
  && mkdir -p /home/jupyter-user/.rpackages \
  && echo "R_LIBS=/home/jupyter-user/.rpackages" > /home/jupyter-user/.Renviron \
- && chown -R $USER:users /home/jupyter-user/.rpackages \
- && apt-get clean \
- && rm -rf /var/lib/apt/lists/*
+ && chown -R $USER:users /home/jupyter-user/.rpackages
 
 #######################
 # Utilities
