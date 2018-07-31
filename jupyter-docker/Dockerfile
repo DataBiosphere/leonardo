@@ -141,6 +141,7 @@ RUN apt-get update \
  && pip install google-cloud-datastore==1.7.0 \
  && pip install google-cloud-resource-manager==0.28.1 \
  && pip install google-cloud-storage==1.10.0 \
+ && pip install google-auth==1.5.0 \
  && pip install --ignore-installed firecloud==0.16.7 \
  && pip install -U scikit-learn \
  && pip install statsmodels==0.9.0 \

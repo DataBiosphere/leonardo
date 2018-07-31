@@ -82,7 +82,8 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec {
         withWebDriver { implicit driver =>
           withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
             //all other packages cannot be tested for their versions in this manner
-            notebookPage.executeCell("from google.cloud import bigquery\nprint(bigquery.__version__)") shouldBe Some("1.4.0")
+            //warnings about numpy are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
+            notebookPage.executeCell("from google.cloud import bigquery\nimport warnings\nwarnings.filterwarnings(\"ignore\", message=\"numpy.dtype size changed\")\nwarnings.filterwarnings(\"ignore\", message=\"numpy.ufunc size changed\")\nprint(bigquery.__version__)") shouldBe Some("1.4.0")
             notebookPage.executeCell("from google.cloud import datastore\nprint(datastore.__version__)") shouldBe Some("1.7.0")
             notebookPage.executeCell("from google.cloud import storage\nprint(storage.__version__)") shouldBe Some("1.10.0")
           }
