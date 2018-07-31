@@ -234,35 +234,35 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   private def stageClusterCreation(userEmail: WorkbenchEmail,
-                           serviceAccountInfo: ServiceAccountInfo,
-                           googleProject: GoogleProject,
-                           clusterName: ClusterName,
-                           clusterRequest: ClusterRequest): Future[Cluster] = {
+                                   serviceAccountInfo: ServiceAccountInfo,
+                                   googleProject: GoogleProject,
+                                   clusterName: ClusterName,
+                                   clusterRequest: ClusterRequest): Future[Cluster] = {
 
     val augmentedClusterRequest = addClusterLabels(
       serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
     val machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
     val autopauseThreshold = calculateAutopauseThreshold(
       clusterRequest.autopause, clusterRequest.autopauseThreshold)
-    val initialCluster = Cluster.create(
+    val initialClusterToSave = Cluster.create(
       augmentedClusterRequest, userEmail, clusterName, googleProject,
       serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold)
 
     // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
     // and if so, save the cluster creation request parameters in DB
     val attemptToSaveClusterInDb: Future[Cluster] = validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest)
-      .flatMap { _ => dbRef.inTransaction(_.clusterQuery.save(initialCluster)) }
+      .flatMap { _ => dbRef.inTransaction(_.clusterQuery.save(initialClusterToSave)) }
 
     // For the success case, register the following callbacks...
-    attemptToSaveClusterInDb foreach { cluster =>
+    attemptToSaveClusterInDb foreach { savedInitialCluster =>
       logger.info(s"Attempting to asynchronously create cluster '$clusterName' " +
         s"on Google project $googleProject and notify the AuthProvider")
-      completeClusterCreation(userEmail, cluster, augmentedClusterRequest)
+      completeClusterCreation(userEmail, savedInitialCluster, augmentedClusterRequest)
         .onComplete {
-          case Success(_) =>
+          case Success(updatedCluster) =>
             logger.info(s"Asynchronous cluster creation succeeded for cluster '$clusterName' " +
               s"on Google project '$googleProject'. Notifying ClusterMonitorSupervisor about it...")
-            clusterMonitorSupervisor ! ClusterCreated(cluster, clusterRequest.stopAfterCreation.getOrElse(false))
+            clusterMonitorSupervisor ! ClusterCreated(updatedCluster, clusterRequest.stopAfterCreation.getOrElse(false))
           case Failure(e) =>
             logger.error(s"Failed the asynchronous portion of the creation of cluster '$clusterName' " +
               s"on Google project '$googleProject'.", e)
@@ -273,7 +273,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
             authProvider.notifyClusterDeleted(userEmail, userEmail, googleProject, clusterName)
 
             // We also want to record the error in database for future reference.
-            persistErrorInDb(e, clusterName, cluster.id, googleProject)
+            persistErrorInDb(e, clusterName, savedInitialCluster.id, googleProject)
         }
     }
 
@@ -282,8 +282,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   // Meant to be run asynchronously to the clusterCreate API request
   private def completeClusterCreation(userEmail: WorkbenchEmail,
-                              cluster: Cluster,
-                              clusterRequest: ClusterRequest): Future[Unit] = {
+                                      cluster: Cluster,
+                                      clusterRequest: ClusterRequest): Future[Cluster] = {
     for {
       _ <- authProvider.notifyClusterCreated(userEmail, cluster.googleProject, cluster.clusterName)
 
@@ -294,15 +294,19 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
       // We overwrite googleCluster.id with the DB-assigned one that was obtained when we first
       // inserted the record into the DB prior to completing the createCluster request
+      googleClusterWithUpdatedId = googleCluster.copy(id = cluster.id)
+
       _ <- dbRef.inTransaction {
-              _.clusterQuery
-                .updateAsyncClusterCreationFields(
-                  Option(GcsPath(initBucket, GcsObjectName(""))), serviceAccountKey, googleCluster.copy(id = cluster.id))
+            _.clusterQuery
+              .updateAsyncClusterCreationFields(
+                Option(GcsPath(initBucket, GcsObjectName(""))), serviceAccountKey, googleClusterWithUpdatedId)
            }
     } yield {
       logger.info(s"Successfully submitted to Google the request to create cluster ${cluster.clusterName} " +
         s"on Google project ${cluster.googleProject} and updated the database accordingly. Will monitor the cluster " +
         s"creation process...")
+
+      googleClusterWithUpdatedId
     }
   }
 
