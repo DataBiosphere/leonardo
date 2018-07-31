@@ -101,6 +101,14 @@ class NotebookRKernelSpec extends ClusterFixtureSpec {
       }
     }
 
+    "should have tidyverse automatically installed" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+          notebookPage.executeCell(""""tidyverse" %in% installed.packages()""") shouldBe Some("TRUE")
+        }
+      }
+    }
+
   }
 
 }
