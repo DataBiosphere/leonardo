@@ -101,6 +101,7 @@ object Leonardo extends RestClient with LazyLogging {
 
     def clusterPath(googleProject: GoogleProject, clusterName: ClusterName): String =
       s"api/cluster/${googleProject.value}/${clusterName.string}"
+//      s"api/cluster/v2/${googleProject.value}/${clusterName.string}"
 
     def list()(implicit token: AuthToken): Seq[Cluster] = {
       logger.info(s"Listing all active clusters: GET /api/clusters")

@@ -288,7 +288,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       _ <- authProvider.notifyClusterCreated(userEmail, cluster.googleProject, cluster.clusterName)
 
       _ = logger.info(s"Successfully notified the AuthProvider for creation of cluster ${cluster.clusterName} " +
-        s"on Google project ${cluster.googleProject}. Proceeding to creating the cluster on Google Dataproc...")
+        s"on Google project ${cluster.googleProject}. Submitting the cluster creation request to Google Dataproc...")
 
       (googleCluster, initBucket, serviceAccountKey) <- createGoogleCluster(userEmail, cluster, clusterRequest)
 
@@ -300,8 +300,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                   Option(GcsPath(initBucket, GcsObjectName(""))), serviceAccountKey, googleCluster.copy(id = cluster.id))
            }
     } yield {
-      logger.info(s"Successfully finished asynchronously creating the cluster ${cluster.clusterName} " +
-        s"on Google project ${cluster.googleProject}. Proceeding to updating the database cluster record...")
+      logger.info(s"Successfully submitted to Google the request to create cluster ${cluster.clusterName} " +
+        s"on Google project ${cluster.googleProject} and updated the database accordingly. Will monitor the cluster " +
+        s"creation process...")
     }
   }
 
