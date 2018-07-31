@@ -204,7 +204,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     val pollInterval = Interval(scaled(Span(5, Seconds)))
     eventually(time, pollInterval) {
       val ready = (!cellsAreRunning && isKernelReady && kernelNotificationText == "none")
-      Assertions.withClue(s"Jupyter kernel is NOT ready after waiting ${time} seconds.") {
+      Assertions.withClue(s"Jupyter kernel is NOT ready after waiting ${time}.") {
         ready shouldBe true
       }
     }
