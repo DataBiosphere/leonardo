@@ -162,7 +162,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     changeCodeToMarkdown
     await enabled cells
     click on translateCell
-    Thread.sleep(3000)
+    Thread.sleep(3000) // To fix, this is not good
     val outputCell = lastCell
     outputCell.getText
   }
@@ -194,8 +194,6 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     await condition (isKernelReady && kernelNotificationText == "none", timeout.toSeconds)
   }
 
-
-
   def clickRunCell(timeout: FiniteDuration = 2.minutes): Unit = {
     click on runCellButton
     awaitReadyKernel(timeout)
@@ -203,10 +201,10 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
 
   def awaitReadyKernel(timeout: FiniteDuration = 2.minutes): Unit = {
     val time = Timeout(scaled(Span(timeout.toSeconds, Seconds)))
-    val pollInterval = Interval(scaled(Span(10, Seconds)))
+    val pollInterval = Interval(scaled(Span(5, Seconds)))
     eventually(time, pollInterval) {
       val ready = (!cellsAreRunning && isKernelReady && kernelNotificationText == "none")
-      Assertions.withClue(s"Kernel is NOT ready after waiting ${time} seconds.") {
+      Assertions.withClue(s"Jupyter kernel is NOT ready after waiting ${time} seconds.") {
         ready shouldBe true
       }
     }
