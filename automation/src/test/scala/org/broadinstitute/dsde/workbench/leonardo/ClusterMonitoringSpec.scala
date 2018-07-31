@@ -110,7 +110,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
     "should pause and resume a cluster" in {
       withProject { project => implicit token =>
         // Create a cluster
-        withNewCluster(project) { cluster =>
+        withNewCluster(project, monitorDelete = false) { cluster =>
           val printStr = "Pause/resume test"
 
           withWebDriver { implicit driver =>
@@ -160,7 +160,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
             numberOfPreemptibleWorkers = Option(10)
           )))
 
-          withNewCluster(project, request = request) { cluster =>
+          withNewCluster(project, request = request, monitorDelete = false) { cluster =>
             // Verify a Hail job uses preemptibes
             withWebDriver { implicit driver =>
               withNewNotebook(cluster) { notebookPage =>
