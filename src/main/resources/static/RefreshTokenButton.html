@@ -21,6 +21,7 @@
                 var leoCookie = cookiePrefix + access_token + ";expires=" + expiresDate.toUTCString() + ";secure;path=/;";
                 document.cookie = leoCookie;
                 checkCookie(cookiePrefix);
+                location.reload();
             }
             async function checkCookie(cookieName) {
                 var cookieIsFound = findCookie(cookieName);
