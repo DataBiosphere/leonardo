@@ -134,8 +134,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     Thread sleep Random.nextInt(30000)
 
     val clusterTimeResult = time(Leonardo.cluster.create(googleProject, clusterName, clusterRequest))
-    //TODO Uncomment the following line when the response time is truly less than 10s
-    //clusterTimeResult.duration should be < tenSeconds
+    clusterTimeResult.duration should be < tenSeconds
     logger.info("Time to get cluster create response::" + clusterTimeResult.duration)
 
     // verify the create cluster response

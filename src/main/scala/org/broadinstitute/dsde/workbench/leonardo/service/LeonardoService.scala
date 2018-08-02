@@ -260,8 +260,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       completeClusterCreation(userEmail, savedInitialCluster, augmentedClusterRequest)
         .onComplete {
           case Success(updatedCluster) =>
-            logger.info(s"Asynchronous cluster creation succeeded for cluster '$clusterName' " +
-              s"on Google project '$googleProject'. Notifying ClusterMonitorSupervisor about it...")
+            logger.info(s"Successfully submitted to Google the request to create cluster " +
+              s"${updatedCluster.clusterName} on Google project ${updatedCluster.googleProject}, " +
+              s"and updated the database accordingly. Will monitor the cluster creation process...")
             clusterMonitorSupervisor ! ClusterCreated(updatedCluster, clusterRequest.stopAfterCreation.getOrElse(false))
           case Failure(e) =>
             logger.error(s"Failed the asynchronous portion of the creation of cluster '$clusterName' " +
@@ -301,13 +302,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
               .updateAsyncClusterCreationFields(
                 Option(GcsPath(initBucket, GcsObjectName(""))), serviceAccountKey, googleClusterWithUpdatedId)
            }
-    } yield {
-      logger.info(s"Successfully submitted to Google the request to create cluster ${cluster.clusterName} " +
-        s"on Google project ${cluster.googleProject} and updated the database accordingly. Will monitor the cluster " +
-        s"creation process...")
-
-      googleClusterWithUpdatedId
-    }
+    } yield googleClusterWithUpdatedId
   }
 
   //throws 404 if nonexistent or no permissions
