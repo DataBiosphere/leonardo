@@ -6,6 +6,7 @@ import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
+import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.{V1, V2}
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsObjectName, GcsPath, parseGcsPath}
@@ -24,7 +25,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
         val petEmail = getAndVerifyPet(project)
 
         // Create a cluster
-        withNewCluster(project) { cluster =>
+        withNewCluster(googleProject = project, apiVersion = V1) { cluster =>
           // cluster should have been created with the pet service account
           cluster.serviceAccountInfo.clusterServiceAccount shouldBe Some(petEmail)
           cluster.serviceAccountInfo.notebookServiceAccount shouldBe None

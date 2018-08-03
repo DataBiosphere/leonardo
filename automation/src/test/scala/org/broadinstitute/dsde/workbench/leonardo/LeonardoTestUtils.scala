@@ -19,6 +19,8 @@ import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.service.{Orchestration, RestException, Sam}
 import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
+import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion
+import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.{V1, V2}
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
@@ -104,11 +106,12 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     (seen - "clusterServiceAccount" - "notebookServiceAccount") shouldBe (expected - "clusterServiceAccount" - "notebookServiceAccount")
   }
 
-  def clusterCheck(cluster: Cluster,
-                   expectedProject: GoogleProject,
-                   expectedName: ClusterName,
-                   expectedStatuses: Iterable[ClusterStatus],
-                   clusterRequest: ClusterRequest): Cluster = {
+  def verifyCluster(cluster: Cluster,
+                    expectedProject: GoogleProject,
+                    expectedName: ClusterName,
+                    expectedStatuses: Iterable[ClusterStatus],
+                    clusterRequest: ClusterRequest,
+                    bucketCheck: Boolean = true): Cluster = {
 
     // Always log cluster errors
     if (cluster.errors.nonEmpty) {
@@ -121,28 +124,43 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
     cluster.googleProject shouldBe expectedProject
     cluster.clusterName shouldBe expectedName
-    cluster.stagingBucket shouldBe 'defined
 
-    implicit val patienceConfig: PatienceConfig = storagePatience
-    googleStorageDAO.bucketExists(GcsBucketName(cluster.stagingBucket.get.value)).futureValue shouldBe true
     labelCheck(cluster.labels, expectedName, expectedProject, cluster.creator, clusterRequest)
+
+    if (bucketCheck) {
+      cluster.stagingBucket shouldBe 'defined
+
+      implicit val patienceConfig: PatienceConfig = storagePatience
+      googleStorageDAO.bucketExists(GcsBucketName(cluster.stagingBucket.get.value)).futureValue shouldBe true
+    }
+
     cluster
   }
 
-  def createCluster(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, monitor: Boolean)(implicit token: AuthToken): Cluster = {
+  def createCluster(googleProject: GoogleProject,
+                    clusterName: ClusterName,
+                    clusterRequest: ClusterRequest,
+                    monitor: Boolean,
+                    apiVersion: ApiVersion = V1)
+                   (implicit token: AuthToken): Cluster = {
     // Google doesn't seem to like simultaneous cluster creates.  Add 0-30 sec jitter
     Thread sleep Random.nextInt(30000)
 
-    val clusterTimeResult = time(Leonardo.cluster.create(googleProject, clusterName, clusterRequest))
+    val clusterTimeResult = time(Leonardo.cluster.create(googleProject, clusterName, clusterRequest, apiVersion))
     clusterTimeResult.duration should be < tenSeconds
     logger.info("Time to get cluster create response::" + clusterTimeResult.duration)
 
-    // verify the create cluster response
-    clusterCheck(clusterTimeResult.result, googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest)
+    // We will verify the create cluster response.
+    // We don't want to check bucket for v2 (async) cluster creation API
+    // since that info won't be known at v2 API request completion time
+    val bucketCheck = if (apiVersion == V2) false else true
+    verifyCluster(clusterTimeResult.result, googleProject, clusterName,
+      Seq(ClusterStatus.Creating), clusterRequest, bucketCheck)
 
     // verify with get()
     val creatingCluster = eventually {
-      clusterCheck(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName, Seq(ClusterStatus.Creating), clusterRequest)
+      verifyCluster(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName,
+        Seq(ClusterStatus.Creating), clusterRequest)
     }(getAfterCreatePatience, implicitly[Position])
 
     if (monitor) {
@@ -155,7 +173,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       }
       val runningOrErroredCluster = Try {
         eventually {
-          clusterCheck(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName, expectedStatuses, clusterRequest)
+          verifyCluster(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName, expectedStatuses, clusterRequest)
         }
       }
 
@@ -282,11 +300,21 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   def defaultClusterRequest: ClusterRequest = ClusterRequest(Map("foo" -> makeRandomId()))
 
-  def createNewCluster(googleProject: GoogleProject, name: ClusterName = randomClusterName, request: ClusterRequest = defaultClusterRequest, monitor: Boolean = true)(implicit token: AuthToken): Cluster = {
-    val cluster = createCluster(googleProject, name, request, monitor)
+  def createNewCluster(googleProject: GoogleProject,
+                       name: ClusterName = randomClusterName,
+                       request: ClusterRequest = defaultClusterRequest,
+                       monitor: Boolean = true,
+                       apiVersion: ApiVersion = V1)
+                      (implicit token: AuthToken): Cluster = {
+
+    val cluster = createCluster(googleProject, name, request, monitor, apiVersion)
+
     if (monitor) {
       withClue(s"Monitoring Cluster status: $name") {
-        cluster.status shouldBe (if (request.stopAfterCreation.getOrElse(false)) ClusterStatus.Stopped else ClusterStatus.Running)
+        val clusterShouldBeStopped = request.stopAfterCreation.getOrElse(false)
+        val expectedStatus = if (clusterShouldBeStopped) ClusterStatus.Stopped else ClusterStatus.Running
+
+        cluster.status shouldBe expectedStatus
       }
     } else {
       cluster.status shouldBe ClusterStatus.Creating
@@ -353,10 +381,15 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
   }
 
-  def withNewCluster[T](googleProject: GoogleProject, name: ClusterName = randomClusterName, request: ClusterRequest = defaultClusterRequest, monitorCreate: Boolean = true, monitorDelete: Boolean = true)
+  def withNewCluster[T](googleProject: GoogleProject,
+                        name: ClusterName = randomClusterName,
+                        request: ClusterRequest = defaultClusterRequest,
+                        monitorCreate: Boolean = true,
+                        monitorDelete: Boolean = true,
+                        apiVersion: ApiVersion = V1)
                        (testCode: Cluster => T)
                        (implicit token: AuthToken): T = {
-    val cluster = createNewCluster(googleProject, name, request, monitorCreate)
+    val cluster = createNewCluster(googleProject, name, request, monitorCreate, apiVersion)
     val testResult: Try[T] = Try {
       testCode(cluster)
     }

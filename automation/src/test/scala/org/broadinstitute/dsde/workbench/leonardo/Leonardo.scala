@@ -6,7 +6,7 @@ import java.util.UUID
 
 import akka.http.scaladsl.model.headers.{Authorization, Cookie, HttpCookiePair, OAuth2BearerToken}
 import akka.Done
-import akka.http.scaladsl.model.HttpHeader
+import akka.http.scaladsl.model.{HttpHeader, StatusCodes}
 import akka.http.scaladsl.server.Route
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.databind.DeserializationFeature
@@ -15,6 +15,7 @@ import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.service.RestClient
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.config.LeoAuthToken
+import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V1
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
@@ -38,6 +39,14 @@ object Leonardo extends RestClient with LazyLogging {
   }
 
   object cluster {
+    private case class InvalidCreateClusterApiVersionException(googleProject: GoogleProject,
+                                                               clusterName: ClusterName,
+                                                               apiVersion: String)
+      extends LeoException(
+        message = s"Cluster ${googleProject.value}/${clusterName.string} cannot be created " +
+          s"because the API was called with an invalid version: $apiVersion",
+        statusCode = StatusCodes.NotFound)
+
     // TODO: custom JSON deserializer
     // the default doesn't handle some fields correctly so here they're strings
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -99,9 +108,11 @@ object Leonardo extends RestClient with LazyLogging {
       }
     }
 
-    def clusterPath(googleProject: GoogleProject, clusterName: ClusterName): String =
-      s"api/cluster/${googleProject.value}/${clusterName.string}"
-//      s"api/cluster/v2/${googleProject.value}/${clusterName.string}"
+    def clusterPath(googleProject: GoogleProject,
+                    clusterName: ClusterName,
+                    version: ApiVersion = V1): String = {
+      s"api/cluster${version.toUrlSegment}/${googleProject.value}/${clusterName.string}"
+    }
 
     def list()(implicit token: AuthToken): Seq[Cluster] = {
       logger.info(s"Listing all active clusters: GET /api/clusters")
@@ -114,8 +125,12 @@ object Leonardo extends RestClient with LazyLogging {
       handleClusterSeqResponse(parseResponse(getRequest(s"$url/$path")))
     }
 
-    def create(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest)(implicit token: AuthToken): Cluster = {
-      val path = clusterPath(googleProject, clusterName)
+    def create(googleProject: GoogleProject,
+               clusterName: ClusterName,
+               clusterRequest: ClusterRequest,
+               version: ApiVersion = ApiVersion.V1)
+              (implicit token: AuthToken): Cluster = {
+      val path = clusterPath(googleProject, clusterName, version)
       logger.info(s"Create cluster: PUT /$path")
       handleClusterResponse(putRequest(url + path, clusterRequest))
     }
@@ -263,6 +278,29 @@ object Leonardo extends RestClient with LazyLogging {
       replacementMap.foldLeft(raw) { case (source, (key, replacement)) =>
         source.replaceAllLiterally("$("+key+")", s"""'$replacement'""")
       }
+    }
+  }
+
+  sealed trait ApiVersion {
+    override def toString: String
+    def toUrlSegment: String
+  }
+
+  object ApiVersion {
+    case object V1 extends ApiVersion {
+      override def toString: String = "v1"
+      def toUrlSegment: String = ""
+    }
+
+    case object V2 extends ApiVersion {
+      override def toString: String = "v2"
+      def toUrlSegment: String = "/v2"
+    }
+
+    def fromString(s: String): Option[ApiVersion] = s match {
+      case "v1" => Some(V1)
+      case "v2" => Some(V2)
+      case _ => None
     }
   }
 }
