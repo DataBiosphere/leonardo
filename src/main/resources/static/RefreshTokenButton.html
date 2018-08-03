@@ -3,7 +3,7 @@
     <head>
         <script src="https://apis.google.com/js/platform.js?onload=renderButton" async defer></script>
 
-        <meta name="google-signin-client_id" content="806222273987-jdbngimv3abggnpggkroac2p6r98d8h6.apps.googleusercontent.com">
+        <meta name="google-signin-client_id" content="$(googleClientId)">
     </head>
     <body>
         <div id="my-signin2" style="top:50%; left:50%; display:block; position:absolute; margin-top:-250px; margin-left:-125px;"></div>
@@ -21,7 +21,6 @@
                 var leoCookie = cookiePrefix + access_token + ";expires=" + expiresDate.toUTCString() + ";secure;path=/;";
                 document.cookie = leoCookie;
                 checkCookie(cookiePrefix);
-                location.reload();
             }
             async function checkCookie(cookieName) {
                 var cookieIsFound = findCookie(cookieName);
@@ -29,6 +28,10 @@
                     console.log('No cookie found, unauthorized to access.');
                     await sleep(10000);
                     checkCookie(cookieName);
+                }
+                else {
+                    location.reload();
+                    console.log("reloaded page");
                 }
             }
             function sleep(ms) {
@@ -43,7 +46,7 @@
                         c = c.substring(1);
                     }
                     if (c.indexOf(cookieName) === 0) {
-                        return c.substring(cookieName.length, c.length);
+                        return true;
                     }
                 }
                 return false;
