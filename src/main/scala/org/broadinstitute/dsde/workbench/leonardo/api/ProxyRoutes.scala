@@ -45,55 +45,59 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
               }
             }
           } ~
-            (extractRequest & extractUserInfo) { (request, userInfo) =>
-              (logRequestResultForMetrics(userInfo)) {
-                // Proxy logic handled by the ProxyService class
-                // Note ProxyService calls the LeoAuthProvider internally
-                path("api" / "localize") { // route for custom Jupyter server extension
-                  complete {
-                    proxyService.proxyLocalize(userInfo, googleProject, clusterName, request)
+            (extractRequest & extractUserInfo) { (request, userInfoOpt) =>
+              userInfoOpt match {
+                case Some(userInfo) =>
+                  (logRequestResultForMetrics(userInfo)) {
+                    // Proxy logic handled by the ProxyService class
+                    // Note ProxyService calls the LeoAuthProvider internally
+                    path("api" / "localize") { // route for custom Jupyter server extension
+                      complete {
+                        proxyService.proxyLocalize(userInfo, googleProject, clusterName, request)
+                      }
+                    } ~
+                      complete {
+                        proxyService.proxyNotebook(userInfo, googleProject, clusterName, request)
+                      }
                   }
-                } ~
-                  complete {
-                    proxyService.proxyNotebook(userInfo, googleProject, clusterName, request)
-                  }
+                case None => getFromResource("static/notebook_login.html")
               }
             }
-      } ~
-        // No need to lookup the user or consult the auth provider for this endpoint
-        path("invalidateToken") {
-          get {
-            extractToken { token =>
-              complete {
-                proxyService.invalidateAccessToken(token).map { _ =>
-                  logger.debug(s"Invalidated access token $token")
-                  StatusCodes.OK
+        } ~
+          // No need to lookup the user or consult the auth provider for this endpoint
+          path("invalidateToken") {
+            get {
+              extractToken { token =>
+                complete {
+                  proxyService.invalidateAccessToken(token).map { _ =>
+                    logger.debug(s"Invalidated access token $token")
+                    StatusCodes.OK
+                  }
                 }
               }
             }
           }
-        }
       }
     }
 
   /**
     * Extracts the user token from either a cookie or Authorization header.
     */
-  private def extractToken: Directive1[String] = {
+  private def extractToken: Directive1[Option[String]] = {
     optionalHeaderValueByType[`Authorization`](()) flatMap {
 
       // We have an Authorization header, extract the token
       // Note the Authorization header overrides the cookie
-      case Some(header) => provide(header.credentials.token)
+      case Some(header) => provide(Some(header.credentials.token))
 
       // We don't have an Authorization header; check the cookie
       case None => optionalCookie(tokenCookieName) flatMap {
 
         // We have a cookie, extract the token
-        case Some(cookie) => provide(cookie.value)
+        case Some(cookie) => provide(Some(cookie.value))
 
         // Not found in cookie or Authorization header, fail
-        case None => failWith(AuthorizationError())
+        case None => provide(None)
       }
     }
   }
@@ -101,9 +105,12 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
   /**
     * Extracts the user token from the request, and looks up the cached UserInfo.
     */
-  private def extractUserInfo: Directive1[UserInfo] = {
-    extractToken.flatMap { token =>
-      onSuccess(proxyService.getCachedUserInfoFromToken(token))
+  private def extractUserInfo: Directive1[Option[UserInfo]] = {
+    extractToken.flatMap { tokenOpt =>
+      tokenOpt match {
+        case Some(token) => onSuccess(proxyService.getCachedUserInfoFromToken(token).map(Option(_)))
+        case None => provide(None)
+      }
     }
   }
 
