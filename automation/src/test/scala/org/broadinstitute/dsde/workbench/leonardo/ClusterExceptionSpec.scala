@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
+import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V2
 import org.broadinstitute.dsde.workbench.service.RestException
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 
@@ -27,7 +28,7 @@ class ClusterExceptionSpec extends FreeSpec with LeonardoTestUtils with Parallel
       withProject { project => implicit token =>
         logger.info(s"${project.value}: should not be able to create 2 clusters with the same name")
 
-        withNewCluster(project, monitorCreate = false, monitorDelete = true) { cluster =>
+        withNewCluster(project, monitorCreate = false, monitorDelete = true, apiVersion = V2) { cluster =>
           val caught = the[RestException] thrownBy createNewCluster(project, cluster.clusterName, monitor = false)
           caught.message should include(""""statusCode":409""")
         }
@@ -54,7 +55,7 @@ class ClusterExceptionSpec extends FreeSpec with LeonardoTestUtils with Parallel
       withProject { project => implicit token =>
         logger.info(s"${project.value}: should not be able to stop a creating cluster")
 
-        withNewCluster(project, monitorCreate = false, monitorDelete = true) { cluster =>
+        withNewCluster(project, monitorCreate = false, monitorDelete = true, apiVersion = V2) { cluster =>
           withWebDriver { implicit driver =>
             val caught = the[RestException] thrownBy stopCluster(project, cluster.clusterName, monitor = false)
             caught.message should include(""""statusCode":409""")
@@ -65,7 +66,7 @@ class ClusterExceptionSpec extends FreeSpec with LeonardoTestUtils with Parallel
 
     "should throw 401 for invalid token" in {
       withProject { project => implicit token =>
-        withNewCluster(project, monitorCreate = true, monitorDelete = false) { cluster =>
+        withNewCluster(project, monitorCreate = true, monitorDelete = false, apiVersion = V2) { cluster =>
           withWebDriver { implicit driver =>
             val thrown = the[Exception] thrownBy {
               Leonardo.notebooks.setCookie(cluster.googleProject, cluster.clusterName)(voldyAuthToken, driver)
