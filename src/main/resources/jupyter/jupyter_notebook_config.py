@@ -31,6 +31,6 @@ c.NotebookApp.contents_manager_class = 'jupyter_delocalize.DelocalizingContentsM
 c.NotebookApp.tornado_settings = {
     'static_url_prefix':'/notebooks/' + fragment + '/static/',
     'headers': {
-        'Content-Security-Policy': {contentSecurityPolicy}
+        'Content-Security-Policy': $(contentSecurityPolicy)
     }
 }

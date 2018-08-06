@@ -60,7 +60,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_CUSTOM_JS_URI=$(jupyterCustomJsUri)
     JUPYTER_GOOGLE_SIGN_IN_JS_URI=$(jupyterGoogleSignInJsUri)
     JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
-    JUPYTER_NOTEBOOK_CONFIG=$(jupyterNotebookConfig)
+    JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfig)
 
     log 'Installing prerequisites...'
 
@@ -215,9 +215,10 @@ if [[ "${ROLE}" == 'Master' ]]; then
       docker cp /etc/${JUPYTER_GOOGLE_SIGN_IN_JS} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
     fi
 
-    if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG} ] ; then
+    if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG_URI} ] ; then
       log 'Installing Google sign in extension...'
-      gsutil cp ${JUPYTER_NOTEBOOK_CONFIG} /etc
+      gsutil cp ${JUPYTER_NOTEBOOK_CONFIG_URI} /etc
+      JUPYTER_NOTEBOOK_CONFIG=`basename ${JUPYTER_NOTEBOOK_CONFIG_URI}`
       docker cp /etc/${JUPYTER_NOTEBOOK_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/
     fi
     # If a Jupyter user script was specified, copy it into the jupyter docker container.
