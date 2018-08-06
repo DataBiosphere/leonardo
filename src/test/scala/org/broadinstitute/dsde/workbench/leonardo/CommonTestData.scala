@@ -73,27 +73,22 @@ trait CommonTestData { this: ScalaFutures =>
 
   val serviceAccountInfo = new ServiceAccountInfo(Option(WorkbenchEmail("testServiceAccount1@example.com")), Option(WorkbenchEmail("testServiceAccount2@example.com")))
 
+
   val testCluster = new Cluster(
     clusterName = name1,
-    googleId =  Option(UUID.randomUUID()),
     googleProject = project,
     serviceAccountInfo = serviceAccountInfo,
+    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op")), Some(GcsBucketName("testStagingBucket1")), None),
+    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    operationName = Option(OperationName("op")),
     status = ClusterStatus.Unknown,
-    hostIp = None,
-    creator = userEmail,
-    createdDate = Instant.now(),
-    destroyedDate = None,
     labels = Map(),
     jupyterExtensionUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),
     jupyterUserScriptUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript"))),
-    stagingBucket = Some(GcsBucketName("testStagingBucket1")),
     errors = List.empty,
     instances = Set.empty,
     userJupyterExtensionConfig = None,
-    dateAccessed = Instant.now(),
     autopauseThreshold = if (autopause) autopauseThreshold else 0)
 
   // TODO look into parameterized tests so both provider impls can both be tested

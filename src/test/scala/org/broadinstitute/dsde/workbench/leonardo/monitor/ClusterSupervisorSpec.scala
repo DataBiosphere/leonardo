@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, 
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, MachineConfig, OperationName}
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, LeoAuthProvider, ServiceAccountInfo}
+import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
@@ -29,25 +29,19 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
 
   val runningCluster = Cluster(
     clusterName = name1,
-    googleId = Option(UUID.randomUUID()),
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), None),
+    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now().minus(45, ChronoUnit.SECONDS)),
     machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    operationName = Option(OperationName("op1")),
     status = ClusterStatus.Running,
-    hostIp = None,
-    creator = userEmail,
-    createdDate = Instant.now(),
-    destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"),
     jupyterExtensionUri = None,
     jupyterUserScriptUri = None,
-    stagingBucket = Some(GcsBucketName("testStagingBucket1")),
     errors = List.empty,
     instances = Set.empty,
     userJupyterExtensionConfig = Some(userExtConfig),
-    dateAccessed = Instant.now().minus(45, ChronoUnit.SECONDS),
     autopauseThreshold = 1
   )
 
