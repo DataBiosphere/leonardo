@@ -66,7 +66,7 @@ object Leonardo extends RestClient with LazyLogging {
                                     jupyterExtensionUri: Option[String],
                                     jupyterUserScriptUri: Option[String],
                                     stagingBucket: String,
-                                    errors:List[ClusterError],
+                                    errors: List[ClusterError],
                                     dateAccessed: String) {
 
       def toCluster = Cluster(clusterName,
@@ -121,7 +121,7 @@ object Leonardo extends RestClient with LazyLogging {
 
     def listIncludingDeleted()(implicit token: AuthToken): Seq[Cluster] = {
       val path = "api/clusters?includeDeleted=true"
-      // logger.info(s"Listing all clusters including deleted: GET /$path")
+
       handleClusterSeqResponse(parseResponse(getRequest(s"$url/$path")))
     }
 
@@ -137,8 +137,15 @@ object Leonardo extends RestClient with LazyLogging {
 
     def get(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): Cluster = {
       val path = clusterPath(googleProject, clusterName)
+
+      // TODO Find and fix the root-cause of why we get successive 404's without this sleep, and remove the sleep
+      val sleepTime = 7000
+      logger.info(s"Sleeping for ${sleepTime/1000} seconds before GET'ing /$path... ***")
+      Thread sleep sleepTime
+
       val cluster = handleClusterResponse(parseResponse(getRequest(url + path)))
-      logger.info(s"GET /$path. Response: $cluster")
+      logger.info(s"Get cluster: GET /$path. Response: $cluster")
+
       cluster
     }
 

@@ -147,8 +147,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     Thread sleep Random.nextInt(30000)
 
     val clusterTimeResult = time(Leonardo.cluster.create(googleProject, clusterName, clusterRequest, apiVersion))
+    logger.info("Time to get cluster create response:" + clusterTimeResult.duration)
     clusterTimeResult.duration should be < tenSeconds
-    logger.info("Time to get cluster create response::" + clusterTimeResult.duration)
 
     // We will verify the create cluster response.
     // We don't want to check bucket for v2 (async) cluster creation API
@@ -160,20 +160,24 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     // verify with get()
     val creatingCluster = eventually {
       verifyCluster(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName,
-        Seq(ClusterStatus.Creating), clusterRequest)
+        Seq(ClusterStatus.Creating), clusterRequest, bucketCheck)
     }(getAfterCreatePatience, implicitly[Position])
 
     if (monitor) {
       // wait for "Running", "Stopped", or error (fail fast)
       implicit val patienceConfig: PatienceConfig = clusterPatience
-      val expectedStatuses = if (clusterRequest.stopAfterCreation.getOrElse(false)) {
-        Seq(ClusterStatus.Stopped, ClusterStatus.Error)
-      } else {
-        Seq(ClusterStatus.Running, ClusterStatus.Error)
-      }
+
+      val expectedStatuses =
+        if (clusterRequest.stopAfterCreation.getOrElse(false)) {
+          Seq(ClusterStatus.Stopped, ClusterStatus.Error)
+        } else {
+          Seq(ClusterStatus.Running, ClusterStatus.Error)
+        }
+
       val runningOrErroredCluster = Try {
         eventually {
-          verifyCluster(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName, expectedStatuses, clusterRequest)
+          verifyCluster(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName,
+            expectedStatuses, clusterRequest)
         }
       }
 
@@ -668,10 +672,10 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     val transformed = for {
       stagingBucketName <- OptionT.fromOption[Future](cluster.stagingBucket)
       stagingBucketObjects <- OptionT.liftF[Future, List[GcsObjectName]](googleStorageDAO.listObjectsWithPrefix(stagingBucketName, "google-cloud-dataproc-metainfo"))
-      initLogFile <- OptionT.fromOption[Future](stagingBucketObjects.filter(_.value.endsWith("dataproc-initialization-script-0_output")).headOption)
+      initLogFile <- OptionT.fromOption[Future](stagingBucketObjects.find(_.value.endsWith("dataproc-initialization-script-0_output")))
       initContent <- OptionT(googleStorageDAO.getObject(stagingBucketName, initLogFile))
       initDownloadFile <- OptionT.pure[Future, File](downloadLogFile(initContent, new File(initLogFile.value).getName))
-      startupLogFile <- OptionT.fromOption[Future](stagingBucketObjects.filter(_.value.endsWith("dataproc-startup-script_output")).headOption)
+      startupLogFile <- OptionT.fromOption[Future](stagingBucketObjects.find(_.value.endsWith("dataproc-startup-script_output")))
       startupContent <- OptionT(googleStorageDAO.getObject(stagingBucketName, startupLogFile))
       startupDownloadFile <- OptionT.pure[Future, File](downloadLogFile(startupContent, new File(startupLogFile.value).getName))
     } yield (initDownloadFile, startupDownloadFile)
