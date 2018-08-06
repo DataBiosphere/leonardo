@@ -183,7 +183,7 @@ trait ClusterComponent extends LeoComponent {
     }
 
     private[leonardo] def getIdByUniqueKey(cluster: Cluster): DBIO[Option[Long]] = {
-      getIdByUniqueKey(cluster.googleProject, cluster.clusterName, cluster.destroyedDate)
+      getIdByUniqueKey(cluster.googleProject, cluster.clusterName, cluster.auditInfo.destroyedDate)
     }
 
     private[leonardo] def getIdByUniqueKey(googleProject: GoogleProject,
@@ -195,7 +195,7 @@ trait ClusterComponent extends LeoComponent {
     // Convenience method for tests, in several of which we define a cluster and later on need
     // to retrieve its updated status, etc. but don't know its id to look up
     private[leonardo] def getClusterByUniqueKey(cluster: Cluster): DBIO[Option[Cluster]] = {
-      getClusterByUniqueKey(cluster.googleProject, cluster.clusterName, cluster.destroyedDate)
+      getClusterByUniqueKey(cluster.googleProject, cluster.clusterName, cluster.auditInfo.destroyedDate)
     }
 
     private[leonardo] def getClusterByUniqueKey(googleProject: GoogleProject,
@@ -320,14 +320,14 @@ trait ClusterComponent extends LeoComponent {
       ClusterRecord(
         id = 0,    // DB AutoInc
         cluster.clusterName.value,
-        cluster.googleId,
+        cluster.dataprocInfo.googleId,
         cluster.googleProject.value,
-        cluster.operationName.map(_.value),
+        cluster.dataprocInfo.operationName.map(_.value),
         cluster.status.toString,
-        cluster.hostIp map(_.value),
-        cluster.creator.value,
-        Timestamp.from(cluster.createdDate),
-        marshalDestroyedDate(cluster.destroyedDate),
+        cluster.dataprocInfo.hostIp map(_.value),
+        cluster.auditInfo.creator.value,
+        Timestamp.from(cluster.auditInfo.createdDate),
+        marshalDestroyedDate(cluster.auditInfo.destroyedDate),
         cluster.jupyterExtensionUri map(_.toUri),
         cluster.jupyterUserScriptUri map(_.toUri),
         initBucket,
@@ -345,8 +345,8 @@ trait ClusterComponent extends LeoComponent {
           cluster.serviceAccountInfo.notebookServiceAccount.map(_.value),
           serviceAccountKeyId.map(_.value)
         ),
-        cluster.stagingBucket.map(_.value),
-        Timestamp.from(cluster.dateAccessed),
+        cluster.dataprocInfo.stagingBucket.map(_.value),
+        Timestamp.from(cluster.auditInfo.dateAccessed),
         cluster.autopauseThreshold
       )
     }
@@ -396,29 +396,33 @@ trait ClusterComponent extends LeoComponent {
       val serviceAccountInfo = ServiceAccountInfo(
         clusterRecord.serviceAccountInfo.clusterServiceAccount.map(WorkbenchEmail),
         clusterRecord.serviceAccountInfo.notebookServiceAccount.map(WorkbenchEmail))
+      val dataprocInfo = DataprocInfo(
+        clusterRecord.googleId,
+        clusterRecord.operationName.map(OperationName),
+        clusterRecord.stagingBucket map GcsBucketName,
+        clusterRecord.hostIp map IP)
+      val auditInfo = AuditInfo(
+        WorkbenchEmail(clusterRecord.creator),
+        clusterRecord.createdDate.toInstant,
+        unmarshalDestroyedDate(clusterRecord.destroyedDate),
+        clusterRecord.dateAccessed.toInstant)
 
       Cluster(
         clusterRecord.id,
         name,
-        clusterRecord.googleId,
         project,
         serviceAccountInfo,
+        dataprocInfo,
+        auditInfo,
         machineConfig,
         Cluster.getClusterUrl(project, name),
-        clusterRecord.operationName.map(OperationName),
         ClusterStatus.withName(clusterRecord.status),
-        clusterRecord.hostIp map IP,
-        WorkbenchEmail(clusterRecord.creator),
-        clusterRecord.createdDate.toInstant,
-        unmarshalDestroyedDate(clusterRecord.destroyedDate),
         labels,
         clusterRecord.jupyterExtensionUri flatMap { parseGcsPath(_).toOption },
         clusterRecord.jupyterUserScriptUri flatMap { parseGcsPath(_).toOption },
-        clusterRecord.stagingBucket map GcsBucketName,
         errors map clusterErrorQuery.unmarshallClusterErrorRecord,
         instanceRecords map ClusterComponent.this.instanceQuery.unmarshalInstance toSet,
         ClusterComponent.this.extensionQuery.unmarshallExtensions(userJupyterExtensionConfig),
-        clusterRecord.dateAccessed.toInstant,
         clusterRecord.autopauseThreshold
       )
     }

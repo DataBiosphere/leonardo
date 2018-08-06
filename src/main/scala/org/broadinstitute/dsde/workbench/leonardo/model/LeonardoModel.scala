@@ -50,29 +50,33 @@ case class ClusterError(errorMessage: String,
                         errorCode: Int,
                         timestamp: Instant)
 
+case class DataprocInfo(googleId: Option[UUID],
+                        operationName: Option[OperationName],
+                        stagingBucket: Option[GcsBucketName],
+                        hostIp: Option[IP])
+
+case class AuditInfo(creator: WorkbenchEmail,
+                     createdDate: Instant,
+                     destroyedDate: Option[Instant],
+                     dateAccessed: Instant)
+
 // The cluster itself
 // Also the API response for "list clusters" and "get active cluster"
 case class Cluster(id: Long = 0, // DB AutoInc
                    clusterName: ClusterName,
-                   googleId: Option[UUID],
                    googleProject: GoogleProject,
                    serviceAccountInfo: ServiceAccountInfo,
+                   dataprocInfo: DataprocInfo,
+                   auditInfo: AuditInfo,
                    machineConfig: MachineConfig,
                    clusterUrl: URL,
-                   operationName: Option[OperationName],
                    status: ClusterStatus,
-                   hostIp: Option[IP],
-                   creator: WorkbenchEmail,
-                   createdDate: Instant,
-                   destroyedDate: Option[Instant],
                    labels: LabelMap,
                    jupyterExtensionUri: Option[GcsPath],
                    jupyterUserScriptUri: Option[GcsPath],
-                   stagingBucket: Option[GcsBucketName],
                    errors: List[ClusterError],
                    instances: Set[Instance],
                    userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
-                   dateAccessed: Instant,
                    autopauseThreshold: Int) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.value}"
   def nonPreemptibleInstances: Set[Instance] = instances.filterNot(_.dataprocRole.contains(SecondaryWorker))
@@ -92,25 +96,19 @@ object Cluster {
              stagingBucket: Option[GcsBucketName] = None): Cluster = {
     Cluster(
       clusterName = clusterName,
-      googleId = operation.map(_.uuid),
       googleProject = googleProject,
       serviceAccountInfo = serviceAccountInfo,
+      dataprocInfo = DataprocInfo(operation.map(_.uuid), operation.map(_.name), stagingBucket, None),
+      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
       machineConfig = machineConfig,
       clusterUrl = getClusterUrl(googleProject, clusterName, clusterUrlBase),
-      operationName = operation.map(_.name),
       status = ClusterStatus.Creating,
-      hostIp = None,
-      creator = userEmail,
-      createdDate = Instant.now(),
-      destroyedDate = None,
       labels = clusterRequest.labels,
       jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
       jupyterUserScriptUri = clusterRequest.jupyterUserScriptUri,
-      stagingBucket = stagingBucket,
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
-      dateAccessed = Instant.now(),
       autopauseThreshold = autopauseThreshold)
   }
   
@@ -280,9 +278,70 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val ClusterErrorFormat = jsonFormat3(ClusterError.apply)
 
-  implicit val ClusterFormat = jsonFormat22(Cluster.apply)
+//  implicit val DataprocInfoFormat = jsonFormat3(DataprocInfo.apply)
+//
+//  implicit val AuditInfoFormat = jsonFormat4(AuditInfo.apply)
+//
+//  implicit val ClusterFormat = jsonFormat17(Cluster.apply)
 
   implicit val DefaultLabelsFormat = jsonFormat6(DefaultLabels.apply)
 
   implicit val ClusterInitValuesFormat = jsonFormat22(ClusterInitValues.apply)
+
+  implicit object Foo extends RootJsonFormat[Cluster] {
+    override def read(json: JsValue): Cluster = {
+      json match {
+        case JsObject(fields: Map[String, JsValue]) =>
+          Cluster(
+            fields("id").convertTo[Long],
+            fields("clusterName").convertTo[ClusterName],
+            fields("googleProject").convertTo[GoogleProject],
+            fields("serviceAccountInfo").convertTo[ServiceAccountInfo],
+            DataprocInfo(fields("googleId").convertTo[Option[UUID]],
+                          fields("operationName").convertTo[Option[OperationName]],
+                          fields("stagingBucket").convertTo[Option[GcsBucketName]],
+                          fields("hostIp").convertTo[Option[IP]]),
+            AuditInfo(fields("creator").convertTo[WorkbenchEmail],
+                      fields("createdDate").convertTo[Instant],
+                      fields("destroyedDate").convertTo[Option[Instant]],
+                      fields("dateAccessed").convertTo[Instant]),
+            fields("machineConfig").convertTo[MachineConfig],
+            fields("clusterUrl").convertTo[URL],
+            fields("status").convertTo[ClusterStatus],
+            fields("labels").convertTo[LabelMap],
+            fields("jupyterExtensionUri").convertTo[Option[GcsPath]],
+            fields("jupyterUserScriptUri").convertTo[Option[GcsPath]],
+            fields("errors").convertTo[List[ClusterError]],
+            fields("instances").convertTo[Set[Instance]],
+            fields("userJupyterExtensionConfig").convertTo[Option[UserJupyterExtensionConfig]],
+            fields("autopauseThreshold").convertTo[Int])
+        case _ => deserializationError("Cluster expected")
+      }
+    }
+
+    override def write(obj: Cluster): JsValue = JsObject(
+      "id" -> obj.id.toJson,
+      "clusterName" -> obj.clusterName.toJson,
+      "googleId" -> obj.dataprocInfo.googleId.toJson,
+      "googleProject" -> obj.googleProject.toJson,
+      "serviceAccountInfo" -> obj.serviceAccountInfo.toJson,
+      "machineConfig" -> obj.machineConfig.toJson,
+      "clusterUrl" -> obj.clusterUrl.toJson,
+      "operationName" -> obj.dataprocInfo.operationName.toJson,
+      "status" -> obj.status.toJson,
+      "hostIp" -> obj.dataprocInfo.hostIp.toJson,
+      "creator" -> obj.auditInfo.creator.toJson,
+      "createdDate" -> obj.auditInfo.createdDate.toJson,
+      "destroyedDate" -> obj.auditInfo.destroyedDate.toJson,
+      "labels" -> obj.labels.toJson,
+      "jupyterExtensionUri" -> obj.jupyterExtensionUri.toJson,
+      "jupyterUserScriptUri" -> obj.jupyterUserScriptUri.toJson,
+      "stagingBucket" -> obj.dataprocInfo.stagingBucket.toJson,
+      "errors" -> obj.errors.toJson,
+      "instances" -> obj.instances.toJson,
+      "userJupyterExtensionConfig" -> obj.userJupyterExtensionConfig.toJson,
+      "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
+      "autopauseThreshold" -> obj.autopauseThreshold.toJson
+    )
+  }
 }

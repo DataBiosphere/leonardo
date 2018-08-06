@@ -4,7 +4,7 @@ import java.time.Instant
 import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ServiceAccountInfo}
+import org.broadinstitute.dsde.workbench.leonardo.model.{AuditInfo, Cluster, DataprocInfo, ServiceAccountInfo}
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
@@ -17,25 +17,19 @@ class InstanceComponentSpec extends TestComponent with FlatSpecLike with CommonT
 
   val c1 = Cluster(
     clusterName = name1,
-    googleId = Option(UUID.randomUUID()),
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
+    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
+    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    operationName = Option(OperationName("op1")),
     status = ClusterStatus.Unknown,
-    hostIp = Some(IP("numbers.and.dots")),
-    creator = userEmail,
-    createdDate = Instant.now(),
-    destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"),
     jupyterExtensionUri = None,
     jupyterUserScriptUri = None,
-    stagingBucket = Some(GcsBucketName("testStagingBucket1")),
     errors = List.empty,
     instances = Set.empty,
     userJupyterExtensionConfig = None,
-    dateAccessed = Instant.now(),
     autopauseThreshold = 0)
 
   "InstanceComponent" should "save and get instances" in isolatedDbTest {
