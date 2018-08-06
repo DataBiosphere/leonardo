@@ -218,7 +218,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG} ] ; then
       log 'Installing Google sign in extension...'
       gsutil cp ${JUPYTER_NOTEBOOK_CONFIG} /etc
-      docker cp /etc/${JUPYTER_GOOGLE_SIGN_IN_JS} ${JUPYTER_SERVER_NAME}:$/etc/jupyter/
+      docker cp /etc/${JUPYTER_NOTEBOOK_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/
     fi
     # If a Jupyter user script was specified, copy it into the jupyter docker container.
     if [ ! -z ${JUPYTER_USER_SCRIPT_URI} ] ; then
