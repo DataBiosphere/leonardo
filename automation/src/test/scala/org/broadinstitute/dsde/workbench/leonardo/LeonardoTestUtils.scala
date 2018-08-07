@@ -157,8 +157,6 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
     // verify with get()
     val creatingCluster = eventually {
-//      verifyCluster(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName,
-//        Seq(ClusterStatus.Creating), clusterRequest, bucketCheck)
       verifyCluster(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName,
         Seq(ClusterStatus.Creating), clusterRequest)
     }(getAfterCreatePatience, implicitly[Position])
