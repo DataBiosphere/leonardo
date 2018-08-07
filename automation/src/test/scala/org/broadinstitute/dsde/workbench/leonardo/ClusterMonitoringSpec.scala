@@ -279,21 +279,21 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
             withNewCluster(project, clusterName, ClusterRequest(Map(), None, Option(bucketPath.toUri)), monitorDelete = false, apiVersion = V2) { cluster =>
               val download = createTempDownloadDirectory()
               withWebDriver(download) { implicit driver =>
-                  withNewNotebook(cluster) { notebookPage =>
-                    notebookPage.executeCell("1+1") shouldBe Some("2")
-                    notebookPage.downloadAsPdf()
-                    val notebookName = notebookPage.currentUrl.substring(notebookPage.currentUrl.lastIndexOf('/') + 1, notebookPage.currentUrl.lastIndexOf('?')).replace(".ipynb", ".pdf")
-                    // sanity check the file downloaded correctly
-                    val downloadFile = new File(download, notebookName)
-                    downloadFile.deleteOnExit()
-                    logger.info(s"download: $downloadFile")
-                    implicit val patienceConfig: PatienceConfig = getAfterCreatePatience
-                    eventually {
-                      assert(downloadFile.exists(), s"Timed out (${patienceConfig.timeout} seconds) waiting for file.exists $downloadFile")
-                      assert(downloadFile.isFile(), s"Timed out (${patienceConfig.timeout} seconds) waiting for file.isFile $downloadFile")
-                    }
+                withNewNotebook(cluster) { notebookPage =>
+                  notebookPage.executeCell("1+1") shouldBe Some("2")
+                  notebookPage.downloadAsPdf()
+                  val notebookName = notebookPage.currentUrl.substring(notebookPage.currentUrl.lastIndexOf('/') + 1, notebookPage.currentUrl.lastIndexOf('?')).replace(".ipynb", ".pdf")
+                  // sanity check the file downloaded correctly
+                  val downloadFile = new File(download, notebookName)
+                  downloadFile.deleteOnExit()
+                  logger.info(s"download: $downloadFile")
+                  implicit val patienceConfig: PatienceConfig = getAfterCreatePatience
+                  eventually {
+                    assert(downloadFile.exists(), s"Timed out (${patienceConfig.timeout} seconds) waiting for file.exists $downloadFile")
+                    assert(downloadFile.isFile(), s"Timed out (${patienceConfig.timeout} seconds) waiting for file.isFile $downloadFile")
                   }
                 }
+              }
             }(ronAuthToken)
           }
         }
