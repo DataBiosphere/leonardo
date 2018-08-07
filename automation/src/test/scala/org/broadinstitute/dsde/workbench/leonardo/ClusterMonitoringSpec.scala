@@ -108,7 +108,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
       }
     }
 
-    "should pause and resume a cluster" in {
+    "should pause and resume a cluster" taggedAs Tags.SmokeTest in {
       withProject { project => implicit token =>
         // Create a cluster
         withNewCluster(project, monitorDelete = false) { cluster =>
@@ -197,7 +197,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
     //Test to check if extensions are installed correctly
     //Using nbtranslate extension from here:
     //https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
-    "should install a single user specified notebook extension" taggedAs Tags.SmokeTest in {
+    "should install a single user specified notebook extension" in {
       withProject { project => implicit token =>
         val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
         withResourceFileInBucket(project, translateExtensionFile, "application/x-gzip") { translateExtensionBucketPath =>
