@@ -4,10 +4,8 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream, File, FileOutputStr
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths}
 import java.nio.file.attribute.PosixFilePermission
-import java.time.Instant
 import java.util.Base64
 
-import akka.http.scaladsl.model.HttpHeader
 import cats.data.OptionT
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
@@ -33,7 +31,6 @@ import org.scalatest.time.{Minutes, Seconds, Span}
 
 import scala.concurrent._
 import scala.concurrent.duration._
-import scala.io.Source
 import scala.language.postfixOps
 import scala.util.{Failure, Random, Success, Try}
 
@@ -186,14 +183,15 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
       // Save the cluster init log file whether or not the cluster created successfully
       implicit val ec: ExecutionContextExecutor = ExecutionContext.global
-      saveDataprocLogFiles(creatingCluster).recover { case e =>
-        logger.error(s"Error occurred saving Dataproc log files for cluster ${creatingCluster.googleProject}/${creatingCluster.clusterName}", e)
-        None
-      }.futureValue match {
-        case Some((initLog, startupLog)) =>
+      saveDataprocLogFiles(creatingCluster).onComplete {
+        case Success(Some((initLog, startupLog))) =>
           logger.info(s"Saved Dataproc init log file for cluster ${creatingCluster.googleProject}/${creatingCluster.clusterName} to ${initLog.getAbsolutePath}")
           logger.info(s"Saved Dataproc startup log file for cluster ${creatingCluster.googleProject}/${creatingCluster.clusterName} to ${startupLog.getAbsolutePath}")
-        case None => logger.warn(s"Could not obtain Dataproc log files for cluster ${creatingCluster.googleProject}/${creatingCluster.clusterName}")
+        case Success(None) =>
+          logger.warn(s"Could not obtain Dataproc log files for cluster ${creatingCluster.googleProject}/${creatingCluster.clusterName}")
+        case Failure(e) =>
+          logger.error(s"Error occurred saving Dataproc log files for cluster ${creatingCluster.googleProject}/${creatingCluster.clusterName}", e)
+          throw e
       }
 
       runningOrErroredCluster.get
