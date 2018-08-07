@@ -31,17 +31,22 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
           val clusterName = ClusterName(clusterNameParam)
 
           path("setCookie") {
-            extractUserInfo { userInfo =>
-              get {
-                // Check the user for ConnectToCluster privileges and set a cookie in the response
-                onSuccess(proxyService.authCheck(userInfo, googleProject, clusterName, ConnectToCluster)) {
-                  setTokenCookie(userInfo, tokenCookieName) {
-                    complete {
-                      logger.debug(s"Successfully set cookie for user $userInfo")
-                      StatusCodes.OK
+            extractUserInfo { userInfoOpt =>
+              userInfoOpt match {
+                case Some(userInfo) =>
+                  get {
+                    // Check the user for ConnectToCluster privileges and set a cookie in the response
+                    onSuccess(proxyService.authCheck(userInfo, googleProject, clusterName, ConnectToCluster)) {
+                      setTokenCookie(userInfo, tokenCookieName) {
+                        complete {
+                          logger.debug(s"Successfully set cookie for user $userInfo")
+                          StatusCodes.OK
+                        }
+                      }
                     }
                   }
-                }
+                case None =>
+                  failWith(AuthorizationError())
               }
             }
           } ~
@@ -63,20 +68,25 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
                 case None => getFromResource("static/notebook_login.html")
               }
             }
-        } ~
-          // No need to lookup the user or consult the auth provider for this endpoint
-          path("invalidateToken") {
-            get {
-              extractToken { token =>
-                complete {
-                  proxyService.invalidateAccessToken(token).map { _ =>
-                    logger.debug(s"Invalidated access token $token")
-                    StatusCodes.OK
+      } ~
+        // No need to lookup the user or consult the auth provider for this endpoint
+        path("invalidateToken") {
+          get {
+            extractToken { tokenOpt =>
+              tokenOpt match {
+                case Some(token) =>
+                  complete {
+                    proxyService.invalidateAccessToken(token).map { _ =>
+                      logger.debug(s"Invalidated access token $token")
+                      StatusCodes.OK
+                    }
                   }
-                }
+                case None =>
+                  failWith(AuthorizationError())
               }
             }
           }
+        }
       }
     }
 
