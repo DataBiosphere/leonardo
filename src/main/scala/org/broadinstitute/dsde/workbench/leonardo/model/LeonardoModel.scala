@@ -278,17 +278,11 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val ClusterErrorFormat = jsonFormat3(ClusterError.apply)
 
-//  implicit val DataprocInfoFormat = jsonFormat3(DataprocInfo.apply)
-//
-//  implicit val AuditInfoFormat = jsonFormat4(AuditInfo.apply)
-//
-//  implicit val ClusterFormat = jsonFormat17(Cluster.apply)
-
   implicit val DefaultLabelsFormat = jsonFormat6(DefaultLabels.apply)
 
   implicit val ClusterInitValuesFormat = jsonFormat22(ClusterInitValues.apply)
 
-  implicit object Foo extends RootJsonFormat[Cluster] {
+  implicit object ClusterFormat extends RootJsonFormat[Cluster] {
     override def read(json: JsValue): Cluster = {
       json match {
         case JsObject(fields: Map[String, JsValue]) =>
