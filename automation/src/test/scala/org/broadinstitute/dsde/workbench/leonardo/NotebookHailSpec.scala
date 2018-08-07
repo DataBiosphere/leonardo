@@ -1,7 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import java.nio.file.Files
+
 import org.broadinstitute.dsde.workbench.ResourceFile
+import org.broadinstitute.dsde.workbench.service.util.Tags
 
 import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
@@ -25,7 +27,7 @@ class NotebookHailSpec extends ClusterFixtureSpec {
 
     // See https://hail.is/docs/stable/tutorials-landing.html
     // Note this is for the stable Hail version (0.1). The tutorial script has changed in Hail 0.2.
-    "should run the Hail tutorial" in { clusterFixture =>
+    "should run the Hail tutorial" taggedAs Tags.SmokeTest in { clusterFixture =>
       val downloadDir = createDownloadDirectory()
       withWebDriver(downloadDir) { implicit driver =>
         uploadDownloadTest(clusterFixture.cluster, hailTutorialUploadFile, 3.minutes, downloadDir) { (uploadFile, downloadFile) =>

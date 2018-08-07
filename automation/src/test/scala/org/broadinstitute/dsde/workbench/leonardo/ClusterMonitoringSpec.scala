@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsObjectName, GcsPath, parseGcsPath}
+import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 
 import scala.util.Try
@@ -196,7 +197,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
     //Test to check if extensions are installed correctly
     //Using nbtranslate extension from here:
     //https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
-    "should install a single user specified notebook extension" in {
+    "should install a single user specified notebook extension" taggedAs Tags.SmokeTest in {
       withProject { project => implicit token =>
         val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
         withResourceFileInBucket(project, translateExtensionFile, "application/x-gzip") { translateExtensionBucketPath =>
@@ -238,7 +239,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
       }
     }
 
-    "should install JupyterLab" in {
+    "should install JupyterLab" taggedAs Tags.SmokeTest in {
       withProject { project => implicit token =>
         withNewCluster(project, request = ClusterRequest(userJupyterExtensionConfig = Some(jupyterLabExtensionClusterRequest))) { cluster =>
           withWebDriver { implicit driver =>
