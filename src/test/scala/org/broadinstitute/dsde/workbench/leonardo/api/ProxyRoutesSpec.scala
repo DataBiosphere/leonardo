@@ -81,15 +81,12 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
     }
   }
 
-  // TODO fix this test
   it should "return a static HTML page for non-cookied requests" in {
     Get(s"/notebooks/$googleProject/$clusterName") ~> leoRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
       val data = responseAs[String]
-      println("API returned " + data)
       data should include ("google-signin-client_id")
-      //responseAs[String] shouldEqual ???
     }
   }
 
