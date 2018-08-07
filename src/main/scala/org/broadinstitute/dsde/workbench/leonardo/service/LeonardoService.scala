@@ -623,7 +623,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     // Fill in templated resources with the given replacements
     val initScriptContent = templateResource(clusterResourcesConfig.initActionsScript, replacements)
     val googleSignInJsContent = templateResource(clusterResourcesConfig.jupyterGoogleSignInJs, replacements)
-    val jupyterNotebookConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookConfig, replacements)
+    val jupyterNotebookConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookConfigUri, replacements)
 
     for {
       // Upload the init script to the bucket
@@ -633,9 +633,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterGoogleSignInJs.value), googleSignInJsContent, "text/plain")
 
       // Update the jupytyer notebook config file
-      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfig.value), jupyterNotebookConfigContent, "text/plain")
+      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value), jupyterNotebookConfigContent, "text/plain")
 
-      // Upload raw files (like certs) to the bucxket
+      // Upload raw files (like certs) to the bucket
       _ <- Future.traverse(filesToUpload)(file => leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(file.getName), file, "text/plain"))
 
       // Upload raw resources (like cluster-docker-compose.yml, site.conf) to the bucket

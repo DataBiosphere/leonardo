@@ -74,7 +74,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterResourcesConfig.jupyterProxySiteConf.value,
     clusterResourcesConfig.jupyterCustomJs.value,
     clusterResourcesConfig.jupyterGoogleSignInJs.value,
-    clusterResourcesConfig.jupyterNotebookConfig.value
+    clusterResourcesConfig.jupyterNotebookConfigUri.value
   ) ++ (
     notebookServiceAccount(project).map(_ => List(ClusterInitValues.serviceAccountCredentialsFilename)).getOrElse(List.empty)
   ) map(name => GcsObjectName(name))

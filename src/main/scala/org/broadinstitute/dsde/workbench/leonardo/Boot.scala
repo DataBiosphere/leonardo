@@ -51,7 +51,7 @@ object Boot extends App with LazyLogging {
     val monitorConfig = config.as[MonitorConfig]("monitor")
     val samConfig = config.as[SamConfig]("sam")
     val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
-    val contentSecurityPolicy = config.as[Option[String]]("jupyterContentSecurityPolicy.contentSecurityPolicy").getOrElse("default-src: 'self'")
+    val contentSecurityPolicy = config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
 
     // we need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")

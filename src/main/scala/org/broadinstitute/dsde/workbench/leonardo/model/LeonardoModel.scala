@@ -206,7 +206,7 @@ case class ClusterInitValues(googleProject: String,
                              jupyterServerExtensions: String,
                              jupyterNbExtensions: String,
                              jupyterCombinedExtensions: String,
-                             jupyterNotebookConfig: String
+                             jupyterNotebookConfigUri: String
                             )
 
 object ClusterInitValues {
@@ -237,7 +237,7 @@ object ClusterInitValues {
       clusterRequest.userJupyterExtensionConfig.map(x => x.serverExtensions.values.mkString(" ")).getOrElse(""),
       clusterRequest.userJupyterExtensionConfig.map(x => x.nbExtensions.values.mkString(" ")).getOrElse(""),
       clusterRequest.userJupyterExtensionConfig.map(x => x.combinedExtensions.values.mkString(" ")).getOrElse(""),
-      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfig.value)).toUri
+      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value)).toUri
     )
 }
 
