@@ -45,7 +45,9 @@ RUN echo "deb $DEBIAN_REPO/debian jessie main"                   > /etc/apt/sour
  && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - \
  && apt-get update \
  && apt-get install -yq --no-install-recommends \
-    google-cloud-sdk
+    google-cloud-sdk \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
 ENV LC_ALL en_US.UTF-8
 
@@ -134,7 +136,14 @@ RUN apt-get update \
  && pip install pandas \
  && pip install seaborn \
  && pip install -U jupyter \
- && pip install google-cloud \
+ && pip install google-api-core==1.3.0 \
+ && pip install google-cloud-bigquery==1.4.0 \
+ && pip install google-cloud-bigquery-datatransfer==0.1.1 \
+ && pip install google-cloud-core==0.28.1 \
+ && pip install google-cloud-datastore==1.7.0 \
+ && pip install google-cloud-resource-manager==0.28.1 \
+ && pip install google-cloud-storage==1.10.0 \
+ && pip install google-auth==1.5.0 \
  && pip install --ignore-installed firecloud==0.16.7 \
  && pip install -U scikit-learn \
  && pip install statsmodels==0.9.0 \
@@ -147,7 +156,9 @@ RUN apt-get update \
  && pip install fastinterval \
  && pip install matplotlib-venn \
  # for jupyter_localize_extension
- && pip install python-datauri
+ && pip install python-datauri \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
 
 # Python 3 Kernel
@@ -162,12 +173,18 @@ RUN apt-get update \
  && pip3 install ipykernel==4.8.2 \
  && python3 -m ipykernel install --name python3 --display-name "Python 3" \
  # python 3 packages
- && pip install numpy==1.15.0 \
- && python -mpip install matplotlib \
- && pip install pandas \
- && pip install seaborn \
+ && pip3 install numpy==1.15.0 \
+ && python3 -mpip install matplotlib \
+ && pip3 install pandas \
+ && pip3 install seaborn \
  && pip3 install python-lzo \
- && pip3 install google-cloud \
+ && pip3 install google-api-core==1.3.0 \
+ && pip3 install google-cloud-bigquery==1.4.0 \
+ && pip3 install google-cloud-bigquery-datatransfer==0.1.1 \
+ && pip3 install google-cloud-core==0.28.1 \
+ && pip3 install google-cloud-datastore==1.7.0 \
+ && pip3 install google-cloud-resource-manager==0.28.1 \
+ && pip3 install google-cloud-storage==1.10.0 \
  && pip3 install --ignore-installed firecloud==0.16.7 \
  && pip3 install -U scikit-learn \
  && pip3 install statsmodels==0.9.0 \
@@ -178,7 +195,9 @@ RUN apt-get update \
  && pip3 install biopython \
  && pip3 install bx-python \
  && pip3 install fastinterval \
- && pip3 install matplotlib-venn
+ && pip3 install matplotlib-venn \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
 # make pip install to a user directory, instead of a system directory which requires root.
 # this is useful so `pip install` commands can be run in the context of a notebook.
@@ -200,7 +219,9 @@ RUN apt-get update \
     gcc \
     libcurl4-openssl-dev \
     libssl-dev \
-    libxml2-dev
+    libxml2-dev \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
 RUN R -e 'install.packages(c( \
     "IRdisplay",  \

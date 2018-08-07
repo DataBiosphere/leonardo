@@ -329,9 +329,9 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   }
 
   def verifyNotebookCredentials(notebookPage: NotebookPage, expectedEmail: WorkbenchEmail): Unit = {
-    // verify oauth2client
-    notebookPage.executeCell("from oauth2client.client import GoogleCredentials") shouldBe None
-    notebookPage.executeCell("credentials = GoogleCredentials.get_application_default()") shouldBe None
+    // verify google-auth
+    notebookPage.executeCell("import google.auth") shouldBe None
+    notebookPage.executeCell("credentials, project_id = google.auth.default()") shouldBe None
     notebookPage.executeCell("print credentials._service_account_email") shouldBe Some(expectedEmail.value)
 
     // verify FISS
@@ -350,10 +350,10 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   // TODO: is there a way to check the cluster credentials on the metadata server?
   def verifyNoNotebookCredentials(notebookPage: NotebookPage): Unit = {
-    // verify oauth2client
-    notebookPage.executeCell("from oauth2client.client import GoogleCredentials") shouldBe None
-    notebookPage.executeCell("credentials = GoogleCredentials.get_application_default()") shouldBe None
-    notebookPage.executeCell("print credentials.service_account_email") shouldBe Some("None")
+    // verify google-auth
+    notebookPage.executeCell("import google.auth") shouldBe None
+    notebookPage.executeCell("credentials, project_id = google.auth.default()") shouldBe None
+    notebookPage.executeCell("print credentials.service_account_email") shouldBe Some("default")
 
     // verify FISS
     notebookPage.executeCell("import firecloud.api as fapi") shouldBe None

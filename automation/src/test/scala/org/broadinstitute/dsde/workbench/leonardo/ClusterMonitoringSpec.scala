@@ -162,7 +162,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
           )))
 
           withNewCluster(project, request = request, monitorDelete = false) { cluster =>
-            // Verify a Hail job uses preemptibes
+            // Verify a Hail job uses preemptibles
             withWebDriver { implicit driver =>
               withNewNotebook(cluster) { notebookPage =>
                 verifyHailImport(notebookPage, destPath, cluster.clusterName)
