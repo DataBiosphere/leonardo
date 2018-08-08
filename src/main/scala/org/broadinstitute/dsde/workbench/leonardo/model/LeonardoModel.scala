@@ -278,60 +278,67 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val ClusterInitValuesFormat = jsonFormat20(ClusterInitValues.apply)
 
+
   implicit object ClusterFormat extends RootJsonFormat[Cluster] {
     override def read(json: JsValue): Cluster = {
       json match {
         case JsObject(fields: Map[String, JsValue]) =>
           Cluster(
-            fields("id").convertTo[Long],
-            fields("clusterName").convertTo[ClusterName],
-            fields("googleProject").convertTo[GoogleProject],
-            fields("serviceAccountInfo").convertTo[ServiceAccountInfo],
-            DataprocInfo(fields("googleId").convertTo[Option[UUID]],
-                          fields("operationName").convertTo[Option[OperationName]],
-                          fields("stagingBucket").convertTo[Option[GcsBucketName]],
-                          fields("hostIp").convertTo[Option[IP]]),
-            AuditInfo(fields("creator").convertTo[WorkbenchEmail],
-                      fields("createdDate").convertTo[Instant],
-                      fields("destroyedDate").convertTo[Option[Instant]],
-                      fields("dateAccessed").convertTo[Instant]),
-            fields("machineConfig").convertTo[MachineConfig],
-            fields("clusterUrl").convertTo[URL],
-            fields("status").convertTo[ClusterStatus],
-            fields("labels").convertTo[LabelMap],
-            fields("jupyterExtensionUri").convertTo[Option[GcsPath]],
-            fields("jupyterUserScriptUri").convertTo[Option[GcsPath]],
-            fields("errors").convertTo[List[ClusterError]],
-            fields("instances").convertTo[Set[Instance]],
-            fields("userJupyterExtensionConfig").convertTo[Option[UserJupyterExtensionConfig]],
-            fields("autopauseThreshold").convertTo[Int])
-        case _ => deserializationError("Cluster expected")
+            fields.getOrElse("id", JsNull).convertTo[Long],
+            fields.getOrElse("clusterName", JsNull).convertTo[ClusterName],
+            fields.getOrElse("googleProject", JsNull).convertTo[GoogleProject],
+            fields.getOrElse("serviceAccountInfo", JsNull).convertTo[ServiceAccountInfo],
+            DataprocInfo(fields.getOrElse("googleId", JsNull).convertTo[Option[UUID]],
+                         fields.getOrElse("operationName", JsNull).convertTo[Option[OperationName]],
+                         fields.getOrElse("stagingBucket", JsNull).convertTo[Option[GcsBucketName]],
+                         fields.getOrElse("hostIp", JsNull).convertTo[Option[IP]]),
+            AuditInfo(fields.getOrElse("creator", JsNull).convertTo[WorkbenchEmail],
+                      fields.getOrElse("createdDate", JsNull).convertTo[Instant],
+                      fields.getOrElse("destroyedDate", JsNull).convertTo[Option[Instant]],
+                      fields.getOrElse("dateAccessed", JsNull).convertTo[Instant]),
+            fields.getOrElse("machineConfig", JsNull).convertTo[MachineConfig],
+            fields.getOrElse("clusterUrl", JsNull).convertTo[URL],
+            fields.getOrElse("status", JsNull).convertTo[ClusterStatus],
+            fields.getOrElse("labels", JsNull).convertTo[LabelMap],
+            fields.getOrElse("jupyterExtensionUri", JsNull).convertTo[Option[GcsPath]],
+            fields.getOrElse("jupyterUserScriptUri", JsNull).convertTo[Option[GcsPath]],
+            fields.getOrElse("errors", JsNull).convertTo[List[ClusterError]],
+            fields.getOrElse("instances", JsNull).convertTo[Set[Instance]],
+            fields.getOrElse("userJupyterExtensionConfig", JsNull).convertTo[Option[UserJupyterExtensionConfig]],
+            fields.getOrElse("autopauseThreshold", JsNull).convertTo[Int])
+        case _ => deserializationError("Cluster expected as a JsObject")
       }
     }
 
-    override def write(obj: Cluster): JsValue = JsObject(
-      "id" -> obj.id.toJson,
-      "clusterName" -> obj.clusterName.toJson,
-      "googleId" -> obj.dataprocInfo.googleId.toJson,
-      "googleProject" -> obj.googleProject.toJson,
-      "serviceAccountInfo" -> obj.serviceAccountInfo.toJson,
-      "machineConfig" -> obj.machineConfig.toJson,
-      "clusterUrl" -> obj.clusterUrl.toJson,
-      "operationName" -> obj.dataprocInfo.operationName.toJson,
-      "status" -> obj.status.toJson,
-      "hostIp" -> obj.dataprocInfo.hostIp.toJson,
-      "creator" -> obj.auditInfo.creator.toJson,
-      "createdDate" -> obj.auditInfo.createdDate.toJson,
-      "destroyedDate" -> obj.auditInfo.destroyedDate.toJson,
-      "labels" -> obj.labels.toJson,
-      "jupyterExtensionUri" -> obj.jupyterExtensionUri.toJson,
-      "jupyterUserScriptUri" -> obj.jupyterUserScriptUri.toJson,
-      "stagingBucket" -> obj.dataprocInfo.stagingBucket.toJson,
-      "errors" -> obj.errors.toJson,
-      "instances" -> obj.instances.toJson,
-      "userJupyterExtensionConfig" -> obj.userJupyterExtensionConfig.toJson,
-      "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
-      "autopauseThreshold" -> obj.autopauseThreshold.toJson
-    )
+    override def write(obj: Cluster): JsValue = {
+      val allFields = List(
+        "id" -> obj.id.toJson,
+        "clusterName" -> obj.clusterName.toJson,
+        "googleId" -> obj.dataprocInfo.googleId.toJson,
+        "googleProject" -> obj.googleProject.toJson,
+        "serviceAccountInfo" -> obj.serviceAccountInfo.toJson,
+        "machineConfig" -> obj.machineConfig.toJson,
+        "clusterUrl" -> obj.clusterUrl.toJson,
+        "operationName" -> obj.dataprocInfo.operationName.toJson,
+        "status" -> obj.status.toJson,
+        "hostIp" -> obj.dataprocInfo.hostIp.toJson,
+        "creator" -> obj.auditInfo.creator.toJson,
+        "createdDate" -> obj.auditInfo.createdDate.toJson,
+        "destroyedDate" -> obj.auditInfo.destroyedDate.toJson,
+        "labels" -> obj.labels.toJson,
+        "jupyterExtensionUri" -> obj.jupyterExtensionUri.toJson,
+        "jupyterUserScriptUri" -> obj.jupyterUserScriptUri.toJson,
+        "stagingBucket" -> obj.dataprocInfo.stagingBucket.toJson,
+        "errors" -> obj.errors.toJson,
+        "instances" -> obj.instances.toJson,
+        "userJupyterExtensionConfig" -> obj.userJupyterExtensionConfig.toJson,
+        "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
+        "autopauseThreshold" -> obj.autopauseThreshold.toJson
+      )
+
+      val presentFields = allFields.filter(_._2 != JsNull)
+
+      JsObject(presentFields:_*)
+    }
   }
 }
