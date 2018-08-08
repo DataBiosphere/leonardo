@@ -200,9 +200,11 @@ case class ClusterInitValues(googleProject: String,
                              jupyterCustomJsUri: String,
                              jupyterGoogleSignInJsUri: String,
                              userEmailLoginHint: String,
+                             contentSecurityPolicy: String,
                              jupyterServerExtensions: String,
                              jupyterNbExtensions: String,
-                             jupyterCombinedExtensions: String
+                             jupyterCombinedExtensions: String,
+                             jupyterNotebookConfigUri: String
                             )
 
 object ClusterInitValues {
@@ -210,7 +212,7 @@ object ClusterInitValues {
 
   def apply(googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, dataprocConfig: DataprocConfig,
             clusterFilesConfig: ClusterFilesConfig, clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig,
-            serviceAccountKey: Option[ServiceAccountKey], userEmailLoginHint: WorkbenchEmail): ClusterInitValues =
+            serviceAccountKey: Option[ServiceAccountKey], userEmailLoginHint: WorkbenchEmail, contentSecurityPolicy: String): ClusterInitValues =
     ClusterInitValues(
       googleProject.value,
       clusterName.value,
@@ -229,9 +231,11 @@ object ClusterInitValues {
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterCustomJs.value)).toUri,
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterGoogleSignInJs.value)).toUri,
       userEmailLoginHint.value,
+      contentSecurityPolicy,
       clusterRequest.userJupyterExtensionConfig.map(x => x.serverExtensions.values.mkString(" ")).getOrElse(""),
       clusterRequest.userJupyterExtensionConfig.map(x => x.nbExtensions.values.mkString(" ")).getOrElse(""),
-      clusterRequest.userJupyterExtensionConfig.map(x => x.combinedExtensions.values.mkString(" ")).getOrElse("")
+      clusterRequest.userJupyterExtensionConfig.map(x => x.combinedExtensions.values.mkString(" ")).getOrElse(""),
+      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value)).toUri
     )
 }
 
@@ -276,7 +280,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val DefaultLabelsFormat = jsonFormat6(DefaultLabels.apply)
 
-  implicit val ClusterInitValuesFormat = jsonFormat20(ClusterInitValues.apply)
+
+  implicit val ClusterInitValuesFormat = jsonFormat22(ClusterInitValues.apply)
 
 
   implicit object ClusterFormat extends RootJsonFormat[Cluster] {

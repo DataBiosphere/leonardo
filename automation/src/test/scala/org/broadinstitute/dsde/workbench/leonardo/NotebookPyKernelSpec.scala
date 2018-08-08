@@ -1,6 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.service.Orchestration
+import org.broadinstitute.dsde.workbench.service.util.Tags
+
 import scala.language.postfixOps
 
 class NotebookPyKernelSpec extends ClusterFixtureSpec {
@@ -30,7 +32,7 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec {
       }
     }
 
-    "should execute cells" in { clusterFixture =>
+    "should execute cells" taggedAs Tags.SmokeTest in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster) { notebookPage =>
           notebookPage.executeCell("1+1") shouldBe Some("2")
@@ -72,6 +74,21 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec {
           Thread.sleep(90000)
           val secondApiCall = Leonardo.cluster.get(clusterFixture.billingProject, clusterFixture.cluster.clusterName)
           firstApiCall.dateAccessed should be < secondApiCall.dateAccessed
+        }
+      }
+    }
+
+
+    Seq(Python2, Python3).foreach { kernel =>
+      s"should preinstall google cloud subpackages for ${kernel.string}" in { clusterFixture =>
+        withWebDriver { implicit driver =>
+          withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
+            //all other packages cannot be tested for their versions in this manner
+            //warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
+            notebookPage.executeCell("import warnings; warnings.simplefilter('ignore')\nfrom google.cloud import bigquery\nprint(bigquery.__version__)") shouldBe Some("1.4.0")
+            notebookPage.executeCell("from google.cloud import datastore\nprint(datastore.__version__)") shouldBe Some("1.7.0")
+            notebookPage.executeCell("from google.cloud import storage\nprint(storage.__version__)") shouldBe Some("1.10.0")
+          }
         }
       }
     }

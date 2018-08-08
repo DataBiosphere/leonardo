@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsObjectName, GcsPath, parseGcsPath}
+import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 
 import scala.util.Try
@@ -107,10 +108,10 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
       }
     }
 
-    "should pause and resume a cluster" in {
+    "should pause and resume a cluster" taggedAs Tags.SmokeTest in {
       withProject { project => implicit token =>
         // Create a cluster
-        withNewCluster(project) { cluster =>
+        withNewCluster(project, monitorDelete = false) { cluster =>
           val printStr = "Pause/resume test"
 
           withWebDriver { implicit driver =>
@@ -160,7 +161,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
             numberOfPreemptibleWorkers = Option(10)
           )))
 
-          withNewCluster(project, request = request) { cluster =>
+          withNewCluster(project, request = request, monitorDelete = false) { cluster =>
             // Verify a Hail job uses preemptibes
             withWebDriver { implicit driver =>
               withNewNotebook(cluster) { notebookPage =>
@@ -238,7 +239,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
       }
     }
 
-    "should install JupyterLab" in {
+    "should install JupyterLab" taggedAs Tags.SmokeTest in {
       withProject { project => implicit token =>
         withNewCluster(project, request = ClusterRequest(userJupyterExtensionConfig = Some(jupyterLabExtensionClusterRequest))) { cluster =>
           withWebDriver { implicit driver =>
@@ -264,6 +265,36 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
               // check that the files are immediately at their destinations
               verifyLocalizeDelocalize(cluster, localizeFileName, localizeFileContents, GcsPath(bucketName, GcsObjectName(delocalizeFileName)), delocalizeFileContents, localizeDataFileName, localizeDataContents)
             }
+          }
+        }
+      }
+    }
+
+    "should download file as pdf" in {
+      withProject { project => implicit token =>
+        withNewGoogleBucket(project) { bucketName =>
+          val enablePdfDownloadScript = ResourceFile("bucket-tests/enable_download_as_pdf.sh")
+          withResourceFileInBucket(project, enablePdfDownloadScript, "text/plain") { bucketPath =>            val clusterName = ClusterName("user-script-cluster" + makeRandomId())
+
+            withNewCluster(project, clusterName, ClusterRequest(Map(), None, Option(bucketPath.toUri)), monitorDelete = false) { cluster =>
+              val download = createTempDownloadDirectory()
+              withWebDriver(download) { implicit driver =>
+                withNewNotebook(cluster) { notebookPage =>
+                  notebookPage.executeCell("1+1") shouldBe Some("2")
+                  notebookPage.downloadAsPdf()
+                  val notebookName = notebookPage.currentUrl.substring(notebookPage.currentUrl.lastIndexOf('/') + 1, notebookPage.currentUrl.lastIndexOf('?')).replace(".ipynb", ".pdf")
+                  // sanity check the file downloaded correctly
+                  val downloadFile = new File(download, notebookName)
+                  downloadFile.deleteOnExit()
+                  logger.info(s"download: $downloadFile")
+                  implicit val patienceConfig: PatienceConfig = getAfterCreatePatience
+                  eventually {
+                    assert(downloadFile.exists(), s"Timed out (${patienceConfig.timeout} seconds) waiting for file.exists $downloadFile")
+                    assert(downloadFile.isFile(), s"Timed out (${patienceConfig.timeout} seconds) waiting for file.isFile $downloadFile")
+                  }
+                }
+              }
+            }(ronAuthToken)
           }
         }
       }
