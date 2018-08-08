@@ -3,27 +3,16 @@ package org.broadinstitute.dsde.workbench.leonardo.model
 import java.time.Instant
 import java.util.UUID._
 
-import akka.actor.ActorSystem
-import akka.http.scaladsl.model.Uri.Host
-import akka.pattern.ask
-import akka.testkit.{TestActorRef, TestKit}
-import akka.util.Timeout
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
-import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
+import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData}
+import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
-import org.scalatest.concurrent.{Eventually, ScalaFutures}
-import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
+import org.scalatest.{FlatSpecLike, Matchers}
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest._
 
-import scala.concurrent.duration._
 import spray.json._
 
-//import org.broadinstitute.dsde.leonardo.model.ExecutionJsonSupport._
 
 class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers with CommonTestData with ScalaFutures {
 
