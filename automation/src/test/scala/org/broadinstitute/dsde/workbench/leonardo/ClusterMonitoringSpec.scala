@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsObjectName, GcsPath, parseGcsPath}
+import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 
 import scala.util.Try
@@ -107,7 +108,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
       }
     }
 
-    "should pause and resume a cluster" in {
+    "should pause and resume a cluster" taggedAs Tags.SmokeTest in {
       withProject { project => implicit token =>
         // Create a cluster
         withNewCluster(project, monitorDelete = false) { cluster =>
@@ -238,7 +239,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
       }
     }
 
-    "should install JupyterLab" in {
+    "should install JupyterLab" taggedAs Tags.SmokeTest in {
       withProject { project => implicit token =>
         withNewCluster(project, request = ClusterRequest(userJupyterExtensionConfig = Some(jupyterLabExtensionClusterRequest))) { cluster =>
           withWebDriver { implicit driver =>
