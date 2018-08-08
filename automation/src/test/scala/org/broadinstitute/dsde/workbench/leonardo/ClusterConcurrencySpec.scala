@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
+import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V2
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 
@@ -23,7 +24,7 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
         withNewCluster(project, nameToReuse)(noop)
 
         // create, monitor, delete again with same name
-        withNewCluster(project, nameToReuse)(noop)
+        withNewCluster(project, nameToReuse, apiVersion = V2)(noop)
       }
     }
 
@@ -44,7 +45,7 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
         logger.info(s"${project.value}: should delete a creating cluster")
 
         // delete while the cluster is still creating
-        withNewCluster(project, monitorCreate = false, monitorDelete = true)(noop)
+        withNewCluster(project, monitorCreate = false, monitorDelete = true, apiVersion = V2)(noop)
       }
     }
 
@@ -65,7 +66,7 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
       withProject { project => implicit token =>
         logger.info(s"${project.value}: should be able to start a stopping cluster")
 
-        withNewCluster(project) { cluster =>
+        withNewCluster(project, apiVersion = V2) { cluster =>
           // start without waiting for stop to complete
           stopCluster(project, cluster.clusterName, monitor = false)
           // TODO: cluster is not _immediately_ startable after stopping. Why?
@@ -93,7 +94,7 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
       withProject { project => implicit token =>
         logger.info(s"${project.value}: should be able to delete a stopping cluster")
         withWebDriver { implicit driver =>
-          withNewCluster(project) { cluster =>
+          withNewCluster(project, apiVersion = V2) { cluster =>
             // delete without waiting for the stop to complete
             stopCluster(cluster.googleProject, cluster.clusterName, monitor = false)
           }

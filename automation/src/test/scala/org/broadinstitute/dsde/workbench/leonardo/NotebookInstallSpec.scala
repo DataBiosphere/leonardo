@@ -1,10 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.io.File
-import java.time.Instant
-
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
+import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V2
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles, GoogleProject}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.service.util.Tags
@@ -58,7 +56,7 @@ class NotebookInstallSpec extends ClusterFixtureSpec {
           val clusterName = ClusterName("user-script-cluster" + makeRandomId())
 
           withWebDriver { implicit driver =>
-            withNewCluster(clusterFixture.billingProject, clusterName, ClusterRequest(Map(), None, Option(userScriptUri)), monitorDelete = false) { cluster =>
+            withNewCluster(clusterFixture.billingProject, clusterName, ClusterRequest(Map(), None, Option(userScriptUri)), monitorDelete = false, apiVersion = V2) { cluster =>
               Thread.sleep(10000)
               withNewNotebook(cluster) { notebookPage =>
                 notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
