@@ -60,7 +60,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val mockPetGoogleDAO: String => GoogleStorageDAO = _ => {
       new MockGoogleStorageDAO
     }
-    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper)
+    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
   }
 
   override def afterAll(): Unit = {
@@ -80,7 +80,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterFilesConfig.jupyterRootCaPem.getName,
     clusterResourcesConfig.jupyterProxySiteConf.value,
     clusterResourcesConfig.jupyterCustomJs.value,
-    clusterResourcesConfig.jupyterGoogleSignInJs.value)
+    clusterResourcesConfig.jupyterGoogleSignInJs.value,
+    clusterResourcesConfig.jupyterNotebookConfigUri.value)
 
   lazy val initFiles = (configFiles ++ serviceAccountCredentialFile).map(GcsObjectName(_))
 
@@ -130,7 +131,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "create and get a cluster" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
-    
+
     // create a cluster
     val clusterCreateResponse = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
 
@@ -150,7 +151,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       stopAfterCreation = Some(true))
 
     leo.processClusterCreationRequest(userInfo, project, name1, clusterRequest).futureValue
-    
+
     eventually {
       val createdCluster = leo.getActiveClusterDetails(userInfo, project, name1).futureValue
 
@@ -170,7 +171,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       createdCluster.destroyedDate shouldBe None
       createdCluster.jupyterExtensionUri shouldBe None
       createdCluster.jupyterUserScriptUri shouldBe None
-      createdCluster.stagingBucket.get.value should startWith (s"leostaging-${name1.value}")
+      createdCluster.stagingBucket.get.value should startWith(s"leostaging-${name1.value}")
       createdCluster.errors shouldBe List()
       createdCluster.instances shouldBe Set()
       createdCluster.userJupyterExtensionConfig shouldBe defined
@@ -294,8 +295,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "throw ClusterNotFoundException for nonexistent clusters" in isolatedDbTest {
-    whenReady( leo.getActiveClusterDetails(userInfo, GoogleProject("nonexistent"), ClusterName("cluster")).failed ) { exc =>
-      exc shouldBe a [ClusterNotFoundException]
+    whenReady(leo.getActiveClusterDetails(userInfo, GoogleProject("nonexistent"), ClusterName("cluster")).failed) { exc =>
+      exc shouldBe a[ClusterNotFoundException]
     }
   }
 
@@ -318,7 +319,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
       eventually {
         // check that the cluster was created
-        gdDAO.clusters should contain key(clusterName)
+        gdDAO.clusters should contain key (clusterName)
       }
 
       // delete the cluster
@@ -338,7 +339,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
       // confirm cluster was created
       eventually {
-        gdDAO.clusters should contain key(clusterName)
+        gdDAO.clusters should contain key (clusterName)
       }
     }
   }
@@ -349,7 +350,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
       new MockGoogleStorageDAO
     }
-    val leoForTest = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), spyProvider, serviceAccountProvider, whitelist, bucketHelper)
+    val leoForTest = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), spyProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
 
     forallClusterCreationMethods(Seq((leoForTest.createCluster _).tupled, (leoForTest.processClusterCreationRequest _).tupled))(Seq(name1, name2)) {
       (creationMethod, clusterName) =>
@@ -369,12 +370,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
             iamDAO.serviceAccountKeys should not contain key(samClient.serviceAccount)
           }
         }
-        
+
         // delete the cluster
         leoForTest.deleteCluster(userInfo, project, clusterName).futureValue
 
         // check that the cluster no longer exists
-        gdDAO.clusters should not contain key (clusterName)
+        gdDAO.clusters should not contain key(clusterName)
         iamDAO.serviceAccountKeys should not contain key(samClient.serviceAccount)
 
         // the cluster has transitioned to the Deleting state (Cluster Monitor will later transition it to Deleted)
@@ -401,7 +402,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
           // check that the cluster was created
           gdDAO.clusters should contain key clusterName
         }
-        
+
         // delete the cluster
         leo.deleteCluster(userInfo, project, clusterName).futureValue
 
@@ -412,7 +413,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "delete a cluster's instances" in isolatedDbTest {
     // check that the cluster does not exist
-    gdDAO.clusters should not contain key (name1)
+    gdDAO.clusters should not contain key(name1)
 
     // create the cluster
     val clusterCreateResponse = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
@@ -430,10 +431,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.deleteCluster(userInfo, project, name1).futureValue
 
     // check that the cluster no longer exists
-    gdDAO.clusters should not contain key (name1)
+    gdDAO.clusters should not contain key(name1)
 
     // check that the instances are still in the DB (they get removed by the ClusterMonitorActor)
-    val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse)) }
+    val instances = dbFutureValue {
+      _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse))
+    }
     instances.toSet shouldBe Set(masterInstance, workerInstance1, workerInstance2)
 
     // ------------------ Grossly repeating above using v2 of the cluster creation API :( ------------------
@@ -444,7 +447,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val workerInstance2V2 = workerInstance2.copy(googleId = BigInt(89012))
 
     // check that the cluster does not exist
-    gdDAO.clusters should not contain key (name2)
+    gdDAO.clusters should not contain key(name2)
 
     // create the cluster
     val clusterCreateResponseV2 =
@@ -454,7 +457,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       // check that the cluster was created
       gdDAO.clusters should contain key name2
     }
-    
+
     // populate some instances for the cluster
     dbFutureValue {
       _.instanceQuery.saveAllForCluster(
@@ -465,24 +468,26 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.deleteCluster(userInfo, project, name2).futureValue
 
     // check that the cluster no longer exists
-    gdDAO.clusters should not contain key (name2)
+    gdDAO.clusters should not contain key(name2)
 
     // check that the instances are still in the DB (they get removed by the ClusterMonitorActor)
-    val instancesV2 = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponseV2)) }
+    val instancesV2 = dbFutureValue {
+      _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponseV2))
+    }
     instancesV2.toSet shouldBe Set(masterInstanceV2, workerInstance1V2, workerInstance2V2)
   }
 
   it should "throw ClusterNotFoundException when deleting non existent clusters" in isolatedDbTest {
-    whenReady( leo.deleteCluster(userInfo, GoogleProject("nonexistent"), ClusterName("cluster")).failed ) { exc =>
-      exc shouldBe a [ClusterNotFoundException]
+    whenReady(leo.deleteCluster(userInfo, GoogleProject("nonexistent"), ClusterName("cluster")).failed) { exc =>
+      exc shouldBe a[ClusterNotFoundException]
     }
   }
 
   it should "initialize bucket with correct files" in isolatedDbTest {
     // create the bucket and add files
-    val bucketName = generateUniqueBucketName(name1.value+"-init")
+    val bucketName = generateUniqueBucketName(name1.value + "-init")
     val bucket = bucketHelper.createInitBucket(project, bucketName, ServiceAccountInfo(None, Some(serviceAccountEmail))).futureValue
-    leo.initializeBucketObjects(userInfo.userEmail, project, name1, bucket, testClusterRequest, Some(serviceAccountKey)).futureValue
+    leo.initializeBucketObjects(userInfo.userEmail, project, name1, bucket, testClusterRequest, Some(serviceAccountKey), contentSecurityPolicy).futureValue
 
     // our bucket should now exist
     storageDAO.buckets should contain key (bucket)
@@ -490,17 +495,17 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val bucketObjects = storageDAO.buckets(bucket).map(_._1).map(objName => GcsPath(bucket, objName))
 
     // check the init files were added to the bucket
-    initFiles.map(initFile => bucketObjects should contain (GcsPath(bucket, initFile)))
+    initFiles.map(initFile => bucketObjects should contain(GcsPath(bucket, initFile)))
 
     // check that the service account key was added to the bucket
-    bucketObjects should contain (GcsPath(bucket, GcsObjectName(ClusterInitValues.serviceAccountCredentialsFilename)))
+    bucketObjects should contain(GcsPath(bucket, GcsObjectName(ClusterInitValues.serviceAccountCredentialsFilename)))
   }
 
   it should "create a firewall rule in a project only once when the first cluster is added" in isolatedDbTest {
     val clusterName2 = ClusterName("test-cluster-2")
 
     // Our google project should have no firewall rules
-    computeDAO.firewallRules should not contain (project, dataprocConfig.firewallRuleName)
+    computeDAO.firewallRules should not contain(project, dataprocConfig.firewallRuleName)
 
     // create the first cluster, this should create a firewall rule in our project
     leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
@@ -519,7 +524,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName2 = ClusterName("test-cluster-2")
 
     // Our google project should have no firewall rules
-    computeDAO.firewallRules should not contain (project, dataprocConfig.firewallRuleName)
+    computeDAO.firewallRules should not contain(project, dataprocConfig.firewallRuleName)
 
     // create the first cluster, this should create a firewall rule in our project
     leo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
@@ -540,7 +545,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "template a script using config values" in isolatedDbTest {
     // Create replacements map
-    val replacements = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail).toJson.asJsObject.fields
+    val replacements = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy).toJson.asJsObject.fields
 
     // Each value in the replacement map will replace it's key in the file being processed
     val result = leo.templateResource(clusterResourcesConfig.initActionsScript, replacements)
@@ -549,7 +554,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val expected =
       s"""|#!/usr/bin/env bash
           |
-          |"${name1.value}"
+        |"${name1.value}"
           |"${project.value}"
           |"${proxyConfig.jupyterProxyDockerImage}"
           |"${jupyterUserScriptUri.toUri}"
@@ -564,7 +569,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "template google_sign_in.js with config values" in isolatedDbTest {
     // Create replacements map
-    val replacements = ClusterInitValues(project, name1, initBucketPath, testClusterRequest, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail).toJson.asJsObject.fields
+    val replacements = ClusterInitValues(project, name1, initBucketPath, testClusterRequest, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy).toJson.asJsObject.fields
 
     // Each value in the replacement map will replace it's key in the file being processed
     val result = leo.templateResource(clusterResourcesConfig.jupyterGoogleSignInJs, replacements)
@@ -649,7 +654,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName3 = ClusterName("test-cluster-3")
     val cluster3 = leo.createCluster(userInfo, project, clusterName3, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
-    dbFutureValue { _.clusterQuery.completeDeletion(cluster3.id) }
+    dbFutureValue {
+      _.clusterQuery.completeDeletion(cluster3.id)
+    }
 
     leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
     leo.listClusters(userInfo, Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
@@ -680,7 +687,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     cluster3 = leo.processClusterCreationRequest(userInfo, project, clusterName3, testClusterRequest3).futureValue
 
     eventually {
-      dbFutureValue { _.clusterQuery.completeDeletion(cluster3.id) }
+      dbFutureValue {
+        _.clusterQuery.completeDeletion(cluster3.id)
+      }
 
       leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
       leo.listClusters(userInfo, Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
@@ -701,7 +710,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.listClusters(userInfo, Map("foo" -> "bar", "bam" -> "yes", "vcf" -> "no")).futureValue.toSet shouldBe Set(cluster1)
     leo.listClusters(userInfo, Map("a" -> "b")).futureValue.toSet shouldBe Set(cluster2)
     leo.listClusters(userInfo, Map("foo" -> "bar", "baz" -> "biz")).futureValue.toSet shouldBe Set.empty
-    leo.listClusters(userInfo, Map("A" -> "B")).futureValue.toSet shouldBe Set(cluster2)  // labels are not case sensitive because MySQL
+    leo.listClusters(userInfo, Map("A" -> "B")).futureValue.toSet shouldBe Set(cluster2) // labels are not case sensitive because MySQL
     //Assert that extensions were added as labels as well
     leo.listClusters(userInfo, Map("abc" -> "def", "pqr" -> "pqr", "xyz" -> "xyz")).futureValue.toSet shouldBe Set(cluster1, cluster2)
   }
@@ -755,12 +764,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.listClusters(userInfo, Map("_labels" -> "foo=bar,bam=yes,vcf=no")).futureValue.toSet shouldBe Set(cluster1)
     leo.listClusters(userInfo, Map("_labels" -> "a=b")).futureValue.toSet shouldBe Set(cluster2)
     leo.listClusters(userInfo, Map("_labels" -> "baz=biz")).futureValue.toSet shouldBe Set.empty
-    leo.listClusters(userInfo, Map("_labels" -> "A=B")).futureValue.toSet shouldBe Set(cluster2)   // labels are not case sensitive because MySQL
-    leo.listClusters(userInfo, Map("_labels" -> "foo%3Dbar")).failed.futureValue shouldBe a [ParseLabelsException]
-    leo.listClusters(userInfo, Map("_labels" -> "foo=bar;bam=yes")).failed.futureValue shouldBe a [ParseLabelsException]
-    leo.listClusters(userInfo, Map("_labels" -> "foo=bar,bam")).failed.futureValue shouldBe a [ParseLabelsException]
-    leo.listClusters(userInfo, Map("_labels" -> "bogus")).failed.futureValue shouldBe a [ParseLabelsException]
-    leo.listClusters(userInfo, Map("_labels" -> "a,b")).failed.futureValue shouldBe a [ParseLabelsException]
+    leo.listClusters(userInfo, Map("_labels" -> "A=B")).futureValue.toSet shouldBe Set(cluster2) // labels are not case sensitive because MySQL
+    leo.listClusters(userInfo, Map("_labels" -> "foo%3Dbar")).failed.futureValue shouldBe a[ParseLabelsException]
+    leo.listClusters(userInfo, Map("_labels" -> "foo=bar;bam=yes")).failed.futureValue shouldBe a[ParseLabelsException]
+    leo.listClusters(userInfo, Map("_labels" -> "foo=bar,bam")).failed.futureValue shouldBe a[ParseLabelsException]
+    leo.listClusters(userInfo, Map("_labels" -> "bogus")).failed.futureValue shouldBe a[ParseLabelsException]
+    leo.listClusters(userInfo, Map("_labels" -> "a,b")).failed.futureValue shouldBe a[ParseLabelsException]
   }
 
   it should "list clusters with swagger-style labels, created using v2 API" in isolatedDbTest {
@@ -794,7 +803,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // create the cluster
     val clusterCreateResponse = leo.createCluster(userInfo, project, gdDAO.badClusterName, testClusterRequest).failed.futureValue
 
-    clusterCreateResponse shouldBe a [Exception] // thrown by MockGoogleDataprocDAO
+    clusterCreateResponse shouldBe a[Exception] // thrown by MockGoogleDataprocDAO
 
     // check the firewall rule was created for the project
     computeDAO.firewallRules should contain key (project)
@@ -819,7 +828,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       storageDAO.buckets.keys.find(bucket => bucket.value.contains("leostaging-")).size shouldBe 1
 
       // verify that a corresponding error record was created in DB
-      val errorRecordOpt = dbFutureValue {_.clusterErrorQuery.get(cluster.id)}
+      val errorRecordOpt = dbFutureValue {
+        _.clusterErrorQuery.get(cluster.id)
+      }
 
       errorRecordOpt should have size 1
 
@@ -828,7 +839,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       val expectedErrorMessage = s"Asynchronous creation of cluster '${cluster.clusterName}' on Google project " +
         s"'${cluster.googleProject}' failed"
 
-      errorRecord.errorMessage should startWith (expectedErrorMessage)
+      errorRecord.errorMessage should startWith(expectedErrorMessage)
       errorRecord.errorCode shouldEqual -1
       errorRecord.timestamp should be < Instant.now.plusSeconds(1) // add a sec to prevent approximation errors
     }
@@ -841,12 +852,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   it should "complain if you're not whitelisted" in isolatedDbTest {
     val badUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("badguy"), WorkbenchEmail("dont@whitelist.me"), 0)
     val authExc = leo.isWhitelisted(badUserInfo).failed.futureValue
-    authExc shouldBe a [AuthorizationError]
+    authExc shouldBe a[AuthorizationError]
   }
 
   it should "stop a cluster" in isolatedDbTest {
     // check that the cluster does not exist
-    gdDAO.clusters should not contain key (name1)
+    gdDAO.clusters should not contain key(name1)
 
     // create the cluster
     val clusterCreateResponse = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
@@ -855,10 +866,14 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key name1
 
     // populate some instances for the cluster
-    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2)) }
+    dbFutureValue {
+      _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2))
+    }
 
     // set the cluster to Running
-    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
+    dbFutureValue {
+      _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4"))
+    }
 
     // stop the cluster
     leo.stopCluster(userInfo, project, name1).futureValue
@@ -867,18 +882,22 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key (name1)
 
     // cluster status should be Stopping in the DB
-    dbFutureValue { _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse) }.get.status shouldBe ClusterStatus.Stopping
+    dbFutureValue {
+      _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse)
+    }.get.status shouldBe ClusterStatus.Stopping
 
     // instance status should still be Running in the DB
     // the ClusterMonitorActor is what updates instance status
-    val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse)) }
+    val instances = dbFutureValue {
+      _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse))
+    }
     instances.size shouldBe 3
     instances.map(_.status).toSet shouldBe Set(InstanceStatus.Running)
   }
 
   it should "stop a cluster created via v2 API" in isolatedDbTest {
     // check that the cluster does not exist
-    gdDAO.clusters should not contain key (name1)
+    gdDAO.clusters should not contain key(name1)
 
     // create the cluster
     val clusterCreateResponse =
@@ -888,13 +907,17 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       // check that the cluster was created
       gdDAO.clusters should contain key name1
     }
-    
+
     // populate some instances for the cluster
-    dbFutureValue {_.instanceQuery.saveAllForCluster(
-        getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2)) }
+    dbFutureValue {
+      _.instanceQuery.saveAllForCluster(
+        getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2))
+    }
 
     // set the cluster to Running
-    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
+    dbFutureValue {
+      _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4"))
+    }
 
     // stop the cluster
     leo.stopCluster(userInfo, project, name1).futureValue
@@ -903,19 +926,23 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key (name1)
 
     // cluster status should be Stopping in the DB
-    val status = dbFutureValue { _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse) }.get.status
+    val status = dbFutureValue {
+      _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse)
+    }.get.status
     status shouldBe ClusterStatus.Stopping
 
     // instance status should still be Running in the DB
     // the ClusterMonitorActor is what updates instance status
-    val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse)) }
+    val instances = dbFutureValue {
+      _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse))
+    }
     instances.size shouldBe 3
     instances.map(_.status).toSet shouldBe Set(InstanceStatus.Running)
   }
 
   it should "start a cluster" in isolatedDbTest {
     // check that the cluster does not exist
-    gdDAO.clusters should not contain key (name1)
+    gdDAO.clusters should not contain key(name1)
 
     // create the cluster
     val clusterCreateResponse = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
@@ -924,8 +951,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key name1
 
     // populate some instances for the cluster and set its status to Stopped
-    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped))) }
-    dbFutureValue { _.clusterQuery.updateClusterStatus(clusterCreateResponse.id, ClusterStatus.Stopped) }
+    dbFutureValue {
+      _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped)))
+    }
+    dbFutureValue {
+      _.clusterQuery.updateClusterStatus(clusterCreateResponse.id, ClusterStatus.Stopped)
+    }
 
     // start the cluster
     leo.startCluster(userInfo, project, name1).futureValue
@@ -934,18 +965,22 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key (name1)
 
     // cluster status should be Starting in the DB
-    dbFutureValue { _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse) }.get.status shouldBe ClusterStatus.Starting
+    dbFutureValue {
+      _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse)
+    }.get.status shouldBe ClusterStatus.Starting
 
     // instance status should still be Stopped in the DB
     // the ClusterMonitorActor is what updates instance status
-    val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse)) }
+    val instances = dbFutureValue {
+      _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse))
+    }
     instances.size shouldBe 3
     instances.map(_.status).toSet shouldBe Set(InstanceStatus.Stopped)
   }
 
   it should "start a cluster created via v2 API" in isolatedDbTest {
     // check that the cluster does not exist
-    gdDAO.clusters should not contain key (name1)
+    gdDAO.clusters should not contain key(name1)
 
     // create the cluster
     val clusterCreateResponse =
@@ -957,8 +992,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
 
     // populate some instances for the cluster and set its status to Stopped
-    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped))) }
-    dbFutureValue { _.clusterQuery.updateClusterStatus(clusterCreateResponse.id, ClusterStatus.Stopped) }
+    dbFutureValue {
+      _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped)))
+    }
+    dbFutureValue {
+      _.clusterQuery.updateClusterStatus(clusterCreateResponse.id, ClusterStatus.Stopped)
+    }
 
     // start the cluster
     leo.startCluster(userInfo, project, name1).futureValue
@@ -967,11 +1006,15 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key (name1)
 
     // cluster status should be Starting in the DB
-    dbFutureValue { _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse) }.get.status shouldBe ClusterStatus.Starting
+    dbFutureValue {
+      _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse)
+    }.get.status shouldBe ClusterStatus.Starting
 
     // instance status should still be Stopped in the DB
     // the ClusterMonitorActor is what updates instance status
-    val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse)) }
+    val instances = dbFutureValue {
+      _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse))
+    }
     instances.size shouldBe 3
     instances.map(_.status).toSet shouldBe Set(InstanceStatus.Stopped)
   }

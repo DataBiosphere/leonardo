@@ -86,7 +86,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val authProvider: LeoAuthProvider,
                       protected val serviceAccountProvider: ServiceAccountProvider,
                       protected val whitelist: Set[String],
-                      protected val bucketHelper: BucketHelper)
+                      protected val bucketHelper: BucketHelper,
+                      protected val contentSecurityPolicy: String)
                      (implicit val executionContext: ExecutionContext,
                       implicit override val system: ActorSystem) extends LazyLogging with Retry {
 
@@ -484,7 +485,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Create the bucket in leo's google project and populate with initialization files.
       // ACLs are granted so the cluster service account can access the bucket at initialization time.
       initBucket <- bucketHelper.createInitBucket(googleProject, initBucketName, serviceAccountInfo)
-      _ <- initializeBucketObjects(userEmail, googleProject, clusterName, initBucket, clusterRequest, serviceAccountKeyOpt)
+      _ <- initializeBucketObjects(userEmail, googleProject, clusterName, initBucket, clusterRequest, serviceAccountKeyOpt, contentSecurityPolicy)
 
       // Create the cluster staging bucket. ACLs are granted so the user/pet can access it.
       stagingBucket <- bucketHelper.createStagingBucket(userEmail, googleProject, stagingBucketName, serviceAccountInfo)
@@ -658,11 +659,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   /* Process the templated cluster init script and put all initialization files in the init bucket */
-  private[service] def initializeBucketObjects(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountKey: Option[ServiceAccountKey]): Future[Unit] = {
+  private[service] def initializeBucketObjects(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountKey: Option[ServiceAccountKey], contentSecurityPolicy: String): Future[Unit] = {
 
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
     val replacements: Map[String, JsValue] = ClusterInitValues(googleProject, clusterName, initBucketName, clusterRequest, dataprocConfig,
-      clusterFilesConfig, clusterResourcesConfig, proxyConfig, serviceAccountKey, userEmail
+      clusterFilesConfig, clusterResourcesConfig, proxyConfig, serviceAccountKey, userEmail, contentSecurityPolicy
     ).toJson.asJsObject.fields
 
     // Raw files to upload to the bucket, no additional processing needed.
@@ -688,6 +689,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     // Fill in templated resources with the given replacements
     val initScriptContent = templateResource(clusterResourcesConfig.initActionsScript, replacements)
     val googleSignInJsContent = templateResource(clusterResourcesConfig.jupyterGoogleSignInJs, replacements)
+    val jupyterNotebookConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookConfigUri, replacements)
 
     for {
       // Upload the init script to the bucket
@@ -695,6 +697,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
       // Upload the googleSignInJs file to the bucket
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterGoogleSignInJs.value), googleSignInJsContent, "text/plain")
+
+      // Update the jupytyer notebook config file
+      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value), jupyterNotebookConfigContent, "text/plain")
 
       // Upload raw files (like certs) to the bucket
       _ <- Future.traverse(filesToUpload)(file => leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(file.getName), file, "text/plain"))

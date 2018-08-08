@@ -245,7 +245,6 @@ RUN R -e 'install.packages(c( \
 # Utilities
 #######################
 
-ADD jupyter_notebook_config.py $JUPYTER_HOME/
 ADD scripts $JUPYTER_HOME/scripts
 ADD custom/jupyter_delocalize.py $JUPYTER_HOME/custom/
 ADD custom/jupyter_localize_extension.py $JUPYTER_HOME/custom/

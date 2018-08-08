@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath}
 import org.broadinstitute.dsde.workbench.service.RestException
+import org.broadinstitute.dsde.workbench.service.util.Tags
 
 import scala.language.postfixOps
 
@@ -12,7 +13,7 @@ class NotebookLocalizeFileSpec extends ClusterFixtureSpec {
 
   "Leonardo notebooks" - {
 
-    "should localize files in async mode" in { clusterFixture =>
+    "should localize files in async mode" taggedAs Tags.SmokeTest in { clusterFixture =>
       val localizeFileName = "localize_async.txt"
       val localizeFileContents = "Async localize test"
       val delocalizeFileName = "delocalize_async.txt"

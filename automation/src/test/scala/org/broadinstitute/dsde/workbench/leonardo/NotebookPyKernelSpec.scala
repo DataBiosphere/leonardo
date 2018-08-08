@@ -1,6 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.service.Orchestration
+import org.broadinstitute.dsde.workbench.service.util.Tags
+
 import scala.language.postfixOps
 
 class NotebookPyKernelSpec extends ClusterFixtureSpec {
@@ -30,7 +32,7 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec {
       }
     }
 
-    "should execute cells" in { clusterFixture =>
+    "should execute cells" taggedAs Tags.SmokeTest in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster) { notebookPage =>
           notebookPage.executeCell("1+1") shouldBe Some("2")

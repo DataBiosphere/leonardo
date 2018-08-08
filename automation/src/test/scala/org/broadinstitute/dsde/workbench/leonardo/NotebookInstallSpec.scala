@@ -5,6 +5,7 @@ import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V2
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles, GoogleProject}
 import org.broadinstitute.dsde.workbench.service.Sam
+import org.broadinstitute.dsde.workbench.service.util.Tags
 
 import scala.language.postfixOps
 
@@ -30,7 +31,7 @@ class NotebookInstallSpec extends ClusterFixtureSpec {
     }
 
     // requires a new cluster because we want to pass in a user script in the cluster request
-    "should allow user to create a cluster with a script" in { clusterFixture =>
+    "should allow user to create a cluster with a script" taggedAs Tags.SmokeTest in { clusterFixture =>
       withWebDriver { implicit driver =>
         //a cluster without the user script should not be able to import the arrow library
         withNewNotebook(clusterFixture.cluster) { notebookPage =>
