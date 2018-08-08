@@ -318,7 +318,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   // TODO: is there a way to check the cluster credentials on the metadata server?
   def verifyNoNotebookCredentials(notebookPage: NotebookPage): Unit = {
-    // verify google-auth
+    // verify google-authn
     notebookPage.executeCell("import google.auth") shouldBe None
     notebookPage.executeCell("credentials, project_id = google.auth.default()") shouldBe None
     notebookPage.executeCell("print credentials.service_account_email") shouldBe Some("default")
