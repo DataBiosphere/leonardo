@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
+import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 
 /**
@@ -12,7 +13,7 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
   "Leonardo cluster status transitions" - {
 
     // (create -> wait -> delete -> wait) * 2
-    "should create, monitor, delete, recreate, and re-delete a cluster" in {
+    "should create, monitor, delete, recreate, and re-delete a cluster" taggedAs Tags.SmokeTest in {
       withProject { project => implicit token =>
         logger.info(s"${project.value}: should create, monitor, delete, recreate, and re-delete a cluster")
 

@@ -1,9 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import com.typesafe.scalalogging.LazyLogging
 import org.apache.commons.text.StringEscapeUtils
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.openqa.selenium.{By, WebDriver, WebElement}
 import org.openqa.selenium.interactions.Actions
+import org.scalatest.Assertions
+import org.scalatest.Matchers.convertToAnyShouldWrapper
+import org.scalatest.concurrent.Eventually
+import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
+import org.scalatest.time.{Seconds, Span}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
@@ -11,7 +17,7 @@ import scala.language.postfixOps
 
 
 class NotebookPage(override val url: String)(override implicit val authToken: AuthToken, override implicit val webDriver: WebDriver)
-  extends JupyterPage {
+  extends JupyterPage with Eventually with LazyLogging {
 
   override def open(implicit webDriver: WebDriver): NotebookPage = {
     val page: NotebookPage = super.open.asInstanceOf[NotebookPage]
@@ -49,7 +55,10 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     findAll(submenus).filter { e => e.text == "Cell Type" }.toList.head
   }
   // File -> Download as -> ipynb
-  lazy val downloadSelection: Query = cssSelector("[id='download_ipynb']")
+  lazy val downloadSelectionAsIpynb: Query = cssSelector("[id='download_ipynb']")
+
+  // File -> Download as -> pdf
+  lazy val downloadSelectionAsPdf: Query = cssSelector("[id='download_pdf']")
 
   // File -> Save and Checkpoint
   lazy val saveAndCheckpointSelection: Query = cssSelector("[id='save_checkpoint']")
@@ -97,23 +106,26 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     find(kernelNotification).exists { e => e.text == "No kernel" }
   }
 
-  // is the kernel ready?
-  def isKernelReady: Boolean = {
-    find(kernelNotification).exists { e => e.text == "Kernel ready" }
-  }
-
   def runAllCells(timeout: FiniteDuration = 60 seconds): Unit = {
     click on cellMenu
     click on (await enabled runAllCellsSelection)
-    await condition (!cellsAreRunning, timeout.toSeconds)
+    awaitReadyKernel(timeout)
   }
 
-  def download(): Unit = {
+  def downloadAsIpynb(): Unit = {
     click on fileMenu
     // TODO move to WebBrowser in automation lib so we can instead do:
     // hover over downloadSubMenu
     new Actions(webDriver).moveToElement(downloadSubMenu.underlying).perform()
-    click on (await enabled downloadSelection)
+    click on (await enabled downloadSelectionAsIpynb)
+  }
+
+  def downloadAsPdf(): Unit = {
+    click on fileMenu
+    // TODO move to WebBrowser in automation lib so we can instead do:
+    // hover over downloadSubMenu
+    new Actions(webDriver).moveToElement(downloadSubMenu.underlying).perform()
+    click on (await enabled downloadSelectionAsPdf)
   }
 
   def saveAndCheckpoint(): Unit = {
@@ -139,7 +151,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     val outputs = cell.findElements(By.xpath("../../../..//div[contains(@class,'output_subarea')]"))
     outputs.asScala.headOption.map(_.getText)
   }
-  
+
   def executeCell(code: String, timeout: FiniteDuration = 1 minute): Option[String] = {
     await enabled cells
     val cell = lastCell
@@ -161,7 +173,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     changeCodeToMarkdown
     await enabled cells
     click on translateCell
-    Thread.sleep(3000)
+    Thread.sleep(3000) // To fix, this is not good
     val outputCell = lastCell
     outputCell.getText
   }
@@ -179,28 +191,46 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     await condition isKernelShutdown
   }
 
+  /**
+    * Throw TimeoutException if Kernel is not ready after restart when timeout is reached
+    *
+    * @param timeout
+    */
   def restartKernel(timeout: FiniteDuration = 1 minute): Unit = {
+    logger.info("restarting kernel ...")
     click on kernelMenu
     click on (await enabled restartKernelSelection)
     click on (await enabled restartKernelConfirmationSelection)
-    await condition (isKernelReady, timeout.toSeconds)
-  }
-
-  /**
-    * wait for kernel to become ready. default timeout == 2.minutes
-    */
-  def awaitReadyKernel(timeout: FiniteDuration = 2.minutes): Unit = {
-    await condition (
-      !cellsAreRunning &&
-      find(id("notification_kernel")).exists(_.underlying.getCssValue("display") == "none") &&
-      find(id("kernel_indicator_icon")).exists(_.underlying.getAttribute("class") == "kernel_idle_icon"), timeout.toSeconds
-    )
-    await condition (find(id("kernel_indicator_icon")).exists(_.isDisplayed), 5) // adds little time to check isDisplayed to prevent StaleWebElementException
+    await notVisible restartKernelConfirmationSelection
+    await condition (isKernelReady && kernelNotificationText == "none", timeout.toSeconds)
   }
 
   def clickRunCell(timeout: FiniteDuration = 2.minutes): Unit = {
     click on runCellButton
     awaitReadyKernel(timeout)
+  }
+
+  def awaitReadyKernel(timeout: FiniteDuration = 2.minutes): Unit = {
+    val time = Timeout(scaled(Span(timeout.toSeconds, Seconds)))
+    val pollInterval = Interval(scaled(Span(5, Seconds)))
+    eventually(time, pollInterval) {
+      val ready = (!cellsAreRunning && isKernelReady && kernelNotificationText == "none")
+      Assertions.withClue(s"Jupyter kernel is NOT ready after waiting ${time}.") {
+        ready shouldBe true
+      }
+    }
+  }
+
+  def isKernelDisconnected: Boolean = {
+    find(id("kernel_indicator_icon")).exists(_.underlying.getAttribute("class") == "kernel_disconnected_icon")
+  }
+
+  def isKernelReady: Boolean = {
+    find(id("kernel_indicator_icon")).exists(_.underlying.getAttribute("class") == "kernel_idle_icon")
+  }
+
+  def kernelNotificationText: String = {
+    find(id("notification_kernel")).map(_.underlying.getCssValue("display")).getOrElse("")
   }
 
 }
