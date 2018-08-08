@@ -119,11 +119,14 @@ paths:
             - email
             - profile
 
-  '/api/cluster/{googleProject}/{clusterName}':
-    get:
-      summary: Get details of a Dataproc cluster
-      description: Returns information about an existing Dataproc cluster managed by Leo. Poll this to find out when your cluster has finished starting up.
-      operationId: getCluster
+  '/api/cluster/v2/{googleProject}/{clusterName}':
+    put:
+      summary: Creates a new Dataproc cluster in the given project with the given name.
+      description: |
+        * The request is completed without waiting for the initiation of the cluster's creation on the Google side.
+          This reduces the response time compared with the other version.
+        * Default labels clusterName, googleProject, serviceAccount, and notebookExtension cannot be overridden.
+      operationId: createClusterV2
       tags:
         - cluster
       parameters:
@@ -137,13 +140,23 @@ paths:
           description: clusterName
           required: true
           type: string
+        - in: body
+          description: Request for new cluster
+          name: clusterRequest
+          required: true
+          schema:
+            $ref: '#/definitions/ClusterRequest'
       responses:
-        '200':
-          description: Cluster found, here are the details
+        '202':
+          description: Cluster creation request accepted
           schema:
             $ref: '#/definitions/Cluster'
-        '404':
-          description: Cluster not found
+        '400':
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '409':
+          description: Conflict
           schema:
             $ref: '#/definitions/ErrorReport'
         '500':
@@ -155,6 +168,8 @@ paths:
             - openid
             - email
             - profile
+
+  '/api/cluster/{googleProject}/{clusterName}':
     put:
       summary: Creates a new Dataproc cluster in the given project with the given name
       description: Default labels clusterName, googleProject, serviceAccount, and notebookExtension cannot be overridden.
@@ -189,6 +204,41 @@ paths:
             $ref: '#/definitions/ErrorReport'
         '409':
           description: Conflict
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '500':
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/ErrorReport'
+      security:
+        - googleoauth:
+            - openid
+            - email
+            - profile
+    get:
+      summary: Get details of a Dataproc cluster
+      description: Returns information about an existing Dataproc cluster managed by Leo. Poll this to find out when your cluster has finished starting up.
+      operationId: getCluster
+      tags:
+        - cluster
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          type: string
+        - in: path
+          name: clusterName
+          description: clusterName
+          required: true
+          type: string
+      responses:
+        '200':
+          description: Cluster found, here are the details
+          schema:
+            $ref: '#/definitions/Cluster'
+        '404':
+          description: Cluster not found
           schema:
             $ref: '#/definitions/ErrorReport'
         '500':
@@ -623,7 +673,7 @@ definitions:
           The date and time the cluster was last accessed, in ISO-8601 format.
           Date accessed is defined as the last time the cluster was created, modified, or accessed via the proxy.
       autopauseThreshold:
-        type: int
+        type: integer
         description: The number of minutes of idle time to elapse before the cluster is autopaused. A value of 0 is equivalent to autopause being turned off.
 
   InstanceKey:
@@ -702,7 +752,7 @@ definitions:
         type: boolean
         description: Whether autopause feature is enabled for this specific cluster. If unset, autopause will be enabled and a system default threshold will be used.
       autopauseThreshold:
-        type: int
+        type: integer
         description: The number of minutes of idle time to elapse before the cluster is autopaused. If autopause is set to false, this value is disregarded. A value of 0 is equivalent to autopause being turned off. If autopause is enabled and this is unset, a system default threshold will be used.
 
   ClusterError:

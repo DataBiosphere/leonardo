@@ -6,6 +6,7 @@ import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
+import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V2
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsObjectName, GcsPath, parseGcsPath}
@@ -25,7 +26,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
         val petEmail = getAndVerifyPet(project)
 
         // Create a cluster
-        withNewCluster(project) { cluster =>
+        withNewCluster(project, apiVersion = V2) { cluster =>
           // cluster should have been created with the pet service account
           cluster.serviceAccountInfo.clusterServiceAccount shouldBe Some(petEmail)
           cluster.serviceAccountInfo.notebookServiceAccount shouldBe None
@@ -111,7 +112,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
     "should pause and resume a cluster" taggedAs Tags.SmokeTest in {
       withProject { project => implicit token =>
         // Create a cluster
-        withNewCluster(project, monitorDelete = false) { cluster =>
+        withNewCluster(project, monitorDelete = false, apiVersion = V2) { cluster =>
           val printStr = "Pause/resume test"
 
           withWebDriver { implicit driver =>
@@ -162,7 +163,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
           )))
 
           withNewCluster(project, request = request, monitorDelete = false) { cluster =>
-            // Verify a Hail job uses preemptibes
+            // Verify a Hail job uses preemptibles
             withWebDriver { implicit driver =>
               withNewNotebook(cluster) { notebookPage =>
                 verifyHailImport(notebookPage, destPath, cluster.clusterName)
@@ -221,7 +222,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
         withResourceFileInBucket(project, translateExtensionFile, "application/x-gzip") { translateExtensionBucketPath =>
           val clusterName = ClusterName("user-jupyter-ext" + makeRandomId())
           val extensionConfig = multiExtensionClusterRequest.copy(nbExtensions = multiExtensionClusterRequest.nbExtensions + ("translate" -> translateExtensionBucketPath.toUri))
-          withNewCluster(project, clusterName, ClusterRequest(userJupyterExtensionConfig = Some(extensionConfig))) { cluster =>
+          withNewCluster(project, clusterName, ClusterRequest(userJupyterExtensionConfig = Some(extensionConfig)), apiVersion = V2) { cluster =>
             withWebDriver { implicit driver =>
               withNewNotebook(cluster, Python3) { notebookPage =>
                 //Check if the mark up was translated correctly
@@ -276,7 +277,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
           val enablePdfDownloadScript = ResourceFile("bucket-tests/enable_download_as_pdf.sh")
           withResourceFileInBucket(project, enablePdfDownloadScript, "text/plain") { bucketPath =>            val clusterName = ClusterName("user-script-cluster" + makeRandomId())
 
-            withNewCluster(project, clusterName, ClusterRequest(Map(), None, Option(bucketPath.toUri)), monitorDelete = false) { cluster =>
+            withNewCluster(project, clusterName, ClusterRequest(Map(), None, Option(bucketPath.toUri)), monitorDelete = false, apiVersion = V2) { cluster =>
               val download = createTempDownloadDirectory()
               withWebDriver(download) { implicit driver =>
                 withNewNotebook(cluster) { notebookPage =>
