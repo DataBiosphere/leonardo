@@ -20,7 +20,9 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
 
   val clusters: mutable.Map[ClusterName, Operation] = new TrieMap()
   val badClusterName = ClusterName("badCluster")
-  val errorClusterName = ClusterName("erroredCluster")
+  val errorClusterName1 = ClusterName("erroredCluster1")
+  val errorClusterName2 = ClusterName("erroredCluster2")
+  val errorClusters = Seq(errorClusterName1, errorClusterName2)
 
   private def googleID = UUID.randomUUID()
 
@@ -41,7 +43,7 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
 
   override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] = {
     Future.successful {
-      if (clusters.contains(clusterName) && clusterName == errorClusterName) ClusterStatus.Error
+      if (clusters.contains(clusterName) && errorClusters.contains(clusterName)) ClusterStatus.Error
       else if(clusters.contains(clusterName)) ClusterStatus.Running
       else ClusterStatus.Unknown
     }

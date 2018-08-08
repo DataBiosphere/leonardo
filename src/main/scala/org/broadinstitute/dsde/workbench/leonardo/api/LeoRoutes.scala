@@ -60,7 +60,7 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
                     leonardoService
                       .processClusterCreationRequest(userInfo, GoogleProject(googleProject), ClusterName(clusterName), cluster)
                       .map { cluster =>
-                        StatusCodes.OK -> cluster
+                        StatusCodes.Accepted -> cluster
                       }
                   }
                 }
