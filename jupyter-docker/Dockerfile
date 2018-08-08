@@ -232,7 +232,7 @@ RUN R -e 'install.packages(c( \
     "reshape2",  \
     "bigrquery",  \
     "tidyverse"), \
-    repos="https://cran.mtu.edu")' \
+    repos="http://cran.mtu.edu")' \
  && R -e 'devtools::install_github("IRkernel/IRkernel")' \
  && R -e 'IRkernel::installspec(user=FALSE)' \
  && chown -R $USER:users /home/jupyter-user/.local  \
