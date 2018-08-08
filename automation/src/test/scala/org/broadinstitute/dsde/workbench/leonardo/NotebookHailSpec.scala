@@ -16,7 +16,7 @@ class NotebookHailSpec extends ClusterFixtureSpec {
     val hailUploadFile = ResourceFile(s"diff-tests/import-hail.ipynb")
     val hailTutorialUploadFile = ResourceFile(s"diff-tests/hail-tutorial.ipynb")
 
-    "should upload notebook and verify execution" in { clusterFixture =>
+    "should upload notebook and verify execution" taggedAs Tags.SmokeTest in { clusterFixture =>
       // output for this notebook includes an IP address which can vary
 
       val downloadDir = createDownloadDirectory()
@@ -27,10 +27,10 @@ class NotebookHailSpec extends ClusterFixtureSpec {
 
     // See https://hail.is/docs/stable/tutorials-landing.html
     // Note this is for the stable Hail version (0.1). The tutorial script has changed in Hail 0.2.
-    "should run the Hail tutorial" taggedAs Tags.SmokeTest in { clusterFixture =>
+    "should run the Hail tutorial" in { clusterFixture =>
       val downloadDir = createDownloadDirectory()
       withWebDriver(downloadDir) { implicit driver =>
-        uploadDownloadTest(clusterFixture.cluster, hailTutorialUploadFile, 3.minutes, downloadDir) { (uploadFile, downloadFile) =>
+        uploadDownloadTest(clusterFixture.cluster, hailTutorialUploadFile, 15.minutes, downloadDir) { (uploadFile, downloadFile) =>
           // There are many differences including timestamps, so we can't really compare uploadFile
           // and downloadFile correctly. For now just verify the absence of ClassCastExceptions, which is the
           // issue reported in https://github.com/DataBiosphere/leonardo/issues/222.
