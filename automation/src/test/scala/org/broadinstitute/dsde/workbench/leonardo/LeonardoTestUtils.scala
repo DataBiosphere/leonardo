@@ -181,15 +181,15 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
       // Save the cluster init log file whether or not the cluster created successfully
       implicit val ec: ExecutionContextExecutor = ExecutionContext.global
-      saveDataprocLogFiles(creatingCluster).onComplete {
-        case Success(Some((initLog, startupLog))) =>
+      saveDataprocLogFiles(creatingCluster).recover { case e =>
+        logger.error(s"Error occurred saving Dataproc log files for cluster ${creatingCluster.googleProject}/${creatingCluster.clusterName}", e)
+        throw e
+      }.futureValue match {
+        case Some((initLog, startupLog)) =>
           logger.info(s"Saved Dataproc init log file for cluster ${creatingCluster.googleProject}/${creatingCluster.clusterName} to ${initLog.getAbsolutePath}")
           logger.info(s"Saved Dataproc startup log file for cluster ${creatingCluster.googleProject}/${creatingCluster.clusterName} to ${startupLog.getAbsolutePath}")
-        case Success(None) =>
-          logger.warn(s"Could not obtain Dataproc log files for cluster ${creatingCluster.googleProject}/${creatingCluster.clusterName}")
-        case Failure(e) =>
-          logger.error(s"Error occurred saving Dataproc log files for cluster ${creatingCluster.googleProject}/${creatingCluster.clusterName}", e)
-          throw e
+        case None =>
+          logger.warn(s"Could not obtain Dataproc log files for cluster ${creatingCluster.googleProject}/${creatingCluster.clusterName}"
       }
 
       runningOrErroredCluster.get

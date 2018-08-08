@@ -39,14 +39,6 @@ object Leonardo extends RestClient with LazyLogging {
   }
 
   object cluster {
-    private case class InvalidCreateClusterApiVersionException(googleProject: GoogleProject,
-                                                               clusterName: ClusterName,
-                                                               apiVersion: String)
-      extends LeoException(
-        message = s"Cluster ${googleProject.value}/${clusterName.string} cannot be created " +
-          s"because the API was called with an invalid version: $apiVersion",
-        statusCode = StatusCodes.NotFound)
-
     // TODO: custom JSON deserializer
     // the default doesn't handle some fields correctly so here they're strings
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -121,7 +113,7 @@ object Leonardo extends RestClient with LazyLogging {
 
     def listIncludingDeleted()(implicit token: AuthToken): Seq[Cluster] = {
       val path = "api/clusters?includeDeleted=true"
-
+      logger.info(s"Listing all clusters including deleted: GET /$path")
       handleClusterSeqResponse(parseResponse(getRequest(s"$url/$path")))
     }
 
@@ -140,7 +132,7 @@ object Leonardo extends RestClient with LazyLogging {
 
       // TODO Find and fix the root-cause of why we get successive 404's without this sleep, and remove the sleep
       val sleepTime = 4000
-      logger.info(s"Sleeping for ${sleepTime/2000} seconds before GET'ing /$path...")
+      logger.info(s"Sleeping for ${sleepTime/1000} seconds before GET'ing /$path...")
       Thread sleep sleepTime
 
       val cluster = handleClusterResponse(parseResponse(getRequest(url + path)))
