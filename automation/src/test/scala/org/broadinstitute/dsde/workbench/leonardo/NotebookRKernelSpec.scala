@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import org.broadinstitute.dsde.workbench.service.util.Tags
+
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
@@ -54,7 +56,7 @@ class NotebookRKernelSpec extends ClusterFixtureSpec {
       }
     }
 
-    "should be able to install new R packages" in { clusterFixture =>
+    "should be able to install new R packages" taggedAs Tags.SmokeTest in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
           // httr is a simple http library for R
