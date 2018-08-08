@@ -121,9 +121,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
           iamDAO.serviceAccountKeys should not contain key(samClient.serviceAccount)
         }
 
-        val dbInitBucketOpt = dbFutureValue { dataAccess =>
-          dataAccess.clusterQuery.getInitBucket(project, clusterName)
-        }
+        val dbInitBucketOpt = dbFutureValue { _.clusterQuery.getInitBucket(project, clusterName) }
         dbInitBucketOpt shouldBe 'defined
       }
     }
@@ -330,9 +328,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       creationMethod(userInfo, project, clusterName, testClusterRequest).failed.futureValue shouldBe a[ClusterAlreadyExistsException]
 
       // flip the cluster to Deleted in the database
-      dbFutureValue {
-        _.clusterQuery.completeDeletion(cluster.id)
-      }
+      dbFutureValue { _.clusterQuery.completeDeletion(cluster.id) }
 
       // recreate cluster with same project and cluster name
       creationMethod(userInfo, project, clusterName, testClusterRequest).futureValue
@@ -380,9 +376,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
         // the cluster has transitioned to the Deleting state (Cluster Monitor will later transition it to Deleted)
 
-        dbFutureValue {
-          _.clusterQuery.getActiveClusterByName(project, clusterName)
-        }.map(_.status) shouldBe Some(ClusterStatus.Deleting)
+        dbFutureValue { _.clusterQuery.getActiveClusterByName(project, clusterName) }
+          .map(_.status) shouldBe Some(ClusterStatus.Deleting)
 
         // the auth provider should have not yet been notified of deletion
         verify(spyProvider, never).notifyClusterDeleted(mockitoEq(userInfo.userEmail), mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(clusterName))(any[ExecutionContext])
@@ -422,10 +417,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key name1
 
     // populate some instances for the cluster
-    dbFutureValue {
-      _.instanceQuery.saveAllForCluster(
-        getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2))
-    }
+    dbFutureValue { _.instanceQuery.saveAllForCluster(
+        getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2)) }
 
     // delete the cluster
     leo.deleteCluster(userInfo, project, name1).futureValue
@@ -434,9 +427,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should not contain key(name1)
 
     // check that the instances are still in the DB (they get removed by the ClusterMonitorActor)
-    val instances = dbFutureValue {
-      _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse))
-    }
+    val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse)) }
     instances.toSet shouldBe Set(masterInstance, workerInstance1, workerInstance2)
 
     // ------------------ Grossly repeating above using v2 of the cluster creation API :( ------------------
@@ -459,10 +450,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
 
     // populate some instances for the cluster
-    dbFutureValue {
-      _.instanceQuery.saveAllForCluster(
-        getClusterId(clusterCreateResponseV2), Seq(masterInstanceV2, workerInstance1V2, workerInstance2V2))
-    }
+    dbFutureValue { _.instanceQuery.saveAllForCluster(
+        getClusterId(clusterCreateResponseV2), Seq(masterInstanceV2, workerInstance1V2, workerInstance2V2)) }
 
     // delete the cluster
     leo.deleteCluster(userInfo, project, name2).futureValue
@@ -471,9 +460,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should not contain key(name2)
 
     // check that the instances are still in the DB (they get removed by the ClusterMonitorActor)
-    val instancesV2 = dbFutureValue {
-      _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponseV2))
-    }
+    val instancesV2 = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponseV2)) }
     instancesV2.toSet shouldBe Set(masterInstanceV2, workerInstance1V2, workerInstance2V2)
   }
 
@@ -654,9 +641,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName3 = ClusterName("test-cluster-3")
     val cluster3 = leo.createCluster(userInfo, project, clusterName3, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
-    dbFutureValue {
-      _.clusterQuery.completeDeletion(cluster3.id)
-    }
+    dbFutureValue { _.clusterQuery.completeDeletion(cluster3.id) }
 
     leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
     leo.listClusters(userInfo, Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
@@ -687,9 +672,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     cluster3 = leo.processClusterCreationRequest(userInfo, project, clusterName3, testClusterRequest3).futureValue
 
     eventually {
-      dbFutureValue {
-        _.clusterQuery.completeDeletion(cluster3.id)
-      }
+      dbFutureValue { _.clusterQuery.completeDeletion(cluster3.id) }
 
       leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
       leo.listClusters(userInfo, Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
@@ -828,9 +811,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       storageDAO.buckets.keys.find(bucket => bucket.value.contains("leostaging-")).size shouldBe 1
 
       // verify that a corresponding error record was created in DB
-      val errorRecordOpt = dbFutureValue {
-        _.clusterErrorQuery.get(cluster.id)
-      }
+      val errorRecordOpt = dbFutureValue { _.clusterErrorQuery.get(cluster.id) }
 
       errorRecordOpt should have size 1
 
@@ -866,14 +847,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key name1
 
     // populate some instances for the cluster
-    dbFutureValue {
-      _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2))
-    }
+    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2)) }
 
     // set the cluster to Running
-    dbFutureValue {
-      _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4"))
-    }
+    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
 
     // stop the cluster
     leo.stopCluster(userInfo, project, name1).futureValue
@@ -882,15 +859,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key (name1)
 
     // cluster status should be Stopping in the DB
-    dbFutureValue {
-      _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse)
-    }.get.status shouldBe ClusterStatus.Stopping
+    dbFutureValue { _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse)}.get
+      .status shouldBe ClusterStatus.Stopping
 
     // instance status should still be Running in the DB
     // the ClusterMonitorActor is what updates instance status
-    val instances = dbFutureValue {
-      _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse))
-    }
+    val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse)) }
     instances.size shouldBe 3
     instances.map(_.status).toSet shouldBe Set(InstanceStatus.Running)
   }
@@ -909,15 +883,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
 
     // populate some instances for the cluster
-    dbFutureValue {
-      _.instanceQuery.saveAllForCluster(
-        getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2))
-    }
+    dbFutureValue { _.instanceQuery.saveAllForCluster(
+        getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2)) }
 
     // set the cluster to Running
-    dbFutureValue {
-      _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4"))
-    }
+    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
 
     // stop the cluster
     leo.stopCluster(userInfo, project, name1).futureValue
@@ -926,16 +896,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key (name1)
 
     // cluster status should be Stopping in the DB
-    val status = dbFutureValue {
-      _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse)
-    }.get.status
+    val status = dbFutureValue { _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse) }.get.status
     status shouldBe ClusterStatus.Stopping
 
     // instance status should still be Running in the DB
     // the ClusterMonitorActor is what updates instance status
-    val instances = dbFutureValue {
-      _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse))
-    }
+    val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse)) }
     instances.size shouldBe 3
     instances.map(_.status).toSet shouldBe Set(InstanceStatus.Running)
   }
@@ -951,12 +917,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key name1
 
     // populate some instances for the cluster and set its status to Stopped
-    dbFutureValue {
-      _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped)))
-    }
-    dbFutureValue {
-      _.clusterQuery.updateClusterStatus(clusterCreateResponse.id, ClusterStatus.Stopped)
-    }
+    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped))) }
+    dbFutureValue { _.clusterQuery.updateClusterStatus(clusterCreateResponse.id, ClusterStatus.Stopped) }
 
     // start the cluster
     leo.startCluster(userInfo, project, name1).futureValue
@@ -965,9 +927,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key (name1)
 
     // cluster status should be Starting in the DB
-    dbFutureValue {
-      _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse)
-    }.get.status shouldBe ClusterStatus.Starting
+    dbFutureValue { _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse)}.get
+      .status shouldBe ClusterStatus.Starting
 
     // instance status should still be Stopped in the DB
     // the ClusterMonitorActor is what updates instance status
@@ -992,12 +953,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
 
     // populate some instances for the cluster and set its status to Stopped
-    dbFutureValue {
-      _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped)))
-    }
-    dbFutureValue {
-      _.clusterQuery.updateClusterStatus(clusterCreateResponse.id, ClusterStatus.Stopped)
-    }
+    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped))) }
+    dbFutureValue { _.clusterQuery.updateClusterStatus(clusterCreateResponse.id, ClusterStatus.Stopped) }
 
     // start the cluster
     leo.startCluster(userInfo, project, name1).futureValue
@@ -1006,15 +963,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key (name1)
 
     // cluster status should be Starting in the DB
-    dbFutureValue {
-      _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse)
-    }.get.status shouldBe ClusterStatus.Starting
+    dbFutureValue { _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse) }.get
+      .status shouldBe ClusterStatus.Starting
 
     // instance status should still be Stopped in the DB
     // the ClusterMonitorActor is what updates instance status
-    val instances = dbFutureValue {
-      _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse))
-    }
+    val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse)) }
     instances.size shouldBe 3
     instances.map(_.status).toSet shouldBe Set(InstanceStatus.Stopped)
   }
