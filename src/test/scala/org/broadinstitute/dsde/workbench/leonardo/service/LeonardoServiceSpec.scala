@@ -155,26 +155,26 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
       createdCluster.id.toInt should be > 0
       createdCluster.clusterName shouldEqual name1
-      createdCluster.googleId shouldBe defined
+      createdCluster.dataprocInfo.googleId shouldBe defined
       createdCluster.googleProject shouldBe project
       createdCluster.serviceAccountInfo.clusterServiceAccount shouldBe clusterServiceAccount(project)
       createdCluster.serviceAccountInfo.notebookServiceAccount shouldBe notebookServiceAccount(project)
       createdCluster.machineConfig shouldBe singleNodeDefaultMachineConfig
       createdCluster.clusterUrl.toString shouldBe s"http://leonardo/${project.value}/${name1.value}"
-      createdCluster.operationName shouldBe Some(OperationName("op-name"))
+      createdCluster.dataprocInfo.operationName shouldBe Some(OperationName("op-name"))
       createdCluster.status shouldBe ClusterStatus.Creating
-      createdCluster.hostIp shouldBe None
-      createdCluster.creator shouldBe userEmail
-      createdCluster.createdDate should be < Instant.now
-      createdCluster.destroyedDate shouldBe None
+      createdCluster.dataprocInfo.hostIp shouldBe None
+      createdCluster.auditInfo.creator shouldBe userEmail
+      createdCluster.auditInfo.createdDate should be < Instant.now
+      createdCluster.auditInfo.destroyedDate shouldBe None
       createdCluster.jupyterExtensionUri shouldBe None
       createdCluster.jupyterUserScriptUri shouldBe None
-      createdCluster.stagingBucket.get.value should startWith(s"leostaging-${name1.value}")
+      createdCluster.dataprocInfo.stagingBucket.get.value should startWith(s"leostaging-${name1.value}")
       createdCluster.errors shouldBe List()
       createdCluster.instances shouldBe Set()
       createdCluster.userJupyterExtensionConfig shouldBe defined
-      createdCluster.dateAccessed should be >= createdCluster.createdDate
-      createdCluster.dateAccessed should be < Instant.now
+      createdCluster.auditInfo.dateAccessed should be >= createdCluster.auditInfo.createdDate
+      createdCluster.auditInfo.dateAccessed should be < Instant.now
       createdCluster.autopauseThreshold shouldBe 30
     }
   }
