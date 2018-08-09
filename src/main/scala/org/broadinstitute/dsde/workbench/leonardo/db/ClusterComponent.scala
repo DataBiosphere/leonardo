@@ -260,8 +260,8 @@ trait ClusterComponent extends LeoComponent {
                                          cluster: Cluster): DBIO[Int] = {
       clusterQuery.filter { _.id === cluster.id }
         .map(c => (c.initBucket, c.serviceAccountKeyId, c.googleId, c.operationName, c.stagingBucket, c.dateAccessed))
-        .update(initBucket.map(_.toUri), serviceAccountKey.map(_.id.value), cluster.googleId,
-          cluster.operationName.map(_.value), cluster.stagingBucket.map(_.value), Timestamp.from(Instant.now))
+        .update(initBucket.map(_.toUri), serviceAccountKey.map(_.id.value), cluster.dataprocInfo.googleId,
+          cluster.dataprocInfo.operationName.map(_.value), cluster.dataprocInfo.stagingBucket.map(_.value), Timestamp.from(Instant.now))
     }
 
     def updateClusterStatus(id: Long, newStatus: ClusterStatus): DBIO[Int] = {
