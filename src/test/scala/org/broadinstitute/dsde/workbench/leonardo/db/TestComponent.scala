@@ -35,7 +35,7 @@ trait TestComponent extends Matchers with ScalaFutures with LeoComponent {
   }
 
   protected def getClusterId(cluster: Cluster): Long = {
-    getClusterId(cluster.googleProject, cluster.clusterName, cluster.destroyedDate)
+    getClusterId(cluster.googleProject, cluster.clusterName, cluster.auditInfo.destroyedDate)
   }
 
   protected def getClusterId(googleProject: GoogleProject,

@@ -25,97 +25,73 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     val createdDate, dateAccessed = Instant.now()
     val c1 = Cluster(
       clusterName = name1,
-      googleId = Option(c1UUID),
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
+      dataprocInfo = DataprocInfo(Option(c1UUID), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
+      auditInfo = AuditInfo(userEmail, createdDate, None, dateAccessed),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-      operationName = Option(OperationName("op1")),
       status = ClusterStatus.Unknown,
-      hostIp = Some(IP("numbers.and.dots")),
-      creator = userEmail,
-      createdDate = createdDate,
-      destroyedDate = None,
       labels = Map("bam" -> "yes", "vcf" -> "no"),
       jupyterExtensionUri = None,
       jupyterUserScriptUri = None,
-      stagingBucket = Some(GcsBucketName("testStagingBucket1")),
       errors = List.empty,
       instances = Set(masterInstance, workerInstance1, workerInstance2),
       userJupyterExtensionConfig = Some(userExtConfig),
-      dateAccessed = dateAccessed,
       autopauseThreshold = if (autopause) autopauseThreshold else 0
     )
 
     val c1WithErr = Cluster(
       clusterName = name1,
-      googleId = Option(c1UUID),
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
+      dataprocInfo = DataprocInfo(Option(c1UUID), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
+      auditInfo = AuditInfo(userEmail, createdDate, None, dateAccessed),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, name1),
-      operationName = Option(OperationName("op1")),
       status = ClusterStatus.Unknown,
-      hostIp = Some(IP("numbers.and.dots")),
-      creator = userEmail,
-      createdDate = createdDate,
-      destroyedDate = None,
       labels = Map("bam" -> "yes", "vcf" -> "no"),
       jupyterExtensionUri = None,
       jupyterUserScriptUri = None,
-      stagingBucket = Some(GcsBucketName("testStagingBucket1")),
       errors = List(err1),
       instances = Set(masterInstance, workerInstance1, workerInstance2),
       userJupyterExtensionConfig = Some(userExtConfig),
-      dateAccessed = dateAccessed,
       autopauseThreshold = if (autopause) autopauseThreshold else 0
     )
 
     val c2 = Cluster(
       clusterName = name2,
-      googleId = Option(UUID.randomUUID()),
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
+      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op2")), Some(GcsBucketName("testStagingBucket2")), None),
+      auditInfo = AuditInfo(userEmail, Instant.now(), None, dateAccessed),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
-      operationName = Option(OperationName("op2")),
       status = ClusterStatus.Creating,
-      hostIp = None,
-      creator = userEmail,
-      createdDate = Instant.now(),
-      destroyedDate = None,
       labels = Map.empty,
       jupyterExtensionUri = Some(jupyterExtensionUri),
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      stagingBucket = Some(GcsBucketName("testStagingBucket2")),
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      dateAccessed = dateAccessed,
       autopauseThreshold = if (autopause) autopauseThreshold else 0
     )
 
     val c3 = Cluster(
       clusterName = name3,
-      googleId = Option(UUID.randomUUID()),
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
+      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op3")), Some(GcsBucketName("testStagingBucket3")), None),
+      auditInfo = AuditInfo(userEmail, Instant.now(), None, dateAccessed),
       machineConfig = MachineConfig(Some(3),Some("test-master-machine-type"), Some(500), Some("test-worker-machine-type"), Some(200), Some(2), Some(1)),
       clusterUrl = Cluster.getClusterUrl(project, name3, clusterUrlBase),
-      operationName = Option(OperationName("op3")),
       status = ClusterStatus.Running,
-      hostIp = None,
-      creator = userEmail,
-      createdDate = Instant.now(),
-      destroyedDate = None,
       labels = Map.empty,
       jupyterExtensionUri = Some(jupyterExtensionUri),
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      stagingBucket = Some(GcsBucketName("testStagingBucket3")),
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      dateAccessed = dateAccessed,
       autopauseThreshold = if (autopause) autopauseThreshold else 0
     )
 
@@ -155,25 +131,19 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
     val c4 = Cluster(
       clusterName = c1.clusterName,
-      googleId = Option(UUID.randomUUID()),
       googleProject = c1.googleProject,
       serviceAccountInfo = ServiceAccountInfo(None, Some(WorkbenchEmail("something-new@google.com"))),
+      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op3")), Some(GcsBucketName("testStagingBucket4")), Some(IP("1.2.3.4"))),
+      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(c1.googleProject, c1.clusterName, clusterUrlBase),
-      operationName = Option(OperationName("op3")),
       status = ClusterStatus.Unknown,
-      hostIp = Some(IP("1.2.3.4")),
-      creator = userEmail,
-      createdDate = Instant.now(),
-      destroyedDate = None,
       labels = Map.empty,
       jupyterExtensionUri = Some(jupyterExtensionUri),
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      stagingBucket = Some(GcsBucketName("testStagingBucket4")),
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      dateAccessed = Instant.now(),
       autopauseThreshold = if (autopause) autopauseThreshold else 0)
 
     dbFailure { _.clusterQuery.save(c4, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
@@ -183,93 +153,75 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
     val c1status = dbFutureValue { _.clusterQuery.getClusterById(savedC1.id) }.get
     c1status.status shouldEqual ClusterStatus.Deleting
-    c1status.destroyedDate shouldBe None
-    c1status.hostIp shouldBe None
+    c1status.auditInfo.destroyedDate shouldBe None
+    c1status.dataprocInfo.hostIp shouldBe None
     c1status.instances shouldBe c1.instances
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(savedC2.id) } shouldEqual 1
     dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq(c3)
     val c2status = dbFutureValue { _.clusterQuery.getClusterById(savedC2.id) }.get
     c2status.status shouldEqual ClusterStatus.Deleting
-    c2status.destroyedDate shouldBe None
-    c2status.hostIp shouldBe None
+    c2status.auditInfo.destroyedDate shouldBe None
+    c2status.dataprocInfo.hostIp shouldBe None
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(savedC3.id) } shouldEqual 1
     dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq()
     val c3status = dbFutureValue { _.clusterQuery.getClusterById(savedC3.id) }.get
     c3status.status shouldEqual ClusterStatus.Deleting
-    c3status.destroyedDate shouldBe None
-    c3status.hostIp shouldBe None
+    c3status.auditInfo.destroyedDate shouldBe None
+    c3status.dataprocInfo.hostIp shouldBe None
   }
 
   it should "get by labels" in isolatedDbTest {
     val c1 = Cluster(
       clusterName = name1,
-      googleId = Option(UUID.randomUUID()),
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
+      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
+      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-      operationName = Option(OperationName("op1")),
       status = ClusterStatus.Unknown,
-      hostIp = Some(IP("numbers.and.dots")),
-      creator = userEmail,
-      createdDate = Instant.now(),
-      destroyedDate = None,
       labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
       jupyterExtensionUri = None,
       jupyterUserScriptUri = None,
-      stagingBucket = Some(GcsBucketName("testStagingBucket1")),
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      dateAccessed = Instant.now(),
       autopauseThreshold = if (autopause) autopauseThreshold else 0)
 
     val c2 = Cluster(
       clusterName = name2,
-      googleId = Option(UUID.randomUUID()),
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
+      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op2")), Some(GcsBucketName("testStagingBucket2")), None),
+      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
-      operationName = Option(OperationName("op2")),
       status = ClusterStatus.Running,
-      hostIp = None,
-      creator = userEmail,
-      createdDate = Instant.now(),
-      destroyedDate = None,
       labels = Map.empty,
       jupyterExtensionUri = Some(jupyterExtensionUri),
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      stagingBucket = Some(GcsBucketName("testStagingBucket2")),
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      dateAccessed = Instant.now(),
       autopauseThreshold = if (autopause) autopauseThreshold else 0)
 
     val c3 = Cluster(
       clusterName = name3,
-      googleId = Option(UUID.randomUUID()),
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
+      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op3")), Some(GcsBucketName("testStagingBucket3")), None),
+      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, name3, clusterUrlBase),
-      operationName = Option(OperationName("op3")),
       status = ClusterStatus.Deleted,
-      hostIp = None,
-      creator = userEmail,
-      createdDate = Instant.now(),
-      destroyedDate = None,
       labels = Map("a" -> "b", "bam" -> "yes"),
       jupyterExtensionUri = Some(jupyterExtensionUri),
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      stagingBucket = Some(GcsBucketName("testStagingBucket3")),
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      dateAccessed = Instant.now(),
       autopauseThreshold = if (autopause) autopauseThreshold else 0)
 
     dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual c1
@@ -298,25 +250,19 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     val initialCluster =
       Cluster(
         clusterName = name1,
-        googleId = Option(UUID.randomUUID()),
         googleProject = project,
         serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
+        dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
+        auditInfo = AuditInfo(userEmail, Instant.now(), None, dateAccessed),
         machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
         clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-        operationName = Option(OperationName("op1")),
         status = ClusterStatus.Running,
-        hostIp = Some(IP("numbers.and.dots")),
-        creator = userEmail,
-        createdDate = Instant.now(),
-        destroyedDate = None,
         labels = Map("bam" -> "yes", "vcf" -> "no"),
         jupyterExtensionUri = None,
         jupyterUserScriptUri = None,
-        stagingBucket = Some(GcsBucketName("testStagingBucket1")),
         errors = List.empty,
         instances = Set(masterInstance, workerInstance1, workerInstance2),
         userJupyterExtensionConfig = None,
-        dateAccessed = dateAccessed,
         autopauseThreshold = if (autopause) autopauseThreshold else 0)
 
     val savedInitialCluster = dbFutureValue { _.clusterQuery.save(initialCluster, Option(gcsPath( "gs://bucket1")), Some(serviceAccountKey.id)) }
@@ -326,44 +272,38 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFutureValue { _.clusterQuery.setToStopping(savedInitialCluster.id) } shouldEqual 1
     val stoppedCluster = dbFutureValue { _.clusterQuery.getClusterById(savedInitialCluster.id) }.get
     val expectedStoppedCluster = initialCluster.copy(
-      status = ClusterStatus.Stopping,
-      hostIp = None,
-      dateAccessed = dateAccessed)
-    stoppedCluster.copy(dateAccessed = dateAccessed) shouldEqual expectedStoppedCluster
-    stoppedCluster.dateAccessed should be > initialCluster.dateAccessed
+      dataprocInfo = initialCluster.dataprocInfo.copy(hostIp = None),
+      auditInfo = initialCluster.auditInfo.copy(dateAccessed = dateAccessed),
+      status = ClusterStatus.Stopping)
+    stoppedCluster.copy(auditInfo = stoppedCluster.auditInfo.copy(dateAccessed = dateAccessed)) shouldEqual expectedStoppedCluster
+    stoppedCluster.auditInfo.dateAccessed should be > initialCluster.auditInfo.dateAccessed
 
-    dbFutureValue { _.clusterQuery.setToRunning(savedInitialCluster.id, initialCluster.hostIp.get) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.setToRunning(savedInitialCluster.id, initialCluster.dataprocInfo.hostIp.get) } shouldEqual 1
     val runningCluster = dbFutureValue { _.clusterQuery.getClusterById(savedInitialCluster.id) }.get
     val expectedRunningCluster = initialCluster.copy(
       id = savedInitialCluster.id,
-      dateAccessed = dateAccessed)
-    runningCluster.copy(dateAccessed = dateAccessed) shouldEqual expectedRunningCluster
-    runningCluster.dateAccessed should be > stoppedCluster.dateAccessed
+      auditInfo = initialCluster.auditInfo.copy(dateAccessed = dateAccessed))
+    runningCluster.copy(auditInfo = runningCluster.auditInfo.copy(dateAccessed = dateAccessed)) shouldEqual expectedRunningCluster
+    runningCluster.auditInfo.dateAccessed should be > stoppedCluster.auditInfo.dateAccessed
   }
 
   it should "merge instances" in isolatedDbTest {
     val c1 =
       Cluster(
         clusterName = name1,
-        googleId = Option(UUID.randomUUID()),
         googleProject = project,
         serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
+        dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
+        auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
         machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
         clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-        operationName = Option(OperationName("op1")),
         status = ClusterStatus.Running,
-        hostIp = Some(IP("numbers.and.dots")),
-        creator = userEmail,
-        createdDate = Instant.now(),
-        destroyedDate = None,
         labels = Map("bam" -> "yes", "vcf" -> "no"),
         jupyterExtensionUri = None,
         jupyterUserScriptUri = None,
-        stagingBucket = Some(GcsBucketName("testStagingBucket1")),
         errors = List.empty,
         instances = Set(masterInstance),
         userJupyterExtensionConfig = None,
-        dateAccessed = Instant.now(),
         autopauseThreshold = if (autopause) autopauseThreshold else 0)
 
     val savedC1 = dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) }
@@ -392,71 +332,53 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
   it should "get list of clusters to auto freeze" in isolatedDbTest {
     val runningCluster1 = Cluster(
       clusterName = name1,
-      googleId = Option(UUID.randomUUID()),
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
+      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
+      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now().minus(100, ChronoUnit.DAYS)),
       machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-      operationName = Option(OperationName("op1")),
       status = ClusterStatus.Running,
-      hostIp = Some(IP("numbers.and.dots")),
-      creator = userEmail,
-      createdDate = Instant.now(),
-      destroyedDate = None,
       labels = Map("bam" -> "yes", "vcf" -> "no"),
       jupyterExtensionUri = None,
       jupyterUserScriptUri = None,
-      stagingBucket = Some(GcsBucketName("testStagingBucket1")),
       errors = List.empty,
       instances = Set(masterInstance),
       userJupyterExtensionConfig = None,
-      dateAccessed = Instant.now().minus(100, ChronoUnit.DAYS),
       autopauseThreshold = if (autopause) autopauseThreshold else 0)
 
     val runningCluster2 = Cluster(
       clusterName = name2,
-      googleId = Option(UUID.randomUUID()),
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
+      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op2")), Some(GcsBucketName("testStagingBucket2")), None),
+      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now().minus(100, ChronoUnit.DAYS)),
       machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
-      operationName = Option(OperationName("op2")),
       status = ClusterStatus.Stopped,
-      hostIp = None,
-      creator = userEmail,
-      createdDate = Instant.now(),
-      destroyedDate = None,
       labels = Map.empty,
       jupyterExtensionUri = Some(jupyterExtensionUri),
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      stagingBucket = Some(GcsBucketName("testStagingBucket2")),
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      dateAccessed = Instant.now().minus(100, ChronoUnit.DAYS),
       autopauseThreshold = if (autopause) autopauseThreshold else 0)
 
     val stoppedCluster = Cluster(
       clusterName = name3,
-      googleId = Option(UUID.randomUUID()),
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
+      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op3")), Some(GcsBucketName("testStagingBucket3")), None),
+      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, name3, clusterUrlBase),
-      operationName = Option(OperationName("op3")),
       status = ClusterStatus.Stopped,
-      hostIp = None,
-      creator = userEmail,
-      createdDate = Instant.now(),
-      destroyedDate = None,
       labels = Map.empty,
       jupyterExtensionUri = Some(jupyterExtensionUri),
       jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      stagingBucket = Some(GcsBucketName("testStagingBucket3")),
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      dateAccessed = Instant.now(),
       autopauseThreshold = if (autopause) autopauseThreshold else 0)
 
     dbFutureValue { _.clusterQuery.save(runningCluster1, Some(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual runningCluster1
