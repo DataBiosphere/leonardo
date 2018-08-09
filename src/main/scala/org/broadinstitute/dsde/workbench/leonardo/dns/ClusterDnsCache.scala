@@ -88,19 +88,19 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
   }
 
   private def host(c: Cluster): Host = {
-    val googleId = c.googleId
+    val googleId = c.dataprocInfo.googleId
     val assumption = s"Google ID for Google project/cluster ${c.googleProject}/${c.clusterName} must not be undefined."
     assert(googleId.isDefined, assumption)
 
     Host(googleId.get.toString + proxyConfig.jupyterDomain)
   }
 
-  private def hostToIpEntry(c: Cluster): (Host, IP) = host(c) -> c.hostIp.get
+  private def hostToIpEntry(c: Cluster): (Host, IP) = host(c) -> c.dataprocInfo.hostIp.get
 
   private def projectNameToHostEntry(c: Cluster): ((GoogleProject, ClusterName), GetClusterResponse) = {
     if (c.status.isStartable)
       (c.googleProject, c.clusterName) -> ClusterPaused
-    else if (c.hostIp.isDefined)
+    else if (c.dataprocInfo.hostIp.isDefined)
       (c.googleProject, c.clusterName) -> ClusterReady(host(c))
     else
       (c.googleProject, c.clusterName) -> ClusterNotReady
@@ -108,7 +108,7 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
 
   private def processClusters(clusters: Seq[Cluster]): Unit = {
     // Only populate the HostToIp map for clusters with an IP address
-    val clustersWithIp = clusters.filter(_.hostIp.isDefined)
+    val clustersWithIp = clusters.filter(_.dataprocInfo.hostIp.isDefined)
     ClusterDnsCache.HostToIp = clustersWithIp.map(hostToIpEntry).toMap
 
     // Populate the ProjectNameToHost map with all clusters
@@ -118,13 +118,13 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference) extends Acto
   }
 
   private def processReadyCluster(cluster: Cluster): Either[Throwable, GetClusterResponse] = {
-    if (cluster.hostIp.isEmpty) {
+    if (cluster.dataprocInfo.hostIp.isEmpty) {
       Left(ClusterNotReadyException(cluster.googleProject, cluster.clusterName))
     } else {
       ClusterDnsCache.HostToIp += hostToIpEntry(cluster)
       ProjectNameToHost += projectNameToHostEntry(cluster)
 
-      logger.debug(s"Saved new cluster ${cluster.projectNameString} to DNS cache with IP ${cluster.hostIp.get.value}")
+      logger.debug(s"Saved new cluster ${cluster.projectNameString} to DNS cache with IP ${cluster.dataprocInfo.hostIp.get.value}")
       Right(ProjectNameToHost(cluster.googleProject, cluster.clusterName))
     }
   }
