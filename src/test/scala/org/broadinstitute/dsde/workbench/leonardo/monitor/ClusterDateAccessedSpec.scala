@@ -2,11 +2,12 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import java.time.Instant
 import java.util.UUID
+
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ServiceAccountInfo}
+import org.broadinstitute.dsde.workbench.leonardo.model.{AuditInfo, Cluster, DataprocInfo, ServiceAccountInfo}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, MachineConfig, OperationName}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterDateAccessedActor.UpdateDateAccessed
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
@@ -20,25 +21,19 @@ class ClusterDateAccessedSpec extends TestKit(ActorSystem("leonardotest")) with
 
   val testCluster1 = Cluster(
     clusterName = name1,
-    googleId = Option(UUID.randomUUID()),
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), None),
+    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
     machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
     clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    operationName = Option(OperationName("op1")),
     status = ClusterStatus.Running,
-    hostIp = None,
-    creator = userEmail,
-    createdDate = Instant.now(),
-    destroyedDate = None,
     labels = Map("bam" -> "yes", "vcf" -> "no"),
     jupyterExtensionUri = None,
     jupyterUserScriptUri = None,
-    stagingBucket = Some(GcsBucketName("testStagingBucket1")),
     errors = List.empty,
     instances = Set.empty,
     userJupyterExtensionConfig = Some(userExtConfig),
-    dateAccessed = Instant.now(),
     autopauseThreshold = 0
   )
 
@@ -58,7 +53,7 @@ class ClusterDateAccessedSpec extends TestKit(ActorSystem("leonardotest")) with
     dateAccessedActor ! UpdateDateAccessed(testCluster1.clusterName, testCluster1.googleProject, currentTime)
     eventually(timeout(Span(5, Seconds))) {
       val c1 = dbFutureValue { _.clusterQuery.getClusterById(savedTestCluster1.id) }
-      c1.map(_.dateAccessed).get shouldBe currentTime
+      c1.map(_.auditInfo.dateAccessed).get shouldBe currentTime
     }
   }
 }

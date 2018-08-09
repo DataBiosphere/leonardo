@@ -182,7 +182,7 @@ class ClusterMonitorActor(val cluster: Cluster,
         clusterId flatMap {
           case Some(a) => dataAccess.clusterErrorQuery.save(a, ClusterError(errorDetails.message.getOrElse("Error not available"), errorDetails.code, Instant.now))
           case None => {
-            logger.warn(s"Could not find Id for Cluster ${cluster.projectNameString}  with google cluster ID ${cluster.googleId}.")
+            logger.warn(s"Could not find Id for Cluster ${cluster.projectNameString}  with google cluster ID ${cluster.dataprocInfo.googleId}.")
             DBIOAction.successful(0)
           }
         }
@@ -235,7 +235,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       _ <- dbRef.inTransaction { dataAccess =>
         dataAccess.clusterQuery.completeDeletion(cluster.id)
       }
-      _ <- authProvider.notifyClusterDeleted(cluster.creator, cluster.creator, cluster.googleProject, cluster.clusterName)
+      _ <- authProvider.notifyClusterDeleted(cluster.auditInfo.creator, cluster.auditInfo.creator, cluster.googleProject, cluster.clusterName)
     } yield ShutdownActor()
   }
 
@@ -290,7 +290,7 @@ class ClusterMonitorActor(val cluster: Cluster,
           }
         // Take care we don't fail a Deleting or Stopping cluster if google hasn't updated their status yet
         case Error if clusterStatus != Deleting && clusterStatus != Stopping =>
-          gdDAO.getClusterErrorDetails(cluster.operationName).map {
+          gdDAO.getClusterErrorDetails(cluster.dataprocInfo.operationName).map {
             case Some(errorDetails) => FailedCluster(errorDetails, googleInstances)
             case None => NotReadyCluster(ClusterStatus.Error, googleInstances)
           }
@@ -387,7 +387,7 @@ class ClusterMonitorActor(val cluster: Cluster,
   private def ensureClusterReadyForProxying(ip: IP, clusterStatus: ClusterStatus): Future[Unit] = {
     // Ensure that the cluster's IP has been picked up by the DNS cache and is ready for proxying.
     implicit val timeout: Timeout = Timeout(5 seconds)
-    (clusterDnsCache ? ProcessReadyCluster(cluster.copy(hostIp = Some(ip), status = clusterStatus)))
+    (clusterDnsCache ? ProcessReadyCluster(cluster.copy(dataprocInfo = cluster.dataprocInfo.copy(hostIp = Some(ip)), status = clusterStatus)))
       .mapTo[Either[Throwable, GetClusterResponse]]
       .map {
         case Left(throwable) => throw throwable
