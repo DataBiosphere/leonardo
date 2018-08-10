@@ -32,7 +32,7 @@ trait CorsSupport {
         headers.filter(_.isNot(`Access-Control-Allow-Origin`.lowercaseName)) ++
           Seq(allowOrigin,
             `Access-Control-Allow-Credentials`(true),
-            `Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin"),
+            `Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin", "X-App-Id"),
             `Access-Control-Max-Age`(1728000))
       }
     }
