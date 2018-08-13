@@ -18,7 +18,7 @@ var googleProject = $(googleProject);
 var clusterName = $(clusterName);
 
 // This is refreshed via postMessage from the client app.
-var googleClientId;
+var googleClientId = $(googleClientId);
 
 function receive(event) {
     if (event.data.type == 'bootstrap-auth.response') {

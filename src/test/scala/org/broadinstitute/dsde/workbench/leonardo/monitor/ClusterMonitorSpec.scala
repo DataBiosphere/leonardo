@@ -55,7 +55,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     errors = List.empty,
     instances = Set.empty,
     userJupyterExtensionConfig = Some(userExtConfig),
-    autopauseThreshold = 0)
+    autopauseThreshold = 0,
+    defaultClientId = None)
 
   val deletingCluster = Cluster(
     clusterName = name2,
@@ -72,7 +73,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     errors = List.empty,
     instances = Set(masterInstance, workerInstance1, workerInstance2),
     userJupyterExtensionConfig = None,
-    autopauseThreshold = 0)
+    autopauseThreshold = 0,
+    defaultClientId = None)
 
   val stoppingCluster = Cluster(
     clusterName = name3,
@@ -89,7 +91,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     errors = List.empty,
     instances = Set(masterInstance, workerInstance1, workerInstance2),
     userJupyterExtensionConfig = None,
-    autopauseThreshold = 0)
+    autopauseThreshold = 0,
+    defaultClientId = None)
 
   val startingCluster = Cluster(
     clusterName = name3,
@@ -106,7 +109,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     errors = List.empty,
     instances = Set(masterInstance, workerInstance1, workerInstance2),
     userJupyterExtensionConfig = None,
-    autopauseThreshold = 0)
+    autopauseThreshold = 0,
+    defaultClientId = None)
 
   val clusterInstances = Map(Master -> Set(masterInstance.key),
                              Worker -> Set(workerInstance1.key, workerInstance2.key))

@@ -42,7 +42,8 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
     errors = List.empty,
     instances = Set.empty,
     userJupyterExtensionConfig = Some(userExtConfig),
-    autopauseThreshold = 1
+    autopauseThreshold = 1,
+    defaultClientId = None
   )
 
   override def afterAll(): Unit = {

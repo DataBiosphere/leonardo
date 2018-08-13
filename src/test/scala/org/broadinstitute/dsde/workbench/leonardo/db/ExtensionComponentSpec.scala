@@ -30,7 +30,8 @@ class ExtensionComponentSpec extends TestComponent with FlatSpecLike with Common
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      autopauseThreshold = 0)
+      autopauseThreshold = 0,
+      defaultClientId = None)
 
     val c2 = Cluster(
       clusterName = name2,
@@ -47,7 +48,8 @@ class ExtensionComponentSpec extends TestComponent with FlatSpecLike with Common
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      autopauseThreshold = 0)
+      autopauseThreshold = 0,
+      defaultClientId = None)
 
     val missingId = Random.nextLong()
     dbFutureValue { _.extensionQuery.getAllForCluster(missingId) } shouldEqual UserJupyterExtensionConfig(Map(), Map(), Map())
