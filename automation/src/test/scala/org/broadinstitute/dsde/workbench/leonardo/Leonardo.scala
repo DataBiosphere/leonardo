@@ -92,6 +92,7 @@ object Leonardo extends RestClient with LazyLogging {
       newMapper.readValue(response, classOf[ClusterKluge]).toCluster
     }
 
+
     def handleClusterSeqResponse(response: String): List[Cluster] = {
       // this does not work, due to type erasure
       // mapper.readValue(response, classOf[List[ClusterKluge]])
