@@ -59,7 +59,8 @@ object Leonardo extends RestClient with LazyLogging {
                                     jupyterUserScriptUri: Option[String],
                                     stagingBucket: String,
                                     errors: List[ClusterError],
-                                    dateAccessed: String) {
+                                    dateAccessed: String,
+                                    defaultClientId: Option[String]) {
 
       def toCluster = Cluster(clusterName,
         googleId,
@@ -78,7 +79,8 @@ object Leonardo extends RestClient with LazyLogging {
         jupyterUserScriptUri map (parseGcsPath(_).right.get),
         Some(GcsBucketName(stagingBucket)),
         errors,
-        Instant.parse(dateAccessed)
+        Instant.parse(dateAccessed),
+        defaultClientId
       )
     }
 
@@ -89,6 +91,7 @@ object Leonardo extends RestClient with LazyLogging {
       val newMapper = mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
       newMapper.readValue(response, classOf[ClusterKluge]).toCluster
     }
+
 
     def handleClusterSeqResponse(response: String): List[Cluster] = {
       // this does not work, due to type erasure

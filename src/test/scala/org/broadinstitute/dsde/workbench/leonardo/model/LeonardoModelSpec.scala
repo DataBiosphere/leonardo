@@ -33,7 +33,8 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     errors = List.empty,
     instances = Set.empty,
     userJupyterExtensionConfig = None,
-    autopauseThreshold = 0)
+    autopauseThreshold = 0,
+    defaultClientId = None)
 
 
   it should "serialize/deserialize to/from JSON" in isolatedDbTest {
