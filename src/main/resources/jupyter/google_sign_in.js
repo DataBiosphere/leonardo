@@ -18,7 +18,7 @@ var googleProject = $(googleProject);
 var clusterName = $(clusterName);
 
 // This is refreshed via postMessage from the client app.
-var googleClientId = $(googleClientId);
+var googleClientId = $(defaultClientId);
 console.log(googleClientId);
 
 function receive(event) {
