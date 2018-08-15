@@ -733,7 +733,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   /* Process a string using map of replacement values. Each value in the replacement map replaces it's key in the string. */
   private[service] def template(raw: String, replacementMap: Map[String, String]): String = {
-    replacementMap.foldLeft(raw)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", b._2))
+    replacementMap.foldLeft(raw)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", "\"" + b._2 + "\""))
   }
 
   private[service] def templateFile(file: File, replacementMap: Map[String, String]): String = {
