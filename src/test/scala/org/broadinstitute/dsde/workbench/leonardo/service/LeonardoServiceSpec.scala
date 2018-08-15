@@ -532,7 +532,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "template a script using config values" in isolatedDbTest {
     // Create replacements map
-    val replacements = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy).toJson.asJsObject.fields
+    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy)
+    val replacements: Map[String, String] = clusterInit.getClass.getDeclaredFields.map(_.getName).zip(clusterInit.productIterator.to).toMap.mapValues(_.toString)
 
     // Each value in the replacement map will replace it's key in the file being processed
     val result = leo.templateResource(clusterResourcesConfig.initActionsScript, replacements)
@@ -555,8 +556,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "template google_sign_in.js with config values" in isolatedDbTest {
+
     // Create replacements map
-    val replacements = ClusterInitValues(project, name1, initBucketPath, testClusterRequest, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy).toJson.asJsObject.fields
+    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequest, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy)
+    val replacements: Map[String, String] = clusterInit.getClass.getDeclaredFields.map(_.getName).zip(clusterInit.productIterator.to).toMap.mapValues(_.toString)
 
     // Each value in the replacement map will replace it's key in the file being processed
     val result = leo.templateResource(clusterResourcesConfig.jupyterGoogleSignInJs, replacements)
