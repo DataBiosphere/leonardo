@@ -116,7 +116,7 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
     "should set a default client id if specified" in {
       withProject { project => implicit token =>
         val request = defaultClusterRequest.copy(defaultClientId = Some("this is a client ID"))
-        withNewCluster(project, request = request) { cluster =>
+        withNewCluster(project, request = request, monitorDelete = false) { cluster =>
           cluster.defaultClientId shouldBe Some("this is a client ID")
         }
       }
