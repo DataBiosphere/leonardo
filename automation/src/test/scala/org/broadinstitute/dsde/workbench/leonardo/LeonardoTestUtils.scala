@@ -144,9 +144,11 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     Thread sleep Random.nextInt(30000)
 
     val clusterTimeResult = time(Leonardo.cluster.create(googleProject, clusterName, clusterRequest, apiVersion))
-    logger.info("Time to get cluster create response:" + clusterTimeResult.duration)
-    // TODO Uncomment out the following when the response time is indeed less than 10 seconds
-    // clusterTimeResult.duration should be < tenSeconds
+    logger.info(s"Time it took to get cluster create response with " +
+      s"API version $apiVersion: ${clusterTimeResult.duration}")
+    if (apiVersion == V2) {
+      clusterTimeResult.duration should be < tenSeconds
+    }
 
     // We will verify the create cluster response.
     // We don't want to check bucket for v2 (async) cluster creation API
