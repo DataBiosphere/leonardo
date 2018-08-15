@@ -133,7 +133,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   protected def checkClusterPermission(userInfo: UserInfo, action: NotebookClusterAction, cluster: Cluster, throw401: Boolean = false): Future[Unit] = {
     authProvider.hasNotebookClusterPermission(userInfo, action, cluster.googleProject, cluster.clusterName) map {
       case false =>
-        if( throw401 )
+        logger.warn(s"User ${userInfo.userEmail} does not have the notebook permission for " +
+          s"${cluster.googleProject}/${cluster.clusterName}")
+
+        if (throw401)
           throw AuthorizationError(Option(userInfo.userEmail))
         else
           throw ClusterNotFoundException(cluster.googleProject, cluster.clusterName)
@@ -252,18 +255,31 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
     // and if so, save the cluster creation request parameters in DB
     val attemptToSaveClusterInDb: Future[Cluster] = validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest)
-      .flatMap { _ => dbRef.inTransaction(_.clusterQuery.save(initialClusterToSave)) }
+      .flatMap { _ =>
+        logger.info(s"Attempting to notify the AuthProvider for creation of cluster '$clusterName' " +
+          s"on Google project '$googleProject'...")
+        authProvider.notifyClusterCreated(userEmail, googleProject, clusterName) }
+      .flatMap { _ =>
+        logger.info(s"Successfully notified the AuthProvider for creation of cluster '$clusterName' " +
+          s"on Google project '$googleProject'.")
+
+        dbRef.inTransaction { _.clusterQuery.save(initialClusterToSave) }
+      }
 
     // For the success case, register the following callbacks...
     attemptToSaveClusterInDb foreach { savedInitialCluster =>
+      logger.info(s"Inserted an initial record into the DB for cluster '$clusterName' " +
+        s"on Google project '$googleProject'.")
+
       logger.info(s"Attempting to asynchronously create cluster '$clusterName' " +
-        s"on Google project $googleProject and notify the AuthProvider")
+        s"on Google project '$googleProject'...")
+
       completeClusterCreation(userEmail, savedInitialCluster, augmentedClusterRequest)
         .onComplete {
           case Success(updatedCluster) =>
             logger.info(s"Successfully submitted to Google the request to create cluster " +
-              s"${updatedCluster.clusterName} on Google project ${updatedCluster.googleProject}, " +
-              s"and updated the database accordingly. Will monitor the cluster creation process...")
+              s"'${updatedCluster.clusterName}' on Google project '${updatedCluster.googleProject}', " +
+              s"and updated the database record accordingly. Will monitor the cluster creation process...")
             clusterMonitorSupervisor ! ClusterCreated(updatedCluster, clusterRequest.stopAfterCreation.getOrElse(false))
           case Failure(e) =>
             logger.error(s"Failed the asynchronous portion of the creation of cluster '$clusterName' " +
@@ -286,12 +302,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private def completeClusterCreation(userEmail: WorkbenchEmail,
                                       cluster: Cluster,
                                       clusterRequest: ClusterRequest): Future[Cluster] = {
+    logger.info(s"Submitting to Google the request to create cluster '${cluster.clusterName}' " +
+      s"on Google project '${cluster.googleProject}'...")
+
     for {
-      _ <- authProvider.notifyClusterCreated(userEmail, cluster.googleProject, cluster.clusterName)
-
-      _ = logger.info(s"Successfully notified the AuthProvider for creation of cluster ${cluster.clusterName} " +
-        s"on Google project ${cluster.googleProject}. Submitting the cluster creation request to Google Dataproc...")
-
       (googleCluster, initBucket, serviceAccountKey) <- createGoogleCluster(userEmail, cluster, clusterRequest)
 
       // We overwrite googleCluster.id with the DB-assigned one that was obtained when we first

@@ -130,11 +130,6 @@ object Leonardo extends RestClient with LazyLogging {
     def get(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): Cluster = {
       val path = clusterPath(googleProject, clusterName)
 
-      // TODO Find and fix the root-cause of why we get successive 404's without this sleep, and remove the sleep
-      val sleepTime = 4000
-      logger.info(s"Sleeping for ${sleepTime/1000} seconds before GET'ing /$path...")
-      Thread sleep sleepTime
-
       val cluster = handleClusterResponse(parseResponse(getRequest(url + path)))
       logger.info(s"Get cluster: GET /$path. Response: $cluster")
 
