@@ -207,7 +207,8 @@ case class ClusterInitValues(googleProject: String,
                              jupyterServerExtensions: String,
                              jupyterNbExtensions: String,
                              jupyterCombinedExtensions: String,
-                             jupyterNotebookConfigUri: String
+                             jupyterNotebookConfigUri: String,
+                             defaultClientId: String
                             )
 
 object ClusterInitValues {
@@ -238,7 +239,8 @@ object ClusterInitValues {
       clusterRequest.userJupyterExtensionConfig.map(x => x.serverExtensions.values.mkString(" ")).getOrElse(""),
       clusterRequest.userJupyterExtensionConfig.map(x => x.nbExtensions.values.mkString(" ")).getOrElse(""),
       clusterRequest.userJupyterExtensionConfig.map(x => x.combinedExtensions.values.mkString(" ")).getOrElse(""),
-      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value)).toUri
+      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value)).toUri,
+      clusterRequest.defaultClientId.getOrElse("")
     )
 }
 
@@ -284,7 +286,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val DefaultLabelsFormat = jsonFormat6(DefaultLabels.apply)
 
 
-  implicit val ClusterInitValuesFormat = jsonFormat22(ClusterInitValues.apply)
+ // implicit val ClusterInitValuesFormat = jsonFormat22(ClusterInitValues.apply)
 
 
   implicit object ClusterFormat extends RootJsonFormat[Cluster] {
