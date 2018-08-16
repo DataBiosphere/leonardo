@@ -19,7 +19,6 @@ var clusterName = $(clusterName);
 
 // This is refreshed via postMessage from the client app.
 var googleClientId = $(defaultClientId);
-console.log(googleClientId);
 
 function receive(event) {
     if (event.data.type == 'bootstrap-auth.response') {
