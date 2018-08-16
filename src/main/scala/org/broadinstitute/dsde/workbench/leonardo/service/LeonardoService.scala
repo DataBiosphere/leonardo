@@ -675,12 +675,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   /* Process the templated cluster init script and put all initialization files in the init bucket */
   private[service] def initializeBucketObjects(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountKey: Option[ServiceAccountKey], contentSecurityPolicy: String): Future[Unit] = {
 
-    //
+    // Build a mapping of (name, value) pairs with which to apply templating logic to resources
     val clusterInit = ClusterInitValues(googleProject, clusterName, initBucketName, clusterRequest, dataprocConfig,
       clusterFilesConfig, clusterResourcesConfig, proxyConfig, serviceAccountKey, userEmail, contentSecurityPolicy)
-
-    // Build a mapping of (name, value) pairs with which to apply templating logic to resources
-    val replacements: Map[String, String] = clusterInit.getClass.getDeclaredFields.map(_.getName).zip(clusterInit.productIterator.to).toMap.mapValues(_.toString)
+    val replacements: Map[String, String] = clusterInit.toMap
 
     // Raw files to upload to the bucket, no additional processing needed.
     val filesToUpload = List(
@@ -731,7 +729,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } yield ()
   }
 
-  /* Process a string using map of replacement values. Each value in the replacement map replaces it's key in the string. */
+  // Process a string using map of replacement values. Each value in the replacement map replaces its key in the string.
   private[service] def template(raw: String, replacementMap: Map[String, String]): String = {
     replacementMap.foldLeft(raw)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", "\"" + b._2 + "\""))
   }

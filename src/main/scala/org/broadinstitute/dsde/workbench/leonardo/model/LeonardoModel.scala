@@ -209,7 +209,8 @@ case class ClusterInitValues(googleProject: String,
                              jupyterCombinedExtensions: String,
                              jupyterNotebookConfigUri: String,
                              defaultClientId: String
-                            )
+                            ){
+  def toMap: Map[String, String] = this.getClass.getDeclaredFields.map(_.getName).zip(this.productIterator.to).toMap.mapValues(_.toString)}
 
 object ClusterInitValues {
   val serviceAccountCredentialsFilename = "service-account-credentials.json"
@@ -284,9 +285,6 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val ClusterErrorFormat = jsonFormat3(ClusterError.apply)
 
   implicit val DefaultLabelsFormat = jsonFormat6(DefaultLabels.apply)
-
-
- // implicit val ClusterInitValuesFormat = jsonFormat22(ClusterInitValues.apply)
 
 
   implicit object ClusterFormat extends RootJsonFormat[Cluster] {

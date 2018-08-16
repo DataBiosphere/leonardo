@@ -128,4 +128,17 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     assert(caught.getMessage == "could not deserialize user object")
   }
 
+  it should "create a map of ClusterInitValues object" in isolatedDbTest {
+
+    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy)
+    val clusterInitMap = clusterInit.toMap
+
+    clusterInitMap("googleProject") shouldBe project.value
+    clusterInitMap("clusterName") shouldBe name1.value
+    clusterInitMap("jupyterDockerImage") shouldBe dataprocConfig.dataprocDockerImage
+    clusterInitMap("proxyDockerImage") shouldBe proxyConfig.jupyterProxyDockerImage
+
+    clusterInitMap.size shouldBe 23
+  }
+
 }

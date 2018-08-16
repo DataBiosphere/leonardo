@@ -533,7 +533,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   it should "template a script using config values" in isolatedDbTest {
     // Create replacements map
     val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy)
-    val replacements: Map[String, String] = clusterInit.getClass.getDeclaredFields.map(_.getName).zip(clusterInit.productIterator.to).toMap.mapValues(_.toString)
+    val replacements: Map[String, String] = clusterInit.toMap
 
     // Each value in the replacement map will replace it's key in the file being processed
     val result = leo.templateResource(clusterResourcesConfig.initActionsScript, replacements)
@@ -559,14 +559,15 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // Create replacements map
     val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequest, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy)
-    val replacements: Map[String, String] = clusterInit.getClass.getDeclaredFields.map(_.getName).zip(clusterInit.productIterator.to).toMap.mapValues(_.toString)
+    val replacements: Map[String, String] = clusterInit.toMap
 
     // Each value in the replacement map will replace it's key in the file being processed
     val result = leo.templateResource(clusterResourcesConfig.jupyterGoogleSignInJs, replacements)
 
     // Check that the values in the bash script file were correctly replaced
     val expected =
-      s""""${userInfo.userEmail.value}""""
+      s"""|"${userInfo.userEmail.value}"
+          |"${testClusterRequest.defaultClientId.value}"""".stripMargin
 
     result shouldEqual expected
   }
