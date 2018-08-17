@@ -15,23 +15,24 @@ import org.scalatest.FlatSpecLike
   */
 class InstanceComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils {
 
-  val c1 = Cluster(
-    clusterName = name1,
-    googleProject = project,
-    serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
-    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
-    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    status = ClusterStatus.Unknown,
-    labels = Map("bam" -> "yes", "vcf" -> "no"),
-    jupyterExtensionUri = None,
-    jupyterUserScriptUri = None,
-    errors = List.empty,
-    instances = Set.empty,
-    userJupyterExtensionConfig = None,
-    autopauseThreshold = 0,
-    defaultClientId = None)
+  val c1 = getCluster(1)
+//  Cluster(
+//    clusterName = name1,
+//    googleProject = project,
+//    serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
+//    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
+//    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
+//    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
+//    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
+//    status = ClusterStatus.Unknown,
+//    labels = Map("bam" -> "yes", "vcf" -> "no"),
+//    jupyterExtensionUri = None,
+//    jupyterUserScriptUri = None,
+//    errors = List.empty,
+//    instances = Set.empty,
+//    userJupyterExtensionConfig = None,
+//    autopauseThreshold = 0,
+//    defaultClientId = None)
 
   "InstanceComponent" should "save and get instances" in isolatedDbTest {
     val savedC1 = dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) }
