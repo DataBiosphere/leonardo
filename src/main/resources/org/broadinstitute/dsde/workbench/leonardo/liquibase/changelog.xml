@@ -25,4 +25,5 @@
     <include file="changesets/20180517_cluster_googleId_operationName_initBucket_nullable.xml" relativeToChangelogFile="true" />
     <include file="changesets/20180607_master_disk_size.xml" relativeToChangelogFile="true" />
     <include file="changesets/20180625_autopause_threshold.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20180810_default_client_id.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

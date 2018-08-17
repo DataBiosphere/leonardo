@@ -31,7 +31,8 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTest
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      autopauseThreshold = 0)
+      autopauseThreshold = 0,
+      defaultClientId = None)
 
     val c2 = Cluster(
       clusterName = name2,
@@ -48,7 +49,8 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTest
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      autopauseThreshold = 0)
+      autopauseThreshold = 0,
+      defaultClientId = None)
 
     val c2Map = Map("bam" -> "true", "sample" -> "NA12878")
 

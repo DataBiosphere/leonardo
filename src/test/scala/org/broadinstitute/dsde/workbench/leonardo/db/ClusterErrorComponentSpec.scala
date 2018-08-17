@@ -29,7 +29,8 @@ class ClusterErrorComponentSpec extends TestComponent with FlatSpecLike with Com
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      autopauseThreshold = 30)
+      autopauseThreshold = 30,
+      defaultClientId = None)
 
     lazy val timestamp = Instant.now().truncatedTo(ChronoUnit.SECONDS)
     val clusterError = ClusterError("Some Error", 10, timestamp)

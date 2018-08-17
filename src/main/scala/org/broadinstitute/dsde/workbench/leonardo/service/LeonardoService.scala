@@ -676,9 +676,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private[service] def initializeBucketObjects(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountKey: Option[ServiceAccountKey], contentSecurityPolicy: String): Future[Unit] = {
 
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
-    val replacements: Map[String, JsValue] = ClusterInitValues(googleProject, clusterName, initBucketName, clusterRequest, dataprocConfig,
-      clusterFilesConfig, clusterResourcesConfig, proxyConfig, serviceAccountKey, userEmail, contentSecurityPolicy
-    ).toJson.asJsObject.fields
+    val clusterInit = ClusterInitValues(googleProject, clusterName, initBucketName, clusterRequest, dataprocConfig,
+      clusterFilesConfig, clusterResourcesConfig, proxyConfig, serviceAccountKey, userEmail, contentSecurityPolicy)
+    val replacements: Map[String, String] = clusterInit.toMap
 
     // Raw files to upload to the bucket, no additional processing needed.
     val filesToUpload = List(
@@ -729,17 +729,17 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } yield ()
   }
 
-  /* Process a string using map of replacement values. Each value in the replacement map replaces it's key in the string. */
-  private[service] def template(raw: String, replacementMap: Map[String, JsValue]): String = {
-    replacementMap.foldLeft(raw)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", b._2.toString()))
+  // Process a string using map of replacement values. Each value in the replacement map replaces its key in the string.
+  private[service] def template(raw: String, replacementMap: Map[String, String]): String = {
+    replacementMap.foldLeft(raw)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", "\"" + b._2 + "\""))
   }
 
-  private[service] def templateFile(file: File, replacementMap: Map[String, JsValue]): String = {
+  private[service] def templateFile(file: File, replacementMap: Map[String, String]): String = {
     val raw = Source.fromFile(file).mkString
     template(raw, replacementMap)
   }
 
-  private[service] def templateResource(resource: ClusterResource, replacementMap: Map[String, JsValue]): String = {
+  private[service] def templateResource(resource: ClusterResource, replacementMap: Map[String, String]): String = {
     val raw = Source.fromResource(s"${ClusterResourcesConfig.basePath}/${resource.value}").mkString
     template(raw, replacementMap)
   }

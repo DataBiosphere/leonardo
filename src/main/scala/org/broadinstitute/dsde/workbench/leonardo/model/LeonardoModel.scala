@@ -31,7 +31,8 @@ case class ClusterRequest(labels: LabelMap = Map(),
                           stopAfterCreation: Option[Boolean] = None,
                           userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
                           autopause: Option[Boolean] = None,
-                          autopauseThreshold: Option[Int] = None)
+                          autopauseThreshold: Option[Int] = None,
+                          defaultClientId: Option[String] = None)
 
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
@@ -77,7 +78,8 @@ case class Cluster(id: Long = 0, // DB AutoInc
                    errors: List[ClusterError],
                    instances: Set[Instance],
                    userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
-                   autopauseThreshold: Int) {
+                   autopauseThreshold: Int,
+                   defaultClientId: Option[String]) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.value}"
   def nonPreemptibleInstances: Set[Instance] = instances.filterNot(_.dataprocRole.contains(SecondaryWorker))
 }
@@ -109,7 +111,8 @@ object Cluster {
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
-      autopauseThreshold = autopauseThreshold)
+      autopauseThreshold = autopauseThreshold,
+      defaultClientId = clusterRequest.defaultClientId)
   }
   
   // TODO it's hacky to re-parse the Leo config in the model object.
@@ -204,8 +207,10 @@ case class ClusterInitValues(googleProject: String,
                              jupyterServerExtensions: String,
                              jupyterNbExtensions: String,
                              jupyterCombinedExtensions: String,
-                             jupyterNotebookConfigUri: String
-                            )
+                             jupyterNotebookConfigUri: String,
+                             defaultClientId: String
+                            ){
+  def toMap: Map[String, String] = this.getClass.getDeclaredFields.map(_.getName).zip(this.productIterator.to).toMap.mapValues(_.toString)}
 
 object ClusterInitValues {
   val serviceAccountCredentialsFilename = "service-account-credentials.json"
@@ -235,7 +240,8 @@ object ClusterInitValues {
       clusterRequest.userJupyterExtensionConfig.map(x => x.serverExtensions.values.mkString(" ")).getOrElse(""),
       clusterRequest.userJupyterExtensionConfig.map(x => x.nbExtensions.values.mkString(" ")).getOrElse(""),
       clusterRequest.userJupyterExtensionConfig.map(x => x.combinedExtensions.values.mkString(" ")).getOrElse(""),
-      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value)).toUri
+      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value)).toUri,
+      clusterRequest.defaultClientId.getOrElse("")
     )
 }
 
@@ -270,7 +276,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val UserClusterExtensionConfigFormat = jsonFormat3(UserJupyterExtensionConfig.apply)
 
-  implicit val ClusterRequestFormat = jsonFormat8(ClusterRequest)
+  implicit val ClusterRequestFormat = jsonFormat9(ClusterRequest)
 
   implicit val ClusterResourceFormat = ValueObjectFormat(ClusterResource)
 
@@ -279,9 +285,6 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val ClusterErrorFormat = jsonFormat3(ClusterError.apply)
 
   implicit val DefaultLabelsFormat = jsonFormat6(DefaultLabels.apply)
-
-
-  implicit val ClusterInitValuesFormat = jsonFormat22(ClusterInitValues.apply)
 
 
   implicit object ClusterFormat extends RootJsonFormat[Cluster] {
@@ -310,7 +313,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
             fields.getOrElse("errors", JsNull).convertTo[List[ClusterError]],
             fields.getOrElse("instances", JsNull).convertTo[Set[Instance]],
             fields.getOrElse("userJupyterExtensionConfig", JsNull).convertTo[Option[UserJupyterExtensionConfig]],
-            fields.getOrElse("autopauseThreshold", JsNull).convertTo[Int])
+            fields.getOrElse("autopauseThreshold", JsNull).convertTo[Int],
+            fields.getOrElse("defaultClientId", JsNull).convertTo[Option[String]])
         case _ => deserializationError("Cluster expected as a JsObject")
       }
     }
@@ -338,7 +342,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
         "instances" -> obj.instances.toJson,
         "userJupyterExtensionConfig" -> obj.userJupyterExtensionConfig.toJson,
         "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
-        "autopauseThreshold" -> obj.autopauseThreshold.toJson
+        "autopauseThreshold" -> obj.autopauseThreshold.toJson,
+        "defaultClientId" -> obj.defaultClientId.toJson
       )
 
       val presentFields = allFields.filter(_._2 != JsNull)
