@@ -34,7 +34,8 @@ class ClusterDateAccessedSpec extends TestKit(ActorSystem("leonardotest")) with
     errors = List.empty,
     instances = Set.empty,
     userJupyterExtensionConfig = Some(userExtConfig),
-    autopauseThreshold = 0
+    autopauseThreshold = 0,
+    defaultClientId = None
   )
 
   override def afterAll(): Unit = {

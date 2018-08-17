@@ -621,6 +621,7 @@ definitions:
       - labels
       - dateAccessed
       - autopauseThreshold
+      - defaultClientId
     properties:
       id:
         type: string
@@ -675,6 +676,9 @@ definitions:
       autopauseThreshold:
         type: integer
         description: The number of minutes of idle time to elapse before the cluster is autopaused. A value of 0 is equivalent to autopause being turned off.
+      defaultClientId:
+        type: string
+        description: The default Google Client ID.
 
   InstanceKey:
     description: ''
@@ -754,6 +758,9 @@ definitions:
       autopauseThreshold:
         type: integer
         description: The number of minutes of idle time to elapse before the cluster is autopaused. If autopause is set to false, this value is disregarded. A value of 0 is equivalent to autopause being turned off. If autopause is enabled and this is unset, a system default threshold will be used.
+      defaultClientId:
+        type: string
+        description: The default Google Client ID.
 
   ClusterError:
     description: 'Errors encountered on cluster create'

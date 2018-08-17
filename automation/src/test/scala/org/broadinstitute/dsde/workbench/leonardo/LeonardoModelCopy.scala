@@ -67,7 +67,8 @@ case class Cluster(clusterName: ClusterName,
                    jupyterUserScriptUri: Option[GcsPath],
                    stagingBucket:Option[GcsBucketName],
                    errors:List[ClusterError],
-                   dateAccessed: Instant
+                   dateAccessed: Instant,
+                   defaultClientId: Option[String]
                   )
 
 case class ClusterRequest(labels: LabelMap = Map(),
@@ -75,7 +76,8 @@ case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterUserScriptUri: Option[String] = None,
                           machineConfig: Option[MachineConfig] = None,
                           stopAfterCreation: Option[Boolean] = None,
-                          userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None)
+                          userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
+                          defaultClientId: Option[String] = None)
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
                                       serverExtensions: Map[String, String] = Map(),

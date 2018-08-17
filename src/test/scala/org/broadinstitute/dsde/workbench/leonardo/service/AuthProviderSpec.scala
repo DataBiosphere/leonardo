@@ -44,7 +44,8 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
     errors = List.empty,
     instances = Set.empty,
     userJupyterExtensionConfig = None,
-    autopauseThreshold = 0)
+    autopauseThreshold = 0,
+    defaultClientId = None)
 
   val routeTest = this
 

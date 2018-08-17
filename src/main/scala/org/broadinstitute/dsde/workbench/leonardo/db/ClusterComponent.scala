@@ -28,7 +28,8 @@ case class ClusterRecord(id: Long,
                          serviceAccountInfo: ServiceAccountInfoRecord,
                          stagingBucket: Option[String],
                          dateAccessed: Timestamp,
-                         autopauseThreshold: Int)
+                         autopauseThreshold: Int,
+                         defaultClientId: Option[String])
 
 case class MachineConfigRecord(numberOfWorkers: Int,
                                masterMachineType: String,
@@ -74,6 +75,7 @@ trait ClusterComponent extends LeoComponent {
     def stagingBucket =               column[Option[String]]    ("stagingBucket",         O.Length(254))
     def dateAccessed =                column[Timestamp]         ("dateAccessed",          O.SqlType("TIMESTAMP(6)"))
     def autopauseThreshold =                      column[Int]                    ("autopauseThreshold")
+    def defaultClientId =                               column[Option[String]]      ("defaultClientId",     O.Length(1024))
 
     def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName, destroyedDate), unique = true)
 
@@ -85,23 +87,23 @@ trait ClusterComponent extends LeoComponent {
       id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
       createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
       (numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers),
-      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket, dateAccessed, autopauseThreshold
+      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket, dateAccessed, autopauseThreshold, defaultClientId
     ).shaped <> ({
       case (id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
-            createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket, machineConfig, serviceAccountInfo, stagingBucket, dateAccessed, autopauseThreshold) =>
+            createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket, machineConfig, serviceAccountInfo, stagingBucket, dateAccessed, autopauseThreshold, defaultClientId) =>
         ClusterRecord(
           id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
           createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
           MachineConfigRecord.tupled.apply(machineConfig),
           ServiceAccountInfoRecord.tupled.apply(serviceAccountInfo),
-          stagingBucket, dateAccessed, autopauseThreshold)
+          stagingBucket, dateAccessed, autopauseThreshold, defaultClientId)
     }, { c: ClusterRecord =>
       def mc(_mc: MachineConfigRecord) = MachineConfigRecord.unapply(_mc).get
       def sa(_sa: ServiceAccountInfoRecord) = ServiceAccountInfoRecord.unapply(_sa).get
       Some((
         c.id, c.clusterName, c.googleId, c.googleProject, c.operationName, c.status, c.hostIp, c.creator,
         c.createdDate, c.destroyedDate, c.jupyterExtensionUri, c.jupyterUserScriptUri, c.initBucket,
-        mc(c.machineConfig), sa(c.serviceAccountInfo), c.stagingBucket, c.dateAccessed, c.autopauseThreshold
+        mc(c.machineConfig), sa(c.serviceAccountInfo), c.stagingBucket, c.dateAccessed, c.autopauseThreshold, c.defaultClientId
       ))
     })
   }
@@ -353,7 +355,8 @@ trait ClusterComponent extends LeoComponent {
         ),
         cluster.dataprocInfo.stagingBucket.map(_.value),
         Timestamp.from(cluster.auditInfo.dateAccessed),
-        cluster.autopauseThreshold
+        cluster.autopauseThreshold,
+        cluster.defaultClientId
       )
     }
 
@@ -429,7 +432,8 @@ trait ClusterComponent extends LeoComponent {
         errors map clusterErrorQuery.unmarshallClusterErrorRecord,
         instanceRecords map ClusterComponent.this.instanceQuery.unmarshalInstance toSet,
         ClusterComponent.this.extensionQuery.unmarshallExtensions(userJupyterExtensionConfig),
-        clusterRecord.autopauseThreshold
+        clusterRecord.autopauseThreshold,
+        clusterRecord.defaultClientId
       )
     }
   }

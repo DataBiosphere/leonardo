@@ -57,8 +57,8 @@ trait CommonTestData { this: ScalaFutures =>
   val contentSecurityPolicy = config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
   val mockJupyterDAO = new MockJupyterDAO
   val singleNodeDefaultMachineConfig = MachineConfig(Some(clusterDefaultsConfig.numberOfWorkers), Some(clusterDefaultsConfig.masterMachineType), Some(clusterDefaultsConfig.masterDiskSize))
-  val testClusterRequest = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), None, None, None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))), Some(true), Some(30))
-  val testClusterRequestWithExtensionAndScript = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(jupyterExtensionUri), Some(jupyterUserScriptUri), None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))), Some(true), Some(30))
+  val testClusterRequest = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), None, None, None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))), Some(true), Some(30), Some("ThisIsADefaultClientID"))
+  val testClusterRequestWithExtensionAndScript = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(jupyterExtensionUri), Some(jupyterUserScriptUri), None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))), Some(true), Some(30), Some("ThisIsADefaultClientID"))
 
 
 
@@ -90,7 +90,8 @@ trait CommonTestData { this: ScalaFutures =>
     errors = List.empty,
     instances = Set.empty,
     userJupyterExtensionConfig = None,
-    autopauseThreshold = if (autopause) autopauseThreshold else 0)
+    autopauseThreshold = if (autopause) autopauseThreshold else 0,
+    defaultClientId = None)
 
   // TODO look into parameterized tests so both provider impls can both be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData
