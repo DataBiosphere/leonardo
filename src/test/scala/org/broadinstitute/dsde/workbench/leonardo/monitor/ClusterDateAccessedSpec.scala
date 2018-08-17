@@ -19,24 +19,25 @@ import org.scalatest.time.{Seconds, Span}
 class ClusterDateAccessedSpec extends TestKit(ActorSystem("leonardotest")) with
   FlatSpecLike with BeforeAndAfterAll with TestComponent with CommonTestData with GcsPathUtils { testKit =>
 
-  val testCluster1 = Cluster(
-    clusterName = name1,
-    googleProject = project,
-    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
-    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), None),
-    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-    machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
-    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    status = ClusterStatus.Running,
-    labels = Map("bam" -> "yes", "vcf" -> "no"),
-    jupyterExtensionUri = None,
-    jupyterUserScriptUri = None,
-    errors = List.empty,
-    instances = Set.empty,
-    userJupyterExtensionConfig = Some(userExtConfig),
-    autopauseThreshold = 0,
-    defaultClientId = None
-  )
+  val testCluster1 = getCluster(1)
+//    Cluster(
+//    clusterName = name1,
+//    googleProject = project,
+//    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+//    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), None),
+//    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
+//    machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
+//    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
+//    status = ClusterStatus.Running,
+//    labels = Map("bam" -> "yes", "vcf" -> "no"),
+//    jupyterExtensionUri = None,
+//    jupyterUserScriptUri = None,
+//    errors = List.empty,
+//    instances = Set.empty,
+//    userJupyterExtensionConfig = Some(userExtConfig),
+//    autopauseThreshold = 0,
+//    defaultClientId = None
+//  )
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)

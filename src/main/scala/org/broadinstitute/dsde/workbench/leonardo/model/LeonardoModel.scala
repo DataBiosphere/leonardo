@@ -79,7 +79,8 @@ case class Cluster(id: Long = 0, // DB AutoInc
                    instances: Set[Instance],
                    userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
                    autopauseThreshold: Int,
-                   defaultClientId: Option[String]) {
+                   defaultClientId: Option[String],
+                   fake: String) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.value}"
   def nonPreemptibleInstances: Set[Instance] = instances.filterNot(_.dataprocRole.contains(SecondaryWorker))
 }
@@ -112,7 +113,8 @@ object Cluster {
       instances = Set.empty,
       userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
       autopauseThreshold = autopauseThreshold,
-      defaultClientId = clusterRequest.defaultClientId)
+      defaultClientId = clusterRequest.defaultClientId,
+      fake = "fake")
   }
   
   // TODO it's hacky to re-parse the Leo config in the model object.
@@ -313,7 +315,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
             fields.getOrElse("instances", JsNull).convertTo[Set[Instance]],
             fields.getOrElse("userJupyterExtensionConfig", JsNull).convertTo[Option[UserJupyterExtensionConfig]],
             fields.getOrElse("autopauseThreshold", JsNull).convertTo[Int],
-            fields.getOrElse("defaultClientId", JsNull).convertTo[Option[String]])
+            fields.getOrElse("defaultClientId", JsNull).convertTo[Option[String]],
+            fields.getOrElse("fake", JsNull).convertTo[String])
         case _ => deserializationError("Cluster expected as a JsObject")
       }
     }

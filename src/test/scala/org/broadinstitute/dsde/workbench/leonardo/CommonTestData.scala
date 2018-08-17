@@ -75,6 +75,31 @@ trait CommonTestData { this: ScalaFutures =>
   val serviceAccountInfo = new ServiceAccountInfo(Option(WorkbenchEmail("testServiceAccount1@example.com")), Option(WorkbenchEmail("testServiceAccount2@example.com")))
 
 
+  def getCluster(index: Int): Cluster = {
+    val clusterName = ClusterName("name" + index.toString)
+    new Cluster(
+      clusterName = clusterName,
+      googleProject = project,
+      serviceAccountInfo = serviceAccountInfo,
+      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op" + index.toString)), Some(GcsBucketName("testStagingBucket" + index.toString)), None),
+      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
+      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
+      clusterUrl = Cluster.getClusterUrl(project, clusterName, clusterUrlBase),
+      status = ClusterStatus.Unknown,
+      labels = Map(),
+      jupyterExtensionUri = None,
+      jupyterUserScriptUri = None,
+      errors = List.empty,
+      instances = Set.empty,
+      userJupyterExtensionConfig = None,
+      autopauseThreshold = 30,
+      defaultClientId = Some("ThisIsADefaultClientID"),
+      fake = "fake"
+    )
+  }
+
+  val referenceCluster = getCluster(1)
+
   val testCluster = new Cluster(
     clusterName = name1,
     googleProject = project,
@@ -91,7 +116,8 @@ trait CommonTestData { this: ScalaFutures =>
     instances = Set.empty,
     userJupyterExtensionConfig = None,
     autopauseThreshold = if (autopause) autopauseThreshold else 0,
-    defaultClientId = None)
+    defaultClientId = None,
+    fake = "fake")
 
   // TODO look into parameterized tests so both provider impls can both be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData
