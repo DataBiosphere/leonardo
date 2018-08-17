@@ -74,7 +74,8 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
           None,
           cluster.userJupyterExtensionConfig,
           if (cluster.autopauseThreshold == 0) Some(false) else Some(true),
-          Some(cluster.autopauseThreshold))
+          Some(cluster.autopauseThreshold),
+          cluster.defaultClientId)
         leoService.internalCreateCluster(cluster.auditInfo.creator, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest).failed.foreach { e =>
           logger.error(s"Error occurred recreating cluster ${cluster.projectNameString}", e)
         }

@@ -38,7 +38,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List.empty,
       instances = Set(masterInstance, workerInstance1, workerInstance2),
       userJupyterExtensionConfig = Some(userExtConfig),
-      autopauseThreshold = if (autopause) autopauseThreshold else 0
+      autopauseThreshold = if (autopause) autopauseThreshold else 0,
+      defaultClientId = None
     )
 
     val c1WithErr = Cluster(
@@ -56,7 +57,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List(err1),
       instances = Set(masterInstance, workerInstance1, workerInstance2),
       userJupyterExtensionConfig = Some(userExtConfig),
-      autopauseThreshold = if (autopause) autopauseThreshold else 0
+      autopauseThreshold = if (autopause) autopauseThreshold else 0,
+      defaultClientId = None
     )
 
     val c2 = Cluster(
@@ -74,7 +76,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0
+      autopauseThreshold = if (autopause) autopauseThreshold else 0,
+      defaultClientId = None
     )
 
     val c3 = Cluster(
@@ -92,7 +95,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0
+      autopauseThreshold = if (autopause) autopauseThreshold else 0,
+      defaultClientId = None
     )
 
     val savedC1 = dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) }
@@ -144,7 +148,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0)
+      autopauseThreshold = if (autopause) autopauseThreshold else 0,
+      defaultClientId = None)
 
     dbFailure { _.clusterQuery.save(c4, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
 
@@ -188,7 +193,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0)
+      autopauseThreshold = if (autopause) autopauseThreshold else 0,
+      defaultClientId = None)
 
     val c2 = Cluster(
       clusterName = name2,
@@ -205,7 +211,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0)
+      autopauseThreshold = if (autopause) autopauseThreshold else 0,
+      defaultClientId = None)
 
     val c3 = Cluster(
       clusterName = name3,
@@ -222,7 +229,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0)
+      autopauseThreshold = if (autopause) autopauseThreshold else 0,
+      defaultClientId = None)
 
     dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual c1
     dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) } shouldEqual c2
@@ -263,7 +271,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
         errors = List.empty,
         instances = Set(masterInstance, workerInstance1, workerInstance2),
         userJupyterExtensionConfig = None,
-        autopauseThreshold = if (autopause) autopauseThreshold else 0)
+        autopauseThreshold = if (autopause) autopauseThreshold else 0,
+        defaultClientId = None)
 
     val savedInitialCluster = dbFutureValue { _.clusterQuery.save(initialCluster, Option(gcsPath( "gs://bucket1")), Some(serviceAccountKey.id)) }
     savedInitialCluster shouldEqual initialCluster
@@ -304,7 +313,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
         errors = List.empty,
         instances = Set(masterInstance),
         userJupyterExtensionConfig = None,
-        autopauseThreshold = if (autopause) autopauseThreshold else 0)
+        autopauseThreshold = if (autopause) autopauseThreshold else 0,
+        defaultClientId = None)
 
     val savedC1 = dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) }
     savedC1 shouldEqual c1
@@ -345,7 +355,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List.empty,
       instances = Set(masterInstance),
       userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0)
+      autopauseThreshold = if (autopause) autopauseThreshold else 0,
+      defaultClientId = None)
 
     val runningCluster2 = Cluster(
       clusterName = name2,
@@ -362,7 +373,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0)
+      autopauseThreshold = if (autopause) autopauseThreshold else 0,
+      defaultClientId = None)
 
     val stoppedCluster = Cluster(
       clusterName = name3,
@@ -379,7 +391,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       errors = List.empty,
       instances = Set.empty,
       userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0)
+      autopauseThreshold = if (autopause) autopauseThreshold else 0,
+      defaultClientId = None)
 
     dbFutureValue { _.clusterQuery.save(runningCluster1, Some(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual runningCluster1
     dbFutureValue { _.clusterQuery.save(runningCluster2, Some(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual runningCluster2
