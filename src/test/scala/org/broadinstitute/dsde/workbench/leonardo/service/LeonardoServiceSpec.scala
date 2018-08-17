@@ -567,7 +567,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // Check that the values in the bash script file were correctly replaced
     val expected =
       s"""|"${userInfo.userEmail.value}"
-          |"${testClusterRequest.defaultClientId.value}"""".stripMargin
+          |"${testClusterRequest.defaultClientId.value}"
+          |""".stripMargin
 
     result shouldEqual expected
   }
