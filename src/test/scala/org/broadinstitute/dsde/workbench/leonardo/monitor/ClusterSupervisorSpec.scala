@@ -27,25 +27,25 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
   with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll
   with TestComponent with CommonTestData with GcsPathUtils { testKit =>
 
-  val runningCluster = getCluster(1)
-//  Cluster(
-//    clusterName = name1,
-//    googleProject = project,
-//    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
-//    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), None),
-//    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now().minus(45, ChronoUnit.SECONDS)),
-//    machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
-//    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-//    status = ClusterStatus.Running,
-//    labels = Map("bam" -> "yes", "vcf" -> "no"),
-//    jupyterExtensionUri = None,
-//    jupyterUserScriptUri = None,
-//    errors = List.empty,
-//    instances = Set.empty,
-//    userJupyterExtensionConfig = Some(userExtConfig),
-//    autopauseThreshold = 1,
-//    defaultClientId = None
-//  )
+  val runningCluster =
+  Cluster(
+    clusterName = name1,
+    googleProject = project,
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), None),
+    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now().minus(45, ChronoUnit.SECONDS)),
+    machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
+    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
+    status = ClusterStatus.Running,
+    labels = Map("bam" -> "yes", "vcf" -> "no"),
+    jupyterExtensionUri = None,
+    jupyterUserScriptUri = None,
+    errors = List.empty,
+    instances = Set.empty,
+    userJupyterExtensionConfig = Some(userExtConfig),
+    autopauseThreshold = 1,
+    defaultClientId = None
+  )
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)

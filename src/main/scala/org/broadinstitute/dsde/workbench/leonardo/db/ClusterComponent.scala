@@ -433,8 +433,7 @@ trait ClusterComponent extends LeoComponent {
         instanceRecords map ClusterComponent.this.instanceQuery.unmarshalInstance toSet,
         ClusterComponent.this.extensionQuery.unmarshallExtensions(userJupyterExtensionConfig),
         clusterRecord.autopauseThreshold,
-        clusterRecord.defaultClientId,
-        "fake"
+        clusterRecord.defaultClientId
       )
     }
   }
