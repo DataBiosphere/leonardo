@@ -29,7 +29,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
   val clusterName = name1.value
   val googleProject = project.value
 
-  val c1 =
+  val cluster1 =
   Cluster(
     clusterName = name1,
     googleProject = project,
@@ -126,9 +126,9 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
 
       //can't get details on an existing cluster
       //poke a cluster into the database so we actually have something to look for
-      dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) }
+      dbFutureValue { _.clusterQuery.save(cluster1, Option(gcsPath("gs://bucket1")), None) }
 
-      val clusterGetResponseException = leo.getActiveClusterDetails(userInfo, c1.googleProject, c1.clusterName).failed.futureValue
+      val clusterGetResponseException = leo.getActiveClusterDetails(userInfo, cluster1.googleProject, cluster1.clusterName).failed.futureValue
       clusterGetResponseException shouldBe a [ClusterNotFoundException]
       clusterGetResponseException.asInstanceOf[ClusterNotFoundException].statusCode shouldBe StatusCodes.NotFound
 
@@ -162,14 +162,14 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       val proxy = proxyWithAuthProvider(spyProvider)
 
       //poke a cluster into the database so we actually have something to look for
-      dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) }
+      dbFutureValue { _.clusterQuery.save(cluster1, Option(gcsPath("gs://bucket1")), None) }
 
       // status should work for this user
-      leo.getActiveClusterDetails(userInfo, project, name1).futureValue shouldEqual c1
+      leo.getActiveClusterDetails(userInfo, project, name1).futureValue shouldEqual cluster1
 
       // list should work for this user
       //list all clusters should be fine, but empty
-      leo.listClusters(userInfo, Map()).futureValue.toSet shouldEqual Set(c1)
+      leo.listClusters(userInfo, Map()).futureValue.toSet shouldEqual Set(cluster1)
 
       //connect should 401
       val httpRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
