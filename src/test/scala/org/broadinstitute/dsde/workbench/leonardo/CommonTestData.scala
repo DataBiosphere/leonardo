@@ -74,7 +74,7 @@ trait CommonTestData { this: ScalaFutures =>
   val notebookServiceAccount = Option(WorkbenchEmail("testServiceAccount2@example.com"))
   val serviceAccountInfo = new ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount)
 
-  val dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("operationName")), Some(GcsBucketName("testStagingBucketName")), None)
+  val dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("operationName")), Some(GcsBucketName("testStagingBucketName")), Some(IP("numbers.and.dots")))
   val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now())
 
   def getCluster(index: Int): Cluster = {
