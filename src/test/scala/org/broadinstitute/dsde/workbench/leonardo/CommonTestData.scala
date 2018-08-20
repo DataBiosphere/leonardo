@@ -70,20 +70,22 @@ trait CommonTestData { this: ScalaFutures =>
   val tokenValue = "accessToken"
   val tokenCookie = HttpCookiePair(tokenName, tokenValue)
 
-  val clusterServiceAccount = Option(WorkbenchEmail("testServiceAccount1@example.com"))
-  val notebookServiceAccount = Option(WorkbenchEmail("testServiceAccount2@example.com"))
+  val clusterServiceAccount = Option(WorkbenchEmail("testClusterServiceAccount@example.com"))
+  val notebookServiceAccount = Option(WorkbenchEmail("testNotebookServiceAccount@example.com"))
   val serviceAccountInfo = new ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount)
 
-  val dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("operationName")), Some(GcsBucketName("testStagingBucketName")), Some(IP("numbers.and.dots")))
   val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now())
+  def getDataprocInfo(index: Int): DataprocInfo = {
+    DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("operationName" + index.toString)), Option(GcsBucketName("stagingBucketName" + index.toString)), Some(IP("numbers.and.dots")))
+  }
 
   def getCluster(index: Int): Cluster = {
-    val clusterName = ClusterName("name" + index.toString)
-    new Cluster(
+    val clusterName = ClusterName("clusterName" + index.toString)
+    Cluster(
       clusterName = clusterName,
       googleProject = project,
       serviceAccountInfo = serviceAccountInfo,
-      dataprocInfo = dataprocInfo.copy(googleId = Option(UUID.randomUUID())),
+      dataprocInfo = getDataprocInfo(index),
       auditInfo = auditInfo,
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, clusterName, clusterUrlBase),
@@ -95,7 +97,7 @@ trait CommonTestData { this: ScalaFutures =>
       instances = Set.empty,
       userJupyterExtensionConfig = None,
       autopauseThreshold = 30,
-      defaultClientId = Some("ThisIsADefaultClientID")
+      defaultClientId = Some("defaultClientId")
     )
   }
 
