@@ -24,8 +24,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     lazy val cluster1UUID = UUID.randomUUID()
     val createdDate, dateAccessed = Instant.now()
     val cluster1 = getCluster(1).copy(dataprocInfo = getDataprocInfo(1).copy(googleId = Some(cluster1UUID)),
-                                auditInfo = auditInfo.copy(createdDate = createdDate, dateAccessed = dateAccessed),
-                                instances = Set(masterInstance, workerInstance1, workerInstance2))
+                                      auditInfo = auditInfo.copy(createdDate = createdDate, dateAccessed = dateAccessed),
+                                      instances = Set(masterInstance, workerInstance1, workerInstance2))
 
     val cluster1WithErr = getCluster(1).copy(dataprocInfo = getDataprocInfo(1).copy(googleId = Some(cluster1UUID)),
                                        auditInfo = auditInfo.copy(createdDate = createdDate, dateAccessed = dateAccessed),
