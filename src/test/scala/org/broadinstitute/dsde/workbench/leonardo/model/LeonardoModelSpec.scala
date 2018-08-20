@@ -18,24 +18,24 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
 
   val exampleTime = Instant.parse("2018-08-07T10:12:35Z")
 
-  val cluster = getCluster(1)
-//    Cluster(
-//    clusterName = name1,
-//    googleProject = project,
-//    serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
-//    dataprocInfo = DataprocInfo(Option(fromString("4ba97751-026a-4555-961b-89ae6ce78df4")), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
-//    auditInfo = AuditInfo(userEmail, exampleTime, None, exampleTime),
-//    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-//    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-//    status = ClusterStatus.Unknown,
-//    labels = Map("bam" -> "yes", "vcf" -> "no"),
-//    jupyterExtensionUri = Some(jupyterExtensionUri),
-//    jupyterUserScriptUri = Some(jupyterUserScriptUri),
-//    errors = List.empty,
-//    instances = Set.empty,
-//    userJupyterExtensionConfig = None,
-//    autopauseThreshold = 0,
-//    defaultClientId = None)
+  val cluster =
+    Cluster(
+    clusterName = name1,
+    googleProject = project,
+    serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
+    dataprocInfo = DataprocInfo(Option(fromString("4ba97751-026a-4555-961b-89ae6ce78df4")), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
+    auditInfo = AuditInfo(userEmail, exampleTime, None, exampleTime),
+    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
+    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
+    status = ClusterStatus.Unknown,
+    labels = Map("bam" -> "yes", "vcf" -> "no"),
+    jupyterExtensionUri = Some(jupyterExtensionUri),
+    jupyterUserScriptUri = Some(jupyterUserScriptUri),
+    errors = List.empty,
+    instances = Set.empty,
+    userJupyterExtensionConfig = None,
+    autopauseThreshold = 0,
+    defaultClientId = None)
 
 
   it should "serialize/deserialize to/from JSON" in isolatedDbTest {

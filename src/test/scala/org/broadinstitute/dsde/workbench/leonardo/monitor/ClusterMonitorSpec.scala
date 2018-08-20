@@ -40,81 +40,81 @@ import scala.util.{Random, Try}
   */
 class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll with TestComponent with CommonTestData with GcsPathUtils { testKit =>
 
-  val creatingCluster = getCluster(1)
-//  Cluster(
-//    clusterName = name1,
-//    googleProject = project,
-//    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
-//    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), None),
-//    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-//    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-//    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-//    status = ClusterStatus.Creating,
-//    labels = Map("bam" -> "yes", "vcf" -> "no"),
-//    jupyterExtensionUri = None,
-//    jupyterUserScriptUri = None,
-//    errors = List.empty,
-//    instances = Set.empty,
-//    userJupyterExtensionConfig = Some(userExtConfig),
-//    autopauseThreshold = 0,
-//    defaultClientId = None)
+  val creatingCluster =
+  Cluster(
+    clusterName = name1,
+    googleProject = project,
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), None),
+    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
+    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
+    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
+    status = ClusterStatus.Creating,
+    labels = Map("bam" -> "yes", "vcf" -> "no"),
+    jupyterExtensionUri = None,
+    jupyterUserScriptUri = None,
+    errors = List.empty,
+    instances = Set.empty,
+    userJupyterExtensionConfig = Some(userExtConfig),
+    autopauseThreshold = 0,
+    defaultClientId = None)
 
-  val deletingCluster = getCluster(2)
-//  Cluster(
-//    clusterName = name2,
-//    googleProject = project,
-//    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
-//    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), None),
-//    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-//    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-//    clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
-//    status = ClusterStatus.Deleting,
-//    labels = Map("bam" -> "yes", "vcf" -> "no"),
-//    jupyterExtensionUri = Some(jupyterExtensionUri),
-//    jupyterUserScriptUri = Some(jupyterUserScriptUri),
-//    errors = List.empty,
-//    instances = Set(masterInstance, workerInstance1, workerInstance2),
-//    userJupyterExtensionConfig = None,
-//    autopauseThreshold = 0,
-//    defaultClientId = None)
+  val deletingCluster =
+  Cluster(
+    clusterName = name2,
+    googleProject = project,
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), None),
+    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
+    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
+    clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
+    status = ClusterStatus.Deleting,
+    labels = Map("bam" -> "yes", "vcf" -> "no"),
+    jupyterExtensionUri = Some(jupyterExtensionUri),
+    jupyterUserScriptUri = Some(jupyterUserScriptUri),
+    errors = List.empty,
+    instances = Set(masterInstance, workerInstance1, workerInstance2),
+    userJupyterExtensionConfig = None,
+    autopauseThreshold = 0,
+    defaultClientId = None)
 
-  val stoppingCluster = getCluster(3)
-//  Cluster(
-//    clusterName = name3,
-//    googleProject = project,
-//    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
-//    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), None),
-//    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-//    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-//    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-//    status = ClusterStatus.Stopping,
-//    labels = Map("bam" -> "yes", "vcf" -> "no"),
-//    jupyterExtensionUri = None,
-//    jupyterUserScriptUri = None,
-//    errors = List.empty,
-//    instances = Set(masterInstance, workerInstance1, workerInstance2),
-//    userJupyterExtensionConfig = None,
-//    autopauseThreshold = 0,
-//    defaultClientId = None)
+  val stoppingCluster =
+  Cluster(
+    clusterName = name3,
+    googleProject = project,
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), None),
+    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
+    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
+    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
+    status = ClusterStatus.Stopping,
+    labels = Map("bam" -> "yes", "vcf" -> "no"),
+    jupyterExtensionUri = None,
+    jupyterUserScriptUri = None,
+    errors = List.empty,
+    instances = Set(masterInstance, workerInstance1, workerInstance2),
+    userJupyterExtensionConfig = None,
+    autopauseThreshold = 0,
+    defaultClientId = None)
 
-  val startingCluster = getCluster(4)
-//  Cluster(
-//    clusterName = name3,
-//    googleProject = project,
-//    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
-//    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), None),
-//    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-//    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-//    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-//    status = ClusterStatus.Starting,
-//    labels = Map("bam" -> "yes", "vcf" -> "no"),
-//    jupyterExtensionUri = None,
-//    jupyterUserScriptUri = None,
-//    errors = List.empty,
-//    instances = Set(masterInstance, workerInstance1, workerInstance2),
-//    userJupyterExtensionConfig = None,
-//    autopauseThreshold = 0,
-//    defaultClientId = None)
+  val startingCluster =
+  Cluster(
+    clusterName = name3,
+    googleProject = project,
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), None),
+    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
+    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
+    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
+    status = ClusterStatus.Starting,
+    labels = Map("bam" -> "yes", "vcf" -> "no"),
+    jupyterExtensionUri = None,
+    jupyterUserScriptUri = None,
+    errors = List.empty,
+    instances = Set(masterInstance, workerInstance1, workerInstance2),
+    userJupyterExtensionConfig = None,
+    autopauseThreshold = 0,
+    defaultClientId = None)
 
   val clusterInstances = Map(Master -> Set(masterInstance.key),
                              Worker -> Set(workerInstance1.key, workerInstance2.key))
