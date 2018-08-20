@@ -60,8 +60,6 @@ trait CommonTestData { this: ScalaFutures =>
   val testClusterRequest = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), None, None, None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))), Some(true), Some(30), Some("ThisIsADefaultClientID"))
   val testClusterRequestWithExtensionAndScript = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(jupyterExtensionUri), Some(jupyterUserScriptUri), None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))), Some(true), Some(30), Some("ThisIsADefaultClientID"))
 
-
-
   val mockSamDAO = new MockSamDAO
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO
   val mockGoogleComputeDAO = new MockGoogleComputeDAO
@@ -72,8 +70,34 @@ trait CommonTestData { this: ScalaFutures =>
   val tokenValue = "accessToken"
   val tokenCookie = HttpCookiePair(tokenName, tokenValue)
 
-  val serviceAccountInfo = new ServiceAccountInfo(Option(WorkbenchEmail("testServiceAccount1@example.com")), Option(WorkbenchEmail("testServiceAccount2@example.com")))
+  val clusterServiceAccount = Option(WorkbenchEmail("testServiceAccount1@example.com"))
+  val notebookServiceAccount = Option(WorkbenchEmail("testServiceAccount2@example.com"))
+  val serviceAccountInfo = new ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount)
 
+  val dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("operationName")), Some(GcsBucketName("testStagingBucketName")), Some(IP("numbers.and.dots")))
+  val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now())
+
+  def getCluster(index: Int): Cluster = {
+    val clusterName = ClusterName("name" + index.toString)
+    new Cluster(
+      clusterName = clusterName,
+      googleProject = project,
+      serviceAccountInfo = serviceAccountInfo,
+      dataprocInfo = dataprocInfo.copy(googleId = Option(UUID.randomUUID())),
+      auditInfo = auditInfo,
+      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
+      clusterUrl = Cluster.getClusterUrl(project, clusterName, clusterUrlBase),
+      status = ClusterStatus.Unknown,
+      labels = Map(),
+      jupyterExtensionUri = None,
+      jupyterUserScriptUri = None,
+      errors = List.empty,
+      instances = Set.empty,
+      userJupyterExtensionConfig = None,
+      autopauseThreshold = 30,
+      defaultClientId = Some("ThisIsADefaultClientID")
+    )
+  }
 
   val testCluster = new Cluster(
     clusterName = name1,

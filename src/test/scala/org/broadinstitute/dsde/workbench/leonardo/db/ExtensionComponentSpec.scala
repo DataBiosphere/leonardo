@@ -15,7 +15,8 @@ import scala.util.Random
 
 class ExtensionComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils{
   "ExtensionComponent" should "save, get,and delete" in isolatedDbTest {
-    val c1 = Cluster(
+    val c1 =
+    Cluster(
       clusterName = name1,
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
@@ -33,7 +34,8 @@ class ExtensionComponentSpec extends TestComponent with FlatSpecLike with Common
       autopauseThreshold = 0,
       defaultClientId = None)
 
-    val c2 = Cluster(
+    val c2 =
+    Cluster(
       clusterName = name2,
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),

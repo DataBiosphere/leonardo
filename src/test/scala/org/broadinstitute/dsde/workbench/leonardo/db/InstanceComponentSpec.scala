@@ -15,7 +15,8 @@ import org.scalatest.FlatSpecLike
   */
 class InstanceComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils {
 
-  val c1 = Cluster(
+  val c1 =
+  Cluster(
     clusterName = name1,
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),

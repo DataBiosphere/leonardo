@@ -32,7 +32,8 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     super.afterAll()
   }
 
-  val c1 = Cluster(
+  val c1 =
+  Cluster(
     clusterName = name1,
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
@@ -50,7 +51,8 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     autopauseThreshold = 0,
     defaultClientId = None)
 
-  val c2 = Cluster(
+  val c2 =
+  Cluster(
     clusterName = name2,
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
@@ -68,7 +70,8 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     autopauseThreshold = 0,
     defaultClientId = None)
 
-  val c3 = Cluster(
+  val c3 =
+  Cluster(
     clusterName = name3,
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),

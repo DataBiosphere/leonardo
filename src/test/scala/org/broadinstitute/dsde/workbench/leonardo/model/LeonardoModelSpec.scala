@@ -18,7 +18,8 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
 
   val exampleTime = Instant.parse("2018-08-07T10:12:35Z")
 
-  val cluster = Cluster(
+  val cluster =
+    Cluster(
     clusterName = name1,
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),

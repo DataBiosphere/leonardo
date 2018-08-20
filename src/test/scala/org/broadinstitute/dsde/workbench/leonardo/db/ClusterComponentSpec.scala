@@ -23,81 +23,27 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     lazy val err1 = ClusterError("some failure", 10, Instant.now().truncatedTo(ChronoUnit.SECONDS))
     lazy val c1UUID = UUID.randomUUID()
     val createdDate, dateAccessed = Instant.now()
-    val c1 = Cluster(
-      clusterName = name1,
-      googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
-      dataprocInfo = DataprocInfo(Option(c1UUID), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
-      auditInfo = AuditInfo(userEmail, createdDate, None, dateAccessed),
-      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-      status = ClusterStatus.Unknown,
-      labels = Map("bam" -> "yes", "vcf" -> "no"),
-      jupyterExtensionUri = None,
-      jupyterUserScriptUri = None,
-      errors = List.empty,
-      instances = Set(masterInstance, workerInstance1, workerInstance2),
-      userJupyterExtensionConfig = Some(userExtConfig),
-      autopauseThreshold = if (autopause) autopauseThreshold else 0,
-      defaultClientId = None
-    )
+    val c1 = getCluster(1).copy(dataprocInfo = dataprocInfo.copy(googleId = Some(c1UUID)),
+                                       auditInfo = auditInfo.copy(createdDate = createdDate, dateAccessed = dateAccessed),
+                                       instances = Set(masterInstance, workerInstance1, workerInstance2))
 
-    val c1WithErr = Cluster(
-      clusterName = name1,
-      googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
-      dataprocInfo = DataprocInfo(Option(c1UUID), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
-      auditInfo = AuditInfo(userEmail, createdDate, None, dateAccessed),
-      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name1),
-      status = ClusterStatus.Unknown,
-      labels = Map("bam" -> "yes", "vcf" -> "no"),
-      jupyterExtensionUri = None,
-      jupyterUserScriptUri = None,
-      errors = List(err1),
-      instances = Set(masterInstance, workerInstance1, workerInstance2),
-      userJupyterExtensionConfig = Some(userExtConfig),
-      autopauseThreshold = if (autopause) autopauseThreshold else 0,
-      defaultClientId = None
-    )
+    val c1WithErr = getCluster(1).copy(dataprocInfo = dataprocInfo.copy(googleId = Some(c1UUID)),
+                                              auditInfo = auditInfo.copy(createdDate = createdDate, dateAccessed = dateAccessed),
+                                              errors = List(err1),
+                                              instances = Set(masterInstance, workerInstance1, workerInstance2))
 
-    val c2 = Cluster(
-      clusterName = name2,
-      googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
-      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op2")), Some(GcsBucketName("testStagingBucket2")), None),
-      auditInfo = AuditInfo(userEmail, Instant.now(), None, dateAccessed),
-      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
-      status = ClusterStatus.Creating,
-      labels = Map.empty,
-      jupyterExtensionUri = Some(jupyterExtensionUri),
-      jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      errors = List.empty,
-      instances = Set.empty,
-      userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0,
-      defaultClientId = None
-    )
+    val c2 = getCluster(2).copy(auditInfo = auditInfo.copy(dateAccessed = dateAccessed),
+                                       status = ClusterStatus.Creating)
 
-    val c3 = Cluster(
-      clusterName = name3,
-      googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
-      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op3")), Some(GcsBucketName("testStagingBucket3")), None),
-      auditInfo = AuditInfo(userEmail, Instant.now(), None, dateAccessed),
-      machineConfig = MachineConfig(Some(3),Some("test-master-machine-type"), Some(500), Some("test-worker-machine-type"), Some(200), Some(2), Some(1)),
-      clusterUrl = Cluster.getClusterUrl(project, name3, clusterUrlBase),
-      status = ClusterStatus.Running,
-      labels = Map.empty,
-      jupyterExtensionUri = Some(jupyterExtensionUri),
-      jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      errors = List.empty,
-      instances = Set.empty,
-      userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0,
-      defaultClientId = None
-    )
+    val c3 = getCluster(3).copy(auditInfo = auditInfo.copy(dateAccessed = dateAccessed),
+                                       machineConfig = MachineConfig(Some(3),Some("test-master-machine-type"), Some(500), Some("test-worker-machine-type"), Some(200), Some(2), Some(1)),
+                                       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
+                                       status = ClusterStatus.Running)
+
+    val c4 = getCluster(4).copy(clusterName = c1.clusterName,
+                                       googleProject = c1.googleProject,
+                                       dataprocInfo = dataprocInfo.copy(operationName = Option(OperationName("op3")), stagingBucket = Some(GcsBucketName("testStagingBucket4"))))
+
 
     val savedC1 = dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) }
     savedC1 shouldEqual c1
@@ -128,28 +74,10 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFutureValue { _.clusterQuery.getServiceAccountKeyId(c2.googleProject, c2.clusterName) } shouldEqual Some(serviceAccountKey.id)
     dbFutureValue { _.clusterQuery.getServiceAccountKeyId(c3.googleProject, c3.clusterName) } shouldEqual Some(serviceAccountKey.id)
 
-    dbFutureValue { _.clusterQuery.countByClusterServiceAccountAndStatus(serviceAccountEmail, ClusterStatus.Creating) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.countByClusterServiceAccountAndStatus(serviceAccountEmail, ClusterStatus.Running) } shouldEqual 0
+    dbFutureValue { _.clusterQuery.countByClusterServiceAccountAndStatus(clusterServiceAccount.get, ClusterStatus.Creating) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.countByClusterServiceAccountAndStatus(clusterServiceAccount.get, ClusterStatus.Running) } shouldEqual 0
 
     // (project, name) unique key test
-
-    val c4 = Cluster(
-      clusterName = c1.clusterName,
-      googleProject = c1.googleProject,
-      serviceAccountInfo = ServiceAccountInfo(None, Some(WorkbenchEmail("something-new@google.com"))),
-      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op3")), Some(GcsBucketName("testStagingBucket4")), Some(IP("1.2.3.4"))),
-      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(c1.googleProject, c1.clusterName, clusterUrlBase),
-      status = ClusterStatus.Unknown,
-      labels = Map.empty,
-      jupyterExtensionUri = Some(jupyterExtensionUri),
-      jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      errors = List.empty,
-      instances = Set.empty,
-      userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0,
-      defaultClientId = None)
 
     dbFailure { _.clusterQuery.save(c4, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
 
@@ -178,59 +106,13 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
   }
 
   it should "get by labels" in isolatedDbTest {
-    val c1 = Cluster(
-      clusterName = name1,
-      googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
-      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
-      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-      status = ClusterStatus.Unknown,
-      labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
-      jupyterExtensionUri = None,
-      jupyterUserScriptUri = None,
-      errors = List.empty,
-      instances = Set.empty,
-      userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0,
-      defaultClientId = None)
 
-    val c2 = Cluster(
-      clusterName = name2,
-      googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
-      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op2")), Some(GcsBucketName("testStagingBucket2")), None),
-      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
-      status = ClusterStatus.Running,
-      labels = Map.empty,
-      jupyterExtensionUri = Some(jupyterExtensionUri),
-      jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      errors = List.empty,
-      instances = Set.empty,
-      userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0,
-      defaultClientId = None)
+    val c1 = getCluster(1).copy(labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"))
 
-    val c3 = Cluster(
-      clusterName = name3,
-      googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
-      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op3")), Some(GcsBucketName("testStagingBucket3")), None),
-      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name3, clusterUrlBase),
-      status = ClusterStatus.Deleted,
-      labels = Map("a" -> "b", "bam" -> "yes"),
-      jupyterExtensionUri = Some(jupyterExtensionUri),
-      jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      errors = List.empty,
-      instances = Set.empty,
-      userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0,
-      defaultClientId = None)
+    val c2 = getCluster(2).copy(status = ClusterStatus.Running)
+
+    val c3 = getCluster(3).copy(status = ClusterStatus.Deleted,
+                                       labels = Map("a" -> "b", "bam" -> "yes"))
 
     dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual c1
     dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) } shouldEqual c2
@@ -255,24 +137,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
   it should "stop and start a cluster" in isolatedDbTest {
     val dateAccessed = Instant.now()
-    val initialCluster =
-      Cluster(
-        clusterName = name1,
-        googleProject = project,
-        serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
-        dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
-        auditInfo = AuditInfo(userEmail, Instant.now(), None, dateAccessed),
-        machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-        clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-        status = ClusterStatus.Running,
-        labels = Map("bam" -> "yes", "vcf" -> "no"),
-        jupyterExtensionUri = None,
-        jupyterUserScriptUri = None,
-        errors = List.empty,
-        instances = Set(masterInstance, workerInstance1, workerInstance2),
-        userJupyterExtensionConfig = None,
-        autopauseThreshold = if (autopause) autopauseThreshold else 0,
-        defaultClientId = None)
+    val initialCluster = getCluster(1).copy(status = ClusterStatus.Running)
 
     val savedInitialCluster = dbFutureValue { _.clusterQuery.save(initialCluster, Option(gcsPath( "gs://bucket1")), Some(serviceAccountKey.id)) }
     savedInitialCluster shouldEqual initialCluster
@@ -297,24 +162,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
   }
 
   it should "merge instances" in isolatedDbTest {
-    val c1 =
-      Cluster(
-        clusterName = name1,
-        googleProject = project,
-        serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
-        dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
-        auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-        machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
-        clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-        status = ClusterStatus.Running,
-        labels = Map("bam" -> "yes", "vcf" -> "no"),
-        jupyterExtensionUri = None,
-        jupyterUserScriptUri = None,
-        errors = List.empty,
-        instances = Set(masterInstance),
-        userJupyterExtensionConfig = None,
-        autopauseThreshold = if (autopause) autopauseThreshold else 0,
-        defaultClientId = None)
+    val c1 = getCluster(1).copy(instances = Set(masterInstance))
 
     val savedC1 = dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) }
     savedC1 shouldEqual c1
@@ -340,59 +188,13 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
   }
 
   it should "get list of clusters to auto freeze" in isolatedDbTest {
-    val runningCluster1 = Cluster(
-      clusterName = name1,
-      googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
-      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
-      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now().minus(100, ChronoUnit.DAYS)),
-      machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-      status = ClusterStatus.Running,
-      labels = Map("bam" -> "yes", "vcf" -> "no"),
-      jupyterExtensionUri = None,
-      jupyterUserScriptUri = None,
-      errors = List.empty,
-      instances = Set(masterInstance),
-      userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0,
-      defaultClientId = None)
+    val runningCluster1 = getCluster(1).copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(100, ChronoUnit.DAYS)),
+                                                    status = ClusterStatus.Running)
 
-    val runningCluster2 = Cluster(
-      clusterName = name2,
-      googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
-      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op2")), Some(GcsBucketName("testStagingBucket2")), None),
-      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now().minus(100, ChronoUnit.DAYS)),
-      machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
-      status = ClusterStatus.Stopped,
-      labels = Map.empty,
-      jupyterExtensionUri = Some(jupyterExtensionUri),
-      jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      errors = List.empty,
-      instances = Set.empty,
-      userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0,
-      defaultClientId = None)
+    val runningCluster2 = getCluster(2).copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(100, ChronoUnit.DAYS)),
+                                                    status = ClusterStatus.Stopped)
 
-    val stoppedCluster = Cluster(
-      clusterName = name3,
-      googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
-      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op3")), Some(GcsBucketName("testStagingBucket3")), None),
-      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name3, clusterUrlBase),
-      status = ClusterStatus.Stopped,
-      labels = Map.empty,
-      jupyterExtensionUri = Some(jupyterExtensionUri),
-      jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      errors = List.empty,
-      instances = Set.empty,
-      userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0,
-      defaultClientId = None)
+    val stoppedCluster = getCluster(3).copy(status = ClusterStatus.Stopped)
 
     dbFutureValue { _.clusterQuery.save(runningCluster1, Some(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual runningCluster1
     dbFutureValue { _.clusterQuery.save(runningCluster2, Some(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual runningCluster2
