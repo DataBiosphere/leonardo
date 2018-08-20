@@ -21,116 +21,113 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFutureValue { _.clusterQuery.list() } shouldEqual Seq()
 
     lazy val err1 = ClusterError("some failure", 10, Instant.now().truncatedTo(ChronoUnit.SECONDS))
-    lazy val c1UUID = UUID.randomUUID()
+    lazy val cluster1UUID = UUID.randomUUID()
     val createdDate, dateAccessed = Instant.now()
-    val c1 = getCluster(1).copy(dataprocInfo = dataprocInfo.copy(googleId = Some(c1UUID)),
+    val cluster1 = getCluster(1).copy(dataprocInfo = getDataprocInfo(1).copy(googleId = Some(cluster1UUID)),
+                                auditInfo = auditInfo.copy(createdDate = createdDate, dateAccessed = dateAccessed),
+                                instances = Set(masterInstance, workerInstance1, workerInstance2))
+
+    val cluster1WithErr = getCluster(1).copy(dataprocInfo = getDataprocInfo(1).copy(googleId = Some(cluster1UUID)),
                                        auditInfo = auditInfo.copy(createdDate = createdDate, dateAccessed = dateAccessed),
+                                       errors = List(err1),
                                        instances = Set(masterInstance, workerInstance1, workerInstance2))
 
-    val c1WithErr = getCluster(1).copy(dataprocInfo = dataprocInfo.copy(googleId = Some(c1UUID)),
-                                              auditInfo = auditInfo.copy(createdDate = createdDate, dateAccessed = dateAccessed),
-                                              errors = List(err1),
-                                              instances = Set(masterInstance, workerInstance1, workerInstance2))
+    val cluster2 = getCluster(2).copy(status = ClusterStatus.Creating)
 
-    val c2 = getCluster(2).copy(auditInfo = auditInfo.copy(dateAccessed = dateAccessed),
-                                       status = ClusterStatus.Creating)
+    val cluster3 = getCluster(3).copy(machineConfig = MachineConfig(Some(3), Some("test-master-machine-type"), Some(500), Some("test-worker-machine-type"), Some(200), Some(2), Some(1)),
+                                      serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
+                                      status = ClusterStatus.Running)
 
-    val c3 = getCluster(3).copy(auditInfo = auditInfo.copy(dateAccessed = dateAccessed),
-                                       machineConfig = MachineConfig(Some(3),Some("test-master-machine-type"), Some(500), Some("test-worker-machine-type"), Some(200), Some(2), Some(1)),
-                                       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
-                                       status = ClusterStatus.Running)
-
-    val c4 = getCluster(4).copy(clusterName = c1.clusterName,
-                                       googleProject = c1.googleProject,
-                                       dataprocInfo = dataprocInfo.copy(operationName = Option(OperationName("op3")), stagingBucket = Some(GcsBucketName("testStagingBucket4"))))
+    val cluster4 = getCluster(4).copy(clusterName = cluster1.clusterName,
+                                      googleProject = cluster1.googleProject)
 
 
-    val savedC1 = dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) }
-    savedC1 shouldEqual c1
+    val savedCluster1 = dbFutureValue { _.clusterQuery.save(cluster1, Option(gcsPath("gs://bucket1")), None) }
+    savedCluster1 shouldEqual cluster1
 
-    val savedC2 = dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) }
-    savedC2 shouldEqual c2
+    val savedCluster2 = dbFutureValue { _.clusterQuery.save(cluster2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) }
+    savedCluster2 shouldEqual cluster2
 
-    val savedC3 = dbFutureValue { _.clusterQuery.save(c3, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) }
-    savedC3 shouldEqual c3
+    val savedCluster3 = dbFutureValue { _.clusterQuery.save(cluster3, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) }
+    savedCluster3 shouldEqual cluster3
 
     // instances are returned by list* methods
-    val expectedClusters123 = Seq(savedC1, savedC2, savedC3).map(_.copy(instances = Set.empty))
+    val expectedClusters123 = Seq(savedCluster1, savedCluster2, savedCluster3).map(_.copy(instances = Set.empty))
     dbFutureValue { _.clusterQuery.list() } should contain theSameElementsAs expectedClusters123
 
     // instances are returned by get* methods
-    dbFutureValue { _.clusterQuery.getActiveClusterByName(c1.googleProject, c1.clusterName) } shouldEqual Some(savedC1)
-    dbFutureValue { _.clusterQuery.getActiveClusterByName(c2.googleProject, c2.clusterName) } shouldEqual Some(savedC2)
-    dbFutureValue { _.clusterQuery.getActiveClusterByName(c3.googleProject, c3.clusterName) } shouldEqual Some(savedC3)
+    dbFutureValue { _.clusterQuery.getActiveClusterByName(cluster1.googleProject, cluster1.clusterName) } shouldEqual Some(savedCluster1)
+    dbFutureValue { _.clusterQuery.getActiveClusterByName(cluster2.googleProject, cluster2.clusterName) } shouldEqual Some(savedCluster2)
+    dbFutureValue { _.clusterQuery.getActiveClusterByName(cluster3.googleProject, cluster3.clusterName) } shouldEqual Some(savedCluster3)
 
-    dbFutureValue { _.clusterErrorQuery.save(savedC1.id, err1) }
-    val c1WithErrAssignedId = c1WithErr.copy(id = savedC1.id)
+    dbFutureValue { _.clusterErrorQuery.save(savedCluster1.id, err1) }
+    val cluster1WithErrAssignedId = cluster1WithErr.copy(id = savedCluster1.id)
 
-    dbFutureValue { _.clusterQuery.getClusterById(savedC1.id) } shouldEqual Some(c1WithErrAssignedId)
-    dbFutureValue { _.clusterQuery.getClusterById(savedC2.id) } shouldEqual Some(savedC2)
-    dbFutureValue { _.clusterQuery.getClusterById(savedC3.id) } shouldEqual Some(savedC3)
+    dbFutureValue { _.clusterQuery.getClusterById(savedCluster1.id) } shouldEqual Some(cluster1WithErrAssignedId)
+    dbFutureValue { _.clusterQuery.getClusterById(savedCluster2.id) } shouldEqual Some(savedCluster2)
+    dbFutureValue { _.clusterQuery.getClusterById(savedCluster3.id) } shouldEqual Some(savedCluster3)
 
-    dbFutureValue { _.clusterQuery.getServiceAccountKeyId(c1.googleProject, c1.clusterName) } shouldEqual None
-    dbFutureValue { _.clusterQuery.getServiceAccountKeyId(c2.googleProject, c2.clusterName) } shouldEqual Some(serviceAccountKey.id)
-    dbFutureValue { _.clusterQuery.getServiceAccountKeyId(c3.googleProject, c3.clusterName) } shouldEqual Some(serviceAccountKey.id)
+    dbFutureValue { _.clusterQuery.getServiceAccountKeyId(cluster1.googleProject, cluster1.clusterName) } shouldEqual None
+    dbFutureValue { _.clusterQuery.getServiceAccountKeyId(cluster2.googleProject, cluster2.clusterName) } shouldEqual Some(serviceAccountKey.id)
+    dbFutureValue { _.clusterQuery.getServiceAccountKeyId(cluster3.googleProject, cluster3.clusterName) } shouldEqual Some(serviceAccountKey.id)
 
     dbFutureValue { _.clusterQuery.countByClusterServiceAccountAndStatus(clusterServiceAccount.get, ClusterStatus.Creating) } shouldEqual 1
     dbFutureValue { _.clusterQuery.countByClusterServiceAccountAndStatus(clusterServiceAccount.get, ClusterStatus.Running) } shouldEqual 0
 
     // (project, name) unique key test
 
-    dbFailure { _.clusterQuery.save(c4, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
+    dbFailure { _.clusterQuery.save(cluster4, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
 
-    dbFutureValue { _.clusterQuery.markPendingDeletion(savedC1.id) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.listActive() } should contain theSameElementsAs Seq(c2, c3)
+    dbFutureValue { _.clusterQuery.markPendingDeletion(savedCluster1.id) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.listActive() } should contain theSameElementsAs Seq(cluster2, cluster3)
 
-    val c1status = dbFutureValue { _.clusterQuery.getClusterById(savedC1.id) }.get
-    c1status.status shouldEqual ClusterStatus.Deleting
-    c1status.auditInfo.destroyedDate shouldBe None
-    c1status.dataprocInfo.hostIp shouldBe None
-    c1status.instances shouldBe c1.instances
+    val cluster1status = dbFutureValue { _.clusterQuery.getClusterById(savedCluster1.id) }.get
+    cluster1status.status shouldEqual ClusterStatus.Deleting
+    cluster1status.auditInfo.destroyedDate shouldBe None
+    cluster1status.dataprocInfo.hostIp shouldBe None
+    cluster1status.instances shouldBe cluster1.instances
 
-    dbFutureValue { _.clusterQuery.markPendingDeletion(savedC2.id) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq(c3)
-    val c2status = dbFutureValue { _.clusterQuery.getClusterById(savedC2.id) }.get
-    c2status.status shouldEqual ClusterStatus.Deleting
-    c2status.auditInfo.destroyedDate shouldBe None
-    c2status.dataprocInfo.hostIp shouldBe None
+    dbFutureValue { _.clusterQuery.markPendingDeletion(savedCluster2.id) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq(cluster3)
+    val cluster2status = dbFutureValue { _.clusterQuery.getClusterById(savedCluster2.id) }.get
+    cluster2status.status shouldEqual ClusterStatus.Deleting
+    cluster2status.auditInfo.destroyedDate shouldBe None
+    cluster2status.dataprocInfo.hostIp shouldBe None
 
-    dbFutureValue { _.clusterQuery.markPendingDeletion(savedC3.id) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.markPendingDeletion(savedCluster3.id) } shouldEqual 1
     dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq()
-    val c3status = dbFutureValue { _.clusterQuery.getClusterById(savedC3.id) }.get
-    c3status.status shouldEqual ClusterStatus.Deleting
-    c3status.auditInfo.destroyedDate shouldBe None
-    c3status.dataprocInfo.hostIp shouldBe None
+    val cluster3status = dbFutureValue { _.clusterQuery.getClusterById(savedCluster3.id) }.get
+    cluster3status.status shouldEqual ClusterStatus.Deleting
+    cluster3status.auditInfo.destroyedDate shouldBe None
+    cluster3status.dataprocInfo.hostIp shouldBe None
   }
 
   it should "get by labels" in isolatedDbTest {
 
-    val c1 = getCluster(1).copy(labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"))
+    val cluster1 = getCluster(1).copy(labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"))
 
-    val c2 = getCluster(2).copy(status = ClusterStatus.Running)
+    val cluster2 = getCluster(2).copy(status = ClusterStatus.Running)
 
-    val c3 = getCluster(3).copy(status = ClusterStatus.Deleted,
+    val cluster3 = getCluster(3).copy(status = ClusterStatus.Deleted,
                                        labels = Map("a" -> "b", "bam" -> "yes"))
 
-    dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual c1
-    dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) } shouldEqual c2
-    dbFutureValue { _.clusterQuery.save(c3, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldEqual c3
-    dbFutureValue { _.clusterQuery.listByLabels(Map.empty, false) }.toSet shouldEqual Set(c1, c2)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes"), false) }.toSet shouldEqual Set(c1)
+    dbFutureValue { _.clusterQuery.save(cluster1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual cluster1
+    dbFutureValue { _.clusterQuery.save(cluster2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) } shouldEqual cluster2
+    dbFutureValue { _.clusterQuery.save(cluster3, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldEqual cluster3
+    dbFutureValue { _.clusterQuery.listByLabels(Map.empty, false) }.toSet shouldEqual Set(cluster1, cluster2)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes"), false) }.toSet shouldEqual Set(cluster1)
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "no"), false) }.toSet shouldEqual Set.empty[Cluster]
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no"), false) }.toSet shouldEqual Set(c1)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("foo" -> "bar", "vcf" -> "no"), false) }.toSet shouldEqual Set(c1)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), false) }.toSet shouldEqual Set(c1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no"), false) }.toSet shouldEqual Set(cluster1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("foo" -> "bar", "vcf" -> "no"), false) }.toSet shouldEqual Set(cluster1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), false) }.toSet shouldEqual Set(cluster1)
     dbFutureValue { _.clusterQuery.listByLabels(Map("a" -> "b"), false) }.toSet shouldEqual Set.empty[Cluster]
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "b"), false) }.toSet shouldEqual Set.empty[Cluster]
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "c"), false) }.toSet shouldEqual Set.empty[Cluster]
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no"), true) }.toSet shouldEqual Set(c1)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("foo" -> "bar", "vcf" -> "no"), true) }.toSet shouldEqual Set(c1)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), true) }.toSet shouldEqual Set(c1)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("a" -> "b"), true) }.toSet shouldEqual Set(c3)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "b"), true) }.toSet shouldEqual Set(c3)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no"), true) }.toSet shouldEqual Set(cluster1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("foo" -> "bar", "vcf" -> "no"), true) }.toSet shouldEqual Set(cluster1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), true) }.toSet shouldEqual Set(cluster1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("a" -> "b"), true) }.toSet shouldEqual Set(cluster3)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "b"), true) }.toSet shouldEqual Set(cluster3)
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "c"), true) }.toSet shouldEqual Set.empty[Cluster]
     dbFutureValue { _.clusterQuery.listByLabels(Map("bogus" -> "value"), true) }.toSet shouldEqual Set.empty[Cluster]
   }
@@ -162,29 +159,29 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
   }
 
   it should "merge instances" in isolatedDbTest {
-    val c1 = getCluster(1).copy(instances = Set(masterInstance))
+    val cluster1 = getCluster(1).copy(instances = Set(masterInstance))
 
-    val savedC1 = dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) }
-    savedC1 shouldEqual c1
+    val savedCluster1 = dbFutureValue { _.clusterQuery.save(cluster1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) }
+    savedCluster1 shouldEqual cluster1
 
-    val updatedC1 = c1.copy(
-      id = savedC1.id,
+    val updatedCluster1 = cluster1.copy(
+      id = savedCluster1.id,
       instances = Set(
         masterInstance.copy(status = InstanceStatus.Provisioning),
         workerInstance1.copy(status = InstanceStatus.Provisioning),
         workerInstance2.copy(status = InstanceStatus.Provisioning)))
 
-    dbFutureValue { _.clusterQuery.mergeInstances(updatedC1) } shouldEqual updatedC1
-    dbFutureValue { _.clusterQuery.getClusterById(savedC1.id) }.get shouldEqual updatedC1
+    dbFutureValue { _.clusterQuery.mergeInstances(updatedCluster1) } shouldEqual updatedCluster1
+    dbFutureValue { _.clusterQuery.getClusterById(savedCluster1.id) }.get shouldEqual updatedCluster1
 
-    val updatedC1Again = c1.copy(
+    val updatedCluster1Again = cluster1.copy(
       instances = Set(
         masterInstance.copy(status = InstanceStatus.Terminated),
         workerInstance1.copy(status = InstanceStatus.Terminated))
     )
 
-    dbFutureValue { _.clusterQuery.mergeInstances(updatedC1Again) } shouldEqual updatedC1Again
-    dbFutureValue { _.clusterQuery.getClusterById(savedC1.id) }.get shouldEqual updatedC1
+    dbFutureValue { _.clusterQuery.mergeInstances(updatedCluster1Again) } shouldEqual updatedCluster1Again
+    dbFutureValue { _.clusterQuery.getClusterById(savedCluster1.id) }.get shouldEqual updatedCluster1
   }
 
   it should "get list of clusters to auto freeze" in isolatedDbTest {
@@ -202,7 +199,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
     val autoFreezeList = dbFutureValue { _.clusterQuery.getClustersReadyToAutoFreeze() }
     autoFreezeList should contain (runningCluster1)
-    //c2 is already stopped
+    //cluster2 is already stopped
     autoFreezeList should not contain stoppedCluster
     autoFreezeList should not contain runningCluster2
   }
