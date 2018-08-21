@@ -11,7 +11,7 @@ import org.scalatest.FlatSpecLike
 class ClusterErrorComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils {
 
   "ClusterErrorComponent" should "save, and get" in isolatedDbTest {
-    val cluster1 = getCluster(1)
+    val cluster1 = makeCluster(1)
 
     lazy val timestamp = Instant.now().truncatedTo(ChronoUnit.SECONDS)
     val clusterError = ClusterError("Some Error", 10, timestamp)

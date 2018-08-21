@@ -15,10 +15,10 @@ import scala.util.Random
 
 class ExtensionComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils{
   "ExtensionComponent" should "save, get,and delete" in isolatedDbTest {
-    val cluster1 = getCluster(1).copy(jupyterExtensionUri = Some(jupyterExtensionUri),
+    val cluster1 = makeCluster(1).copy(jupyterExtensionUri = Some(jupyterExtensionUri),
                                        jupyterUserScriptUri = Some(jupyterUserScriptUri))
 
-    val cluster2 = getCluster(2)
+    val cluster2 = makeCluster(2)
 
     val missingId = Random.nextLong()
     dbFutureValue { _.extensionQuery.getAllForCluster(missingId) } shouldEqual UserJupyterExtensionConfig(Map(), Map(), Map())

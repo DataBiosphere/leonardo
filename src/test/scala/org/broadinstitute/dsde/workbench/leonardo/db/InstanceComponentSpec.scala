@@ -15,7 +15,7 @@ import org.scalatest.FlatSpecLike
   */
 class InstanceComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils {
 
-  val cluster1 = getCluster(1)
+  val cluster1 = makeCluster(1)
 
   "InstanceComponent" should "save and get instances" in isolatedDbTest {
     val savedCluster1 = dbFutureValue { _.clusterQuery.save(cluster1, Option(gcsPath("gs://bucket1")), None) }

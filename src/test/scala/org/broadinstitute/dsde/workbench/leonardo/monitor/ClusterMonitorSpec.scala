@@ -40,8 +40,7 @@ import scala.util.{Random, Try}
   */
 class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll with TestComponent with CommonTestData with GcsPathUtils { testKit =>
 
-  val creatingCluster =
-  Cluster(
+  val creatingCluster = Cluster(
     clusterName = name1,
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
@@ -59,8 +58,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     autopauseThreshold = 0,
     defaultClientId = None)
 
-  val deletingCluster =
-  Cluster(
+  val deletingCluster = Cluster(
     clusterName = name2,
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
@@ -78,8 +76,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     autopauseThreshold = 0,
     defaultClientId = None)
 
-  val stoppingCluster =
-  Cluster(
+  val stoppingCluster = Cluster(
     clusterName = name3,
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
@@ -97,8 +94,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     autopauseThreshold = 0,
     defaultClientId = None)
 
-  val startingCluster =
-  Cluster(
+  val startingCluster = Cluster(
     clusterName = name3,
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),

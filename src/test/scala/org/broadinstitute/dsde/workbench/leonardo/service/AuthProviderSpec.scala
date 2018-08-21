@@ -29,8 +29,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
   val clusterName = name1.value
   val googleProject = project.value
 
-  val cluster1 =
-  Cluster(
+  val cluster1 = Cluster(
     clusterName = name1,
     googleProject = project,
     serviceAccountInfo = serviceAccountInfo,
