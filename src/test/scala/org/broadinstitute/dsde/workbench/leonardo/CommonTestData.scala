@@ -75,17 +75,17 @@ trait CommonTestData { this: ScalaFutures =>
   val serviceAccountInfo = new ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount)
 
   val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now())
-  def getDataprocInfo(index: Int): DataprocInfo = {
+  def makeDataprocInfo(index: Int): DataprocInfo = {
     DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("operationName" + index.toString)), Option(GcsBucketName("stagingBucketName" + index.toString)), Some(IP("numbers.and.dots")))
   }
 
-  def getCluster(index: Int): Cluster = {
+  def makeCluster(index: Int): Cluster = {
     val clusterName = ClusterName("clusterName" + index.toString)
     Cluster(
       clusterName = clusterName,
       googleProject = project,
       serviceAccountInfo = serviceAccountInfo,
-      dataprocInfo = getDataprocInfo(index),
+      dataprocInfo = makeDataprocInfo(index),
       auditInfo = auditInfo,
       machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
       clusterUrl = Cluster.getClusterUrl(project, clusterName, clusterUrlBase),

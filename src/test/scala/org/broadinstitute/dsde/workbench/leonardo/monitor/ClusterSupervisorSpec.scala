@@ -27,8 +27,7 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
   with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll
   with TestComponent with CommonTestData with GcsPathUtils { testKit =>
 
-  val runningCluster =
-  Cluster(
+  val runningCluster = Cluster(
     clusterName = name1,
     googleProject = project,
     serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),

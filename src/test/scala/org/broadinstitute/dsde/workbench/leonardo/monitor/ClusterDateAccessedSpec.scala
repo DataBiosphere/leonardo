@@ -19,7 +19,7 @@ import org.scalatest.time.{Seconds, Span}
 class ClusterDateAccessedSpec extends TestKit(ActorSystem("leonardotest")) with
   FlatSpecLike with BeforeAndAfterAll with TestComponent with CommonTestData with GcsPathUtils { testKit =>
 
-  val testCluster1 = getCluster(1)
+  val testCluster1 = makeCluster(1)
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)

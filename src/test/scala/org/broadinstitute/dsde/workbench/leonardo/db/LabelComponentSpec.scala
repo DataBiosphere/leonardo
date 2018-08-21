@@ -16,8 +16,7 @@ import scala.util.Random
 class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils {
 
   "LabelComponent" should "save, get,and delete" in isolatedDbTest {
-    val cluster1 =
-    Cluster(
+    val cluster1 = Cluster(
       clusterName = name1,
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
@@ -35,8 +34,7 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTest
       autopauseThreshold = 0,
       defaultClientId = None)
 
-    val cluster2 =
-    Cluster(
+    val cluster2 = Cluster(
       clusterName = name2,
       googleProject = project,
       serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
