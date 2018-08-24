@@ -337,7 +337,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   def verifyGoogleAuth(notebookPage: NotebookPage, expectedEmail: Option[WorkbenchEmail], expectedScopes: Option[Seq[String]]): Unit = {
     notebookPage.executeCell("import google.auth") shouldBe None
     notebookPage.executeCell("credentials, project_id = google.auth.default()") shouldBe None
-    notebookPage.executeCell("print(credentials.service_account_email)") shouldBe expectedEmail.map(_.value).orElse(Some("None"))
+    notebookPage.executeCell("print(credentials.service_account_email)") shouldBe expectedEmail.map(_.value).orElse(Some("default"))
     val actualScopes = notebookPage.executeCell("print(credentials.scopes)")
     actualScopes shouldBe 'defined
     expectedScopes match {
