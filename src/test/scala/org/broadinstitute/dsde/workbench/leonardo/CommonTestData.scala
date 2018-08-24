@@ -12,6 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterService
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockJupyterDAO, MockSamDAO}
+import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData, _}
@@ -19,11 +20,11 @@ import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, Workbe
 import org.scalatest.concurrent.ScalaFutures
 
 import scala.concurrent.ExecutionContext
-import scala.concurrent.duration._
+
 
 // values common to multiple tests, to reduce boilerplate
 
-trait CommonTestData { this: ScalaFutures =>
+trait CommonTestData extends TestComponent with GcsPathUtils{ this: ScalaFutures =>
   val name0 = ClusterName("name0")
   val name1 = ClusterName("name1")
   val name2 = ClusterName("name2")
@@ -99,6 +100,12 @@ trait CommonTestData { this: ScalaFutures =>
       autopauseThreshold = 30,
       defaultClientId = Some("defaultClientId")
     )
+  }
+
+  implicit class ClusterExtensions(cluster: Cluster) {
+    def save(serviceAccountKeyId: Option[ServiceAccountKeyId] = Some(serviceAccountKey.id)) = {
+      dbFutureValue { _.clusterQuery.save(cluster, Option(gcsPath("gs://bucket" + cluster.clusterName.toString().takeRight(1))), serviceAccountKeyId) }
+    }
   }
 
   val testCluster = new Cluster(

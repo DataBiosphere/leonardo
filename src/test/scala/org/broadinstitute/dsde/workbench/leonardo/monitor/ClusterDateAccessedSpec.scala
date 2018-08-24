@@ -29,7 +29,7 @@ class ClusterDateAccessedSpec extends TestKit(ActorSystem("leonardotest")) with
   "ClusterDateAccessedMonitor" should "update date accessed" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
-    val savedTestCluster1 = dbFutureValue { _.clusterQuery.save(testCluster1, Option(gcsPath("gs://bucket")), Some(serviceAccountKey.id)) }
+    val savedTestCluster1 = testCluster1.save()
     savedTestCluster1 shouldEqual testCluster1
 
     val currentTime = Instant.now()
