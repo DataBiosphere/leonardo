@@ -18,7 +18,7 @@ class InstanceComponentSpec extends TestComponent with FlatSpecLike with CommonT
   val cluster1 = makeCluster(1)
 
   "InstanceComponent" should "save and get instances" in isolatedDbTest {
-    val savedCluster1 = dbFutureValue { _.clusterQuery.save(cluster1, Option(gcsPath("gs://bucket1")), None) }
+    val savedCluster1 = cluster1.save()
     savedCluster1 shouldEqual cluster1
 
     dbFutureValue { _.instanceQuery.save(savedCluster1.id, masterInstance) } shouldEqual 1
@@ -27,7 +27,7 @@ class InstanceComponentSpec extends TestComponent with FlatSpecLike with CommonT
   }
 
   it should "update status and ip" in isolatedDbTest {
-    val savedCluster1 = dbFutureValue { _.clusterQuery.save(cluster1, Option(gcsPath("gs://bucket1")), None) }
+    val savedCluster1 = cluster1.save()
     savedCluster1 shouldEqual cluster1
 
     dbFutureValue { _.instanceQuery.save(savedCluster1.id, masterInstance) } shouldEqual 1
@@ -39,7 +39,7 @@ class InstanceComponentSpec extends TestComponent with FlatSpecLike with CommonT
   }
 
   it should "merge instances" in isolatedDbTest {
-    val savedCluster1 = dbFutureValue { _.clusterQuery.save(cluster1, Option(gcsPath("gs://bucket1")), None) }
+    val savedCluster1 = cluster1.save()
     savedCluster1 shouldEqual cluster1
     dbFutureValue { _.instanceQuery.save(savedCluster1.id, masterInstance) } shouldEqual 1
 
