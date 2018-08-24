@@ -9,277 +9,124 @@ import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq,
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.scalatest.FlatSpecLike
-import org.scalatest.concurrent.Eventually.eventually
-import org.scalatest.time.{Seconds, Span}
-import scala.concurrent.duration._
 
 class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils {
   "ClusterComponent" should "list, save, get, and delete" in isolatedDbTest {
     dbFutureValue { _.clusterQuery.list() } shouldEqual Seq()
 
     lazy val err1 = ClusterError("some failure", 10, Instant.now().truncatedTo(ChronoUnit.SECONDS))
-    lazy val c1UUID = UUID.randomUUID()
-    val createdDate, dateAccessed = Instant.now()
-    val c1 = Cluster(
-      clusterName = name1,
-      googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
-      dataprocInfo = DataprocInfo(Option(c1UUID), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
-      auditInfo = AuditInfo(userEmail, createdDate, None, dateAccessed),
-      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-      status = ClusterStatus.Unknown,
-      labels = Map("bam" -> "yes", "vcf" -> "no"),
-      jupyterExtensionUri = None,
-      jupyterUserScriptUri = None,
-      errors = List.empty,
-      instances = Set(masterInstance, workerInstance1, workerInstance2),
-      userJupyterExtensionConfig = Some(userExtConfig),
-      autopauseThreshold = if (autopause) autopauseThreshold else 0,
-      defaultClientId = None
-    )
+    lazy val cluster1UUID = UUID.randomUUID()
+    val cluster1 = makeCluster(1).copy(dataprocInfo = makeDataprocInfo(1).copy(googleId = Some(cluster1UUID)),
+                                      instances = Set(masterInstance, workerInstance1, workerInstance2))
 
-    val c1WithErr = Cluster(
-      clusterName = name1,
-      googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
-      dataprocInfo = DataprocInfo(Option(c1UUID), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
-      auditInfo = AuditInfo(userEmail, createdDate, None, dateAccessed),
-      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name1),
-      status = ClusterStatus.Unknown,
-      labels = Map("bam" -> "yes", "vcf" -> "no"),
-      jupyterExtensionUri = None,
-      jupyterUserScriptUri = None,
-      errors = List(err1),
-      instances = Set(masterInstance, workerInstance1, workerInstance2),
-      userJupyterExtensionConfig = Some(userExtConfig),
-      autopauseThreshold = if (autopause) autopauseThreshold else 0,
-      defaultClientId = None
-    )
+    val cluster1WithErr = makeCluster(1).copy(dataprocInfo = makeDataprocInfo(1).copy(googleId = Some(cluster1UUID)),
+                                       errors = List(err1),
+                                       instances = Set(masterInstance, workerInstance1, workerInstance2))
 
-    val c2 = Cluster(
-      clusterName = name2,
-      googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
-      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op2")), Some(GcsBucketName("testStagingBucket2")), None),
-      auditInfo = AuditInfo(userEmail, Instant.now(), None, dateAccessed),
-      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
-      status = ClusterStatus.Creating,
-      labels = Map.empty,
-      jupyterExtensionUri = Some(jupyterExtensionUri),
-      jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      errors = List.empty,
-      instances = Set.empty,
-      userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0,
-      defaultClientId = None
-    )
+    val cluster2 = makeCluster(2).copy(status = ClusterStatus.Creating)
 
-    val c3 = Cluster(
-      clusterName = name3,
-      googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
-      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op3")), Some(GcsBucketName("testStagingBucket3")), None),
-      auditInfo = AuditInfo(userEmail, Instant.now(), None, dateAccessed),
-      machineConfig = MachineConfig(Some(3),Some("test-master-machine-type"), Some(500), Some("test-worker-machine-type"), Some(200), Some(2), Some(1)),
-      clusterUrl = Cluster.getClusterUrl(project, name3, clusterUrlBase),
-      status = ClusterStatus.Running,
-      labels = Map.empty,
-      jupyterExtensionUri = Some(jupyterExtensionUri),
-      jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      errors = List.empty,
-      instances = Set.empty,
-      userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0,
-      defaultClientId = None
-    )
+    val cluster3 = makeCluster(3).copy(machineConfig = MachineConfig(Some(3), Some("test-master-machine-type"), Some(500), Some("test-worker-machine-type"), Some(200), Some(2), Some(1)),
+                                      serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
+                                      status = ClusterStatus.Running)
 
-    val savedC1 = dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), None) }
-    savedC1 shouldEqual c1
+    val cluster4 = makeCluster(4).copy(clusterName = cluster1.clusterName,
+                                      googleProject = cluster1.googleProject)
 
-    val savedC2 = dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) }
-    savedC2 shouldEqual c2
+    val savedCluster1 = cluster1.save(None)
+    savedCluster1 shouldEqual cluster1
 
-    val savedC3 = dbFutureValue { _.clusterQuery.save(c3, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) }
-    savedC3 shouldEqual c3
+    val savedCluster2 = cluster2.save()
+    savedCluster2 shouldEqual cluster2
+
+    val savedCluster3 = cluster3.save()
+    savedCluster3 shouldEqual cluster3
 
     // instances are returned by list* methods
-    val expectedClusters123 = Seq(savedC1, savedC2, savedC3).map(_.copy(instances = Set.empty))
+    val expectedClusters123 = Seq(savedCluster1, savedCluster2, savedCluster3).map(_.copy(instances = Set.empty))
     dbFutureValue { _.clusterQuery.list() } should contain theSameElementsAs expectedClusters123
 
     // instances are returned by get* methods
-    dbFutureValue { _.clusterQuery.getActiveClusterByName(c1.googleProject, c1.clusterName) } shouldEqual Some(savedC1)
-    dbFutureValue { _.clusterQuery.getActiveClusterByName(c2.googleProject, c2.clusterName) } shouldEqual Some(savedC2)
-    dbFutureValue { _.clusterQuery.getActiveClusterByName(c3.googleProject, c3.clusterName) } shouldEqual Some(savedC3)
+    dbFutureValue { _.clusterQuery.getActiveClusterByName(cluster1.googleProject, cluster1.clusterName) } shouldEqual Some(savedCluster1)
+    dbFutureValue { _.clusterQuery.getActiveClusterByName(cluster2.googleProject, cluster2.clusterName) } shouldEqual Some(savedCluster2)
+    dbFutureValue { _.clusterQuery.getActiveClusterByName(cluster3.googleProject, cluster3.clusterName) } shouldEqual Some(savedCluster3)
 
-    dbFutureValue { _.clusterErrorQuery.save(savedC1.id, err1) }
-    val c1WithErrAssignedId = c1WithErr.copy(id = savedC1.id)
+    dbFutureValue { _.clusterErrorQuery.save(savedCluster1.id, err1) }
+    val cluster1WithErrAssignedId = cluster1WithErr.copy(id = savedCluster1.id)
 
-    dbFutureValue { _.clusterQuery.getClusterById(savedC1.id) } shouldEqual Some(c1WithErrAssignedId)
-    dbFutureValue { _.clusterQuery.getClusterById(savedC2.id) } shouldEqual Some(savedC2)
-    dbFutureValue { _.clusterQuery.getClusterById(savedC3.id) } shouldEqual Some(savedC3)
+    dbFutureValue { _.clusterQuery.getClusterById(savedCluster1.id) } shouldEqual Some(cluster1WithErrAssignedId)
+    dbFutureValue { _.clusterQuery.getClusterById(savedCluster2.id) } shouldEqual Some(savedCluster2)
+    dbFutureValue { _.clusterQuery.getClusterById(savedCluster3.id) } shouldEqual Some(savedCluster3)
 
-    dbFutureValue { _.clusterQuery.getServiceAccountKeyId(c1.googleProject, c1.clusterName) } shouldEqual None
-    dbFutureValue { _.clusterQuery.getServiceAccountKeyId(c2.googleProject, c2.clusterName) } shouldEqual Some(serviceAccountKey.id)
-    dbFutureValue { _.clusterQuery.getServiceAccountKeyId(c3.googleProject, c3.clusterName) } shouldEqual Some(serviceAccountKey.id)
+    dbFutureValue { _.clusterQuery.getServiceAccountKeyId(cluster1.googleProject, cluster1.clusterName) } shouldEqual None
+    dbFutureValue { _.clusterQuery.getServiceAccountKeyId(cluster2.googleProject, cluster2.clusterName) } shouldEqual Some(serviceAccountKey.id)
+    dbFutureValue { _.clusterQuery.getServiceAccountKeyId(cluster3.googleProject, cluster3.clusterName) } shouldEqual Some(serviceAccountKey.id)
 
-    dbFutureValue { _.clusterQuery.countByClusterServiceAccountAndStatus(serviceAccountEmail, ClusterStatus.Creating) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.countByClusterServiceAccountAndStatus(serviceAccountEmail, ClusterStatus.Running) } shouldEqual 0
+    dbFutureValue { _.clusterQuery.countByClusterServiceAccountAndStatus(clusterServiceAccount.get, ClusterStatus.Creating) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.countByClusterServiceAccountAndStatus(clusterServiceAccount.get, ClusterStatus.Running) } shouldEqual 0
 
     // (project, name) unique key test
 
-    val c4 = Cluster(
-      clusterName = c1.clusterName,
-      googleProject = c1.googleProject,
-      serviceAccountInfo = ServiceAccountInfo(None, Some(WorkbenchEmail("something-new@google.com"))),
-      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op3")), Some(GcsBucketName("testStagingBucket4")), Some(IP("1.2.3.4"))),
-      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(c1.googleProject, c1.clusterName, clusterUrlBase),
-      status = ClusterStatus.Unknown,
-      labels = Map.empty,
-      jupyterExtensionUri = Some(jupyterExtensionUri),
-      jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      errors = List.empty,
-      instances = Set.empty,
-      userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0,
-      defaultClientId = None)
+    dbFailure { _.clusterQuery.save(cluster4, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
 
-    dbFailure { _.clusterQuery.save(c4, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
+    dbFutureValue { _.clusterQuery.markPendingDeletion(savedCluster1.id) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.listActive() } should contain theSameElementsAs Seq(cluster2, cluster3)
 
-    dbFutureValue { _.clusterQuery.markPendingDeletion(savedC1.id) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.listActive() } should contain theSameElementsAs Seq(c2, c3)
+    val cluster1status = dbFutureValue { _.clusterQuery.getClusterById(savedCluster1.id) }.get
+    cluster1status.status shouldEqual ClusterStatus.Deleting
+    cluster1status.auditInfo.destroyedDate shouldBe None
+    cluster1status.dataprocInfo.hostIp shouldBe None
+    cluster1status.instances shouldBe cluster1.instances
 
-    val c1status = dbFutureValue { _.clusterQuery.getClusterById(savedC1.id) }.get
-    c1status.status shouldEqual ClusterStatus.Deleting
-    c1status.auditInfo.destroyedDate shouldBe None
-    c1status.dataprocInfo.hostIp shouldBe None
-    c1status.instances shouldBe c1.instances
+    dbFutureValue { _.clusterQuery.markPendingDeletion(savedCluster2.id) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq(cluster3)
+    val cluster2status = dbFutureValue { _.clusterQuery.getClusterById(savedCluster2.id) }.get
+    cluster2status.status shouldEqual ClusterStatus.Deleting
+    cluster2status.auditInfo.destroyedDate shouldBe None
+    cluster2status.dataprocInfo.hostIp shouldBe None
 
-    dbFutureValue { _.clusterQuery.markPendingDeletion(savedC2.id) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq(c3)
-    val c2status = dbFutureValue { _.clusterQuery.getClusterById(savedC2.id) }.get
-    c2status.status shouldEqual ClusterStatus.Deleting
-    c2status.auditInfo.destroyedDate shouldBe None
-    c2status.dataprocInfo.hostIp shouldBe None
-
-    dbFutureValue { _.clusterQuery.markPendingDeletion(savedC3.id) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.markPendingDeletion(savedCluster3.id) } shouldEqual 1
     dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq()
-    val c3status = dbFutureValue { _.clusterQuery.getClusterById(savedC3.id) }.get
-    c3status.status shouldEqual ClusterStatus.Deleting
-    c3status.auditInfo.destroyedDate shouldBe None
-    c3status.dataprocInfo.hostIp shouldBe None
+    val cluster3status = dbFutureValue { _.clusterQuery.getClusterById(savedCluster3.id) }.get
+    cluster3status.status shouldEqual ClusterStatus.Deleting
+    cluster3status.auditInfo.destroyedDate shouldBe None
+    cluster3status.dataprocInfo.hostIp shouldBe None
   }
 
   it should "get by labels" in isolatedDbTest {
-    val c1 = Cluster(
-      clusterName = name1,
-      googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
-      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
-      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-      status = ClusterStatus.Unknown,
-      labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
-      jupyterExtensionUri = None,
-      jupyterUserScriptUri = None,
-      errors = List.empty,
-      instances = Set.empty,
-      userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0,
-      defaultClientId = None)
 
-    val c2 = Cluster(
-      clusterName = name2,
-      googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
-      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op2")), Some(GcsBucketName("testStagingBucket2")), None),
-      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
-      status = ClusterStatus.Running,
-      labels = Map.empty,
-      jupyterExtensionUri = Some(jupyterExtensionUri),
-      jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      errors = List.empty,
-      instances = Set.empty,
-      userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0,
-      defaultClientId = None)
+    val savedCluster1 = makeCluster(1).copy(labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar")).save(Some(serviceAccountKey.id))
 
-    val c3 = Cluster(
-      clusterName = name3,
-      googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
-      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op3")), Some(GcsBucketName("testStagingBucket3")), None),
-      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name3, clusterUrlBase),
-      status = ClusterStatus.Deleted,
-      labels = Map("a" -> "b", "bam" -> "yes"),
-      jupyterExtensionUri = Some(jupyterExtensionUri),
-      jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      errors = List.empty,
-      instances = Set.empty,
-      userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0,
-      defaultClientId = None)
+    val savedCluster2 = makeCluster(2).copy(status = ClusterStatus.Running).save(Some(serviceAccountKey.id))
 
-    dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual c1
-    dbFutureValue { _.clusterQuery.save(c2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) } shouldEqual c2
-    dbFutureValue { _.clusterQuery.save(c3, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldEqual c3
-    dbFutureValue { _.clusterQuery.listByLabels(Map.empty, false) }.toSet shouldEqual Set(c1, c2)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes"), false) }.toSet shouldEqual Set(c1)
+    val savedCluster3 = makeCluster(3).copy(status = ClusterStatus.Deleted,
+                                       labels = Map("a" -> "b", "bam" -> "yes")).save()
+
+    dbFutureValue { _.clusterQuery.listByLabels(Map.empty, false) }.toSet shouldEqual Set(savedCluster1, savedCluster2)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes"), false) }.toSet shouldEqual Set(savedCluster1)
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "no"), false) }.toSet shouldEqual Set.empty[Cluster]
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no"), false) }.toSet shouldEqual Set(c1)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("foo" -> "bar", "vcf" -> "no"), false) }.toSet shouldEqual Set(c1)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), false) }.toSet shouldEqual Set(c1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no"), false) }.toSet shouldEqual Set(savedCluster1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("foo" -> "bar", "vcf" -> "no"), false) }.toSet shouldEqual Set(savedCluster1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), false) }.toSet shouldEqual Set(savedCluster1)
     dbFutureValue { _.clusterQuery.listByLabels(Map("a" -> "b"), false) }.toSet shouldEqual Set.empty[Cluster]
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "b"), false) }.toSet shouldEqual Set.empty[Cluster]
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "c"), false) }.toSet shouldEqual Set.empty[Cluster]
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no"), true) }.toSet shouldEqual Set(c1)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("foo" -> "bar", "vcf" -> "no"), true) }.toSet shouldEqual Set(c1)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), true) }.toSet shouldEqual Set(c1)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("a" -> "b"), true) }.toSet shouldEqual Set(c3)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "b"), true) }.toSet shouldEqual Set(c3)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no"), true) }.toSet shouldEqual Set(savedCluster1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("foo" -> "bar", "vcf" -> "no"), true) }.toSet shouldEqual Set(savedCluster1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), true) }.toSet shouldEqual Set(savedCluster1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("a" -> "b"), true) }.toSet shouldEqual Set(savedCluster3)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "b"), true) }.toSet shouldEqual Set(savedCluster3)
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "c"), true) }.toSet shouldEqual Set.empty[Cluster]
     dbFutureValue { _.clusterQuery.listByLabels(Map("bogus" -> "value"), true) }.toSet shouldEqual Set.empty[Cluster]
   }
 
   it should "stop and start a cluster" in isolatedDbTest {
     val dateAccessed = Instant.now()
-    val initialCluster =
-      Cluster(
-        clusterName = name1,
-        googleProject = project,
-        serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
-        dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
-        auditInfo = AuditInfo(userEmail, Instant.now(), None, dateAccessed),
-        machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-        clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-        status = ClusterStatus.Running,
-        labels = Map("bam" -> "yes", "vcf" -> "no"),
-        jupyterExtensionUri = None,
-        jupyterUserScriptUri = None,
-        errors = List.empty,
-        instances = Set(masterInstance, workerInstance1, workerInstance2),
-        userJupyterExtensionConfig = None,
-        autopauseThreshold = if (autopause) autopauseThreshold else 0,
-        defaultClientId = None)
-
-    val savedInitialCluster = dbFutureValue { _.clusterQuery.save(initialCluster, Option(gcsPath( "gs://bucket1")), Some(serviceAccountKey.id)) }
-    savedInitialCluster shouldEqual initialCluster
+    val initialCluster = makeCluster(1).copy(status = ClusterStatus.Running).save()
 
     // note: this does not update the instance records
-    dbFutureValue { _.clusterQuery.setToStopping(savedInitialCluster.id) } shouldEqual 1
-    val stoppedCluster = dbFutureValue { _.clusterQuery.getClusterById(savedInitialCluster.id) }.get
+    dbFutureValue { _.clusterQuery.setToStopping(initialCluster.id) } shouldEqual 1
+    val stoppedCluster = dbFutureValue { _.clusterQuery.getClusterById(initialCluster.id) }.get
     val expectedStoppedCluster = initialCluster.copy(
       dataprocInfo = initialCluster.dataprocInfo.copy(hostIp = None),
       auditInfo = initialCluster.auditInfo.copy(dateAccessed = dateAccessed),
@@ -287,120 +134,49 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     stoppedCluster.copy(auditInfo = stoppedCluster.auditInfo.copy(dateAccessed = dateAccessed)) shouldEqual expectedStoppedCluster
     stoppedCluster.auditInfo.dateAccessed should be > initialCluster.auditInfo.dateAccessed
 
-    dbFutureValue { _.clusterQuery.setToRunning(savedInitialCluster.id, initialCluster.dataprocInfo.hostIp.get) } shouldEqual 1
-    val runningCluster = dbFutureValue { _.clusterQuery.getClusterById(savedInitialCluster.id) }.get
+    dbFutureValue { _.clusterQuery.setToRunning(initialCluster.id, initialCluster.dataprocInfo.hostIp.get) } shouldEqual 1
+    val runningCluster = dbFutureValue { _.clusterQuery.getClusterById(initialCluster.id) }.get
     val expectedRunningCluster = initialCluster.copy(
-      id = savedInitialCluster.id,
+      id = initialCluster.id,
       auditInfo = initialCluster.auditInfo.copy(dateAccessed = dateAccessed))
     runningCluster.copy(auditInfo = runningCluster.auditInfo.copy(dateAccessed = dateAccessed)) shouldEqual expectedRunningCluster
     runningCluster.auditInfo.dateAccessed should be > stoppedCluster.auditInfo.dateAccessed
   }
 
   it should "merge instances" in isolatedDbTest {
-    val c1 =
-      Cluster(
-        clusterName = name1,
-        googleProject = project,
-        serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
-        dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
-        auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-        machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
-        clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-        status = ClusterStatus.Running,
-        labels = Map("bam" -> "yes", "vcf" -> "no"),
-        jupyterExtensionUri = None,
-        jupyterUserScriptUri = None,
-        errors = List.empty,
-        instances = Set(masterInstance),
-        userJupyterExtensionConfig = None,
-        autopauseThreshold = if (autopause) autopauseThreshold else 0,
-        defaultClientId = None)
+    val savedCluster1 = makeCluster(1).copy(instances = Set(masterInstance)).save()
 
-    val savedC1 = dbFutureValue { _.clusterQuery.save(c1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) }
-    savedC1 shouldEqual c1
-
-    val updatedC1 = c1.copy(
-      id = savedC1.id,
+    val updatedCluster1 = savedCluster1.copy(
+      id = savedCluster1.id,
       instances = Set(
         masterInstance.copy(status = InstanceStatus.Provisioning),
         workerInstance1.copy(status = InstanceStatus.Provisioning),
         workerInstance2.copy(status = InstanceStatus.Provisioning)))
 
-    dbFutureValue { _.clusterQuery.mergeInstances(updatedC1) } shouldEqual updatedC1
-    dbFutureValue { _.clusterQuery.getClusterById(savedC1.id) }.get shouldEqual updatedC1
+    dbFutureValue { _.clusterQuery.mergeInstances(updatedCluster1) } shouldEqual updatedCluster1
+    dbFutureValue { _.clusterQuery.getClusterById(savedCluster1.id) }.get shouldEqual updatedCluster1
 
-    val updatedC1Again = c1.copy(
+    val updatedCluster1Again = savedCluster1.copy(
       instances = Set(
         masterInstance.copy(status = InstanceStatus.Terminated),
         workerInstance1.copy(status = InstanceStatus.Terminated))
     )
 
-    dbFutureValue { _.clusterQuery.mergeInstances(updatedC1Again) } shouldEqual updatedC1Again
-    dbFutureValue { _.clusterQuery.getClusterById(savedC1.id) }.get shouldEqual updatedC1
+    dbFutureValue { _.clusterQuery.mergeInstances(updatedCluster1Again) } shouldEqual updatedCluster1Again
   }
 
   it should "get list of clusters to auto freeze" in isolatedDbTest {
-    val runningCluster1 = Cluster(
-      clusterName = name1,
-      googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
-      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
-      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now().minus(100, ChronoUnit.DAYS)),
-      machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-      status = ClusterStatus.Running,
-      labels = Map("bam" -> "yes", "vcf" -> "no"),
-      jupyterExtensionUri = None,
-      jupyterUserScriptUri = None,
-      errors = List.empty,
-      instances = Set(masterInstance),
-      userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0,
-      defaultClientId = None)
+    val runningCluster1 = makeCluster(1).copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(100, ChronoUnit.DAYS)),
+                                                    status = ClusterStatus.Running).save()
 
-    val runningCluster2 = Cluster(
-      clusterName = name2,
-      googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(Some(serviceAccountEmail), Some(serviceAccountEmail)),
-      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op2")), Some(GcsBucketName("testStagingBucket2")), None),
-      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now().minus(100, ChronoUnit.DAYS)),
-      machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
-      status = ClusterStatus.Stopped,
-      labels = Map.empty,
-      jupyterExtensionUri = Some(jupyterExtensionUri),
-      jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      errors = List.empty,
-      instances = Set.empty,
-      userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0,
-      defaultClientId = None)
+    val runningCluster2 = makeCluster(2).copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(100, ChronoUnit.DAYS)),
+                                                    status = ClusterStatus.Stopped).save()
 
-    val stoppedCluster = Cluster(
-      clusterName = name3,
-      googleProject = project,
-      serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
-      dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op3")), Some(GcsBucketName("testStagingBucket3")), None),
-      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-      clusterUrl = Cluster.getClusterUrl(project, name3, clusterUrlBase),
-      status = ClusterStatus.Stopped,
-      labels = Map.empty,
-      jupyterExtensionUri = Some(jupyterExtensionUri),
-      jupyterUserScriptUri = Some(jupyterUserScriptUri),
-      errors = List.empty,
-      instances = Set.empty,
-      userJupyterExtensionConfig = None,
-      autopauseThreshold = if (autopause) autopauseThreshold else 0,
-      defaultClientId = None)
-
-    dbFutureValue { _.clusterQuery.save(runningCluster1, Some(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual runningCluster1
-    dbFutureValue { _.clusterQuery.save(runningCluster2, Some(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual runningCluster2
-    dbFutureValue { _.clusterQuery.save(stoppedCluster, Some(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual stoppedCluster
+    val stoppedCluster = makeCluster(3).copy(status = ClusterStatus.Stopped).save()
 
     val autoFreezeList = dbFutureValue { _.clusterQuery.getClustersReadyToAutoFreeze() }
     autoFreezeList should contain (runningCluster1)
-    //c2 is already stopped
+    //cluster2 is already stopped
     autoFreezeList should not contain stoppedCluster
     autoFreezeList should not contain runningCluster2
   }
