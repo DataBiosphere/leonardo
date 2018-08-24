@@ -8,6 +8,7 @@ import java.util.Base64
 import cats.data.OptionT
 import cats.implicits._
 import com.google.api.services.bigquery.BigqueryScopes
+import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.oauth2.Oauth2Scopes
 import com.google.api.services.sourcerepo.v1.CloudSourceRepositoriesScopes
 import com.typesafe.scalalogging.LazyLogging
@@ -76,7 +77,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     Oauth2Scopes.USERINFO_EMAIL,
     Oauth2Scopes.USERINFO_PROFILE,
     BigqueryScopes.BIGQUERY,
-    CloudSourceRepositoriesScopes.SOURCE_READ_ONLY)
+    CloudSourceRepositoriesScopes.SOURCE_READ_ONLY,
+    ComputeScopes.CLOUD_PLATFORM)
 
   // TODO: show diffs as screenshot or other test output?
   def compareFilesExcludingIPs(left: File, right: File): Unit = {
@@ -332,50 +334,80 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     cluster
   }
 
-  def verifyNotebookCredentials(notebookPage: NotebookPage, expectedEmail: WorkbenchEmail): Unit = {
-    // verify google-auth
+  def verifyGoogleAuth(notebookPage: NotebookPage, expectedEmail: Option[WorkbenchEmail], expectedScopes: Option[Seq[String]]): Unit = {
     notebookPage.executeCell("import google.auth") shouldBe None
     notebookPage.executeCell("credentials, project_id = google.auth.default()") shouldBe None
-    notebookPage.executeCell("print credentials._service_account_email") shouldBe Some(expectedEmail.value)
-
-    // verify FISS
-    notebookPage.executeCell("import firecloud.api as fapi") shouldBe None
-    notebookPage.executeCell("fiss_credentials, project = fapi.google.auth.default()") shouldBe None
-    notebookPage.executeCell("print fiss_credentials.service_account_email") shouldBe Some(expectedEmail.value)
-
-    // verify Spark
-    notebookPage.executeCell("hadoop_config = sc._jsc.hadoopConfiguration()") shouldBe None
-    notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.enable')") shouldBe Some("true")
-    notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.json.keyfile')") shouldBe Some("/etc/service-account-credentials.json")
-    val nbEmail = notebookPage.executeCell("! grep client_email /etc/service-account-credentials.json")
-    nbEmail shouldBe 'defined
-    nbEmail.get should include (expectedEmail.value)
+    notebookPage.executeCell("print(credentials.service_account_email)") shouldBe expectedEmail.map(_.value).orElse(Some("None"))
+    val actualScopes = notebookPage.executeCell("print(credentials.scopes)")
+    actualScopes shouldBe 'defined
+    expectedScopes match {
+      case Some(scopes) =>
+        scopes.foreach { scope =>
+          actualScopes.get should include (scope)
+        }
+      case None =>
+        actualScopes shouldBe Some("None")
+    }
   }
 
-  def verifyNoNotebookCredentials(notebookPage: NotebookPage): Unit = {
-    // verify google-authn
-    notebookPage.executeCell("import google.auth") shouldBe None
-    notebookPage.executeCell("credentials, project_id = google.auth.default()") shouldBe None
-    notebookPage.executeCell("print(credentials.service_account_email)") shouldBe Some("None")
-    notebookPage.executeCell("print(credentials.scopes)") shouldBe Some("None")
-    // verify FISS
+  def verifyFiss(notebookPage: NotebookPage, expectedEmail: Option[WorkbenchEmail], expectedScopes: Option[Seq[String]]): Unit = {
     notebookPage.executeCell("import firecloud.api as fapi") shouldBe None
     notebookPage.executeCell("fiss_credentials, project = fapi.google.auth.default()") shouldBe None
-    notebookPage.executeCell("print(fiss_credentials.service_account_email)") shouldBe Some("default")
-    notebookPage.executeCell("print(fiss_credentials.scopes)") shouldBe Some("None")
-    // verify Spark
-    if (kernel == PySpark2 || kernel == PySpark3) {
-      notebookPage.executeCell("hadoop_config = sc._jsc.hadoopConfiguration()") shouldBe None
-      notebookPage.executeCell("print(hadoop_config.get('google.cloud.auth.service.account.enable'))") shouldBe Some("None")
-      notebookPage.executeCell("print(hadoop_config.get('google.cloud.auth.service.account.json.keyfile'))") shouldBe Some("None")
+    notebookPage.executeCell("print(fiss_credentials.service_account_email)") shouldBe expectedEmail.map(_.value).orElse(Some("default"))
+    val actualScopes = notebookPage.executeCell("print(fiss_credentials.scopes)")
+    actualScopes shouldBe 'defined
+    expectedScopes match {
+      case Some(scopes) =>
+        scopes.foreach { scope =>
+          actualScopes.get should include (scope)
+        }
+      case None =>
+        actualScopes shouldBe Some("None")
     }
-     // verify metadata server
+  }
+
+  def verifySpark(notebookPage: NotebookPage, expectedEmail: Option[WorkbenchEmail]): Unit = {
+    // verify Spark
+    notebookPage.executeCell("hadoop_config = sc._jsc.hadoopConfiguration()") shouldBe None
+    val serviceAccountEnabled = notebookPage.executeCell("print(hadoop_config.get('google.cloud.auth.service.account.enable'))")
+    val keyFile = notebookPage.executeCell("print(hadoop_config.get('google.cloud.auth.service.account.json.keyfile'))")
+    expectedEmail match {
+      case Some(email) =>
+        serviceAccountEnabled shouldBe Some("true")
+        keyFile shouldBe Some("/etc/service-account-credentials.json")
+        val nbEmail = notebookPage.executeCell("! grep client_email /etc/service-account-credentials.json")
+        nbEmail shouldBe 'defined
+        nbEmail.get should include (email.value)
+      case None =>
+        serviceAccountEnabled shouldBe Some("None")
+        keyFile shouldBe Some("None")
+    }
+  }
+
+  def verifyMetadataServer(notebookPage: NotebookPage, expectedEmail: WorkbenchEmail, expectedScopes: Seq[String]): Unit = {
     val metadata = notebookPage.executeCell("""!curl "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/?recursive=true" -H "Metadata-Flavor: Google"""")
     metadata shouldBe 'defined
     metadata.get should include (expectedEmail.value)
     expectedScopes.foreach { scope =>
       metadata.get should include (scope)
-    }  
+    }
+  }
+
+  def verifyNotebookServiceAccount(notebookPage: NotebookPage, kernel: Kernel, expectedEmail: WorkbenchEmail): Unit = {
+    verifyGoogleAuth(notebookPage, Some(expectedEmail), Some(expectedServiceAccountScopes))
+    verifyFiss(notebookPage, Some(expectedEmail), Some(expectedServiceAccountScopes))
+    if (kernel == PySpark2 || kernel == PySpark3) {
+      verifySpark(notebookPage, Some(expectedEmail))
+    }
+  }
+
+  def verifyClusterServiceAccount(notebookPage: NotebookPage, kernel: Kernel, expectedEmail: WorkbenchEmail): Unit = {
+    verifyGoogleAuth(notebookPage, None, None)
+    verifyFiss(notebookPage, None, None)
+    if (kernel == PySpark2 || kernel == PySpark3) {
+      verifySpark(notebookPage, None)
+    }
+    verifyMetadataServer(notebookPage, expectedEmail, expectedServiceAccountScopes)
   }
 
   def getAndVerifyPet(project: GoogleProject)(implicit token: AuthToken): WorkbenchEmail = {

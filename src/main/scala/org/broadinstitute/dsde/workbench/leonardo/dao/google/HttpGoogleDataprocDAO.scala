@@ -207,7 +207,12 @@ class HttpGoogleDataprocDAO(appName: String,
       }
   }
 
-  private def getClusterConfig(machineConfig: MachineConfig, initScript: GcsPath, clusterServiceAccount: Option[WorkbenchEmail], credentialsFileName: Option[String], stagingBucket: GcsBucketName, serviceAccountScopes: Seq[String]): DataprocClusterConfig = {
+  private def getClusterConfig(machineConfig: MachineConfig,
+                               initScript: GcsPath,
+                               clusterServiceAccount: Option[WorkbenchEmail],
+                               credentialsFileName: Option[String],
+                               stagingBucket: GcsBucketName,
+                               serviceAccountScopes: Seq[String]): DataprocClusterConfig = {
     // Create a GceClusterConfig, which has the common config settings for resources of Google Compute Engine cluster instances,
     // applicable to all instances in the cluster.
     // Set the network tag, network, and subnet. This allows the created GCE instances to be exposed by Leo's firewall rule.

@@ -156,7 +156,9 @@ class HttpGoogleComputeDAO(appName: String,
     }
   }
 
-  override def setServiceAccount(instanceKey: InstanceKey, serviceAccountEmail: WorkbenchEmail, serviceAccountScopes: Seq[String]): Future[Unit] = {
+  override def setServiceAccount(instanceKey: InstanceKey,
+                                 serviceAccountEmail: WorkbenchEmail,
+                                 serviceAccountScopes: Seq[String]): Future[Unit] = {
     val request = compute.instances().setServiceAccount(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value,
       new InstancesSetServiceAccountRequest().setEmail(serviceAccountEmail.value).setScopes(serviceAccountScopes.asJava))
 
