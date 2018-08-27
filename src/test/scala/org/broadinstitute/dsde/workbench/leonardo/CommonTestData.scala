@@ -24,7 +24,7 @@ import scala.concurrent.ExecutionContext
 
 // values common to multiple tests, to reduce boilerplate
 
-trait CommonTestData extends TestComponent with GcsPathUtils{ this: ScalaFutures =>
+trait CommonTestData{ this: ScalaFutures =>
   val name0 = ClusterName("name0")
   val name1 = ClusterName("name1")
   val name2 = ClusterName("name2")
@@ -100,12 +100,6 @@ trait CommonTestData extends TestComponent with GcsPathUtils{ this: ScalaFutures
       autopauseThreshold = 30,
       defaultClientId = Some("defaultClientId")
     )
-  }
-
-  implicit class ClusterExtensions(cluster: Cluster) {
-    def save(serviceAccountKeyId: Option[ServiceAccountKeyId] = Some(serviceAccountKey.id)) = {
-      dbFutureValue { _.clusterQuery.save(cluster, Option(gcsPath("gs://bucket" + cluster.clusterName.toString().takeRight(1))), serviceAccountKeyId) }
-    }
   }
 
   val testCluster = new Cluster(
