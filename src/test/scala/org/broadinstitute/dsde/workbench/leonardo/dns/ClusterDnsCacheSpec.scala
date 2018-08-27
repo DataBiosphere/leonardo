@@ -32,23 +32,24 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     super.afterAll()
   }
 
-  val cluster1 = Cluster(
-    clusterName = name1,
-    googleProject = project,
-    serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
-    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
-    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    status = ClusterStatus.Unknown,
-    labels = Map("bam" -> "yes", "vcf" -> "no"),
-    jupyterExtensionUri = Some(jupyterExtensionUri),
-    jupyterUserScriptUri = Some(jupyterUserScriptUri),
-    errors = List.empty,
-    instances = Set.empty,
-    userJupyterExtensionConfig = None,
-    autopauseThreshold = 0,
-    defaultClientId = None)
+  val cluster1 = makeCluster(1)
+//    Cluster(
+//    clusterName = name1,
+//    googleProject = project,
+//    serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
+//    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
+//    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
+//    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
+//    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
+//    status = ClusterStatus.Unknown,
+//    labels = Map("bam" -> "yes", "vcf" -> "no"),
+//    jupyterExtensionUri = Some(jupyterExtensionUri),
+//    jupyterUserScriptUri = Some(jupyterUserScriptUri),
+//    errors = List.empty,
+//    instances = Set.empty,
+//    userJupyterExtensionConfig = None,
+//    autopauseThreshold = 0,
+//    defaultClientId = None)
 
   val cluster2 = Cluster(
     clusterName = name2,
