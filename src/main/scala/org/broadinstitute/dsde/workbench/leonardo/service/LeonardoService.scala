@@ -10,7 +10,6 @@ import cats.implicits._
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
 import com.google.api.services.bigquery.BigqueryScopes
-import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.oauth2.Oauth2Scopes
 import com.google.api.services.sourcerepo.v1.CloudSourceRepositoriesScopes
 import com.typesafe.scalalogging.LazyLogging
@@ -117,9 +116,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private val oauth2Scopes = List(Oauth2Scopes.USERINFO_EMAIL, Oauth2Scopes.USERINFO_PROFILE)
   private val bigqueryScopes = List(BigqueryScopes.BIGQUERY)
   private val cloudSourceRepositoryScopes = List(CloudSourceRepositoriesScopes.SOURCE_READ_ONLY)
-  private val cloudPlatformScopes = List(ComputeScopes.CLOUD_PLATFORM)
 
-  private[service] val serviceAccountScopes = oauth2Scopes ++ bigqueryScopes ++ cloudSourceRepositoryScopes ++ cloudPlatformScopes
+  private[service] val serviceAccountScopes = oauth2Scopes ++ bigqueryScopes ++ cloudSourceRepositoryScopes
 
   def isWhitelisted(userInfo: UserInfo): Future[Boolean] = {
     if( whitelist contains userInfo.userEmail.value.toLowerCase ) {

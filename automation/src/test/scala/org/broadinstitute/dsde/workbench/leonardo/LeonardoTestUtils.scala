@@ -8,7 +8,6 @@ import java.util.Base64
 import cats.data.OptionT
 import cats.implicits._
 import com.google.api.services.bigquery.BigqueryScopes
-import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.oauth2.Oauth2Scopes
 import com.google.api.services.sourcerepo.v1.CloudSourceRepositoriesScopes
 import com.typesafe.scalalogging.LazyLogging
@@ -77,8 +76,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     Oauth2Scopes.USERINFO_EMAIL,
     Oauth2Scopes.USERINFO_PROFILE,
     BigqueryScopes.BIGQUERY,
-    CloudSourceRepositoriesScopes.SOURCE_READ_ONLY,
-    ComputeScopes.CLOUD_PLATFORM)
+    CloudSourceRepositoriesScopes.SOURCE_READ_ONLY)
 
   // TODO: show diffs as screenshot or other test output?
   def compareFilesExcludingIPs(left: File, right: File): Unit = {
