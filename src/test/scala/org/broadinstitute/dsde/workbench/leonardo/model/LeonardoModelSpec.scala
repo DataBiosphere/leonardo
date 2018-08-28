@@ -18,23 +18,10 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
 
   val exampleTime = Instant.parse("2018-08-07T10:12:35Z")
 
-  val cluster = Cluster(
-    clusterName = name1,
-    googleProject = project,
-    serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
-    dataprocInfo = DataprocInfo(Option(fromString("4ba97751-026a-4555-961b-89ae6ce78df4")), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
-    auditInfo = AuditInfo(userEmail, exampleTime, None, exampleTime),
-    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    status = ClusterStatus.Unknown,
-    labels = Map("bam" -> "yes", "vcf" -> "no"),
-    jupyterExtensionUri = Some(jupyterExtensionUri),
-    jupyterUserScriptUri = Some(jupyterUserScriptUri),
-    errors = List.empty,
-    instances = Set.empty,
-    userJupyterExtensionConfig = None,
-    autopauseThreshold = 0,
-    defaultClientId = None)
+  val cluster = makeCluster(1).copy(dataprocInfo = makeDataprocInfo(1).copy(googleId = Option(fromString("4ba97751-026a-4555-961b-89ae6ce78df4"))),
+                                    auditInfo = auditInfo.copy(createdDate = exampleTime,
+                                                               dateAccessed = exampleTime),
+                                    jupyterExtensionUri = Some(jupyterExtensionUri))
 
 
   it should "serialize/deserialize to/from JSON" in isolatedDbTest {
@@ -42,34 +29,32 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     val expectedJson =
       """
         |{ "id": 0,
-        |  "clusterName": "name1",
+        |  "clusterName": "clustername1",
         |  "googleId": "4ba97751-026a-4555-961b-89ae6ce78df4",
         |  "googleProject": "dsp-leo-test",
         |  "serviceAccountInfo": {
-        |    "notebookServiceAccount": "pet-1234567890@test-project.iam.gserviceaccount.com"
+        |    "clusterServiceAccount": "testClusterServiceAccount@example.com",
+        |    "notebookServiceAccount": "testNotebookServiceAccount@example.com"
         |    },
         |  "machineConfig": {
         |    "numberOfWorkers": 0,
         |    "masterMachineType": "",
         |    "masterDiskSize": 500
         |    },
-        |  "clusterUrl": "http://leonardo/dsp-leo-test/name1",
-        |  "operationName": "op1",
+        |  "clusterUrl": "http://leonardo/dsp-leo-test/clustername1",
+        |  "operationName": "operationName1",
         |  "status": "Unknown",
         |  "hostIp": "numbers.and.dots",
         |  "creator": "user1@example.com",
         |  "createdDate": "2018-08-07T10:12:35Z",
-        |  "labels": {
-        |     "bam": "yes",
-        |     "vcf": "no"
-        |     },
+        |  "labels": {},
         |  "jupyterExtensionUri": "gs://extension_bucket/extension_path",
-        |  "jupyterUserScriptUri": "gs://userscript_bucket/userscript.sh",
-        |  "stagingBucket": "testStagingBucket1",
+        |  "stagingBucket": "stagingBucketName1",
         |  "errors": [],
         |  "instances": [],
         |  "dateAccessed": "2018-08-07T10:12:35Z",
-        |  "autopauseThreshold": 0
+        |  "autopauseThreshold": 30,
+        |  "defaultClientId": "defaultClientId"
         |}
       """.stripMargin.parseJson
 
@@ -119,7 +104,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     returnedCluster.jupyterExtensionUri shouldBe Some(jupyterExtensionUri)
 
     // required and present field should deserialize to val
-    returnedCluster.clusterName shouldBe name1
+    returnedCluster.clusterName shouldBe cluster.clusterName
 
     // required and absent field should throw a DeserializationException
     val caught = intercept[DeserializationException]{
