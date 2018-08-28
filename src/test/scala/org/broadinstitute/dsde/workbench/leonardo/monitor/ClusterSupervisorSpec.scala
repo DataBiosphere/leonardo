@@ -27,24 +27,8 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
   with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll
   with TestComponent with CommonTestData with GcsPathUtils { testKit =>
 
-  val runningCluster = Cluster(
-    clusterName = name1,
-    googleProject = project,
-    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
-    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), None),
-    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now().minus(45, ChronoUnit.SECONDS)),
-    machineConfig = MachineConfig(Some(0), Some(""), Some(500)),
-    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    status = ClusterStatus.Running,
-    labels = Map("bam" -> "yes", "vcf" -> "no"),
-    jupyterExtensionUri = None,
-    jupyterUserScriptUri = None,
-    errors = List.empty,
-    instances = Set.empty,
-    userJupyterExtensionConfig = Some(userExtConfig),
-    autopauseThreshold = 1,
-    defaultClientId = None
-  )
+  val runningCluster = makeCluster(1).copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(45, ChronoUnit.SECONDS)),
+                                           autopauseThreshold = 1).save()
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
@@ -70,8 +54,8 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
     }
 
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
-    val savedRunningCluster = dbFutureValue { _.clusterQuery.save(runningCluster, Option(gcsPath("gs://bucket")), Some(serviceAccountKey.id)) }
 
+    val savedRunningCluster = runningCluster.save()
     savedRunningCluster shouldEqual runningCluster
 
     val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO, computeDAO, iamDAO, storageDAO,
