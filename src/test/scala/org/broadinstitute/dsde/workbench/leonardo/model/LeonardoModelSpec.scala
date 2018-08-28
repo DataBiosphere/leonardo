@@ -29,7 +29,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     val expectedJson =
       """
         |{ "id": 0,
-        |  "clusterName": "clusterName1",
+        |  "clusterName": "clustername1",
         |  "googleId": "4ba97751-026a-4555-961b-89ae6ce78df4",
         |  "googleProject": "dsp-leo-test",
         |  "serviceAccountInfo": {
@@ -41,7 +41,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |    "masterMachineType": "",
         |    "masterDiskSize": 500
         |    },
-        |  "clusterUrl": "http://leonardo/dsp-leo-test/clusterName1",
+        |  "clusterUrl": "http://leonardo/dsp-leo-test/clustername1",
         |  "operationName": "operationName1",
         |  "status": "Unknown",
         |  "hostIp": "numbers.and.dots",
