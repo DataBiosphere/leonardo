@@ -12,6 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterService
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockJupyterDAO, MockSamDAO}
+import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData, _}
@@ -19,11 +20,11 @@ import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, Workbe
 import org.scalatest.concurrent.ScalaFutures
 
 import scala.concurrent.ExecutionContext
-import scala.concurrent.duration._
+
 
 // values common to multiple tests, to reduce boilerplate
 
-trait CommonTestData { this: ScalaFutures =>
+trait CommonTestData{ this: ScalaFutures =>
   val name0 = ClusterName("name0")
   val name1 = ClusterName("name1")
   val name2 = ClusterName("name2")
@@ -60,8 +61,6 @@ trait CommonTestData { this: ScalaFutures =>
   val testClusterRequest = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), None, None, None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))), Some(true), Some(30), Some("ThisIsADefaultClientID"))
   val testClusterRequestWithExtensionAndScript = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(jupyterExtensionUri), Some(jupyterUserScriptUri), None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))), Some(true), Some(30), Some("ThisIsADefaultClientID"))
 
-
-
   val mockSamDAO = new MockSamDAO
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO
   val mockGoogleComputeDAO = new MockGoogleComputeDAO
@@ -72,8 +71,36 @@ trait CommonTestData { this: ScalaFutures =>
   val tokenValue = "accessToken"
   val tokenCookie = HttpCookiePair(tokenName, tokenValue)
 
-  val serviceAccountInfo = new ServiceAccountInfo(Option(WorkbenchEmail("testServiceAccount1@example.com")), Option(WorkbenchEmail("testServiceAccount2@example.com")))
+  val clusterServiceAccount = Option(WorkbenchEmail("testClusterServiceAccount@example.com"))
+  val notebookServiceAccount = Option(WorkbenchEmail("testNotebookServiceAccount@example.com"))
+  val serviceAccountInfo = new ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount)
 
+  val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now())
+  def makeDataprocInfo(index: Int): DataprocInfo = {
+    DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("operationName" + index.toString)), Option(GcsBucketName("stagingBucketName" + index.toString)), Some(IP("numbers.and.dots")))
+  }
+
+  def makeCluster(index: Int): Cluster = {
+    val clusterName = ClusterName("clusterName" + index.toString)
+    Cluster(
+      clusterName = clusterName,
+      googleProject = project,
+      serviceAccountInfo = serviceAccountInfo,
+      dataprocInfo = makeDataprocInfo(index),
+      auditInfo = auditInfo,
+      machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
+      clusterUrl = Cluster.getClusterUrl(project, clusterName, clusterUrlBase),
+      status = ClusterStatus.Unknown,
+      labels = Map(),
+      jupyterExtensionUri = None,
+      jupyterUserScriptUri = None,
+      errors = List.empty,
+      instances = Set.empty,
+      userJupyterExtensionConfig = None,
+      autopauseThreshold = 30,
+      defaultClientId = Some("defaultClientId")
+    )
+  }
 
   val testCluster = new Cluster(
     clusterName = name1,
