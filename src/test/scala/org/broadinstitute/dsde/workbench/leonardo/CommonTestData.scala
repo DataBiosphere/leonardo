@@ -24,7 +24,7 @@ import scala.concurrent.ExecutionContext
 
 // values common to multiple tests, to reduce boilerplate
 
-trait CommonTestData extends TestComponent with GcsPathUtils{ this: ScalaFutures =>
+trait CommonTestData{ this: ScalaFutures =>
   val name0 = ClusterName("clustername0")
   val name1 = ClusterName("clustername1")
   val name2 = ClusterName("clustername2")
@@ -102,29 +102,23 @@ trait CommonTestData extends TestComponent with GcsPathUtils{ this: ScalaFutures
     )
   }
 
-  implicit class ClusterExtensions(cluster: Cluster) {
-    def save(serviceAccountKeyId: Option[ServiceAccountKeyId] = Some(serviceAccountKey.id)) = {
-      dbFutureValue { _.clusterQuery.save(cluster, Option(gcsPath("gs://bucket" + cluster.clusterName.toString().takeRight(1))), serviceAccountKeyId) }
-    }
-  }
-
-//  val testCluster = new Cluster(
-//    clusterName = name1,
-//    googleProject = project,
-//    serviceAccountInfo = serviceAccountInfo,
-//    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op")), Some(GcsBucketName("testStagingBucket1")), None),
-//    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-//    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-//    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-//    status = ClusterStatus.Unknown,
-//    labels = Map(),
-//    jupyterExtensionUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),
-//    jupyterUserScriptUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript"))),
-//    errors = List.empty,
-//    instances = Set.empty,
-//    userJupyterExtensionConfig = None,
-//    autopauseThreshold = if (autopause) autopauseThreshold else 0,
-//    defaultClientId = None)
+  val testCluster = new Cluster(
+    clusterName = name1,
+    googleProject = project,
+    serviceAccountInfo = serviceAccountInfo,
+    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op")), Some(GcsBucketName("testStagingBucket1")), None),
+    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
+    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
+    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
+    status = ClusterStatus.Unknown,
+    labels = Map(),
+    jupyterExtensionUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),
+    jupyterUserScriptUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript"))),
+    errors = List.empty,
+    instances = Set.empty,
+    userJupyterExtensionConfig = None,
+    autopauseThreshold = if (autopause) autopauseThreshold else 0,
+    defaultClientId = None)
 
   // TODO look into parameterized tests so both provider impls can both be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData
