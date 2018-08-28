@@ -25,10 +25,10 @@ import scala.concurrent.ExecutionContext
 // values common to multiple tests, to reduce boilerplate
 
 trait CommonTestData extends TestComponent with GcsPathUtils{ this: ScalaFutures =>
-  val name0 = ClusterName("name0")
-  val name1 = ClusterName("name1")
-  val name2 = ClusterName("name2")
-  val name3 = ClusterName("name3")
+  val name0 = ClusterName("clustername0")
+  val name1 = ClusterName("clustername1")
+  val name2 = ClusterName("clustername2")
+  val name3 = ClusterName("clustername3")
   val project = GoogleProject("dsp-leo-test")
   val userEmail = WorkbenchEmail("user1@example.com")
   val userInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), userEmail, 0)
@@ -81,7 +81,7 @@ trait CommonTestData extends TestComponent with GcsPathUtils{ this: ScalaFutures
   }
 
   def makeCluster(index: Int): Cluster = {
-    val clusterName = ClusterName("clusterName" + index.toString)
+    val clusterName = ClusterName("clustername" + index.toString)
     Cluster(
       clusterName = clusterName,
       googleProject = project,
@@ -108,23 +108,23 @@ trait CommonTestData extends TestComponent with GcsPathUtils{ this: ScalaFutures
     }
   }
 
-  val testCluster = new Cluster(
-    clusterName = name1,
-    googleProject = project,
-    serviceAccountInfo = serviceAccountInfo,
-    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op")), Some(GcsBucketName("testStagingBucket1")), None),
-    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    status = ClusterStatus.Unknown,
-    labels = Map(),
-    jupyterExtensionUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),
-    jupyterUserScriptUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript"))),
-    errors = List.empty,
-    instances = Set.empty,
-    userJupyterExtensionConfig = None,
-    autopauseThreshold = if (autopause) autopauseThreshold else 0,
-    defaultClientId = None)
+//  val testCluster = new Cluster(
+//    clusterName = name1,
+//    googleProject = project,
+//    serviceAccountInfo = serviceAccountInfo,
+//    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op")), Some(GcsBucketName("testStagingBucket1")), None),
+//    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
+//    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
+//    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
+//    status = ClusterStatus.Unknown,
+//    labels = Map(),
+//    jupyterExtensionUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("extension"))),
+//    jupyterUserScriptUri = Option(GcsPath(GcsBucketName("bucketName"), GcsObjectName("userScript"))),
+//    errors = List.empty,
+//    instances = Set.empty,
+//    userJupyterExtensionConfig = None,
+//    autopauseThreshold = if (autopause) autopauseThreshold else 0,
+//    defaultClientId = None)
 
   // TODO look into parameterized tests so both provider impls can both be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData

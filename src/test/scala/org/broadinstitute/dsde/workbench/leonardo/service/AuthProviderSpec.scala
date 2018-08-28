@@ -26,26 +26,12 @@ import org.scalatest.mockito.MockitoSugar
 import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers, OptionValues}
 
 class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers with MockitoSugar with TestComponent with ScalaFutures with OptionValues with GcsPathUtils with TestProxy with BeforeAndAfterAll with CommonTestData{
-  val clusterName = name1.value
-  val googleProject = project.value
 
-  val cluster1 = Cluster(
-    clusterName = name1,
-    googleProject = project,
-    serviceAccountInfo = serviceAccountInfo,
-    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
-    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    status = ClusterStatus.Unknown,
-    labels = Map("bam" -> "yes", "vcf" -> "no"),
-    jupyterExtensionUri = None,
-    jupyterUserScriptUri = None,
-    errors = List.empty,
-    instances = Set.empty,
-    userJupyterExtensionConfig = None,
-    autopauseThreshold = 0,
-    defaultClientId = None)
+  val cluster1 = makeCluster(1)
+  val cluster1Name = cluster1.clusterName
+
+  val clusterName = cluster1Name.value
+  val googleProject = project.value
 
   val routeTest = this
 
@@ -84,10 +70,10 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       val proxy = proxyWithAuthProvider(spyProvider)
 
       // create
-      val cluster1 = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
+      val cluster1 = leo.createCluster(userInfo, project, cluster1Name, testClusterRequest).futureValue
 
       // get status
-      val clusterStatus = leo.getActiveClusterDetails(userInfo, project, name1).futureValue
+      val clusterStatus = leo.getActiveClusterDetails(userInfo, project, cluster1Name).futureValue
 
       cluster1 shouldEqual clusterStatus
 
@@ -104,13 +90,13 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       proxy.proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), syncRequest).futureValue
 
       //delete
-      leo.deleteCluster(userInfo, project, name1).futureValue
+      leo.deleteCluster(userInfo, project, cluster1Name).futureValue
 
       //verify we correctly notified the auth provider
-      verify(spyProvider).notifyClusterCreated(userEmail, project, name1)
+      verify(spyProvider).notifyClusterCreated(userEmail, project, cluster1Name)
 
       // notification of deletion happens only after it has been fully deleted
-      verify(spyProvider, never).notifyClusterDeleted(userEmail, userEmail, project, name1)
+      verify(spyProvider, never).notifyClusterDeleted(userEmail, userEmail, project, cluster1Name)
     }
 
     "should not let you do things if the auth provider says no" in isolatedDbTest {
@@ -119,15 +105,15 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       val proxy = proxyWithAuthProvider(spyProvider)
 
       //can't make a cluster
-      val clusterCreateException = leo.createCluster(userInfo, project, name1, testClusterRequest).failed.futureValue
+      val clusterCreateException = leo.createCluster(userInfo, project, cluster1Name, testClusterRequest).failed.futureValue
       clusterCreateException shouldBe a [AuthorizationError]
       clusterCreateException.asInstanceOf[AuthorizationError].statusCode shouldBe StatusCodes.Unauthorized
 
       //can't get details on an existing cluster
       //poke a cluster into the database so we actually have something to look for
-      dbFutureValue { _.clusterQuery.save(cluster1, Option(gcsPath("gs://bucket1")), None) }
+      cluster1.save(None)
 
-      val clusterGetResponseException = leo.getActiveClusterDetails(userInfo, cluster1.googleProject, cluster1.clusterName).failed.futureValue
+      val clusterGetResponseException = leo.getActiveClusterDetails(userInfo, cluster1.googleProject, cluster1Name).failed.futureValue
       clusterGetResponseException shouldBe a [ClusterNotFoundException]
       clusterGetResponseException.asInstanceOf[ClusterNotFoundException].statusCode shouldBe StatusCodes.NotFound
 
@@ -146,12 +132,12 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       syncNotFoundException shouldBe a [ClusterNotFoundException]
 
       //destroy cluster
-      val clusterNotFoundAgain = leo.deleteCluster(userInfo, project, name1).failed.futureValue
+      val clusterNotFoundAgain = leo.deleteCluster(userInfo, project, cluster1Name).failed.futureValue
       clusterNotFoundAgain shouldBe a [ClusterNotFoundException]
 
       //verify we never notified the auth provider of clusters happening because they didn't
-      verify(spyProvider, Mockito.never).notifyClusterCreated(userEmail, project, name1)
-      verify(spyProvider, Mockito.never).notifyClusterDeleted(userEmail, userEmail, project, name1)
+      verify(spyProvider, Mockito.never).notifyClusterCreated(userEmail, project, cluster1Name)
+      verify(spyProvider, Mockito.never).notifyClusterDeleted(userEmail, userEmail, project, cluster1Name)
     }
 
     "should give you a 401 if you can see a cluster's details but can't do the more specific action" in isolatedDbTest {
@@ -161,10 +147,9 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       val proxy = proxyWithAuthProvider(spyProvider)
 
       //poke a cluster into the database so we actually have something to look for
-      dbFutureValue { _.clusterQuery.save(cluster1, Option(gcsPath("gs://bucket1")), None) }
-
+      cluster1.save(None)
       // status should work for this user
-      leo.getActiveClusterDetails(userInfo, project, name1).futureValue shouldEqual cluster1
+      leo.getActiveClusterDetails(userInfo, project, cluster1.clusterName).futureValue shouldEqual cluster1
 
       // list should work for this user
       //list all clusters should be fine, but empty
@@ -181,12 +166,12 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       syncNotFoundException shouldBe a [AuthorizationError]
 
       //destroy should 401 too
-      val clusterDestroyException = leo.deleteCluster(userInfo, project, name1).failed.futureValue
+      val clusterDestroyException = leo.deleteCluster(userInfo, project, cluster1Name).failed.futureValue
       clusterDestroyException shouldBe a [AuthorizationError]
 
       //verify we never notified the auth provider of clusters happening because they didn't
-      verify(spyProvider, Mockito.never).notifyClusterCreated(userEmail, project, name1)
-      verify(spyProvider, Mockito.never).notifyClusterDeleted(userEmail, userEmail, project, name1)
+      verify(spyProvider, Mockito.never).notifyClusterCreated(userEmail, project, cluster1Name)
+      verify(spyProvider, Mockito.never).notifyClusterDeleted(userEmail, userEmail, project, cluster1Name)
     }
 
     "should not create a cluster if auth provider notifyClusterCreated returns failure" in isolatedDbTest {
@@ -194,19 +179,19 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       val spyProvider = spy(badNotifyProvider)
       val leo = leoWithAuthProvider(spyProvider)
 
-      val clusterCreateExc = leo.createCluster(userInfo, project, name1, testClusterRequest).failed.futureValue
+      val clusterCreateExc = leo.createCluster(userInfo, project, cluster1Name, testClusterRequest).failed.futureValue
       clusterCreateExc shouldBe a [RuntimeException]
 
       // no cluster should have been made
-      val clusterLookup = dbFutureValue { _.clusterQuery.getActiveClusterByName(project, name1) }
+      val clusterLookup = dbFutureValue { _.clusterQuery.getActiveClusterByName(project, cluster1Name) }
       clusterLookup shouldBe 'empty
 
       // check that the cluster does not exist
-      mockGoogleDataprocDAO.clusters should not contain key (name1)
+      mockGoogleDataprocDAO.clusters should not contain key (cluster1Name)
 
       // creation and deletion notifications should have been fired
-      verify(spyProvider).notifyClusterCreated(userEmail, project, name1)
-      verify(spyProvider).notifyClusterDeleted(userEmail, userEmail, project, name1)
+      verify(spyProvider).notifyClusterCreated(userEmail, project, cluster1Name)
+      verify(spyProvider).notifyClusterDeleted(userEmail, userEmail, project, cluster1Name)
     }
   }
 }

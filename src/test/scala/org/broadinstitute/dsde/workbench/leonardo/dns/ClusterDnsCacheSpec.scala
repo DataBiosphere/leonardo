@@ -32,60 +32,13 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     super.afterAll()
   }
 
-  val cluster1 = makeCluster(1)
-//    Cluster(
-//    clusterName = name1,
-//    googleProject = project,
-//    serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
-//    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), Some(IP("numbers.and.dots"))),
-//    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-//    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-//    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-//    status = ClusterStatus.Unknown,
-//    labels = Map("bam" -> "yes", "vcf" -> "no"),
-//    jupyterExtensionUri = Some(jupyterExtensionUri),
-//    jupyterUserScriptUri = Some(jupyterUserScriptUri),
-//    errors = List.empty,
-//    instances = Set.empty,
-//    userJupyterExtensionConfig = None,
-//    autopauseThreshold = 0,
-//    defaultClientId = None)
+  val cluster1 = makeCluster(1).copy()
 
-  val cluster2 = Cluster(
-    clusterName = name2,
-    googleProject = project,
-    serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
-    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op2")), Some(GcsBucketName("testStagingBucket2")), None),
-    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-    clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
-    status = ClusterStatus.Creating,
-    labels = Map.empty,
-    jupyterExtensionUri = None,
-    jupyterUserScriptUri = None,
-    errors = List.empty,
-    instances = Set.empty,
-    userJupyterExtensionConfig = None,
-    autopauseThreshold = 0,
-    defaultClientId = None)
+  val cluster2 = makeCluster(2).copy(status = ClusterStatus.Creating,
+                                     dataprocInfo = makeDataprocInfo(2).copy(hostIp = None))
 
-  val cluster3 = Cluster(
-    clusterName = name3,
-    googleProject = project,
-    serviceAccountInfo = ServiceAccountInfo(None, Some(serviceAccountEmail)),
-    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op3")), Some(GcsBucketName("testStagingBucket3")), None),
-    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-    clusterUrl = Cluster.getClusterUrl(project, name3, clusterUrlBase),
-    status = ClusterStatus.Stopping,
-    labels = Map.empty,
-    jupyterExtensionUri = None,
-    jupyterUserScriptUri = None,
-    errors = List.empty,
-    instances = Set.empty,
-    userJupyterExtensionConfig = None,
-    autopauseThreshold = 0,
-    defaultClientId = None)
+  val cluster3 = makeCluster(3).copy(status = ClusterStatus.Stopping,
+                                     dataprocInfo = makeDataprocInfo(3).copy(hostIp = None))
 
   it should "update maps and return clusters" in isolatedDbTest {
     val actorRef = TestActorRef[ClusterDnsCache](ClusterDnsCache.props(proxyConfig, DbSingleton.ref))
@@ -95,9 +48,9 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     ClusterDnsCache.HostToIp = Map.empty
 
     // save the clusters to the db
-    dbFutureValue { _.clusterQuery.save(cluster1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual cluster1
-    dbFutureValue { _.clusterQuery.save(cluster2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) } shouldEqual cluster2
-    dbFutureValue { _.clusterQuery.save(cluster3, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldEqual cluster3
+    cluster1.save() shouldEqual cluster1
+    cluster2.save() shouldEqual cluster2
+    cluster3.save() shouldEqual cluster3
 
     // maps should be populated
     eventually {
@@ -127,9 +80,9 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     ClusterDnsCache.HostToIp = Map.empty
 
     // save the clusters to the db
-    dbFutureValue { _.clusterQuery.save(cluster1, Option(gcsPath("gs://bucket1")), Some(serviceAccountKey.id)) } shouldEqual cluster1
-    dbFutureValue { _.clusterQuery.save(cluster2, Option(gcsPath("gs://bucket2")), Some(serviceAccountKey.id)) } shouldEqual cluster2
-    dbFutureValue { _.clusterQuery.save(cluster3, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldEqual cluster3
+    cluster1.save() shouldEqual cluster1
+    cluster2.save() shouldEqual cluster2
+    cluster3.save() shouldEqual cluster3
 
     // we have not yet executed a DNS cache refresh cycle
 
@@ -161,8 +114,8 @@ class ClusterDnsCacheSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val newCluster1 = cluster1.copy(clusterName = newName1, dataprocInfo = cluster1.dataprocInfo.copy(hostIp = Some(IP("a new IP")), googleId = Option(UUID.randomUUID())))
     val newCluster2 = cluster2.copy(clusterName = newName2, dataprocInfo = cluster2.dataprocInfo.copy(hostIp = Some(IP("another new IP")), googleId = Option(UUID.randomUUID())))
 
-    dbFutureValue { _.clusterQuery.save(newCluster1, Option(gcsPath("gs://newbucket1")), Some(serviceAccountKey.id)) } shouldEqual newCluster1
-    dbFutureValue { _.clusterQuery.save(newCluster2, Option(gcsPath("gs://newbucket2")), Some(serviceAccountKey.id)) } shouldEqual newCluster2
+    newCluster1.save() shouldEqual newCluster1
+    newCluster2.save() shouldEqual newCluster2
 
     // add one cluster to cache immediately without waiting for the cycle
 
