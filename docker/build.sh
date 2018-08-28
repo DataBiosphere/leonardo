@@ -15,8 +15,8 @@ HELP_TEXT="$(cat <<EOF
    jar : build Leonardo jar
    -d | --docker : (default: no action) provide either "build" or "push" to
            build or push a docker image.  "push" will also perform build.
-   -r | --registry: (default: dockerhub) can be either "dockerhub" or "gcr".
-           Users of gcr should have the gcloud tool installed and configured.
+   -dr | --dockerhub-registry: The dockerhub registry to push to
+   -gr | --gcr-registry: The GCR registry to push to
    -p | --project: set the project used at either dockerhub or with gcr
            container registries.
    -n | --notebook-repo: (default: --project) the repo to push the notebooks
@@ -77,10 +77,15 @@ while [ "$1" != "" ]; do
             RUN_DOCKER=true
             DOCKER_CMD="$1"
             ;;
-        -r | --registry)
+        -dr | --dockerhub-registry)
             shift
             echo "registry == $1"
-            DOCKER_REGISTRY=$1
+            DOCKERHUB_REGISTRY=$1
+            ;;
+        -gr | --gcr-registry)
+            shift
+            echo "gcr registry == $1"
+            GCR_REGISTRY=$1
             ;;
         -t | --tag)
             shift
@@ -123,26 +128,13 @@ if $PRINT_HELP; then
   exit 0
 fi
 
-# Configure script using arguments.
-if [[ $DOCKER_REGISTRY == "dockerhub" ]]; then
-  DOCKER_PROJECT="${DOCKER_PROJECT:-broadinstitute}"
-  REPO="${DOCKER_PROJECT}"
-  IMAGE="${REPO}/${TARGET}"
-  DOCKER_REMOTES_BINARY="docker"
-  NOTEBOOK_REPO="${NOTEBOOK_REPO:-$REPO}"
-elif [[ $DOCKER_REGISTRY == "gcr" ]]; then
-  DOCKER_PROJECT="${DOCKER_PROJECT:-$(gcloud config get-value project)}"
-  # Domain scoped project IDs need to be modified to work with GCR.
-  REPO="gcr.io/$(sed "s_:_/_" <<< "${DOCKER_PROJECT}")"
-  IMAGE="${REPO}/${TARGET}"
-  DOCKER_REMOTES_BINARY="gcloud docker --"
-  NOTEBOOK_REPO="${NOTEBOOK_REPO:-$REPO}"
-else
-  echo "The docker registry must be either 'dockerhub' or 'gcr'"
-  echo "Provided value: ${DOCKER_REGISTRY} is not allowed."
-  exit 1
-fi
-
+DOCKERHUB_REGISTRY=${DOCKERHUB_REGISTRY:-broadinstitute}
+GCR_REGISTRY=${GCR_REGISTRY:-gcr.io/broad-dsp-gcr-public}
+DOCKER_REMOTES_BINARY="docker"
+GCR_REMOTES_BINARY="gcloud docker --"
+NOTEBOOK_REPO="${NOTEBOOK_REPO:-$REPO}"
+IMAGE="${DOCKERHUB_REGISTRY}/$TARGET"
+GCR_IMAGE="${GCR_REGISTRY}/$TARGET"
 TESTS_IMAGE=$IMAGE-tests
 
 # Run gcloud auth if a service account key file was specified.
@@ -184,7 +176,7 @@ function make_jar()
 function docker_cmd()
 {
     if [ $DOCKER_CMD = "build" ] || [ $DOCKER_CMD = "push" ]; then
-        echo "building $IMAGE docker image..."
+        echo "building $TARGET docker image..."
         GIT_SHA=$(git rev-parse origin/${GIT_BRANCH})
         echo GIT_SHA=$GIT_SHA > env.properties
 
@@ -213,6 +205,10 @@ function docker_cmd()
             $DOCKER_REMOTES_BINARY push $IMAGE:${DOCKER_TAG}
             $DOCKER_REMOTES_BINARY tag $IMAGE:${DOCKER_TAG} $IMAGE:${GIT_BRANCH}
             $DOCKER_REMOTES_BINARY push $IMAGE:${GIT_BRANCH}
+
+            echo "pushing $GCR_IMAGE docker image..."
+            $DOCKER_REMOTES_BINARY tag $IMAGE:${DOCKER_TAG} ${GCR_IMAGE}:${DOCKER_TAG}
+            $GCR_REMOTES_BINARY push ${GCR_IMAGE}:${DOCKER_TAG}
 
             echo "pushing $TESTS_IMAGE docker image..."
             $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${DOCKER_TAG_TESTS}
