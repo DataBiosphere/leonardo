@@ -17,8 +17,6 @@ HELP_TEXT="$(cat <<EOF
            build or push a docker image.  "push" will also perform build.
    -dr | --dockerhub-registry: The dockerhub registry to push to
    -gr | --gcr-registry: The GCR registry to push to
-   -p | --project: set the project used at either dockerhub or with gcr
-           container registries.
    -n | --notebook-repo: (default: --project) the repo to push the notebooks
            image. Can be a dockerhub or GCR repo.
    -t | --tag: (default: git banch name) the docker tag used for the images.
@@ -128,14 +126,13 @@ if $PRINT_HELP; then
   exit 0
 fi
 
-DOCKERHUB_REGISTRY=${DOCKERHUB_REGISTRY:-broadinstitute}
-GCR_REGISTRY=${GCR_REGISTRY:-gcr.io/broad-dsp-gcr-public}
 DOCKER_REMOTES_BINARY="docker"
 GCR_REMOTES_BINARY="gcloud docker --"
-NOTEBOOK_REPO="${NOTEBOOK_REPO:-$REPO}"
-IMAGE="${DOCKERHUB_REGISTRY}/$TARGET"
+NOTEBOOK_REPO="${NOTEBOOK_REPO:-us.gcr.io/broad-dsp-gcr-public}"
+DEFAULT_IMAGE="broadinstitute/$TARGET"
+DOCKERHUB_IMAGE="${DOCKERHUB_REGISTRY}/$TARGET"
 GCR_IMAGE="${GCR_REGISTRY}/$TARGET"
-TESTS_IMAGE=$IMAGE-tests
+TESTS_IMAGE=$DEFAULT_IMAGE-tests
 
 # Run gcloud auth if a service account key file was specified.
 if [[ -n $SERVICE_ACCOUNT_KEY_FILE ]]; then
@@ -194,26 +191,32 @@ function docker_cmd()
           bash ./ui/build.sh build "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
         fi
 
-        docker build -t "${IMAGE}:${DOCKER_TAG}" .
+        docker build -t "${DEFAULT_IMAGE}:${DOCKER_TAG}" .
         cd automation
         echo "building $TESTS_IMAGE docker image..."
         docker build -f Dockerfile-tests -t "${TESTS_IMAGE}:${DOCKER_TAG_TESTS}" .
         cd ..
 
         if [ $DOCKER_CMD = "push" ]; then
-            echo "pushing $IMAGE docker image..."
-            $DOCKER_REMOTES_BINARY push $IMAGE:${DOCKER_TAG}
-            $DOCKER_REMOTES_BINARY tag $IMAGE:${DOCKER_TAG} $IMAGE:${GIT_BRANCH}
-            $DOCKER_REMOTES_BINARY push $IMAGE:${GIT_BRANCH}
 
-            echo "pushing $GCR_IMAGE docker image..."
-            $DOCKER_REMOTES_BINARY tag $IMAGE:${DOCKER_TAG} ${GCR_IMAGE}:${DOCKER_TAG}
-            $GCR_REMOTES_BINARY push ${GCR_IMAGE}:${DOCKER_TAG}
+            if [ -n $DOCKERHUB_REGISTRY ]; then
+                echo "pushing $DOCKERHUB_IMAGE docker image..."
+                $DOCKER_REMOTES_BINARY tag $DEFAULT_IMAGE:${DOCKER_TAG} $DOCKERHUB_IMAGE:${DOCKER_TAG}
+                $DOCKER_REMOTES_BINARY push $DOCKERHUB_IMAGE:${DOCKER_TAG}
+                $DOCKER_REMOTES_BINARY tag $DEFAULT_IMAGE:${DOCKER_TAG} $DOCKERHUB_IMAGE:${GIT_BRANCH}
+                $DOCKER_REMOTES_BINARY push $DOCKERHUB_IMAGE:${GIT_BRANCH}
 
-            echo "pushing $TESTS_IMAGE docker image..."
-            $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${DOCKER_TAG_TESTS}
-            $DOCKER_REMOTES_BINARY tag $TESTS_IMAGE:${DOCKER_TAG_TESTS} $TESTS_IMAGE:${GIT_BRANCH}
-            $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${GIT_BRANCH}
+                echo "pushing $TESTS_IMAGE docker image..."
+                $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${DOCKER_TAG_TESTS}
+                $DOCKER_REMOTES_BINARY tag $TESTS_IMAGE:${DOCKER_TAG_TESTS} $TESTS_IMAGE:${GIT_BRANCH}
+                $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${GIT_BRANCH}
+            fi
+
+            if [ -n $GCR_REGISTRY ]; then
+                echo "pushing $GCR_IMAGE docker image..."
+                $DOCKER_REMOTES_BINARY tag $DEFAULT_IMAGE:${DOCKER_TAG} ${GCR_IMAGE}:${DOCKER_TAG}
+                $GCR_REMOTES_BINARY push ${GCR_IMAGE}:${DOCKER_TAG}
+            fi
             
             # pushes the juptyer notebooks docker image that goes on dataproc clusters
             bash ./jupyter-docker/build.sh push "${NOTEBOOK_REPO}" "${DOCKER_TAG}" "${GIT_BRANCH}"
