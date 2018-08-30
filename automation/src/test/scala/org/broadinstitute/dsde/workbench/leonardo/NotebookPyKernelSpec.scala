@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.broadinstitute.dsde.workbench.service.util.Tags
 
+import scala.concurrent.duration.DurationLong
 import scala.language.postfixOps
 
 class NotebookPyKernelSpec extends ClusterFixtureSpec {
@@ -58,7 +59,7 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec {
           val query = """! bq query --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
           val expectedResult = """[{"scullion_count":"2"}]""".stripMargin
 
-          val result = notebookPage.executeCell(query).get
+          val result = notebookPage.executeCell(query, timeout = 5.minutes).get
           result should include("Current status: DONE")
           result should include(expectedResult)
         }
