@@ -72,7 +72,11 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     */
   def createRonCluster(): Unit = {
     Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
-    Try (createNewCluster(billingProject)(ronAuthToken)) match {
+    val highMemClusterRequest = ClusterRequest(machineConfig = Option(MachineConfig(
+      masterMachineType = Option("n1-standard-8"),
+      workerMachineType = Option("n1-standard-8")
+    )))
+    Try (createNewCluster(billingProject, request = highMemClusterRequest)(ronAuthToken)) match {
       case Success(outcome) =>
         ronCluster = outcome
         logger.info(s"Successfully created cluster $ronCluster")
