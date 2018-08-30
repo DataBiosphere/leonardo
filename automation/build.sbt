@@ -51,12 +51,12 @@ Test / logBuffered := false
   *  setting the limit on Tags.ForkedTestGroup tag, 1 is default.
   *  Warning: can't set too high (set at 10 would crashes OS)
   */
-Global / concurrentRestrictions := Seq(Tags.limit(Tags.ForkedTestGroup, 3))
+Global / concurrentRestrictions := Seq(Tags.limit(Tags.ForkedTestGroup, 4))
 
 /**
   * Forked JVM options
   */
-Test / javaOptions ++= Seq("-Xmx5G")
+Test / javaOptions ++= Seq("-Xmx6G")
 
 /**
   * copy system properties to forked JVM
