@@ -278,7 +278,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
           withResourceFileInBucket(project, enablePdfDownloadScript, "text/plain") { bucketPath =>            val clusterName = ClusterName("user-script-cluster" + makeRandomId())
 
             withNewCluster(project, clusterName, ClusterRequest(Map(), None, Option(bucketPath.toUri)), monitorDelete = false, apiVersion = V2) { cluster =>
-              val download = createTempDownloadDirectory()
+              val download = createDownloadDirectory()
               withWebDriver(download) { implicit driver =>
                 withNewNotebook(cluster) { notebookPage =>
                   notebookPage.executeCell("1+1") shouldBe Some("2")
