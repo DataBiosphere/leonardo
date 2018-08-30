@@ -5,7 +5,7 @@ import java.time.Instant
 import org.broadinstitute.dsde.workbench.leonardo.{GcsPathUtils, TestExecutionContext}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData}
+import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKeyId}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.Matchers

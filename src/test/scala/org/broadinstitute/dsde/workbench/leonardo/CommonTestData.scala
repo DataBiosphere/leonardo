@@ -25,10 +25,10 @@ import scala.concurrent.ExecutionContext
 // values common to multiple tests, to reduce boilerplate
 
 trait CommonTestData{ this: ScalaFutures =>
-  val name0 = ClusterName("name0")
-  val name1 = ClusterName("name1")
-  val name2 = ClusterName("name2")
-  val name3 = ClusterName("name3")
+  val name0 = ClusterName("clustername0")
+  val name1 = ClusterName("clustername1")
+  val name2 = ClusterName("clustername2")
+  val name3 = ClusterName("clustername3")
   val project = GoogleProject("dsp-leo-test")
   val userEmail = WorkbenchEmail("user1@example.com")
   val userInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), userEmail, 0)
@@ -81,7 +81,7 @@ trait CommonTestData{ this: ScalaFutures =>
   }
 
   def makeCluster(index: Int): Cluster = {
-    val clusterName = ClusterName("clusterName" + index.toString)
+    val clusterName = ClusterName("clustername" + index.toString)
     Cluster(
       clusterName = clusterName,
       googleProject = project,

@@ -40,77 +40,22 @@ import scala.util.{Random, Try}
   */
 class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll with TestComponent with CommonTestData with GcsPathUtils { testKit =>
 
-  val creatingCluster = Cluster(
-    clusterName = name1,
-    googleProject = project,
-    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
-    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), None),
-    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    status = ClusterStatus.Creating,
-    labels = Map("bam" -> "yes", "vcf" -> "no"),
-    jupyterExtensionUri = None,
-    jupyterUserScriptUri = None,
-    errors = List.empty,
-    instances = Set.empty,
-    userJupyterExtensionConfig = Some(userExtConfig),
-    autopauseThreshold = 0,
-    defaultClientId = None)
+  val creatingCluster = makeCluster(1).copy(serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+                                            dataprocInfo = makeDataprocInfo(1).copy(hostIp = None),
+                                            status = ClusterStatus.Creating,
+                                            userJupyterExtensionConfig = Some(userExtConfig))
 
-  val deletingCluster = Cluster(
-    clusterName = name2,
-    googleProject = project,
-    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
-    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), None),
-    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-    clusterUrl = Cluster.getClusterUrl(project, name2, clusterUrlBase),
-    status = ClusterStatus.Deleting,
-    labels = Map("bam" -> "yes", "vcf" -> "no"),
-    jupyterExtensionUri = Some(jupyterExtensionUri),
-    jupyterUserScriptUri = Some(jupyterUserScriptUri),
-    errors = List.empty,
-    instances = Set(masterInstance, workerInstance1, workerInstance2),
-    userJupyterExtensionConfig = None,
-    autopauseThreshold = 0,
-    defaultClientId = None)
+  val deletingCluster = makeCluster(2).copy(serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+                                            status = ClusterStatus.Deleting,
+                                            instances = Set(masterInstance, workerInstance1, workerInstance2))
 
-  val stoppingCluster = Cluster(
-    clusterName = name3,
-    googleProject = project,
-    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
-    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), None),
-    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    status = ClusterStatus.Stopping,
-    labels = Map("bam" -> "yes", "vcf" -> "no"),
-    jupyterExtensionUri = None,
-    jupyterUserScriptUri = None,
-    errors = List.empty,
-    instances = Set(masterInstance, workerInstance1, workerInstance2),
-    userJupyterExtensionConfig = None,
-    autopauseThreshold = 0,
-    defaultClientId = None)
+  val stoppingCluster = makeCluster(3).copy(serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+                                            dataprocInfo = makeDataprocInfo(1).copy(hostIp = None),
+                                            status = ClusterStatus.Stopping)
 
-  val startingCluster = Cluster(
-    clusterName = name3,
-    googleProject = project,
-    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
-    dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op1")), Some(GcsBucketName("testStagingBucket1")), None),
-    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
-    machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
-    clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
-    status = ClusterStatus.Starting,
-    labels = Map("bam" -> "yes", "vcf" -> "no"),
-    jupyterExtensionUri = None,
-    jupyterUserScriptUri = None,
-    errors = List.empty,
-    instances = Set(masterInstance, workerInstance1, workerInstance2),
-    userJupyterExtensionConfig = None,
-    autopauseThreshold = 0,
-    defaultClientId = None)
+  val startingCluster = makeCluster(4).copy(serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+                                            status = ClusterStatus.Starting)
+
 
   val clusterInstances = Map(Master -> Set(masterInstance.key),
                              Worker -> Set(workerInstance1.key, workerInstance2.key))
@@ -179,7 +124,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - instances are populated in the DB
   // - monitor actor shuts down
   "ClusterMonitorActor" should "monitor until RUNNING state" in isolatedDbTest {
-    val savedCreatingCluster = dbFutureValue { _.clusterQuery.save(creatingCluster, Option(gcsPath("gs://bucket")), Some(serviceAccountKey.id)) }
+    val savedCreatingCluster = creatingCluster.save()
     creatingCluster shouldEqual savedCreatingCluster
 
     val gdDAO = mock[GoogleDataprocDAO]
@@ -247,7 +192,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - monitor actor does not shut down
   Seq(ClusterStatus.Creating, ClusterStatus.Updating, ClusterStatus.Unknown).foreach { status =>
     it should s"monitor $status status" in isolatedDbTest {
-      val savedCreatingCluster = dbFutureValue { _.clusterQuery.save(creatingCluster, Option(gcsPath("gs://bucket")), Some(serviceAccountKey.id)) }
+      val savedCreatingCluster = creatingCluster.save()
       creatingCluster shouldEqual savedCreatingCluster
 
       val gdDAO = mock[GoogleDataprocDAO]
@@ -288,7 +233,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - instances are populated in the DB
   // - monitor actor does not shut down
   it should "keep monitoring in RUNNING state with no IP" in isolatedDbTest {
-    val savedCreatingCluster = dbFutureValue { _.clusterQuery.save(creatingCluster, Option(gcsPath("gs://bucket")), Some(serviceAccountKey.id)) }
+    val savedCreatingCluster = creatingCluster.save()
     creatingCluster shouldEqual savedCreatingCluster
 
     val dao = mock[GoogleDataprocDAO]
@@ -332,7 +277,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - instances are populated in the DB
   // - monitor actor does not shut down
   it should "keep monitoring in ERROR state with no error code" in isolatedDbTest {
-    val savedCreatingCluster = dbFutureValue { _.clusterQuery.save(creatingCluster, Option(gcsPath("gs://bucket")), Some(serviceAccountKey.id)) }
+    val savedCreatingCluster = creatingCluster.save()
     creatingCluster shouldEqual savedCreatingCluster
     
     val dao = mock[GoogleDataprocDAO]
@@ -345,7 +290,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(clusterInstances)
 
     when {
-      dao.getClusterErrorDetails(mockitoEq(Option(OperationName("op1"))))
+      dao.getClusterErrorDetails(mockitoEq(creatingCluster.dataprocInfo.operationName))
     } thenReturn Future.successful(None)
 
     val iamDAO = mock[GoogleIamDAO]
@@ -380,7 +325,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - instances are populated in the DB
   // - monitor actor shuts down
   it should "monitor until ERROR state with no restart" in isolatedDbTest {
-    val savedCreatingCluster = dbFutureValue { _.clusterQuery.save(creatingCluster, Option(gcsPath("gs://bucket")), Some(serviceAccountKey.id)) }
+    val savedCreatingCluster = creatingCluster.save()
     creatingCluster shouldEqual savedCreatingCluster
 
     val gdDAO = mock[GoogleDataprocDAO]
@@ -389,7 +334,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(ClusterStatus.Error)
 
     when {
-      gdDAO.getClusterErrorDetails(mockitoEq(Option(OperationName("op1"))))
+      gdDAO.getClusterErrorDetails(mockitoEq(creatingCluster.dataprocInfo.operationName))
     } thenReturn Future.successful(Some(ClusterErrorDetails(Code.CANCELLED.value, Some("test message"))))
 
     when {
@@ -438,7 +383,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - instances are deleted in the DB
   // - monitor actor shuts down
   it should "monitor until DELETED state" in isolatedDbTest {
-    val savedDeletingCluster = dbFutureValue { _.clusterQuery.save(deletingCluster, Option(gcsPath("gs://bucket")), Some(serviceAccountKey.id)) }
+    val savedDeletingCluster = deletingCluster.save()
     deletingCluster shouldEqual savedDeletingCluster
 
     val dao = mock[GoogleDataprocDAO]
@@ -487,7 +432,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - new cluster has status Running and the host IP
   // - monitor actor shuts down
   it should "monitor until ERROR state with restart" in isolatedDbTest {
-    val savedCreatingCluster = dbFutureValue { _.clusterQuery.save(creatingCluster, Option(gcsPath("gs://bucket")), Some(serviceAccountKey.id)) }
+    val savedCreatingCluster = creatingCluster.save()
     creatingCluster shouldEqual savedCreatingCluster
 
     val gdDAO = mock[GoogleDataprocDAO]
@@ -514,7 +459,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     }
 
     when {
-      gdDAO.getClusterErrorDetails(mockitoEq(Option(OperationName("op1"))))
+      gdDAO.getClusterErrorDetails(mockitoEq(creatingCluster.dataprocInfo.operationName))
     } thenReturn Future.successful(Some(ClusterErrorDetails(Code.UNKNOWN.value, Some("Test message"))))
 
     when {
@@ -639,7 +584,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - cluster is not changed in the DB
   // - monitor actor does not shut down
   it should "not restart a deleting cluster" in isolatedDbTest {
-    val savedDeletingCluster = dbFutureValue { _.clusterQuery.save(deletingCluster, Option(gcsPath("gs://bucket")), Some(serviceAccountKey.id)) }
+    val savedDeletingCluster = deletingCluster.save()
     deletingCluster shouldEqual savedDeletingCluster
 
     val gdDAO = mock[GoogleDataprocDAO]
@@ -671,7 +616,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   }
 
   it should "create two clusters for the same user" in isolatedDbTest {
-    val savedCreatingCluster = dbFutureValue { _.clusterQuery.save(creatingCluster, Option(gcsPath("gs://bucket")), Some(serviceAccountKey.id)) }
+    val savedCreatingCluster = creatingCluster.save()
     creatingCluster shouldEqual savedCreatingCluster
 
     val creatingCluster2 = creatingCluster.copy(
@@ -679,7 +624,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       dataprocInfo = creatingCluster.dataprocInfo.copy(googleId = Option(UUID.randomUUID()),
                                                        hostIp = Option(IP("5.6.7.8")))
     )
-    val savedCreatingCluster2 = dbFutureValue { _.clusterQuery.save(creatingCluster2, Option(gcsPath("gs://bucket")), Some(serviceAccountKey.id)) }
+    val savedCreatingCluster2 = creatingCluster2.save()
     creatingCluster2 shouldEqual savedCreatingCluster2
 
     val gdDAO = mock[GoogleDataprocDAO]
@@ -774,7 +719,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - instances are populated in the DB
   // - monitor actor shuts down
   it should "monitor until STOPPED state" in isolatedDbTest {
-    val savedStoppingCluster = dbFutureValue { _.clusterQuery.save(stoppingCluster, Option(gcsPath("gs://bucket")), Some(serviceAccountKey.id)) }
+    val savedStoppingCluster = stoppingCluster.save()
     stoppingCluster shouldEqual savedStoppingCluster
 
     val gdDAO = mock[GoogleDataprocDAO]
@@ -815,7 +760,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - instances are populated in the DB
   // - monitor actor shuts down
   it should "monitor from STARTING to RUNNING state" in isolatedDbTest {
-    val savedStartingCluster = dbFutureValue { _.clusterQuery.save(startingCluster, Option(gcsPath("gs://bucket")), Some(serviceAccountKey.id)) }
+    val savedStartingCluster = startingCluster.save()
     startingCluster shouldEqual savedStartingCluster
 
     val gdDAO = mock[GoogleDataprocDAO]
@@ -882,7 +827,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // Post:
   // - cluster is not updated in the DB with status Running
   it should "cluster should not got from STARTING to RUNNING if Jupyter is not ready" in isolatedDbTest {
-    val savedStartingCluster = dbFutureValue { _.clusterQuery.save(startingCluster, Option(gcsPath("gs://bucket")), Some(serviceAccountKey.id)) }
+    val savedStartingCluster = startingCluster.save()
     savedStartingCluster shouldEqual startingCluster
 
     val gdDAO = mock[GoogleDataprocDAO]
@@ -946,7 +891,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - instances are populated in the DB
   // - monitor actor shuts down
   it should "stop a cluster after creation" in isolatedDbTest {
-    val savedCreatingCluster = dbFutureValue { _.clusterQuery.save(creatingCluster, Option(gcsPath("gs://bucket")), Some(serviceAccountKey.id)) }
+    val savedCreatingCluster = creatingCluster.save()
     creatingCluster shouldEqual savedCreatingCluster
 
     val gdDAO = mock[GoogleDataprocDAO]
