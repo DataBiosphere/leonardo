@@ -879,8 +879,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       masterInstance.key -> InstanceStatus.Stopped,
       workerInstance1.key -> InstanceStatus.Stopped,
       workerInstance2.key -> InstanceStatus.Stopped)
-     // metadata and service account should not be set (that happens at resume time)
-    computeDAO.instanceMetadata shouldBe 'empty
+    // metadata should be set on the master instance only
+    computeDAO.instanceMetadata shouldBe Map(masterInstance.key -> leo.masterInstanceStartupScript)
+    // service account should not be set (that happens at resume time)
     computeDAO.instanceServiceAccounts shouldBe 'empty
   }
 
@@ -926,8 +927,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       masterInstance.key -> InstanceStatus.Stopped,
       workerInstance1.key -> InstanceStatus.Stopped,
       workerInstance2.key -> InstanceStatus.Stopped)
-     // metadata and service account should not be set (that happens at resume time)
-    computeDAO.instanceMetadata shouldBe 'empty
+    // metadata should be set on the master instance only
+    computeDAO.instanceMetadata shouldBe Map(masterInstance.key -> leo.masterInstanceStartupScript)
+    // service account should not be set (that happens at resume time)
     computeDAO.instanceServiceAccounts shouldBe 'empty
   }
 
@@ -969,9 +971,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       masterInstance.key -> InstanceStatus.Running,
       workerInstance1.key -> InstanceStatus.Running,
       workerInstance2.key -> InstanceStatus.Running)
-     // metadata and service account should be set on the master instance only
-    computeDAO.instanceMetadata shouldBe Map(masterInstance.key -> leo.masterInstanceStartupScript)
-     // service account should be set on all instances
+    // metadata should not be set (that happens at stop time)
+    computeDAO.instanceMetadata shouldBe Map.empty
+    // service account should be set on all instances
     computeDAO.instanceServiceAccounts shouldBe
       Map(
         masterInstance.key -> (samClient.serviceAccount, leo.serviceAccountScopes),
@@ -1018,9 +1020,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       masterInstance.key -> InstanceStatus.Running,
       workerInstance1.key -> InstanceStatus.Running,
       workerInstance2.key -> InstanceStatus.Running)
-     // metadata and service account should be set on the master instance only
-    computeDAO.instanceMetadata shouldBe Map(masterInstance.key -> leo.masterInstanceStartupScript)
-     // service account should be set on all instances
+    // metadata should not be set (that happens at stop time)
+    computeDAO.instanceMetadata shouldBe Map.empty
+    // service account should be set on all instances
     computeDAO.instanceServiceAccounts shouldBe
       Map(
         masterInstance.key -> (samClient.serviceAccount, leo.serviceAccountScopes),

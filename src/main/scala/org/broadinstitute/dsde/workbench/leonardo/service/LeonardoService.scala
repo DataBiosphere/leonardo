@@ -398,7 +398,17 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         // Now stop each instance individually
         _ <- Future.traverse(cluster.nonPreemptibleInstances) { instance =>
-          googleComputeDAO.stopInstance(instance.key)
+          for {
+            // install a startup script on the master node so Jupyter starts back up
+            // Note: this needs to be done at instance stop time rather than start time for some reason
+            _ <- instance.dataprocRole match {
+              case Some(Master) => googleComputeDAO.addInstanceMetadata(instance.key, masterInstanceStartupScript)
+              case _ => Future.successful(())
+            }
+            // start up each instance
+            _ <- googleComputeDAO.stopInstance(instance.key)
+          } yield ()
+
         }
 
         // Update the cluster status to Stopping
@@ -433,12 +443,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         // Start each instance individually
         _ <- Future.traverse(cluster.nonPreemptibleInstances) { instance =>
           for {
-            // install a startup script on the master node so Jupyter starts back up
-            _ <- instance.dataprocRole match {
-              case Some(Master) => googleComputeDAO.addInstanceMetadata(instance.key, masterInstanceStartupScript)
-              case _ => Future.successful(())
-            }
             // reset the cluster service account and scopes on each instance
+            // Note: this is OK to do at instance start time
             _ <- cluster.serviceAccountInfo.clusterServiceAccount match {
               case Some(serviceAccount) => googleComputeDAO.setServiceAccount(instance.key, serviceAccount, serviceAccountScopes)
               case None => Future.successful(())
