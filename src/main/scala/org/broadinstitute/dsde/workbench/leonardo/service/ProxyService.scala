@@ -64,6 +64,21 @@ class ProxyService(proxyConfig: ProxyConfig,
       }
     )
 
+  /* Cache for clusters' default client ID stored in the database */
+  private[leonardo] val clientIdCache = CacheBuilder.newBuilder()
+    .maximumSize(proxyConfig.cacheMaxSize)
+    .build(
+      new CacheLoader[(GoogleProject, ClusterName), Future[Option[String]]] {
+        def load(key: (GoogleProject, ClusterName)) = {
+          dbRef.inTransaction { dataAccess =>
+            dataAccess.clusterQuery.getActiveClusterByName(key._1, key._2)
+          }.map { clusterOpt =>
+            clusterOpt.flatMap(_.defaultClientId)
+          }
+        }
+      }
+    )
+
   /* Ask the cache for the corresponding user info given a token */
   def getCachedUserInfoFromToken(token: String): Future[UserInfo] = {
     googleTokenCache.get(token).map {
@@ -73,6 +88,11 @@ class ProxyService(proxyConfig: ProxyConfig,
         else
           throw AccessTokenExpiredException()
     }
+  }
+
+  /* Ask the cache for a cluster's default client ID given a Gogole project and clsuter name */
+  def getCachedClientId(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[String]] = {
+    clientIdCache.get((googleProject, clusterName))
   }
 
   /*

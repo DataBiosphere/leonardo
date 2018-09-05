@@ -22,7 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
-import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
+import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, TemplateHelper}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.Retry
@@ -89,7 +89,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val bucketHelper: BucketHelper,
                       protected val contentSecurityPolicy: String)
                      (implicit val executionContext: ExecutionContext,
-                      implicit override val system: ActorSystem) extends LazyLogging with Retry {
+                      implicit override val system: ActorSystem) extends LazyLogging with Retry with TemplateHelper {
 
   private val bucketPathMaxLength = 1024
   private val includeDeletedKey = "includeDeleted"
@@ -727,21 +727,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Update the private key json, if defined
       _ <- uploadPrivateKeyFuture
     } yield ()
-  }
-
-  // Process a string using map of replacement values. Each value in the replacement map replaces its key in the string.
-  private[service] def template(raw: String, replacementMap: Map[String, String]): String = {
-    replacementMap.foldLeft(raw)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", "\"" + b._2 + "\""))
-  }
-
-  private[service] def templateFile(file: File, replacementMap: Map[String, String]): String = {
-    val raw = Source.fromFile(file).mkString
-    template(raw, replacementMap)
-  }
-
-  private[service] def templateResource(resource: ClusterResource, replacementMap: Map[String, String]): String = {
-    val raw = Source.fromResource(s"${ClusterResourcesConfig.basePath}/${resource.value}").mkString
-    template(raw, replacementMap)
   }
 
   private[service] def processListClustersParameters(params: LabelMap): Future[(LabelMap, Boolean)] = {

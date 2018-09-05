@@ -9,14 +9,17 @@ import akka.http.scaladsl.model.ws.{TextMessage, WebSocketRequest}
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.service.TestProxy
 import org.broadinstitute.dsde.workbench.leonardo.service.TestProxy.Data
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll, FlatSpec}
 
 import scala.collection.immutable
+import scala.concurrent.Future
 import scala.concurrent.duration._
 
 /**
@@ -28,6 +31,7 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
 
   val clusterName = "test"
   val googleProject = "dsp-leo-test"
+  val clientId = "my-client-id"
   val unauthorizedTokenCookie = HttpCookiePair("LeoToken", "unauthorized")
   val expiredTokenCookie = HttpCookiePair("LeoToken", "expired")
 
@@ -45,6 +49,7 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
 
   before {
     proxyService.googleTokenCache.invalidateAll()
+    proxyService.clientIdCache.invalidateAll()
   }
 
   "ProxyRoutes" should "listen on /notebooks/{project}/{name}/..." in {
@@ -81,12 +86,21 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
     }
   }
 
-  it should "return a static HTML page for non-cookied requests" in {
+  it should "401 for non-cookied requests with no client id" in {
+    Get(s"/notebooks/$googleProject/$clusterName") ~> leoRoutes.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.Unauthorized
+    }
+  }
+
+  it should "return a static HTML page for non-cookied requests with a client id" in {
+    proxyService.clientIdCache.put((GoogleProject(googleProject), ClusterName(clusterName)), Future(Some(clientId)))
     Get(s"/notebooks/$googleProject/$clusterName") ~> leoRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
       val data = responseAs[String]
       data should include ("google-signin-client_id")
+      data should include (clientId)
     }
   }
 
@@ -98,7 +112,19 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
 
   it should "401 when using an expired token" in {
     Get(s"/notebooks/$googleProject/$clusterName").addHeader(Cookie(expiredTokenCookie)) ~> leoRoutes.route ~> check {
+      handled shouldBe true
       status shouldEqual StatusCodes.Unauthorized
+    }
+  }
+
+  it should "return a static HTML page when using an expired token with a client id" in {
+    proxyService.clientIdCache.put((GoogleProject(googleProject), ClusterName(clusterName)), Future(Some(clientId)))
+    Get(s"/notebooks/$googleProject/$clusterName").addHeader(Cookie(expiredTokenCookie)) ~> leoRoutes.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.OK
+      val data = responseAs[String]
+      data should include ("google-signin-client_id")
+      data should include (clientId)
     }
   }
 
@@ -220,11 +246,24 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
     }
   }
 
-  it should "401 when using an expired token" in {
+  it should "401 when using an expired token with no client id" in {
     Get(s"/notebooks/$googleProject/$clusterName")
       .addHeader(Authorization(OAuth2BearerToken(expiredTokenCookie.value)))
       .addHeader(Origin("http://example.com")) ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.Unauthorized
+    }
+  }
+
+  it should "return a static HTML page when using an expired token with a client id" in {
+    proxyService.clientIdCache.put((GoogleProject(googleProject), ClusterName(clusterName)), Future(Some(clientId)))
+    Get(s"/notebooks/$googleProject/$clusterName")
+      .addHeader(Authorization(OAuth2BearerToken(expiredTokenCookie.value)))
+      .addHeader(Origin("http://example.com")) ~> leoRoutes.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.OK
+      val data = responseAs[String]
+      data should include ("google-signin-client_id")
+      data should include (clientId)
     }
   }
 
