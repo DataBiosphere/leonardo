@@ -269,7 +269,7 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
     headers.count(_.is(`Access-Control-Allow-Origin`.lowercaseName)) shouldBe 1
     header[`Access-Control-Allow-Origin`] shouldBe origin.map(`Access-Control-Allow-Origin`(_)).orElse(Some(`Access-Control-Allow-Origin`.*))
     header[`Access-Control-Allow-Credentials`] shouldBe Some(`Access-Control-Allow-Credentials`(true))
-    header[`Access-Control-Allow-Headers`] shouldBe Some(`Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin"))
+    header[`Access-Control-Allow-Headers`] shouldBe Some(`Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin", "X-App-Id"))
     header[`Access-Control-Max-Age`] shouldBe Some(`Access-Control-Max-Age`(1728000))
     header[`Access-Control-Allow-Methods`] shouldBe (
       if (optionsRequest) Some(`Access-Control-Allow-Methods`(OPTIONS, POST, PUT, GET, DELETE, HEAD, PATCH))
