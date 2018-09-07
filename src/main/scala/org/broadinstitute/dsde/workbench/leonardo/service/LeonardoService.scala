@@ -9,6 +9,9 @@ import cats.data.OptionT
 import cats.implicits._
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
+import com.google.api.services.bigquery.BigqueryScopes
+import com.google.api.services.oauth2.Oauth2Scopes
+import com.google.api.services.sourcerepo.v1.CloudSourceRepositoriesScopes
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
@@ -106,9 +109,15 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   //
   // The || clause is included because older clusters may not have the run-jupyter.sh script installed,
   // so we need to fall back running `jupyter notebook` directly. See https://github.com/DataBiosphere/leonardo/issues/481.
-  private lazy val masterInstanceStartupScript: immutable.Map[String, String] = {
-    immutable.Map("startup-script" -> s"docker exec -d ${dataprocConfig.jupyterServerName} /bin/bash -c '/etc/jupyter/scripts/run-jupyter.sh || /usr/local/bin/jupyter notebook'")
+  private[service] lazy val masterInstanceStartupScript: immutable.Map[String, String] = {
+    Map("startup-script" -> s"docker exec -d ${dataprocConfig.jupyterServerName} /bin/bash -c '/etc/jupyter/scripts/run-jupyter.sh || /usr/local/bin/jupyter notebook'")
   }
+
+  private val oauth2Scopes = List(Oauth2Scopes.USERINFO_EMAIL, Oauth2Scopes.USERINFO_PROFILE)
+  private val bigqueryScopes = List(BigqueryScopes.BIGQUERY)
+  private val cloudSourceRepositoryScopes = List(CloudSourceRepositoriesScopes.SOURCE_READ_ONLY)
+
+  private[service] val serviceAccountScopes = oauth2Scopes ++ bigqueryScopes ++ cloudSourceRepositoryScopes
 
   def isWhitelisted(userInfo: UserInfo): Future[Boolean] = {
     if( whitelist contains userInfo.userEmail.value.toLowerCase ) {
@@ -389,15 +398,17 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         // Now stop each instance individually
         _ <- Future.traverse(cluster.nonPreemptibleInstances) { instance =>
-          // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
-          instance.dataprocRole match {
-            case Some(Master) =>
-              googleComputeDAO.addInstanceMetadata(instance.key, masterInstanceStartupScript).flatMap { _ =>
-                googleComputeDAO.stopInstance(instance.key)
-              }
-            case _ =>
-              googleComputeDAO.stopInstance(instance.key)
-          }
+          for {
+            // install a startup script on the master node so Jupyter starts back up
+            // Note: this needs to be done at instance stop time rather than start time for some reason
+            _ <- instance.dataprocRole match {
+              case Some(Master) => googleComputeDAO.addInstanceMetadata(instance.key, masterInstanceStartupScript)
+              case _ => Future.successful(())
+            }
+            // start up each instance
+            _ <- googleComputeDAO.stopInstance(instance.key)
+          } yield ()
+
         }
 
         // Update the cluster status to Stopping
@@ -431,7 +442,16 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         // Start each instance individually
         _ <- Future.traverse(cluster.nonPreemptibleInstances) { instance =>
-          googleComputeDAO.startInstance(instance.key)
+          for {
+            // reset the cluster service account and scopes on each instance
+            // Note: this is OK to do at instance start time
+            _ <- cluster.serviceAccountInfo.clusterServiceAccount match {
+              case Some(serviceAccount) => googleComputeDAO.setServiceAccount(instance.key, serviceAccount, serviceAccountScopes)
+              case None => Future.successful(())
+            }
+            // start up each instance
+            _ <- googleComputeDAO.startInstance(instance.key)
+          } yield ()
         }
 
         // Update the cluster status to Starting
@@ -510,7 +530,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       autopauseThreshold = calculateAutopauseThreshold(clusterRequest.autopause, clusterRequest.autopauseThreshold)
       credentialsFileName = serviceAccountInfo.notebookServiceAccount.map(_ => s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}")
       operation <- gdDAO.createCluster(googleProject, clusterName, machineConfig, initScript,
-        serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket)
+        serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket, serviceAccountScopes)
       cluster = Cluster.create(clusterRequest, userEmail, clusterName, googleProject, serviceAccountInfo,
         machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, Option(operation), Option(stagingBucket))
     } yield (cluster, initBucket, serviceAccountKeyOpt)

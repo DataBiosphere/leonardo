@@ -468,7 +468,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val newClusterId = UUID.randomUUID()
     when {
-      gdDAO.createCluster(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), any[MachineConfig], any[GcsPath], any[Option[WorkbenchEmail]], any[Option[String]], any[GcsBucketName])
+      gdDAO.createCluster(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), any[MachineConfig], any[GcsPath], any[Option[WorkbenchEmail]], any[Option[String]], any[GcsBucketName], any[Seq[String]])
     } thenReturn Future.successful {
       Operation(creatingCluster.dataprocInfo.operationName.get, newClusterId)
     }
