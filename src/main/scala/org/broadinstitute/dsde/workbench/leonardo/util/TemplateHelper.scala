@@ -11,6 +11,7 @@ trait TemplateHelper {
 
   /**
     * Process a string using map of replacement values. Each value in the replacement map replaces its key in the string.
+    * Note the replaced string is quoted, so $(foo) will be replaced with "a quoted string".
     */
   def template(raw: String, replacementMap: Map[String, String]): String = {
     replacementMap.foldLeft(raw)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", "\"" + b._2 + "\""))

@@ -78,7 +78,10 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
                     }
                   // If we don't have a default clientId defined for the cluster, we can't log in to
                   // Google. Just throw AuthorizationError in this case.
-                  case None => failWith(AuthorizationError())
+                  case None =>
+                    logger.warn(s"Unable to render sign in page for cluster ${googleProject.value}/${clusterName.value} " +
+                      s"because it does not have a default client id")
+                    failWith(AuthorizationError())
                 }
             }
           }
