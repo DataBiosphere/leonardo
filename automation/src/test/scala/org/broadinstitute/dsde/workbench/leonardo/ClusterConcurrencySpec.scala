@@ -24,7 +24,7 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
         withNewCluster(project, nameToReuse)(noop)
 
         // create, monitor, delete again with same name
-        withNewCluster(project, nameToReuse, apiVersion = V2)(noop)
+        withNewCluster(project, nameToReuse, apiVersion = V2, monitorDelete = true)(noop)
       }
     }
 
