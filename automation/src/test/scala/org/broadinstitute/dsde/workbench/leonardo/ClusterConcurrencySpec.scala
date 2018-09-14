@@ -54,7 +54,7 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
       withProject { project => implicit token =>
         logger.info(s"${project.value}: should not be able to delete a deleting cluster")
 
-        val cluster = withNewCluster(project, monitorCreate = true, monitorDelete = false)(identity)
+        val cluster = withNewCluster(project, monitorCreate = true)(identity)
 
         // second delete should succeed
         deleteAndMonitor(project, cluster.clusterName)
@@ -116,7 +116,7 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
     "should set a default client id if specified" in {
       withProject { project => implicit token =>
         val request = defaultClusterRequest.copy(defaultClientId = Some("this is a client ID"))
-        withNewCluster(project, request = request, monitorDelete = false) { cluster =>
+        withNewCluster(project, request = request) { cluster =>
           cluster.defaultClientId shouldBe Some("this is a client ID")
         }
       }
