@@ -21,7 +21,7 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
         val nameToReuse = randomClusterName
 
         // create, monitor, delete once
-        withNewCluster(project, nameToReuse)(noop)
+        withNewCluster(project, nameToReuse, monitorDelete = true)(noop)
 
         // create, monitor, delete again with same name
         withNewCluster(project, nameToReuse, apiVersion = V2, monitorDelete = true)(noop)
