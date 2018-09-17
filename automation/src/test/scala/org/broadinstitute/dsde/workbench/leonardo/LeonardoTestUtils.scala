@@ -385,7 +385,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
                         name: ClusterName = randomClusterName,
                         request: ClusterRequest = defaultClusterRequest,
                         monitorCreate: Boolean = true,
-                        monitorDelete: Boolean = true,
+                        monitorDelete: Boolean = false,
                         apiVersion: ApiVersion = V1)
                        (testCode: Cluster => T)
                        (implicit token: AuthToken): T = {
