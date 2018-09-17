@@ -43,7 +43,7 @@ object ClusterMonitorSupervisor {
   case object AutoFreezeClusters extends ClusterSupervisorMessage
 
   // Timers ADT
-  sealed trait TimersTick
+  sealed trait TimersTick extends ClusterSupervisorMessage
   private case object TickKey extends TimersTick
   private case object FirstTick extends TimersTick
   private case object Tick extends TimersTick
@@ -55,7 +55,8 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
 
   var leoService: LeonardoService = _
 
-  var clusterStatusesById: Map[Long, ClusterStatus] = Map.empty
+  // TODO Find a more thread-safe implementation
+  private[this] var clusterStatusesById: Map[Long, ClusterStatus] = Map.empty
 
   import context._
 
@@ -138,7 +139,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
       loadClusterStatuses()
 
     case Tick =>
-      startMonitoringClusters()
+      createClusterMonitors()
   }
 
   def createChildActor(cluster: Cluster): ActorRef = {
@@ -170,22 +171,28 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
     }
   }
 
-  private def loadClusterStatuses(): Future[Unit] = {
+  private def updateClusterStatusesById(statusesById: Map[Long, ClusterStatus]): Unit = {
+    clusterStatusesById = statusesById
+  }
+
+  private def loadClusterStatuses(): Future[Unit] = getMonitorableClusters().map(updateClusterStatusesById)
+
+  private def getMonitorableClusters(): Future[Map[Long, ClusterStatus]] = {
     val monitorableClusters = dbRef.inTransaction { _.clusterQuery.listMonitorable() }
 
     monitorableClusters map { clusters =>
-      val idsToStatuses = clusters map { cluster =>
-        cluster.id -> cluster.status
+      clusters.foldLeft(Map.empty[Long, ClusterStatus]) {
+        (idsToStatuses, cluster) =>
+          idsToStatuses + (cluster.id -> cluster.status)
       }
-      clusterStatusesById = idsToStatuses.toMap
     }
   }
 
-  private def startMonitoringClusters(): Future[Unit] = {
-    getActiveClusters map { _ foreach createChildActor }
+  private def createClusterMonitors(): Future[Unit] = {
+    findClustersToMonitor map { _ foreach createChildActor }
   }
 
-  private def getActiveClusters: Future[List[Cluster]] = {
+  private def findClustersToMonitor: Future[List[Cluster]] = {
     // diff loadClusterStatuses with clusterStatusesById
     // update clusterStatusesById
     // return clusters whose statuses changed
