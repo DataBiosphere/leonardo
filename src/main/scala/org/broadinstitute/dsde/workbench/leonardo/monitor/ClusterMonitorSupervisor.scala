@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import akka.actor.SupervisorStrategy.Restart
-import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props}
+import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props, Timers}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, DataprocConfig, MonitorConfig}
@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.JupyterDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.Jupyter
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, LeoAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
@@ -40,20 +41,35 @@ object ClusterMonitorSupervisor {
   case class StopClusterAfterCreation(cluster: Cluster) extends ClusterSupervisorMessage
   // Auto freeze idle clusters
   case object AutoFreezeClusters extends ClusterSupervisorMessage
+
+  // Timers ADT
+  sealed trait TimersTick
+  private case object TickKey extends TimersTick
+  private case object FirstTick extends TimersTick
+  private case object Tick extends TimersTick
 }
 
-class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO) extends Actor with LazyLogging {
+class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO)
+  extends Actor with Timers with LazyLogging {
   import context.dispatcher
 
   var leoService: LeonardoService = _
+
+  var clusterStatusesById: Map[Long, ClusterStatus] = Map.empty
 
   import context._
 
   override def preStart(): Unit = {
     super.preStart()
-    if(autoFreezeConfig.enableAutoFreeze)
+
+    // TODO Is it okay to re-use monitorConfig.pollPeriod here?
+//    system.scheduler.schedule(monitorConfig.pollPeriod)
+    timers.startPeriodicTimer(TickKey, Tick, monitorConfig.pollPeriod)
+
+    if (autoFreezeConfig.enableAutoFreeze)
       system.scheduler.schedule(autoFreezeConfig.autoFreezeCheckScheduler, autoFreezeConfig.autoFreezeCheckScheduler, self, AutoFreezeClusters)
   }
+
   override def receive: Receive = {
     case RegisterLeoService(service) =>
       leoService = service
@@ -116,7 +132,13 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
       startClusterMonitorActor(cluster)
 
     case AutoFreezeClusters =>
-      autoFreezeClusters
+      autoFreezeClusters()
+
+    case FirstTick =>
+      loadClusterStatuses()
+
+    case Tick =>
+      startMonitoringClusters()
   }
 
   def createChildActor(cluster: Cluster): ActorRef = {
@@ -134,7 +156,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
     }
   }
 
-  def autoFreezeClusters: Future[Unit] = {
+  def autoFreezeClusters(): Future[Unit] = {
     val clusterList = dbRef.inTransaction {
       _.clusterQuery.getClustersReadyToAutoFreeze()
     }
@@ -146,6 +168,28 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
         }
       }
     }
+  }
+
+  private def loadClusterStatuses(): Future[Unit] = {
+    val monitorableClusters = dbRef.inTransaction { _.clusterQuery.listMonitorable() }
+
+    monitorableClusters map { clusters =>
+      val idsToStatuses = clusters map { cluster =>
+        cluster.id -> cluster.status
+      }
+      clusterStatusesById = idsToStatuses.toMap
+    }
+  }
+
+  private def startMonitoringClusters(): Future[Unit] = {
+    getActiveClusters map { _ foreach createChildActor }
+  }
+
+  private def getActiveClusters: Future[List[Cluster]] = {
+    // diff loadClusterStatuses with clusterStatusesById
+    // update clusterStatusesById
+    // return clusters whose statuses changed
+    ???
   }
 
   override val supervisorStrategy = {
