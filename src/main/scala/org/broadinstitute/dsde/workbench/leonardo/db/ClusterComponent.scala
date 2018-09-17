@@ -151,15 +151,6 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    // return clusters whose statuses, if/when changed, may require monitoring
-    // e.g. a cluster that is in Running status - if it changes to Stopping, the cluster would need monitoring
-    def listMonitorable(): DBIO[Seq[Cluster]] = {
-      clusterQuery
-        .filter { _.status inSetBind ClusterStatus.monitorableStatuses.map(_.toString) }
-        .result
-        .map { unmarshalClusters }
-    }
-
     def countByClusterServiceAccountAndStatuses(clusterServiceAccount: WorkbenchEmail, statuses: Set[ClusterStatus]) = {
       clusterQuery
         .filter { _.clusterServiceAccount === Option(clusterServiceAccount.value) }

@@ -15,7 +15,8 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervis
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.model.WorkbenchException
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
 
 object ClusterMonitorSupervisor {
   def props(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO): Props =
@@ -45,7 +46,6 @@ object ClusterMonitorSupervisor {
   // Timers ADT
   sealed trait TimersTick extends ClusterSupervisorMessage
   private case object TickKey extends TimersTick
-  private case object FirstTick extends TimersTick
   private case object Tick extends TimersTick
 }
 
@@ -56,7 +56,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
   var leoService: LeonardoService = _
 
   // TODO Find a more thread-safe implementation
-  private[this] var clusterStatusesById: Map[Long, ClusterStatus] = Map.empty
+  private[this] var monitoredClusters: Set[Cluster] = Set.empty
 
   import context._
 
@@ -135,9 +135,6 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
     case AutoFreezeClusters =>
       autoFreezeClusters()
 
-    case FirstTick =>
-      loadClusterStatuses()
-
     case Tick =>
       createClusterMonitors()
   }
@@ -171,32 +168,25 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
     }
   }
 
-  private def updateClusterStatusesById(statusesById: Map[Long, ClusterStatus]): Unit = {
-    clusterStatusesById = statusesById
-  }
+  // TODO Factor in `stopAfterCreate` field while sending messages, once we start persisting that field
+  private def createClusterMonitors(implicit executionContext: ExecutionContext): Unit = {
+    dbRef
+      .inTransaction { _.clusterQuery.listMonitored() }
+      .onComplete {
+        case Success(clusters) =>
+          val clustersNotAlreadyBeingMonitored = clusters.toSet -- monitoredClusters
 
-  private def loadClusterStatuses(): Future[Unit] = getMonitorableClusters().map(updateClusterStatusesById)
+          clustersNotAlreadyBeingMonitored foreach {
+            case c if c.status == ClusterStatus.Deleting => self ! ClusterDeleted(c)
+            case c if c.status == ClusterStatus.Stopping => self ! ClusterStopped(c)
+            case c if c.status == ClusterStatus.Starting => self ! ClusterStarted(c)
+            case c => self ! ClusterCreated(c)
+          }
 
-  private def getMonitorableClusters(): Future[Map[Long, ClusterStatus]] = {
-    val monitorableClusters = dbRef.inTransaction { _.clusterQuery.listMonitorable() }
-
-    monitorableClusters map { clusters =>
-      clusters.foldLeft(Map.empty[Long, ClusterStatus]) {
-        (idsToStatuses, cluster) =>
-          idsToStatuses + (cluster.id -> cluster.status)
+          monitoredClusters ++ clustersNotAlreadyBeingMonitored
+        case Failure(e) =>
+          logger.error("Error starting cluster monitor", e)
       }
-    }
-  }
-
-  private def createClusterMonitors(): Future[Unit] = {
-    findClustersToMonitor map { _ foreach createChildActor }
-  }
-
-  private def findClustersToMonitor: Future[List[Cluster]] = {
-    // diff loadClusterStatuses with clusterStatusesById
-    // update clusterStatusesById
-    // return clusters whose statuses changed
-    ???
   }
 
   override val supervisorStrategy = {

@@ -95,6 +95,7 @@ object Boot extends App with LazyLogging {
     val statusService = new StatusService(gdDAO, samDAO, dbRef, dataprocConfig)
     val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with StandardUserInfoDirectives
 
+    // TODO: Remove this when it's handled by back-Leo
     startClusterMonitors(dbRef, clusterMonitorSupervisor)
 
     Http().bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
@@ -105,6 +106,7 @@ object Boot extends App with LazyLogging {
       }
   }
 
+  // TODO: Remove this when it's handled by back-Leo
   private def startClusterMonitors(dbRef: DbReference, clusterMonitor: ActorRef)(implicit executionContext: ExecutionContext) = {
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.listMonitored
