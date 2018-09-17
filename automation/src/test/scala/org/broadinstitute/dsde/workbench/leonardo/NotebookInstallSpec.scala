@@ -56,7 +56,7 @@ class NotebookInstallSpec extends ClusterFixtureSpec {
           val clusterName = ClusterName("user-script-cluster" + makeRandomId())
 
           withWebDriver { implicit driver =>
-            withNewCluster(clusterFixture.billingProject, clusterName, ClusterRequest(Map(), None, Option(userScriptUri)), monitorDelete = false, apiVersion = V2) { cluster =>
+            withNewCluster(clusterFixture.billingProject, clusterName, ClusterRequest(Map(), None, Option(userScriptUri)), apiVersion = V2) { cluster =>
               Thread.sleep(10000)
               withNewNotebook(cluster) { notebookPage =>
                 notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
@@ -77,7 +77,7 @@ class NotebookInstallSpec extends ClusterFixtureSpec {
       val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
       withResourceFileInBucket(clusterFixture.billingProject, translateExtensionFile, "application/x-gzip") { translateExtensionBucketPath =>
         val clusterName = ClusterName("user-jupyter-ext" + makeRandomId())
-        withNewCluster(clusterFixture.billingProject, clusterName, ClusterRequest(Map(), Option(translateExtensionBucketPath.toUri), None),  monitorDelete = false) { cluster =>
+        withNewCluster(clusterFixture.billingProject, clusterName, ClusterRequest(Map(), Option(translateExtensionBucketPath.toUri), None)) { cluster =>
           withWebDriver { implicit driver =>
             withNewNotebook(cluster) { notebookPage =>
               notebookPage.executeCell("1 + 1") shouldBe Some("2")
