@@ -1,6 +1,6 @@
 # adapted from https://hub.docker.com/r/jupyter/base-notebook/ AKA https://github.com/jupyter/docker-stacks/tree/master/base-notebook
 
-FROM debian:jessie
+FROM debian:stretch
 
 USER root
 
@@ -12,13 +12,14 @@ ENV DEBIAN_FRONTEND noninteractive
 ENV DEBIAN_REPO http://cdn-fastly.deb.debian.org
 ENV CRAN_REPO http://cran.mtu.edu
 
-RUN echo "deb $DEBIAN_REPO/debian jessie main"                   > /etc/apt/sources.list \
- && echo "deb $DEBIAN_REPO/debian-security jessie/updates main" >> /etc/apt/sources.list \
- && echo "deb $DEBIAN_REPO/debian jessie-backports main"        >> /etc/apt/sources.list \
- && echo "deb $CRAN_REPO/bin/linux/debian jessie-cran34/"       >> /etc/apt/sources.list \
+RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sources.list \
+ && echo "deb $DEBIAN_REPO/debian-security stretch/updates main" >> /etc/apt/sources.list \
+ && echo "deb $DEBIAN_REPO/debian stretch-backports main"        >> /etc/apt/sources.list \
+ && echo "deb $CRAN_REPO/bin/linux/debian stretch-cran34/"       >> /etc/apt/sources.list \
+ && apt-get update && apt-get install -my wget gnupg \
  && apt-key adv --keyserver keys.gnupg.net \
     --recv-key 'E19F5F87128899B192B1A2C2AD5F960A256A04AF' \
- && apt-get update \
+# && apt-get update \
  && apt-get -yq dist-upgrade \
  && apt-get install -yq --no-install-recommends \
     nano \
@@ -74,16 +75,16 @@ RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
 #   https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-versions
 # Dataproc supports Spark 2.2.0, but there are no pre-packaged Hail distributions past 2.1.0. See:
 #   https://hail.is/docs/stable/getting_started.html
-ENV SPARK_VER 2.0.2
+ENV SPARK_VER 2.2.0
 ENV SPARK_HOME=/usr/lib/spark
 
 # result of `gsutil cat gs://hail-common/builds/0.1/latest-hash-spark-2.0.2.txt` on 11 January 2018
-ENV HAILHASH 5c275cc216e1
-ENV HAILJAR hail-0.1-$HAILHASH-Spark-$SPARK_VER.jar
-ENV HAILPYTHON hail-0.1-$HAILHASH.zip
-ENV HAILZIP Hail-0.1-$HAILHASH-Spark-$SPARK_VER.zip
-ENV HAIL_HOME /etc/hail
-ENV KERNELSPEC_HOME /usr/local/share/jupyter/kernels
+# ENV HAILHASH 5c275cc216e1
+# ENV HAILJAR hail-0.1-$HAILHASH-Spark-$SPARK_VER.jar
+# ENV HAILPYTHON hail-0.1-$HAILHASH.zip
+# ENV HAILZIP Hail-0.1-$HAILHASH-Spark-$SPARK_VER.zip
+# ENV HAIL_HOME /etc/hail
+# ENV KERNELSPEC_HOME /usr/local/share/jupyter/kernels
 
 # Note Spark and Hadoop are mounted from the outside Dataproc VM.
 # Make empty conf dirs for the update-alternatives commands.
@@ -91,10 +92,10 @@ RUN mkdir -p /etc/spark/conf.dist && mkdir -p /etc/hadoop/conf.empty && mkdir -p
  && update-alternatives --install /etc/spark/conf spark-conf /etc/spark/conf.dist 100 \
  && update-alternatives --install /etc/hadoop/conf hadoop-conf /etc/hadoop/conf.empty 100 \
  && update-alternatives --install /etc/hive/conf hive-conf /etc/hive/conf.dist 100 \
- && mkdir $HAIL_HOME && cd $HAIL_HOME \
- && wget -nv http://storage.googleapis.com/hail-common/builds/0.1/jars/$HAILJAR \
- && wget -nv http://storage.googleapis.com/hail-common/builds/0.1/python/$HAILPYTHON \
- && wget -nv http://storage.googleapis.com/hail-common/distributions/0.1/$HAILZIP \
+#  && mkdir $HAIL_HOME && cd $HAIL_HOME \
+#  && wget -nv http://storage.googleapis.com/hail-common/builds/0.1/jars/$HAILJAR \
+#  && wget -nv http://storage.googleapis.com/hail-common/builds/0.1/python/$HAILPYTHON \
+#  && wget -nv http://storage.googleapis.com/hail-common/distributions/0.1/$HAILZIP \
  && cd -
 
 #######################
@@ -208,7 +209,7 @@ ENV PIP_USER=true
 #######################
 
 RUN apt-get update \
- && apt-get -t jessie-cran34 install -y --no-install-recommends \
+ && apt-get -t stretch-cran34 install -y --no-install-recommends \
     r-base \
     r-base-dev \
     r-recommended \
