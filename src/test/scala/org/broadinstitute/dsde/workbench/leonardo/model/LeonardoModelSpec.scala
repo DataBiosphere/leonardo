@@ -54,7 +54,8 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |  "instances": [],
         |  "dateAccessed": "2018-08-07T10:12:35Z",
         |  "autopauseThreshold": 30,
-        |  "defaultClientId": "defaultClientId"
+        |  "defaultClientId": "defaultClientId",
+        |  "stopAfterCreation": false
         |}
       """.stripMargin.parseJson
 
@@ -87,7 +88,8 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |  "errors": [],
         |  "instances": [],
         |  "dateAccessed": "2018-08-07T10:12:35Z",
-        |  "autopauseThreshold": 0
+        |  "autopauseThreshold": 0,
+        |  "stopAfterCreation": false
         |}
       """.stripMargin.parseJson
 

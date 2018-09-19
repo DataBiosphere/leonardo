@@ -29,7 +29,8 @@ case class ClusterRecord(id: Long,
                          stagingBucket: Option[String],
                          dateAccessed: Timestamp,
                          autopauseThreshold: Int,
-                         defaultClientId: Option[String])
+                         defaultClientId: Option[String],
+                         stopAfterCreation: Boolean)
 
 case class MachineConfigRecord(numberOfWorkers: Int,
                                masterMachineType: String,
@@ -49,33 +50,34 @@ trait ClusterComponent extends LeoComponent {
   import profile.api._
 
   class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
-    def id =                          column[Long]              ("id",                    O.PrimaryKey, O.AutoInc)
-    def clusterName =                 column[String]            ("clusterName",           O.Length(254))
-    def googleId =                    column[Option[UUID]]      ("googleId")
-    def googleProject =               column[String]            ("googleProject",         O.Length(254))
-    def clusterServiceAccount =       column[Option[String]]    ("clusterServiceAccount", O.Length(254))
-    def notebookServiceAccount =      column[Option[String]]    ("notebookServiceAccount", O.Length(254))
-    def numberOfWorkers =             column[Int]               ("numberOfWorkers")
-    def masterMachineType =           column[String]            ("masterMachineType",     O.Length(254))
-    def masterDiskSize =              column[Int]               ("masterDiskSize")
-    def workerMachineType =           column[Option[String]]    ("workerMachineType",     O.Length(254))
-    def workerDiskSize =              column[Option[Int]]       ("workerDiskSize")
-    def numberOfWorkerLocalSSDs =     column[Option[Int]]       ("numberOfWorkerLocalSSDs")
-    def numberOfPreemptibleWorkers =  column[Option[Int]]       ("numberOfPreemptibleWorkers")
-    def operationName =               column[Option[String]]    ("operationName",         O.Length(254))
-    def status =                      column[String]            ("status",                O.Length(254))
-    def hostIp =                      column[Option[String]]    ("hostIp",                O.Length(254))
-    def creator =                     column[String]            ("creator",               O.Length(254))
-    def createdDate =                 column[Timestamp]         ("createdDate",           O.SqlType("TIMESTAMP(6)"))
-    def destroyedDate =               column[Timestamp]         ("destroyedDate",         O.SqlType("TIMESTAMP(6)"))
-    def jupyterExtensionUri =         column[Option[String]]    ("jupyterExtensionUri",   O.Length(1024))
-    def jupyterUserScriptUri =        column[Option[String]]    ("jupyterUserScriptUri",  O.Length(1024))
-    def initBucket =                  column[Option[String]]    ("initBucket",            O.Length(1024))
-    def serviceAccountKeyId =         column[Option[String]]    ("serviceAccountKeyId",   O.Length(254))
-    def stagingBucket =               column[Option[String]]    ("stagingBucket",         O.Length(254))
-    def dateAccessed =                column[Timestamp]         ("dateAccessed",          O.SqlType("TIMESTAMP(6)"))
-    def autopauseThreshold =                      column[Int]                    ("autopauseThreshold")
-    def defaultClientId =                               column[Option[String]]      ("defaultClientId",     O.Length(1024))
+    def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
+    def clusterName = column[String]("clusterName", O.Length(254))
+    def googleId = column[Option[UUID]]("googleId")
+    def googleProject = column[String]("googleProject", O.Length(254))
+    def clusterServiceAccount = column[Option[String]]("clusterServiceAccount", O.Length(254))
+    def notebookServiceAccount = column[Option[String]]("notebookServiceAccount", O.Length(254))
+    def numberOfWorkers = column[Int]("numberOfWorkers")
+    def masterMachineType = column[String]("masterMachineType", O.Length(254))
+    def masterDiskSize = column[Int]("masterDiskSize")
+    def workerMachineType = column[Option[String]]("workerMachineType", O.Length(254))
+    def workerDiskSize = column[Option[Int]]("workerDiskSize")
+    def numberOfWorkerLocalSSDs = column[Option[Int]]("numberOfWorkerLocalSSDs")
+    def numberOfPreemptibleWorkers = column[Option[Int]]("numberOfPreemptibleWorkers")
+    def operationName = column[Option[String]]("operationName", O.Length(254))
+    def status = column[String]("status", O.Length(254))
+    def hostIp = column[Option[String]]("hostIp", O.Length(254))
+    def creator = column[String]("creator", O.Length(254))
+    def createdDate = column[Timestamp]("createdDate", O.SqlType("TIMESTAMP(6)"))
+    def destroyedDate =  column[Timestamp]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
+    def jupyterExtensionUri = column[Option[String]]("jupyterExtensionUri", O.Length(1024))
+    def jupyterUserScriptUri = column[Option[String]]("jupyterUserScriptUri", O.Length(1024))
+    def initBucket = column[Option[String]]("initBucket", O.Length(1024))
+    def serviceAccountKeyId= column[Option[String]]("serviceAccountKeyId", O.Length(254))
+    def stagingBucket = column[Option[String]]("stagingBucket", O.Length(254))
+    def dateAccessed= column[Timestamp]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
+    def autopauseThreshold = column[Int]("autopauseThreshold")
+    def defaultClientId = column[Option[String]]("defaultClientId", O.Length(1024))
+    def stopAfterCreation = column[Boolean]("stopAfterCreation")
 
     def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName, destroyedDate), unique = true)
 
@@ -87,23 +89,25 @@ trait ClusterComponent extends LeoComponent {
       id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
       createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
       (numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers),
-      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket, dateAccessed, autopauseThreshold, defaultClientId
+      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket, dateAccessed, autopauseThreshold, defaultClientId, stopAfterCreation
     ).shaped <> ({
       case (id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
-            createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket, machineConfig, serviceAccountInfo, stagingBucket, dateAccessed, autopauseThreshold, defaultClientId) =>
+            createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket, machineConfig,
+            serviceAccountInfo, stagingBucket, dateAccessed, autopauseThreshold, defaultClientId, stopAfterCreation) =>
         ClusterRecord(
           id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
           createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
           MachineConfigRecord.tupled.apply(machineConfig),
           ServiceAccountInfoRecord.tupled.apply(serviceAccountInfo),
-          stagingBucket, dateAccessed, autopauseThreshold, defaultClientId)
+          stagingBucket, dateAccessed, autopauseThreshold, defaultClientId, stopAfterCreation)
     }, { c: ClusterRecord =>
       def mc(_mc: MachineConfigRecord) = MachineConfigRecord.unapply(_mc).get
       def sa(_sa: ServiceAccountInfoRecord) = ServiceAccountInfoRecord.unapply(_sa).get
       Some((
         c.id, c.clusterName, c.googleId, c.googleProject, c.operationName, c.status, c.hostIp, c.creator,
         c.createdDate, c.destroyedDate, c.jupyterExtensionUri, c.jupyterUserScriptUri, c.initBucket,
-        mc(c.machineConfig), sa(c.serviceAccountInfo), c.stagingBucket, c.dateAccessed, c.autopauseThreshold, c.defaultClientId
+        mc(c.machineConfig), sa(c.serviceAccountInfo), c.stagingBucket, c.dateAccessed, c.autopauseThreshold,
+        c.defaultClientId, c.stopAfterCreation
       ))
     })
   }
@@ -356,7 +360,8 @@ trait ClusterComponent extends LeoComponent {
         cluster.dataprocInfo.stagingBucket.map(_.value),
         Timestamp.from(cluster.auditInfo.dateAccessed),
         cluster.autopauseThreshold,
-        cluster.defaultClientId
+        cluster.defaultClientId,
+        cluster.stopAfterCreation
       )
     }
 
@@ -433,7 +438,8 @@ trait ClusterComponent extends LeoComponent {
         instanceRecords map ClusterComponent.this.instanceQuery.unmarshalInstance toSet,
         ClusterComponent.this.extensionQuery.unmarshallExtensions(userJupyterExtensionConfig),
         clusterRecord.autopauseThreshold,
-        clusterRecord.defaultClientId
+        clusterRecord.defaultClientId,
+        clusterRecord.stopAfterCreation
       )
     }
   }
