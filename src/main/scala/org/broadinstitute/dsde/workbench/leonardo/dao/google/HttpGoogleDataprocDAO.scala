@@ -307,7 +307,7 @@ class HttpGoogleDataprocDAO(appName: String,
       //   https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-versions
       // Dataproc supports Spark 2.2.0, but there are no pre-packaged Hail distributions past 2.1.0. See:
       //   https://hail.is/docs/stable/getting_started.html
-      .setImageVersion("1.2")
+      .setImageVersion("1.2-deb9")
   }
 
   private def getMultiNodeClusterConfig(machineConfig: MachineConfig): DataprocClusterConfig = {
