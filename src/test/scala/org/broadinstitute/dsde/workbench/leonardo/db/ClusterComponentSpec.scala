@@ -18,7 +18,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     lazy val err1 = ClusterError("some failure", 10, Instant.now().truncatedTo(ChronoUnit.SECONDS))
     lazy val cluster1UUID = UUID.randomUUID()
     val cluster1 = makeCluster(1).copy(dataprocInfo = makeDataprocInfo(1).copy(googleId = Some(cluster1UUID)),
-                                      instances = Set(masterInstance, workerInstance1, workerInstance2))
+                                      instances = Set(masterInstance, workerInstance1, workerInstance2),
+                                      stopAfterCreation = true)
 
     val cluster1WithErr = makeCluster(1).copy(dataprocInfo = makeDataprocInfo(1).copy(googleId = Some(cluster1UUID)),
                                        errors = List(err1),
@@ -52,7 +53,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFutureValue { _.clusterQuery.getActiveClusterByName(cluster3.googleProject, cluster3.clusterName) } shouldEqual Some(savedCluster3)
 
     dbFutureValue { _.clusterErrorQuery.save(savedCluster1.id, err1) }
-    val cluster1WithErrAssignedId = cluster1WithErr.copy(id = savedCluster1.id)
+    val cluster1WithErrAssignedId = cluster1WithErr.copy(id = savedCluster1.id, stopAfterCreation = true)
 
     dbFutureValue { _.clusterQuery.getClusterById(savedCluster1.id) } shouldEqual Some(cluster1WithErrAssignedId)
     dbFutureValue { _.clusterQuery.getClusterById(savedCluster2.id) } shouldEqual Some(savedCluster2)
