@@ -14,6 +14,30 @@ function update_apt_get() {
   return 1
 }
 
+function run_docker_compose() {
+  for ((i = 0; i < 5; i++)); do
+    docker-compose -f /etc/cluster-docker-compose.yaml config || compose_good=$?
+    if [ $compose_good -ne 0 ]; then
+      sleep 5
+      continue
+    fi
+    docker-compose -f /etc/cluster-docker-compose.yaml pull || compose_good=$?
+    if [ $compose_good -ne 0 ]; then
+      sleep 5
+      continue
+    fi
+    docker-compose -f /etc/cluster-docker-compose.yaml up -d || compose_good=$?
+    if [ $compose_good -ne 0 ]; then
+      docker-compose -f /etc/cluster-docker-compose.yaml stop
+      docker-compose -f /etc/cluster-docker-compose.yaml rm -f
+      sleep 5
+      continue
+    fi
+    return 0
+  done
+  return 1
+}
+
 function log() {
   echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')]: $@"
 }
@@ -91,8 +115,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
     log 'Installing Docker Compose...'
 
     # Install docker-compose
-    curl -L https://github.com/docker/compose/releases/download/1.18.0/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
-    sudo chmod +x /usr/local/bin/docker-compose
+    # https://docs.docker.com/compose/install/#install-compose
+    curl -L "https://github.com/docker/compose/releases/download/1.22.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose
 
     log 'Copying secrets from GCS...'
 
@@ -130,7 +155,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     log 'Starting up the Jupydocker...'
 
     # Run docker-compose. This mounts Hadoop, Spark, and other resources inside the docker container.
-    docker-compose -f /etc/cluster-docker-compose.yaml up -d
+    run_docker_compose
 
     log 'Installing Jupydocker kernelspecs...'
 
