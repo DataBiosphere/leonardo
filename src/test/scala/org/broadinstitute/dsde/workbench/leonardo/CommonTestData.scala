@@ -98,7 +98,8 @@ trait CommonTestData{ this: ScalaFutures =>
       instances = Set.empty,
       userJupyterExtensionConfig = None,
       autopauseThreshold = 30,
-      defaultClientId = Some("defaultClientId")
+      defaultClientId = Some("defaultClientId"),
+      stopAfterCreation = false
     )
   }
 
@@ -118,9 +119,10 @@ trait CommonTestData{ this: ScalaFutures =>
     instances = Set.empty,
     userJupyterExtensionConfig = None,
     autopauseThreshold = if (autopause) autopauseThreshold else 0,
-    defaultClientId = None)
+    defaultClientId = None,
+    stopAfterCreation = false)
 
-  // TODO look into parameterized tests so both provider impls can both be tested
+  // TODO look into parameterized tests so both provider impls can be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData
   val serviceAccountProvider = new MockPetClusterServiceAccountProvider(serviceAccountsConfig)
   val whitelistAuthProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider)
