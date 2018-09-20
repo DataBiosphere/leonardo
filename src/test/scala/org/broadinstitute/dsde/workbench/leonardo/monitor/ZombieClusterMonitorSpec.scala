@@ -59,6 +59,37 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
     }
   }
 
+  it should "should detect zombie clusters when the project's billing is inactive" in isolatedDbTest {
+    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
+
+    // create 2 running clusters in the same project
+    val savedTestCluster1 = testCluster1.save()
+    savedTestCluster1 shouldEqual testCluster1
+
+    val savedTestCluster2 = testCluster2.save()
+    savedTestCluster2 shouldEqual testCluster2
+
+    // stub GoogleProjectDAO to make the project inactive
+    val googleProjectDAO = new MockGoogleProjectDAO {
+      override def isBillingActive(projectName: String): Future[Boolean] = Future.successful(false)
+    }
+
+    // zombie actor should flag both clusters as inactive
+    withZombieActor(googleProjectDAO = googleProjectDAO) { _ =>
+      eventually(timeout(Span(10, Seconds))) {
+        val c1 = dbFutureValue { _.clusterQuery.getClusterById(savedTestCluster1.id) }.get
+        val c2 = dbFutureValue { _.clusterQuery.getClusterById(savedTestCluster2.id) }.get
+
+        List(c1, c2).foreach { c =>
+          c.status shouldBe ClusterStatus.Error
+          c.errors.size shouldBe 1
+          c.errors.head.errorCode shouldBe -1
+          c.errors.head.errorMessage should include ("An underlying resource was removed in Google")
+        }
+      }
+    }
+  }
+
   it should "should detect zombie clusters when the cluster is inactive" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
