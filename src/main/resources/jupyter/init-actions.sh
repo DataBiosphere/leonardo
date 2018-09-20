@@ -16,18 +16,18 @@ function update_apt_get() {
 
 function run_docker_compose() {
   for ((i = 0; i < 5; i++)); do
-    docker-compose -f /etc/cluster-docker-compose.yaml config || compose_good=$?
-    if [ $compose_good -ne 0 ]; then
+    docker-compose -f /etc/cluster-docker-compose.yaml config
+    if [ $? -ne 0 ]; then
       sleep 5
       continue
     fi
-    docker-compose -f /etc/cluster-docker-compose.yaml pull || compose_good=$?
-    if [ $compose_good -ne 0 ]; then
+    docker-compose -f /etc/cluster-docker-compose.yaml pull
+    if [ $? -ne 0 ]; then
       sleep 5
       continue
     fi
-    docker-compose -f /etc/cluster-docker-compose.yaml up -d || compose_good=$?
-    if [ $compose_good -ne 0 ]; then
+    docker-compose -f /etc/cluster-docker-compose.yaml up -d
+    if [ $? -ne 0 ]; then
       docker-compose -f /etc/cluster-docker-compose.yaml stop
       docker-compose -f /etc/cluster-docker-compose.yaml rm -f
       sleep 5
