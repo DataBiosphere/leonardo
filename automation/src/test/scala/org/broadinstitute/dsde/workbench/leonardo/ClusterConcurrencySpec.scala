@@ -39,16 +39,6 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
       }
     }
 
-    // create -> no wait -> delete
-    "should delete a creating cluster" in {
-      withProject { project => implicit token =>
-        logger.info(s"${project.value}: should delete a creating cluster")
-
-        // delete while the cluster is still creating
-        withNewCluster(project, monitorCreate = false, monitorDelete = true, apiVersion = V2)(noop)
-      }
-    }
-
     // create -> wait -> delete -> no wait -> delete
     "should not be able to delete a deleting cluster" in {
       withProject { project => implicit token =>
