@@ -55,11 +55,24 @@ class ClusterExceptionSpec extends FreeSpec with LeonardoTestUtils with Parallel
       withProject { project => implicit token =>
         logger.info(s"${project.value}: should not be able to stop a creating cluster")
 
-        withNewCluster(project, monitorCreate = false, monitorDelete = true, apiVersion = V2) { cluster =>
+        withNewCluster(project, monitorCreate = false, monitorDelete = false, apiVersion = V2) { cluster =>
           withWebDriver { implicit driver =>
             val caught = the[RestException] thrownBy stopCluster(project, cluster.clusterName, monitor = false)
             caught.message should include(""""statusCode":409""")
           }
+        }
+      }
+    }
+
+    // create -> no wait -> delete (conflict)
+    "should not be able to delete a creating cluster" in {
+      withProject { project => implicit token =>
+        logger.info(s"${project.value}: should delete a creating cluster")
+
+        // delete while the cluster is still creating
+        withNewCluster(project, monitorCreate = false, monitorDelete = false, apiVersion = V2) { cluster =>
+          val caught = the[RestException] thrownBy deleteCluster(project, cluster.clusterName, monitor = false)
+          caught.message should include(""""statusCode":409""")
         }
       }
     }
