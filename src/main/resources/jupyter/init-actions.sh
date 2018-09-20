@@ -89,7 +89,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
     log 'Installing prerequisites...'
 
     # install Docker
-    export DOCKER_CE_VERSION="17.12.0~ce-0~debian"
+    # https://docs.docker.com/install/linux/docker-ce/debian/
+    export DOCKER_CE_VERSION="18.03.0~ce-0~debian"
     update_apt_get
     apt-get install -y -q \
      apt-transport-https \
