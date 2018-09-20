@@ -107,7 +107,7 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
       withProject { project => implicit token =>
         val request = defaultClusterRequest.copy(stopAfterCreation = Some(true))
         withNewCluster(project, request = request) { cluster =>
-          // no-op; just verify the cluster is stopped
+          cluster.stopAfterCreation shouldBe true
         }
       }
     }
@@ -118,6 +118,7 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
         val request = defaultClusterRequest.copy(defaultClientId = Some("this is a client ID"))
         withNewCluster(project, request = request) { cluster =>
           cluster.defaultClientId shouldBe Some("this is a client ID")
+          cluster.stopAfterCreation shouldBe false
         }
       }
 

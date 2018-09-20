@@ -21,7 +21,8 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
   val cluster = makeCluster(1).copy(dataprocInfo = makeDataprocInfo(1).copy(googleId = Option(fromString("4ba97751-026a-4555-961b-89ae6ce78df4"))),
                                     auditInfo = auditInfo.copy(createdDate = exampleTime,
                                                                dateAccessed = exampleTime),
-                                    jupyterExtensionUri = Some(jupyterExtensionUri))
+                                    jupyterExtensionUri = Some(jupyterExtensionUri),
+                                    stopAfterCreation = true)
 
 
   it should "serialize/deserialize to/from JSON" in isolatedDbTest {
@@ -54,7 +55,8 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |  "instances": [],
         |  "dateAccessed": "2018-08-07T10:12:35Z",
         |  "autopauseThreshold": 30,
-        |  "defaultClientId": "defaultClientId"
+        |  "defaultClientId": "defaultClientId",
+        |  "stopAfterCreation": true
         |}
       """.stripMargin.parseJson
 
@@ -87,13 +89,14 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |  "errors": [],
         |  "instances": [],
         |  "dateAccessed": "2018-08-07T10:12:35Z",
-        |  "autopauseThreshold": 0
+        |  "autopauseThreshold": 0,
+        |  "stopAfterCreation": false
         |}
       """.stripMargin.parseJson
 
     val testJson = cluster.toJson(ClusterFormat)
-
     testJson should equal (expectedJson)
+    
     val returnedCluster = testJson.convertTo[Cluster]
     returnedCluster shouldBe cluster
 

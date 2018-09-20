@@ -21,7 +21,6 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model._
 import spray.json._
-import scala.concurrent.duration._
 
 // Create cluster API request
 case class ClusterRequest(labels: LabelMap = Map(),
@@ -79,7 +78,8 @@ case class Cluster(id: Long = 0, // DB AutoInc
                    instances: Set[Instance],
                    userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
                    autopauseThreshold: Int,
-                   defaultClientId: Option[String]) {
+                   defaultClientId: Option[String],
+                   stopAfterCreation: Boolean) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.value}"
   def nonPreemptibleInstances: Set[Instance] = instances.filterNot(_.dataprocRole.contains(SecondaryWorker))
 }
@@ -112,7 +112,8 @@ object Cluster {
       instances = Set.empty,
       userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
       autopauseThreshold = autopauseThreshold,
-      defaultClientId = clusterRequest.defaultClientId)
+      defaultClientId = clusterRequest.defaultClientId,
+      stopAfterCreation= clusterRequest.stopAfterCreation.getOrElse(false))
   }
   
   // TODO it's hacky to re-parse the Leo config in the model object.
@@ -314,7 +315,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
             fields.getOrElse("instances", JsNull).convertTo[Set[Instance]],
             fields.getOrElse("userJupyterExtensionConfig", JsNull).convertTo[Option[UserJupyterExtensionConfig]],
             fields.getOrElse("autopauseThreshold", JsNull).convertTo[Int],
-            fields.getOrElse("defaultClientId", JsNull).convertTo[Option[String]])
+            fields.getOrElse("defaultClientId", JsNull).convertTo[Option[String]],
+            fields.getOrElse("stopAfterCreation", JsNull).convertTo[Boolean])
         case _ => deserializationError("Cluster expected as a JsObject")
       }
     }
@@ -343,7 +345,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
         "userJupyterExtensionConfig" -> obj.userJupyterExtensionConfig.toJson,
         "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
         "autopauseThreshold" -> obj.autopauseThreshold.toJson,
-        "defaultClientId" -> obj.defaultClientId.toJson
+        "defaultClientId" -> obj.defaultClientId.toJson,
+        "stopAfterCreation" -> Option(obj.stopAfterCreation).toJson
       )
 
       val presentFields = allFields.filter(_._2 != JsNull)
