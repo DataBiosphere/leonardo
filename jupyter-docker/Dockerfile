@@ -75,7 +75,7 @@ RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
 #   https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-versions
 # Dataproc supports Spark 2.2.0, but there are no pre-packaged Hail distributions past 2.1.0. See:
 #   https://hail.is/docs/stable/getting_started.html
-ENV SPARK_VER 2.2.0
+ENV SPARK_VER 2.2.1
 ENV SPARK_HOME=/usr/lib/spark
 
 # result of `gsutil cat gs://hail-common/builds/0.1/latest-hash-spark-2.0.2.txt` on 11 January 2018
