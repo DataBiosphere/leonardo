@@ -274,6 +274,10 @@ paths:
           description: Cluster not found
           schema:
             $ref: '#/definitions/ErrorReport'
+        '409':
+          description: Cluster cannot be deleted
+          schema:
+            $ref: '#/definitions/ErrorReport'
         '500':
           description: Internal Error
           schema:
