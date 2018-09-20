@@ -25,6 +25,9 @@ object ZombieClusterMonitor {
   case object DetectZombieClusters extends ZombieClusterMonitorMessage
 }
 
+/**
+  * This monitor periodically sweeps the Leo database and checks for clusters which no longer exist in Google.
+  */
 class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference) extends Actor with LazyLogging {
   import context._
 
@@ -35,10 +38,13 @@ class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO
 
   override def receive: Receive = {
     case DetectZombieClusters =>
-      val zombieClusters = getClustersFromDatabase.flatMap { clusterMap =>
+      // Get active clusters from the Leo DB, grouped by project
+      val zombieClusters = getActiveClustersFromDatabase.flatMap { clusterMap =>
         clusterMap.toList.flatTraverse { case (project, clusters) =>
+          // Check if the project is active
           isProjectActiveInGoogle(project).flatMap {
             case true =>
+              // If the project is active, check each individual cluster
               logger.debug(s"Project ${project.value} containing ${clusters.size} clusters is active in Google")
               clusters.toList.traverseFilter { cluster =>
                 isClusterActiveInGoogle(cluster).map {
@@ -51,12 +57,14 @@ class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO
                 }
               }
             case false =>
+              // If the project is inactive, all clusters in the project are zombies
               logger.debug(s"Project ${project.value} containing ${clusters.size} clusters is inactive in Google")
               Future.successful(clusters.toList)
           }
         }
       }
 
+      // Error out each detected zombie cluster
       zombieClusters.flatMap { cs =>
         logger.info(s"Detected ${cs.size} zombie clusters across ${cs.map(_.googleProject).toSet.size} projects.")
         cs.traverse { cluster =>
@@ -66,20 +74,22 @@ class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO
 
   }
 
-  private def getClustersFromDatabase: Future[Map[GoogleProject, Seq[Cluster]]] = {
+  private def getActiveClustersFromDatabase: Future[Map[GoogleProject, Seq[Cluster]]] = {
     dbRef.inTransaction {
       _.clusterQuery.listActive
-    }.map { clusters =>
+    } map { clusters =>
       clusters.groupBy(_.googleProject)
     }
   }
 
   private def isProjectActiveInGoogle(googleProject: GoogleProject): Future[Boolean] = {
-    googleProjectDAO.isProjectActive(googleProject.value)
+    googleProjectDAO.isProjectActive(googleProject.value) recover { case _ =>
+      false
+    }
   }
 
   private def isClusterActiveInGoogle(cluster: Cluster): Future[Boolean] = {
-    gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName).map { clusterStatus =>
+    gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName) map { clusterStatus =>
       ClusterStatus.activeStatuses contains clusterStatus
     } recover { case _ =>
       false

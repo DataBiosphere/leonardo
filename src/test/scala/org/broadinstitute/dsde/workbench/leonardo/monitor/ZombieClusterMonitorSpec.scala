@@ -17,9 +17,6 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Try
 
-/**
-  * Created by rtitle on 9/19/18.
-  */
 class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
   FlatSpecLike with BeforeAndAfterAll with TestComponent with CommonTestData with GcsPathUtils { testKit =>
 
