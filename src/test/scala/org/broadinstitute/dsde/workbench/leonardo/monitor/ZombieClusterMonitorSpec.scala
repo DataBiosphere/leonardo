@@ -53,13 +53,13 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
           c.status shouldBe ClusterStatus.Error
           c.errors.size shouldBe 1
           c.errors.head.errorCode shouldBe -1
-          c.errors.head.errorMessage should include ("Underlying resource")
+          c.errors.head.errorMessage should include ("An underlying resource was removed in Google")
         }
       }
     }
   }
 
-  "ZombieClusterMonitor" should "foo should detect zombie clusters when the cluster is inactive" in isolatedDbTest {
+  it should "should detect zombie clusters when the cluster is inactive" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
     // create 2 running clusters in the same project
@@ -91,10 +91,45 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
         c2.status shouldBe ClusterStatus.Error
         c2.errors.size shouldBe 1
         c2.errors.head.errorCode shouldBe -1
-        c2.errors.head.errorMessage should include ("Underlying resource")
+        c2.errors.head.errorMessage should include ("An underlying resource was removed in Google")
 
         c1.status shouldBe ClusterStatus.Running
         c1.errors shouldBe 'empty
+      }
+    }
+  }
+
+  it should "should not zombify Creating clusters" in isolatedDbTest {
+    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
+
+    // create a Running and a Creating cluster in the same project
+    val savedTestCluster1 = testCluster1.save()
+    savedTestCluster1 shouldEqual testCluster1
+
+    val creatingTestCluster = testCluster2.copy(status = ClusterStatus.Creating)
+    val savedTestCluster2 = creatingTestCluster.save()
+    savedTestCluster2 shouldEqual creatingTestCluster
+
+    // stub GoogleDataprocDAO to flag both clusters as deleted
+    val gdDAO = new MockGoogleDataprocDAO {
+      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] = {
+        Future.successful(ClusterStatus.Deleted)
+      }
+    }
+
+    // the Running cluster should be a zombie but the Creating one shouldn't
+    withZombieActor(gdDAO = gdDAO) { _ =>
+      eventually(timeout(Span(10, Seconds))) {
+        val c1 = dbFutureValue { _.clusterQuery.getClusterById(savedTestCluster1.id) }.get
+        val c2 = dbFutureValue { _.clusterQuery.getClusterById(savedTestCluster2.id) }.get
+
+        c1.status shouldBe ClusterStatus.Error
+        c1.errors.size shouldBe 1
+        c1.errors.head.errorCode shouldBe -1
+        c1.errors.head.errorMessage should include ("An underlying resource was removed in Google")
+
+        c2.status shouldBe ClusterStatus.Creating
+        c2.errors shouldBe 'empty
       }
     }
   }

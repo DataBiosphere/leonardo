@@ -89,10 +89,16 @@ class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO
   }
 
   private def isClusterActiveInGoogle(cluster: Cluster): Future[Boolean] = {
-    gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName) map { clusterStatus =>
-      ClusterStatus.activeStatuses contains clusterStatus
-    } recover { case _ =>
-      false
+    // Clusters in Creating status may not yet exist in Google. Therefore treat all Creating clusters as active.
+    if (cluster.status == ClusterStatus.Creating) {
+      Future.successful(true)
+    } else {
+      // Check if status returned by GoogleDataprocDAO is an "active" status.
+      gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName) map { clusterStatus =>
+        ClusterStatus.activeStatuses contains clusterStatus
+      } recover { case _ =>
+        false
+      }
     }
   }
 
@@ -101,7 +107,7 @@ class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO
     dbRef.inTransaction { dataAccess =>
       for {
         _ <- dataAccess.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Error)
-        error = ClusterError("Underlying resource was removed in Google", -1, Instant.now)
+        error = ClusterError("An underlying resource was removed in Google. Please delete and recreate your cluster.", -1, Instant.now)
         _ <- dataAccess.clusterErrorQuery.save(cluster.id, error)
       } yield ()
     }.void
