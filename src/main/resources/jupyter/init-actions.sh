@@ -14,20 +14,24 @@ function update_apt_get() {
   return 1
 }
 
+# Runs docker-compose to instantiate the notebooks docker container.
+# This function may retry docker-compose calls to hopefully mitigate intermittent timeouts pulling from GCR.
 function run_docker_compose() {
   COMPOSE_FILE=$1
+  NUM_TRIES=5
+  DELAY_SECONDS=5
   docker-compose -f $COMPOSE_FILE config
-  for ((i = 0; i < 5; i++)); do
+  for ((i = 0; i < $NUM_TRIES; i++)); do
     docker-compose -f $COMPOSE_FILE pull
     if [ $? -ne 0 ]; then
-      sleep 5
+      sleep $DELAY_SECONDS
       continue
     fi
     docker-compose -f $COMPOSE_FILE up -d
     if [ $? -ne 0 ]; then
       docker-compose -f $COMPOSE_FILE stop
       docker-compose -f $COMPOSE_FILE rm -f
-      sleep 5
+      sleep $DELAY_SECONDS
       continue
     fi
     return 0
