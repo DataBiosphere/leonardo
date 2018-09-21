@@ -2,17 +2,18 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import java.time.Instant
 
-import akka.actor.{Actor, Props}
+import akka.actor.{Actor, Props, Timers}
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterError}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ZombieClusterMonitor.DetectZombieClusters
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.config.ZombieClusterConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
+import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterError}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ZombieClusterMonitor._
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+
 import scala.concurrent.Future
 
 object ZombieClusterMonitor {
@@ -23,17 +24,18 @@ object ZombieClusterMonitor {
 
   sealed trait ZombieClusterMonitorMessage
   case object DetectZombieClusters extends ZombieClusterMonitorMessage
+  case object TimerKey extends ZombieClusterMonitorMessage
 }
 
 /**
   * This monitor periodically sweeps the Leo database and checks for clusters which no longer exist in Google.
   */
-class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference) extends Actor with LazyLogging {
+class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference) extends Actor with Timers with LazyLogging {
   import context._
 
   override def preStart(): Unit = {
     super.preStart()
-    system.scheduler.schedule(config.zombieCheckPeriod, config.zombieCheckPeriod, self, DetectZombieClusters)
+    timers.startPeriodicTimer(TimerKey, DetectZombieClusters, config.zombieCheckPeriod)
   }
 
   override def receive: Receive = {
@@ -49,10 +51,10 @@ class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO
               clusters.toList.traverseFilter { cluster =>
                 isClusterActiveInGoogle(cluster).map {
                   case true =>
-                    logger.debug(s"Cluster ${project.value} / ${cluster.clusterName.value} is active in Google")
+                    logger.debug(s"Cluster ${cluster.projectNameString} is active in Google")
                     None
                   case false =>
-                    logger.debug(s"Cluster ${project.value} / ${cluster.clusterName.value} is a zombie!")
+                    logger.debug(s"Cluster ${cluster.projectNameString} is a zombie!")
                     Some(cluster)
                 }
               }
@@ -86,7 +88,10 @@ class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO
     // Check the project and its billing info
     (googleProjectDAO.isProjectActive(googleProject.value) |@| googleProjectDAO.isBillingActive(googleProject.value))
       .map(_ && _)
-      .recover { case _ => false }
+      .recover { case e =>
+        logger.warn(s"Unable to check status of project ${googleProject.value} for zombie cluster detection", e)
+        true
+      }
   }
 
   private def isClusterActiveInGoogle(cluster: Cluster): Future[Boolean] = {
@@ -97,14 +102,15 @@ class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO
       // Check if status returned by GoogleDataprocDAO is an "active" status.
       gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName) map { clusterStatus =>
         ClusterStatus.activeStatuses contains clusterStatus
-      } recover { case _ =>
-        false
+      } recover { case e =>
+        logger.warn(s"Unable to check status of cluster ${cluster.projectNameString} for zombie cluster detection", e)
+        true
       }
     }
   }
 
   private def handleZombieCluster(cluster: Cluster): Future[Unit] = {
-    logger.info(s"Erroring zombie cluster: ${cluster.googleProject.value} / ${cluster.clusterName.value}")
+    logger.info(s"Erroring zombie cluster: ${cluster.projectNameString}")
     dbRef.inTransaction { dataAccess =>
       for {
         _ <- dataAccess.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Error)

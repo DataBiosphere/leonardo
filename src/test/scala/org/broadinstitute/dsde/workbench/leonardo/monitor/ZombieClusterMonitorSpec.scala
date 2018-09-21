@@ -169,7 +169,7 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
                              (testCode: ActorRef => T): T = {
     val actor = system.actorOf(ZombieClusterMonitor.props(zombieClusterConfig, gdDAO, googleProjectDAO, DbSingleton.ref))
     val testResult = Try(testCode(actor))
-    // shut down the actor and wait for it it terminate
+    // shut down the actor and wait for it to terminate
     testKit watch actor
     system.stop(actor)
     expectMsgClass(5 seconds, classOf[Terminated])
