@@ -14,6 +14,31 @@ function update_apt_get() {
   return 1
 }
 
+# Runs docker-compose to instantiate the notebooks docker container.
+# This function may retry docker-compose calls to hopefully mitigate intermittent timeouts pulling from GCR.
+function run_docker_compose() {
+  COMPOSE_FILE=$1
+  NUM_TRIES=5
+  DELAY_SECONDS=5
+  docker-compose -f $COMPOSE_FILE config
+  for ((i = 0; i < $NUM_TRIES; i++)); do
+    docker-compose -f $COMPOSE_FILE pull
+    if [ $? -ne 0 ]; then
+      sleep $DELAY_SECONDS
+      continue
+    fi
+    docker-compose -f $COMPOSE_FILE up -d
+    if [ $? -ne 0 ]; then
+      docker-compose -f $COMPOSE_FILE stop
+      docker-compose -f $COMPOSE_FILE rm -f
+      sleep $DELAY_SECONDS
+      continue
+    fi
+    return 0
+  done
+  return 1
+}
+
 function log() {
   echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')]: $@"
 }
@@ -65,7 +90,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
     log 'Installing prerequisites...'
 
     # install Docker
-    export DOCKER_CE_VERSION="17.12.0~ce-0~debian"
+    # https://docs.docker.com/install/linux/docker-ce/debian/
+    export DOCKER_CE_VERSION="18.03.0~ce-0~debian"
     update_apt_get
     apt-get install -y -q \
      apt-transport-https \
@@ -91,8 +117,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
     log 'Installing Docker Compose...'
 
     # Install docker-compose
-    curl -L https://github.com/docker/compose/releases/download/1.18.0/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
-    sudo chmod +x /usr/local/bin/docker-compose
+    # https://docs.docker.com/compose/install/#install-compose
+    curl -L "https://github.com/docker/compose/releases/download/1.22.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose
 
     log 'Copying secrets from GCS...'
 
@@ -130,7 +157,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     log 'Starting up the Jupydocker...'
 
     # Run docker-compose. This mounts Hadoop, Spark, and other resources inside the docker container.
-    docker-compose -f /etc/cluster-docker-compose.yaml up -d
+    run_docker_compose "/etc/`basename ${JUPYTER_DOCKER_COMPOSE}`"
 
     log 'Installing Jupydocker kernelspecs...'
 
