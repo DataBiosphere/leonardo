@@ -153,7 +153,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     log 'Starting up the Jupydocker...'
 
     # Run docker-compose. This mounts Hadoop, Spark, and other resources inside the docker container.
-    run_docker_compose "/etc/${JUPYTER_DOCKER_COMPOSE}"
+    run_docker_compose "/etc/`basename ${JUPYTER_DOCKER_COMPOSE}`"
 
     log 'Installing Jupydocker kernelspecs...'
 
