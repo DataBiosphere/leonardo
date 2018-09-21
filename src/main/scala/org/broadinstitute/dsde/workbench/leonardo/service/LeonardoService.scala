@@ -539,7 +539,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private def persistErrorInDb(e: Throwable,
                                clusterName: ClusterName,
                                clusterId: Long,
-                               googleProject: GoogleProject): Future[Int] = {
+                               googleProject: GoogleProject): Future[Unit] = {
     val errorMessage = e match {
       case leoEx: LeoException =>
         ErrorReport.loggableString(leoEx.toErrorReport)
@@ -554,7 +554,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     val errorInfo = ClusterError(errorMessage, dummyErrorCode, Instant.now)
 
-    dbRef.inTransaction(_.clusterErrorQuery.save(clusterId, errorInfo))
+    dbRef.inTransaction { dataAccess =>
+      for {
+        _ <- dataAccess.clusterQuery.updateClusterStatus(clusterId, ClusterStatus.Error)
+        _ <- dataAccess.clusterErrorQuery.save(clusterId, errorInfo)
+      } yield ()
+    }
   }
 
   private[service] def cleanUpGoogleResourcesOnError(throwable: Throwable, googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[Unit] = {
