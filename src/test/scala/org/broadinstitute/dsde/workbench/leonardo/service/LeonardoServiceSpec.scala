@@ -828,6 +828,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       errorRecord.errorMessage should startWith(expectedErrorMessage)
       errorRecord.errorCode shouldEqual -1
       errorRecord.timestamp should be < Instant.now.plusSeconds(1) // add a sec to prevent approximation errors
+
+      // verify that the cluster status is Error
+      val dbClusterOpt = dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }
+      dbClusterOpt.map(_.status) shouldBe Some(ClusterStatus.Error)
     }
   }
 
