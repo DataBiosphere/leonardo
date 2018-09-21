@@ -15,21 +15,18 @@ function update_apt_get() {
 }
 
 function run_docker_compose() {
+  COMPOSE_FILE=$1
+  docker-compose -f $COMPOSE_FILE config
   for ((i = 0; i < 5; i++)); do
-    docker-compose -f /etc/cluster-docker-compose.yaml config
+    docker-compose -f $COMPOSE_FILE pull
     if [ $? -ne 0 ]; then
       sleep 5
       continue
     fi
-    docker-compose -f /etc/cluster-docker-compose.yaml pull
+    docker-compose -f $COMPOSE_FILE up -d
     if [ $? -ne 0 ]; then
-      sleep 5
-      continue
-    fi
-    docker-compose -f /etc/cluster-docker-compose.yaml up -d
-    if [ $? -ne 0 ]; then
-      docker-compose -f /etc/cluster-docker-compose.yaml stop
-      docker-compose -f /etc/cluster-docker-compose.yaml rm -f
+      docker-compose -f $COMPOSE_FILE stop
+      docker-compose -f $COMPOSE_FILE rm -f
       sleep 5
       continue
     fi
@@ -156,7 +153,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     log 'Starting up the Jupydocker...'
 
     # Run docker-compose. This mounts Hadoop, Spark, and other resources inside the docker container.
-    run_docker_compose
+    run_docker_compose "/etc/${JUPYTER_DOCKER_COMPOSE}"
 
     log 'Installing Jupydocker kernelspecs...'
 
