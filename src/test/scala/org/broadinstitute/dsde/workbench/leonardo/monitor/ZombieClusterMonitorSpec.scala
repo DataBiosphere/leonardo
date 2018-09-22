@@ -22,6 +22,7 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
 
   val testCluster1 = makeCluster(1).copy(status = ClusterStatus.Running)
   val testCluster2 = makeCluster(2).copy(status = ClusterStatus.Running)
+  val testCluster3 = makeCluster(3).copy(status = ClusterStatus.Running)
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
@@ -161,6 +162,67 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
 
         c2.status shouldBe ClusterStatus.Creating
         c2.errors shouldBe 'empty
+      }
+    }
+  }
+
+  it should "should not zombify upon errors from Google" in isolatedDbTest {
+    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
+
+    // running cluster in "bad" project - should not get zombified
+    val clusterBadProject = testCluster1.copy(googleProject = GoogleProject("bad-project"))
+    val savedClusterBadProject = clusterBadProject.save()
+    savedClusterBadProject shouldEqual clusterBadProject
+
+    // running "bad" cluster - should not get zombified
+    val badCluster = testCluster2.copy(clusterName = ClusterName("bad-cluster"))
+    val savedBadCluster = badCluster.save()
+    savedBadCluster shouldEqual badCluster
+
+    // running "good" cluster - should get zombified
+    val goodCluster = testCluster3.copy(clusterName = ClusterName("good-cluster"))
+    val savedGoodCluster = goodCluster.save()
+    savedGoodCluster shouldEqual goodCluster
+
+    // stub GoogleProjectDAO to return an error for the bad project
+    val googleProjectDAO = new MockGoogleProjectDAO {
+      override def isProjectActive(projectName: String): Future[Boolean] = {
+        if (projectName == clusterBadProject.googleProject.value) {
+          Future.failed(new Exception)
+        } else Future.successful(true)
+      }
+    }
+
+    // stub GoogleDataprocDAO to return an error for the bad cluster
+    val gdDAO = new MockGoogleDataprocDAO {
+      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] = {
+        if (googleProject == clusterBadProject.googleProject && clusterName == clusterBadProject.clusterName) {
+          Future.successful(ClusterStatus.Running)
+        } else if (googleProject == badCluster.googleProject && clusterName == badCluster.clusterName) {
+          Future.failed(new Exception)
+        } else {
+          Future.successful(ClusterStatus.Deleted)
+        }
+      }
+    }
+
+    // only the "good" cluster should be zombified
+    withZombieActor(gdDAO = gdDAO) { _ =>
+      eventually(timeout(Span(10, Seconds))) {
+        val c1 = dbFutureValue { _.clusterQuery.getClusterById(savedClusterBadProject.id) }.get
+        val c2 = dbFutureValue { _.clusterQuery.getClusterById(savedBadCluster.id) }.get
+        val c3 = dbFutureValue { _.clusterQuery.getClusterById(savedGoodCluster.id) }.get
+
+        c1.status shouldBe ClusterStatus.Running
+        c1.errors shouldBe 'empty
+
+        c2.status shouldBe ClusterStatus.Running
+        c2.errors shouldBe 'empty
+
+        c3.status shouldBe ClusterStatus.Error
+        c3.errors.size shouldBe 1
+        c3.errors.head.errorCode shouldBe -1
+        c3.errors.head.errorMessage should include ("An underlying resource was removed in Google")
       }
     }
   }
