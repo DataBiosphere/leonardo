@@ -96,6 +96,12 @@ package object config {
       toScalaDuration(config.getDuration("autoFreezeAfter")),
       toScalaDuration(config.getDuration("autoFreezeCheckScheduler"))
     )
+  }
 
+  implicit val zombieClusterConfig: ValueReader[ZombieClusterConfig] = ValueReader.relative { config =>
+    ZombieClusterConfig(
+      config.getBoolean("enableZombieClusterMonitor"),
+      toScalaDuration(config.getDuration("pollPeriod"))
+    )
   }
 }
