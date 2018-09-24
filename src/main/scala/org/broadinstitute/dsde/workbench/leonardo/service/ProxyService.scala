@@ -18,6 +18,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -48,7 +49,7 @@ case class AccessTokenExpiredException()
 class ProxyService(proxyConfig: ProxyConfig,
                    gdDAO: GoogleDataprocDAO,
                    dbRef: DbReference,
-                   clusterDnsCache: ActorRef,
+                   clusterDnsCache: ClusterDnsCache,
                    authProvider: LeoAuthProvider,
                    clusterDateAccessedActor: ActorRef)(implicit val system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext) extends LazyLogging {
 
@@ -251,7 +252,7 @@ class ProxyService(proxyConfig: ProxyConfig,
     */
   protected def getTargetHost(googleProject: GoogleProject, clusterName: ClusterName): Future[GetClusterResponse] = {
     implicit val timeout: Timeout = Timeout(5 seconds)
-    (clusterDnsCache ? GetByProjectAndName(googleProject, clusterName)).mapTo[GetClusterResponse]
+    clusterDnsCache.ProjectNameToHost(googleProject, clusterName).mapTo[GetClusterResponse]
   }
 
   private def filterHeaders(headers: immutable.Seq[HttpHeader]) = {
