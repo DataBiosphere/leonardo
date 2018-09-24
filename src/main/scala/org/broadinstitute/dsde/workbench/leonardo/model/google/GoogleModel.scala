@@ -73,10 +73,6 @@ object ClusterStatus extends Enum[ClusterStatus] {
   // Non-terminal statuses. Requires cluster monitoring via ClusterMonitorActor.
   val monitoredStatuses: Set[ClusterStatus] = Set(Unknown, Creating, Updating, Deleting, Stopping, Starting)
 
-  // Clusters that may end up requiring monitoring via ClusterMonitorActor.
-  // TODO Should 'Error' be removed from the Set?
-  val monitorableStatuses: Set[ClusterStatus] = Set(Unknown, Creating, Updating, Error, Deleting, Stopping, Starting)
-
   // Can a user stop this cluster?
   val stoppableStatuses: Set[ClusterStatus] = Set(Unknown, Running, Updating, Starting)
 
