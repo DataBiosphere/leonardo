@@ -44,9 +44,9 @@ object ClusterMonitorSupervisor {
   case object AutoFreezeClusters extends ClusterSupervisorMessage
 
   // Timers ADT
-  sealed trait TimersTick extends ClusterSupervisorMessage
-  private case object TickKey extends TimersTick
-  private case object Tick extends TimersTick
+  sealed trait TimerTick extends ClusterSupervisorMessage
+  private case object TimerKey extends TimerTick
+  private case object Tick extends TimerTick
 }
 
 class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO)
@@ -55,8 +55,8 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
 
   var leoService: LeonardoService = _
 
-  // TODO Find a more thread-safe implementation
-  private[this] var monitoredClusters: Set[Cluster] = Set.empty
+  // TODO Is it safe enough concurrency-wise?
+  @volatile private[this] var monitoredClusters: Set[Cluster] = Set.empty
 
   import context._
 
@@ -64,8 +64,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
     super.preStart()
 
     // TODO Is it okay to re-use monitorConfig.pollPeriod here?
-//    system.scheduler.schedule(monitorConfig.pollPeriod)
-    timers.startPeriodicTimer(TickKey, Tick, monitorConfig.pollPeriod)
+    //timers.startPeriodicTimer(TimerKey, Tick, monitorConfig.pollPeriod)
 
     if (autoFreezeConfig.enableAutoFreeze)
       system.scheduler.schedule(autoFreezeConfig.autoFreezeCheckScheduler, autoFreezeConfig.autoFreezeCheckScheduler, self, AutoFreezeClusters)
