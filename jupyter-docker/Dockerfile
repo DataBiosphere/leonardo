@@ -79,11 +79,11 @@ ENV SPARK_VER 2.2.1
 ENV SPARK_HOME=/usr/lib/spark
 
 # result of `gsutil cat gs://hail-common/builds/0.1/latest-hash-spark-2.0.2.txt` on 11 January 2018
-# ENV HAILHASH 5c275cc216e1
+ENV HAILHASH 5c275cc216e1
 # ENV HAILJAR hail-0.1-$HAILHASH-Spark-$SPARK_VER.jar
-# ENV HAILPYTHON hail-0.1-$HAILHASH.zip
+ENV HAILPYTHON hail-0.1-$HAILHASH.zip
 # ENV HAILZIP Hail-0.1-$HAILHASH-Spark-$SPARK_VER.zip
-# ENV HAIL_HOME /etc/hail
+ENV HAIL_HOME /etc/hail
 ENV KERNELSPEC_HOME /usr/local/share/jupyter/kernels
 
 # Note Spark and Hadoop are mounted from the outside Dataproc VM.
@@ -112,11 +112,8 @@ ENV JUPYTER_HOME /etc/jupyter
 ENV PYSPARK_DRIVER_PYTHON jupyter
 ENV PYSPARK_DRIVER_PYTHON_OPTS notebook
 
-ENV PATH $SPARK_HOME:$SPARK_HOME/python:$SPARK_HOME/bin:$PATH
-ENV PYTHONPATH $PYTHONPATH:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip:$JUPYTER_HOME/custom
-
-# ENV PATH $SPARK_HOME:$SPARK_HOME/python:$SPARK_HOME/bin:$HAIL_HOME:$PATH
-# ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip:$JUPYTER_HOME/custom
+ENV PATH $SPARK_HOME:$SPARK_HOME/python:$SPARK_HOME/bin:$HAIL_HOME:$PATH
+ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip:$JUPYTER_HOME/custom
 
 RUN apt-get update \
  && apt-get install -yq --no-install-recommends \
