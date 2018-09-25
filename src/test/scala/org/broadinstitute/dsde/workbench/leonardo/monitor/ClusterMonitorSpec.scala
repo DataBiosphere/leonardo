@@ -982,10 +982,6 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     savedErrorCluster shouldEqual errorCluster
 
     val gdDAO = mock[GoogleDataprocDAO]
-    when {
-      gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
-    } thenReturn Future.failed(new Exception)
-
     val computeDAO = mock[GoogleComputeDAO]
     val storageDAO = mock[GoogleStorageDAO]
     val iamDAO = mock[GoogleIamDAO]
