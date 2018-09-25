@@ -255,14 +255,21 @@ class ClusterMonitorActor(val cluster: Cluster,
     } yield ShutdownActor()
   }
 
+  private def checkCluster: Future[ClusterMonitorMessage] = {
+    getDbClusterStatus.flatMap {
+      case status if status.isMonitored => checkClusterInGoogle(status)
+      case status =>
+        logger.info(s"Stopping monitoring of cluster ${cluster.projectNameString} in status ${status}")
+        Future.successful(ShutdownActor())
+    }
+  }
+
   /**
     * Queries Google for the cluster status and takes appropriate action depending on the result.
     * @return ClusterMonitorMessage
     */
-  private def checkCluster: Future[ClusterMonitorMessage] = {
+  private def checkClusterInGoogle(leoClusterStatus: ClusterStatus): Future[ClusterMonitorMessage] = {
     for {
-      clusterStatus <- getDbClusterStatus
-
       googleStatus <- gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName)
 
       googleInstances <- getClusterInstances
@@ -274,29 +281,29 @@ class ClusterMonitorActor(val cluster: Cluster,
         case Unknown | Creating | Updating =>
           Future.successful(NotReadyCluster(googleStatus, googleInstances))
         // Take care we don't restart a Deleting or Stopping cluster if google hasn't updated their status yet
-        case Running if clusterStatus != Deleting && clusterStatus != Stopping && clusterStatus != Starting && runningInstanceCount == googleInstances.size =>
+        case Running if leoClusterStatus != Deleting && leoClusterStatus != Stopping && leoClusterStatus != Starting && runningInstanceCount == googleInstances.size =>
           getMasterIp.map {
             case Some(ip) => ReadyCluster(ip, googleInstances)
             case None => NotReadyCluster(ClusterStatus.Running, googleInstances)
           }
-        case Running if clusterStatus == Starting && runningInstanceCount == googleInstances.size =>
+        case Running if leoClusterStatus == Starting && runningInstanceCount == googleInstances.size =>
           getMasterIp.flatMap {
             case Some(ip) =>
-              isProxyAvailable(clusterStatus, ip).map {
+              isProxyAvailable(leoClusterStatus, ip).map {
                 case true =>  ReadyCluster(ip, googleInstances)
                 case false => NotReadyCluster(ClusterStatus.Running, googleInstances)
               }
             case None => Future.successful(NotReadyCluster(ClusterStatus.Running, googleInstances))
           }
         // Take care we don't fail a Deleting or Stopping cluster if google hasn't updated their status yet
-        case Error if clusterStatus != Deleting && clusterStatus != Stopping =>
+        case Error if leoClusterStatus != Deleting && leoClusterStatus != Stopping =>
           gdDAO.getClusterErrorDetails(cluster.dataprocInfo.operationName).map {
             case Some(errorDetails) => FailedCluster(errorDetails, googleInstances)
             case None => NotReadyCluster(ClusterStatus.Error, googleInstances)
           }
         case Deleted => Future.successful(DeletedCluster)
         // if the cluster only contains stopped instances, it's a stopped cluster
-        case _ if clusterStatus != Starting && clusterStatus != Deleting && stoppedInstanceCount == googleInstances.size =>
+        case _ if leoClusterStatus != Starting && leoClusterStatus != Deleting && stoppedInstanceCount == googleInstances.size =>
           Future.successful(StoppedCluster(googleInstances))
         case _ => Future.successful(NotReadyCluster(googleStatus, googleInstances))
       }

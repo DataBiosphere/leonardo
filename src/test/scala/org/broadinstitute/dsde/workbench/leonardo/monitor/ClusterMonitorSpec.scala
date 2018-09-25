@@ -56,6 +56,9 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   val startingCluster = makeCluster(4).copy(serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
                                             status = ClusterStatus.Starting)
 
+  val errorCluster = makeCluster(5).copy(
+    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+    status = ClusterStatus.Error)
 
   val clusterInstances = Map(Master -> Set(masterInstance.key),
                              Worker -> Set(workerInstance1.key, workerInstance2.key))
@@ -964,6 +967,36 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       verify(storageDAO, never()).deleteBucket(any[GcsBucketName], any[Boolean])
       verify(iamDAO, if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
       verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
+    }
+  }
+
+  // Pre:
+  // - cluster exists in the DB with status Error
+  // - dataproc DAO throws exception
+  // Post:
+  // - cluster is not updated in the DB
+  // - monitor actor shuts down
+  // - dataproc DAO should not have been called
+  it should "stop monitoring a cluster in Error status" in isolatedDbTest {
+    val savedErrorCluster = errorCluster.save()
+    savedErrorCluster shouldEqual errorCluster
+
+    val gdDAO = mock[GoogleDataprocDAO]
+    val computeDAO = mock[GoogleComputeDAO]
+    val storageDAO = mock[GoogleStorageDAO]
+    val iamDAO = mock[GoogleIamDAO]
+    val authProvider = mock[LeoAuthProvider]
+
+    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, false) { actor =>
+      actor ! ClusterCreated(savedErrorCluster, stopAfterCreate = true)
+
+      expectMsgClass(1 second, classOf[Terminated])
+
+      val dbCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(errorCluster.googleProject, errorCluster.clusterName) }
+      dbCluster shouldBe 'defined
+      dbCluster.get shouldEqual errorCluster
+
+      verify(gdDAO, never()).getClusterStatus(any[GoogleProject], any[ClusterName])
     }
   }
 }
