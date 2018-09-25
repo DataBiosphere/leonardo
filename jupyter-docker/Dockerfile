@@ -79,12 +79,12 @@ ENV SPARK_VER 2.2.1
 ENV SPARK_HOME=/usr/lib/spark
 
 # result of `gsutil cat gs://hail-common/builds/0.1/latest-hash-spark-2.0.2.txt` on 11 January 2018
-ENV HAILHASH 5c275cc216e1
+# ENV HAILHASH 5c275cc216e1
 # ENV HAILJAR hail-0.1-$HAILHASH-Spark-$SPARK_VER.jar
-ENV HAILPYTHON hail-0.1-$HAILHASH.zip
+# ENV HAILPYTHON hail-0.1-$HAILHASH.zip
 # ENV HAILZIP Hail-0.1-$HAILHASH-Spark-$SPARK_VER.zip
-ENV HAIL_HOME /etc/hail
-ENV KERNELSPEC_HOME /usr/local/share/jupyter/kernels
+# ENV HAIL_HOME /etc/hail
+# ENV KERNELSPEC_HOME /usr/local/share/jupyter/kernels
 
 # Note Spark and Hadoop are mounted from the outside Dataproc VM.
 # Make empty conf dirs for the update-alternatives commands.
