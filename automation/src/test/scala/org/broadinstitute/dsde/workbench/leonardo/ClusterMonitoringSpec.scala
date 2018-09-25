@@ -26,7 +26,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
         val petEmail = getAndVerifyPet(project)
 
         // Create a cluster
-        withNewCluster(project, apiVersion = V2) { cluster =>
+        withNewCluster(project, apiVersion = V2, monitorDelete = true) { cluster =>
           // cluster should have been created with the pet service account
           cluster.serviceAccountInfo.clusterServiceAccount shouldBe Some(petEmail)
           cluster.serviceAccountInfo.notebookServiceAccount shouldBe None
@@ -112,7 +112,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
     "should pause and resume a cluster" taggedAs Tags.SmokeTest in {
       withProject { project => implicit token =>
         // Create a cluster
-        withNewCluster(project, monitorDelete = false, apiVersion = V2) { cluster =>
+        withNewCluster(project, apiVersion = V2) { cluster =>
           val printStr = "Pause/resume test"
 
           withWebDriver { implicit driver =>
@@ -162,7 +162,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
             numberOfPreemptibleWorkers = Option(10)
           )))
 
-          withNewCluster(project, request = request, monitorDelete = false) { cluster =>
+          withNewCluster(project, request = request) { cluster =>
             // Verify a Hail job uses preemptibles
             withWebDriver { implicit driver =>
               withNewNotebook(cluster) { notebookPage =>
@@ -277,7 +277,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
           val enablePdfDownloadScript = ResourceFile("bucket-tests/enable_download_as_pdf.sh")
           withResourceFileInBucket(project, enablePdfDownloadScript, "text/plain") { bucketPath =>            val clusterName = ClusterName("user-script-cluster" + makeRandomId())
 
-            withNewCluster(project, clusterName, ClusterRequest(Map(), None, Option(bucketPath.toUri)), monitorDelete = false, apiVersion = V2) { cluster =>
+            withNewCluster(project, clusterName, ClusterRequest(Map(), None, Option(bucketPath.toUri)), apiVersion = V2) { cluster =>
               val download = createDownloadDirectory()
               withWebDriver(download) { implicit driver =>
                 withNewNotebook(cluster) { notebookPage =>

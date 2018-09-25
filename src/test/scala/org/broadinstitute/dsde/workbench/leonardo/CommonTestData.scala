@@ -9,7 +9,7 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
-import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SwaggerConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SwaggerConfig, ZombieClusterConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockJupyterDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
@@ -52,6 +52,7 @@ trait CommonTestData{ this: ScalaFutures =>
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
   val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
+  val zombieClusterConfig = config.as[ZombieClusterConfig]("zombieClusterMonitor")
   val clusterUrlBase = dataprocConfig.clusterUrlBase
   val serviceAccountsConfig = config.getConfig("serviceAccounts.config")
   val monitorConfig = config.as[MonitorConfig]("monitor")
@@ -98,7 +99,8 @@ trait CommonTestData{ this: ScalaFutures =>
       instances = Set.empty,
       userJupyterExtensionConfig = None,
       autopauseThreshold = 30,
-      defaultClientId = Some("defaultClientId")
+      defaultClientId = Some("defaultClientId"),
+      stopAfterCreation = false
     )
   }
 
@@ -118,9 +120,10 @@ trait CommonTestData{ this: ScalaFutures =>
     instances = Set.empty,
     userJupyterExtensionConfig = None,
     autopauseThreshold = if (autopause) autopauseThreshold else 0,
-    defaultClientId = None)
+    defaultClientId = None,
+    stopAfterCreation = false)
 
-  // TODO look into parameterized tests so both provider impls can both be tested
+  // TODO look into parameterized tests so both provider impls can be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData
   val serviceAccountProvider = new MockPetClusterServiceAccountProvider(serviceAccountsConfig)
   val whitelistAuthProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider)

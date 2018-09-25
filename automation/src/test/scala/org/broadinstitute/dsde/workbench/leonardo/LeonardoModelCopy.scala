@@ -68,8 +68,8 @@ case class Cluster(clusterName: ClusterName,
                    stagingBucket:Option[GcsBucketName],
                    errors:List[ClusterError],
                    dateAccessed: Instant,
-                   defaultClientId: Option[String]
-                  )
+                   defaultClientId: Option[String],
+                   stopAfterCreation: Boolean)
 
 case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[String] = None,

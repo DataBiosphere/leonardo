@@ -111,6 +111,13 @@ class NotebookRKernelSpec extends ClusterFixtureSpec {
       }
     }
 
+    "should have Ronaldo automatically installed" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+          notebookPage.executeCell(""""Ronaldo" %in% installed.packages()""") shouldBe Some("TRUE")
+        }
+      }
+    }
   }
 
 }

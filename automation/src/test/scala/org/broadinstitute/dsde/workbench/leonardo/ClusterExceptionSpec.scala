@@ -40,7 +40,7 @@ class ClusterExceptionSpec extends FreeSpec with LeonardoTestUtils with Parallel
       withProject { project => implicit token =>
         logger.info(s"${project.value}: should not be able to recreate a deleting cluster")
 
-        val cluster = withNewCluster(project, monitorCreate = true, monitorDelete = false)(identity)
+        val cluster = withNewCluster(project, monitorCreate = true)(identity)
 
         val caught = the[RestException] thrownBy createNewCluster(project, cluster.clusterName)
         caught.message should include(""""statusCode":409""")
@@ -66,7 +66,7 @@ class ClusterExceptionSpec extends FreeSpec with LeonardoTestUtils with Parallel
 
     "should throw 401 for invalid token" in {
       withProject { project => implicit token =>
-        withNewCluster(project, monitorCreate = true, monitorDelete = false, apiVersion = V2) { cluster =>
+        withNewCluster(project, monitorCreate = true, apiVersion = V2) { cluster =>
           withWebDriver { implicit driver =>
             val thrown = the[Exception] thrownBy {
               Leonardo.notebooks.setCookie(cluster.googleProject, cluster.clusterName)(voldyAuthToken, driver)
