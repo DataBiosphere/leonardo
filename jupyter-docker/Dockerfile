@@ -84,7 +84,7 @@ ENV SPARK_HOME=/usr/lib/spark
 # ENV HAILPYTHON hail-0.1-$HAILHASH.zip
 # ENV HAILZIP Hail-0.1-$HAILHASH-Spark-$SPARK_VER.zip
 # ENV HAIL_HOME /etc/hail
-ENV KERNELSPEC_HOME /usr/local/share/jupyter/kernels
+# ENV KERNELSPEC_HOME /usr/local/share/jupyter/kernels
 
 # Note Spark and Hadoop are mounted from the outside Dataproc VM.
 # Make empty conf dirs for the update-alternatives commands.
