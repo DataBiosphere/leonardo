@@ -5,6 +5,7 @@ import java.io.File
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.openqa.selenium.WebDriver
 
+import scala.concurrent.duration._
 import scala.util.Try
 
 sealed trait Kernel {
@@ -51,24 +52,25 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
     click on (await enabled finishUploadButton)
   }
 
-  def withOpenNotebook[T](file: File)(testCode: NotebookPage => T): T = {
-    await enabled text(file.getName)
+  def withOpenNotebook[T](file: File, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T): T = {
+    await enabled (text(file.getName), timeout.toSeconds)
     val notebookPage = new NotebookPage(url + "/notebooks/" + file.getName).open
+    notebookPage.awaitReadyKernel(timeout)
     val result = Try { testCode(notebookPage) }
     notebookPage.shutdownKernel()
     result.get
   }
 
-  def withNewNotebook[T](kernel: Kernel = PySpark2)(testCode: NotebookPage => T): T = {
+  def withNewNotebook[T](kernel: Kernel = PySpark2, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T): T = {
     switchToNewTab {
-      await visible newButton
+      await visible (newButton, timeout.toSeconds)
       click on newButton
-      await visible cssSelector(kernel.cssSelectorString)
+      await visible (cssSelector(kernel.cssSelectorString), timeout.toSeconds)
       click on cssSelector(kernel.cssSelectorString)
     }
     // Not calling NotebookPage.open() as it should already be opened
     val notebookPage = new NotebookPage(currentUrl)
-    notebookPage.awaitReadyKernel()
+    notebookPage.awaitReadyKernel(timeout)
     val result = Try { testCode(notebookPage) }
     notebookPage.shutdownKernel()
     result.get

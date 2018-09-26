@@ -288,7 +288,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
         status shouldBe ClusterStatus.Running
       }
 
-      logger.info("Checking if cluster is proxyable yet")
+      logger.info(s"Checking if cluster is proxyable yet")
       val getResult = Try(Leonardo.notebooks.getApi(googleProject, clusterName))
       getResult.isSuccess shouldBe true
       getResult.get should not include "ProxyException"
@@ -434,25 +434,25 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
   }
 
-  def withNotebookUpload[T](cluster: Cluster, file: File)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+  def withNotebookUpload[T](cluster: Cluster, file: File, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withFileUpload(cluster, file) { notebooksListPage =>
-      notebooksListPage.withOpenNotebook(file) { notebookPage =>
+      notebooksListPage.withOpenNotebook(file, timeout) { notebookPage =>
         testCode(notebookPage)
       }
     }
   }
 
-  def withNewNotebook[T](cluster: Cluster, kernel: Kernel = PySpark2)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+  def withNewNotebook[T](cluster: Cluster, kernel: Kernel = PySpark2, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
-      notebooksListPage.withNewNotebook(kernel) { notebookPage =>
+      notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
         testCode(notebookPage)
       }
     }
   }
 
-  def withOpenNotebook[T](cluster: Cluster, notebookPath: File)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+  def withOpenNotebook[T](cluster: Cluster, notebookPath: File, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
-      notebooksListPage.withOpenNotebook(notebookPath) { notebookPage =>
+      notebooksListPage.withOpenNotebook(notebookPath, timeout) { notebookPage =>
         testCode(notebookPage)
       }
     }
