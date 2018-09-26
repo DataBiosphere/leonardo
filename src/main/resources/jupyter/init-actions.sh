@@ -4,37 +4,37 @@ set -e -x
 
 # adapted from https://github.com/GoogleCloudPlatform/dataproc-initialization-actions/blob/master/datalab/datalab.sh
 
-function update_apt_get() {
-  for ((i = 0; i < 10; i++)); do
-    if apt-get update; then
+# Retry a command up to a specific number of times until it exits successfully,
+# with exponential back off.
+#
+# $ retry 5 echo "Hello"
+# Hello
+#
+# $ retry 5 false
+# Retry 1/5 exited 1, retrying in 2 seconds...
+# Retry 2/5 exited 1, retrying in 4 seconds...
+# Retry 3/5 exited 1, retrying in 8 seconds...
+# Retry 4/5 exited 1, retrying in 16 seconds...
+# Retry 5/5 exited 1, no more retries left.
+#
+function retry {
+  local retries=$1
+  shift
+
+  for ((i = 1; i <= $retries; i++)); do
+    # run with an 'or' so set -e doesn't abort the bash script on errors
+    exit=0
+    "$@" || exit=$?
+    if [ $exit -eq 0 ]; then
       return 0
     fi
-    sleep 5
-  done
-  return 1
-}
-
-# Runs docker-compose to instantiate the notebooks docker container.
-# This function may retry docker-compose calls to hopefully mitigate intermittent timeouts pulling from GCR.
-function run_docker_compose() {
-  COMPOSE_FILE=$1
-  NUM_TRIES=5
-  DELAY_SECONDS=5
-  docker-compose -f $COMPOSE_FILE config
-  for ((i = 0; i < $NUM_TRIES; i++)); do
-    docker-compose -f $COMPOSE_FILE pull
-    if [ $? -ne 0 ]; then
-      sleep $DELAY_SECONDS
-      continue
+    wait=$((2 ** $i))
+    if [ $i -eq $retries ]; then
+      log "Retry $i/$retries exited $exit, no more retries left."
+      break
     fi
-    docker-compose -f $COMPOSE_FILE up -d
-    if [ $? -ne 0 ]; then
-      docker-compose -f $COMPOSE_FILE stop
-      docker-compose -f $COMPOSE_FILE rm -f
-      sleep $DELAY_SECONDS
-      continue
-    fi
-    return 0
+    log "Retry $i/$retries exited $exit, retrying in $wait seconds..."
+    sleep $wait
   done
   return 1
 }
@@ -92,8 +92,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # install Docker
     # https://docs.docker.com/install/linux/docker-ce/debian/
     export DOCKER_CE_VERSION="18.03.0~ce-0~debian"
-    update_apt_get
-    apt-get install -y -q \
+    retry 5 apt-get update
+    retry 5 apt-get install -y -q \
      apt-transport-https \
      ca-certificates \
      curl \
@@ -102,7 +102,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
     log 'Adding Docker package sources...'
 
-    curl -fsSL https://download.docker.com/linux/$(. /etc/os-release; echo "$ID")/gpg | apt-key add -
+    retry 5 curl -fsSL https://download.docker.com/linux/$(. /etc/os-release; echo "$ID")/gpg | apt-key add -
 
     add-apt-repository \
      "deb [arch=amd64] https://download.docker.com/linux/$(. /etc/os-release; echo "$ID") \
@@ -111,14 +111,14 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
     log 'Installing Docker...'
 
-    update_apt_get
-    apt-get install -y -q docker-ce=$DOCKER_CE_VERSION
+    retry 5 apt-get update
+    retry 5 apt-get install -y -q docker-ce=$DOCKER_CE_VERSION
 
     log 'Installing Docker Compose...'
 
     # Install docker-compose
     # https://docs.docker.com/compose/install/#install-compose
-    curl -L "https://github.com/docker/compose/releases/download/1.22.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    retry 5 curl -L "https://github.com/docker/compose/releases/download/1.22.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
 
     log 'Copying secrets from GCS...'
@@ -157,7 +157,12 @@ if [[ "${ROLE}" == 'Master' ]]; then
     log 'Starting up the Jupydocker...'
 
     # Run docker-compose. This mounts Hadoop, Spark, and other resources inside the docker container.
-    run_docker_compose "/etc/`basename ${JUPYTER_DOCKER_COMPOSE}`"
+    # Note the `docker-compose pull` is retried to avoid intermittent network errors, but
+    # `docker-compose up` is not retried.
+    COMPOSE_FILE=/etc/`basename ${JUPYTER_DOCKER_COMPOSE}`
+    docker-compose -f $COMPOSE_FILE config
+    retry 5 docker-compose -f $COMPOSE_FILE pull
+    docker-compose -f $COMPOSE_FILE up -d
 
     log 'Installing Jupydocker kernelspecs...'
 
