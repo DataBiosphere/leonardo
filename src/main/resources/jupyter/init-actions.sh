@@ -21,7 +21,6 @@ function retry {
   local retries=$1
   shift
 
-  local count=0
   for ((i = 1; i <= $retries; i++)); do
     # run with an 'or' so set -e doesn't abort the bash script on errors
     exit=0
