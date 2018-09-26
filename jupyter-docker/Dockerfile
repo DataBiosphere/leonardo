@@ -1,6 +1,6 @@
 # adapted from https://hub.docker.com/r/jupyter/base-notebook/ AKA https://github.com/jupyter/docker-stacks/tree/master/base-notebook
 
-FROM debian:jessie
+FROM debian:stretch
 
 USER root
 
@@ -12,13 +12,15 @@ ENV DEBIAN_FRONTEND noninteractive
 ENV DEBIAN_REPO http://cdn-fastly.deb.debian.org
 ENV CRAN_REPO http://cran.mtu.edu
 
-RUN echo "deb $DEBIAN_REPO/debian jessie main"                   > /etc/apt/sources.list \
- && echo "deb $DEBIAN_REPO/debian-security jessie/updates main" >> /etc/apt/sources.list \
- && echo "deb $DEBIAN_REPO/debian jessie-backports main"        >> /etc/apt/sources.list \
- && echo "deb $CRAN_REPO/bin/linux/debian jessie-cran34/"       >> /etc/apt/sources.list \
+RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sources.list \
+ && echo "deb $DEBIAN_REPO/debian-security stretch/updates main" >> /etc/apt/sources.list \
+ && echo "deb $DEBIAN_REPO/debian stretch-backports main"        >> /etc/apt/sources.list \
+ && echo "deb $CRAN_REPO/bin/linux/debian stretch-cran34/"       >> /etc/apt/sources.list \
+ && echo 'APT::Default-Release "stable";' | tee -a /etc/apt/apt.conf.d/00local \
+ && echo "deb http://ftp.de.debian.org/debian testing main"      >> /etc/apt/sources.list \
+ && apt-get update && apt-get install -my wget gnupg \
  && apt-key adv --keyserver keys.gnupg.net \
     --recv-key 'E19F5F87128899B192B1A2C2AD5F960A256A04AF' \
- && apt-get update \
  && apt-get -yq dist-upgrade \
  && apt-get install -yq --no-install-recommends \
     nano \
@@ -77,7 +79,7 @@ RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
 ENV SPARK_VER 2.0.2
 ENV SPARK_HOME=/usr/lib/spark
 
-# result of `gsutil cat gs://hail-common/builds/0.1/latest-hash-spark-2.0.2.txt` on 11 January 2018
+# result of `gsutil cat gs://hail-common/builds/0.1/latest-hash-spark-2.2.0.txt` on 02 October 2018
 ENV HAILHASH 5c275cc216e1
 ENV HAILJAR hail-0.1-$HAILHASH-Spark-$SPARK_VER.jar
 ENV HAILPYTHON hail-0.1-$HAILHASH.zip
@@ -128,14 +130,12 @@ RUN apt-get update \
  # jessie's default pip doesn't work well with jupyter 
  && wget -nv https://bootstrap.pypa.io/get-pip.py \
  && python get-pip.py \
-
  # Hail requires decorator
  && pip install -U decorator==4.2.1 \
  && pip install numpy==1.15.0 \
  && python -mpip install matplotlib \
  && pip install pandas \
  && pip install seaborn \
- && pip install -U jupyter \
  && pip install google-api-core==1.3.0 \
  && pip install google-cloud-bigquery==1.4.0 \
  && pip install google-cloud-bigquery-datatransfer==0.1.1 \
@@ -155,29 +155,41 @@ RUN apt-get update \
  && pip install bx-python \
  && pip install fastinterval \
  && pip install matplotlib-venn \
- # for jupyter_localize_extension
- && pip install python-datauri \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
 
 # Python 3 Kernel
 RUN apt-get update \
- &&  apt-get install -yq --no-install-recommends python3 \
-        python3-dev \
-        python3-tk \
+ && apt-get -t testing install -y python3.6 \
+#wget https://www.python.org/ftp/python/3.6.4/Python-3.6.4.tgz \
+# && tar xvf Python-3.6.4.tgz \
+# && cd Python-3.6.4 \
+# && ./configure --enable-optimizations \
+# && make -j8 \
+# && make altinstall \
+# && curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py \
+ && python3 get-pip.py
+# &&  apt-get install -yq --no-install-recommends python3 \
+#        python3-dev \
+#        python3-tk \
 
- && python3 get-pip.py \
+ # && python3 get-pip.py \
  # install the python 3 kernel
- && pip3 install tornado==5.1 \
+RUN apt-get update \
+ && pip3 install gitsome \
+ && pip3 install tornado==4.5.3 \
  && pip3 install ipykernel==4.8.2 \
  && python3 -m ipykernel install --name python3 --display-name "Python 3" \
+ # Hail requires decorator
+ && pip3 install -U decorator==4.2.1 \
  # python 3 packages
  && pip3 install numpy==1.15.0 \
  && python3 -mpip install matplotlib \
  && pip3 install pandas \
  && pip3 install seaborn \
- && pip3 install python-lzo \
+ && pip3 install -U jupyter \
+ # && pip3 install python-lzo \
  && pip3 install google-api-core==1.3.0 \
  && pip3 install google-cloud-bigquery==1.4.0 \
  && pip3 install google-cloud-bigquery-datatransfer==0.1.1 \
@@ -193,11 +205,14 @@ RUN apt-get update \
  && pip3 install pyfasta \
  && pip3 install pdoc \
  && pip3 install biopython \
- && pip3 install bx-python \
- && pip3 install fastinterval \
- && pip3 install matplotlib-venn \
- && apt-get clean \
+ # && pip3 install bx-python \
+ # && pip3 install fastinterval \
+ # && pip3 install matplotlib-venn \
+ # for jupyter_localize_extension
+ && pip3 install python-datauri \
+ #&& apt-get clean \
  && rm -rf /var/lib/apt/lists/*
+
 
 # make pip install to a user directory, instead of a system directory which requires root.
 # this is useful so `pip install` commands can be run in the context of a notebook.
@@ -208,7 +223,7 @@ ENV PIP_USER=true
 #######################
 
 RUN apt-get update \
- && apt-get -t jessie-cran34 install -y --no-install-recommends \
+ && apt-get -t stretch-cran34 install -y --no-install-recommends \
     r-base \
     r-base-dev \
     r-recommended \
@@ -233,11 +248,11 @@ RUN R -e 'install.packages(c( \
     "bigrquery",  \
     "tidyverse"), \
     repos="http://cran.mtu.edu")' \
- && R -e 'devtools::install_github("DataBiosphere/Ronaldo")' \
- && R -e 'devtools::install_github("IRkernel/IRkernel")' \
- && R -e 'IRkernel::installspec(user=FALSE)' \
- && chown -R $USER:users /home/jupyter-user/.local  \
- && R -e 'devtools::install_github("apache/spark@v2.0.2", subdir="R/pkg")' \
+ #&& R -e 'devtools::install_github("DataBiosphere/Ronaldo")' \
+ # && R -e 'devtools::install_github("IRkernel/IRkernel")' \
+ # && R -e 'IRkernel::installspec(user=FALSE)' \
+ # && chown -R $USER:users /home/jupyter-user/.local  \
+ && R -e 'devtools::install_github("apache/spark@v2.3.1", subdir="R/pkg")' \
  && mkdir -p /home/jupyter-user/.rpackages \
  && echo "R_LIBS=/home/jupyter-user/.rpackages" > /home/jupyter-user/.Renviron \
  && chown -R $USER:users /home/jupyter-user/.rpackages
@@ -257,7 +272,7 @@ RUN chown -R $USER:users $JUPYTER_HOME \
 # This edits the already built main.min.js file to prevent the notebook from scheduling a reconnect when a websocket is in a closing state
 # As a result, the websocket is allowed to reconnect on its own and doesn't get stuck in an infinite reconnection loop.
 # It should be removed at the first opportunity :(
-RUN sed -i "s/this._schedule_reconnect();//" ./usr/local/lib/python2.7/dist-packages/notebook/static/notebook/js/main.min.js
+# RUN sed -i "s/this._schedule_reconnect();//" ./usr/local/lib/python3.5/dist-packages/notebook/static/notebook/js/main.min.js
 
 USER $USER
 WORKDIR $HOME

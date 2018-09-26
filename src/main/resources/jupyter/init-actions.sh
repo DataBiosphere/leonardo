@@ -275,11 +275,22 @@ if [[ "${ROLE}" == 'Master' ]]; then
       docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
     fi
 
-
     log 'Starting Jupyter Notebook...'
     docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/run-jupyter.sh
     log 'All done!'
+
+else
+    echo "deb http://ftp.de.debian.org/debian testing main"      >> /etc/apt/sources.list
+    apt-get update
+    apt-get -t testing install python3.6
+#    wget https://www.python.org/ftp/python/3.6.4/Python-3.6.4.tgz
+#    tar xvf Python-3.6.4.tgz
+#    cd Python-3.6.4
+#    ./configure --enable-optimizations
+#    make -j8
+#    sudo make altinstall
 fi
+
 
 
 

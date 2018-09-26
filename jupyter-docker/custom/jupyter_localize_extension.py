@@ -91,7 +91,7 @@ class LocalizeHandler(IPythonHandler):
     if type(pathdict) is not dict:
       raise HTTPError(400, "Body must be JSON object of type string/string")
 
-    if not all(map(lambda v: type(v) is unicode, pathdict.values())):
+    if not all(map(lambda v: type(v) is str, pathdict.values())):
       raise HTTPError(400, "Body must be JSON object of type string/string")
 
     try:
