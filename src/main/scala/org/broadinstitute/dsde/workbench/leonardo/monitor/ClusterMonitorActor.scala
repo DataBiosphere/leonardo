@@ -141,14 +141,14 @@ class ClusterMonitorActor(val cluster: Cluster,
       // Remove credentials from instance metadata.
       // Only happens if an notebook service account was used.
       _ <- if (clusterStatus == ClusterStatus.Creating) removeCredentialsFromMetadata else Future.successful(())
-      // Ensure the cluster is ready for proxying but updating the IP -> DNS cache
-      _ <- ensureClusterReadyForProxying(publicIp, clusterStatus)
       // create or update instances in the DB
       _ <- persistInstances(instances)
       // update DB after auth futures finish
       _ <- dbRef.inTransaction { dataAccess =>
         dataAccess.clusterQuery.setToRunning(cluster.id, publicIp)
       }
+      // Ensure the cluster is ready for proxying by updating the IP -> DNS cache
+      _ <- ensureClusterReadyForProxying(publicIp, clusterStatus)
       // Remove the Dataproc Worker IAM role for the cluster service account.
       // Only happens if the cluster was created with a service account other
       // than the compute engine default service account.
