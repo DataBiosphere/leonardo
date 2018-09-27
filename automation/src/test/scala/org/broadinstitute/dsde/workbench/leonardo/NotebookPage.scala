@@ -20,9 +20,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   extends JupyterPage with Eventually with LazyLogging {
 
   override def open(implicit webDriver: WebDriver): NotebookPage = {
-    val page: NotebookPage = super.open.asInstanceOf[NotebookPage]
-    awaitReadyKernel()
-    page
+    super.open.asInstanceOf[NotebookPage]
   }
 
   // selects all menus from the header bar
@@ -210,7 +208,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     awaitReadyKernel(timeout)
   }
 
-  def awaitReadyKernel(timeout: FiniteDuration = 2.minutes): Unit = {
+  def awaitReadyKernel(timeout: FiniteDuration): Unit = {
     val time = Timeout(scaled(Span(timeout.toSeconds, Seconds)))
     val pollInterval = Interval(scaled(Span(5, Seconds)))
     eventually(time, pollInterval) {
