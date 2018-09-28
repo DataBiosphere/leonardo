@@ -63,7 +63,7 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
         withClue(s"Waiting for Cluster ${cluster.clusterName} status to become Deleting. ") {
           eventually(timeout(Span(300, Seconds)), interval(Span(30, Seconds))) {
             val status = Leonardo.cluster.get(project, cluster.clusterName).status
-            status == ClusterStatus.Deleting
+            status shouldBe ClusterStatus.Deleting
           }
         }
 
@@ -75,7 +75,7 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
         withClue(s"Cluster ${cluster.clusterName} status Deleting should be unchanged") {
           eventually(timeout(Span(2, Seconds))) {
             val status = Leonardo.cluster.get(project, cluster.clusterName).status
-            status == ClusterStatus.Deleting
+            status shouldBe ClusterStatus.Deleting
           }
         }
       }
