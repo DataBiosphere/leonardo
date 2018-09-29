@@ -7,7 +7,7 @@ import errno
 import stat
 
 c = get_config()
-c.NotebookApp.ip = '*'
+c.NotebookApp.ip = 'localhost'
 c.NotebookApp.port = 8000
 c.NotebookApp.open_browser = False
 
