@@ -146,8 +146,6 @@ class ClusterMonitorActor(val cluster: Cluster,
       _ <- dbRef.inTransaction { dataAccess =>
         dataAccess.clusterQuery.setToRunning(cluster.id, publicIp)
       }
-      // Ensure the cluster is ready for proxying by updating the IP -> DNS cache
-      _ <- ensureClusterReadyForProxying(publicIp, clusterStatus)
       // Remove the Dataproc Worker IAM role for the cluster service account.
       // Only happens if the cluster was created with a service account other
       // than the compute engine default service account.
@@ -288,9 +286,11 @@ class ClusterMonitorActor(val cluster: Cluster,
         case Running if leoClusterStatus == Starting && runningInstanceCount == googleInstances.size =>
           getMasterIp.flatMap {
             case Some(ip) =>
-              isProxyAvailable(leoClusterStatus, ip).map {
-                case true =>  ReadyCluster(ip, googleInstances)
-                case false => NotReadyCluster(ClusterStatus.Running, googleInstances)
+              dbRef.inTransaction { dataAccess => dataAccess.clusterQuery.updateClusterHostIp(cluster.id, Some(ip)) }.flatMap { _ =>
+                isProxyAvailable(leoClusterStatus, ip).map {
+                  case true => ReadyCluster(ip, googleInstances)
+                  case false => NotReadyCluster(ClusterStatus.Running, googleInstances)
+                }
               }
             case None => Future.successful(NotReadyCluster(ClusterStatus.Running, googleInstances))
           }
