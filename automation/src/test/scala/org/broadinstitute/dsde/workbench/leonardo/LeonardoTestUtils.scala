@@ -192,6 +192,18 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
           logger.warn(s"Could not obtain Dataproc log files for cluster ${creatingCluster.googleProject}/${creatingCluster.clusterName}")
       }
 
+      // If the cluster is running, grab the jupyter.log file for debugging.
+      runningOrErroredCluster.foreach { cluster =>
+        if (cluster.status == ClusterStatus.Running) {
+          saveJupyterLogFile(cluster, "create") match {
+            case Success(file) =>
+              logger.info(s"Saved jupyter.log file for cluster ${googleProject.value} / ${clusterName.string} to ${file.getAbsolutePath}")
+            case Failure(e) =>
+              logger.warn(s"Could not save jupyter.log file for cluster ${googleProject.value} / ${clusterName.string} . Not failing test.", e)
+          }
+        }
+      }
+
       runningOrErroredCluster.get
     } else {
       creatingCluster
@@ -292,6 +304,14 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       val getResult = Try(Leonardo.notebooks.getApi(googleProject, clusterName))
       getResult.isSuccess shouldBe true
       getResult.get should not include "ProxyException"
+
+      // Grab the jupyter.log file for debugging.
+      saveJupyterLogFile(startingCluster, "start") match {
+        case Success(file) =>
+          logger.info(s"Saved jupyter.log file for cluster ${googleProject.value} / ${clusterName.string} to ${file.getAbsolutePath}")
+        case Failure(e) =>
+          logger.warn(s"Could not save jupyter.log file for cluster ${googleProject.value} / ${clusterName.string} . Not failing test.", e)
+      }
     }
   }
 
@@ -680,6 +700,18 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     } yield (initDownloadFile, startupDownloadFile)
 
     transformed.value
+  }
+
+  def saveJupyterLogFile(cluster: Cluster, suffix: String)(implicit token: AuthToken): Try[File] = {
+    Try {
+      val jupyterLogOpt = Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "jupyter.log", includeContent = true)
+      val content = jupyterLogOpt.content.getOrElse(throw new RuntimeException(s"Could not download jupyter.log for cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}"))
+      val downloadFile = new File(logDir, s"${cluster.googleProject.value}-${cluster.clusterName.string}-$suffix-jupyter.log")
+      val fos = new FileOutputStream(downloadFile)
+      fos.write(content.getBytes(StandardCharsets.UTF_8))
+      fos.close()
+      downloadFile
+    }
   }
 
   def time[R](block: => R): TimeResult[R] = {
