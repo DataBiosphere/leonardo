@@ -43,6 +43,13 @@ function log() {
   echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')]: $@"
 }
 
+function betterAptGet() {
+  if ! { apt-get update 2>&1 || echo E: update failed; } | grep -q '^[WE]:'; then
+    return 0
+  else
+    return 1
+  fi
+}
 # Initialize the dataproc cluster with Jupyter and apache proxy docker images
 # Uses cluster-docker-compose.yaml
 
@@ -92,7 +99,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # install Docker
     # https://docs.docker.com/install/linux/docker-ce/debian/
     export DOCKER_CE_VERSION="18.03.0~ce-0~debian"
-    retry 5 apt-get update
+    retry 5 betterAptGet
     retry 5 apt-get install -y -q \
      apt-transport-https \
      ca-certificates \
@@ -111,7 +118,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
     log 'Installing Docker...'
 
-    retry 5 apt-get update
+    retry 5 betterAptGet
     retry 5 apt-get install -y -q docker-ce=$DOCKER_CE_VERSION
 
     log 'Installing Docker Compose...'
