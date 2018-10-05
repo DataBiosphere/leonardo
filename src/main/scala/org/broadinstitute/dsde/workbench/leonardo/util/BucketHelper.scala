@@ -32,9 +32,8 @@ class BucketHelper(dataprocConfig: DataprocConfig,
                    googleComputeDAO: GoogleComputeDAO,
                    googleStorageDAO: GoogleStorageDAO,
                    serviceAccountProvider: ServiceAccountProvider)
-                  (implicit val executionContext: ExecutionContext) extends LazyLogging with Retry {
-
-  val system = ActorSystem("BucketHelperActor")
+                  (implicit val executionContext: ExecutionContext, val system: ActorSystem)
+  extends LazyLogging with Retry {
 
   /**
     * Creates the dataproc init bucket and sets the necessary ACLs.
@@ -46,7 +45,10 @@ class BucketHelper(dataprocConfig: DataprocConfig,
       // available service accounts ((cluster or default SA) and notebook SA, if they exist) -> Reader
       bucketSAs <- getBucketSAs(googleProject, serviceAccountInfo)
       leoEntity = userEntity(serviceAccountProvider.getLeoServiceAccountAndKey._1)
-
+      // When we receive a large number (e.g. 200) of simultaneous cluster creation requests,
+      // we hit Google bucket creation/deletion request quota of one per approx. two seconds.
+      // Therefore, we are adding a second layer of retries on top of the one existing within
+      // the googleStorageDAO.createBucket method
       _ <- retryUntilSuccessOrTimeout(failureLogMessage = s"Init bucket creation failed for Google project '$googleProject'")(30 seconds, 5 minutes) { () =>
         googleStorageDAO.createBucket(dataprocConfig.leoGoogleProject, bucketName, bucketSAs, List(leoEntity))
       }
