@@ -61,7 +61,7 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
     result.get
   }
 
-  def withNewNotebook[T](kernel: Kernel = PySpark2, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T): T = {
+  def withNewNotebook[T](kernel: Kernel = Python2, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T): T = {
     switchToNewTab {
       await visible (newButton, timeout.toSeconds)
       click on newButton
