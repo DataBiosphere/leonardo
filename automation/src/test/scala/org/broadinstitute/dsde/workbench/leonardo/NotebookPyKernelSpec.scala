@@ -18,7 +18,7 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec {
       }
     }
 
-    ignore "should do cross domain cookie auth" in { clusterFixture =>
+    "should do cross domain cookie auth" ignore { clusterFixture =>
       withWebDriver { implicit driver =>
         withDummyClientPage(clusterFixture.cluster) { dummyClientPage =>
           // opens the notebook list page without setting a cookie
