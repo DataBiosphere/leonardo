@@ -110,10 +110,10 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
     // Always log cluster errors
     if (cluster.errors.nonEmpty) {
-      logger.warn(s"Cluster ${cluster.googleProject}/${cluster.clusterName} returned the following errors: ${cluster.errors}")
+      logger.warn(s"Cluster ${cluster.projectNameString} returned the following errors: ${cluster.errors}")
     }
 
-    withClue(s"Cluster ${cluster.googleProject}/${cluster.clusterName}: ") {
+    withClue(s"Cluster ${cluster.projectNameString}: ") {
       expectedStatuses should contain (cluster.status)
     }
 
@@ -182,14 +182,26 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       // Save the cluster init log file whether or not the cluster created successfully
       implicit val ec: ExecutionContextExecutor = ExecutionContext.global
       saveDataprocLogFiles(creatingCluster).recover { case e =>
-        logger.error(s"Error occurred saving Dataproc log files for cluster ${creatingCluster.googleProject}/${creatingCluster.clusterName}", e)
+        logger.error(s"Error occurred saving Dataproc log files for cluster ${creatingCluster.projectNameString}", e)
         throw e
       }.futureValue match {
         case Some((initLog, startupLog)) =>
-          logger.info(s"Saved Dataproc init log file for cluster ${creatingCluster.googleProject}/${creatingCluster.clusterName} to ${initLog.getAbsolutePath}")
-          logger.info(s"Saved Dataproc startup log file for cluster ${creatingCluster.googleProject}/${creatingCluster.clusterName} to ${startupLog.getAbsolutePath}")
+          logger.info(s"Saved Dataproc init log file for cluster ${creatingCluster.projectNameString} to ${initLog.getAbsolutePath}")
+          logger.info(s"Saved Dataproc startup log file for cluster ${creatingCluster.projectNameString} to ${startupLog.getAbsolutePath}")
         case None =>
-          logger.warn(s"Could not obtain Dataproc log files for cluster ${creatingCluster.googleProject}/${creatingCluster.clusterName}")
+          logger.warn(s"Could not obtain Dataproc log files for cluster ${creatingCluster.projectNameString}")
+      }
+
+      // If the cluster is running, grab the jupyter.log file for debugging.
+      runningOrErroredCluster.foreach { cluster =>
+        if (cluster.status == ClusterStatus.Running) {
+          saveJupyterLogFile(cluster, "create") match {
+            case Success(file) =>
+              logger.info(s"Saved jupyter.log file for cluster ${cluster.projectNameString} to ${file.getAbsolutePath}")
+            case Failure(e) =>
+              logger.warn(s"Could not save jupyter.log file for cluster ${cluster.projectNameString} . Not failing test.", e)
+          }
+        }
       }
 
       runningOrErroredCluster.get
@@ -292,6 +304,14 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       val getResult = Try(Leonardo.notebooks.getApi(googleProject, clusterName))
       getResult.isSuccess shouldBe true
       getResult.get should not include "ProxyException"
+
+      // Grab the jupyter.log file for debugging.
+      saveJupyterLogFile(startingCluster, "start") match {
+        case Success(file) =>
+          logger.info(s"Saved jupyter.log file for cluster ${startingCluster.projectNameString} to ${file.getAbsolutePath}")
+        case Failure(e) =>
+          logger.warn(s"Could not save jupyter.log file for cluster ${startingCluster.projectNameString} . Not failing test.", e)
+      }
     }
   }
 
@@ -557,9 +577,9 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
           // Verify and save the localization.log file to test output to aid in debugging
           Try(verifyAndSaveLocalizationLog(cluster)) match {
             case Success(downloadFile) =>
-              logger.info(s"Saved localization log for cluster ${cluster.googleProject.value}/${cluster.clusterName.string} to ${downloadFile.getAbsolutePath}")
+              logger.info(s"Saved localization log for cluster ${cluster.projectNameString} to ${downloadFile.getAbsolutePath}")
             case Failure(e) =>
-              logger.warn(s"Could not obtain localization log files for cluster ${cluster.googleProject}/${cluster.clusterName}: ${e.getMessage}")
+              logger.warn(s"Could not obtain localization log files for cluster ${cluster.projectNameString}: ${e.getMessage}")
           }
 
           // clean up files on the cluster
@@ -680,6 +700,18 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     } yield (initDownloadFile, startupDownloadFile)
 
     transformed.value
+  }
+
+  def saveJupyterLogFile(cluster: Cluster, suffix: String)(implicit token: AuthToken): Try[File] = {
+    Try {
+      val jupyterLogOpt = Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "jupyter.log", includeContent = true)
+      val content = jupyterLogOpt.content.getOrElse(throw new RuntimeException(s"Could not download jupyter.log for cluster ${cluster.projectNameString}"))
+      val downloadFile = new File(logDir, s"${cluster.googleProject.value}-${cluster.clusterName.string}-$suffix-jupyter.log")
+      val fos = new FileOutputStream(downloadFile)
+      fos.write(content.getBytes(StandardCharsets.UTF_8))
+      fos.close()
+      downloadFile
+    }
   }
 
   def time[R](block: => R): TimeResult[R] = {
