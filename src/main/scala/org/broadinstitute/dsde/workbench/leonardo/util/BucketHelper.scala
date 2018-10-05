@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
+import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import cats.data.OptionT
 import cats.implicits._
@@ -13,7 +14,9 @@ import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.{Group, Use
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.{GcsRole, Owner, Reader}
 import org.broadinstitute.dsde.workbench.model.google.ProjectTeamTypes.{Editors, Owners, Viewers}
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsBucketName, GcsEntity, GoogleProject, ProjectGcsEntity, ProjectNumber}
+import org.broadinstitute.dsde.workbench.util.Retry
 
+import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
 case class NoGoogleProjectNumberException(googleProject: GoogleProject)
@@ -29,7 +32,8 @@ class BucketHelper(dataprocConfig: DataprocConfig,
                    googleComputeDAO: GoogleComputeDAO,
                    googleStorageDAO: GoogleStorageDAO,
                    serviceAccountProvider: ServiceAccountProvider)
-                  (implicit val executionContext: ExecutionContext) extends LazyLogging {
+                  (implicit val executionContext: ExecutionContext, val system: ActorSystem)
+  extends LazyLogging with Retry {
 
   /**
     * Creates the dataproc init bucket and sets the necessary ACLs.
@@ -41,8 +45,13 @@ class BucketHelper(dataprocConfig: DataprocConfig,
       // available service accounts ((cluster or default SA) and notebook SA, if they exist) -> Reader
       bucketSAs <- getBucketSAs(googleProject, serviceAccountInfo)
       leoEntity = userEntity(serviceAccountProvider.getLeoServiceAccountAndKey._1)
-
-      _ <- googleStorageDAO.createBucket(dataprocConfig.leoGoogleProject, bucketName, bucketSAs, List(leoEntity))
+      // When we receive a large number (e.g. 200) of simultaneous cluster creation requests,
+      // we hit Google bucket creation/deletion request quota of one per approx. two seconds.
+      // Therefore, we are adding a second layer of retries on top of the one existing within
+      // the googleStorageDAO.createBucket method
+      _ <- retryUntilSuccessOrTimeout(failureLogMessage = s"Init bucket creation failed for Google project '$googleProject'")(30 seconds, 5 minutes) { () =>
+        googleStorageDAO.createBucket(dataprocConfig.leoGoogleProject, bucketName, bucketSAs, List(leoEntity))
+      }
     } yield bucketName
   }
 
