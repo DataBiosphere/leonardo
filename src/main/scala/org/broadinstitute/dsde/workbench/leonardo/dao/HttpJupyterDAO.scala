@@ -8,7 +8,7 @@ import akka.pattern.ask
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
+import org.broadinstitute.dsde.workbench.leonardo.dns.{ClusterDnsCache, DnsCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -32,6 +32,6 @@ class HttpJupyterDAO(val clusterDnsCache: ClusterDnsCache)(implicit system: Acto
 
   protected def getTargetHost(googleProject: GoogleProject, clusterName: ClusterName): Future[GetClusterResponse] = {
     implicit val timeout: Timeout = Timeout(5 seconds)
-    clusterDnsCache.ProjectNameToHost(googleProject, clusterName).mapTo[GetClusterResponse]
+    clusterDnsCache.projectNameToHost(DnsCacheKey(googleProject, clusterName)).mapTo[GetClusterResponse]
   }
 }

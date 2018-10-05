@@ -1,10 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo.dns
 
 import java.util.concurrent.TimeUnit
+
 import akka.http.scaladsl.model.Uri.Host
+import akka.remote.WireFormats.FiniteDuration
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDnsCacheConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -20,7 +22,6 @@ object ClusterDnsCache {
 
   @volatile var HostToIp: Map[Host, IP] = Map.empty
 
-  // Responses to GetByProjectAndName message
   sealed trait GetClusterResponse
   case object ClusterNotFound extends GetClusterResponse
   case object ClusterNotReady extends GetClusterResponse
@@ -28,8 +29,10 @@ object ClusterDnsCache {
   case class ClusterReady(hostname: Host) extends GetClusterResponse
 }
 
+case class DnsCacheKey(googleProject: GoogleProject, clusterName: ClusterName)
+
 /**
-  * This actor periodically queries the DB for all clusters, and updates in-memory caches of:
+  * This class provides in-memory caches of:
   * 1. (GoogleProject, ClusterName) -> Hostname
   *    This is used by ProxyService to look up the hostname to connect to given the GoogleProject/ClusterName
   *    in the Leo request URI.
@@ -40,16 +43,17 @@ object ClusterDnsCache {
   * @param proxyConfig the proxy configuration
   * @param dbRef provides access to the database
   */
-class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit  executionContext: ExecutionContext) extends LazyLogging {
+class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConfig: ClusterDnsCacheConfig)(implicit executionContext: ExecutionContext) extends LazyLogging {
 
-  val ProjectNameToHost = CacheBuilder.newBuilder()
-    .expireAfterWrite(5, TimeUnit.SECONDS)
-    .maximumSize(100)
+
+
+  val projectNameToHost = CacheBuilder.newBuilder()
+    .expireAfterWrite(dnsCacheConfig.cacheExpiryTime.toSeconds, TimeUnit.SECONDS)
+    .maximumSize(dnsCacheConfig.cacheMaxSize)
     .build(
-      new CacheLoader[(GoogleProject, ClusterName), Future[GetClusterResponse]] {
-        def load(key: (GoogleProject, ClusterName)) = {
-          dbRef.inTransaction {dataAccess => dataAccess.clusterQuery.getActiveClusterByName(key._1, key._2)}.map{
-            c => c match {
+      new CacheLoader[DnsCacheKey, Future[GetClusterResponse]] {
+        def load(key: DnsCacheKey) = {
+          dbRef.inTransaction {dataAccess => dataAccess.clusterQuery.getActiveClusterByName(key.googleProject, key.clusterName)}.map {
               case  Some(cluster) => {
                 val res = projectNameToHostEntry(cluster)._2
                 if(res.isInstanceOf[ClusterReady]) {
@@ -58,7 +62,6 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference)(implicit  ex
                 res
               }
               case None => ClusterNotFound
-            }
           }
         }
       }

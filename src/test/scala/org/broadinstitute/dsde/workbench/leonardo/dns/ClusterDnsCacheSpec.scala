@@ -24,7 +24,7 @@ class ClusterDnsCacheSpec extends FlatSpecLike with BeforeAndAfterAll with TestC
   val cluster2: Cluster = makeCluster(2).copy(status = ClusterStatus.Creating,
     dataprocInfo = makeDataprocInfo(2).copy(hostIp = None))
 
-  val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.ref)
+  val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.ref, dnsCacheConfig)
   it should "update maps and return clusters" in isolatedDbTest {
 
     // save the clusters to the db
@@ -35,11 +35,11 @@ class ClusterDnsCacheSpec extends FlatSpecLike with BeforeAndAfterAll with TestC
     //This replicates how the proxy accesses these maps as well.
     //ProjectNameToHost read updates the HostToIP map
     eventually {
-      clusterDnsCache.ProjectNameToHost.get((cluster1.googleProject, cluster1.clusterName)).futureValue shouldEqual
+      clusterDnsCache.projectNameToHost.get(DnsCacheKey(cluster1.googleProject, cluster1.clusterName)).futureValue shouldEqual
         ClusterReady(Host(s"${cluster1.dataprocInfo.googleId.get.toString}.jupyter.firecloud.org"))
     }
     eventually {
-      clusterDnsCache.ProjectNameToHost.get((cluster2.googleProject, cluster2.clusterName)).futureValue shouldEqual
+      clusterDnsCache.projectNameToHost.get(DnsCacheKey(cluster2.googleProject, cluster2.clusterName)).futureValue shouldEqual
         ClusterNotReady
     }
 

@@ -18,7 +18,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
+import org.broadinstitute.dsde.workbench.leonardo.dns.{ClusterDnsCache, DnsCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -252,7 +252,7 @@ class ProxyService(proxyConfig: ProxyConfig,
     */
   protected def getTargetHost(googleProject: GoogleProject, clusterName: ClusterName): Future[GetClusterResponse] = {
     implicit val timeout: Timeout = Timeout(5 seconds)
-    clusterDnsCache.ProjectNameToHost(googleProject, clusterName).mapTo[GetClusterResponse]
+    clusterDnsCache.projectNameToHost(DnsCacheKey(googleProject, clusterName)).mapTo[GetClusterResponse]
   }
 
   private def filterHeaders(headers: immutable.Seq[HttpHeader]) = {

@@ -261,7 +261,7 @@ trait ClusterComponent extends LeoComponent {
         .update((status.toString, hostIp.map(_.value), Timestamp.from(Instant.now)))
     }
 
-    def updateClusterHostIp(id: Long, hostIp:Option[IP]): DBIO[Int] = {
+    def updateClusterHostIp(id: Long, hostIp: Option[IP]): DBIO[Int] = {
       clusterQuery.filter { _.id === id }
         .map(c => (c.hostIp, c.dateAccessed))
         .update((hostIp.map(_.value), Timestamp.from(Instant.now)))
