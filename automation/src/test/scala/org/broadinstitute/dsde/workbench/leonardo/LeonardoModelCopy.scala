@@ -69,7 +69,9 @@ case class Cluster(clusterName: ClusterName,
                    errors:List[ClusterError],
                    dateAccessed: Instant,
                    defaultClientId: Option[String],
-                   stopAfterCreation: Boolean)
+                   stopAfterCreation: Boolean) {
+  def projectNameString: String = s"${googleProject.value}/${clusterName.string}"
+}
 
 case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[String] = None,
