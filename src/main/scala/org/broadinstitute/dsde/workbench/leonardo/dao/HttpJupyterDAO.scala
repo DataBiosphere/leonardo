@@ -21,7 +21,7 @@ class HttpJupyterDAO(val clusterDnsCache: ClusterDnsCache)(implicit system: Acto
 
   override def getStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = {
     getTargetHost(googleProject, clusterName) flatMap {
-      case ClusterReady(targetHost) =>
+      case HostReady(targetHost) =>
         val statusUri = Uri(s"https://${targetHost.toString}/notebooks/$googleProject/$clusterName/api/status")
         http.singleRequest(HttpRequest(uri = statusUri)) map { response =>
           response.status.isSuccess
@@ -30,8 +30,8 @@ class HttpJupyterDAO(val clusterDnsCache: ClusterDnsCache)(implicit system: Acto
     }
   }
 
-  protected def getTargetHost(googleProject: GoogleProject, clusterName: ClusterName): Future[GetClusterResponse] = {
+  protected def getTargetHost(googleProject: GoogleProject, clusterName: ClusterName): Future[HostStatus] = {
     implicit val timeout: Timeout = Timeout(5 seconds)
-    clusterDnsCache.projectNameToHost(DnsCacheKey(googleProject, clusterName)).mapTo[GetClusterResponse]
+    clusterDnsCache.projectNameToHost(DnsCacheKey(googleProject, clusterName)).mapTo[HostStatus]
   }
 }

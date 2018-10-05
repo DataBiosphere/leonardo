@@ -7,7 +7,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache.{ClusterReady, GetClusterResponse}
+import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache.{HostReady, HostStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -21,7 +21,7 @@ class MockProxyService(proxyConfig: ProxyConfig, gdDAO: GoogleDataprocDAO, dbRef
                       (implicit system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext)
   extends ProxyService(proxyConfig: ProxyConfig, gdDAO: GoogleDataprocDAO,  dbRef: DbReference, clusterDnsCache, authProvider, system.deadLetters) {
 
-  override def getTargetHost(googleProject: GoogleProject, clusterName: ClusterName): Future[GetClusterResponse] =
-    Future.successful(ClusterReady(Host("localhost")))
+  override def getTargetHost(googleProject: GoogleProject, clusterName: ClusterName): Future[HostStatus] =
+    Future.successful(HostReady(Host("localhost")))
 
 }

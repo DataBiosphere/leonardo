@@ -22,11 +22,11 @@ object ClusterDnsCache {
 
   @volatile var HostToIp: Map[Host, IP] = Map.empty
 
-  sealed trait GetClusterResponse
-  case object ClusterNotFound extends GetClusterResponse
-  case object ClusterNotReady extends GetClusterResponse
-  case object ClusterPaused extends GetClusterResponse
-  case class ClusterReady(hostname: Host) extends GetClusterResponse
+  sealed trait HostStatus
+  case object HostNotFound extends HostStatus
+  case object HostNotReady extends HostStatus
+  case object HostPaused extends HostStatus
+  case class HostReady(hostname: Host) extends HostStatus
 }
 
 case class DnsCacheKey(googleProject: GoogleProject, clusterName: ClusterName)
@@ -51,17 +51,17 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConf
     .expireAfterWrite(dnsCacheConfig.cacheExpiryTime.toSeconds, TimeUnit.SECONDS)
     .maximumSize(dnsCacheConfig.cacheMaxSize)
     .build(
-      new CacheLoader[DnsCacheKey, Future[GetClusterResponse]] {
+      new CacheLoader[DnsCacheKey, Future[HostStatus]] {
         def load(key: DnsCacheKey) = {
           dbRef.inTransaction {dataAccess => dataAccess.clusterQuery.getActiveClusterByName(key.googleProject, key.clusterName)}.map {
               case  Some(cluster) => {
                 val res = projectNameToHostEntry(cluster)._2
-                if(res.isInstanceOf[ClusterReady]) {
+                if(res.isInstanceOf[HostReady]) {
                   ClusterDnsCache.HostToIp = Map(hostToIpEntry(cluster))
                 }
                 res
               }
-              case None => ClusterNotFound
+              case None => HostNotFound
           }
         }
       }
@@ -77,13 +77,13 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConf
 
   private def hostToIpEntry(c: Cluster): (Host, IP) = host(c) -> c.dataprocInfo.hostIp.get
 
-  private def projectNameToHostEntry(c: Cluster): ((GoogleProject, ClusterName), GetClusterResponse) = {
+  private def projectNameToHostEntry(c: Cluster): ((GoogleProject, ClusterName), HostStatus) = {
     if (c.status.isStartable)
-      (c.googleProject, c.clusterName) -> ClusterPaused
+      (c.googleProject, c.clusterName) -> HostPaused
     else if (c.dataprocInfo.hostIp.isDefined)
-      (c.googleProject, c.clusterName) -> ClusterReady(host(c))
+      (c.googleProject, c.clusterName) -> HostReady(host(c))
     else
-      (c.googleProject, c.clusterName) -> ClusterNotReady
+      (c.googleProject, c.clusterName) -> HostNotReady
   }
 
 }

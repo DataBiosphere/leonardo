@@ -124,7 +124,7 @@ class ProxyService(proxyConfig: ProxyConfig,
   private def proxyInternal(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest): Future[HttpResponse] = {
     logger.debug(s"Received proxy request for user user $userInfo")
     getTargetHost(googleProject, clusterName) flatMap {
-      case ClusterReady(targetHost) =>
+      case HostReady(targetHost) =>
         clusterDateAccessedActor ! UpdateDateAccessed(clusterName, googleProject, Instant.now())
         // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
         // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
@@ -137,11 +137,11 @@ class ProxyService(proxyConfig: ProxyConfig,
           logger.error("Error occurred in Jupyter proxy", e)
           throw ProxyException(googleProject, clusterName)
         }
-      case ClusterNotReady =>
+      case HostNotReady =>
         throw ClusterNotReadyException(googleProject, clusterName)
-      case ClusterPaused =>
+      case HostPaused =>
         throw ClusterPausedException(googleProject, clusterName)
-      case ClusterNotFound =>
+      case HostNotFound =>
         throw ClusterNotFoundException(googleProject, clusterName)
     }
   }
@@ -250,9 +250,9 @@ class ProxyService(proxyConfig: ProxyConfig,
   /**
     * Gets the notebook server hostname from the database given a google project and cluster name.
     */
-  protected def getTargetHost(googleProject: GoogleProject, clusterName: ClusterName): Future[GetClusterResponse] = {
+  protected def getTargetHost(googleProject: GoogleProject, clusterName: ClusterName): Future[HostStatus] = {
     implicit val timeout: Timeout = Timeout(5 seconds)
-    clusterDnsCache.projectNameToHost(DnsCacheKey(googleProject, clusterName)).mapTo[GetClusterResponse]
+    clusterDnsCache.projectNameToHost(DnsCacheKey(googleProject, clusterName)).mapTo[HostStatus]
   }
 
   private def filterHeaders(headers: immutable.Seq[HttpHeader]) = {
