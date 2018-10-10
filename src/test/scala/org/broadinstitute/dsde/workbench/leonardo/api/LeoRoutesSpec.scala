@@ -222,6 +222,59 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     }
   }
 
+  it should "list clusters by project" in isolatedDbTest {
+    val newCluster = ClusterRequest(Map.empty, None)
+    val newProject = GoogleProject("new-project")
+
+    for (i <- 1 to 5) {
+      Put(s"/api/cluster/${googleProject.value}/${clusterName.value}-$i", newCluster.toJson) ~> leoRoutes.route ~> check {
+        status shouldEqual StatusCodes.OK
+      }
+    }
+
+    for (i <- 6 to 10) {
+      Put(s"/api/cluster/v2/${newProject.value}/${clusterName.value}-$i", newCluster.toJson) ~> leoRoutes.route ~> check {
+        status shouldEqual StatusCodes.Accepted
+      }
+    }
+
+    Get(s"/api/clusters/${googleProject.value}") ~> timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+
+      val responseClusters = responseAs[List[Cluster]]
+      responseClusters should have size 5
+      responseClusters foreach { cluster =>
+        cluster.googleProject shouldEqual googleProject
+        cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccount(googleProject)
+        cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccount(googleProject)
+        cluster.labels shouldEqual  Map(
+          "clusterName" -> cluster.clusterName.value,
+          "creator" -> "user1@example.com",
+          "googleProject" -> googleProject.value) ++ serviceAccountLabels
+      }
+
+      validateCookie { header[`Set-Cookie`] }
+    }
+
+    Get(s"/api/clusters/${newProject.value}") ~> timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+
+      val responseClusters = responseAs[List[Cluster]]
+      responseClusters should have size 5
+      responseClusters foreach { cluster =>
+        cluster.googleProject shouldEqual newProject
+        cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccount(newProject)
+        cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccount(newProject)
+        cluster.labels shouldEqual  Map(
+          "clusterName" -> cluster.clusterName.value,
+          "creator" -> "user1@example.com",
+          "googleProject" -> newProject.value) ++ serviceAccountLabels
+      }
+
+      validateCookie { header[`Set-Cookie`] }
+    }
+  }
+
   it should "202 when stopping and starting a cluster" in isolatedDbTest {
     val newCluster = ClusterRequest(Map.empty, None)
     

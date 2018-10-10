@@ -454,6 +454,17 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
+  def listClustersByGoogleProject(userInfo: UserInfo, googleProject: GoogleProject, params: LabelMap): Future[Seq[Cluster]] = {
+    for {
+      paramMap <- processListClustersParameters(params)
+      clusterList <- dbRef.inTransaction { da => da.clusterQuery.listByLabelsByProject(googleProject, paramMap._1, paramMap._2) }
+      visibleClusters <- authProvider.filterUserVisibleClusters(userInfo, clusterList.map(c => (c.googleProject, c.clusterName)).toList)
+    } yield {
+      val visibleClustersSet = visibleClusters.toSet
+      clusterList.filter(c => visibleClustersSet.contains((c.googleProject, c.clusterName)))
+    }
+  }
+
   private[service] def getActiveCluster(googleProject: GoogleProject, clusterName: ClusterName, dataAccess: DataAccess): DBIO[Cluster] = {
     dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName) flatMap {
       case None => throw ClusterNotFoundException(googleProject, clusterName)

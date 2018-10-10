@@ -294,8 +294,19 @@ trait ClusterComponent extends LeoComponent {
     }
 
     def listByLabels(labelMap: LabelMap, includeDeleted: Boolean): DBIO[Seq[Cluster]] = {
+      listByLabelsQuery(labelMap, includeDeleted).result.map(unmarshalClustersWithLabels)
+    }
+
+    def listByLabelsByProject(googleProject: GoogleProject, labelMap: LabelMap, includeDeleted: Boolean): DBIO[Seq[Cluster]] = {
+      listByLabelsQuery(labelMap, includeDeleted)
+        .filter { _._1.googleProject === googleProject.value }
+        .result
+        .map(unmarshalClustersWithLabels)
+    }
+
+    private def listByLabelsQuery(labelMap: LabelMap, includeDeleted: Boolean) = {
       val clusterStatusQuery = if (includeDeleted) clusterQueryWithLabels else clusterQueryWithLabels.filterNot { _._1.status === "Deleted" }
-      val query = if (labelMap.isEmpty) {
+      if (labelMap.isEmpty) {
         clusterStatusQuery
       } else {
         // The trick is to find all clusters that have _at least_ all the labels in labelMap.
@@ -320,7 +331,6 @@ trait ClusterComponent extends LeoComponent {
             .length === labelMap.size
         }
       }
-      query.result.map(unmarshalClustersWithLabels)
     }
 
     /* WARNING: The init bucket and SA key ID is secret to Leo, which means we don't unmarshal it.
