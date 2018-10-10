@@ -209,7 +209,7 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
       // always invalidate and retry 500 errors
       case e: ApiException if e.getCode / 100 == 5 => true
       // retry IOExceptions
-      case _: IOException => true
+      case e: ApiException if e.getCause.isInstanceOf[IOException] => true
       // otherwise don't retry
       case _ => false
     }
