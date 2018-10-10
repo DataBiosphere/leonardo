@@ -789,19 +789,16 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "list clusters belonging to a project" in isolatedDbTest {
     // create a couple of clusters
-    val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
-    val cluster1 = leo.createCluster(userInfo, project, clusterName1, testClusterRequest).futureValue
+    val cluster1 = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
+    val cluster2 = leo.createCluster(userInfo, project2, name2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
-    val clusterName2 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
-    val newProject = GoogleProject("new-project")
-    val cluster2 = leo.createCluster(userInfo, newProject, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
-
-    leo.listClustersByGoogleProject(userInfo, project, Map.empty).futureValue.toSet shouldBe Set(cluster1)
-    leo.listClustersByGoogleProject(userInfo, newProject, Map.empty).futureValue.toSet shouldBe Set(cluster2)
-    leo.listClustersByGoogleProject(userInfo, project, Map("foo" -> "bar")).futureValue.toSet shouldBe Set(cluster1)
-    leo.listClustersByGoogleProject(userInfo, newProject, Map("foo" -> "bar")).futureValue.toSet shouldBe Set(cluster2)
-    leo.listClustersByGoogleProject(userInfo, project, Map("k" -> "v")).futureValue.toSet shouldBe Set.empty
-    leo.listClustersByGoogleProject(userInfo, newProject, Map("k" -> "v")).futureValue.toSet shouldBe Set.empty
+    leo.listClusters(userInfo, Map.empty, Some(project)).futureValue.toSet shouldBe Set(cluster1)
+    leo.listClusters(userInfo, Map.empty, Some(project2)).futureValue.toSet shouldBe Set(cluster2)
+    leo.listClusters(userInfo, Map("foo" -> "bar"), Some(project)).futureValue.toSet shouldBe Set(cluster1)
+    leo.listClusters(userInfo, Map("foo" -> "bar"), Some(project2)).futureValue.toSet shouldBe Set(cluster2)
+    leo.listClusters(userInfo, Map("k" -> "v"), Some(project)).futureValue.toSet shouldBe Set.empty
+    leo.listClusters(userInfo, Map("k" -> "v"), Some(project2)).futureValue.toSet shouldBe Set.empty
+    leo.listClusters(userInfo, Map("foo" -> "bar"), Some(GoogleProject("non-existing-project"))).futureValue.toSet shouldBe Set.empty
   }
 
   it should "delete the init bucket if cluster creation fails" in isolatedDbTest {

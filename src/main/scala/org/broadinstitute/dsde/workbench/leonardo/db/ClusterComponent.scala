@@ -293,21 +293,14 @@ trait ClusterComponent extends LeoComponent {
       updateClusterStatusAndHostIp(id, ClusterStatus.Stopping, None)
     }
 
-    def listByLabels(labelMap: LabelMap, includeDeleted: Boolean): DBIO[Seq[Cluster]] = {
-      listByLabelsQuery(labelMap, includeDeleted).result.map(unmarshalClustersWithLabels)
-    }
-
-    def listByLabelsByProject(googleProject: GoogleProject, labelMap: LabelMap, includeDeleted: Boolean): DBIO[Seq[Cluster]] = {
-      listByLabelsQuery(labelMap, includeDeleted)
-        .filter { _._1.googleProject === googleProject.value }
-        .result
-        .map(unmarshalClustersWithLabels)
-    }
-
-    private def listByLabelsQuery(labelMap: LabelMap, includeDeleted: Boolean) = {
+    def listByLabels(labelMap: LabelMap, includeDeleted: Boolean, googleProjectOpt: Option[GoogleProject] = None): DBIO[Seq[Cluster]] = {
       val clusterStatusQuery = if (includeDeleted) clusterQueryWithLabels else clusterQueryWithLabels.filterNot { _._1.status === "Deleted" }
-      if (labelMap.isEmpty) {
-        clusterStatusQuery
+      val clusterStatusQueryByProject = googleProjectOpt match {
+        case Some(googleProject) => clusterStatusQuery.filter { _._1.googleProject === googleProject.value }
+        case None => clusterStatusQuery
+      }
+      val query = if (labelMap.isEmpty) {
+        clusterStatusQueryByProject
       } else {
         // The trick is to find all clusters that have _at least_ all the labels in labelMap.
         // In other words, for a given cluster, the labels provided in the query string must be
@@ -321,8 +314,10 @@ trait ClusterComponent extends LeoComponent {
         //   where clusterId = c.id and (key, value) in ${labelMap}
         // ) = ${labelMap.size}
         //
-        clusterStatusQuery.filter { case (cluster, _, _) =>
-          labelQuery.filter { _.clusterId === cluster.id }
+        clusterStatusQueryByProject.filter { case (cluster, _, _) =>
+          labelQuery.filter {
+            _.clusterId === cluster.id
+          }
             // The following confusing line is equivalent to the much simpler:
             // .filter { lbl => (lbl.key, lbl.value) inSetBind labelMap.toSet }
             // Unfortunately slick doesn't support inSet/inSetBind for tuples.
@@ -331,6 +326,7 @@ trait ClusterComponent extends LeoComponent {
             .length === labelMap.size
         }
       }
+      query.result.map(unmarshalClustersWithLabels)
     }
 
     /* WARNING: The init bucket and SA key ID is secret to Leo, which means we don't unmarshal it.

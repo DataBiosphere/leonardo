@@ -118,7 +118,7 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
             path(Segment) { googleProject =>
               get {
                 complete {
-                  leonardoService.listClustersByGoogleProject(userInfo, GoogleProject(googleProject), params).map { clusters =>
+                  leonardoService.listClusters(userInfo, params, Some(GoogleProject(googleProject))).map { clusters =>
                     StatusCodes.OK -> clusters
                   }
                 }
