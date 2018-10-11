@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth.sam
 
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 import com.typesafe.config.Config
@@ -207,6 +208,8 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
       case e: ApiException if e.getCode == 401 => true
       // always invalidate and retry 500 errors
       case e: ApiException if e.getCode / 100 == 5 => true
+      // retry IOExceptions
+      case e: ApiException if e.getCause.isInstanceOf[IOException] => true
       // otherwise don't retry
       case _ => false
     }

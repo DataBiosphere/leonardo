@@ -23,6 +23,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
   implicit val timeout = RouteTestTimeout(5.seconds dilated)
 
   private val googleProject = GoogleProject("test-project")
+  private val googleProject2 = GoogleProject("test-project2")
   private val clusterName = ClusterName("test-cluster")
 
   val invalidUserLeoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with MockUserInfoDirectives {
@@ -219,6 +220,72 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
 
     Get("/api/clusters?_labels=bad") ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.BadRequest
+    }
+  }
+
+  it should "list clusters by project" in isolatedDbTest {
+    val newCluster = ClusterRequest(Map.empty, None)
+
+    // listClusters should return no clusters initially
+    Get(s"/api/clusters/${googleProject.value}") ~> timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      val responseClusters = responseAs[List[Cluster]]
+      responseClusters shouldBe List.empty[Cluster]
+    }
+
+    Get(s"/api/clusters/${googleProject2.value}") ~> timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      val responseClusters = responseAs[List[Cluster]]
+      responseClusters shouldBe List.empty[Cluster]
+    }
+
+
+    for (i <- 1 to 5) {
+      Put(s"/api/cluster/${googleProject.value}/${clusterName.value}-$i", newCluster.toJson) ~> leoRoutes.route ~> check {
+        status shouldEqual StatusCodes.OK
+      }
+    }
+
+    for (i <- 6 to 10) {
+      Put(s"/api/cluster/v2/${googleProject2.value}/${clusterName.value}-$i", newCluster.toJson) ~> leoRoutes.route ~> check {
+        status shouldEqual StatusCodes.Accepted
+      }
+    }
+
+    Get(s"/api/clusters/${googleProject.value}") ~> timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+
+      val responseClusters = responseAs[List[Cluster]]
+      responseClusters should have size 5
+      responseClusters foreach { cluster =>
+        cluster.googleProject shouldEqual googleProject
+        cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccount(googleProject)
+        cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccount(googleProject)
+        cluster.labels shouldEqual  Map(
+          "clusterName" -> cluster.clusterName.value,
+          "creator" -> "user1@example.com",
+          "googleProject" -> googleProject.value) ++ serviceAccountLabels
+      }
+
+      validateCookie { header[`Set-Cookie`] }
+    }
+
+    Get(s"/api/clusters/${googleProject2.value}") ~> timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+
+      val responseClusters = responseAs[List[Cluster]]
+      responseClusters should have size 5
+      responseClusters foreach { cluster =>
+        cluster.googleProject shouldEqual googleProject2
+        cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccount(googleProject2)
+        cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccount(googleProject2)
+        cluster.labels shouldEqual  Map(
+          "clusterName" -> cluster.clusterName.value,
+          "creator" -> "user1@example.com",
+          "googleProject" -> googleProject2.value) ++ serviceAccountLabels
+      }
+
+      validateCookie { header[`Set-Cookie`] }
     }
   }
 
