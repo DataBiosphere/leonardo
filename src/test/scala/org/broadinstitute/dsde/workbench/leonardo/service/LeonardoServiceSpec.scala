@@ -787,6 +787,20 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
   }
 
+  it should "list clusters belonging to a project" in isolatedDbTest {
+    // create a couple of clusters
+    val cluster1 = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
+    val cluster2 = leo.createCluster(userInfo, project2, name2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
+
+    leo.listClusters(userInfo, Map.empty, Some(project)).futureValue.toSet shouldBe Set(cluster1)
+    leo.listClusters(userInfo, Map.empty, Some(project2)).futureValue.toSet shouldBe Set(cluster2)
+    leo.listClusters(userInfo, Map("foo" -> "bar"), Some(project)).futureValue.toSet shouldBe Set(cluster1)
+    leo.listClusters(userInfo, Map("foo" -> "bar"), Some(project2)).futureValue.toSet shouldBe Set(cluster2)
+    leo.listClusters(userInfo, Map("k" -> "v"), Some(project)).futureValue.toSet shouldBe Set.empty
+    leo.listClusters(userInfo, Map("k" -> "v"), Some(project2)).futureValue.toSet shouldBe Set.empty
+    leo.listClusters(userInfo, Map("foo" -> "bar"), Some(GoogleProject("non-existing-project"))).futureValue.toSet shouldBe Set.empty
+  }
+
   it should "delete the init bucket if cluster creation fails" in isolatedDbTest {
     // create the cluster
     val clusterCreateResponse = leo.createCluster(userInfo, project, gdDAO.badClusterName, testClusterRequest).failed.futureValue

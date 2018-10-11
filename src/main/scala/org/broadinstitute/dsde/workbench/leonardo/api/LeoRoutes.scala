@@ -113,11 +113,24 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
             }
           }
         } ~
-        path("clusters") {
+        pathPrefix("clusters") {
           parameterMap { params =>
-            complete {
-              leonardoService.listClusters(userInfo, params).map { clusters =>
-                StatusCodes.OK -> clusters
+            path(Segment) { googleProject =>
+              get {
+                complete {
+                  leonardoService.listClusters(userInfo, params, Some(GoogleProject(googleProject))).map { clusters =>
+                    StatusCodes.OK -> clusters
+                  }
+                }
+              }
+            } ~
+            pathEndOrSingleSlash {
+              get {
+                complete {
+                  leonardoService.listClusters(userInfo, params).map { clusters =>
+                    StatusCodes.OK -> clusters
+                  }
+                }
               }
             }
           }

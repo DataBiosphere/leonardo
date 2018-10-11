@@ -443,10 +443,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } else Future.failed(ClusterCannotBeStartedException(cluster.googleProject, cluster.clusterName, cluster.status))
   }
 
-  def listClusters(userInfo: UserInfo, params: LabelMap): Future[Seq[Cluster]] = {
+  def listClusters(userInfo: UserInfo, params: LabelMap, googleProjectOpt: Option[GoogleProject] = None): Future[Seq[Cluster]] = {
     for {
       paramMap <- processListClustersParameters(params)
-      clusterList <- dbRef.inTransaction { da => da.clusterQuery.listByLabels(paramMap._1, paramMap._2) }
+      clusterList <- dbRef.inTransaction { da => da.clusterQuery.listByLabels(paramMap._1, paramMap._2, googleProjectOpt) }
       visibleClusters <- authProvider.filterUserVisibleClusters(userInfo, clusterList.map(c => (c.googleProject, c.clusterName)).toList)
     } yield {
       val visibleClustersSet = visibleClusters.toSet
