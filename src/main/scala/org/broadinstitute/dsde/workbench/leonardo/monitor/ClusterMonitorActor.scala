@@ -232,6 +232,8 @@ class ClusterMonitorActor(val cluster: Cluster,
       // delete instances in the DB
       _ <- persistInstances(Set.empty)
 
+      _ <- deleteInitBucket
+
       _ <- dbRef.inTransaction { dataAccess =>
         dataAccess.clusterQuery.completeDeletion(cluster.id)
       }
