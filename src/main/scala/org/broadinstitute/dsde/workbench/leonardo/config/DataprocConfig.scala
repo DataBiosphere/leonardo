@@ -8,6 +8,7 @@ case class DataprocConfig(
                            leoGoogleProject: GoogleProject,
                            dataprocDockerImage: String,
                            clusterUrlBase: String,
+                           defaultExecutionTimeout: String,
                            jupyterServerName: String,
                            firewallRuleName: String,
                            networkTag: String,
