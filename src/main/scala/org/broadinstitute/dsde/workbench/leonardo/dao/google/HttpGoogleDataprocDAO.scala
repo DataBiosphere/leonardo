@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo.dao.google
 
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
