@@ -23,7 +23,7 @@ package object config {
       GoogleProject(config.getString("leoGoogleProject")),
       config.getString("dataprocDockerImage"),
       config.getString("clusterUrlBase"),
-      config.getString("defaultExecutionTimeout"),
+      toScalaDuration(config.getDuration("defaultExecutionTimeout")),
       config.getString("jupyterServerName"),
       config.getString("firewallRuleName"),
       config.getString("networkTag"),
