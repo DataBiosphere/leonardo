@@ -889,7 +889,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       expectMsgClass(1 second, classOf[Terminated])
     }
   }
-  
+
   // Pre:
   // - cluster exists in the DB with status Creating
   // - dataproc DAO returns status RUNNING
