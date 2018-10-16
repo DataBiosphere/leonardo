@@ -544,7 +544,7 @@ paths:
           required: true
           type: string
       responses:
-        '200':
+        '204':
           description: Successfully set a cookie
         '401':
           description: Proxy connection unauthorized

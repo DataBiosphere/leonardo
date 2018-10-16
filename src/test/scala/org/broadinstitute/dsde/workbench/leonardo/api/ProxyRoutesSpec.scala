@@ -183,7 +183,7 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
       .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
       .addHeader(Origin("http://example.com")) ~> leoRoutes.route ~> check {
       validateCookie(setCookie = header[`Set-Cookie`], age = 3600)
-
+      status shouldEqual StatusCodes.NoContent
       validateCors(origin = Some("http://example.com"))
     }
 
