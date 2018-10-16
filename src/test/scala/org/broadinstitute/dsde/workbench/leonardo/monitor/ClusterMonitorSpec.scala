@@ -282,7 +282,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   it should "keep monitoring in ERROR state with no error code" in isolatedDbTest {
     val savedCreatingCluster = creatingCluster.save()
     creatingCluster shouldEqual savedCreatingCluster
-    
+
     val dao = mock[GoogleDataprocDAO]
     when {
       dao.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
@@ -402,6 +402,10 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val computeDAO = mock[GoogleComputeDAO]
     val iamDAO = mock[GoogleIamDAO]
     val storageDAO = mock[GoogleStorageDAO]
+
+    when {
+      storageDAO.deleteBucket(any[GcsBucketName], any[Boolean])
+    } thenReturn Future.successful(())
 
     val authProvider = mock[LeoAuthProvider]
 
@@ -885,7 +889,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       expectMsgClass(1 second, classOf[Terminated])
     }
   }
-  
+
   // Pre:
   // - cluster exists in the DB with status Creating
   // - dataproc DAO returns status RUNNING
