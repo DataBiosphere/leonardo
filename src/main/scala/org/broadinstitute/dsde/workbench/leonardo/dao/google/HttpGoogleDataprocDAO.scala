@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.dao.google
 
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
@@ -240,7 +241,7 @@ class HttpGoogleDataprocDAO(appName: String,
 
     // Create a NodeInitializationAction, which specifies the executable to run on a node.
     // This executable is our init-actions.sh, which will stand up our jupyter server and proxy.
-    val initActions = Seq(new NodeInitializationAction().setExecutableFile(initScript.toUri).setExecutionTimeout(s"${defaultExecutionTimeout.toSeconds}s"))
+    val initActions = Seq(new NodeInitializationAction().setExecutableFile(initScript.toUri).setExecutionTimeout(finiteDurationToGoogleDuration(defaultExecutionTimeout)))
 
     // Create a config for the master node, if properties are not specified in request, use defaults
     val masterConfig = new InstanceGroupConfig()
@@ -411,6 +412,11 @@ class HttpGoogleDataprocDAO(appName: String,
       gceConfig <- Option(config.getGceClusterConfig)
       zoneUri <- Option(gceConfig.getZoneUri)
     } yield parseZone(zoneUri)
+  }
+
+  //Note that this conversion will shave off anything smaller than a second in magnitude
+  private def finiteDurationToGoogleDuration(duration: FiniteDuration): String = {
+    s"${duration.toSeconds}s"
   }
 
   private implicit class GoogleExceptionSupport[A](future: Future[A]) {
