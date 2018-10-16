@@ -216,15 +216,11 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   }
 
   def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName, monitor: Boolean)(implicit token: AuthToken): Unit = {
-    runningOrErroredCluster.foreach { cluster: Cluster =>
-      if (cluster.status == ClusterStatus.Running) {
-        saveJupyterLogFile(cluster.clusterName, cluster.googleProject, "delete") match {
-          case Success(file) =>
-            logger.info(s"Saved jupyter.log file for cluster ${cluster.projectNameString} to ${file.getAbsolutePath}")
-          case Failure(e) =>
-            logger.warn(s"Could not save jupyter.log file for cluster ${cluster.projectNameString} . Not failing test.", e)
-        }
-      }
+    saveJupyterLogFile(clusterName, googleProject, "delete") match {
+      case Success(file) =>
+        logger.info(s"Saved jupyter.log file for cluster ${googleProject.value}/${clusterName.string} to ${file.getAbsolutePath}")
+      case Failure(e) =>
+        logger.warn(s"Could not save jupyter.log file for cluster ${googleProject.value}/${clusterName.string} . Not failing test.", e)
     }
     try {
       Leonardo.cluster.delete(googleProject, clusterName) shouldBe
