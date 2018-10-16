@@ -20,7 +20,7 @@ import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, SecondaryWorker, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.service.{AuthorizationError, BucketObjectAccessException, DataprocDisabledException}
+import org.broadinstitute.dsde.workbench.leonardo.service.{AuthenticationError, AuthorizationError, BucketObjectAccessException, DataprocDisabledException}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject}
@@ -208,7 +208,7 @@ class HttpGoogleDataprocDAO(appName: String,
           throw new WorkbenchException(msg, e)
         // Google throws IllegalArgumentException when passed an invalid token. Handle this case and rethrow a 401.
         case e: IllegalArgumentException =>
-          throw AuthorizationError()
+          throw AuthenticationError()
       }
   }
 

@@ -6,7 +6,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive0, Directive1, Route}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.leonardo.service.{AuthorizationError, ProxyService}
+import org.broadinstitute.dsde.workbench.leonardo.service.{AuthenticationError, AuthorizationError, ProxyService}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.server.RouteResult.Complete
@@ -93,7 +93,7 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
         case Some(cookie) => provide(cookie.value)
 
         // Not found in cookie or Authorization header, fail
-        case None => failWith(AuthorizationError())
+        case None => failWith(AuthenticationError())
       }
     }
   }

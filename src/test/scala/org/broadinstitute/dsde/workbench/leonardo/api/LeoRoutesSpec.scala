@@ -44,9 +44,9 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     }
   }
 
-  it should "401 if you're not on the whitelist" in isolatedDbTest {
+  it should "403 if you're not on the whitelist" in isolatedDbTest {
     Get(s"/api/isWhitelisted") ~> invalidUserLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.Unauthorized
+      status shouldEqual StatusCodes.Forbidden
     }
   }
 
