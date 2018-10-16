@@ -424,7 +424,7 @@ paths:
       responses:
         '200':
           description: Proxy connection successful
-        '401':
+        '403':
           description: Proxy connection unauthorized
           schema:
             $ref: '#/definitions/ErrorReport'
@@ -502,7 +502,7 @@ paths:
           description: Proxy connection successful
         '400':
           description: "Bad request. Your POST body is probably malformed: it should be a string/string JSON object."
-        '401':
+        '403':
           description: Proxy connection unauthorized
           schema:
             $ref: '#/definitions/ErrorReport'
