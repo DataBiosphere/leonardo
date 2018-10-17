@@ -612,6 +612,16 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
   }
 
+  it should "error when trying to delete a creating cluster" in isolatedDbTest {
+    val clusterName = ClusterName("clustername")
+    val cluster = leo.createCluster(userInfo, project, clusterName, testClusterRequest).futureValue
+    val creatingCluster = cluster.copy(status = ClusterStatus.Creating)
+    assertThrows[IndexOutOfBoundsException] {
+      leo.deleteCluster(userInfo, project, clusterName)
+    }
+
+  }
+
   it should "list all clusters created via v2 API" in isolatedDbTest {
     // create a couple of clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")

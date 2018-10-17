@@ -48,6 +48,9 @@ case class ClusterAlreadyExistsException(googleProject: GoogleProject, clusterNa
 case class ClusterCannotBeStoppedException(googleProject: GoogleProject, clusterName: ClusterName, status: ClusterStatus)
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} cannot be stopped in ${status.toString} status", StatusCodes.Conflict)
 
+case class ClusterCannotBeDeletedException(googleProject: GoogleProject, clusterName: ClusterName)
+  extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} cannot be deleted in Creating status", StatusCodes.Conflict)
+
 case class ClusterCannotBeStartedException(googleProject: GoogleProject, clusterName: ClusterName, status: ClusterStatus)
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} cannot be started in ${status.toString} status", StatusCodes.Conflict)
 
@@ -364,6 +367,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         // This will kick off polling until the cluster is actually deleted in Google.
         clusterMonitorSupervisor ! ClusterDeleted(cluster.copy(status = ClusterStatus.Deleting))
       }
+    } else if (cluster.status == ClusterStatus.Creating) {
+      Future.failed(ClusterCannotBeDeletedException(cluster.googleProject, cluster.clusterName))
     } else Future.successful(())
   }
 
