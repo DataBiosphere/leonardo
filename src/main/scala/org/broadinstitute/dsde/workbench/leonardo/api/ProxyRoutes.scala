@@ -38,7 +38,7 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
                   setTokenCookie(userInfo, tokenCookieName) {
                     complete {
                       logger.debug(s"Successfully set cookie for user $userInfo")
-                      StatusCodes.OK
+                      StatusCodes.NoContent
                     }
                   }
                 }
