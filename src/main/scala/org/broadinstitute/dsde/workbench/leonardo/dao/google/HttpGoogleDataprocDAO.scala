@@ -27,6 +27,7 @@ import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, G
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchException, WorkbenchUserId}
 
 import scala.collection.JavaConverters._
+import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
@@ -36,7 +37,8 @@ class HttpGoogleDataprocDAO(appName: String,
                             networkTag: NetworkTag,
                             vpcNetwork: Option[VPCNetworkName],
                             vpcSubnet: Option[VPCSubnetName],
-                            defaultRegion: String)
+                            defaultRegion: String,
+                            defaultExecutionTimeout: FiniteDuration)
                            (implicit override val system: ActorSystem, override val executionContext: ExecutionContext)
   extends AbstractHttpGoogleDAO(appName, googleCredentialMode, workbenchMetricBaseName) with GoogleDataprocDAO {
 
@@ -238,7 +240,7 @@ class HttpGoogleDataprocDAO(appName: String,
 
     // Create a NodeInitializationAction, which specifies the executable to run on a node.
     // This executable is our init-actions.sh, which will stand up our jupyter server and proxy.
-    val initActions = Seq(new NodeInitializationAction().setExecutableFile(initScript.toUri))
+    val initActions = Seq(new NodeInitializationAction().setExecutableFile(initScript.toUri).setExecutionTimeout(finiteDurationToGoogleDuration(defaultExecutionTimeout)))
 
     // Create a config for the master node, if properties are not specified in request, use defaults
     val masterConfig = new InstanceGroupConfig()
@@ -409,6 +411,11 @@ class HttpGoogleDataprocDAO(appName: String,
       gceConfig <- Option(config.getGceClusterConfig)
       zoneUri <- Option(gceConfig.getZoneUri)
     } yield parseZone(zoneUri)
+  }
+
+  //Note that this conversion will shave off anything smaller than a second in magnitude
+  private def finiteDurationToGoogleDuration(duration: FiniteDuration): String = {
+    s"${duration.toSeconds}s"
   }
 
   private implicit class GoogleExceptionSupport[A](future: Future[A]) {
