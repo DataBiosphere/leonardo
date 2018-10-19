@@ -23,7 +23,7 @@ class NotebookLocalizeFileSpec extends ClusterFixtureSpec {
 
       withWebDriver { implicit driver =>
         val cluster = clusterFixture.cluster
-        withLocalizeDelocalizeFiles(cluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
+        val d1 = time(withLocalizeDelocalizeFiles(cluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
           // call localize; this should return 200
           Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, localizeRequest, async = true)
 
@@ -43,7 +43,9 @@ class NotebookLocalizeFileSpec extends ClusterFixtureSpec {
           }
           // why doesn't `RestException` have a status code field?
           thrown.message should include("No such file or directory: file.out")
-        }
+        })
+
+        logger.info(s"test to localize files in async mode completed in :: ${d1.duration.toSeconds} seconds")
       }
     }
 
@@ -57,7 +59,7 @@ class NotebookLocalizeFileSpec extends ClusterFixtureSpec {
 
       withWebDriver { implicit driver =>
         val cluster = clusterFixture.cluster
-        withLocalizeDelocalizeFiles(cluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
+        val d1  = time (withLocalizeDelocalizeFiles(cluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
           // call localize; this should return 200
           Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, localizeRequest, async = false)
 
@@ -79,7 +81,8 @@ class NotebookLocalizeFileSpec extends ClusterFixtureSpec {
             Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "file.out", includeContent = false)
           }
           contentThrown.message should include("No such file or directory: file.out")
-        }
+        })
+        logger.info(s"test to localize files in sync mode completed in :: ${d1.duration.toSeconds} seconds")
       }
     }
 
@@ -93,7 +96,7 @@ class NotebookLocalizeFileSpec extends ClusterFixtureSpec {
 
       withWebDriver { implicit driver =>
         val cluster = clusterFixture.cluster
-        withLocalizeDelocalizeFiles(cluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
+        val d1 = time(withLocalizeDelocalizeFiles(cluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
           // call localize; this should return 200
           Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, localizeRequest, async = false)
 
@@ -107,7 +110,8 @@ class NotebookLocalizeFileSpec extends ClusterFixtureSpec {
           // the delocalized file should exist in the Google bucket
           val bucketData = googleStorageDAO.getObject(bucketName, GcsObjectName(delocalizeFileName)).futureValue
           bucketData.map(_.toString) shouldBe Some(delocalizeFileContents)
-        }
+        })
+        logger.info(s"test to localize files with space in name completed in :: ${d1.duration.toSeconds} seconds")
       }
     }
 
