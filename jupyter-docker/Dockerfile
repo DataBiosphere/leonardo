@@ -15,18 +15,16 @@ ENV CRAN_REPO http://cran.mtu.edu
 RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sources.list \
  && echo "deb $DEBIAN_REPO/debian-security stretch/updates main" >> /etc/apt/sources.list \
  && echo "deb $DEBIAN_REPO/debian stretch-backports main"        >> /etc/apt/sources.list \
- && echo "deb $CRAN_REPO/bin/linux/debian stretch-cran34/"       >> /etc/apt/sources.list \
+ && echo "deb $DEBIAN_REPO/debian testing main"                  >> /etc/apt/sources.list \
  && echo 'APT::Default-Release "stable";' | tee -a /etc/apt/apt.conf.d/00local \
- && echo "deb http://ftp.de.debian.org/debian testing main"      >> /etc/apt/sources.list \
- && apt-get update && apt-get install -my wget gnupg \
- && apt-key adv --keyserver keys.gnupg.net \
-    --recv-key 'E19F5F87128899B192B1A2C2AD5F960A256A04AF' \
+ && apt-get update \
  && apt-get -yq dist-upgrade \
  && apt-get install -yq --no-install-recommends \
     nano \
     sudo \
-    wget \
     gnupg \
+    dirmngr \
+    wget \
     ca-certificates \
     curl \
     build-essential \
@@ -35,6 +33,11 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sou
     # to support userScript pip installs via git
     git \
     locales \
+
+ # R separately because it depends on gnupg installed above
+ && echo "deb $CRAN_REPO/bin/linux/debian stretch-cran34/"       >> /etc/apt/sources.list \
+ && apt-key adv --keyserver keys.gnupg.net \
+    --recv-key 'E19F5F87128899B192B1A2C2AD5F960A256A04AF' \
 
  # Uncomment en_US.UTF-8 for inclusion in generation
  && sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen \
@@ -57,9 +60,9 @@ ENV LC_ALL en_US.UTF-8
 # Java
 #######################
 
-ENV JAVA_VER jdk1.8.0_181
-ENV JAVA_TGZ jdk-8u181-linux-x64.tar.gz
-ENV JAVA_URL http://download.oracle.com/otn-pub/java/jdk/8u181-b13/96a7b8442fe848ef90c96a2fad6ed6d1/$JAVA_TGZ
+ENV JAVA_VER jdk1.8.0_191
+ENV JAVA_TGZ jdk-8u191-linux-x64.tar.gz
+ENV JAVA_URL http://download.oracle.com/otn-pub/java/jdk/8u191-b12/2787e4a523244c269598db4e85c51e0c/$JAVA_TGZ
 ENV JAVA_HOME /usr/lib/jdk/$JAVA_VER
 
 RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
@@ -72,18 +75,16 @@ RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
 # Spark / Hadoop / Hive / Hail
 ##############################
 
-# Use Spark 2.0.2 which corresponds to Dataproc 1.1. See:
+# Use Spark 2.2.0 which corresponds to Dataproc 1.2. See:
 #   https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-versions
-# Dataproc supports Spark 2.2.0, but there are no pre-packaged Hail distributions past 2.1.0. See:
-#   https://hail.is/docs/stable/getting_started.html
-ENV SPARK_VER 2.0.2
+ENV SPARK_VER 2.2.0
 ENV SPARK_HOME=/usr/lib/spark
 
-# result of `gsutil cat gs://hail-common/builds/0.1/latest-hash-spark-2.2.0.txt` on 02 October 2018
-ENV HAILHASH 5c275cc216e1
-ENV HAILJAR hail-0.1-$HAILHASH-Spark-$SPARK_VER.jar
-ENV HAILPYTHON hail-0.1-$HAILHASH.zip
-ENV HAILZIP Hail-0.1-$HAILHASH-Spark-$SPARK_VER.zip
+# result of `gsutil cat gs://hail-common/builds/devel/latest-hash-spark-2.2.0.txt` on 18 October 2018
+ENV HAILHASH 17a988f2a628
+ENV HAILJAR hail-devel-$HAILHASH-Spark-$SPARK_VER.jar
+ENV HAILPYTHON hail-devel-$HAILHASH.zip
+ENV HAILZIP Hail-devel-$HAILHASH-Spark-$SPARK_VER.zip
 ENV HAIL_HOME /etc/hail
 ENV KERNELSPEC_HOME /usr/local/share/jupyter/kernels
 
@@ -94,9 +95,9 @@ RUN mkdir -p /etc/spark/conf.dist && mkdir -p /etc/hadoop/conf.empty && mkdir -p
  && update-alternatives --install /etc/hadoop/conf hadoop-conf /etc/hadoop/conf.empty 100 \
  && update-alternatives --install /etc/hive/conf hive-conf /etc/hive/conf.dist 100 \
  && mkdir $HAIL_HOME && cd $HAIL_HOME \
- && wget -nv http://storage.googleapis.com/hail-common/builds/0.1/jars/$HAILJAR \
- && wget -nv http://storage.googleapis.com/hail-common/builds/0.1/python/$HAILPYTHON \
- && wget -nv http://storage.googleapis.com/hail-common/distributions/0.1/$HAILZIP \
+ && wget -nv http://storage.googleapis.com/hail-common/builds/devel/jars/$HAILJAR \
+ && wget -nv http://storage.googleapis.com/hail-common/builds/devel/python/$HAILPYTHON \
+ && wget -nv http://storage.googleapis.com/hail-common/distributions/devel/$HAILZIP \
  && cd -
 
 #######################
@@ -114,7 +115,7 @@ ENV PYSPARK_DRIVER_PYTHON jupyter
 ENV PYSPARK_DRIVER_PYTHON_OPTS notebook
 
 ENV PATH $SPARK_HOME:$SPARK_HOME/python:$SPARK_HOME/bin:$HAIL_HOME:$PATH
-ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip:$JUPYTER_HOME/custom
+ENV PYTHONPATH $HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip:$JUPYTER_HOME/custom
 
 RUN apt-get update \
  && apt-get install -yq --no-install-recommends \
@@ -161,34 +162,25 @@ RUN apt-get update \
 
 # Python 3 Kernel
 RUN apt-get update \
- && apt-get -t testing install -y python3.6 \
-#wget https://www.python.org/ftp/python/3.6.4/Python-3.6.4.tgz \
-# && tar xvf Python-3.6.4.tgz \
-# && cd Python-3.6.4 \
-# && ./configure --enable-optimizations \
-# && make -j8 \
-# && make altinstall \
-# && curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py \
- && python3 get-pip.py
-# &&  apt-get install -yq --no-install-recommends python3 \
-#        python3-dev \
-#        python3-tk \
-
- # && python3 get-pip.py \
- # install the python 3 kernel
-RUN apt-get update \
- && pip3 install gitsome \
+ && apt-get install -t testing -yq --no-install-recommends \
+    python3.6 \
+    python3-distutils \
+ && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.6 100 \
+ && python3 get-pip.py \
+ && ls -ltra `which pip3` \
+# && pip3 install gitsome \
  && pip3 install tornado==4.5.3 \
  && pip3 install ipykernel==4.8.2 \
  && python3 -m ipykernel install --name python3 --display-name "Python 3" \
  # Hail requires decorator
  && pip3 install -U decorator==4.2.1 \
  # python 3 packages
- && pip3 install numpy==1.15.0 \
+ && pip3 install numpy==1.15.2 \
  && python3 -mpip install matplotlib \
  && pip3 install pandas \
  && pip3 install seaborn \
  && pip3 install -U jupyter \
+ && pip3 install -U jupyterlab \
  # && pip3 install python-lzo \
  && pip3 install google-api-core==1.3.0 \
  && pip3 install google-cloud-bigquery==1.4.0 \
@@ -210,7 +202,7 @@ RUN apt-get update \
  # && pip3 install matplotlib-venn \
  # for jupyter_localize_extension
  && pip3 install python-datauri \
- #&& apt-get clean \
+ && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
 
@@ -248,10 +240,10 @@ RUN R -e 'install.packages(c( \
     "bigrquery",  \
     "tidyverse"), \
     repos="http://cran.mtu.edu")' \
- #&& R -e 'devtools::install_github("DataBiosphere/Ronaldo")' \
- # && R -e 'devtools::install_github("IRkernel/IRkernel")' \
- # && R -e 'IRkernel::installspec(user=FALSE)' \
- # && chown -R $USER:users /home/jupyter-user/.local  \
+ && R -e 'devtools::install_github("DataBiosphere/Ronaldo")' \
+ && R -e 'devtools::install_github("IRkernel/IRkernel")' \
+ && R -e 'IRkernel::installspec()' \
+ && chown -R $USER:users /home/jupyter-user/.local  \
  && R -e 'devtools::install_github("apache/spark@v2.3.1", subdir="R/pkg")' \
  && mkdir -p /home/jupyter-user/.rpackages \
  && echo "R_LIBS=/home/jupyter-user/.rpackages" > /home/jupyter-user/.Renviron \

@@ -281,8 +281,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
 else
     echo "deb http://ftp.de.debian.org/debian testing main"      >> /etc/apt/sources.list
-    apt-get update
-    apt-get -t testing install python3.6
+    retry 5 betterAptGet
+    retry 5 apt-get -t testing install python3.6
 #    wget https://www.python.org/ftp/python/3.6.4/Python-3.6.4.tgz
 #    tar xvf Python-3.6.4.tgz
 #    cd Python-3.6.4
