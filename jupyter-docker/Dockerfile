@@ -115,7 +115,7 @@ ENV PYSPARK_DRIVER_PYTHON jupyter
 ENV PYSPARK_DRIVER_PYTHON_OPTS notebook
 
 ENV PATH $SPARK_HOME:$SPARK_HOME/python:$SPARK_HOME/bin:$HAIL_HOME:$PATH
-ENV PYTHONPATH $HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip:$JUPYTER_HOME/custom
+ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip:$JUPYTER_HOME/custom
 
 RUN apt-get update \
  && apt-get install -yq --no-install-recommends \
@@ -167,7 +167,6 @@ RUN apt-get update \
     python3-distutils \
  && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.6 100 \
  && python3 get-pip.py \
- && ls -ltra `which pip3` \
 # && pip3 install gitsome \
  && pip3 install tornado==4.5.3 \
  && pip3 install ipykernel==4.8.2 \
@@ -242,7 +241,7 @@ RUN R -e 'install.packages(c( \
     repos="http://cran.mtu.edu")' \
  && R -e 'devtools::install_github("DataBiosphere/Ronaldo")' \
  && R -e 'devtools::install_github("IRkernel/IRkernel")' \
- && R -e 'IRkernel::installspec()' \
+ && R -e 'IRkernel::installspec(user=FALSE)' \
  && chown -R $USER:users /home/jupyter-user/.local  \
  && R -e 'devtools::install_github("apache/spark@v2.3.1", subdir="R/pkg")' \
  && mkdir -p /home/jupyter-user/.rpackages \
