@@ -84,8 +84,10 @@ class ProxyService(proxyConfig: ProxyConfig,
       hasRequiredPermission <- authProvider.hasNotebookClusterPermission(userInfo, notebookAction, googleProject, clusterName)
     } yield {
       if (!hasViewPermission) {
+        logger.info(s"ClusterNotFoundException:: user ${userInfo.userEmail} with token ${userInfo.accessToken} does not have access to $notebookAction on $googleProject/$clusterName")
         throw ClusterNotFoundException(googleProject, clusterName)
       } else if (!hasRequiredPermission) {
+        logger.info(s"AuthorizationError:: user ${userInfo.userEmail} with token ${userInfo.accessToken} does not have access to $notebookAction on $googleProject/$clusterName")
         throw AuthorizationError(Option(userInfo.userEmail))
       } else {
         ()
