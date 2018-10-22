@@ -422,7 +422,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     val testResult: Try[T] = Try {
       testCode(cluster)
     }
-    eventually {
+    eventually (timeout(7 minutes)) {
       deletableStatuses should contain (cluster.status)
     }
     // delete before checking testCode status, which may throw
