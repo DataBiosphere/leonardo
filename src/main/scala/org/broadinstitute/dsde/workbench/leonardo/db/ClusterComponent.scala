@@ -228,7 +228,7 @@ trait ClusterComponent extends LeoComponent {
     }
 
     def getClusterStatus(id: Long): DBIO[Option[ClusterStatus]] = {
-      clusterQuery.filter { _.id === id }.map(_.status).result.headOption map { statusOpt =>
+      findByIdQuery(id).map(_.status).result.headOption map { statusOpt =>
         statusOpt map ClusterStatus.withName
       }
     }
@@ -244,19 +244,19 @@ trait ClusterComponent extends LeoComponent {
     }
 
     def markPendingDeletion(id: Long): DBIO[Int] = {
-      clusterQuery.filter(_.id === id)
+      findByIdQuery(id)
         .map(c => (c.status, c.hostIp))
         .update(ClusterStatus.Deleting.toString, None)
     }
 
     def completeDeletion(id: Long): DBIO[Int] = {
-      clusterQuery.filter(_.id === id)
+      findByIdQuery(id)
         .map(c => (c.destroyedDate, c.status, c.hostIp))
         .update(Timestamp.from(Instant.now()), ClusterStatus.Deleted.toString, None)
     }
 
     def updateClusterStatusAndHostIp(id: Long, status: ClusterStatus, hostIp: Option[IP]): DBIO[Int] = {
-      clusterQuery.filter { _.id === id }
+      findByIdQuery(id)
         .map(c => (c.status, c.hostIp, c.dateAccessed))
         .update((status.toString, hostIp.map(_.value), Timestamp.from(Instant.now)))
     }
@@ -264,18 +264,18 @@ trait ClusterComponent extends LeoComponent {
     def updateAsyncClusterCreationFields(initBucket: Option[GcsPath],
                                          serviceAccountKey: Option[ServiceAccountKey],
                                          cluster: Cluster): DBIO[Int] = {
-      clusterQuery.filter { _.id === cluster.id }
+      findByIdQuery(cluster.id)
         .map(c => (c.initBucket, c.serviceAccountKeyId, c.googleId, c.operationName, c.stagingBucket, c.dateAccessed))
         .update(initBucket.map(_.toUri), serviceAccountKey.map(_.id.value), cluster.dataprocInfo.googleId,
           cluster.dataprocInfo.operationName.map(_.value), cluster.dataprocInfo.stagingBucket.map(_.value), Timestamp.from(Instant.now))
     }
 
     def updateClusterStatus(id: Long, newStatus: ClusterStatus): DBIO[Int] = {
-      clusterQuery.filter { _.id === id }.map(c => (c.status, c.dateAccessed)).update(newStatus.toString, Timestamp.from(Instant.now))
+      findByIdQuery(id).map(c => (c.status, c.dateAccessed)).update(newStatus.toString, Timestamp.from(Instant.now))
     }
 
     def updateDateAccessed(id: Long, dateAccessed: Instant): DBIO[Int] = {
-      clusterQuery.filter { _.id === id }.filter { _.dateAccessed < Timestamp.from(dateAccessed)}.map(_.dateAccessed).update(Timestamp.from(dateAccessed))
+      findByIdQuery(id).filter { _.dateAccessed < Timestamp.from(dateAccessed)}.map(_.dateAccessed).update(Timestamp.from(dateAccessed))
     }
 
     def updateDateAccessedByProjectAndName(googleProject: GoogleProject, clusterName: ClusterName, dateAccessed: Instant): DBIO[Int] = {
@@ -286,7 +286,15 @@ trait ClusterComponent extends LeoComponent {
     }
 
     def updateAutopauseThreshold(id: Long, autopauseThreshold: Int): DBIO[Int] = {
-      clusterQuery.filter { _.id === id }.map(c => c.autopauseThreshold).update(autopauseThreshold)
+      findByIdQuery(id).map(_.autopauseThreshold).update(autopauseThreshold)
+    }
+
+    def updateNumberOfWorkers(id: Long, numberOfWorkers: Int): DBIO[Int] = {
+      findByIdQuery(id).map(_.numberOfWorkers).update(numberOfWorkers)
+    }
+
+    def updateNumberOfPreemptibleWorkers(id: Long, numberOfPreemptibleWorkers: Option[Int]): DBIO[Int] = {
+      findByIdQuery(id).map(_.numberOfPreemptibleWorkers).update(numberOfPreemptibleWorkers)
     }
 
     def setToRunning(id: Long, hostIp: IP): DBIO[Int] = {
@@ -478,5 +486,9 @@ trait ClusterComponent extends LeoComponent {
       .filter { _._1.clusterName === clusterName.value }
       .filter { _._1.destroyedDate === Timestamp.from(destroyedDate) }
       .result
+  }
+
+  private def findByIdQuery(id: Long): Query[ClusterTable, ClusterRecord, Seq] = {
+    clusterQuery.filter { _.id === id }
   }
 }

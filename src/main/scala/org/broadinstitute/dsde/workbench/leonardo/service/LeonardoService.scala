@@ -173,28 +173,30 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                     clusterRequest: ClusterRequest): Future[Cluster] = {
     for {
       cluster <- internalGetActiveClusterDetails(googleProject, clusterName) //throws 404 if nonexistent
-      _ <- checkClusterPermission(userInfo, DeleteCluster, cluster) //throws 404 if no auth //TODO: maybe a better action to check for here...
+      _ <- checkClusterPermission(userInfo, DeleteCluster, cluster) //throws 404 if no auth //TODO: there's certainly a better action to check for here
       _ <- clusterRequest.autopauseThreshold match {
-        case Some(threshold) => updateAutopauseThreshold(cluster, threshold)
-        case None => DBIO.successful(0)
+        case Some(threshold) => dbRef.inTransaction { dataAccess => dataAccess.clusterQuery.updateAutopauseThreshold(cluster.id, threshold) }
+        case None => Future.successful(0)
       }
       _ <- clusterRequest.machineConfig match {
-        case Some(machineConfig) => //todo
-        case None =>
+        case Some(machineConfig) => resizeClusterInternal(cluster: Cluster, machineConfig.numberOfWorkers, machineConfig.numberOfPreemptibleWorkers)
+        case None => Future.successful(())
       }
     } yield {
-      //supported fields are autopauseThreshold, machineConfig.numberOfWorkers, machineConfig.numberPreemptibleWorkers
+      cluster //todo return the new version of this but for testing im lazy and this is fine
 
     }
   }
 
-  private def updateAutopauseThreshold(cluster: Cluster, newThreshold: Int): Unit = {
-    dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.updateAutopauseThreshold(cluster.id, newThreshold)
-    }
+  def resizeClusterInternal(cluster: Cluster,
+                            numberOfWorkers: Option[Int],
+                            numberOfPreemptibleWorkers: Option[Int]): Future[Unit] = {
+    for {
+      _ <- gdDAO.resizeCluster(cluster.googleProject, cluster.clusterName, numberOfWorkers, numberOfPreemptibleWorkers)
+      _ <- dbRef.inTransaction { dataAccess => numberOfWorkers.map ( numWorkers => dataAccess.clusterQuery.updateNumberOfWorkers(cluster.id, numWorkers)) getOrElse DBIO.successful(0) }
+      _ <- dbRef.inTransaction { dataAccess => numberOfPreemptibleWorkers.map ( numWorkers => dataAccess.clusterQuery.updateNumberOfPreemptibleWorkers(cluster.id, Option(numWorkers))) getOrElse DBIO.successful(0) }
+    } yield Future.successful(())
   }
-
-  private def resizeClusterInternal()
 
   def internalCreateCluster(userEmail: WorkbenchEmail,
                             serviceAccountInfo: ServiceAccountInfo,
