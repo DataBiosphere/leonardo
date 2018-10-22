@@ -7,16 +7,18 @@ import java.util.UUID
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.testkit.TestKit
+import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{MockPetClusterServiceAccountProvider, MockSwaggerSamClient}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, LeoComponent, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, LeoComponent, TestComponent, ClusterComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{NegativeIntegerArgumentInClusterRequestException, OneWorkerSpecifiedInClusterRequestException}
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
@@ -27,12 +29,14 @@ import org.mockito.Mockito.{never, verify, _}
 import org.scalatest._
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.concurrent.ScalaFutures
+
+import scala.concurrent.Await
 import spray.json._
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
-class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers
+class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with LazyLogging
   with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures
   with OptionValues with CommonTestData with LeoComponent {
 
@@ -320,6 +324,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
         gdDAO.clusters should contain key (clusterName)
       }
 
+      // change cluster status to Running so that it can be deleted
+      dbFutureValue { _ => DbSingleton.ref.dataAccess.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots"))}
+
       // delete the cluster
       leo.deleteCluster(userInfo, project, clusterName).futureValue
 
@@ -354,7 +361,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
         gdDAO.clusters should not contain key(clusterName)
 
         // create the cluster
-        creationMethod(userInfo, project, clusterName, testClusterRequest).futureValue
+        val cluster = creationMethod(userInfo, project, clusterName, testClusterRequest).futureValue
 
         eventually {
           // check that the cluster was created
@@ -366,6 +373,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
             iamDAO.serviceAccountKeys should not contain key(samClient.serviceAccount)
           }
         }
+
+        // change cluster status to Running so that it can be deleted
+        dbFutureValue { _ => DbSingleton.ref.dataAccess.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots"))}
 
         // delete the cluster
         leoForTest.deleteCluster(userInfo, project, clusterName).futureValue
@@ -391,12 +401,15 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
         gdDAO.clusters should not contain key(clusterName)
 
         // create the cluster
-        creationMethod(userInfo, project, clusterName, testClusterRequest).futureValue
+        val cluster = creationMethod(userInfo, project, clusterName, testClusterRequest).futureValue
 
         eventually {
           // check that the cluster was created
           gdDAO.clusters should contain key clusterName
         }
+
+        // change cluster status to Running so that it can be deleted
+        dbFutureValue { _ => DbSingleton.ref.dataAccess.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots"))}
 
         // delete the cluster
         leo.deleteCluster(userInfo, project, clusterName).futureValue
@@ -416,9 +429,13 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // check that the cluster was created
     gdDAO.clusters should contain key name1
 
+
     // populate some instances for the cluster
     dbFutureValue { _.instanceQuery.saveAllForCluster(
         getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2)) }
+
+    // change cluster status to Running so that it can be deleted
+    dbFutureValue { _ => DbSingleton.ref.dataAccess.clusterQuery.setToRunning(clusterCreateResponse.id, IP("numbers.and.dots"))}
 
     // delete the cluster
     leo.deleteCluster(userInfo, project, name1).futureValue
@@ -452,6 +469,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // populate some instances for the cluster
     dbFutureValue { _.instanceQuery.saveAllForCluster(
         getClusterId(clusterCreateResponseV2), Seq(masterInstanceV2, workerInstance1V2, workerInstance2V2)) }
+
+    // change cluster status to Running so that it can be deleted
+    dbFutureValue { _ => DbSingleton.ref.dataAccess.clusterQuery.setToRunning(clusterCreateResponseV2.id, IP("numbers.and.dots"))}
 
     // delete the cluster
     leo.deleteCluster(userInfo, project, name2).futureValue
@@ -995,6 +1015,22 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     instances.size shouldBe 3
     instances.map(_.status).toSet shouldBe Set(InstanceStatus.Stopped)
   }
+
+  it should "error when trying to delete a creating cluster" in isolatedDbTest {
+    forallClusterCreationMethods { (creationMethod, clusterName) =>
+
+      // create cluster
+      creationMethod(userInfo, project, clusterName, testClusterRequest).futureValue
+
+      eventually {
+        // check that the cluster was created
+        gdDAO.clusters should contain key (clusterName)
+      }
+
+      // should fail to delete because cluster is in Creating status
+      leo.deleteCluster(userInfo, project, clusterName).failed.futureValue shouldBe a[ClusterCannotBeDeletedException]
+  }
+}
 
   type ClusterCreationInput = (UserInfo, GoogleProject, ClusterName, ClusterRequest)
   type ClusterCreation = ClusterCreationInput => Future[Cluster]
