@@ -166,6 +166,36 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } yield cluster
   }
 
+  //todo: move this to a more logical spot in the file
+  def updateCluster(userInfo: UserInfo,
+                    googleProject: GoogleProject,
+                    clusterName: ClusterName,
+                    clusterRequest: ClusterRequest): Future[Cluster] = {
+    for {
+      cluster <- internalGetActiveClusterDetails(googleProject, clusterName) //throws 404 if nonexistent
+      _ <- checkClusterPermission(userInfo, DeleteCluster, cluster) //throws 404 if no auth //TODO: maybe a better action to check for here...
+      _ <- clusterRequest.autopauseThreshold match {
+        case Some(threshold) => updateAutopauseThreshold(cluster, threshold)
+        case None => DBIO.successful(0)
+      }
+      _ <- clusterRequest.machineConfig match {
+        case Some(machineConfig) => //todo
+        case None =>
+      }
+    } yield {
+      //supported fields are autopauseThreshold, machineConfig.numberOfWorkers, machineConfig.numberPreemptibleWorkers
+
+    }
+  }
+
+  private def updateAutopauseThreshold(cluster: Cluster, newThreshold: Int): Unit = {
+    dbRef.inTransaction { dataAccess =>
+      dataAccess.clusterQuery.updateAutopauseThreshold(cluster.id, newThreshold)
+    }
+  }
+
+  private def resizeClusterInternal()
+
   def internalCreateCluster(userEmail: WorkbenchEmail,
                             serviceAccountInfo: ServiceAccountInfo,
                             googleProject: GoogleProject,

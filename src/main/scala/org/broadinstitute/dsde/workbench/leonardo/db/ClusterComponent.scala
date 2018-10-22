@@ -285,6 +285,10 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
+    def updateAutopauseThreshold(id: Long, autopauseThreshold: Int): DBIO[Int] = {
+      clusterQuery.filter { _.id === id }.map(c => c.autopauseThreshold).update(autopauseThreshold)
+    }
+
     def setToRunning(id: Long, hostIp: IP): DBIO[Int] = {
       updateClusterStatusAndHostIp(id, ClusterStatus.Running, Some(hostIp))
     }
