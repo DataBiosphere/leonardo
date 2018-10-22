@@ -423,7 +423,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       testCode(cluster)
     }
     eventually {
-      deletableStatuses contains cluster.status
+      deletableStatuses should contain (cluster.status)
     }
     // delete before checking testCode status, which may throw
     deleteCluster(googleProject, cluster.clusterName, monitorDelete)
