@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.config.Credentials
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.service.{Orchestration, RestException, Sam}
 import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
-import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
+import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{ClusterStatus, deletableStatuses}
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.{V1, V2}
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
@@ -421,6 +421,9 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     val cluster = createNewCluster(googleProject, name, request, monitorCreate, apiVersion)
     val testResult: Try[T] = Try {
       testCode(cluster)
+    }
+    eventually {
+      deletableStatuses contains cluster.status
     }
     // delete before checking testCode status, which may throw
     deleteCluster(googleProject, cluster.clusterName, monitorDelete)
