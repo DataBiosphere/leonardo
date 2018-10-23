@@ -423,26 +423,14 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       testCode(cluster)
     }
 
+    // make sure cluster is deletable
     if (!monitorCreate){
       implicit val patienceConfig: PatienceConfig = clusterPatience
 
-      val expectedStatuses =
-        if (request.stopAfterCreation.getOrElse(false)) {
-          Seq(ClusterStatus.Stopped, ClusterStatus.Error)
-        } else {
-          Seq(ClusterStatus.Running, ClusterStatus.Error)
-        }
-
-      //Try {
       eventually {
         verifyCluster(Leonardo.cluster.get(googleProject, name), googleProject, name,
-          expectedStatuses, request)
+          deletableStatuses, request)
       }
-      //}
-
-//      eventually {
-//        deletableStatuses should contain (cluster.status)
-//      }
     }
 
     // delete before checking testCode status, which may throw
