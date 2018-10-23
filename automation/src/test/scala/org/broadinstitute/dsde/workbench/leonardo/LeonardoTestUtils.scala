@@ -588,10 +588,12 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
               logger.warn(s"Could not obtain localization log files for cluster ${cluster.projectNameString}: ${e.getMessage}")
           }
 
+          //TODO:: the code below messes up the test somehow, figure out why that happens and fix.
+          //TODO:: https://github.com/DataBiosphere/leonardo/issues/643
           // clean up files on the cluster
           // no need to clean up the bucket objects; that will happen as part of `withNewBucketObject`
-          notebookPage.executeCell(s"""! rm -f $fileToLocalize""")
-          notebookPage.executeCell(s"""! rm -f $fileToDelocalize""")
+          //notebookPage.executeCell(s"""! rm -f $fileToLocalize""")
+          //notebookPage.executeCell(s"""! rm -f $fileToDelocalize""")
 
           testResult.get
         }
