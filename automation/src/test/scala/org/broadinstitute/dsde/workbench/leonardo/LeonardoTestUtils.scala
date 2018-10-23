@@ -422,9 +422,29 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     val testResult: Try[T] = Try {
       testCode(cluster)
     }
-    eventually (timeout(7 minutes)) {
-      deletableStatuses should contain (cluster.status)
+
+    if (!monitorCreate){
+      implicit val patienceConfig: PatienceConfig = clusterPatience
+
+      val expectedStatuses =
+        if (request.stopAfterCreation.getOrElse(false)) {
+          Seq(ClusterStatus.Stopped, ClusterStatus.Error)
+        } else {
+          Seq(ClusterStatus.Running, ClusterStatus.Error)
+        }
+
+      //Try {
+      eventually {
+        verifyCluster(Leonardo.cluster.get(googleProject, name), googleProject, name,
+          expectedStatuses, request)
+      }
+      //}
+
+//      eventually {
+//        deletableStatuses should contain (cluster.status)
+//      }
     }
+
     // delete before checking testCode status, which may throw
     deleteCluster(googleProject, cluster.clusterName, monitorDelete)
     testResult.get
