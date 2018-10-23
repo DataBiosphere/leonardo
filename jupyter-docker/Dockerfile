@@ -215,7 +215,7 @@ ENV PIP_USER=true
 #######################
 
 RUN apt-get update \
- && apt-get -t stretch-cran35 install -y --no-install-recommends \
+ && apt-get -t stretch-cran34 install -y --no-install-recommends \
     r-base \
     r-base-dev \
     r-recommended \
@@ -259,12 +259,6 @@ ADD custom/jupyter_localize_extension.py $JUPYTER_HOME/custom/
 
 RUN chown -R $USER:users $JUPYTER_HOME \
  && find $JUPYTER_HOME/scripts -name '*.sh' -type f | xargs chmod +x
-
-# This is a hacky way to get the ui to stop flickering as a result of kernel switches, restarts and reconnects from within a notebook
-# This edits the already built main.min.js file to prevent the notebook from scheduling a reconnect when a websocket is in a closing state
-# As a result, the websocket is allowed to reconnect on its own and doesn't get stuck in an infinite reconnection loop.
-# It should be removed at the first opportunity :(
-# RUN sed -i "s/this._schedule_reconnect();//" ./usr/local/lib/python3.6/dist-packages/notebook/static/notebook/js/main.min.js
 
 USER $USER
 WORKDIR $HOME
