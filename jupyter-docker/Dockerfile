@@ -164,10 +164,11 @@ RUN apt-get update \
 RUN apt-get update \
  && apt-get install -t testing -yq --no-install-recommends \
     python3.6 \
+    python3.6-dev \
     python3-distutils \
  && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.6 100 \
  && python3 get-pip.py \
-# && pip3 install gitsome \
+# && pip3 install gitsome \ currently requires python 3.4 or 3.5
  && pip3 install tornado==4.5.3 \
  && pip3 install ipykernel==4.8.2 \
  && python3 -m ipykernel install --name python3 --display-name "Python 3" \
@@ -180,7 +181,7 @@ RUN apt-get update \
  && pip3 install seaborn \
  && pip3 install -U jupyter \
  && pip3 install -U jupyterlab \
-# && pip3 install python-lzo \
+# && pip3 install python-lzo \ needs python3 dev
  && pip3 install google-api-core==1.3.0 \
  && pip3 install google-cloud-bigquery==1.4.0 \
  && pip3 install google-cloud-bigquery-datatransfer==0.1.1 \
@@ -195,10 +196,10 @@ RUN apt-get update \
  && pip3 install bokeh \
  && pip3 install pyfasta \
  && pip3 install pdoc \
-# && pip3 install biopython \
-# && pip3 install bx-python \
-# && pip3 install fastinterval \
-# && pip3 install matplotlib-venn \
+ && pip3 install biopython \
+# && pip3 install bx-python \ needs python3 dev
+# && pip3 install fastinterval \ needs bx-python
+ && pip3 install matplotlib-venn \
  # for jupyter_localize_extension
  && pip3 install python-datauri \
  && apt-get clean \
@@ -214,7 +215,7 @@ ENV PIP_USER=true
 #######################
 
 RUN apt-get update \
- && apt-get -t stretch-cran34 install -y --no-install-recommends \
+ && apt-get -t stretch-cran35 install -y --no-install-recommends \
     r-base \
     r-base-dev \
     r-recommended \
