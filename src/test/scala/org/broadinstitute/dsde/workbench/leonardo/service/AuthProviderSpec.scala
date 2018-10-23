@@ -107,7 +107,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       //can't make a cluster
       val clusterCreateException = leo.createCluster(userInfo, project, cluster1Name, testClusterRequest).failed.futureValue
       clusterCreateException shouldBe a [AuthorizationError]
-      clusterCreateException.asInstanceOf[AuthorizationError].statusCode shouldBe StatusCodes.Unauthorized
+      clusterCreateException.asInstanceOf[AuthorizationError].statusCode shouldBe StatusCodes.Forbidden
 
       //can't get details on an existing cluster
       //poke a cluster into the database so we actually have something to look for
