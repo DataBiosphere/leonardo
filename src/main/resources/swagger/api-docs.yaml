@@ -253,6 +253,8 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/ErrorReport'
+        '403':
+            description: User does not have permission to perform action on cluster
         '409':
           description: Conflict
           schema:
@@ -288,6 +290,8 @@ paths:
           description: Cluster found, here are the details
           schema:
             $ref: '#/definitions/Cluster'
+        '403':
+          description: User does not have permission to perform action on cluster
         '404':
           description: Cluster not found
           schema:
@@ -321,6 +325,8 @@ paths:
       responses:
         '202':
           description: Cluster deletion request accepted
+        '403':
+          description: User does not have permission to perform action on cluster
         '404':
           description: Cluster not found
           schema:
@@ -353,6 +359,8 @@ paths:
       responses:
         '202':
           description: Cluster stop request accepted
+        '403':
+          description: User does not have permission to perform action on cluster
         '404':
           description: Cluster not found
           schema:
@@ -388,6 +396,8 @@ paths:
       responses:
         '202':
           description: Cluster start request accepted
+        '403':
+          description: User does not have permission to perform action on cluster
         '404':
           description: Cluster not found
           schema:
@@ -424,7 +434,7 @@ paths:
       responses:
         '200':
           description: Proxy connection successful
-        '401':
+        '403':
           description: Proxy connection unauthorized
           schema:
             $ref: '#/definitions/ErrorReport'
@@ -502,7 +512,7 @@ paths:
           description: Proxy connection successful
         '400':
           description: "Bad request. Your POST body is probably malformed: it should be a string/string JSON object."
-        '401':
+        '403':
           description: Proxy connection unauthorized
           schema:
             $ref: '#/definitions/ErrorReport'
