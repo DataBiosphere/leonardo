@@ -384,6 +384,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // Post:
   // - cluster status is set to Deleted in the DB
   // - instances are deleted in the DB
+  // - init bucket is deleted
   // - monitor actor shuts down
   it should "monitor until DELETED state" in isolatedDbTest {
     val savedDeletingCluster = deletingCluster.save()
@@ -402,6 +403,10 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val iamDAO = mock[GoogleIamDAO]
     val storageDAO = mock[GoogleStorageDAO]
 
+    when {
+      storageDAO.deleteBucket(any[GcsBucketName], any[Boolean])
+    } thenReturn Future.successful(())
+
     val authProvider = mock[LeoAuthProvider]
 
     when {
@@ -418,7 +423,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       updatedCluster.flatMap(_.dataprocInfo.hostIp) shouldBe None
       updatedCluster.map(_.instances) shouldBe Some(Set.empty)
 
-      verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
+      verify(storageDAO, times(1)).deleteBucket(any[GcsBucketName], any[Boolean])
       verify(iamDAO, never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
       verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
       verify(authProvider).notifyClusterDeleted(mockitoEq(deletingCluster.auditInfo.creator), mockitoEq(deletingCluster.auditInfo.creator), mockitoEq(deletingCluster.googleProject), mockitoEq(deletingCluster.clusterName))(any[ExecutionContext])
