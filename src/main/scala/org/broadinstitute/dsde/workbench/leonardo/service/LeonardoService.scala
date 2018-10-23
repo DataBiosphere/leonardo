@@ -173,7 +173,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                     clusterRequest: ClusterRequest): Future[Cluster] = {
     for {
       cluster <- internalGetActiveClusterDetails(googleProject, clusterName) //throws 404 if nonexistent
-      _ <- checkClusterPermission(userInfo, DeleteCluster, cluster) //throws 404 if no auth //TODO: there's certainly a better action to check for here
+      _ <- checkClusterPermission(userInfo, DeleteCluster, cluster) //throws 404 if no auth //TODO: there's certainly a better action to check for here but resizing to 0 sounds like effective deletion so i'll keep this during development
       _ <- clusterRequest.autopauseThreshold match {
         case Some(threshold) => dbRef.inTransaction { dataAccess => dataAccess.clusterQuery.updateAutopauseThreshold(cluster.id, threshold) }
         case None => Future.successful(0)
