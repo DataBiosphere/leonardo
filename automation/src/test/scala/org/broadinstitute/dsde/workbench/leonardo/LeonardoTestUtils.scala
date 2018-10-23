@@ -589,6 +589,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
           }
 
           //TODO:: the code below messes up the test somehow, figure out why that happens and fix.
+          //TODO:: https://github.com/DataBiosphere/leonardo/issues/643
           // clean up files on the cluster
           // no need to clean up the bucket objects; that will happen as part of `withNewBucketObject`
           //notebookPage.executeCell(s"""! rm -f $fileToLocalize""")
