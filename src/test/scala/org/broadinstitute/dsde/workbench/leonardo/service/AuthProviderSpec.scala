@@ -89,6 +89,9 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       val syncRequest = HttpRequest(POST, Uri(s"/notebooks/$googleProject/$clusterName/api/localize"))
       proxy.proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), syncRequest).futureValue
 
+      // change cluster status to Running so that it can be deleted
+      dbFutureValue { _.clusterQuery.setToRunning(cluster1.id, IP("numbers.and.dots")) }
+
       //delete
       leo.deleteCluster(userInfo, project, cluster1Name).futureValue
 
