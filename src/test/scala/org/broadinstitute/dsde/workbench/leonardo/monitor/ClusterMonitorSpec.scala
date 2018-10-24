@@ -65,6 +65,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
   val clusterInstances2 = clusterInstances.mapValues(_.map(modifyInstanceKey))
 
+  val clusterMonitorPatience = 10 seconds
+
   def stubComputeDAO(status: InstanceStatus): GoogleComputeDAO = {
     val dao = mock[GoogleComputeDAO]
     when {
@@ -114,7 +116,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     testKit watch supervisor
     supervisor ! TearDown
     // Should receive a Terminated msg for each running child, plus one for the supervisor itself
-    expectMsgAllClassOf(1 second, Seq.fill(if (runningChild) 2 else 1)(classOf[Terminated]):_*)
+    expectMsgAllClassOf(clusterMonitorPatience, Seq.fill(if (runningChild) 2 else 1)(classOf[Terminated]):_*)
     testResult.get
   }
 
@@ -171,7 +173,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, false) { actor =>
       actor ! ClusterCreated(savedCreatingCluster)
-      expectMsgClass(1 second, classOf[Terminated])
+      expectMsgClass(clusterMonitorPatience, classOf[Terminated])
 
       val updatedCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName) }
       updatedCluster shouldBe 'defined
@@ -214,7 +216,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
       withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, true) { actor =>
         actor ! ClusterCreated(savedCreatingCluster)
-        expectNoMessage(1 second)
+        expectNoMessage(clusterMonitorPatience)
 
         val updatedCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName) }
         updatedCluster shouldBe 'defined
@@ -259,7 +261,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     withClusterSupervisor(dao, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, true) { actor =>
       actor ! ClusterCreated(savedCreatingCluster)
-      expectNoMessage(1 second)
+      expectNoMessage(clusterMonitorPatience)
 
       val updatedCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName) }
       updatedCluster shouldBe 'defined
@@ -307,7 +309,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     withClusterSupervisor(dao, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, true) { actor =>
       actor ! ClusterCreated(savedCreatingCluster)
-      expectNoMessage(1 second)
+      expectNoMessage(clusterMonitorPatience)
 
       val updatedCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName) }
       updatedCluster shouldBe 'defined
@@ -363,7 +365,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, false) { actor =>
       actor ! ClusterCreated(savedCreatingCluster)
-      expectMsgClass(1 second, classOf[Terminated])
+      expectMsgClass(clusterMonitorPatience, classOf[Terminated])
 
       val updatedCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName) }
       updatedCluster shouldBe 'defined
@@ -415,7 +417,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     withClusterSupervisor(dao, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, false) { actor =>
       actor ! ClusterDeleted(savedDeletingCluster)
-      expectMsgClass(1 second, classOf[Terminated])
+      expectMsgClass(clusterMonitorPatience, classOf[Terminated])
 
       val updatedCluster = dbFutureValue { _.clusterQuery.getClusterById(savedDeletingCluster.id) }
       updatedCluster shouldBe 'defined
@@ -555,9 +557,9 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       // 1. original cluster monitor, terminates at Error status
       // 2. deletion monitor, terminates at Deleted status
       // 3. new Cluster creating monitor, terminates at Running status
-      expectMsgClass(1 second, classOf[Terminated])
-      expectMsgClass(1 second, classOf[Terminated])
-      expectMsgClass(1 second, classOf[Terminated])
+      expectMsgClass(clusterMonitorPatience, classOf[Terminated])
+      expectMsgClass(clusterMonitorPatience, classOf[Terminated])
+      expectMsgClass(clusterMonitorPatience, classOf[Terminated])
 
       val oldCluster = dbFutureValue { _.clusterQuery.getClusterById(savedCreatingCluster.id) }
       oldCluster shouldBe 'defined
@@ -611,7 +613,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, true) { actor =>
       actor ! ClusterCreated(savedDeletingCluster)
-      expectNoMessage(1 second)
+      expectNoMessage(clusterMonitorPatience)
 
       val updatedCluster = dbFutureValue { _.clusterQuery.getDeletingClusterByName(deletingCluster.googleProject, deletingCluster.clusterName) }
       updatedCluster shouldBe 'defined
@@ -688,7 +690,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     // Create the first cluster
     val supervisor = withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, false) { actor =>
       actor ! ClusterCreated(savedCreatingCluster)
-      expectMsgClass(1 second, classOf[Terminated])
+      expectMsgClass(clusterMonitorPatience, classOf[Terminated])
 
       val updatedCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName) }
       updatedCluster shouldBe 'defined
@@ -703,7 +705,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
       // Create the second cluster
       actor ! ClusterCreated(savedCreatingCluster2)
-      expectMsgClass(1 second, classOf[Terminated])
+      expectMsgClass(clusterMonitorPatience, classOf[Terminated])
 
       val updatedCluster2 = dbFutureValue { _.clusterQuery.getActiveClusterByName(creatingCluster2.googleProject, creatingCluster2.clusterName) }
       updatedCluster2 shouldBe 'defined
@@ -745,7 +747,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, false) { actor =>
       actor ! ClusterCreated(savedStoppingCluster)
-      expectMsgClass(1 second, classOf[Terminated])
+      expectMsgClass(clusterMonitorPatience, classOf[Terminated])
 
       val updatedCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(stoppingCluster.googleProject, stoppingCluster.clusterName) }
       updatedCluster shouldBe 'defined
@@ -812,7 +814,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, jupyterDAO, false) { actor =>
       actor ! ClusterCreated(savedStartingCluster)
-      expectMsgClass(1 second, classOf[Terminated])
+      expectMsgClass(clusterMonitorPatience, classOf[Terminated])
 
       val updatedCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(startingCluster.googleProject, startingCluster.clusterName) }
       updatedCluster shouldBe 'defined
@@ -880,13 +882,13 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, jupyterDAO, false) { actor =>
       actor ! ClusterCreated(savedStartingCluster)
-      expectNoMessage(1 second)
+      expectNoMessage(clusterMonitorPatience)
 
       val updatedCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(startingCluster.googleProject, startingCluster.clusterName) }
       updatedCluster shouldBe 'defined
       updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Starting)
       actor ! PoisonPill
-      expectMsgClass(1 second, classOf[Terminated])
+      expectMsgClass(clusterMonitorPatience, classOf[Terminated])
     }
   }
   
@@ -960,8 +962,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       actor ! ClusterCreated(savedCreatingCluster, stopAfterCreate = true)
 
       // expect 2 shutdowns: 1 after cluster creation and 1 after cluster stop
-      expectMsgClass(1 second, classOf[Terminated])
-      expectMsgClass(1 second, classOf[Terminated])
+      expectMsgClass(clusterMonitorPatience, classOf[Terminated])
+      expectMsgClass(clusterMonitorPatience, classOf[Terminated])
 
       val updatedCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName) }
       updatedCluster shouldBe 'defined
@@ -995,7 +997,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, false) { actor =>
       actor ! ClusterCreated(savedErrorCluster, stopAfterCreate = true)
 
-      expectMsgClass(1 second, classOf[Terminated])
+      expectMsgClass(clusterMonitorPatience, classOf[Terminated])
 
       val dbCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(errorCluster.googleProject, errorCluster.clusterName) }
       dbCluster shouldBe 'defined
