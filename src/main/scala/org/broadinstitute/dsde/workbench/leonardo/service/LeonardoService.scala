@@ -166,38 +166,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } yield cluster
   }
 
-  //todo: move this to a more logical spot in the file
-  def updateCluster(userInfo: UserInfo,
-                    googleProject: GoogleProject,
-                    clusterName: ClusterName,
-                    clusterRequest: ClusterRequest): Future[Cluster] = {
-    for {
-      cluster <- internalGetActiveClusterDetails(googleProject, clusterName) //throws 404 if nonexistent
-      _ <- checkClusterPermission(userInfo, DeleteCluster, cluster) //throws 404 if no auth //TODO: there's certainly a better action to check for here but resizing to 0 sounds like effective deletion so i'll keep this during development
-      _ <- clusterRequest.autopauseThreshold match {
-        case Some(threshold) => dbRef.inTransaction { dataAccess => dataAccess.clusterQuery.updateAutopauseThreshold(cluster.id, threshold) }
-        case None => Future.successful(0)
-      }
-      _ <- clusterRequest.machineConfig match {
-        case Some(machineConfig) => resizeClusterInternal(cluster: Cluster, machineConfig.numberOfWorkers, machineConfig.numberOfPreemptibleWorkers)
-        case None => Future.successful(())
-      }
-    } yield {
-      cluster //todo return the new version of this but for testing im lazy and this is fine
-
-    }
-  }
-
-  def resizeClusterInternal(cluster: Cluster,
-                            numberOfWorkers: Option[Int],
-                            numberOfPreemptibleWorkers: Option[Int]): Future[Unit] = {
-    for {
-      _ <- gdDAO.resizeCluster(cluster.googleProject, cluster.clusterName, numberOfWorkers, numberOfPreemptibleWorkers)
-      _ <- dbRef.inTransaction { dataAccess => numberOfWorkers.map ( numWorkers => dataAccess.clusterQuery.updateNumberOfWorkers(cluster.id, numWorkers)) getOrElse DBIO.successful(0) }
-      _ <- dbRef.inTransaction { dataAccess => numberOfPreemptibleWorkers.map ( numWorkers => dataAccess.clusterQuery.updateNumberOfPreemptibleWorkers(cluster.id, Option(numWorkers))) getOrElse DBIO.successful(0) }
-    } yield Future.successful(())
-  }
-
   def internalCreateCluster(userEmail: WorkbenchEmail,
                             serviceAccountInfo: ServiceAccountInfo,
                             googleProject: GoogleProject,
@@ -370,6 +338,37 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     dbRef.inTransaction { dataAccess =>
       getActiveCluster(googleProject, clusterName, dataAccess)
     }
+  }
+
+  def updateCluster(userInfo: UserInfo,
+                    googleProject: GoogleProject,
+                    clusterName: ClusterName,
+                    clusterRequest: ClusterRequest): Future[Cluster] = {
+    for {
+      cluster <- internalGetActiveClusterDetails(googleProject, clusterName) //throws 404 if nonexistent
+      _ <- checkClusterPermission(userInfo, DeleteCluster, cluster) //throws 404 if no auth //TODO: check a more appropriate action here
+      _ <- (clusterRequest.autopause, clusterRequest.autopauseThreshold) match {
+        case (None, None) => Future.successful(0) //no-op. nothing was specified so we won't touch it
+        case _ => dbRef.inTransaction { dataAccess => dataAccess.clusterQuery.updateAutopauseThreshold(cluster.id, calculateAutopauseThreshold(clusterRequest.autopause, clusterRequest.autopauseThreshold)) }
+      }
+      _ <- clusterRequest.machineConfig match {
+        case Some(machineConfig) => resizeClusterInternal(cluster: Cluster, machineConfig.numberOfWorkers, machineConfig.numberOfPreemptibleWorkers)
+        case None => Future.successful(())
+      }
+      updatedCluster <- internalGetActiveClusterDetails(googleProject, clusterName)
+    } yield {
+      updatedCluster
+    }
+  }
+
+  def resizeClusterInternal(cluster: Cluster,
+                            numberOfWorkers: Option[Int],
+                            numberOfPreemptibleWorkers: Option[Int]): Future[Unit] = {
+    for {
+      _ <- gdDAO.resizeCluster(cluster.googleProject, cluster.clusterName, numberOfWorkers, numberOfPreemptibleWorkers)
+      _ <- dbRef.inTransaction { dataAccess => numberOfWorkers.map ( numWorkers => dataAccess.clusterQuery.updateNumberOfWorkers(cluster.id, numWorkers)) getOrElse DBIO.successful(0) }
+      _ <- dbRef.inTransaction { dataAccess => numberOfPreemptibleWorkers.map ( numWorkers => dataAccess.clusterQuery.updateNumberOfPreemptibleWorkers(cluster.id, Option(numWorkers))) getOrElse DBIO.successful(0) }
+    } yield Future.successful(())
   }
 
   def deleteCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Unit] = {
