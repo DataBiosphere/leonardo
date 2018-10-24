@@ -181,7 +181,7 @@ RUN apt-get update \
  && pip3 install seaborn \
  && pip3 install -U jupyter \
  && pip3 install -U jupyterlab \
- && pip3 install python-lzo \ needs python3 dev
+ && pip3 install python-lzo \
  && pip3 install google-api-core==1.3.0 \
  && pip3 install google-cloud-bigquery==1.4.0 \
  && pip3 install google-cloud-bigquery-datatransfer==0.1.1 \
@@ -197,8 +197,8 @@ RUN apt-get update \
  && pip3 install pyfasta \
  && pip3 install pdoc \
  && pip3 install biopython \
- && pip3 install bx-python \ needs python3 dev
- && pip3 install fastinterval \ needs bx-python
+ && pip3 install bx-python \
+ && pip3 install fastinterval \
  && pip3 install matplotlib-venn \
  # for jupyter_localize_extension
  && pip3 install python-datauri \
