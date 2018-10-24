@@ -90,7 +90,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       proxy.proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), syncRequest).futureValue
 
       // change cluster status to Running so that it can be deleted
-      dbFutureValue { _ => DbSingleton.ref.dataAccess.clusterQuery.setToRunning(cluster1.id, IP("numbers.and.dots"))}
+      dbFutureValue { _.clusterQuery.setToRunning(cluster1.id, IP("numbers.and.dots")) }
 
       //delete
       leo.deleteCluster(userInfo, project, cluster1Name).futureValue

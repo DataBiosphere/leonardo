@@ -321,7 +321,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       }
 
       // change cluster status to Running so that it can be deleted
-      dbFutureValue { _ => DbSingleton.ref.dataAccess.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots"))}
+      dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots")) }
 
       // delete the cluster
       leo.deleteCluster(userInfo, project, clusterName).futureValue
@@ -371,7 +371,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
         }
 
         // change cluster status to Running so that it can be deleted
-        dbFutureValue { _ => DbSingleton.ref.dataAccess.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots"))}
+        dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots")) }
 
         // delete the cluster
         leoForTest.deleteCluster(userInfo, project, clusterName).futureValue
@@ -405,7 +405,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
         }
 
         // change cluster status to Running so that it can be deleted
-        dbFutureValue { _ => DbSingleton.ref.dataAccess.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots"))}
+        dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots")) }
 
         // delete the cluster
         leo.deleteCluster(userInfo, project, clusterName).futureValue
@@ -430,7 +430,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
         getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2)) }
 
     // change cluster status to Running so that it can be deleted
-    dbFutureValue { _ => DbSingleton.ref.dataAccess.clusterQuery.setToRunning(clusterCreateResponse.id, IP("numbers.and.dots"))}
+    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("numbers.and.dots")) }
 
     // delete the cluster
     leo.deleteCluster(userInfo, project, name1).futureValue
@@ -466,7 +466,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
         getClusterId(clusterCreateResponseV2), Seq(masterInstanceV2, workerInstance1V2, workerInstance2V2)) }
 
     // change cluster status to Running so that it can be deleted
-    dbFutureValue { _ => DbSingleton.ref.dataAccess.clusterQuery.setToRunning(clusterCreateResponseV2.id, IP("numbers.and.dots"))}
+    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponseV2.id, IP("numbers.and.dots")) }
 
     // delete the cluster
     leo.deleteCluster(userInfo, project, name2).futureValue
