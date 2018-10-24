@@ -100,6 +100,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # around intermittent apt authentication errors. See:
     # https://cloud.google.com/compute/docs/troubleshooting/known-issues
     retry 5 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+    retry 5 apt-key update
 
     # install Docker
     # https://docs.docker.com/install/linux/docker-ce/debian/
