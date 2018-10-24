@@ -283,8 +283,7 @@ else
     echo "deb http://ftp.de.debian.org/debian testing main"      >> /etc/apt/sources.list
     retry 5 betterAptGet
     retry 5 apt-get install -t testing -yq --no-install-recommends \
-        python3.6 \
-        python3-distutils
+        python3.6
     retry 5 update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.6 100
 
 fi
