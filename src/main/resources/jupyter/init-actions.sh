@@ -96,6 +96,11 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
     log 'Installing prerequisites...'
 
+    # Obtain the latest valid apt-key.gpg key file from https://packages.cloud.google.com to work
+    # around intermittent apt authentication errors. See:
+    # https://cloud.google.com/compute/docs/troubleshooting/known-issues
+    retry 5 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+
     # install Docker
     # https://docs.docker.com/install/linux/docker-ce/debian/
     export DOCKER_CE_VERSION="18.03.0~ce-0~debian"
