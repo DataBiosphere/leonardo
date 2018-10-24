@@ -105,6 +105,14 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
         status shouldEqual statusCode
       }
 
+      // simulate the cluster transitioning to Running
+      dbFutureValue { dataAccess =>
+        dataAccess.clusterQuery.getActiveClusterByName(googleProject, ClusterName(clstrName)).flatMap {
+          case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"))
+          case None => DBIO.successful(0)
+        }
+      }
+
       Delete(s"/api/cluster/${googleProject.value}/$clstrName") ~> timedLeoRoutes.route ~> check {
         status shouldEqual StatusCodes.Accepted
 

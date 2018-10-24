@@ -320,6 +320,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
         gdDAO.clusters should contain key (clusterName)
       }
 
+      // change cluster status to Running so that it can be deleted
+      dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots")) }
+
       // delete the cluster
       leo.deleteCluster(userInfo, project, clusterName).futureValue
 
@@ -354,7 +357,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
         gdDAO.clusters should not contain key(clusterName)
 
         // create the cluster
-        creationMethod(userInfo, project, clusterName, testClusterRequest).futureValue
+        val cluster = creationMethod(userInfo, project, clusterName, testClusterRequest).futureValue
 
         eventually {
           // check that the cluster was created
@@ -366,6 +369,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
             iamDAO.serviceAccountKeys should not contain key(samClient.serviceAccount)
           }
         }
+
+        // change cluster status to Running so that it can be deleted
+        dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots")) }
 
         // delete the cluster
         leoForTest.deleteCluster(userInfo, project, clusterName).futureValue
@@ -391,12 +397,15 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
         gdDAO.clusters should not contain key(clusterName)
 
         // create the cluster
-        creationMethod(userInfo, project, clusterName, testClusterRequest).futureValue
+        val cluster = creationMethod(userInfo, project, clusterName, testClusterRequest).futureValue
 
         eventually {
           // check that the cluster was created
           gdDAO.clusters should contain key clusterName
         }
+
+        // change cluster status to Running so that it can be deleted
+        dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots")) }
 
         // delete the cluster
         leo.deleteCluster(userInfo, project, clusterName).futureValue
@@ -419,6 +428,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // populate some instances for the cluster
     dbFutureValue { _.instanceQuery.saveAllForCluster(
         getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2)) }
+
+    // change cluster status to Running so that it can be deleted
+    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("numbers.and.dots")) }
 
     // delete the cluster
     leo.deleteCluster(userInfo, project, name1).futureValue
@@ -452,6 +464,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // populate some instances for the cluster
     dbFutureValue { _.instanceQuery.saveAllForCluster(
         getClusterId(clusterCreateResponseV2), Seq(masterInstanceV2, workerInstance1V2, workerInstance2V2)) }
+
+    // change cluster status to Running so that it can be deleted
+    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponseV2.id, IP("numbers.and.dots")) }
 
     // delete the cluster
     leo.deleteCluster(userInfo, project, name2).futureValue
@@ -610,6 +625,19 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
     leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
+  }
+
+  it should "error when trying to delete a creating cluster" in isolatedDbTest {
+    forallClusterCreationMethods { (creationMethod, clusterName) =>
+      // create cluster
+      creationMethod(userInfo, project, clusterName, testClusterRequest).futureValue
+      eventually {
+        // check that the cluster was created
+        gdDAO.clusters should contain key (clusterName)
+      }
+      // should fail to delete because cluster is in Creating status
+      leo.deleteCluster(userInfo, project, clusterName).failed.futureValue shouldBe a[ClusterCannotBeDeletedException]
+    }
   }
 
   it should "list all clusters created via v2 API" in isolatedDbTest {
