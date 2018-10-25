@@ -41,13 +41,13 @@ class LocalizeHandler(IPythonHandler):
       source_check = ['gsutil', '-m', '-q', 'ls', source]
       locout.write(' '.join(source_check) + '\n')
       source_status = subprocess.call(source_check, stderr=locout)
-    else
+    else:
       source_status = 0
     if dest.startswith("gs:"):
       dest_check = ['gsutil', '-m', '-q', 'ls', dest]
       locout.write(' '.join(dest_check) + '\n')
       dest_status = subprocess.call(dest_check, stderr=locout)
-    else
+    else:
       dest_status = 0
     return source_status == 0 and dest_status == 0
 
