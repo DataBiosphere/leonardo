@@ -37,12 +37,18 @@ class LocalizeHandler(IPythonHandler):
     return result == 0
 
   def check_gcs_object_Status(self, locout, source, dest):
-    source_check = ['gsutil', '-m', '-q', 'ls', source]
-    locout.write(' '.join(source_check) + '\n')
-    source_status = subprocess.call(source_check, stderr=locout)
-    dest_check = ['gsutil', '-m', '-q', 'ls', dest]
-    locout.write(' '.join(dest_check) + '\n')
-    dest_status = subprocess.call(dest_check, stderr=locout)
+    if source.startswith("gs:"):
+      source_check = ['gsutil', '-m', '-q', 'ls', source]
+      locout.write(' '.join(source_check) + '\n')
+      source_status = subprocess.call(source_check, stderr=locout)
+    else
+      source_status = 0
+    if dest.startswith("gs:"):
+      dest_check = ['gsutil', '-m', '-q', 'ls', dest]
+      locout.write(' '.join(dest_check) + '\n')
+      dest_status = subprocess.call(dest_check, stderr=locout)
+    else
+      dest_status = 0
     return source_status == 0 and dest_status == 0
 
   def _localize_data_uri(self, locout, source, dest):
