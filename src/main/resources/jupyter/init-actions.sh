@@ -280,9 +280,10 @@ if [[ "${ROLE}" == 'Master' ]]; then
     log 'All done!'
 
 else
+    export DEBIAN_FRONTEND=noninteractive
     echo "deb http://ftp.de.debian.org/debian testing main"      >> /etc/apt/sources.list
     retry 5 betterAptGet
-    retry 5 apt-get install -t testing -yq --no-install-recommends \
+    retry 5 apt-get -yq --force-yes install -t testing --no-install-recommends \
         python3.6
     retry 5 update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.6 100
 

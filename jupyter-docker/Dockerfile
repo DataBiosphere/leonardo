@@ -35,7 +35,7 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sou
     locales \
 
  # R separately because it depends on gnupg installed above
- && echo "deb $CRAN_REPO/bin/linux/debian stretch-cran34/"       >> /etc/apt/sources.list \
+ && echo "deb $CRAN_REPO/bin/linux/debian stretch-cran35/"       >> /etc/apt/sources.list \
  && apt-key adv --keyserver keys.gnupg.net \
     --recv-key 'E19F5F87128899B192B1A2C2AD5F960A256A04AF' \
 
@@ -77,6 +77,7 @@ RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
 
 # Use Spark 2.2.0 which corresponds to Dataproc 1.2. See:
 #   https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-versions
+# Note: we are actually using Spark 2.2.1, but the Hail package is built using 2.2.0
 ENV SPARK_VER 2.2.0
 ENV SPARK_HOME=/usr/lib/spark
 
@@ -132,30 +133,30 @@ RUN apt-get update \
  && wget -nv https://bootstrap.pypa.io/get-pip.py \
  && python get-pip.py \
  # Hail requires decorator
- && pip install -U decorator==4.2.1 \
- && pip install numpy==1.15.0 \
- && python -mpip install matplotlib \
- && pip install pandas \
- && pip install seaborn \
- && pip install google-api-core==1.3.0 \
- && pip install google-cloud-bigquery==1.4.0 \
+ && pip install -U decorator==4.3.0 \
+ && pip install numpy==1.15.2 \
+ && python -mpip install matplotlib==2.2.3\
+ && pip install pandas==0.23.4 \
+ && pip install seaborn==0.9.0 \
+ && pip install google-api-core==1.5.0 \
+ && pip install google-cloud-bigquery==1.6.0 \
  && pip install google-cloud-bigquery-datatransfer==0.1.1 \
  && pip install google-cloud-core==0.28.1 \
  && pip install google-cloud-datastore==1.7.0 \
  && pip install google-cloud-resource-manager==0.28.1 \
  && pip install google-cloud-storage==1.10.0 \
- && pip install google-auth==1.5.0 \
- && pip install --ignore-installed firecloud==0.16.7 \
- && pip install -U scikit-learn \
+ && pip install google-auth==1.5.1 \
+ && pip install --ignore-installed firecloud==0.16.18 \
+ && pip install -U scikit-learn==0.20.0 \
  && pip install statsmodels==0.9.0 \
- && pip install ggplot \
- && pip install bokeh \
- && pip install pyfasta \
- && pip install pdoc \
- && pip install biopython \
- && pip install bx-python \
- && pip install fastinterval \
- && pip install matplotlib-venn \
+ && pip install ggplot==0.11.5 \
+ && pip install bokeh==1.0.0  \
+ && pip install pyfasta==0.5.2 \
+ && pip install pdoc==0.3.2 \
+ && pip install biopython==1.72 \
+ && pip install bx-python==0.8.2 \
+ && pip install fastinterval==0.1.1 \
+ && pip install matplotlib-venn==0.11.5 \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
@@ -168,38 +169,37 @@ RUN apt-get update \
     python3-distutils \
  && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.6 100 \
  && python3 get-pip.py \
-# && pip3 install gitsome \ currently requires python 3.4 or 3.5
  && pip3 install tornado==4.5.3 \
  && pip3 install ipykernel==4.8.2 \
  && python3 -m ipykernel install --name python3 --display-name "Python 3" \
- # Hail requires decorator
- && pip3 install -U decorator==4.2.1 \
- # python 3 packages
+# # Hail requires decorator
+ && pip3 install -U decorator==4.3.0 \
+# # python 3 packages
  && pip3 install numpy==1.15.2 \
- && python3 -mpip install matplotlib \
- && pip3 install pandas \
- && pip3 install seaborn \
- && pip3 install -U jupyter \
- && pip3 install -U jupyterlab \
- && pip3 install python-lzo \
- && pip3 install google-api-core==1.3.0 \
- && pip3 install google-cloud-bigquery==1.4.0 \
+ && python3 -mpip install matplotlib==3.0.0 \
+ && pip3 install pandas==0.23.4 \
+ && pip3 install seaborn==0.9.0 \
+ && pip3 install jupyter==1.0.0 \
+ && pip3 install jupyterlab==0.35.2 \
+ && pip3 install python-lzo==1.12 \
+ && pip3 install google-api-core==1.5.0 \
+ && pip3 install google-cloud-bigquery==1.6.0 \
  && pip3 install google-cloud-bigquery-datatransfer==0.1.1 \
  && pip3 install google-cloud-core==0.28.1 \
  && pip3 install google-cloud-datastore==1.7.0 \
  && pip3 install google-cloud-resource-manager==0.28.1 \
- && pip3 install google-cloud-storage==1.10.0 \
- && pip3 install --ignore-installed firecloud==0.16.7 \
- && pip3 install -U scikit-learn \
+ && pip3 install google-cloud-storage==1.13.0 \
+ && pip3 install --ignore-installed firecloud==0.16.18 \
+ && pip3 install scikit-learn==0.20.0 \
  && pip3 install statsmodels==0.9.0 \
- && pip3 install ggplot \
- && pip3 install bokeh \
- && pip3 install pyfasta \
- && pip3 install pdoc \
- && pip3 install biopython \
- && pip3 install bx-python \
- && pip3 install fastinterval \
- && pip3 install matplotlib-venn \
+ && pip3 install ggplot==0.11.5 \
+ && pip3 install bokeh==1.0.0 \
+ && pip3 install pyfasta==0.5.2 \
+ && pip3 install pdoc==0.3.2 \
+ && pip3 install biopython==1.72 \
+ && pip3 install bx-python==0.8.2 \
+ && pip3 install fastinterval==0.1.1 \
+ && pip3 install matplotlib-venn==0.11.5 \
  # for jupyter_localize_extension
  && pip3 install python-datauri \
  && apt-get clean \
@@ -215,7 +215,7 @@ ENV PIP_USER=true
 #######################
 
 RUN apt-get update \
- && apt-get -t stretch-cran34 install -y --no-install-recommends \
+ && apt-get -t stretch-cran35 install -y --no-install-recommends \
     r-base \
     r-base-dev \
     r-recommended \
