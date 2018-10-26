@@ -30,6 +30,8 @@ object ClusterMonitorSupervisor {
   case class ClusterStopped(cluster: Cluster) extends ClusterSupervisorMessage
   // sent after a cluster is started by the user
   case class ClusterStarted(cluster: Cluster) extends ClusterSupervisorMessage
+  // sent after a cluster is updated by the user
+  case class ClusterUpdated(cluster: Cluster) extends ClusterSupervisorMessage
 
   // sent after cluster creation fails, and the cluster should be recreated
   case class RecreateCluster(cluster: Cluster) extends ClusterSupervisorMessage
@@ -63,11 +65,15 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
       logger.info(s"Monitoring cluster ${cluster.projectNameString} for deletion.")
       startClusterMonitorActor(cluster, if (recreate) Some(RecreateCluster(cluster)) else None)
 
+    case ClusterUpdated(cluster) =>
+      logger.info(s"Monitor cluster ${cluster.projectNameString} for updating.")
+      startClusterMonitorActor(cluster, None) //todo: what should the 2nd param be?
+
     case RecreateCluster(cluster) =>
       if (monitorConfig.recreateCluster) {
         logger.info(s"Recreating cluster ${cluster.projectNameString}...")
         val clusterRequest = ClusterRequest(
-          cluster.labels,
+          Option(cluster.labels),
           cluster.jupyterExtensionUri,
           cluster.jupyterUserScriptUri,
           Some(cluster.machineConfig),

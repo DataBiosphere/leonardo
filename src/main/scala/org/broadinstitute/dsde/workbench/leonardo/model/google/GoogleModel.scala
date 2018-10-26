@@ -79,12 +79,16 @@ object ClusterStatus extends Enum[ClusterStatus] {
   // Can a user start this cluster?
   val startableStatuses: Set[ClusterStatus] = Set(Stopped, Stopping)
 
+  // Can a user update (i.e. resize) this cluster?
+  val updatableStatuses: Set[ClusterStatus] = Set(Running)
+
   implicit class EnrichedClusterStatus(status: ClusterStatus) {
     def isActive: Boolean = activeStatuses contains status
     def isDeletable: Boolean = deletableStatuses contains status
     def isMonitored: Boolean = monitoredStatuses contains status
     def isStoppable: Boolean = stoppableStatuses contains status
     def isStartable: Boolean = startableStatuses contains status
+    def isUpdatable: Boolean = updatableStatuses contains status
   }
 }
 

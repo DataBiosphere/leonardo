@@ -222,7 +222,7 @@ paths:
 
   '/api/cluster/{googleProject}/{clusterName}':
     patch:
-      summary: Updates the configuration of a cluster
+      summary: Updates the configuration of a cluster. Cluster must be running.
       description:
       operationId: updateCluster
       tags:
@@ -244,6 +244,28 @@ paths:
           required: true
           schema:
             $ref: '#/definitions/UpdateClusterRequest'
+      responses:
+        '200':
+          description: Cluster update successful
+          schema:
+            $ref: '#/definitions/Cluster'
+        '400':
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '403':
+            description: User does not have permission to perform action on cluster
+        '409':
+            description: Cluster must be running before it can be updated
+        '500':
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/ErrorReport'
+      security:
+        - googleoauth:
+            - openid
+            - email
+            - profile
     put:
       summary: Creates a new Dataproc cluster in the given project with the given name
       description: Default labels clusterName, googleProject, serviceAccount, and notebookExtension cannot be overridden.
@@ -898,6 +920,7 @@ definitions:
         description: |
           Optional, the number of preemptible workers. If unspecified, the default number is 0. Ignored if numberOfWorkers is 0.
           For more information, see https://cloud.google.com/compute/docs/instances/preemptible
+
   UserJupyterExtensionConfig:
     description: 'Specification of Jupyter Extensions to be installed on the cluster'
     properties:
@@ -918,6 +941,7 @@ definitions:
         description: |
           Optional, map of extension name and notebook plus server extension. The extension can either be a tar.gz file on google storage or a python package.
           Example, {"ext1":"gs://bucket/extension.tar.gz", "ext2":"python-package"}
+
   SubsystemStatus:
     description: status of a subsystem Leonardo depends on
     type: object
@@ -951,10 +975,23 @@ definitions:
     properties:
       machineConfig:
         description: The machine configurations for the master and worker nodes
-        $ref: '#/definitions/MachineConfig'
+        $ref: '#/definitions/UpdateMachineConfig'
       autopause:
         type: boolean
         description: Whether autopause feature is enabled for this specific cluster. If unset, autopause will be enabled and a system default threshold will be used.
       autopauseThreshold:
         type: integer
         description: The number of minutes of idle time to elapse before the cluster is autopaused. If autopause is set to false, this value is disregarded. A value of 0 is equivalent to autopause being turned off. If autopause is enabled and this is unset, a system default threshold will be used.
+
+  UpdateMachineConfig:
+    description: 'The configuration for a single Dataproc cluster'
+    properties:
+      numberOfWorkers:
+        type: integer
+        description: |
+          Optional, number of workers in the cluster. Can be 0 (default), 2 or more. Google Dataproc does not allow 1 worker.
+      numberOfPreemptibleWorkers:
+        type: integer
+        description: |
+          Optional, the number of preemptible workers. If unspecified, the default number is 0. Ignored if numberOfWorkers is 0.
+          For more information, see https://cloud.google.com/compute/docs/instances/preemptible

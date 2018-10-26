@@ -23,7 +23,7 @@ import org.broadinstitute.dsde.workbench.model._
 import spray.json._
 
 // Create cluster API request
-case class ClusterRequest(labels: LabelMap = Map(),
+case class ClusterRequest(labels: Option[LabelMap] = Option(Map()),
                           jupyterExtensionUri: Option[GcsPath] = None,
                           jupyterUserScriptUri: Option[GcsPath] = None,
                           machineConfig: Option[MachineConfig] = None,
@@ -105,7 +105,7 @@ object Cluster {
       machineConfig = machineConfig,
       clusterUrl = getClusterUrl(googleProject, clusterName, clusterUrlBase),
       status = ClusterStatus.Creating,
-      labels = clusterRequest.labels,
+      labels = clusterRequest.labels.getOrElse(Map()),
       jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
       jupyterUserScriptUri = clusterRequest.jupyterUserScriptUri,
       errors = List.empty,

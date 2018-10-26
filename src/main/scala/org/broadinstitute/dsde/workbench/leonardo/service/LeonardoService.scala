@@ -57,6 +57,9 @@ case class ClusterCannotBeDeletedException(googleProject: GoogleProject, cluster
 case class ClusterCannotBeStartedException(googleProject: GoogleProject, clusterName: ClusterName, status: ClusterStatus)
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} cannot be started in ${status.toString} status", StatusCodes.Conflict)
 
+case class ClusterCannotBeUpdatedException(googleProject: GoogleProject, clusterName: ClusterName, status: ClusterStatus)
+  extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} cannot be updated in ${status.toString} status", StatusCodes.Conflict)
+
 case class InitializationFileException(googleProject: GoogleProject, clusterName: ClusterName, errorMessage: String)
   extends LeoException(s"Unable to process initialization files for ${googleProject.value}/${clusterName.value}. Returned message: $errorMessage", StatusCodes.Conflict)
 
@@ -346,29 +349,50 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                     clusterRequest: ClusterRequest): Future[Cluster] = {
     for {
       cluster <- internalGetActiveClusterDetails(googleProject, clusterName) //throws 404 if nonexistent
+
       _ <- checkClusterPermission(userInfo, DeleteCluster, cluster) //throws 404 if no auth //TODO: check a more appropriate action here
-      _ <- (clusterRequest.autopause, clusterRequest.autopauseThreshold) match {
-        case (None, None) => Future.successful(0) //no-op. nothing was specified so we won't touch it
-        case _ => dbRef.inTransaction { dataAccess => dataAccess.clusterQuery.updateAutopauseThreshold(cluster.id, calculateAutopauseThreshold(clusterRequest.autopause, clusterRequest.autopauseThreshold)) }
-      }
-      _ <- clusterRequest.machineConfig match {
-        case Some(machineConfig) => resizeClusterInternal(cluster: Cluster, machineConfig.numberOfWorkers, machineConfig.numberOfPreemptibleWorkers)
-        case None => Future.successful(())
-      }
+
+      _ <- internalUpdateCluster(cluster, clusterRequest)
+
       updatedCluster <- internalGetActiveClusterDetails(googleProject, clusterName)
-    } yield {
-      updatedCluster
+    } yield { updatedCluster }
+  }
+
+  def internalUpdateCluster(existingCluster: Cluster, clusterRequest: ClusterRequest) = {
+    if(existingCluster.status.isUpdatable) {
+      for {
+        _ <- handleUpdatingAutopauseThreshold(existingCluster.id, clusterRequest.autopause, clusterRequest.autopauseThreshold)
+
+        _ <- handleResizingCluster(existingCluster, clusterRequest.machineConfig)
+
+        // Set the cluster status to Updating
+        _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(existingCluster.id, ClusterStatus.Updating) }
+
+        updatedCluster <- internalGetActiveClusterDetails(existingCluster.googleProject, existingCluster.clusterName)
+      } yield {
+        clusterMonitorSupervisor ! ClusterUpdated(updatedCluster.copy(status = ClusterStatus.Updating))
+        updatedCluster
+      }
+    } else Future.failed(ClusterCannotBeUpdatedException(existingCluster.googleProject, existingCluster.clusterName, existingCluster.status))
+  }
+
+  def handleUpdatingAutopauseThreshold(clusterId: Long, autopause: Option[Boolean], autopauseThreshold: Option[Int]): Future[Int] = {
+    (autopause, autopauseThreshold) match {
+      case (None, None) => Future.successful(0) //no-op. throwing None and None into calculateAutopauseThreshold would be wrong so we won't touch it
+      case _ => dbRef.inTransaction { dataAccess => dataAccess.clusterQuery.updateAutopauseThreshold(clusterId, calculateAutopauseThreshold(autopause, autopauseThreshold)) }
     }
   }
 
-  def resizeClusterInternal(cluster: Cluster,
-                            numberOfWorkers: Option[Int],
-                            numberOfPreemptibleWorkers: Option[Int]): Future[Unit] = {
-    for {
-      _ <- gdDAO.resizeCluster(cluster.googleProject, cluster.clusterName, numberOfWorkers, numberOfPreemptibleWorkers)
-      _ <- dbRef.inTransaction { dataAccess => numberOfWorkers.map ( numWorkers => dataAccess.clusterQuery.updateNumberOfWorkers(cluster.id, numWorkers)) getOrElse DBIO.successful(0) }
-      _ <- dbRef.inTransaction { dataAccess => numberOfPreemptibleWorkers.map ( numWorkers => dataAccess.clusterQuery.updateNumberOfPreemptibleWorkers(cluster.id, Option(numWorkers))) getOrElse DBIO.successful(0) }
-    } yield Future.successful(())
+  def handleResizingCluster(existingCluster: Cluster, machineConfigOpt: Option[MachineConfig]): Future[Unit] = {
+    machineConfigOpt match {
+      case Some(machineConfig) =>
+        for {
+          _ <- gdDAO.resizeCluster(existingCluster.googleProject, existingCluster.clusterName, machineConfig.numberOfWorkers, machineConfig.numberOfPreemptibleWorkers)
+          _ <- dbRef.inTransaction { dataAccess => machineConfig.numberOfWorkers.map(numWorkers => dataAccess.clusterQuery.updateNumberOfWorkers(existingCluster.id, numWorkers)) getOrElse DBIO.successful(0) }
+          _ <- dbRef.inTransaction { dataAccess => machineConfig.numberOfPreemptibleWorkers.map(numWorkers => dataAccess.clusterQuery.updateNumberOfPreemptibleWorkers(existingCluster.id, Option(numWorkers))) getOrElse DBIO.successful(0) }
+        } yield { () }
+      case None => Future.successful(()) //no-op
+    }
   }
 
   def deleteCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Unit] = {
@@ -848,7 +872,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val combinedExtension = clusterRequest.userJupyterExtensionConfig.map(_.combinedExtensions).getOrElse(Map.empty)
 
     // combine default and given labels and add labels for extensions
-    val allLabels = clusterRequest.labels ++ defaultLabels ++ nbExtensions ++ serverExtensions ++ combinedExtension
+    val allLabels = clusterRequest.labels.getOrElse(Map()) ++ defaultLabels ++ nbExtensions ++ serverExtensions ++ combinedExtension
 
     val updatedUserJupyterExtensionConfig = if(nbExtensions.isEmpty && serverExtensions.isEmpty && combinedExtension.isEmpty) None else Some(UserJupyterExtensionConfig(nbExtensions, serverExtensions, combinedExtension))
 
@@ -856,7 +880,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     if (allLabels.contains(includeDeletedKey))
       throw IllegalLabelKeyException(includeDeletedKey)
     else clusterRequest
-      .copy(labels = allLabels)
+      .copy(labels = Option(allLabels))
       .copy(userJupyterExtensionConfig = updatedUserJupyterExtensionConfig)
   }
 }
