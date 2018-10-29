@@ -36,6 +36,15 @@ class LocalizeHandler(IPythonHandler):
     result = subprocess.call(cmd, stderr=locout)
     return result == 0
 
+  def check_gcs_object_status(self, locout, source):
+    if source.startswith("gs:"):
+      source_check = ['gsutil', '-m', '-q', 'ls', source]
+      locout.write(' '.join(source_check) + '\n')
+      source_status = subprocess.call(source_check, stderr=locout)
+    else:
+      source_status = 0
+    return source_status == 0
+
   def _localize_data_uri(self, locout, source, dest):
     """Localizes an entry where the source is a data: URI"""
     try:
@@ -70,7 +79,12 @@ class LocalizeHandler(IPythonHandler):
         dest = self._sanitize(key)
 
         if source.startswith('gs:') or dest.startswith('gs:'):
-          success = self._localize_gcs_uri(locout, source, dest)
+          status = self.check_gcs_object_status(locout, source)
+          if status:
+            success = self._localize_gcs_uri(locout, source, dest)
+          else:
+            locout.write('Could not validate source or destination: {} -> {}.\n'.format(source, dest))
+            success = False
         elif source.startswith('data:'):
           success = self._localize_data_uri(locout, source, dest)
         else:
