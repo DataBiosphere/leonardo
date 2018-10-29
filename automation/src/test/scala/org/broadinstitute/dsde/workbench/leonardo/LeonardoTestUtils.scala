@@ -388,6 +388,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     notebookPage.executeCell("hadoop_config = sc._jsc.hadoopConfiguration()") shouldBe None
     notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.enable')") shouldBe Some("None")
     notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.json.keyfile')") shouldBe Some("None")
+  }
 
 
   def getAndVerifyPet(project: GoogleProject)(implicit token: AuthToken): WorkbenchEmail = {
