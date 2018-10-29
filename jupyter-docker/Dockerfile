@@ -225,7 +225,13 @@ RUN apt-get update \
     gfortran \
     gcc \
     libcurl4-openssl-dev \
+    libssl1.1=1.1.0f-3+deb9u2 \
     libssl-dev \
+    libicu-le-hb-dev \
+    libglib2.0-dev-bin \
+    libglib2.0-dev \
+    libharfbuzz-dev \
+    libicu-dev \
     libxml2-dev \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
