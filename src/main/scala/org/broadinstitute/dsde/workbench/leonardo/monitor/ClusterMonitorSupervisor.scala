@@ -67,7 +67,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
 
     case ClusterUpdated(cluster) =>
       logger.info(s"Monitor cluster ${cluster.projectNameString} for updating.")
-      startClusterMonitorActor(cluster, None) //todo: what should the 2nd param be?
+      startClusterMonitorActor(cluster, None)
 
     case RecreateCluster(cluster) =>
       if (monitorConfig.recreateCluster) {
