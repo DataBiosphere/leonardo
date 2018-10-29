@@ -93,7 +93,7 @@ class NotebookRKernelSpec extends ClusterFixtureSpec {
 
           val installOutput = notebookPage.executeCell("""devtools::install_github("mlr-org/mlr")""", installTimeout)
           installOutput shouldBe 'defined
-          installOutput.get should include ("Installing mlr")
+          installOutput.get should include ("Downloading GitHub repo mlr-org/mlr@master")
           installOutput.get should not include ("Installation failed")
 
           // Make sure it was installed correctly; if not, this will return an error

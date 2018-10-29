@@ -44,9 +44,9 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     }
   }
 
-  it should "401 if you're not on the whitelist" in isolatedDbTest {
+  it should "403 if you're not on the whitelist" in isolatedDbTest {
     Get(s"/api/isWhitelisted") ~> invalidUserLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.Unauthorized
+      status shouldEqual StatusCodes.Forbidden
     }
   }
 
@@ -103,6 +103,14 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     forallClusterCreationVersions(clusterName) { (version, clstrName, statusCode) =>
       Put(s"/api/cluster$version/${googleProject.value}/$clstrName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
         status shouldEqual statusCode
+      }
+
+      // simulate the cluster transitioning to Running
+      dbFutureValue { dataAccess =>
+        dataAccess.clusterQuery.getActiveClusterByName(googleProject, ClusterName(clstrName)).flatMap {
+          case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"))
+          case None => DBIO.successful(0)
+        }
       }
 
       Delete(s"/api/cluster/${googleProject.value}/$clstrName") ~> timedLeoRoutes.route ~> check {

@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.config.Credentials
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.service.{Orchestration, RestException, Sam}
 import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
-import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
+import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{ClusterStatus, deletableStatuses}
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.{V1, V2}
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
@@ -422,6 +422,17 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     val testResult: Try[T] = Try {
       testCode(cluster)
     }
+
+    // make sure cluster is deletable
+    if (!monitorCreate){
+      implicit val patienceConfig: PatienceConfig = clusterPatience
+
+      eventually {
+        verifyCluster(Leonardo.cluster.get(googleProject, name), googleProject, name,
+          deletableStatuses, request)
+      }
+    }
+
     // delete before checking testCode status, which may throw
     deleteCluster(googleProject, cluster.clusterName, monitorDelete)
     testResult.get
@@ -588,10 +599,12 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
               logger.warn(s"Could not obtain localization log files for cluster ${cluster.projectNameString}: ${e.getMessage}")
           }
 
+          //TODO:: the code below messes up the test somehow, figure out why that happens and fix.
+          //TODO:: https://github.com/DataBiosphere/leonardo/issues/643
           // clean up files on the cluster
           // no need to clean up the bucket objects; that will happen as part of `withNewBucketObject`
-          notebookPage.executeCell(s"""! rm -f $fileToLocalize""")
-          notebookPage.executeCell(s"""! rm -f $fileToDelocalize""")
+          //notebookPage.executeCell(s"""! rm -f $fileToLocalize""")
+          //notebookPage.executeCell(s"""! rm -f $fileToDelocalize""")
 
           testResult.get
         }
