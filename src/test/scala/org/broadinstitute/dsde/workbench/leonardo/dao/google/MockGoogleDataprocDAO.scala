@@ -92,7 +92,7 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
     Future.successful(Some(GcsBucketName("staging-bucket")))
   }
 
-  override def resizeCluster(googleProject: GoogleProject, clusterName: ClusterName, numWorkers: Option[Int], numPreemptibles: Option[Int]): Future[Unit] = {
+  override def resizeCluster(googleProject: GoogleProject, clusterName: ClusterName, numWorkers: Option[Int], numPreemptibles: Option[Int], clusterServiceAccount: Option[WorkbenchEmail] = None): Future[Unit] = {
     Future.successful(())
   }
 }
