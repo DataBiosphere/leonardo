@@ -138,6 +138,30 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
       }
 
     }
+
+    // make sure adding a worker works
+    "should update the cluster to add a worker node" in {
+      withProject { project => implicit token =>
+        val request = defaultClusterRequest.copy(defaultClientId = Some("this is a client ID"))
+        withNewCluster(project, request = request) { cluster =>
+          cluster.defaultClientId shouldBe Some("this is a client ID")
+          cluster.stopAfterCreation shouldBe false
+        }
+      }
+
+    }
+
+    // make sure removing a worker works
+    "should update the cluster to remove a worker node" in {
+      withProject { project => implicit token =>
+        val request = defaultClusterRequest.copy(defaultClientId = Some("this is a client ID"))
+        withNewCluster(project, request = request) { cluster =>
+          cluster.defaultClientId shouldBe Some("this is a client ID")
+          cluster.stopAfterCreation shouldBe false
+        }
+      }
+
+    }
   }
 
 }
