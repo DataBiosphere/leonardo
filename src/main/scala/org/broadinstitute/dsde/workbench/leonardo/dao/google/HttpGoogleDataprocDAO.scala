@@ -315,7 +315,7 @@ class HttpGoogleDataprocDAO(appName: String,
         )
     }
 
-    val dataprocProps: Map[String, String] = if (numWorkers.get == 0) {
+    val dataprocProps: Map[String, String] = if (numWorkers.getOrElse(0) == 0) {
       // Set a SoftwareConfig property that makes the cluster have only one node
       Map("dataproc:dataproc.allow.zero.workers" -> "true")
     }
