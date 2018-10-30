@@ -1,12 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import org.broadinstitute.dsde.workbench.ResourceFile
-import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
-import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V2
-import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles, GoogleProject}
-import org.broadinstitute.dsde.workbench.service.Sam
-import org.broadinstitute.dsde.workbench.service.util.Tags
-
 import scala.language.postfixOps
 
 class NotebookInstallSpec extends ClusterFixtureSpec {
@@ -39,25 +32,6 @@ class NotebookInstallSpec extends ClusterFixtureSpec {
         withNewNotebook(clusterFixture.cluster) { notebookPage =>
           notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
           notebookPage.executeCell("""import arrow""").get should include("ImportError: No module named arrow")
-        }
-      }
-    }
-
-    //Test to check if extensions are installed correctly
-    //Using nbtranslate extension from here:
-    //https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
-    "should install user specified notebook extensions" in { clusterFixture =>
-      val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
-      withResourceFileInBucket(clusterFixture.billingProject, translateExtensionFile, "application/x-gzip") { translateExtensionBucketPath =>
-        val clusterName = ClusterName("user-jupyter-ext" + makeRandomId())
-        withNewCluster(clusterFixture.billingProject, clusterName, ClusterRequest(Map(), Option(translateExtensionBucketPath.toUri), None)) { cluster =>
-          withWebDriver { implicit driver =>
-            withNewNotebook(cluster) { notebookPage =>
-              notebookPage.executeCell("1 + 1") shouldBe Some("2")
-              //Check if the mark up was translated correctly
-              notebookPage.translateMarkup("Hello") should include("Bonjour")
-            }
-          }
         }
       }
     }
