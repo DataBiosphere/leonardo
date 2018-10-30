@@ -315,12 +315,13 @@ class HttpGoogleDataprocDAO(appName: String,
         )
     }
 
-    val dataprocProps: Map[String, String] = if (numWorkers.getOrElse(0) == 0) {
-      // Set a SoftwareConfig property that makes the cluster have only one node
-      Map("dataproc:dataproc.allow.zero.workers" -> "true")
+    val dataprocProps: Map[String, String] = numWorkers match {
+      case Some(0) =>
+        // Set a SoftwareConfig property that makes the cluster have only one node
+        Map("dataproc:dataproc.allow.zero.workers" -> "true")
+      case None =>
+        Map.empty
     }
-    else
-      Map.empty
 
     val yarnProps = Map(
       // Helps with debugging
