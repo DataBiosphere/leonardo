@@ -184,6 +184,7 @@ class HttpGoogleDataprocDAO(appName: String,
       }
     }
 
+    //we need to use the pet email when adding workers
     clusterServiceAccount.foreach { serviceAccountEmail =>
       gceClusterConfig.setServiceAccount(serviceAccountEmail.value).setServiceAccountScopes((oauth2Scopes ++ bigqueryScopes ++ cloudSourceRepositoryScopes).asJava)
     }
@@ -194,21 +195,21 @@ class HttpGoogleDataprocDAO(appName: String,
         val update = new DataprocCluster().setConfig(new DataprocClusterConfig()
           .setWorkerConfig(new InstanceGroupConfig().setNumInstances(nw))
           .setSecondaryWorkerConfig(new InstanceGroupConfig().setNumInstances(np))
-          .setGceClusterConfig(null))
+          .setGceClusterConfig(gceClusterConfig))
         Some((update, mask))
 
       case (Some(nw), None) =>
         val mask = workerMask
         val update = new DataprocCluster().setConfig(new DataprocClusterConfig()
           .setWorkerConfig(new InstanceGroupConfig().setNumInstances(nw))
-          .setGceClusterConfig(null))
+          .setGceClusterConfig(gceClusterConfig))
         Some((update, mask))
 
       case (None, Some(np)) =>
         val mask = preemptibleMask
         val update = new DataprocCluster().setConfig(new DataprocClusterConfig()
           .setSecondaryWorkerConfig(new InstanceGroupConfig().setNumInstances(np))
-          .setGceClusterConfig(null))
+          .setGceClusterConfig(gceClusterConfig))
         Some((update, mask))
 
       case (None, None) =>
