@@ -1,6 +1,6 @@
 \<your comments for this PR go here\>
 
-Have you read [CONTRIBUTING.md](../CONTRIBUTING.md) lately? If not, do that first.
+Have you read [CONTRIBUTING.md](https://github.com/DataBiosphere/leonardo/blob/develop/CONTRIBUTING.md) lately? If not, do that first.
 
 I, the developer opening this PR, do solemnly pinky swear that:
 
