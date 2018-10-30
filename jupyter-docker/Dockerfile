@@ -116,7 +116,10 @@ ENV PYSPARK_DRIVER_PYTHON jupyter
 ENV PYSPARK_DRIVER_PYTHON_OPTS notebook
 
 ENV PATH $SPARK_HOME:$SPARK_HOME/python:$SPARK_HOME/bin:$HAIL_HOME:$PATH
-ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip:$JUPYTER_HOME/custom
+ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/python:$JUPYTER_HOME/custom
+
+ENV PYSPARK_PYTHON /usr/bin/python3
+ENV PYSPARK_DRIVER_PYTHON /usr/bin/ipython3
 
 RUN apt-get update \
  && apt-get install -yq --no-install-recommends \
@@ -178,6 +181,7 @@ RUN apt-get update \
  && pip3 install -U decorator==4.3.0 \
 # # python 3 packages
  && pip3 install numpy==1.15.2 \
+ && pip3 install py4j \
  && python3 -mpip install matplotlib==3.0.0 \
  && pip3 install pandas==0.23.4 \
  && pip3 install seaborn==0.9.0 \
