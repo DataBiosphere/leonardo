@@ -101,7 +101,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
 
           withNewCluster(project, request = request) { cluster =>
             withWebDriver { implicit driver =>
-              withNewNotebook(cluster, PySpark2) { notebookPage =>
+              withNewNotebook(cluster, PySpark3) { notebookPage =>
                 verifyHailImport(notebookPage, destPath, cluster.clusterName)
               }
             }
@@ -167,7 +167,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
           withNewCluster(project, request = request) { cluster =>
             // Verify a Hail job uses preemptibles
             withWebDriver { implicit driver =>
-              withNewNotebook(cluster, PySpark2) { notebookPage =>
+              withNewNotebook(cluster, PySpark3) { notebookPage =>
                 verifyHailImport(notebookPage, destPath, cluster.clusterName)
                 notebookPage.saveAndCheckpoint()
               }
@@ -245,7 +245,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
 
     "should install JupyterLab" taggedAs Tags.SmokeTest in {
       withProject { project => implicit token =>
-        withNewCluster(project, request = ClusterRequest(userJupyterExtensionConfig = Some(jupyterLabExtensionClusterRequest))) { cluster =>
+        withNewCluster(project, request = ClusterRequest()) { cluster =>
           withWebDriver { implicit driver =>
             // Check that the /lab URL is accessible
             val getResult = Try(Leonardo.lab.getApi(project, cluster.clusterName))
