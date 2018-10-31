@@ -1,12 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import org.broadinstitute.dsde.workbench.ResourceFile
-import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
-import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V2
-import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles, GoogleProject}
-import org.broadinstitute.dsde.workbench.service.Sam
-import org.broadinstitute.dsde.workbench.service.util.Tags
-
 import scala.language.postfixOps
 
 class NotebookInstallSpec extends ClusterFixtureSpec {
@@ -30,61 +23,15 @@ class NotebookInstallSpec extends ClusterFixtureSpec {
       }
     }
 
-    // requires a new cluster because we want to pass in a user script in the cluster request
-    "should allow user to create a cluster with a script" taggedAs Tags.SmokeTest in { clusterFixture =>
+    // This is the negative counterpart of the NotebookUserScriptSpec test named
+    // "should allow importing a package that requires a user script that IS installed"
+    // to verify that we can only import 'arrow' with the user script specified in that test
+    "should error importing a package that requires an uninstalled user script" in { clusterFixture =>
       withWebDriver { implicit driver =>
         //a cluster without the user script should not be able to import the arrow library
         withNewNotebook(clusterFixture.cluster) { notebookPage =>
           notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
           notebookPage.executeCell("""import arrow""").get should include("ImportError: No module named arrow")
-        }
-      }
-
-      // create a new bucket, add the user script to the bucket, create a new cluster using the URI of the user script and create a notebook that will check if the user script ran
-      val gpAllocScriptProject = claimGPAllocProject(hermioneCreds)
-      val billingScriptProject = GoogleProject(gpAllocScriptProject.projectName)
-      withNewGoogleBucket(billingScriptProject) { bucketName =>
-        val ronPetServiceAccount = Sam.user.petServiceAccountEmail(clusterFixture.billingProject.value)(ronAuthToken)
-        googleStorageDAO.setBucketAccessControl(bucketName, EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount), GcsRoles.Owner)
-
-        val userScriptString = "#!/usr/bin/env bash\n\npip2 install arrow"
-        val userScriptObjectName = GcsObjectName("user-script.sh")
-        val userScriptUri = s"gs://${bucketName.value}/${userScriptObjectName.value}"
-
-        withNewBucketObject(bucketName, userScriptObjectName, userScriptString, "text/plain") { objectName =>
-          googleStorageDAO.setObjectAccessControl(bucketName, objectName, EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount), GcsRoles.Owner)
-          val clusterName = ClusterName("user-script-cluster" + makeRandomId())
-
-          withWebDriver { implicit driver =>
-            withNewCluster(clusterFixture.billingProject, clusterName, ClusterRequest(Map(), None, Option(userScriptUri)), apiVersion = V2) { cluster =>
-              Thread.sleep(10000)
-              withNewNotebook(cluster) { notebookPage =>
-                notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
-                notebookPage.executeCell("""import arrow""")
-                notebookPage.executeCell("""arrow.get(727070400)""") shouldBe Some("<Arrow [1993-01-15T04:00:00+00:00]>")
-              }
-            }(ronAuthToken)
-          }
-
-        }
-      }
-    }
-
-    //Test to check if extensions are installed correctly
-    //Using nbtranslate extension from here:
-    //https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
-    "should install user specified notebook extensions" in { clusterFixture =>
-      val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
-      withResourceFileInBucket(clusterFixture.billingProject, translateExtensionFile, "application/x-gzip") { translateExtensionBucketPath =>
-        val clusterName = ClusterName("user-jupyter-ext" + makeRandomId())
-        withNewCluster(clusterFixture.billingProject, clusterName, ClusterRequest(Map(), Option(translateExtensionBucketPath.toUri), None)) { cluster =>
-          withWebDriver { implicit driver =>
-            withNewNotebook(cluster) { notebookPage =>
-              notebookPage.executeCell("1 + 1") shouldBe Some("2")
-              //Check if the mark up was translated correctly
-              notebookPage.translateMarkup("Hello") should include("Bonjour")
-            }
-          }
         }
       }
     }
