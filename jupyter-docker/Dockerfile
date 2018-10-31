@@ -179,6 +179,7 @@ RUN apt-get update \
 # && python3 -m ipykernel install --name python3 --display-name "Python 3" \
 # # Hail requires decorator
  && pip3 install -U decorator==4.3.0 \
+ && pip3 install parsimonious==0.8.1 \
 # # python 3 packages
  && pip3 install numpy==1.15.2 \
  && pip3 install py4j \

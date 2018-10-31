@@ -1,6 +1,7 @@
 import distutils.util
 import subprocess
 import os
+import sys
 import tornado
 from tornado import gen
 from tornado.web import HTTPError
@@ -55,7 +56,7 @@ class LocalizeHandler(IPythonHandler):
 
     try:
       with open(dest, 'w+', buffering=1) as destout:
-        destout.write(uri.data)
+        destout.write(uri.data.decode('utf-8'))
         locout.write('{}: wrote {} bytes\n'.format(dest, len(uri.data)))
     except IOError as e:
       locout.write('{}: I/O error({0}): {1}\n'.format(dest, e.errno, e.strerror))
