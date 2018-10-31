@@ -319,7 +319,7 @@ class HttpGoogleDataprocDAO(appName: String,
       case Some(0) =>
         // Set a SoftwareConfig property that makes the cluster have only one node
         Map("dataproc:dataproc.allow.zero.workers" -> "true")
-      case None =>
+      case _ =>
         Map.empty
     }
 
