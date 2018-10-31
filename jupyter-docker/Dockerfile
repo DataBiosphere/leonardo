@@ -149,7 +149,7 @@ RUN apt-get update \
  && pip install google-cloud-core==0.28.1 \
  && pip install google-cloud-datastore==1.7.0 \
  && pip install google-cloud-resource-manager==0.28.1 \
- && pip install google-cloud-storage==1.10.0 \
+ && pip install google-cloud-storage==1.13.0 \
  && pip install google-auth==1.5.1 \
  && pip install --ignore-installed firecloud==0.16.18 \
  && pip install -U scikit-learn==0.20.0 \
