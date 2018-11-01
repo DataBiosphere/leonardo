@@ -17,9 +17,17 @@ start () {
 
     echo "Starting Jupyter server container..."
     docker create -it --rm --name ${CONTAINER} -p 8000:8000 -e GOOGLE_PROJECT=project -e CLUSTER_NAME=cluster "${DOCKER_IMG}"
-    docker cp jupyter-docker/jupyter_notebook_config.py ${CONTAINER}:/etc/jupyter/jupyter_notebook_config.py
-    docker cp jupyter-docker/jupyter_localize_extension.py ${CONTAINER}:/etc/jupyter/custom/jupyter_localize_extension.py
-    docker cp jupyter-docker/jupyter_delocalize.py ${CONTAINER}:/etc/jupyter/custom/jupyter_delocalize.py
+
+    # Substitute templated vars in the notebook config.
+    local tmp_config=$(mktemp notebook_config.XXXX)
+    cp src/main/resources/jupyter/jupyter_notebook_config.py ${tmp_config}
+    sed -i 's/$(contentSecurityPolicy)/""/' ${tmp_config}
+    chmod a+rw ${tmp_config}
+    docker cp ${tmp_config} ${CONTAINER}:/etc/jupyter/jupyter_notebook_config.py
+    rm ${tmp_config}
+
+    docker cp jupyter-docker/custom/jupyter_localize_extension.py ${CONTAINER}:/etc/jupyter/custom/jupyter_localize_extension.py
+    docker cp jupyter-docker/custom/jupyter_delocalize.py ${CONTAINER}:/etc/jupyter/custom/jupyter_delocalize.py
     # To debug startup failures, add -a here to attach.
     docker start -a ${CONTAINER}
 
