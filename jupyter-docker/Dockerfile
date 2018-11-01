@@ -137,6 +137,7 @@ RUN apt-get update \
  # Hail requires decorator
  && pip install -U decorator==4.3.0 \
  && pip install numpy==1.15.2 \
+ && pip install py4j \
  && python -mpip install matplotlib==2.2.3\
  && pip install pandas==0.23.4 \
  && pip install seaborn==0.9.0 \
