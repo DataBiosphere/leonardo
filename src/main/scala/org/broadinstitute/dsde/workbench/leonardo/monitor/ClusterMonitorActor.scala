@@ -152,7 +152,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       // Remove the Dataproc Worker IAM role for the cluster service account.
       // Only happens if the cluster was created with a service account other
       // than the compute engine default service account.
-      _ <- if (clusterStatus == ClusterStatus.Creating) removeIamRolesForUser else Future.successful(())
+      _ <- if (clusterStatus == ClusterStatus.Creating || clusterStatus == ClusterStatus.Updating) removeIamRolesForUser else Future.successful(())
     } yield {
       // Finally pipe a shutdown message to this actor
       logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is ready for use!")
@@ -356,10 +356,13 @@ class ClusterMonitorActor(val cluster: Cluster,
       case None => Future.successful(())
       case Some(serviceAccountEmail) =>
         // Only remove the Dataproc Worker role if there are no other clusters with the same owner
-        // in the DB with CREATING status. This prevents situations where we prematurely yank pet SA
-        // roles when the same user is creating multiple clusters.
+        // in the DB with CREATING or UPDATING status. This prevents situations where we prematurely
+        // yank pet SA roles when the same user is creating or resizing multiple clusters.
         dbRef.inTransaction { dataAccess =>
-          dataAccess.clusterQuery.countByClusterServiceAccountAndStatus(serviceAccountEmail, ClusterStatus.Creating)
+          for {
+            creating <- dataAccess.clusterQuery.countByClusterServiceAccountAndStatus(serviceAccountEmail, ClusterStatus.Creating)
+            updating <- dataAccess.clusterQuery.countByClusterServiceAccountAndStatus(serviceAccountEmail, ClusterStatus.Updating)
+          } yield creating + updating
         } flatMap { count =>
           if (count > 0) {
             Future.successful(())

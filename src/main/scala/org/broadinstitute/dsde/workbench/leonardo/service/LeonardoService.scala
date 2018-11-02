@@ -363,7 +363,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       for {
         _ <- handleUpdatingAutopauseThreshold(existingCluster.id, clusterRequest.autopause, clusterRequest.autopauseThreshold)
 
-        _ <- handleResizingCluster(existingCluster, existingCluster.serviceAccountInfo, clusterRequest.machineConfig)
+        _ <- handleResizingCluster(existingCluster, clusterRequest.machineConfig)
 
         // Set the cluster status to Updating
         _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(existingCluster.id, ClusterStatus.Updating) }
@@ -383,10 +383,14 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
-  def handleResizingCluster(existingCluster: Cluster, serviceAccountInfo: ServiceAccountInfo, machineConfigOpt: Option[MachineConfig]): Future[Unit] = {
+  def handleResizingCluster(existingCluster: Cluster, machineConfigOpt: Option[MachineConfig]): Future[Unit] = {
     machineConfigOpt match {
       case Some(machineConfig) =>
         for {
+          // Add Dataproc Worker role to the cluster service account, if present.
+          // This is needed to be able to spin up Dataproc clusters.
+          // If the Google Compute default service account is being used, this is not necessary.
+          _ <- addDataprocWorkerRoleToServiceAccount(existingCluster.googleProject, existingCluster.serviceAccountInfo.clusterServiceAccount)
           _ <- gdDAO.resizeCluster(existingCluster.googleProject, existingCluster.clusterName, machineConfig.numberOfWorkers, machineConfig.numberOfPreemptibleWorkers)
           _ <- dbRef.inTransaction { dataAccess => machineConfig.numberOfWorkers.map(numWorkers => dataAccess.clusterQuery.updateNumberOfWorkers(existingCluster.id, numWorkers)) getOrElse DBIO.successful(0) }
           _ <- dbRef.inTransaction { dataAccess => machineConfig.numberOfPreemptibleWorkers.map(numWorkers => dataAccess.clusterQuery.updateNumberOfPreemptibleWorkers(existingCluster.id, Option(numWorkers))) getOrElse DBIO.successful(0) }
