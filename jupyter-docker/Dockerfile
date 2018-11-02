@@ -137,7 +137,7 @@ RUN apt-get update \
  # Hail requires decorator
  && pip install -U decorator==4.3.0 \
  && pip install numpy==1.15.2 \
- && pip install py4j \
+ && pip install py4j==0.10.7 \
  && python -mpip install matplotlib==2.2.3\
  && pip install pandas==0.23.4 \
  && pip install seaborn==0.9.0 \
@@ -180,7 +180,7 @@ RUN apt-get update \
  && pip3 install parsimonious==0.8.1 \
 # # python 3 packages
  && pip3 install numpy==1.15.2 \
- && pip3 install py4j \
+ && pip3 install py4j==0.10.7 \
  && python3 -mpip install matplotlib==3.0.0 \
  && pip3 install pandas==0.23.4 \
  && pip3 install seaborn==0.9.0 \

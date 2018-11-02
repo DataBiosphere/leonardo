@@ -31,6 +31,9 @@ spark.driver.extraClassPath ${HAIL_HOME}/${HAILJAR}
 # Add JARs to Classpaths: distributed to executor working directory by above spark.jars directive
 spark.executor.extraClassPath ./${HAILJAR}
 
+spark.serializer org.apache.spark.serializer.KryoSerializer
+
+spark.kryo.registrator is.hail.kryo.HailKryoRegistrator
 # Hail needs at least 50GB
 
 spark.sql.files.maxPartitionBytes=100000000000
