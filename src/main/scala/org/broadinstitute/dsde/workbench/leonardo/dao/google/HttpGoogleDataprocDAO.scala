@@ -163,58 +163,28 @@ class HttpGoogleDataprocDAO(appName: String,
     errorOpt.value.handleGoogleException(GoogleProject(""), operationName.map(_.value))
   }
 
-  override def resizeCluster(googleProject: GoogleProject, clusterName: ClusterName, numWorkers: Option[Int] = None, numPreemptibles: Option[Int] = None, clusterServiceAccount: Option[WorkbenchEmail] = None, credentialsFileName: Option[String] = None): Future[Unit] = {
+  override def resizeCluster(googleProject: GoogleProject, clusterName: ClusterName, numWorkers: Option[Int] = None, numPreemptibles: Option[Int] = None): Future[Unit] = {
     val workerMask = "config.worker_config.num_instances"
     val preemptibleMask = "config.secondary_worker_config.num_instances"
-
-    // Create a GceClusterConfig, which has the common config settings for resources of Google Compute Engine cluster instances,
-    // applicable to all instances in the cluster.
-    // Set the network tag, network, and subnet. This allows the created GCE instances to be exposed by Leo's firewall rule.
-    val gceClusterConfig = {
-      val baseConfig = new GceClusterConfig()
-        .setTags(List(networkTag.value).asJava)
-
-      (vpcNetwork, vpcSubnet) match {
-        case (_, Some(subnet)) =>
-          baseConfig.setSubnetworkUri(subnet.value)
-        case (Some(network), _) =>
-          baseConfig.setNetworkUri(network.value)
-        case _ =>
-          baseConfig
-      }
-    }
-
-    val swConfig: SoftwareConfig = getSoftwareConfig(None, credentialsFileName)
-
-    //we need to use the pet email when adding workers
-    clusterServiceAccount.foreach { serviceAccountEmail =>
-      gceClusterConfig.setServiceAccount(serviceAccountEmail.value).setServiceAccountScopes((oauth2Scopes ++ bigqueryScopes ++ cloudSourceRepositoryScopes).asJava)
-    }
 
     val updateAndMask = (numWorkers, numPreemptibles) match {
       case (Some(nw), Some(np)) =>
         val mask = List(Some(workerMask), Some(preemptibleMask)).flatten.mkString(",")
         val update = new DataprocCluster().setConfig(new DataprocClusterConfig()
           .setWorkerConfig(new InstanceGroupConfig().setNumInstances(nw))
-          .setSecondaryWorkerConfig(new InstanceGroupConfig().setNumInstances(np))
-          .setGceClusterConfig(gceClusterConfig)
-          .setSoftwareConfig(swConfig))
+          .setSecondaryWorkerConfig(new InstanceGroupConfig().setNumInstances(np)))
         Some((update, mask))
 
       case (Some(nw), None) =>
         val mask = workerMask
         val update = new DataprocCluster().setConfig(new DataprocClusterConfig()
-          .setWorkerConfig(new InstanceGroupConfig().setNumInstances(nw))
-          .setGceClusterConfig(gceClusterConfig)
-          .setSoftwareConfig(swConfig))
+          .setWorkerConfig(new InstanceGroupConfig().setNumInstances(nw)))
         Some((update, mask))
 
       case (None, Some(np)) =>
         val mask = preemptibleMask
         val update = new DataprocCluster().setConfig(new DataprocClusterConfig()
-          .setSecondaryWorkerConfig(new InstanceGroupConfig().setNumInstances(np))
-          .setGceClusterConfig(gceClusterConfig)
-          .setSoftwareConfig(swConfig))
+          .setSecondaryWorkerConfig(new InstanceGroupConfig().setNumInstances(np)))
         Some((update, mask))
 
       case (None, None) =>

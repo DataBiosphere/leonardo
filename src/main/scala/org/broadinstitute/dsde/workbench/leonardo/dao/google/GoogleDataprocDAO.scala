@@ -26,7 +26,7 @@ trait GoogleDataprocDAO {
 
   def getClusterErrorDetails(operationName: Option[OperationName]): Future[Option[ClusterErrorDetails]]
 
-  def resizeCluster(googleProject: GoogleProject, clusterName: ClusterName, numWorkers: Option[Int] = None, numPreemptibles: Option[Int] = None, clusterServiceAccount: Option[WorkbenchEmail] = None, credentialsFileName: Option[String] = None): Future[Unit]
+  def resizeCluster(googleProject: GoogleProject, clusterName: ClusterName, numWorkers: Option[Int] = None, numPreemptibles: Option[Int] = None): Future[Unit]
 
   def getUserInfoAndExpirationFromAccessToken(accessToken: String): Future[(UserInfo, Instant)]
 }
