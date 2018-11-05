@@ -668,11 +668,11 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
         |    Star Alleles: 0
         |     Max Alleles: 2""".stripMargin
 
-    notebookPage.executeCell("from hail import *") shouldBe None
-    notebookPage.executeCell("hc = HailContext(sc)").get should include(welcomeToHail)
+    notebookPage.executeCell("import hail as hl") shouldBe None
+    notebookPage.executeCell("hl.init(sc)").get should include(welcomeToHail)
 
     notebookPage.executeCell(s"chr20vcf = '${vcfPath.toUri}'") shouldBe None
-    notebookPage.executeCell("imported = hc.import_vcf(chr20vcf)", hailTimeout).get should include("Hail: INFO: Coerced almost-sorted dataset")
+    notebookPage.executeCell("imported = hl.import_vcf(chr20vcf)", hailTimeout).get should include("Hail: INFO: Coerced almost-sorted dataset")
 
     notebookPage.executeCell("imported.summarize().report()", hailTimeout).get should include(vcfSummary)
 
