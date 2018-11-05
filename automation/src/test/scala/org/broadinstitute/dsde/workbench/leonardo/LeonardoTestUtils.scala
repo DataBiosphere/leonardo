@@ -672,9 +672,9 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     notebookPage.executeCell("hl.init(sc)").get should include(welcomeToHail)
 
     notebookPage.executeCell(s"chr20vcf = '${vcfPath.toUri}'") shouldBe None
-    notebookPage.executeCell("imported = hl.import_vcf(chr20vcf)", hailTimeout).get should include("Hail: INFO: Coerced almost-sorted dataset")
+    notebookPage.executeCell("imported = hl.import_vcf(chr20vcf)", hailTimeout) shouldBe None
 
-    notebookPage.executeCell("imported.summarize().report()", hailTimeout).get should include(vcfSummary)
+    notebookPage.executeCell("imported.describe()", hailTimeout).get should include(vcfSummary)
 
     // show that the Hail log contains jobs that were run on preemptible nodes
 
