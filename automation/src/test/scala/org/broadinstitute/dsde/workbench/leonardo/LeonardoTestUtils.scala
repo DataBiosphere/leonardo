@@ -21,7 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.{V1, V2}
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.util.LocalFileUtil
+import org.broadinstitute.dsde.workbench.util.{LocalFileUtil, Retry}
 import org.openqa.selenium.WebDriver
 import org.scalactic.source.Position
 import org.scalatest.{Matchers, Suite}
@@ -36,7 +36,7 @@ import scala.util.{Failure, Random, Success, Try}
 
 case class TimeResult[R](result:R, duration:FiniteDuration)
 
-trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures {
+trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures with Retry {
   this: Suite with BillingFixtures =>
 
   val logDir = new File("output")
@@ -481,11 +481,14 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   def withNewNotebook[T](cluster: Cluster, kernel: Kernel = Python2, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
-      notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
-        testCode(notebookPage)
+      retryUntilSuccessOrTimeout(failureLogMessage = s"Cannot make new notebook")(10 seconds, 5 minutes) {() =>
+        notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
+          testCode(notebookPage)
+        }
       }
     }
   }
+
 
   def withOpenNotebook[T](cluster: Cluster, notebookPath: File, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
