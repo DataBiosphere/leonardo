@@ -160,10 +160,10 @@ object Leonardo extends RestClient with LazyLogging {
 
     def update(googleProject: GoogleProject,
                clusterName: ClusterName,
-               clusterRequest: ClusterRequest): Cluster = {
+               clusterRequest: ClusterRequest)(implicit token: AuthToken): Cluster = {
       val path = clusterPath(googleProject, clusterName)
       logger.info(s"Update cluster: PATCH /$path")
-      patchRequest(url + path, clusterRequest)
+      handleClusterResponse(patchRequest(url + path, clusterRequest))
     }
   }
 
