@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo.dns
 import java.util.concurrent.TimeUnit
 
 import akka.http.scaladsl.model.Uri.Host
-import akka.remote.WireFormats.FiniteDuration
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDnsCacheConfig, ProxyConfig}
@@ -11,6 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, IP}
+import org.broadinstitute.dsde.workbench.leonardo.util.ValueBox
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -20,7 +20,7 @@ object ClusterDnsCache {
   // accessed by JupyterNameService. JupyterNameService is instantiated by the container and is
   // stateless, so it doesn't have an ExecutionContext, etc needed to interact with an Actor.
 
-  @volatile var HostToIp: Map[Host, IP] = Map.empty
+  val HostToIp: ValueBox[Map[Host, IP]] = ValueBox(Map.empty)
 
   sealed trait HostStatus
   case object HostNotFound extends HostStatus
@@ -45,8 +45,6 @@ case class DnsCacheKey(googleProject: GoogleProject, clusterName: ClusterName)
   */
 class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConfig: ClusterDnsCacheConfig)(implicit executionContext: ExecutionContext) extends LazyLogging {
 
-
-
   val projectNameToHost = CacheBuilder.newBuilder()
     .expireAfterWrite(dnsCacheConfig.cacheExpiryTime.toSeconds, TimeUnit.SECONDS)
     .maximumSize(dnsCacheConfig.cacheMaxSize)
@@ -57,7 +55,7 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConf
               case  Some(cluster) => {
                 val res = projectNameToHostEntry(cluster)._2
                 if(res.isInstanceOf[HostReady]) {
-                  ClusterDnsCache.HostToIp = Map(hostToIpEntry(cluster))
+                  ClusterDnsCache.HostToIp.value = Map(hostToIpEntry(cluster))
                 }
                 res
               }
