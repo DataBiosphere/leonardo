@@ -481,14 +481,13 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   def withNewNotebook[T](cluster: Cluster, kernel: Kernel = Python2, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
-      retryUntilSuccessOrTimeout(failureLogMessage = s"Cannot make new notebook")(10 seconds, 5 minutes) {() =>
+      retryUntilSuccessOrTimeout(failureLogMessage = s"Cannot make new notebook")(30 seconds, 2 minutes) {() =>
         notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
           testCode(notebookPage)
         }
       }
     }
   }
-
 
   def withOpenNotebook[T](cluster: Cluster, notebookPath: File, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
