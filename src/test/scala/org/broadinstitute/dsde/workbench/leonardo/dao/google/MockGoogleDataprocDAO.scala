@@ -71,11 +71,6 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
     Future.successful {
       if (clusters.contains(clusterName))
         instances.getOrElse(clusterName, mutable.Map[DataprocRole, Set[InstanceKey]]()).toMap
-
-
-//        Map(Master -> Set(InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName("master-instance"))),
-//            Worker -> Set(InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName("worker-instance-1")),
-//                          InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName("worker-instance-2"))))
       else Map.empty
     }
   }
@@ -104,13 +99,18 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
   override def resizeCluster(googleProject: GoogleProject, clusterName: ClusterName, numWorkers: Option[Int], numPreemptibles: Option[Int]): Future[Unit] = {
     if(numWorkers.isDefined) {
       val workerInstances = numWorkers.map(num => List.tabulate(num) { i => InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName(s"worker-instance-$i")) }.toSet).getOrElse(Set.empty)
-      //todo: this is wrong and will need to retain other instance types
-      instances += (clusterName -> mutable.Map(Worker -> workerInstances))
+      val existingSecondaryInstances = instances(clusterName)(SecondaryWorker)
+      val existingMasterInstance = instances(clusterName)(Master)
+
+      instances += (clusterName -> mutable.Map(Master -> existingMasterInstance, Worker -> workerInstances, SecondaryWorker -> existingSecondaryInstances))
     }
 
     if(numPreemptibles.isDefined) {
       val secondaryWorkerInstances = numPreemptibles.map(num => List.tabulate(num) { i => InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName(s"secondary-worker-instance-$i")) }.toSet).getOrElse(Set.empty)
-      instances + (clusterName -> (SecondaryWorker -> secondaryWorkerInstances))
+      val existingWorkerInstances = instances(clusterName)(Worker)
+      val existingMasterInstance = instances(clusterName)(Master)
+
+      instances += (clusterName -> mutable.Map(Master -> existingMasterInstance, Worker -> existingWorkerInstances, SecondaryWorker -> secondaryWorkerInstances))
     }
 
     Future.successful(())
