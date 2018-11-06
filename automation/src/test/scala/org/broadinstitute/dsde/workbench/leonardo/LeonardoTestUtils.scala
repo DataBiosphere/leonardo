@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.util.Base64
 
+import akka.actor.ActorSystem
 import cats.data.OptionT
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
@@ -39,6 +40,7 @@ case class TimeResult[R](result:R, duration:FiniteDuration)
 trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures with Retry {
   this: Suite with BillingFixtures =>
 
+  val system: ActorSystem = ActorSystem("leotests")
   val logDir = new File("output")
   logDir.mkdirs
 
@@ -484,13 +486,15 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     case _ => false
   }
 
+  implicit val ec: ExecutionContextExecutor = ExecutionContext.global
   def withNewNotebook[T](cluster: Cluster, kernel: Kernel = Python2, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
-      retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds, 2 minutes) {() =>
-        notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
+      val result: Future[T] = retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds, 2 minutes) {() =>
+        Future(notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
           testCode(notebookPage)
-        }
+        })
       }
+      Await.result(result, 10 minutes)
     }
   }
 
