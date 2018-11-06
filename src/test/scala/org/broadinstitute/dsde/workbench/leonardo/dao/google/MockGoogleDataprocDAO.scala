@@ -104,6 +104,7 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
   override def resizeCluster(googleProject: GoogleProject, clusterName: ClusterName, numWorkers: Option[Int], numPreemptibles: Option[Int]): Future[Unit] = {
     if(numWorkers.isDefined) {
       val workerInstances = numWorkers.map(num => List.tabulate(num) { i => InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName(s"worker-instance-$i")) }.toSet).getOrElse(Set.empty)
+      //todo: this is wrong and will need to retain other instance types
       instances += (clusterName -> mutable.Map(Worker -> workerInstances))
     }
 

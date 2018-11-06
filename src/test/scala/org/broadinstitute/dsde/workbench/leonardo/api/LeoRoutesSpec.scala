@@ -127,6 +127,27 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     }
   }
 
+  it should "202 when updating a cluster" in isolatedDbTest{
+    val newCluster = ClusterRequest(Some(Map.empty), None)
+    val clusterName = "my-cluster"
+
+    Put(s"/api/cluster/v2/${googleProject.value}/$clusterName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+    }
+
+    // simulate the cluster transitioning to Running
+    dbFutureValue { dataAccess =>
+      dataAccess.clusterQuery.getActiveClusterByName(googleProject, ClusterName(clusterName)).flatMap {
+        case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"))
+        case None => DBIO.successful(0)
+      }
+    }
+
+    Patch(s"/api/cluster/${googleProject.value}/$clusterName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+    }
+  }
+
   it should "200 when listing no clusters" in isolatedDbTest {
     Get("/api/clusters") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
