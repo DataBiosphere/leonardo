@@ -127,7 +127,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     }
   }
 
-  it should "202 when updating a cluster" in isolatedDbTest{
+  it should "202 when updating a running cluster" in isolatedDbTest{
     val newCluster = ClusterRequest(Some(Map.empty), None)
     val clusterName = "my-cluster"
 
@@ -145,6 +145,21 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
 
     Patch(s"/api/cluster/${googleProject.value}/$clusterName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
+    }
+  }
+
+  it should "409 when updating a non-running cluster" in isolatedDbTest{
+    val newCluster = ClusterRequest(Some(Map.empty), None)
+    val clusterName = "my-cluster"
+
+    Put(s"/api/cluster/v2/${googleProject.value}/$clusterName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+    }
+
+    //make sure to leave the cluster in Creating status for this next part
+
+    Patch(s"/api/cluster/${googleProject.value}/$clusterName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
+      status shouldEqual StatusCodes.Conflict
     }
   }
 
