@@ -45,7 +45,7 @@ case class DnsCacheKey(googleProject: GoogleProject, clusterName: ClusterName)
   */
 class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConfig: ClusterDnsCacheConfig)(implicit executionContext: ExecutionContext) extends LazyLogging {
 
-  val projectNameToHost = CacheBuilder.newBuilder()
+  val projectClusterToHostStatus = CacheBuilder.newBuilder()
     .expireAfterWrite(dnsCacheConfig.cacheExpiryTime.toSeconds, TimeUnit.SECONDS)
     .maximumSize(dnsCacheConfig.cacheMaxSize)
     .build(

@@ -252,7 +252,7 @@ class ProxyService(proxyConfig: ProxyConfig,
     */
   protected def getTargetHost(googleProject: GoogleProject, clusterName: ClusterName): Future[HostStatus] = {
     implicit val timeout: Timeout = Timeout(5 seconds)
-    clusterDnsCache.projectNameToHost.get(DnsCacheKey(googleProject, clusterName)).mapTo[HostStatus]
+    clusterDnsCache.projectClusterToHostStatus.get(DnsCacheKey(googleProject, clusterName)).mapTo[HostStatus]
   }
 
   private def filterHeaders(headers: immutable.Seq[HttpHeader]) = {
