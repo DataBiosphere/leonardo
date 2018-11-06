@@ -45,22 +45,29 @@ case class DnsCacheKey(googleProject: GoogleProject, clusterName: ClusterName)
   */
 class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConfig: ClusterDnsCacheConfig)(implicit executionContext: ExecutionContext) extends LazyLogging {
 
-  val projectClusterToHostStatus = CacheBuilder.newBuilder()
+  val projectClusterToHostStatusCache = CacheBuilder.newBuilder()
     .expireAfterWrite(dnsCacheConfig.cacheExpiryTime.toSeconds, TimeUnit.SECONDS)
     .maximumSize(dnsCacheConfig.cacheMaxSize)
     .build(
       new CacheLoader[DnsCacheKey, Future[HostStatus]] {
         def load(key: DnsCacheKey) = {
-          dbRef.inTransaction {dataAccess => dataAccess.clusterQuery.getActiveClusterByName(key.googleProject, key.clusterName)}.map {
-              case  Some(cluster) => {
-                val res = projectNameToHostEntry(cluster)._2
-                if(res.isInstanceOf[HostReady]) {
-                  ClusterDnsCache.HostToIp.value = Map(hostToIpEntry(cluster))
+          dbRef
+            .inTransaction { _.clusterQuery.getActiveClusterByName(key.googleProject, key.clusterName) }
+            .map {
+              case Some(cluster) =>
+                val (_, hostStatus) = hostStatusByProjectAndCluster(cluster)
+
+                hostStatus match {
+                  case HostReady(_) =>
+                    // TODO Check if we really want to overwrite the entire Map (instead of updating the particular entry)
+                    ClusterDnsCache.HostToIp.value = Map(hostToIpEntry(cluster))
+                  case _ => 
                 }
-                res
-              }
+
+                hostStatus
+              
               case None => HostNotFound
-          }
+            }
         }
       }
     )
@@ -75,7 +82,7 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConf
 
   private def hostToIpEntry(c: Cluster): (Host, IP) = host(c) -> c.dataprocInfo.hostIp.get
 
-  private def projectNameToHostEntry(c: Cluster): ((GoogleProject, ClusterName), HostStatus) = {
+  private def hostStatusByProjectAndCluster(c: Cluster): ((GoogleProject, ClusterName), HostStatus) = {
     if (c.status.isStartable)
       (c.googleProject, c.clusterName) -> HostPaused
     else if (c.dataprocInfo.hostIp.isDefined)

@@ -32,6 +32,6 @@ class HttpJupyterDAO(val clusterDnsCache: ClusterDnsCache)(implicit system: Acto
 
   protected def getTargetHost(googleProject: GoogleProject, clusterName: ClusterName): Future[HostStatus] = {
     implicit val timeout: Timeout = Timeout(5 seconds)
-    clusterDnsCache.projectClusterToHostStatus.get(DnsCacheKey(googleProject, clusterName)).mapTo[HostStatus]
+    clusterDnsCache.projectClusterToHostStatusCache.get(DnsCacheKey(googleProject, clusterName)).mapTo[HostStatus]
   }
 }
