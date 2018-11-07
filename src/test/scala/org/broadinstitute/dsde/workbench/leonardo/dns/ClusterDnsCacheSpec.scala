@@ -35,11 +35,11 @@ class ClusterDnsCacheSpec extends FlatSpecLike with BeforeAndAfterAll with TestC
     //This replicates how the proxy accesses these maps as well.
     //ProjectNameToHost read updates the HostToIP map
     eventually {
-      clusterDnsCache.projectClusterToHostStatusCache.get(DnsCacheKey(cluster1.googleProject, cluster1.clusterName)).futureValue shouldEqual
+      clusterDnsCache.cache.get(DnsCacheKey(cluster1.googleProject, cluster1.clusterName)).futureValue shouldEqual
         HostReady(Host(s"${cluster1.dataprocInfo.googleId.get.toString}.jupyter.firecloud.org"))
     }
     eventually {
-      clusterDnsCache.projectClusterToHostStatusCache.get(DnsCacheKey(cluster2.googleProject, cluster2.clusterName)).futureValue shouldEqual
+      clusterDnsCache.cache.get(DnsCacheKey(cluster2.googleProject, cluster2.clusterName)).futureValue shouldEqual
         HostNotReady
     }
 
