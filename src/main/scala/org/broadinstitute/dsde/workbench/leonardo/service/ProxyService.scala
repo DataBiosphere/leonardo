@@ -122,7 +122,7 @@ class ProxyService(proxyConfig: ProxyConfig,
   }
 
   private def proxyInternal(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest): Future[HttpResponse] = {
-    logger.debug(s"Received proxy request for user user $userInfo")
+    logger.debug(s"Received proxy request for user $userInfo")
     getTargetHost(googleProject, clusterName) flatMap {
       case HostReady(targetHost) =>
         clusterDateAccessedActor ! UpdateDateAccessed(clusterName, googleProject, Instant.now())
