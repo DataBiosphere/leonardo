@@ -9,12 +9,15 @@ import org.scalatest.Assertions
 import org.scalatest.Matchers.convertToAnyShouldWrapper
 import org.scalatest.concurrent.Eventually
 import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
+import org.scalatest.exceptions.TestFailedDueToTimeoutException
 import org.scalatest.time.{Seconds, Span}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
+case class KernelNotReadyException(timeElapsed:Timeout)
+  extends Exception(s"Jupyter kernel is NOT ready after waiting ${timeElapsed}")
 
 class NotebookPage(override val url: String)(override implicit val authToken: AuthToken, override implicit val webDriver: WebDriver)
   extends JupyterPage with Eventually with LazyLogging {
@@ -211,11 +214,13 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   def awaitReadyKernel(timeout: FiniteDuration): Unit = {
     val time = Timeout(scaled(Span(timeout.toSeconds, Seconds)))
     val pollInterval = Interval(scaled(Span(5, Seconds)))
-    eventually(time, pollInterval) {
-      val ready = (!cellsAreRunning && isKernelReady && kernelNotificationText == "none")
-      Assertions.withClue(s"Jupyter kernel is NOT ready after waiting ${time}.") {
+    try {
+      eventually(time, pollInterval) {
+        val ready = (!cellsAreRunning && isKernelReady && kernelNotificationText == "none")
         ready shouldBe true
       }
+    } catch {
+      case e: TestFailedDueToTimeoutException => throw KernelNotReadyException(time)
     }
   }
 
