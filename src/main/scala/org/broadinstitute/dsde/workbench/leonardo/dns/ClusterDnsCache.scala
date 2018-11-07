@@ -19,8 +19,8 @@ object ClusterDnsCache {
   // This is stored as volatile in the object instead of inside the actor because it needs to be
   // accessed by JupyterNameService. JupyterNameService is instantiated by the container and is
   // stateless, so it doesn't have an ExecutionContext, etc needed to interact with an Actor.
-
-  val HostToIp: ValueBox[Map[Host, IP]] = ValueBox(Map.empty)
+  private val HostToIp: ValueBox[Map[Host, IP]] = ValueBox(Map.empty)
+  def hostToIp: Map[Host, IP] = HostToIp.value
 
   sealed trait HostStatus
   case object HostNotFound extends HostStatus

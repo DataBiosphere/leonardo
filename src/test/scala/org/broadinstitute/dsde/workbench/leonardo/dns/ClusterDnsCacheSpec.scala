@@ -43,8 +43,8 @@ class ClusterDnsCacheSpec extends FlatSpecLike with BeforeAndAfterAll with TestC
         HostNotReady
     }
 
-    ClusterDnsCache.HostToIp.value.get(Host(s"${cluster1.dataprocInfo.googleId.get.toString}.jupyter.firecloud.org")) shouldBe cluster1.dataprocInfo.hostIp
+    ClusterDnsCache.hostToIp.get(Host(s"${cluster1.dataprocInfo.googleId.get.toString}.jupyter.firecloud.org")) shouldBe cluster1.dataprocInfo.hostIp
 
-    ClusterDnsCache.HostToIp.value.get(Host(s"${cluster2.dataprocInfo.googleId.get.toString}.jupyter.firecloud.org")) shouldBe None
+    ClusterDnsCache.hostToIp.get(Host(s"${cluster2.dataprocInfo.googleId.get.toString}.jupyter.firecloud.org")) shouldBe None
   }
 }
