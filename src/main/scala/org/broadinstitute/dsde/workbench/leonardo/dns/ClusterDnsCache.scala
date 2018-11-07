@@ -43,7 +43,10 @@ case class DnsCacheKey(googleProject: GoogleProject, clusterName: ClusterName)
   * @param proxyConfig the proxy configuration
   * @param dbRef provides access to the database
   */
-class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConfig: ClusterDnsCacheConfig)(implicit executionContext: ExecutionContext) extends LazyLogging {
+class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConfig: ClusterDnsCacheConfig)
+                     (implicit executionContext: ExecutionContext)
+  extends LazyLogging {
+  
   def cache: LoadingCache[DnsCacheKey, Future[HostStatus]] = projectClusterToHostStatus
 
   private val projectClusterToHostStatus = CacheBuilder.newBuilder()
@@ -55,23 +58,25 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConf
           dbRef
             .inTransaction { _.clusterQuery.getActiveClusterByName(key.googleProject, key.clusterName) }
             .map {
-              case Some(cluster) =>
-                val (_, hostStatus) = hostStatusByProjectAndCluster(cluster)
-
-                hostStatus match {
-                  case HostReady(_) =>
-                    // TODO Check if we really want to overwrite the entire Map (instead of updating the particular entry)
-                    ClusterDnsCache.HostToIp.value = Map(hostToIpEntry(cluster))
-                  case _ => 
-                }
-
-                hostStatus
-              
+              case Some(cluster) => updateHostToIp(cluster)
               case None => HostNotFound
             }
         }
       }
     )
+
+  private def updateHostToIp(cluster: Cluster): HostStatus = {
+    val hostStatus = hostStatusByProjectAndCluster(cluster)
+
+    hostStatus match {
+      case HostReady(_) =>
+        // TODO Check if we really want to overwrite the entire Map (instead of updating the particular entry)
+        ClusterDnsCache.HostToIp.value = Map(hostToIpEntry(cluster))
+      case _ =>
+    }
+
+    hostStatus
+  }
 
   private def host(c: Cluster): Host = {
     val googleId = c.dataprocInfo.googleId
@@ -83,13 +88,13 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConf
 
   private def hostToIpEntry(c: Cluster): (Host, IP) = host(c) -> c.dataprocInfo.hostIp.get
 
-  private def hostStatusByProjectAndCluster(c: Cluster): ((GoogleProject, ClusterName), HostStatus) = {
+  private def hostStatusByProjectAndCluster(c: Cluster): HostStatus = {
     if (c.status.isStartable)
-      (c.googleProject, c.clusterName) -> HostPaused
+      HostPaused
     else if (c.dataprocInfo.hostIp.isDefined)
-      (c.googleProject, c.clusterName) -> HostReady(host(c))
+      HostReady(host(c))
     else
-      (c.googleProject, c.clusterName) -> HostNotReady
+      HostNotReady
   }
 
 }

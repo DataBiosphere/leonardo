@@ -143,9 +143,11 @@ class ClusterMonitorActor(val cluster: Cluster,
       // create or update instances in the DB
       _ <- persistInstances(instances)
       // update DB after auth futures finish
-      _ <- dbRef.inTransaction { dataAccess =>
-        dataAccess.clusterQuery.setToRunning(cluster.id, publicIp)
-      }
+      _ <- dbRef.inTransaction { _.clusterQuery.setToRunning(cluster.id, publicIp) }
+
+      // TODO Double-check we don't need the following two lines anymore
+// nsureClusterReadyForProxying(publicIp, clusterStatus)
+
       // Remove the Dataproc Worker IAM role for the cluster service account.
       // Only happens if the cluster was created with a service account other
       // than the compute engine default service account.
