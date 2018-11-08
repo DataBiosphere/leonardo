@@ -33,13 +33,13 @@ case class DnsCacheKey(googleProject: GoogleProject, clusterName: ClusterName)
 
 /**
   * This class provides in-memory caches of:
-  * 1. (GoogleProject, ClusterName) -> Hostname
+  * 1. (GoogleProject, ClusterName) -> HostStatus
   *    This is used by ProxyService to look up the hostname to connect to given the GoogleProject/ClusterName
   *    in the Leo request URI.
   * 2. Hostname -> IP
   *    This is used by JupyterNameService to match a "fake" hostname to a real IP address. Note
-  *    this cache is in the object not the Actor because JupyterNameService doesn't have an ExecutionContext
-  *    to query the Actor.
+  *    this cache is in the object (instead of the class) because of the way
+  *    JupyterNameService needs to access the singleton.
   * @param proxyConfig the proxy configuration
   * @param dbRef provides access to the database
   */
@@ -59,21 +59,18 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConf
           dbRef
             .inTransaction { _.clusterQuery.getActiveClusterByName(key.googleProject, key.clusterName) }
             .map {
-              case Some(cluster) => updateHostToIp(cluster)
+              case Some(cluster) => getHostStatusAndUpdateHostToIpIfHostReady(cluster)
               case None => HostNotFound
             }
         }
       }
     )
 
-  private def updateHostToIp(cluster: Cluster): HostStatus = {
+  private def getHostStatusAndUpdateHostToIpIfHostReady(cluster: Cluster): HostStatus = {
     val hostStatus = hostStatusByProjectAndCluster(cluster)
 
-    hostStatus match {
-      case HostReady(_) =>
-        // TODO Check if we really want to overwrite the entire Map (instead of updating the particular entry)
-        ClusterDnsCache.hostToIpMapping.value = Map(hostToIpEntry(cluster))
-      case _ =>
+    PartialFunction.condOpt(hostStatus) {
+      case HostReady(_) => hostToIpMapping.mutate(_ + hostToIpEntry(cluster))
     }
 
     hostStatus
