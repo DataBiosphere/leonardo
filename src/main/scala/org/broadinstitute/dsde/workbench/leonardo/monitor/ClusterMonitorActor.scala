@@ -144,10 +144,6 @@ class ClusterMonitorActor(val cluster: Cluster,
       _ <- persistInstances(instances)
       // update DB after auth futures finish
       _ <- dbRef.inTransaction { _.clusterQuery.setToRunning(cluster.id, publicIp) }
-
-      // TODO Double-check we don't need the following two lines anymore
-// nsureClusterReadyForProxying(publicIp, clusterStatus)
-
       // Remove the Dataproc Worker IAM role for the cluster service account.
       // Only happens if the cluster was created with a service account other
       // than the compute engine default service account.
@@ -292,7 +288,7 @@ class ClusterMonitorActor(val cluster: Cluster,
           getMasterIp.flatMap {
             case Some(ip) =>
               dbRef.inTransaction { dataAccess => dataAccess.clusterQuery.updateClusterHostIp(cluster.id, Some(ip)) }.flatMap { _ =>
-                isProxyAvailable(leoClusterStatus, ip).map {
+                jupyterProxyDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName).map {
                   case true => ReadyCluster(ip, googleInstances)
                   case false => NotReadyCluster(ClusterStatus.Running, googleInstances)
                 }
@@ -312,14 +308,6 @@ class ClusterMonitorActor(val cluster: Cluster,
         case _ => Future.successful(NotReadyCluster(googleStatus, googleInstances))
       }
     } yield result
-  }
-
-  private def isProxyAvailable(clusterStatus: ClusterStatus, ip: IP): Future[Boolean] = {
-    for {
-      proxyAvailable <- jupyterProxyDAO.getStatus(cluster.googleProject, cluster.clusterName)
-    } yield {
-      proxyAvailable
-    }
   }
 
   private def persistInstances(instances: Set[Instance]): Future[Unit] = {

@@ -19,7 +19,7 @@ class HttpJupyterDAO(val clusterDnsCache: ClusterDnsCache)(implicit system: Acto
 
   val http = Http(system)
 
-  override def getStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = {
+  override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = {
     getTargetHost(googleProject, clusterName) flatMap {
       case HostReady(targetHost) =>
         val statusUri = Uri(s"https://${targetHost.toString}/notebooks/$googleProject/$clusterName/api/status")

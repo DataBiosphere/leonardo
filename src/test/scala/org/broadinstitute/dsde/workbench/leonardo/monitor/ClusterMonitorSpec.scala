@@ -808,7 +808,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val jupyterDAO = mock[JupyterDAO]
     when {
-      jupyterDAO.getStatus(any[GoogleProject], any[ClusterName])
+      jupyterDAO.isProxyAvailable(any[GoogleProject], any[ClusterName])
     } thenReturn Future.successful(true)
 
     withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, jupyterDAO, false) { actor =>
@@ -876,7 +876,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val jupyterDAO = mock[JupyterDAO]
     when {
-      jupyterDAO.getStatus(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
+      jupyterDAO.isProxyAvailable(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
     } thenReturn Future.successful(false)
 
     withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, jupyterDAO, false) { actor =>
