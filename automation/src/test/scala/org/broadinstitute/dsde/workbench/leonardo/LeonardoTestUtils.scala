@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.util.Base64
 
+import akka.actor.ActorSystem
 import cats.data.OptionT
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
@@ -21,7 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.{V1, V2}
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.util.LocalFileUtil
+import org.broadinstitute.dsde.workbench.util.{LocalFileUtil, Retry}
 import org.openqa.selenium.WebDriver
 import org.scalactic.source.Position
 import org.scalatest.{Matchers, Suite}
@@ -36,9 +37,10 @@ import scala.util.{Failure, Random, Success, Try}
 
 case class TimeResult[R](result:R, duration:FiniteDuration)
 
-trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures {
+trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures with Retry {
   this: Suite with BillingFixtures =>
 
+  val system: ActorSystem = ActorSystem("leotests")
   val logDir = new File("output")
   logDir.mkdirs
 
@@ -480,11 +482,20 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
   }
 
+  private def whenKernelNotReady(t: Throwable): Boolean = t match {
+    case e: KernelNotReadyException => true
+    case _ => false
+  }
+
+  implicit val ec: ExecutionContextExecutor = ExecutionContext.global
   def withNewNotebook[T](cluster: Cluster, kernel: Kernel = Python2, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
-      notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
-        testCode(notebookPage)
+      val result: Future[T] = retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds, 2 minutes) {() =>
+        Future(notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
+          testCode(notebookPage)
+        })
       }
+      Await.result(result, 10 minutes)
     }
   }
 
