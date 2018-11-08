@@ -52,6 +52,7 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConf
   private val projectClusterToHostStatus = CacheBuilder.newBuilder()
     .expireAfterWrite(dnsCacheConfig.cacheExpiryTime.toSeconds, TimeUnit.SECONDS)
     .maximumSize(dnsCacheConfig.cacheMaxSize)
+    .recordStats
     .build(
       new CacheLoader[DnsCacheKey, Future[HostStatus]] {
         def load(key: DnsCacheKey) = {
