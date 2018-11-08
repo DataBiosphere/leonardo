@@ -228,6 +228,9 @@ class ClusterMonitorActor(val cluster: Cluster,
     logger.info(s"Cluster ${cluster.projectNameString} has been deleted.")
 
     for {
+      // delete the init bucket so we don't continue to accrue costs after cluster is deleted
+      _ <- deleteInitBucket
+
       // delete instances in the DB
       _ <- persistInstances(Set.empty)
 

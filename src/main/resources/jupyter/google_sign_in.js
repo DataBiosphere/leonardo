@@ -83,7 +83,7 @@ function set_cookie(token, expires_in) {
 function init() {
     startTimer();
     window.addEventListener('message', receive);
-    if (googleClientId == null) {
+    if (!googleClientId && window.opener) {
         window.opener.postMessage({'type': 'bootstrap-auth.request'}, '*');
     }
 }

@@ -88,6 +88,9 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       val syncRequest = HttpRequest(POST, Uri(s"/notebooks/$googleProject/$clusterName/api/localize"))
       proxy.proxyLocalize(userInfo, GoogleProject(googleProject), ClusterName(clusterName), syncRequest).futureValue
 
+      // change cluster status to Running so that it can be deleted
+      dbFutureValue { _.clusterQuery.setToRunning(cluster1.id, IP("numbers.and.dots")) }
+
       //delete
       leo.deleteCluster(userInfo, project, cluster1Name).futureValue
 
@@ -106,7 +109,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       //can't make a cluster
       val clusterCreateException = leo.createCluster(userInfo, project, cluster1Name, testClusterRequest).failed.futureValue
       clusterCreateException shouldBe a [AuthorizationError]
-      clusterCreateException.asInstanceOf[AuthorizationError].statusCode shouldBe StatusCodes.Unauthorized
+      clusterCreateException.asInstanceOf[AuthorizationError].statusCode shouldBe StatusCodes.Forbidden
 
       //can't get details on an existing cluster
       //poke a cluster into the database so we actually have something to look for

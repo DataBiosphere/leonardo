@@ -37,7 +37,10 @@ import scala.util.control.NonFatal
 import scala.util.{Failure, Success}
 
 case class AuthorizationError(email: Option[WorkbenchEmail] = None)
-  extends LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is unauthorized", StatusCodes.Unauthorized)
+  extends LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is unauthorized", StatusCodes.Forbidden)
+
+case class AuthenticationError(email: Option[WorkbenchEmail] = None)
+  extends LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is not authenticated", StatusCodes.Unauthorized)
 
 case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: ClusterName)
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} not found", StatusCodes.NotFound)
@@ -47,6 +50,9 @@ case class ClusterAlreadyExistsException(googleProject: GoogleProject, clusterNa
 
 case class ClusterCannotBeStoppedException(googleProject: GoogleProject, clusterName: ClusterName, status: ClusterStatus)
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} cannot be stopped in ${status.toString} status", StatusCodes.Conflict)
+
+case class ClusterCannotBeDeletedException(googleProject: GoogleProject, clusterName: ClusterName)
+  extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} cannot be deleted in Creating status", StatusCodes.Conflict)
 
 case class ClusterCannotBeStartedException(googleProject: GoogleProject, clusterName: ClusterName, status: ClusterStatus)
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} cannot be started in ${status.toString} status", StatusCodes.Conflict)
@@ -130,13 +136,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   //Throws 404 and pretends we don't even know there's a cluster there, by default.
   //If the cluster really exists and you're OK with the user knowing that, set throw401 = true.
-  protected def checkClusterPermission(userInfo: UserInfo, action: NotebookClusterAction, cluster: Cluster, throw401: Boolean = false): Future[Unit] = {
+  protected def checkClusterPermission(userInfo: UserInfo, action: NotebookClusterAction, cluster: Cluster, throw403: Boolean = false): Future[Unit] = {
     authProvider.hasNotebookClusterPermission(userInfo, action, cluster.googleProject, cluster.clusterName) map {
       case false =>
         logger.warn(s"User ${userInfo.userEmail} does not have the notebook permission for " +
           s"${cluster.googleProject}/${cluster.clusterName}")
 
-        if (throw401)
+        if (throw403)
           throw AuthorizationError(Option(userInfo.userEmail))
         else
           throw ClusterNotFoundException(cluster.googleProject, cluster.clusterName)
@@ -340,7 +346,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
 
       //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually destroy it
-      _ <- checkClusterPermission(userInfo,  DeleteCluster, cluster, throw401 = true)
+      _ <- checkClusterPermission(userInfo,  DeleteCluster, cluster, throw403 = true)
 
       _ <- internalDeleteCluster(userInfo.userEmail, cluster)
     } yield { () }
@@ -364,6 +370,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         // This will kick off polling until the cluster is actually deleted in Google.
         clusterMonitorSupervisor ! ClusterDeleted(cluster.copy(status = ClusterStatus.Deleting))
       }
+    } else if (cluster.status == ClusterStatus.Creating) {
+      Future.failed(ClusterCannotBeDeletedException(cluster.googleProject, cluster.clusterName))
     } else Future.successful(())
   }
 
@@ -373,7 +381,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
 
       //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually stop it
-      _ <- checkClusterPermission(userInfo, StopStartCluster, cluster, throw401 = true)
+      _ <- checkClusterPermission(userInfo, StopStartCluster, cluster, throw403 = true)
 
       _ <- internalStopCluster(cluster)
     } yield ()
@@ -415,7 +423,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
 
       //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually stop it
-      _ <- checkClusterPermission(userInfo, StopStartCluster, cluster, throw401 = true)
+      _ <- checkClusterPermission(userInfo, StopStartCluster, cluster, throw403 = true)
 
       _ <- internalStartCluster(userInfo.userEmail, cluster)
     } yield ()
@@ -443,10 +451,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } else Future.failed(ClusterCannotBeStartedException(cluster.googleProject, cluster.clusterName, cluster.status))
   }
 
-  def listClusters(userInfo: UserInfo, params: LabelMap): Future[Seq[Cluster]] = {
+  def listClusters(userInfo: UserInfo, params: LabelMap, googleProjectOpt: Option[GoogleProject] = None): Future[Seq[Cluster]] = {
     for {
       paramMap <- processListClustersParameters(params)
-      clusterList <- dbRef.inTransaction { da => da.clusterQuery.listByLabels(paramMap._1, paramMap._2) }
+      clusterList <- dbRef.inTransaction { da => da.clusterQuery.listByLabels(paramMap._1, paramMap._2, googleProjectOpt) }
       visibleClusters <- authProvider.filterUserVisibleClusters(userInfo, clusterList.map(c => (c.googleProject, c.clusterName)).toList)
     } yield {
       val visibleClustersSet = visibleClusters.toSet

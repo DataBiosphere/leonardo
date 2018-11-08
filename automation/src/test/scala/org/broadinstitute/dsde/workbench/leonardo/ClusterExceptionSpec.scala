@@ -4,6 +4,7 @@ import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V2
 import org.broadinstitute.dsde.workbench.service.RestException
 import org.scalatest.{FreeSpec, ParallelTestExecution}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.deletableStatuses
 
 class ClusterExceptionSpec extends FreeSpec with LeonardoTestUtils with ParallelTestExecution with BillingFixtures {
 

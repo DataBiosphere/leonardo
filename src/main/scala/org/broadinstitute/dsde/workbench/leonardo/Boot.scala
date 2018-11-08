@@ -78,7 +78,7 @@ object Boot extends App with LazyLogging {
     }
 
     val (leoServiceAccountEmail, leoServiceAccountPemFile) = serviceAccountProvider.getLeoServiceAccountAndKey
-    val gdDAO = new HttpGoogleDataprocDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google", NetworkTag(dataprocConfig.networkTag), dataprocConfig.vpcNetwork.map(VPCNetworkName), dataprocConfig.vpcSubnet.map(VPCSubnetName), dataprocConfig.dataprocDefaultRegion)
+    val gdDAO = new HttpGoogleDataprocDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google", NetworkTag(dataprocConfig.networkTag), dataprocConfig.vpcNetwork.map(VPCNetworkName), dataprocConfig.vpcSubnet.map(VPCSubnetName), dataprocConfig.dataprocDefaultRegion, dataprocConfig.defaultExecutionTimeout)
     val googleComputeDAO = new HttpGoogleComputeDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google")
     val googleIamDAO = new HttpGoogleIamDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google")
     val googleStorageDAO = new HttpGoogleStorageDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google")

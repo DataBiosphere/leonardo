@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.util.Base64
 
+import akka.actor.ActorSystem
 import cats.data.OptionT
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
@@ -15,13 +16,13 @@ import org.broadinstitute.dsde.workbench.config.Credentials
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.service.{Orchestration, RestException, Sam}
 import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
-import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
+import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{ClusterStatus, deletableStatuses}
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.{V1, V2}
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.util.LocalFileUtil
+import org.broadinstitute.dsde.workbench.util.{LocalFileUtil, Retry}
 import org.openqa.selenium.WebDriver
 import org.scalactic.source.Position
 import org.scalatest.{Matchers, Suite}
@@ -36,9 +37,10 @@ import scala.util.{Failure, Random, Success, Try}
 
 case class TimeResult[R](result:R, duration:FiniteDuration)
 
-trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures {
+trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures with Retry {
   this: Suite with BillingFixtures =>
 
+  val system: ActorSystem = ActorSystem("leotests")
   val logDir = new File("output")
   logDir.mkdirs
 
@@ -195,7 +197,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       // If the cluster is running, grab the jupyter.log file for debugging.
       runningOrErroredCluster.foreach { cluster =>
         if (cluster.status == ClusterStatus.Running) {
-          saveJupyterLogFile(cluster, "create") match {
+          saveJupyterLogFile(cluster.clusterName, cluster.googleProject, "create") match {
             case Success(file) =>
               logger.info(s"Saved jupyter.log file for cluster ${cluster.projectNameString} to ${file.getAbsolutePath}")
             case Failure(e) =>
@@ -216,6 +218,12 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   }
 
   def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName, monitor: Boolean)(implicit token: AuthToken): Unit = {
+    saveJupyterLogFile(clusterName, googleProject, "delete") match {
+      case Success(file) =>
+        logger.info(s"Saved jupyter.log file for cluster ${googleProject.value}/${clusterName.string} to ${file.getAbsolutePath}")
+      case Failure(e) =>
+        logger.warn(s"Could not save jupyter.log file for cluster ${googleProject.value}/${clusterName.string} . Not failing test.", e)
+    }
     try {
       Leonardo.cluster.delete(googleProject, clusterName) shouldBe
         "The request has been accepted for processing, but the processing has not been completed."
@@ -306,7 +314,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       getResult.get should not include "ProxyException"
 
       // Grab the jupyter.log file for debugging.
-      saveJupyterLogFile(startingCluster, "start") match {
+      saveJupyterLogFile(startingCluster.clusterName, startingCluster.googleProject, "start") match {
         case Success(file) =>
           logger.info(s"Saved jupyter.log file for cluster ${startingCluster.projectNameString} to ${file.getAbsolutePath}")
         case Failure(e) =>
@@ -416,6 +424,17 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     val testResult: Try[T] = Try {
       testCode(cluster)
     }
+
+    // make sure cluster is deletable
+    if (!monitorCreate){
+      implicit val patienceConfig: PatienceConfig = clusterPatience
+
+      eventually {
+        verifyCluster(Leonardo.cluster.get(googleProject, name), googleProject, name,
+          deletableStatuses, request)
+      }
+    }
+
     // delete before checking testCode status, which may throw
     deleteCluster(googleProject, cluster.clusterName, monitorDelete)
     testResult.get
@@ -462,11 +481,20 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
   }
 
+  private def whenKernelNotReady(t: Throwable): Boolean = t match {
+    case e: KernelNotReadyException => true
+    case _ => false
+  }
+
+  implicit val ec: ExecutionContextExecutor = ExecutionContext.global
   def withNewNotebook[T](cluster: Cluster, kernel: Kernel = Python2, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
-      notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
-        testCode(notebookPage)
+      val result: Future[T] = retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds, 2 minutes) {() =>
+        Future(notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
+          testCode(notebookPage)
+        })
       }
+      Await.result(result, 10 minutes)
     }
   }
 
@@ -582,10 +610,12 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
               logger.warn(s"Could not obtain localization log files for cluster ${cluster.projectNameString}: ${e.getMessage}")
           }
 
+          //TODO:: the code below messes up the test somehow, figure out why that happens and fix.
+          //TODO:: https://github.com/DataBiosphere/leonardo/issues/643
           // clean up files on the cluster
           // no need to clean up the bucket objects; that will happen as part of `withNewBucketObject`
-          notebookPage.executeCell(s"""! rm -f $fileToLocalize""")
-          notebookPage.executeCell(s"""! rm -f $fileToDelocalize""")
+          //notebookPage.executeCell(s"""! rm -f $fileToLocalize""")
+          //notebookPage.executeCell(s"""! rm -f $fileToDelocalize""")
 
           testResult.get
         }
@@ -702,11 +732,11 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     transformed.value
   }
 
-  def saveJupyterLogFile(cluster: Cluster, suffix: String)(implicit token: AuthToken): Try[File] = {
+  def saveJupyterLogFile(clusterName: ClusterName, googleProject: GoogleProject, suffix: String)(implicit token: AuthToken): Try[File] = {
     Try {
-      val jupyterLogOpt = Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "jupyter.log", includeContent = true)
-      val content = jupyterLogOpt.content.getOrElse(throw new RuntimeException(s"Could not download jupyter.log for cluster ${cluster.projectNameString}"))
-      val downloadFile = new File(logDir, s"${cluster.googleProject.value}-${cluster.clusterName.string}-$suffix-jupyter.log")
+      val jupyterLogOpt = Leonardo.notebooks.getContentItem(googleProject, clusterName, "jupyter.log", includeContent = true)
+      val content = jupyterLogOpt.content.getOrElse(throw new RuntimeException(s"Could not download jupyter.log for cluster ${googleProject.value}/${clusterName.string}"))
+      val downloadFile = new File(logDir, s"${googleProject.value}-${clusterName.string}-$suffix-jupyter.log")
       val fos = new FileOutputStream(downloadFile)
       fos.write(content.getBytes(StandardCharsets.UTF_8))
       fos.close()

@@ -41,16 +41,6 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
       }
     }
 
-    // create -> no wait -> delete
-    "should delete a creating cluster" in {
-      withProject { project => implicit token =>
-        logger.info(s"${project.value}: should delete a creating cluster")
-
-        // delete while the cluster is still creating
-        withNewCluster(project, monitorCreate = false, monitorDelete = true, apiVersion = V2)(noop)
-      }
-    }
-
     // create -> wait -> delete -> no wait -> delete
     "deleting an already deleting cluster should be a no-op" in {
       withProject { project => implicit token =>
@@ -81,8 +71,13 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
       }
     }
 
+    // TODO: ignoring this test because it's not completely deterministic.
+    // Sometimes Google will fail to start a Stopping cluster.
+    // https://github.com/DataBiosphere/leonardo/issues/648 is open to
+    // revisit this behavior in Leo.
+    //
     // create -> wait -> stop -> no wait -> start -> delete
-    "should be able to start a stopping cluster" in {
+    "should be able to start a stopping cluster" ignore {
       withProject { project => implicit token =>
         logger.info(s"${project.value}: should be able to start a stopping cluster")
 

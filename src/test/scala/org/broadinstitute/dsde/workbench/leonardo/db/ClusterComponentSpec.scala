@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq,
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.FlatSpecLike
 
 class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils {
@@ -180,5 +181,32 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     //cluster2 is already stopped
     autoFreezeList should not contain stoppedCluster
     autoFreezeList should not contain runningCluster2
+  }
+
+  it should "list by labels and project" in isolatedDbTest {
+    val savedCluster1 = makeCluster(1)
+      .copy(labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"))
+      .save(Some(serviceAccountKey.id))
+
+    val savedCluster2 = makeCluster(2)
+      .copy(status = ClusterStatus.Running,
+        clusterName = name2,
+        googleProject = project2,
+        clusterUrl = Cluster.getClusterUrl(project2, name2, clusterUrlBase),
+        labels = Map("bam" -> "yes"))
+      .save(Some(serviceAccountKey.id))
+
+    val savedCluster3 = makeCluster(3)
+      .copy(status = ClusterStatus.Deleted,
+        labels = Map("a" -> "b", "bam" -> "yes"))
+      .save()
+
+    dbFutureValue { _.clusterQuery.listByLabels(Map.empty, false, Some(project)) }.toSet shouldEqual Set(savedCluster1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map.empty, true, Some(project)) }.toSet shouldEqual Set(savedCluster1, savedCluster3)
+    dbFutureValue { _.clusterQuery.listByLabels(Map.empty, false, Some(project2)) }.toSet shouldEqual Set(savedCluster2)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes"), true, Some(project)) }.toSet shouldEqual Set(savedCluster1, savedCluster3)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes"), false, Some(project2)) }.toSet shouldEqual Set(savedCluster2)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("a" -> "b"), true, Some(project)) }.toSet shouldEqual Set(savedCluster3)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("a" -> "b"), true, Some(project2)) }.toSet shouldEqual Set.empty[Cluster]
   }
 }
