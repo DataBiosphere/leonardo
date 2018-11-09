@@ -287,7 +287,7 @@ class ClusterMonitorActor(val cluster: Cluster,
         case Running if leoClusterStatus == Starting && runningInstanceCount == googleInstances.size =>
           getMasterIp.flatMap {
             case Some(ip) =>
-              dbRef.inTransaction { dataAccess => dataAccess.clusterQuery.updateClusterHostIp(cluster.id, Some(ip)) }.flatMap { _ =>
+              dbRef.inTransaction { _.clusterQuery.updateClusterHostIp(cluster.id, Some(ip)) }.flatMap { _ =>
                 jupyterProxyDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName).map {
                   case true => ReadyCluster(ip, googleInstances)
                   case false => NotReadyCluster(ClusterStatus.Running, googleInstances)
@@ -311,7 +311,7 @@ class ClusterMonitorActor(val cluster: Cluster,
   }
 
   private def persistInstances(instances: Set[Instance]): Future[Unit] = {
-    logger.debug(s"Persisting instances for cluster ${cluster.projectNameString}: ${instances}")
+    logger.debug(s"Persisting instances for cluster ${cluster.projectNameString}: $instances")
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.mergeInstances(cluster.copy(instances = instances))
     }.void
