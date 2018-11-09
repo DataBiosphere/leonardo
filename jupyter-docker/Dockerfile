@@ -30,6 +30,7 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sou
     build-essential \
     lsb-release \
     procps \
+    openssl \
     # to support userScript pip installs via git
     git \
     locales \
@@ -142,7 +143,7 @@ RUN apt-get update \
  && pip install pandas==0.23.4 \
  && pip install seaborn==0.9.0 \
  && pip install google-api-core==1.5.0 \
- && pip install google-cloud-bigquery==1.6.0 \
+ && pip install google-cloud-bigquery==1.7.0 \
  && pip install google-cloud-bigquery-datatransfer==0.1.1 \
  && pip install google-cloud-core==0.28.1 \
  && pip install google-cloud-datastore==1.7.0 \
@@ -188,7 +189,7 @@ RUN apt-get update \
  && pip3 install jupyterlab==0.35.2 \
  && pip3 install python-lzo==1.12 \
  && pip3 install google-api-core==1.5.0 \
- && pip3 install google-cloud-bigquery==1.6.0 \
+ && pip3 install google-cloud-bigquery==1.7.0 \
  && pip3 install google-cloud-bigquery-datatransfer==0.1.1 \
  && pip3 install google-cloud-core==0.28.1 \
  && pip3 install google-cloud-datastore==1.7.0 \

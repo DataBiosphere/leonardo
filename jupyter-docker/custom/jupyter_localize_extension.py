@@ -55,9 +55,13 @@ class LocalizeHandler(IPythonHandler):
       return False
 
     try:
-      with open(dest, 'wb+', buffering=1) as destout:
-        destout.write(uri.data)
-        locout.write('{}: wrote {} bytes\n'.format(dest, len(uri.data)))
+      with open(dest, 'w+', buffering=1) as destout:
+        try:
+          uri_data = uri.data.decode()
+        except AttributeError:
+          uri_data = uri.data
+        destout.write(uri_data)
+        locout.write('{}: wrote {} bytes\n'.format(dest, len(uri_data)))
     except IOError as e:
       locout.write('{}: I/O error({0}): {1}\n'.format(dest, e.errno, e.strerror))
       return False
