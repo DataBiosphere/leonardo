@@ -37,7 +37,7 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sou
 
  # R separately because it depends on gnupg installed above
  && echo "deb $CRAN_REPO/bin/linux/debian stretch-cran35/"       >> /etc/apt/sources.list \
- && apt-key adv --keyserver keys.gnupg.net \
+ && apt-key adv  --no-tty --keyserver keys.gnupg.net \
     --recv-key 'E19F5F87128899B192B1A2C2AD5F960A256A04AF' \
 
  # Uncomment en_US.UTF-8 for inclusion in generation
@@ -221,7 +221,7 @@ ENV PIP_USER=true
 #######################
 
 RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
- && apt-get -t stretch-cran35 install -y --no-install-recommends \
+ && apt-get update && apt-get -t testing stretch-cran35 install -y --no-install-recommends \
     r-base \
     r-base-dev \
     r-recommended \
@@ -272,3 +272,4 @@ WORKDIR $HOME
 
 EXPOSE $JUPYTER_PORT
 ENTRYPOINT ["/usr/local/bin/jupyter", "notebook"]
+
