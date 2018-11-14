@@ -73,7 +73,7 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
                 entity(as[ClusterRequest]) { cluster =>
                   complete {
                     leonardoService.updateCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName), cluster).map { cluster =>
-                      StatusCodes.OK -> cluster
+                      StatusCodes.Accepted -> cluster
                     }
                   }
                 }

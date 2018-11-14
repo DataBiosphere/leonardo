@@ -359,10 +359,7 @@ class ClusterMonitorActor(val cluster: Cluster,
         // in the DB with CREATING or UPDATING status. This prevents situations where we prematurely
         // yank pet SA roles when the same user is creating or resizing multiple clusters.
         dbRef.inTransaction { dataAccess =>
-          for {
-            creating <- dataAccess.clusterQuery.countByClusterServiceAccountAndStatus(serviceAccountEmail, ClusterStatus.Creating)
-            updating <- dataAccess.clusterQuery.countByClusterServiceAccountAndStatus(serviceAccountEmail, ClusterStatus.Updating)
-          } yield creating + updating
+          dataAccess.clusterQuery.countByClusterServiceAccountAndStatuses(serviceAccountEmail, Set(ClusterStatus.Creating, ClusterStatus.Updating))
         } flatMap { count =>
           if (count > 0) {
             Future.successful(())

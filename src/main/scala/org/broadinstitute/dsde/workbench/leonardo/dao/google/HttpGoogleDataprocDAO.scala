@@ -163,9 +163,19 @@ class HttpGoogleDataprocDAO(appName: String,
     errorOpt.value.handleGoogleException(GoogleProject(""), operationName.map(_.value))
   }
 
+  private def validateNumWorkers(numWorkers: Option[Int], numPreemptibles: Option[Int]): Unit = {
+    (numWorkers, numPreemptibles) match {
+      case (Some(numW), _) if numW < 0 || numW == 1 => throw new Exception(s"Invalid number of workers specified: $numW. Number of workers must be 0 or 2+")
+      case (_, Some(numP)) if numP < 0 => throw new Exception(s"Invalid number of preemptible workers specified: $numP. Number of preemptible workers must be greater than 0")
+      case _ => ()
+    }
+  }
+
   override def resizeCluster(googleProject: GoogleProject, clusterName: ClusterName, numWorkers: Option[Int] = None, numPreemptibles: Option[Int] = None): Future[Unit] = {
     val workerMask = "config.worker_config.num_instances"
     val preemptibleMask = "config.secondary_worker_config.num_instances"
+
+    validateNumWorkers(numWorkers, numPreemptibles)
 
     val updateAndMask = (numWorkers, numPreemptibles) match {
       case (Some(nw), Some(np)) =>
@@ -250,6 +260,7 @@ class HttpGoogleDataprocDAO(appName: String,
     // Create a Cluster Config and give it the GceClusterConfig, the NodeInitializationAction and the InstanceGroupConfig
     createClusterConfig(machineConfig, credentialsFileName)
       .setGceClusterConfig(gceClusterConfig)
+
       .setInitializationActions(initActions.asJava)
       .setMasterConfig(masterConfig)
       .setConfigBucket(stagingBucket.value)

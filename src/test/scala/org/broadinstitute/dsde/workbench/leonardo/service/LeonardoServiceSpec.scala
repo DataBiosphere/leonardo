@@ -940,6 +940,26 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.machineConfig.numberOfWorkers shouldBe Some(2)
   }
 
+  it should "update the autopause threshold for a cluster" in isolatedDbTest {
+    // create the cluster
+    val clusterCreateResponse =
+      leo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
+
+    // set the cluster to Running
+    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
+
+    leo.updateCluster(userInfo, project, name1, testClusterRequest.copy(autopause = Some(true), autopauseThreshold = Some(7))).futureValue
+
+    //unfortunately we can't actually check that the new instances were added because the monitor
+    //handles that but we will check as much as we can
+
+    //check that status of cluster is Updating
+    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Running)
+
+    //check that the machine config has been updated
+    dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.autopauseThreshold shouldBe 7
+  }
+
   ClusterStatus.monitoredStatuses foreach { status =>
     it should s"not allow updating a cluster in ${status.toString} state" in isolatedDbTest {
       // create the cluster
@@ -960,23 +980,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(status)
 
     }
-  }
-
-  it should "update the autopause threshold of a cluster" in isolatedDbTest {
-    // create the cluster
-    val clusterCreateResponse =
-      leo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
-
-    // set the cluster to Running
-    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
-
-    leo.updateCluster(userInfo, project, name1, testClusterRequest.copy(autopauseThreshold = Some(60))).futureValue
-
-    //check that status of cluster is Updating
-    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Updating)
-
-    //check that the machine config has been updated
-    dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.autopauseThreshold shouldBe 60
   }
 
   it should "stop a cluster created via v2 API" in isolatedDbTest {

@@ -239,14 +239,14 @@ paths:
           required: true
           type: string
         - in: body
-          description: Request for new cluster
-          name: clusterRequest
+          description: Request for updated cluster
+          name: updateClusterRequest
           required: true
           schema:
             $ref: '#/definitions/UpdateClusterRequest'
       responses:
-        '200':
-          description: Cluster update successful
+        '202':
+          description: Cluster update in progress
           schema:
             $ref: '#/definitions/Cluster'
         '400':
@@ -254,9 +254,9 @@ paths:
           schema:
             $ref: '#/definitions/ErrorReport'
         '403':
-            description: User does not have permission to perform action on cluster
+          description: User does not have permission to perform action on cluster
         '409':
-            description: Cluster must be running before it can be updated
+          description: Cluster must be running before it can be updated
         '500':
           description: Internal Error
           schema:

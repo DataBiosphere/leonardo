@@ -149,10 +149,10 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    def countByClusterServiceAccountAndStatus(clusterServiceAccount: WorkbenchEmail, status: ClusterStatus) = {
+    def countByClusterServiceAccountAndStatuses(clusterServiceAccount: WorkbenchEmail, statuses: Set[ClusterStatus]) = {
       clusterQuery
         .filter { _.clusterServiceAccount === Option(clusterServiceAccount.value) }
-        .filter { _.status === status.toString }
+        .filter { _.status inSetBind  statuses.map(_.toString) }
         .length
         .result
     }

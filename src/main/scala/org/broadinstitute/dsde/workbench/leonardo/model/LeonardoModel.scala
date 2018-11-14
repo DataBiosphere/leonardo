@@ -23,7 +23,7 @@ import org.broadinstitute.dsde.workbench.model._
 import spray.json._
 
 // Create cluster API request
-case class ClusterRequest(labels: Option[LabelMap] = Option(Map()),
+case class ClusterRequest(labels: Option[LabelMap] = Option(Map.empty),
                           jupyterExtensionUri: Option[GcsPath] = None,
                           jupyterUserScriptUri: Option[GcsPath] = None,
                           machineConfig: Option[MachineConfig] = None,
