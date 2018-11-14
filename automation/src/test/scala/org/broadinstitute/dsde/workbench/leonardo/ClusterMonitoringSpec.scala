@@ -111,7 +111,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
       }
     }
 
-    "should pause and resume a cluster" in {
+    "should pause and resume a cluster" in taggedAs Tags.SmokeTest {
       withProject { project => implicit token =>
         // Create a cluster
         withNewCluster(project, apiVersion = V2) { cluster =>

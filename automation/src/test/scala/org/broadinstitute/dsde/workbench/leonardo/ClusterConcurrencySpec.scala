@@ -136,7 +136,7 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
           cluster.stopAfterCreation shouldBe false
         }
       }
-      
+
     }
   }
 
