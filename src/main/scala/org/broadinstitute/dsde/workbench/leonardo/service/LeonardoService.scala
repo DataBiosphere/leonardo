@@ -24,7 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, UserInfo, WorkbenchEmail, WorkbenchException}
 import org.broadinstitute.dsde.workbench.util.Retry
 import slick.dbio.DBIO
 import spray.json._
@@ -77,6 +77,9 @@ case class ParseLabelsException(labelString: String)
 
 case class IllegalLabelKeyException(labelKey: String)
   extends LeoException(s"Labels cannot have a key of '$labelKey'", StatusCodes.NotAcceptable)
+
+case class InvalidClusterMachineConfigException(errorMsg: String)
+  extends LeoException(s"${errorMsg}", StatusCodes.BadRequest)
 
 class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val clusterFilesConfig: ClusterFilesConfig,
@@ -366,10 +369,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         clusterResized <- maybeResizeCluster(existingCluster, clusterRequest.machineConfig)
 
         // Set the cluster status to Updating only if the cluster was resized
-        _ <- if(clusterResized) {
-          println("yeah the cluster was actually resized")
-          dbRef.inTransaction { _.clusterQuery.updateClusterStatus(existingCluster.id, ClusterStatus.Updating) }
-        } else Future.successful(0)
+        _ <- if(clusterResized) { dbRef.inTransaction { _.clusterQuery.updateClusterStatus(existingCluster.id, ClusterStatus.Updating) } } else Future.successful(0)
 
         updatedCluster <- internalGetActiveClusterDetails(existingCluster.googleProject, existingCluster.clusterName)
       } yield {
@@ -386,10 +386,21 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
+  private def validateNumWorkers(numWorkers: Option[Int], numPreemptibles: Option[Int]): Unit = {
+    (numWorkers, numPreemptibles) match {
+      case (Some(numW), _) if numW < 0 || numW == 1 => throw new InvalidClusterMachineConfigException(s"Invalid number of workers specified: $numW. Number of workers must be 0 or 2+")
+      case (_, Some(numP)) if numP < 0 => throw new InvalidClusterMachineConfigException(s"Invalid number of preemptible workers specified: $numP. Number of preemptible workers must be greater than 0")
+      case _ => ()
+    }
+  }
+
   //returns true if cluster was resized, otherwise returns false
   def maybeResizeCluster(existingCluster: Cluster, machineConfigOpt: Option[MachineConfig]): Future[Boolean] = {
     machineConfigOpt match {
       case Some(machineConfig) =>
+
+        validateNumWorkers(machineConfig.numberOfWorkers, machineConfig.numberOfPreemptibleWorkers)
+
         logger.info(s"New machine config present. Resizing cluster '${existingCluster.clusterName}' " +
           s"in Google project '${existingCluster.googleProject}'...")
 
