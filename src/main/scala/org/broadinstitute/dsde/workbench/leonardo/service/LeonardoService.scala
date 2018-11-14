@@ -386,20 +386,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
-  private def validateNumWorkers(numWorkers: Option[Int], numPreemptibles: Option[Int]): Unit = {
-    (numWorkers, numPreemptibles) match {
-      case (Some(numW), _) if numW < 0 || numW == 1 => throw new InvalidClusterMachineConfigException(s"Invalid number of workers specified: $numW. Number of workers must be 0 or 2+")
-      case (_, Some(numP)) if numP < 0 => throw new InvalidClusterMachineConfigException(s"Invalid number of preemptible workers specified: $numP. Number of preemptible workers must be greater than 0")
-      case _ => ()
-    }
-  }
-
   //returns true if cluster was resized, otherwise returns false
   def maybeResizeCluster(existingCluster: Cluster, machineConfigOpt: Option[MachineConfig]): Future[Boolean] = {
     machineConfigOpt match {
       case Some(machineConfig) =>
-
-        validateNumWorkers(machineConfig.numberOfWorkers, machineConfig.numberOfPreemptibleWorkers)
 
         logger.info(s"New machine config present. Resizing cluster '${existingCluster.clusterName}' " +
           s"in Google project '${existingCluster.googleProject}'...")
@@ -409,7 +399,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           // This is needed to be able to spin up Dataproc clusters.
           // If the Google Compute default service account is being used, this is not necessary.
           _ <- addDataprocWorkerRoleToServiceAccount(existingCluster.googleProject, existingCluster.serviceAccountInfo.clusterServiceAccount)
-          _ <- gdDAO.resizeCluster(existingCluster.googleProject, existingCluster.clusterName, machineConfig.numberOfWorkers, machineConfig.numberOfPreemptibleWorkers)
+          _ <- gdDAO.resizeCluster(existingCluster.googleProject, existingCluster.clusterName, machineConfig.numberOfWorkers, machineConfig.numberOfPreemptibleWorkers) recover {
+            case gjre: GoogleJsonResponseException =>
+              //typically we will revoke this role in the monitor after everything is complete, but if Google fails to resize the cluster we need to revoke it manually here
+              removeDataprocWorkerRoleFromServiceAccount(existingCluster.googleProject, existingCluster.serviceAccountInfo.clusterServiceAccount)
+              throw gjre
+          }
           resizedNumWorkers <- machineConfig.numberOfWorkers.map { numWorkers =>
             dbRef.inTransaction { _.clusterQuery.updateNumberOfWorkers(existingCluster.id, numWorkers) }.map(_ > 0)
           } getOrElse Future.successful(false)
@@ -699,6 +694,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private[service] def addDataprocWorkerRoleToServiceAccount(googleProject: GoogleProject, serviceAccountOpt: Option[WorkbenchEmail]): Future[Unit] = {
     serviceAccountOpt.map { serviceAccountEmail =>
       googleIamDAO.addIamRolesForUser(googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
+    } getOrElse Future.successful(())
+  }
+
+  private[service] def removeDataprocWorkerRoleFromServiceAccount(googleProject: GoogleProject, serviceAccountOpt: Option[WorkbenchEmail]): Future[Unit] = {
+    serviceAccountOpt.map { serviceAccountEmail =>
+      googleIamDAO.removeIamRolesForUser(googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
     } getOrElse Future.successful(())
   }
 
