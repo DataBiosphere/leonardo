@@ -940,42 +940,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.machineConfig.numberOfWorkers shouldBe Some(2)
   }
 
-  it should "resize a cluster with an invalid number of workers" in isolatedDbTest {
-    // create the cluster
-    val clusterCreateResponse =
-      leo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
-
-    // set the cluster to Running
-    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
-
-    intercept[InvalidClusterMachineConfigException] {
-      Await.result(leo.updateCluster(userInfo, project, name1, testClusterRequest.copy(machineConfig = Some(MachineConfig(numberOfWorkers = Some(1))))), Duration.Inf)
-    }
-
-    intercept[InvalidClusterMachineConfigException] {
-      Await.result(leo.updateCluster(userInfo, project, name1, testClusterRequest.copy(machineConfig = Some(MachineConfig(numberOfWorkers = Some(-2))))), Duration.Inf)
-    }
-
-    //check that status of cluster is still Running
-    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Running)
-  }
-
-  it should "resize a cluster with an invalid number of preemptible workers" in isolatedDbTest {
-    // create the cluster
-    val clusterCreateResponse =
-      leo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
-
-    // set the cluster to Running
-    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
-
-    intercept[InvalidClusterMachineConfigException] {
-      Await.result(leo.updateCluster(userInfo, project, name1, testClusterRequest.copy(machineConfig = Some(MachineConfig(numberOfWorkers = Some(-2))))), Duration.Inf)
-    }
-
-    //check that status of cluster is still Running
-    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Running)
-  }
-
   it should "update the autopause threshold for a cluster" in isolatedDbTest {
     // create the cluster
     val clusterCreateResponse =
