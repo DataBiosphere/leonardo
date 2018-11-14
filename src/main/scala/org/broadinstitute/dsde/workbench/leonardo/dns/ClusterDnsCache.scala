@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.dns
 import java.util.concurrent.TimeUnit
 
 import akka.http.scaladsl.model.Uri.Host
-import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
+import com.google.common.cache.{CacheBuilder, CacheLoader, CacheStats}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDnsCacheConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -47,7 +47,9 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConf
                      (implicit executionContext: ExecutionContext)
   extends LazyLogging {
 
-  def cache: LoadingCache[DnsCacheKey, Future[HostStatus]] = projectClusterToHostStatus
+  def getHostStatus(key: DnsCacheKey): Future[HostStatus] = projectClusterToHostStatus.get(key)
+  def size: Long = projectClusterToHostStatus.size
+  def stats: CacheStats = projectClusterToHostStatus.stats
 
   private val projectClusterToHostStatus = CacheBuilder.newBuilder()
     .expireAfterWrite(dnsCacheConfig.cacheExpiryTime.toSeconds, TimeUnit.SECONDS)

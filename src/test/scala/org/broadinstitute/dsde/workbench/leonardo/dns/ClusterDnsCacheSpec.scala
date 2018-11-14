@@ -44,14 +44,14 @@ class ClusterDnsCacheSpec extends FlatSpecLike with BeforeAndAfterAll with TestC
     // We test the projectClusterToHostStatus cache before the hostToIp map.
     // This replicates how the proxy accesses these maps as well.
     // projectClusterToHostStatus read updates the HostToIP map.
-    eventually { clusterDnsCache.cache.get(cacheKeyForClusterBeingCreated).futureValue shouldEqual HostNotReady }
-    eventually { clusterDnsCache.cache.get(cacheKeyForRunningCluster).futureValue shouldEqual HostReady(runningClusterHost) }
-    eventually { clusterDnsCache.cache.get(cacheKeyForStoppedCluster).futureValue shouldEqual HostPaused }
+    eventually { clusterDnsCache.getHostStatus(cacheKeyForClusterBeingCreated).futureValue shouldEqual HostNotReady }
+    eventually { clusterDnsCache.getHostStatus(cacheKeyForRunningCluster).futureValue shouldEqual HostReady(runningClusterHost) }
+    eventually { clusterDnsCache.getHostStatus(cacheKeyForStoppedCluster).futureValue shouldEqual HostPaused }
 
-    clusterDnsCache.cache.size shouldBe 3
-    clusterDnsCache.cache.stats.missCount shouldBe 3
-    clusterDnsCache.cache.stats.loadCount shouldBe 3
-    clusterDnsCache.cache.stats.evictionCount shouldBe 0
+    clusterDnsCache.size shouldBe 3
+    clusterDnsCache.stats.missCount shouldBe 3
+    clusterDnsCache.stats.loadCount shouldBe 3
+    clusterDnsCache.stats.evictionCount shouldBe 0
 
     ClusterDnsCache.hostToIp.get(runningClusterHost) shouldBe runningCluster.dataprocInfo.hostIp
     ClusterDnsCache.hostToIp.get(clusterBeingCreatedHost) shouldBe None
@@ -61,12 +61,12 @@ class ClusterDnsCacheSpec extends FlatSpecLike with BeforeAndAfterAll with TestC
 
     // Check that the cache entries are eventually evicted and get re-loaded upon re-reading
     eventually {
-      cacheKeys.foreach(clusterDnsCache.cache.get)
-      clusterDnsCache.cache.stats.evictionCount shouldBe 3
+      cacheKeys.foreach(clusterDnsCache.getHostStatus)
+      clusterDnsCache.stats.evictionCount shouldBe 3
     }
 
-    clusterDnsCache.cache.size shouldBe 3
-    clusterDnsCache.cache.stats.missCount shouldBe 6
-    clusterDnsCache.cache.stats.loadCount shouldBe 6
+    clusterDnsCache.size shouldBe 3
+    clusterDnsCache.stats.missCount shouldBe 6
+    clusterDnsCache.stats.loadCount shouldBe 6
   }
 }

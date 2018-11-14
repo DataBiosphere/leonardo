@@ -3,9 +3,8 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 import java.time.Instant
 
 import akka.actor.Status.Failure
-import akka.actor.{Actor, ActorRef, Props}
-import akka.pattern.{ask, pipe}
-import akka.util.Timeout
+import akka.actor.{Actor, Props}
+import akka.pattern.pipe
 import cats.data.OptionT
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
@@ -15,13 +14,11 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, Monito
 import org.broadinstitute.dsde.workbench.leonardo.dao.JupyterDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache.{HostReady, HostStatus}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterDeleted
-import org.broadinstitute.dsde.workbench.leonardo.service.ClusterNotReadyException
 import org.broadinstitute.dsde.workbench.util.addJitter
 import slick.dbio.DBIOAction
 
@@ -287,11 +284,9 @@ class ClusterMonitorActor(val cluster: Cluster,
         case Running if leoClusterStatus == Starting && runningInstanceCount == googleInstances.size =>
           getMasterIp.flatMap {
             case Some(ip) =>
-              dbRef.inTransaction { _.clusterQuery.updateClusterHostIp(cluster.id, Some(ip)) }.flatMap { _ =>
-                jupyterProxyDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName).map {
-                  case true => ReadyCluster(ip, googleInstances)
-                  case false => NotReadyCluster(ClusterStatus.Running, googleInstances)
-                }
+              jupyterProxyDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName).map {
+                case true => ReadyCluster(ip, googleInstances)
+                case false => NotReadyCluster(ClusterStatus.Running, googleInstances)
               }
             case None => Future.successful(NotReadyCluster(ClusterStatus.Running, googleInstances))
           }
