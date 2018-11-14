@@ -78,9 +78,6 @@ case class ParseLabelsException(labelString: String)
 case class IllegalLabelKeyException(labelKey: String)
   extends LeoException(s"Labels cannot have a key of '$labelKey'", StatusCodes.NotAcceptable)
 
-case class InvalidClusterMachineConfigException(errorMsg: String)
-  extends LeoException(s"${errorMsg}", StatusCodes.BadRequest)
-
 class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val clusterFilesConfig: ClusterFilesConfig,
                       protected val clusterResourcesConfig: ClusterResourcesConfig,
