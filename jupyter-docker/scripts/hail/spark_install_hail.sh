@@ -32,8 +32,8 @@ spark.driver.extraClassPath ${HAIL_HOME}/${HAILJAR}
 spark.executor.extraClassPath ./${HAILJAR}
 
 spark.serializer org.apache.spark.serializer.KryoSerializer
-
 spark.kryo.registrator is.hail.kryo.HailKryoRegistrator
+
 # Hail needs at least 50GB
 
 spark.sql.files.maxPartitionBytes=100000000000

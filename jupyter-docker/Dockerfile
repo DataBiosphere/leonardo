@@ -174,8 +174,6 @@ RUN apt-get update \
  && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.6 100 \
  && python3 get-pip.py \
  && pip3 install tornado==4.5.3 \
-# && pip3 install ipykernel==4.8.2 \
-# && python3 -m ipykernel install --name python3 --display-name "Python 3" \
 # # Hail requires decorator
  && pip3 install -U decorator==4.3.0 \
  && pip3 install parsimonious==0.8.1 \
@@ -211,6 +209,8 @@ RUN apt-get update \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
+# fixed current ggplot issue where it imports Timestamp from pandas.lib (deprecated) instead of pandas
+RUN sed -i 's/pandas.lib/pandas/g' /usr/local/lib/python3.6/dist-packages/ggplot/stats/smoothers.py
 
 # make pip install to a user directory, instead of a system directory which requires root.
 # this is useful so `pip install` commands can be run in the context of a notebook.
@@ -221,7 +221,7 @@ ENV PIP_USER=true
 #######################
 
 RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
- && apt-get update && apt-get -t testing stretch-cran35 install -y --no-install-recommends \
+ && apt-get update && apt-get -t stretch-cran35 install -y --no-install-recommends \
     r-base \
     r-base-dev \
     r-recommended \
@@ -272,4 +272,3 @@ WORKDIR $HOME
 
 EXPOSE $JUPYTER_PORT
 ENTRYPOINT ["/usr/local/bin/jupyter", "notebook"]
-

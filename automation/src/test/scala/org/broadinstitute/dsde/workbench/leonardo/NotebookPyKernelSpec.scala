@@ -50,7 +50,7 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec {
       contentSecurityHeader.get.value should include ("https://bvdp-saturn-prod.appspot.com")
     }
 
-    // we have to disable SSL validation for BigQuery to work on the command line. this is ideal, so should be resolved as soon as possible
+    // we have to disable SSL validation for BigQuery to work on the command line. this is not ideal, so should be resolved as soon as possible
     "should allow BigQuerying in a new billing project" in { clusterFixture =>
       // project owners have the bigquery role automatically, so this also tests granting it to users
       val ownerToken = hermioneAuthToken
