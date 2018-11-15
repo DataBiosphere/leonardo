@@ -57,8 +57,8 @@ case class ClusterCannotBeDeletedException(googleProject: GoogleProject, cluster
 case class ClusterCannotBeStartedException(googleProject: GoogleProject, clusterName: ClusterName, status: ClusterStatus)
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} cannot be started in ${status.toString} status", StatusCodes.Conflict)
 
-case class ClusterCannotBeUpdatedException(googleProject: GoogleProject, clusterName: ClusterName, status: ClusterStatus)
-  extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} cannot be updated in ${status.toString} status", StatusCodes.Conflict)
+case class ClusterCannotBeUpdatedException(cluster: Cluster)
+  extends LeoException(s"Cluster ${cluster.projectNameString} cannot be updated in ${cluster.status} status", StatusCodes.Conflict)
 
 case class InitializationFileException(googleProject: GoogleProject, clusterName: ClusterName, errorMessage: String)
   extends LeoException(s"Unable to process initialization files for ${googleProject.value}/${clusterName.value}. Returned message: $errorMessage", StatusCodes.Conflict)
@@ -376,7 +376,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         if(clusterResized) { clusterMonitorSupervisor ! ClusterUpdated(updatedCluster.copy(status = ClusterStatus.Updating)) }
         updatedCluster
       }
-    } else Future.failed(ClusterCannotBeUpdatedException(existingCluster.googleProject, existingCluster.clusterName, existingCluster.status))
+    } else Future.failed(ClusterCannotBeUpdatedException(existingCluster))
   }
 
   def maybeUpdateAutopauseThreshold(clusterId: Long, autopause: Option[Boolean], autopauseThreshold: Option[Int]): Future[Int] = {
