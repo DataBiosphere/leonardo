@@ -1006,7 +1006,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
       //check that status of cluster is Updating
       dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(status)
-
     }
   }
 
