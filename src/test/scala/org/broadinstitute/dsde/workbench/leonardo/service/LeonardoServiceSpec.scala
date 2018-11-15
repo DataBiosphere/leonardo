@@ -7,6 +7,8 @@ import java.util.UUID
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.testkit.TestKit
+import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
+import com.google.api.client.testing.json.MockJsonFactory
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
@@ -940,6 +942,32 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.machineConfig.numberOfWorkers shouldBe Some(2)
   }
 
+  it should "gracefully handle an invalid machine config being specific during cluster resize" in isolatedDbTest {
+    val mockPetGoogleDAO: String => GoogleStorageDAO = _ => {
+      new MockGoogleStorageDAO
+    }
+
+    //we meed to use a special version of the MockGoogleDataprocDAO to simulate an error during the call to resizeCluster
+    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, new ErroredMockGoogleDataprocDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
+
+    // create the cluster
+    val clusterCreateResponse =
+      leo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
+
+    // set the cluster to Running
+    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
+
+    intercept[InvalidDataprocMachineConfigException] {
+      Await.result(leo.updateCluster(userInfo, project, name1, testClusterRequest.copy(machineConfig = Some(MachineConfig(numberOfWorkers = Some(2))))), Duration.Inf)
+    }
+
+    //check that status of cluster is still Running
+    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Running)
+
+    //check that the machine config was not updated
+    dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.machineConfig.numberOfWorkers shouldBe Some(0)
+  }
+
   it should "update the autopause threshold for a cluster" in isolatedDbTest {
     // create the cluster
     val clusterCreateResponse =
@@ -1101,5 +1129,14 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     creationMethods
       .zip(clusterNames)
       .foreach { case (creationMethod, clusterName) => testCode(creationMethod, clusterName) }
+  }
+
+  private class ErroredMockGoogleDataprocDAO extends MockGoogleDataprocDAO {
+    override def resizeCluster(googleProject: GoogleProject, clusterName: ClusterName, numWorkers: Option[Int] = None, numPreemptibles: Option[Int] = None): Future[Unit] = {
+      val jsonFactory = new MockJsonFactory
+      val testException = GoogleJsonResponseExceptionFactoryTesting.newMock(jsonFactory, 400, "oh no i have failed due to a bad configuration")
+
+      Future.failed(testException)
+    }
   }
 }

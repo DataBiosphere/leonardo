@@ -403,7 +403,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
             case gjre: GoogleJsonResponseException =>
               //typically we will revoke this role in the monitor after everything is complete, but if Google fails to resize the cluster we need to revoke it manually here
               removeDataprocWorkerRoleFromServiceAccount(existingCluster.googleProject, existingCluster.serviceAccountInfo.clusterServiceAccount)
-              throw InvalidDataprocMachineConfigException(gjre.getDetails.getMessage)
+              throw InvalidDataprocMachineConfigException(gjre.getMessage)
           }
           resizedNumWorkers <- machineConfig.numberOfWorkers.map { numWorkers =>
             dbRef.inTransaction { _.clusterQuery.updateNumberOfWorkers(existingCluster.id, numWorkers) }.map(_ > 0)
