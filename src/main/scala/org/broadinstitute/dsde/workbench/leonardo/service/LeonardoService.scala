@@ -78,6 +78,9 @@ case class ParseLabelsException(labelString: String)
 case class IllegalLabelKeyException(labelKey: String)
   extends LeoException(s"Labels cannot have a key of '$labelKey'", StatusCodes.NotAcceptable)
 
+case class InvalidDataprocMachineConfigException(errorMsg: String)
+  extends LeoException(s"${errorMsg}", StatusCodes.BadRequest)
+
 class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val clusterFilesConfig: ClusterFilesConfig,
                       protected val clusterResourcesConfig: ClusterResourcesConfig,
@@ -400,7 +403,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
             case gjre: GoogleJsonResponseException =>
               //typically we will revoke this role in the monitor after everything is complete, but if Google fails to resize the cluster we need to revoke it manually here
               removeDataprocWorkerRoleFromServiceAccount(existingCluster.googleProject, existingCluster.serviceAccountInfo.clusterServiceAccount)
-              throw gjre
+              throw InvalidDataprocMachineConfigException(gjre.getDetails.getMessage)
           }
           resizedNumWorkers <- machineConfig.numberOfWorkers.map { numWorkers =>
             dbRef.inTransaction { _.clusterQuery.updateNumberOfWorkers(existingCluster.id, numWorkers) }.map(_ > 0)
