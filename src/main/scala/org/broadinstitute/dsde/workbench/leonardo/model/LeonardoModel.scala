@@ -31,7 +31,8 @@ case class ClusterRequest(labels: LabelMap = Map(),
                           userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
                           autopause: Option[Boolean] = None,
                           autopauseThreshold: Option[Int] = None,
-                          defaultClientId: Option[String] = None)
+                          defaultClientId: Option[String] = None,
+                          scopes: Option[List[String]] = None)
 
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
@@ -79,10 +80,12 @@ case class Cluster(id: Long = 0, // DB AutoInc
                    userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
                    autopauseThreshold: Int,
                    defaultClientId: Option[String],
-                   stopAfterCreation: Boolean) {
+                   stopAfterCreation: Boolean,
+                   scopes: List[String]) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.value}"
   def nonPreemptibleInstances: Set[Instance] = instances.filterNot(_.dataprocRole.contains(SecondaryWorker))
 }
+
 object Cluster {
   type LabelMap = Map[String, String]
 
@@ -94,6 +97,7 @@ object Cluster {
              machineConfig: MachineConfig,
              clusterUrlBase: String,
              autopauseThreshold: Int,
+             clusterScopes: List[String],
              operation: Option[Operation] = None,
              stagingBucket: Option[GcsBucketName] = None): Cluster = {
     Cluster(
@@ -113,7 +117,8 @@ object Cluster {
       userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
       autopauseThreshold = autopauseThreshold,
       defaultClientId = clusterRequest.defaultClientId,
-      stopAfterCreation= clusterRequest.stopAfterCreation.getOrElse(false))
+      stopAfterCreation = clusterRequest.stopAfterCreation.getOrElse(false),
+      scopes = clusterScopes)
   }
   
   // TODO it's hacky to re-parse the Leo config in the model object.
@@ -277,7 +282,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val UserClusterExtensionConfigFormat = jsonFormat3(UserJupyterExtensionConfig.apply)
 
-  implicit val ClusterRequestFormat = jsonFormat9(ClusterRequest)
+  implicit val ClusterRequestFormat = jsonFormat10(ClusterRequest)
 
   implicit val ClusterResourceFormat = ValueObjectFormat(ClusterResource)
 
@@ -316,7 +321,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
             fields.getOrElse("userJupyterExtensionConfig", JsNull).convertTo[Option[UserJupyterExtensionConfig]],
             fields.getOrElse("autopauseThreshold", JsNull).convertTo[Int],
             fields.getOrElse("defaultClientId", JsNull).convertTo[Option[String]],
-            fields.getOrElse("stopAfterCreation", JsNull).convertTo[Boolean])
+            fields.getOrElse("stopAfterCreation", JsNull).convertTo[Boolean],
+            fields.getOrElse("scopes", JsNull).convertTo[List[String]])
         case _ => deserializationError("Cluster expected as a JsObject")
       }
     }
