@@ -284,9 +284,11 @@ class ClusterMonitorActor(val cluster: Cluster,
         case Running if leoClusterStatus == Starting && runningInstanceCount == googleInstances.size =>
           getMasterIp.flatMap {
             case Some(ip) =>
-              jupyterProxyDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName).map {
-                case true => ReadyCluster(ip, googleInstances)
-                case false => NotReadyCluster(ClusterStatus.Running, googleInstances)
+              dbRef.inTransaction { _.clusterQuery.updateClusterHostIp(cluster.id, Some(ip)) }.flatMap { _ =>
+                jupyterProxyDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName).map {
+                  case true => ReadyCluster(ip, googleInstances)
+                  case false => NotReadyCluster(ClusterStatus.Running, googleInstances)
+                }
               }
             case None => Future.successful(NotReadyCluster(ClusterStatus.Running, googleInstances))
           }

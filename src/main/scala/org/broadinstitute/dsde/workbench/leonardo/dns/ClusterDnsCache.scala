@@ -58,6 +58,7 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConf
     .build(
       new CacheLoader[DnsCacheKey, Future[HostStatus]] {
         def load(key: DnsCacheKey) = {
+          logger.debug(s"DNS Cache miss for ${key.clusterName} / ${key.clusterName}...loading from DB...")
           dbRef
             .inTransaction { _.clusterQuery.getActiveClusterByName(key.googleProject, key.clusterName) }
             .map {
