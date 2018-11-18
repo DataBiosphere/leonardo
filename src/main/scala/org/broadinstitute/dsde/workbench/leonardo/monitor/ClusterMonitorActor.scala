@@ -284,6 +284,9 @@ class ClusterMonitorActor(val cluster: Cluster,
         case Running if leoClusterStatus == Starting && runningInstanceCount == googleInstances.size =>
           getMasterIp.flatMap {
             case Some(ip) =>
+              // Update the Host IP in the database so DNS cache can be properly populated with the first cache miss
+              // Otherwise, when a cluster is resumed and transitions from Starting to Running, we get stuck
+              // in that state - at least with the way HttpJupyterDAO.isProxyAvailable works
               dbRef.inTransaction { _.clusterQuery.updateClusterHostIp(cluster.id, Some(ip)) }.flatMap { _ =>
                 jupyterProxyDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName).map {
                   case true => ReadyCluster(ip, googleInstances)
