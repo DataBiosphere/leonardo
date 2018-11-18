@@ -5,6 +5,5 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import scala.concurrent.Future
 
 trait JupyterDAO {
-
-  def getStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean]
+  def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean]
 }

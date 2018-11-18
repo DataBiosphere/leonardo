@@ -105,4 +105,11 @@ package object config {
       toScalaDuration(config.getDuration("pollPeriod"))
     )
   }
+
+  implicit val clusterDnsCacheConfig: ValueReader[ClusterDnsCacheConfig] = ValueReader.relative { config =>
+    ClusterDnsCacheConfig(
+      toScalaDuration(config.getDuration("cacheExpiryTime")),
+      config.getInt("cacheMaxSize")
+    )
+  }
 }

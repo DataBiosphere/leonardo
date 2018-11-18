@@ -3,9 +3,8 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 import java.time.Instant
 
 import akka.actor.Status.Failure
-import akka.actor.{Actor, ActorRef, Props}
-import akka.pattern.{ask, pipe}
-import akka.util.Timeout
+import akka.actor.{Actor, Props}
+import akka.pattern.pipe
 import cats.data.OptionT
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
@@ -15,13 +14,11 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, Monito
 import org.broadinstitute.dsde.workbench.leonardo.dao.JupyterDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache.{ClusterReady, GetClusterResponse, ProcessReadyCluster}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterDeleted
-import org.broadinstitute.dsde.workbench.leonardo.service.ClusterNotReadyException
 import org.broadinstitute.dsde.workbench.util.addJitter
 import slick.dbio.DBIOAction
 
@@ -33,8 +30,8 @@ object ClusterMonitorActor {
   /**
     * Creates a Props object used for creating a {{{ClusterMonitorActor}}}.
     */
-  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider, jupyterProxyDAO: JupyterDAO): Props =
-    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, clusterDnsCache, authProvider, jupyterProxyDAO))
+  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, authProvider: LeoAuthProvider, jupyterProxyDAO: JupyterDAO): Props =
+    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, authProvider, jupyterProxyDAO))
 
   // ClusterMonitorActor messages:
 
@@ -65,7 +62,6 @@ class ClusterMonitorActor(val cluster: Cluster,
                           val googleIamDAO: GoogleIamDAO,
                           val googleStorageDAO: GoogleStorageDAO,
                           val dbRef: DbReference,
-                          val clusterDnsCache: ActorRef,
                           val authProvider: LeoAuthProvider,
                           val jupyterProxyDAO: JupyterDAO) extends Actor with LazyLogging {
   import context._
@@ -144,11 +140,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       // create or update instances in the DB
       _ <- persistInstances(instances)
       // update DB after auth futures finish
-      _ <- dbRef.inTransaction { dataAccess =>
-        dataAccess.clusterQuery.setToRunning(cluster.id, publicIp)
-      }
-      // Ensure the cluster is ready for proxying by updating the IP -> DNS cache
-      _ <- ensureClusterReadyForProxying(publicIp, clusterStatus)
+      _ <- dbRef.inTransaction { _.clusterQuery.setToRunning(cluster.id, publicIp) }
       // Remove the Dataproc Worker IAM role for the cluster service account.
       // Only happens if the cluster was created with a service account other
       // than the compute engine default service account.
@@ -292,9 +284,14 @@ class ClusterMonitorActor(val cluster: Cluster,
         case Running if leoClusterStatus == Starting && runningInstanceCount == googleInstances.size =>
           getMasterIp.flatMap {
             case Some(ip) =>
-              isProxyAvailable(leoClusterStatus, ip).map {
-                case true =>  ReadyCluster(ip, googleInstances)
-                case false => NotReadyCluster(ClusterStatus.Running, googleInstances)
+              // Update the Host IP in the database so DNS cache can be properly populated with the first cache miss
+              // Otherwise, when a cluster is resumed and transitions from Starting to Running, we get stuck
+              // in that state - at least with the way HttpJupyterDAO.isProxyAvailable works
+              dbRef.inTransaction { _.clusterQuery.updateClusterHostIp(cluster.id, Some(ip)) }.flatMap { _ =>
+                jupyterProxyDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName).map {
+                  case true => ReadyCluster(ip, googleInstances)
+                  case false => NotReadyCluster(ClusterStatus.Running, googleInstances)
+                }
               }
             case None => Future.successful(NotReadyCluster(ClusterStatus.Running, googleInstances))
           }
@@ -313,17 +310,8 @@ class ClusterMonitorActor(val cluster: Cluster,
     } yield result
   }
 
-  private def isProxyAvailable(clusterStatus: ClusterStatus, ip: IP): Future[Boolean] = {
-    for {
-      _ <- ensureClusterReadyForProxying(ip, clusterStatus)
-      proxyAvailable <- jupyterProxyDAO.getStatus(cluster.googleProject, cluster.clusterName)
-    } yield {
-      proxyAvailable
-    }
-  }
-
   private def persistInstances(instances: Set[Instance]): Future[Unit] = {
-    logger.debug(s"Persisting instances for cluster ${cluster.projectNameString}: ${instances}")
+    logger.debug(s"Persisting instances for cluster ${cluster.projectNameString}: $instances")
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.mergeInstances(cluster.copy(instances = instances))
     }.void
@@ -392,18 +380,6 @@ class ClusterMonitorActor(val cluster: Cluster,
           logger.debug(s"Deleted init bucket $bucketPath for cluster ${cluster.googleProject}/${cluster.clusterName}")
         }
     }
-  }
-
-  private def ensureClusterReadyForProxying(ip: IP, clusterStatus: ClusterStatus): Future[Unit] = {
-    // Ensure that the cluster's IP has been picked up by the DNS cache and is ready for proxying.
-    implicit val timeout: Timeout = Timeout(5 seconds)
-    (clusterDnsCache ? ProcessReadyCluster(cluster.copy(dataprocInfo = cluster.dataprocInfo.copy(hostIp = Some(ip)), status = clusterStatus)))
-      .mapTo[Either[Throwable, GetClusterResponse]]
-      .map {
-        case Left(throwable) => throw throwable
-        case Right(ClusterReady(_)) => ()
-        case Right(_) => throw ClusterNotReadyException(cluster.googleProject, cluster.clusterName)
-      }
   }
 
   private def removeCredentialsFromMetadata: Future[Unit] = {
