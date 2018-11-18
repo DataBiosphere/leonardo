@@ -59,7 +59,7 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
     savedRunningCluster shouldEqual runningCluster
 
     val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO, computeDAO, iamDAO, storageDAO,
-      DbSingleton.ref, system.deadLetters, authProvider, autoFreezeConfig, jupyterProxyDAO))
+      DbSingleton.ref, authProvider, autoFreezeConfig, jupyterProxyDAO))
 
     new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, clusterSupervisorActor, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
 
