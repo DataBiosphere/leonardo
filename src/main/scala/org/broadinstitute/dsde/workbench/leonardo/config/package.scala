@@ -7,6 +7,7 @@ import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
+import scala.collection.JavaConverters._
 
 package object config {
   implicit val swaggerReader: ValueReader[SwaggerConfig] = ValueReader.relative { config =>
@@ -27,6 +28,7 @@ package object config {
       config.getString("jupyterServerName"),
       config.getString("firewallRuleName"),
       config.getString("networkTag"),
+      config.getStringList("defaultScopes").asScala.toList,
       config.getAs[String]("vpcNetwork"),
       config.getAs[String]("vpcSubnet")
     )
