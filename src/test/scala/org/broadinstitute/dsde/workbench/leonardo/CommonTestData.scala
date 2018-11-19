@@ -42,6 +42,7 @@ trait CommonTestData{ this: ScalaFutures =>
   val initBucketPath = GcsBucketName("bucket-path")
   val autopause = true
   val autopauseThreshold = 30
+  val defaultScopes = List("https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/bigquery", "https://www.googleapis.com/auth/source.read_only")
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
   val whitelistAuthConfig = config.getConfig("auth.whitelistProviderConfig")
@@ -101,7 +102,8 @@ trait CommonTestData{ this: ScalaFutures =>
       userJupyterExtensionConfig = None,
       autopauseThreshold = 30,
       defaultClientId = Some("defaultClientId"),
-      stopAfterCreation = false
+      stopAfterCreation = false,
+      scopes = defaultScopes
     )
   }
 
@@ -122,7 +124,9 @@ trait CommonTestData{ this: ScalaFutures =>
     userJupyterExtensionConfig = None,
     autopauseThreshold = if (autopause) autopauseThreshold else 0,
     defaultClientId = None,
-    stopAfterCreation = false)
+    stopAfterCreation = false,
+    scopes = defaultScopes
+  )
 
   // TODO look into parameterized tests so both provider impls can be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData

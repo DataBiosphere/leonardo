@@ -26,7 +26,7 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
 
   private def googleID = UUID.randomUUID()
 
-  override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, machineConfg: MachineConfig, initScript: GcsPath, clusterServiceAccount: Option[WorkbenchEmail], credentialsFileName: Option[String], stagingBucket: GcsBucketName): Future[Operation] = {
+  override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, machineConfg: MachineConfig, initScript: GcsPath, clusterServiceAccount: Option[WorkbenchEmail], credentialsFileName: Option[String], stagingBucket: GcsBucketName, scopes: List[String]): Future[Operation] = {
     if (clusterName == badClusterName) {
       Future.failed(new Exception("bad cluster!"))
     } else {
