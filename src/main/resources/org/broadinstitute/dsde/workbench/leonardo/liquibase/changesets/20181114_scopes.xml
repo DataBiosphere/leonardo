@@ -19,7 +19,7 @@
             CREATE TEMPORARY TABLE defaultScopes
             (
                 scope VARCHAR(254)
-            )
+            );
 
             INSERT INTO defaultScopes
                 VALUES ("https://www.googleapis.com/auth/userinfo.email"), ("https://www.googleapis.com/auth/userinfo.profile"), ("https://www.googleapis.com/auth/bigquery"), ("https://www.googleapis.com/auth/source.read_only");
