@@ -132,7 +132,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
             // TODO make tests rename notebooks?
             val notebookPath = new File("Untitled.ipynb")
             // Use a longer timeout than default because opening notebooks after resume can be slow
-            withOpenNotebook(cluster, notebookPath, 5.minutes) { notebookPage =>
+            withOpenNotebook(cluster, notebookPath, 10.minutes) { notebookPage =>
               // old output should still exist
               val firstCell = notebookPage.firstCell
               notebookPage.cellOutput(firstCell) shouldBe Some(printStr)
@@ -180,7 +180,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
 
               // Verify the Hail import again in a new notebook
               // Use a longer timeout than default because opening notebooks after resume can be slow
-              withNewNotebook(cluster, timeout = 5.minutes) { notebookPage =>
+              withNewNotebook(cluster, timeout = 10.minutes) { notebookPage =>
                 notebookPage.executeCell("sum(range(1,10))") shouldBe Some("45")
 
                 // TODO: Hail verification is disabled here because Spark sometimes doesn't restart correctly
