@@ -6,7 +6,7 @@ trait ScopeComponent extends LeoComponent {
 
   import profile.api._
 
-  class ScopeTable(tag: Tag) extends Table[ScopeRecord](tag, "NOTEBOOK_EXTENSIONS") {
+  class ScopeTable(tag: Tag) extends Table[ScopeRecord](tag, "CLUSTER_SCOPES") {
     def clusterId = column[Long]("clusterId")
 
     def scope = column[String]("scope", O.Length(254))
