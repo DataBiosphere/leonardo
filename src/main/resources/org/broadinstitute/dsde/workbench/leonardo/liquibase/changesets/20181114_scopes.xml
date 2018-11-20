@@ -14,4 +14,19 @@
         </createIndex>
         <addForeignKeyConstraint baseColumnNames="clusterId" baseTableName="CLUSTER_SCOPES" constraintName="FK_SCOPE_CLUSTER_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="CLUSTER"/>
     </changeSet>
+    <changeSet id="set scopes to defaults when scopes is NULL" author="azmina">
+        <sql dbms="mysql">
+            CREATE TEMPORARY TABLE defaultScopes
+            (
+                scope VARCHAR(254)
+            )
+
+            INSERT INTO defaultScopes
+                VALUES ("https://www.googleapis.com/auth/userinfo.email"), ("https://www.googleapis.com/auth/userinfo.profile"), ("https://www.googleapis.com/auth/bigquery"), ("https://www.googleapis.com/auth/source.read_only");
+
+            INSERT INTO CLUSTER_SCOPES(clusterId, scope)
+                SELECT id, scope
+                FROM (SELECT id FROM CLUSTER WHERE NOT EXISTS (SELECT 1 FROM CLUSTER_SCOPES WHERE CLUSTER_SCOPES.clusterId = CLUSTER.id)) AS id CROSS JOIN defaultScopes AS scope;
+       </sql>
+    </changeSet>
 </databaseChangeLog>
