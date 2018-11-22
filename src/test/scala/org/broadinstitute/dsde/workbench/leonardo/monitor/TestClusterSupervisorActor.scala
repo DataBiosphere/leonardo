@@ -9,11 +9,21 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, 
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, LeoAuthProvider}
 
-import scala.concurrent.duration._
-
 object TestClusterSupervisorActor {
-  def props(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, testKit: TestKit, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO): Props =
-    Props(new TestClusterSupervisorActor(monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, clusterDnsCache, testKit, authProvider, autoFreezeConfig, jupyterProxyDAO))
+  def props(monitorConfig: MonitorConfig,
+            dataprocConfig: DataprocConfig,
+            gdDAO: GoogleDataprocDAO,
+            googleComputeDAO: GoogleComputeDAO,
+            googleIamDAO: GoogleIamDAO,
+            googleStorageDAO: GoogleStorageDAO,
+            dbRef: DbReference,
+            testKit: TestKit,
+            authProvider: LeoAuthProvider,
+            autoFreezeConfig: AutoFreezeConfig,
+            jupyterProxyDAO: JupyterDAO): Props =
+    Props(new TestClusterSupervisorActor(
+      monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO,
+      dbRef, testKit, authProvider, autoFreezeConfig, jupyterProxyDAO))
 }
 
 object TearDown
@@ -28,14 +38,13 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  googleIamDAO: GoogleIamDAO,
                                  googleStorageDAO: GoogleStorageDAO,
                                  dbRef: DbReference,
-                                 clusterDnsCache: ActorRef,
                                  testKit: TestKit,
                                  authProvider: LeoAuthProvider,
                                  autoFreezeConfig: AutoFreezeConfig,
                                  jupyterProxyDAO: JupyterDAO)
   extends ClusterMonitorSupervisor(
     monitorConfig, dataprocConfig, gdDAO, googleComputeDAO,
-    googleIamDAO, googleStorageDAO, dbRef, clusterDnsCache,
+    googleIamDAO, googleStorageDAO, dbRef,
     authProvider, autoFreezeConfig, jupyterProxyDAO) {
 
   // Keep track of spawned child actors so we can shut them down when this actor is stopped
