@@ -12,8 +12,7 @@ trait ScopeComponent extends LeoComponent {
     def scope = column[String]("scope", O.Length(254))
 
     def cluster = foreignKey("FK_CLUSTER_ID", clusterId, clusterQuery)(_.id)
-
-    def uniqueKey = index("IDX_LABEL_UNIQUE", (clusterId, scope), unique = true)
+    def uniqueKey = index("IDX_SCOPE_UNIQUE", (clusterId, scope), unique = true)
 
     def * = (clusterId, scope) <> (ScopeRecord.tupled, ScopeRecord.unapply)
   }
@@ -51,5 +50,17 @@ trait ScopeComponent extends LeoComponent {
       } else {
         Some(scopeList.map(rec => rec.scope))
       }
+    }
+
+    private def clusterScopeFilter(clusterId: Long, scope: String): Query[ScopeTable, ScopeRecord, Seq] = {
+      scopeQuery.filter { _.clusterId === clusterId }.filter { _.scope === scope }
+    }
+
+    def delete(clusterId: Long, scope: String): DBIO[Int] = {
+      clusterScopeFilter(clusterId, scope).delete
+    }
+
+    def deleteAllForCluster(clusterId: Long): DBIO[Int] = {
+      scopeQuery.filter { _.clusterId === clusterId }.delete
     }
 }

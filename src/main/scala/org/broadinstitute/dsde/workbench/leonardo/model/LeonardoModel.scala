@@ -322,10 +322,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
             fields.getOrElse("autopauseThreshold", JsNull).convertTo[Int],
             fields.getOrElse("defaultClientId", JsNull).convertTo[Option[String]],
             fields.getOrElse("stopAfterCreation", JsNull).convertTo[Boolean],
-            fields.getOrElse("scopes", JsNull).convertTo[Option[List[String]]] match {
-              case Some(scopes) => scopes
-              case None => List("https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/bigquery", "https://www.googleapis.com/auth/source.read_only")
-          })
+            fields.getOrElse("scopes", JsNull).convertTo[List[String]])
         case _ => deserializationError("Cluster expected as a JsObject")
       }
     }

@@ -13,6 +13,7 @@
             <column name="clusterId"/>
         </createIndex>
         <addForeignKeyConstraint baseColumnNames="clusterId" baseTableName="CLUSTER_SCOPES" constraintName="FK_SCOPE_CLUSTER_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="CLUSTER"/>
+        <addUniqueConstraint columnNames="clusterId, scope" constraintName="IDX_SCOPE_UNIQUE" tableName="CLUSTER_SCOPES"/>
     </changeSet>
     <changeSet id="set scopes to defaults when scopes is NULL" author="azmina">
         <sql dbms="mysql">
