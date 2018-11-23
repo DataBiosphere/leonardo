@@ -184,8 +184,10 @@ function docker_cmd()
             DOCKER_TAG_TESTS=${GIT_SHA:0:12}
         fi
 
-        # builds the juptyer notebooks docker image that goes on dataproc clusters
-        bash ./jupyter-docker/build.sh build "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
+        # builds the juptyer notebooks and rstudio docker images that go on dataproc clusters
+        bash ./docker/build-tool.sh -i jupyter -r "${NOTEBOOK_REPO}" -t "${DOCKER_TAG}"
+        bash ./docker/build-tool.sh -i rstudio -r "${NOTEBOOK_REPO}" -t "${DOCKER_TAG}"
+
         # Build the UI if specified.
         if $BUILD_UI; then
           bash ./ui/build.sh build "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
@@ -217,9 +219,11 @@ function docker_cmd()
                 $DOCKER_REMOTES_BINARY tag $DEFAULT_IMAGE:${DOCKER_TAG} ${GCR_IMAGE}:${DOCKER_TAG}
                 $GCR_REMOTES_BINARY push ${GCR_IMAGE}:${DOCKER_TAG}
             fi
-            
-            # pushes the juptyer notebooks docker image that goes on dataproc clusters
-            bash ./jupyter-docker/build.sh push "${NOTEBOOK_REPO}" "${DOCKER_TAG}" "${GIT_BRANCH}"
+           
+            # pushes the juptyer notebooks and rstudio docker images that go on dataproc clusters
+            bash ./docker/build-tool.sh --push -i jupyter -r "${NOTEBOOK_REPO}" -t "${DOCKER_TAG}" -b "${GIT_BRANCH}"
+            bash ./docker/build-tool.sh --push -i rstudio -r "${NOTEBOOK_REPO}" -t "${DOCKER_TAG}" -b "${GIT_BRANCH}"
+ 
             # push the UI docker image.
             if $BUILD_UI; then
               bash ./ui/build.sh push "${NOTEBOOK_REPO}" "${DOCKER_TAG}" "${GIT_BRANCH}"
