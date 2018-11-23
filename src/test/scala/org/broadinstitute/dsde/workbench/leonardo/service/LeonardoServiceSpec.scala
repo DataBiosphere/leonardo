@@ -76,12 +76,14 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     .getOrElse(List.empty)
 
   lazy val configFiles = List(
-    clusterResourcesConfig.clusterDockerCompose.value,
+    clusterResourcesConfig.jupyterDockerCompose.value,
+    clusterResourcesConfig.rstudioDockerCompose.value,
+    clusterResourcesConfig.proxyDockerCompose.value,
     clusterResourcesConfig.initActionsScript.value,
     clusterFilesConfig.jupyterServerCrt.getName,
     clusterFilesConfig.jupyterServerKey.getName,
     clusterFilesConfig.jupyterRootCaPem.getName,
-    clusterResourcesConfig.jupyterProxySiteConf.value,
+    clusterResourcesConfig.proxySiteConf.value,
     clusterResourcesConfig.jupyterCustomJs.value,
     clusterResourcesConfig.jupyterGoogleSignInJs.value,
     clusterResourcesConfig.jupyterNotebookConfigUri.value)
@@ -550,7 +552,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "template a script using config values" in isolatedDbTest {
     // Create replacements map
-    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy, Set(jupyterImage))
+    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy, Set(jupyterImage, rstudioImage))
     val replacements: Map[String, String] = clusterInit.toMap
 
     // Each value in the replacement map will replace it's key in the file being processed
@@ -560,9 +562,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val expected =
       s"""|#!/usr/bin/env bash
           |
-        |"${name1.value}"
+          |"${name1.value}"
           |"${project.value}"
           |"${jupyterImage.dockerImage}"
+          |"${rstudioImage.dockerImage}"
           |"${proxyConfig.jupyterProxyDockerImage}"
           |"${jupyterUserScriptUri.toUri}"
           |"${GcsPath(initBucketPath, GcsObjectName(ClusterInitValues.serviceAccountCredentialsFilename)).toUri}"

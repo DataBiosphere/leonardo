@@ -34,6 +34,7 @@ case class ClusterRequest(labels: Option[LabelMap] = Option(Map.empty),
                           autopauseThreshold: Option[Int] = None,
                           defaultClientId: Option[String] = None,
                           jupyterDockerImage: Option[String] = None,
+                          rstudioDockerImage: Option[String] = None,
                           scopes: Option[Set[String]] = None)
 
 
@@ -209,13 +210,17 @@ object MachineConfigOps {
 case class ClusterInitValues(googleProject: String,
                              clusterName: String,
                              jupyterDockerImage: String,
+                             rstudioDockerImage: String,
                              proxyDockerImage: String,
                              jupyterServerCrt: String,
                              jupyterServerKey: String,
                              rootCaPem: String,
                              jupyterDockerCompose: String,
-                             jupyterProxySiteConf: String,
+                             rstudioDockerCompose: String,
+                             proxyDockerCompose: String,
+                             proxySiteConf: String,
                              jupyterServerName: String,
+                             rstudioServerName: String,
                              proxyServerName: String,
                              jupyterExtensionUri: String,
                              jupyterUserScriptUri: String,
@@ -243,13 +248,17 @@ object ClusterInitValues {
       googleProject.value,
       clusterName.value,
       clusterImages.find(_.tool == Jupyter).map(_.dockerImage).getOrElse(""),
+      clusterImages.find(_.tool == RStudio).map(_.dockerImage).getOrElse(""),
       proxyConfig.jupyterProxyDockerImage,
       GcsPath(initBucketName, GcsObjectName(clusterFilesConfig.jupyterServerCrt.getName)).toUri,
       GcsPath(initBucketName, GcsObjectName(clusterFilesConfig.jupyterServerKey.getName)).toUri,
       GcsPath(initBucketName, GcsObjectName(clusterFilesConfig.jupyterRootCaPem.getName)).toUri,
-      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.clusterDockerCompose.value)).toUri,
-      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterProxySiteConf.value)).toUri,
+      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterDockerCompose.value)).toUri,
+      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.rstudioDockerCompose.value)).toUri,
+      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.proxyDockerCompose.value)).toUri,
+      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.proxySiteConf.value)).toUri,
       dataprocConfig.jupyterServerName,
+      dataprocConfig.rstudioServerName,
       proxyConfig.proxyServerName,
       clusterRequest.jupyterExtensionUri.map(_.toUri).getOrElse(""),
       clusterRequest.jupyterUserScriptUri.map(_.toUri).getOrElse(""),
@@ -297,7 +306,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val UserClusterExtensionConfigFormat = jsonFormat3(UserJupyterExtensionConfig.apply)
 
-  implicit val ClusterRequestFormat = jsonFormat11(ClusterRequest)
+  implicit val ClusterRequestFormat = jsonFormat12(ClusterRequest)
 
   implicit val ClusterResourceFormat = ValueObjectFormat(ClusterResource)
 

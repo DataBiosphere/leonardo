@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, Clus
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.Jupyter
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
@@ -804,8 +804,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     // Note: initActionsScript and jupyterGoogleSignInJs are not included
     // because they are post-processed by templating logic.
     val resourcesToUpload = List(
-      clusterResourcesConfig.clusterDockerCompose,
-      clusterResourcesConfig.jupyterProxySiteConf,
+      clusterResourcesConfig.jupyterDockerCompose,
+      clusterResourcesConfig.rstudioDockerCompose,
+      clusterResourcesConfig.proxyDockerCompose,
+      clusterResourcesConfig.proxySiteConf,
       clusterResourcesConfig.jupyterCustomJs)
 
     // Uploads the service account private key to the init bucket, if defined.
@@ -931,10 +933,21 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   private[service] def processClusterImages(clusterRequest: ClusterRequest): Set[ClusterImage] = {
-    // Default to the configured default image if not specified in the request
-    // TODO should we validate the image somehow?
-    val jupyterImage = clusterRequest.jupyterDockerImage.getOrElse(dataprocConfig.dataprocDockerImage)
+    val now = Instant.now
 
-    Set(ClusterImage(Jupyter, jupyterImage, Instant.now))
+    (clusterRequest.jupyterDockerImage, clusterRequest.rstudioDockerImage) match {
+      case (Some(jupyterImage), Some(rstudioImage)) =>
+        Set(ClusterImage(Jupyter, jupyterImage, now), ClusterImage(RStudio, rstudioImage, now))
+
+      case (Some(jupyterImage), None) =>
+        Set(ClusterImage(Jupyter, jupyterImage, now))
+
+      case (None, Some(rstudioImage)) =>
+        Set(ClusterImage(RStudio, rstudioImage, now))
+
+      // Default to the configured default Jupyter image if neither Jupyter nor RStudio specified in the request
+      case (None, None) =>
+        Set(ClusterImage(Jupyter, dataprocConfig.dataprocDockerImage, now))
+    }
   }
 }

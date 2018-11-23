@@ -26,6 +26,7 @@ package object config {
       config.getString("clusterUrlBase"),
       toScalaDuration(config.getDuration("defaultExecutionTimeout")),
       config.getString("jupyterServerName"),
+      config.getString("rstudioServerName"),
       config.getString("firewallRuleName"),
       config.getString("networkTag"),
       config.getStringList("defaultScopes").asScala.toSet,
@@ -47,7 +48,9 @@ package object config {
   implicit val clusterResourcesConfigReader: ValueReader[ClusterResourcesConfig] = ValueReader.relative { config =>
     ClusterResourcesConfig(
       ClusterResource(config.getString("initActionsScript")),
-      ClusterResource(config.getString("clusterDockerCompose")),
+      ClusterResource(config.getString("jupyterDockerCompose")),
+      ClusterResource(config.getString("rstudioDockerCompose")),
+      ClusterResource(config.getString("proxyDockerCompose")),
       ClusterResource(config.getString("proxySiteConf")),
       ClusterResource(config.getString("jupyterCustomJs")),
       ClusterResource(config.getString("jupyterGoogleSignInJs")),
