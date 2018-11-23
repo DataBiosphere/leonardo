@@ -63,8 +63,9 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
   override def preStart(): Unit = {
     super.preStart()
 
-    // TODO Is it okay to re-use monitorConfig.pollPeriod here?
+    // TODO Uncomment out when we're ready for the scheduled task below to take over spawning/control of cluster monitors
     //timers.startPeriodicTimer(TimerKey, Tick, monitorConfig.pollPeriod)
+    // TODO Re-using monitorConfig.pollPeriod above for the time being but it may make sense to define a different one as necessary
 
     if (autoFreezeConfig.enableAutoFreeze)
       system.scheduler.schedule(autoFreezeConfig.autoFreezeCheckScheduler, autoFreezeConfig.autoFreezeCheckScheduler, self, AutoFreezeClusters)
