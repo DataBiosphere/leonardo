@@ -12,6 +12,7 @@ case class DataprocConfig(
                            clusterUrlBase: String,
                            defaultExecutionTimeout: FiniteDuration,
                            jupyterServerName: String,
+                           rstudioServerName: String,
                            firewallRuleName: String,
                            networkTag: String,
                            vpcNetwork: Option[String],

@@ -25,6 +25,7 @@ package object config {
       config.getString("clusterUrlBase"),
       toScalaDuration(config.getDuration("defaultExecutionTimeout")),
       config.getString("jupyterServerName"),
+      config.getString("rstudioServerName"),
       config.getString("firewallRuleName"),
       config.getString("networkTag"),
       config.getAs[String]("vpcNetwork"),

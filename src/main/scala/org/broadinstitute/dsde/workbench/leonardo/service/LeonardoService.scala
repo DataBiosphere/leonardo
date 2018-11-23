@@ -256,7 +256,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       clusterRequest.autopause, clusterRequest.autopauseThreshold)
     val initialClusterToSave = Cluster.create(
       augmentedClusterRequest, userEmail, clusterName, googleProject,
-      serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold)
+      serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold) // TODO parse images from request
 
     // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
     // and if so, save the cluster creation request parameters in DB
@@ -827,5 +827,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     else clusterRequest
       .copy(labels = allLabels)
       .copy(userJupyterExtensionConfig = updatedUserJupyterExtensionConfig)
+  }
+
+  private[service] def processClusterImages(clusterRequest: ClusterRequest): Set[ClusterImage] = {
+    Set.empty
   }
 }

@@ -79,6 +79,9 @@ trait CommonTestData{ this: ScalaFutures =>
   val serviceAccountInfo = new ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount)
 
   val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now())
+  val jupyterImage = ClusterImage("jupyter", "jupyter/jupyter-base:latest")
+  val rstudioImage = ClusterImage("rstudio", "rocker/tidyverse:latest")
+
   def makeDataprocInfo(index: Int): DataprocInfo = {
     DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("operationName" + index.toString)), Option(GcsBucketName("stagingBucketName" + index.toString)), Some(IP("numbers.and.dots")))
   }
@@ -102,7 +105,8 @@ trait CommonTestData{ this: ScalaFutures =>
       userJupyterExtensionConfig = None,
       autopauseThreshold = 30,
       defaultClientId = Some("defaultClientId"),
-      stopAfterCreation = false
+      stopAfterCreation = false,
+      clusterImages = Set.empty
     )
   }
 
@@ -123,7 +127,9 @@ trait CommonTestData{ this: ScalaFutures =>
     userJupyterExtensionConfig = None,
     autopauseThreshold = if (autopause) autopauseThreshold else 0,
     defaultClientId = None,
-    stopAfterCreation = false)
+    stopAfterCreation = false,
+    clusterImages = Set(jupyterImage, rstudioImage)
+  )
 
   // TODO look into parameterized tests so both provider impls can be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData

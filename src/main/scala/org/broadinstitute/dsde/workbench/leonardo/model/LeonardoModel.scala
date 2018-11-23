@@ -31,8 +31,9 @@ case class ClusterRequest(labels: LabelMap = Map(),
                           userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
                           autopause: Option[Boolean] = None,
                           autopauseThreshold: Option[Int] = None,
-                          defaultClientId: Option[String] = None)
-
+                          defaultClientId: Option[String] = None,
+                          jupyterDockerImage: Option[String] = None,
+                          rstudioDockerImage: Option[String] = None)
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
                                       serverExtensions: Map[String, String] = Map(),
@@ -60,6 +61,9 @@ case class AuditInfo(creator: WorkbenchEmail,
                      destroyedDate: Option[Instant],
                      dateAccessed: Instant)
 
+case class ClusterImage(name: String,
+                        dockerImage: String)
+
 // The cluster itself
 // Also the API response for "list clusters" and "get active cluster"
 case class Cluster(id: Long = 0, // DB AutoInc
@@ -79,7 +83,8 @@ case class Cluster(id: Long = 0, // DB AutoInc
                    userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
                    autopauseThreshold: Int,
                    defaultClientId: Option[String],
-                   stopAfterCreation: Boolean) {
+                   stopAfterCreation: Boolean,
+                   clusterImages: Set[ClusterImage]) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.value}"
   def nonPreemptibleInstances: Set[Instance] = instances.filterNot(_.dataprocRole.contains(SecondaryWorker))
 }
@@ -95,7 +100,8 @@ object Cluster {
              clusterUrlBase: String,
              autopauseThreshold: Int,
              operation: Option[Operation] = None,
-             stagingBucket: Option[GcsBucketName] = None): Cluster = {
+             stagingBucket: Option[GcsBucketName] = None,
+             clusterImages: Set[ClusterImage] = Set.empty): Cluster = {
     Cluster(
       clusterName = clusterName,
       googleProject = googleProject,
@@ -113,7 +119,8 @@ object Cluster {
       userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
       autopauseThreshold = autopauseThreshold,
       defaultClientId = clusterRequest.defaultClientId,
-      stopAfterCreation= clusterRequest.stopAfterCreation.getOrElse(false))
+      stopAfterCreation = clusterRequest.stopAfterCreation.getOrElse(false),
+      clusterImages = clusterImages)
   }
   
   // TODO it's hacky to re-parse the Leo config in the model object.
@@ -277,7 +284,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val UserClusterExtensionConfigFormat = jsonFormat3(UserJupyterExtensionConfig.apply)
 
-  implicit val ClusterRequestFormat = jsonFormat9(ClusterRequest)
+  implicit val ClusterRequestFormat = jsonFormat11(ClusterRequest)
 
   implicit val ClusterResourceFormat = ValueObjectFormat(ClusterResource)
 
@@ -286,6 +293,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val ClusterErrorFormat = jsonFormat3(ClusterError.apply)
 
   implicit val DefaultLabelsFormat = jsonFormat6(DefaultLabels.apply)
+
+  implicit val ClusterImageFormat = jsonFormat2(ClusterImage.apply)
 
 
   implicit object ClusterFormat extends RootJsonFormat[Cluster] {
@@ -316,7 +325,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
             fields.getOrElse("userJupyterExtensionConfig", JsNull).convertTo[Option[UserJupyterExtensionConfig]],
             fields.getOrElse("autopauseThreshold", JsNull).convertTo[Int],
             fields.getOrElse("defaultClientId", JsNull).convertTo[Option[String]],
-            fields.getOrElse("stopAfterCreation", JsNull).convertTo[Boolean])
+            fields.getOrElse("stopAfterCreation", JsNull).convertTo[Boolean],
+            fields.getOrElse("clusterImages", JsNull).convertTo[Set[ClusterImage]])
         case _ => deserializationError("Cluster expected as a JsObject")
       }
     }
@@ -346,7 +356,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
         "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
         "autopauseThreshold" -> obj.autopauseThreshold.toJson,
         "defaultClientId" -> obj.defaultClientId.toJson,
-        "stopAfterCreation" -> Option(obj.stopAfterCreation).toJson
+        "stopAfterCreation" -> Option(obj.stopAfterCreation).toJson,
+        "clusterImages" -> obj.clusterImages.toJson
       )
 
       val presentFields = allFields.filter(_._2 != JsNull)
