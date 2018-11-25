@@ -253,12 +253,14 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     val augmentedClusterRequest = addClusterLabels(
       serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
+    val clusterImages = processClusterImages(clusterRequest)
     val machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
     val autopauseThreshold = calculateAutopauseThreshold(
       clusterRequest.autopause, clusterRequest.autopauseThreshold)
     val initialClusterToSave = Cluster.create(
       augmentedClusterRequest, userEmail, clusterName, googleProject,
-      serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold) // TODO parse images from request
+      serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold,
+      clusterImages = clusterImages)
 
     // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
     // and if so, save the cluster creation request parameters in DB
@@ -852,6 +854,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         Set(ClusterImage(RStudio, rstudioImage))
       // backwards compatibility
       case (None, None) =>
+        logger.info(s"No image specified in the request, falling back to Jupyter image [${dataprocConfig.dataprocDockerImage}]")
         Set(ClusterImage(Jupyter, dataprocConfig.dataprocDockerImage))
     }
   }
