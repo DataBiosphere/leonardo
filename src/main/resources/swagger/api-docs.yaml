@@ -823,6 +823,16 @@ definitions:
       defaultClientId:
         type: string
         description: The default Google Client ID.
+      jupyterDockerImage:
+        type: String
+        description: |
+          The Jupyter image to install. If not set, Jupyter is not installed. If neither jupyterDockerImage nor
+          rstudioDockerImage are set, then a default Jupyter image will be installed.
+      rstudioDockerImage:
+        type: String
+        description: |
+          The RStudio image to install. If not set, RStudio is not installed. If neither jupyterDockerImage nor
+          rstudioDockerImage are set, then a default Jupyter image will be installed.
 
   ClusterError:
     description: 'Errors encountered on cluster create'
