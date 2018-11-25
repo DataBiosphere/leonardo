@@ -51,7 +51,7 @@ function betterAptGet() {
   fi
 }
 # Initialize the dataproc cluster with Jupyter and apache proxy docker images
-# Uses cluster-docker-compose.yaml
+# Uses jupyter-docker-compose.yaml
 
 ROLE=$(/usr/share/google/get_metadata_value attributes/dataproc-role)
 
@@ -77,15 +77,19 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export GOOGLE_PROJECT=$(googleProject)
     export OWNER_EMAIL=$(userEmailLoginHint)
     export JUPYTER_SERVER_NAME=$(jupyterServerName)
+    export RSTUDIO_SERVER_NAME=$(rstudioServerName)
     export PROXY_SERVER_NAME=$(proxyServerName)
     export JUPYTER_DOCKER_IMAGE=$(jupyterDockerImage)
+    export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
     export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
 
     JUPYTER_SERVER_CRT=$(jupyterServerCrt)
     JUPYTER_SERVER_KEY=$(jupyterServerKey)
     JUPYTER_ROOT_CA=$(rootCaPem)
     JUPYTER_DOCKER_COMPOSE=$(jupyterDockerCompose)
-    JUPYTER_PROXY_SITE_CONF=$(jupyterProxySiteConf)
+    RSTUDIO_DOCKER_COMPOSE=$(rstudioDockerCompose)
+    PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
+    PROXY_SITE_CONF=$(proxySiteConf)
     JUPYTER_SERVER_EXTENSIONS=$(jupyterServerExtensions)
     JUPYTER_NB_EXTENSIONS=$(jupyterNbExtensions)
     JUPYTER_COMBINED_EXTENSIONS=$(jupyterCombinedExtensions)
@@ -144,8 +148,14 @@ if [[ "${ROLE}" == 'Master' ]]; then
     gsutil cp ${JUPYTER_SERVER_CRT} /certs
     gsutil cp ${JUPYTER_SERVER_KEY} /certs
     gsutil cp ${JUPYTER_ROOT_CA} /certs
-    gsutil cp ${JUPYTER_PROXY_SITE_CONF} /etc
-    gsutil cp ${JUPYTER_DOCKER_COMPOSE} /etc
+    gsutil cp ${PROXY_SITE_CONF} /etc
+    if [ ! -z ${JUPYTER_DOCKER_COMPOSE} ] ; then
+      gsutil cp ${JUPYTER_DOCKER_COMPOSE} /etc
+    fi
+    if [ ! -z ${RSTUDIO_DOCKER_COMPOSE} ] ; then
+      gsutil cp ${RSTUDIO_DOCKER_COMPOSE} /etc
+    fi
+    gsutil cp ${PROXY_DOCKER_COMPOSE} /etc
 
     # Needed because docker-compose can't handle symlinks
     touch /hadoop_gcs_connector_metadata_cache
@@ -169,13 +179,19 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
     log 'Starting up the Jupydocker...'
 
-    # Run docker-compose. This mounts Hadoop, Spark, and other resources inside the docker container.
+    # Run docker-compose for each specified compose file.
     # Note the `docker-compose pull` is retried to avoid intermittent network errors, but
     # `docker-compose up` is not retried.
-    COMPOSE_FILE=/etc/`basename ${JUPYTER_DOCKER_COMPOSE}`
-    docker-compose -f $COMPOSE_FILE config
-    retry 5 docker-compose -f $COMPOSE_FILE pull
-    docker-compose -f $COMPOSE_FILE up -d
+    COMPOSE_FILES=(-f /etc/`basename ${PROXY_DOCKER_COMPOSE}`)
+    if [ ! -z ${JUPYTER_DOCKER_COMPOSE} ] ; then
+      COMPOSE_FILES+=(-f /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`)
+    fi
+    if [ ! -z ${RSTUDIO_DOCKER_COMPOSE} ] ; then
+      COMPOSE_FILES+=(-f /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
+    fi
+    docker-compose "${COMPOSE_FILES[@]}" config
+    retry 5 docker-compose "${COMPOSE_FILES[@]}" pull
+    docker-compose "${COMPOSE_FILES[@]}" up -d
 
     log 'Installing Jupydocker kernelspecs...'
 

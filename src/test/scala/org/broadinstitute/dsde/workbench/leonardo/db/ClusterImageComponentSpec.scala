@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio}
 import org.scalatest.FlatSpecLike
 
 class ClusterImageComponentSpec extends TestComponent with FlatSpecLike with CommonTestData {
@@ -9,8 +10,8 @@ class ClusterImageComponentSpec extends TestComponent with FlatSpecLike with Com
     val cluster = makeCluster(1).save()
 
     dbFutureValue { _.clusterImageQuery.save(cluster.id, jupyterImage) }
-    dbFutureValue { _.clusterImageQuery.get(cluster.id, jupyterImage.name) } shouldBe Some(jupyterImage)
-    dbFutureValue { _.clusterImageQuery.get(cluster.id, "non-existent-name") } shouldBe None
+    dbFutureValue { _.clusterImageQuery.get(cluster.id, Jupyter) } shouldBe Some(jupyterImage)
+    dbFutureValue { _.clusterImageQuery.get(cluster.id, RStudio) } shouldBe None
   }
 
   it should "save and get all for cluster" in isolatedDbTest {

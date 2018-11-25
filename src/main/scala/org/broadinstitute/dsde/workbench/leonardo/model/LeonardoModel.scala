@@ -13,6 +13,7 @@ import enumeratum.{Enum, EnumEntry}
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster._
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.model.google.GoogleJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
@@ -61,7 +62,15 @@ case class AuditInfo(creator: WorkbenchEmail,
                      destroyedDate: Option[Instant],
                      dateAccessed: Instant)
 
-case class ClusterImage(name: String,
+sealed trait ClusterTool extends EnumEntry
+object ClusterTool extends Enum[ClusterTool] {
+  val values = findValues
+
+  case object Jupyter extends ClusterTool
+  case object RStudio extends ClusterTool
+}
+
+case class ClusterImage(tool: ClusterTool,
                         dockerImage: String)
 
 // The cluster itself
@@ -197,13 +206,17 @@ object MachineConfigOps {
 case class ClusterInitValues(googleProject: String,
                              clusterName: String,
                              jupyterDockerImage: String,
+                             rstudioDockerImage: String,
                              proxyDockerImage: String,
                              jupyterServerCrt: String,
                              jupyterServerKey: String,
                              rootCaPem: String,
                              jupyterDockerCompose: String,
-                             jupyterProxySiteConf: String,
+                             rstudioDockerCompose: String,
+                             proxyDockerCompose: String,
+                             proxySiteConf: String,
                              jupyterServerName: String,
+                             rstudioServerName: String,
                              proxyServerName: String,
                              jupyterExtensionUri: String,
                              jupyterUserScriptUri: String,
@@ -225,18 +238,23 @@ object ClusterInitValues {
 
   def apply(googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, dataprocConfig: DataprocConfig,
             clusterFilesConfig: ClusterFilesConfig, clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig,
-            serviceAccountKey: Option[ServiceAccountKey], userEmailLoginHint: WorkbenchEmail, contentSecurityPolicy: String): ClusterInitValues =
+            serviceAccountKey: Option[ServiceAccountKey], userEmailLoginHint: WorkbenchEmail, contentSecurityPolicy: String,
+            clusterImages: Set[ClusterImage]): ClusterInitValues =
     ClusterInitValues(
       googleProject.value,
       clusterName.value,
-      dataprocConfig.dataprocDockerImage,
+      clusterImages.find(_.tool == Jupyter).map(_.dockerImage).getOrElse(""),
+      clusterImages.find(_.tool == RStudio).map(_.dockerImage).getOrElse(""),
       proxyConfig.jupyterProxyDockerImage,
       GcsPath(initBucketName, GcsObjectName(clusterFilesConfig.jupyterServerCrt.getName)).toUri,
       GcsPath(initBucketName, GcsObjectName(clusterFilesConfig.jupyterServerKey.getName)).toUri,
       GcsPath(initBucketName, GcsObjectName(clusterFilesConfig.jupyterRootCaPem.getName)).toUri,
-      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.clusterDockerCompose.value)).toUri,
-      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterProxySiteConf.value)).toUri,
+      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterDockerCompose.value)).toUri,
+      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.rstudioDockerCompose.value)).toUri,
+      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.proxyDockerCompose.value)).toUri,
+      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.proxySiteConf.value)).toUri,
       dataprocConfig.jupyterServerName,
+      dataprocConfig.rstudioServerName,
       proxyConfig.proxyServerName,
       clusterRequest.jupyterExtensionUri.map(_.toUri).getOrElse(""),
       clusterRequest.jupyterUserScriptUri.map(_.toUri).getOrElse(""),
@@ -293,6 +311,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val ClusterErrorFormat = jsonFormat3(ClusterError.apply)
 
   implicit val DefaultLabelsFormat = jsonFormat6(DefaultLabels.apply)
+
+  implicit val ClusterToolFormat = EnumEntryFormat(ClusterTool.withName)
 
   implicit val ClusterImageFormat = jsonFormat2(ClusterImage.apply)
 

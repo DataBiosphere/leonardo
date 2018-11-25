@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterImage
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterImage, ClusterTool}
 
 case class ClusterImageRecord(clusterId: Long, name: String, dockerImage: String)
 
@@ -35,10 +35,10 @@ trait ClusterImageComponent extends LeoComponent {
       }
     }
 
-    def get(clusterId: Long, name: String): DBIO[Option[ClusterImage]] = {
+    def get(clusterId: Long, tool: ClusterTool): DBIO[Option[ClusterImage]] = {
       clusterImageQuery
         .filter { _.clusterId === clusterId }
-        .filter { _.name === name }
+        .filter { _.name === tool.toString }
         .result
         .headOption
         .map(_.map(unmarshalClusterImage))
@@ -52,11 +52,11 @@ trait ClusterImageComponent extends LeoComponent {
     }
 
     def marshallClusterImage(clusterId: Long, clusterImage: ClusterImage): ClusterImageRecord = {
-      ClusterImageRecord(clusterId, clusterImage.name, clusterImage.dockerImage)
+      ClusterImageRecord(clusterId, clusterImage.tool.toString, clusterImage.dockerImage)
     }
 
     def unmarshalClusterImage(clusterImageRecord: ClusterImageRecord): ClusterImage = {
-      ClusterImage(clusterImageRecord.name, clusterImageRecord.dockerImage)
+      ClusterImage(ClusterTool.withName(clusterImageRecord.name), clusterImageRecord.dockerImage)
     }
 
   }
