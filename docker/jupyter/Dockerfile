@@ -130,7 +130,7 @@ RUN apt-get update \
 
  # NOTE! not sure why, but this must run before pip installation
  && useradd -m -s /bin/bash -N -u $UID $USER \
- # jessie's default pip doesn't work well with jupyter
+ # jessie's default pip doesn't work well with jupyter 
  && wget -nv https://bootstrap.pypa.io/get-pip.py \
  && python get-pip.py \
  && pip install ipykernel==4.10.0 \
