@@ -525,7 +525,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       operation <- gdDAO.createCluster(googleProject, clusterName, machineConfig, initScript,
         serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket)
       cluster = Cluster.create(clusterRequest, userEmail, clusterName, googleProject, serviceAccountInfo,
-        machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, Option(operation), Option(stagingBucket))
+        machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, Option(operation), Option(stagingBucket), clusterImages)
     } yield (cluster, initBucket, serviceAccountKeyOpt)
 
     // If anything fails, we need to clean up Google resources that might have been created
