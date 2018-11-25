@@ -50,8 +50,6 @@ function betterAptGet() {
     return 1
   fi
 }
-# Initialize the dataproc cluster with Jupyter and apache proxy docker images
-# Uses jupyter-docker-compose.yaml
 
 ROLE=$(/usr/share/google/get_metadata_value attributes/dataproc-role)
 
