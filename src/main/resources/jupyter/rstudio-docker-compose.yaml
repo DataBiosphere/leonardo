@@ -3,10 +3,12 @@ services:
   rstudio:
     container_name: "${RSTUDIO_SERVER_NAME}"
     image: "${RSTUDIO_DOCKER_IMAGE}"
-    network_mode: host
+    ports:
+      - "8001:8001"
     restart: always
     environment:
-      PASSWORD: "leonardo"
+      # needed to disable auth
+      USER: "rstudio"
       GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
       CLUSTER_NAME: "${CLUSTER_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
