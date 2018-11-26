@@ -3,8 +3,7 @@ services:
   rstudio:
     container_name: "${RSTUDIO_SERVER_NAME}"
     image: "${RSTUDIO_DOCKER_IMAGE}"
-    ports:
-      - "8001:8001"
+    network_mode: host
     restart: always
     environment:
       # needed to disable auth
