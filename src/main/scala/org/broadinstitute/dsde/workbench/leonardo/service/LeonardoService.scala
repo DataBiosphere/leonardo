@@ -355,9 +355,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
       _ <- checkClusterPermission(userInfo, ModifyCluster, cluster) //throws 404 if no auth
 
-      _ <- internalUpdateCluster(cluster, clusterRequest)
-
-      updatedCluster <- internalGetActiveClusterDetails(googleProject, clusterName)
+      updatedCluster <- internalUpdateCluster(cluster, clusterRequest)
     } yield { updatedCluster }
   }
 

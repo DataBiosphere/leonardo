@@ -968,6 +968,23 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.machineConfig.numberOfWorkers shouldBe Some(0)
   }
 
+  it should "cluster creation should end in Error state if adding dataproc worker role fails" in isolatedDbTest {
+    val mockPetGoogleDAO: String => GoogleStorageDAO = _ => {
+      new MockGoogleStorageDAO
+    }
+
+    //we meed to use a special version of the MockGoogleDataprocDAO to simulate an error during the call to resizeCluster
+    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, mockGoogleDataprocDAO, computeDAO, new ErroredMockGoogleIamDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
+
+    // create the cluster
+    val clusterCreateResponse =
+      leo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
+
+    eventually {
+      dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Error)
+    }
+  }
+
   it should "update the autopause threshold for a cluster" in isolatedDbTest {
     // create the cluster
     val clusterCreateResponse =
@@ -1134,6 +1151,15 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     override def resizeCluster(googleProject: GoogleProject, clusterName: ClusterName, numWorkers: Option[Int] = None, numPreemptibles: Option[Int] = None): Future[Unit] = {
       val jsonFactory = new MockJsonFactory
       val testException = GoogleJsonResponseExceptionFactoryTesting.newMock(jsonFactory, 400, "oh no i have failed due to a bad configuration")
+
+      Future.failed(testException)
+    }
+  }
+
+  private class ErroredMockGoogleIamDAO extends MockGoogleIamDAO {
+    override def addIamRolesForUser(iamProject: GoogleProject, email: WorkbenchEmail, rolesToAdd: Set[String]): Future[Unit] = {
+      val jsonFactory = new MockJsonFactory
+      val testException = GoogleJsonResponseExceptionFactoryTesting.newMock(jsonFactory, 400, "oh no i have failed")
 
       Future.failed(testException)
     }
