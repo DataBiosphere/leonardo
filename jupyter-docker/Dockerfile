@@ -173,7 +173,7 @@ RUN apt-get update \
     python3-distutils \
  && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.6 100 \
  && python3 get-pip.py \
- && pip3 install tornado==5.1.1 \
+ && pip3 install tornado==4.5.3 \
 # # Hail requires decorator
  && pip3 install -U decorator==4.3.0 \
  && pip3 install parsimonious==0.8.1 \
