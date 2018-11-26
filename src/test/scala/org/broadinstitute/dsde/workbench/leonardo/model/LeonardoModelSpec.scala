@@ -56,7 +56,8 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |  "dateAccessed": "2018-08-07T10:12:35Z",
         |  "autopauseThreshold": 30,
         |  "defaultClientId": "defaultClientId",
-        |  "stopAfterCreation": true
+        |  "stopAfterCreation": true,
+        |  "scopes":["https://www.googleapis.com/auth/userinfo.email","https://www.googleapis.com/auth/userinfo.profile","https://www.googleapis.com/auth/bigquery","https://www.googleapis.com/auth/source.read_only"]
         |}
       """.stripMargin.parseJson
 

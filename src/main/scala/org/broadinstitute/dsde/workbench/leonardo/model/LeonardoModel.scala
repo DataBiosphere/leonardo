@@ -323,6 +323,10 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
             fields.getOrElse("defaultClientId", JsNull).convertTo[Option[String]],
             fields.getOrElse("stopAfterCreation", JsNull).convertTo[Boolean],
             fields.getOrElse("scopes", JsNull).convertTo[Set[String]])
+//            fields.getOrElse("scopes", JsNull).convertTo[Option[Set[String]]] match {
+//              case Some(scopes) => scopes
+//              case None => Set("https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/bigquery", "https://www.googleapis.com/auth/source.read_only")
+//          })
         case _ => deserializationError("Cluster expected as a JsObject")
       }
     }
@@ -352,7 +356,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
         "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
         "autopauseThreshold" -> obj.autopauseThreshold.toJson,
         "defaultClientId" -> obj.defaultClientId.toJson,
-        "stopAfterCreation" -> Option(obj.stopAfterCreation).toJson
+        "stopAfterCreation" -> Option(obj.stopAfterCreation).toJson,
+        "scopes" -> obj.scopes.toJson
       )
 
       val presentFields = allFields.filter(_._2 != JsNull)
