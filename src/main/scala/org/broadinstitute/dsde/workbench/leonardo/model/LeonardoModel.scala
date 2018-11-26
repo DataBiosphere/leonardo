@@ -32,7 +32,7 @@ case class ClusterRequest(labels: LabelMap = Map(),
                           autopause: Option[Boolean] = None,
                           autopauseThreshold: Option[Int] = None,
                           defaultClientId: Option[String] = None,
-                          scopes: Option[List[String]] = None)
+                          scopes: Option[Set[String]] = None)
 
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
@@ -81,7 +81,7 @@ case class Cluster(id: Long = 0, // DB AutoInc
                    autopauseThreshold: Int,
                    defaultClientId: Option[String],
                    stopAfterCreation: Boolean,
-                   scopes: List[String]) {
+                   scopes: Set[String]) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.value}"
   def nonPreemptibleInstances: Set[Instance] = instances.filterNot(_.dataprocRole.contains(SecondaryWorker))
 }
@@ -97,7 +97,7 @@ object Cluster {
              machineConfig: MachineConfig,
              clusterUrlBase: String,
              autopauseThreshold: Int,
-             clusterScopes: List[String],
+             clusterScopes: Set[String],
              operation: Option[Operation] = None,
              stagingBucket: Option[GcsBucketName] = None): Cluster = {
     Cluster(
@@ -322,7 +322,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
             fields.getOrElse("autopauseThreshold", JsNull).convertTo[Int],
             fields.getOrElse("defaultClientId", JsNull).convertTo[Option[String]],
             fields.getOrElse("stopAfterCreation", JsNull).convertTo[Boolean],
-            fields.getOrElse("scopes", JsNull).convertTo[List[String]])
+            fields.getOrElse("scopes", JsNull).convertTo[Set[String]])
         case _ => deserializationError("Cluster expected as a JsObject")
       }
     }

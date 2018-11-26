@@ -449,7 +449,7 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.autopauseThreshold,
         clusterRecord.defaultClientId,
         clusterRecord.stopAfterCreation,
-        scopes.map(rec => rec.scope)
+        ClusterComponent.this.scopeQuery.unmarshallScopes(scopes) toSet
       )
     }
   }

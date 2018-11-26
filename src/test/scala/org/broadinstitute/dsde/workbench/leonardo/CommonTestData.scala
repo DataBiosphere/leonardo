@@ -42,7 +42,7 @@ trait CommonTestData{ this: ScalaFutures =>
   val initBucketPath = GcsBucketName("bucket-path")
   val autopause = true
   val autopauseThreshold = 30
-  val defaultScopes = List("https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/bigquery", "https://www.googleapis.com/auth/source.read_only")
+  val defaultScopes = Set("https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/bigquery", "https://www.googleapis.com/auth/source.read_only")
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
   val whitelistAuthConfig = config.getConfig("auth.whitelistProviderConfig")

@@ -67,7 +67,7 @@ class HttpGoogleDataprocDAO(appName: String,
                              clusterServiceAccount: Option[WorkbenchEmail],
                              credentialsFileName: Option[String],
                              stagingBucket: GcsBucketName,
-                             clusterScopes: List[String]): Future[Operation] = {
+                             clusterScopes: Set[String]): Future[Operation] = {
     val cluster = new DataprocCluster()
       .setClusterName(clusterName.value)
       .setConfig(getClusterConfig(machineConfig, initScript, clusterServiceAccount, credentialsFileName, stagingBucket, clusterScopes))
@@ -215,7 +215,7 @@ class HttpGoogleDataprocDAO(appName: String,
       }
   }
 
-  private def getClusterConfig(machineConfig: MachineConfig, initScript: GcsPath, clusterServiceAccount: Option[WorkbenchEmail], credentialsFileName: Option[String], stagingBucket: GcsBucketName, clusterScopes: List[String]): DataprocClusterConfig = {
+  private def getClusterConfig(machineConfig: MachineConfig, initScript: GcsPath, clusterServiceAccount: Option[WorkbenchEmail], credentialsFileName: Option[String], stagingBucket: GcsBucketName, clusterScopes: Set[String]): DataprocClusterConfig = {
     // Create a GceClusterConfig, which has the common config settings for resources of Google Compute Engine cluster instances,
     // applicable to all instances in the cluster.
     // Set the network tag, network, and subnet. This allows the created GCE instances to be exposed by Leo's firewall rule.
@@ -236,7 +236,7 @@ class HttpGoogleDataprocDAO(appName: String,
     // Set the cluster service account, if present.
     // This is the service account passed to the create cluster API call.
     clusterServiceAccount.foreach { serviceAccountEmail =>
-      gceClusterConfig.setServiceAccount(serviceAccountEmail.value).setServiceAccountScopes(clusterScopes.asJava)
+      gceClusterConfig.setServiceAccount(serviceAccountEmail.value).setServiceAccountScopes(clusterScopes.toList.asJava)
     }
 
     // Create a NodeInitializationAction, which specifies the executable to run on a node.

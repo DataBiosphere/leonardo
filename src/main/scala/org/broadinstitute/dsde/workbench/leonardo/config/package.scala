@@ -28,7 +28,7 @@ package object config {
       config.getString("jupyterServerName"),
       config.getString("firewallRuleName"),
       config.getString("networkTag"),
-      config.getStringList("defaultScopes").asScala.toList,
+      config.getStringList("defaultScopes").asScala.toSet,
       config.getAs[String]("vpcNetwork"),
       config.getAs[String]("vpcSubnet")
     )

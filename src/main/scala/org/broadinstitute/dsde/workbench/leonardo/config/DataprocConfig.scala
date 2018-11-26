@@ -14,7 +14,7 @@ case class DataprocConfig(
                            jupyterServerName: String,
                            firewallRuleName: String,
                            networkTag: String,
-                           defaultScopes: List[String],
+                           defaultScopes: Set[String],
                            vpcNetwork: Option[String],
                            vpcSubnet: Option[String]
                          )
