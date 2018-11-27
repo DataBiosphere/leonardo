@@ -10,7 +10,9 @@ class ClusterImageComponentSpec extends TestComponent with FlatSpecLike with Com
     val cluster = makeCluster(1).save()
 
     dbFutureValue { _.clusterImageQuery.get(cluster.id, Jupyter) } shouldBe Some(jupyterImage)
+    dbFutureValue { _.clusterImageQuery.get(cluster.id, RStudio) } shouldBe None
     dbFutureValue { _.clusterImageQuery.save(cluster.id, rstudioImage) }
+    dbFutureValue { _.clusterImageQuery.get(cluster.id, Jupyter) } shouldBe Some(jupyterImage)
     dbFutureValue { _.clusterImageQuery.get(cluster.id, RStudio) } shouldBe Some(rstudioImage)
   }
 

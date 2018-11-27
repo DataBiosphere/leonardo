@@ -92,8 +92,8 @@ trait ClusterComponent extends LeoComponent {
       (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket, dateAccessed, autopauseThreshold, defaultClientId, stopAfterCreation
     ).shaped <> ({
       case (id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
-      createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket, machineConfig,
-      serviceAccountInfo, stagingBucket, dateAccessed, autopauseThreshold, defaultClientId, stopAfterCreation) =>
+            createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket, machineConfig,
+            serviceAccountInfo, stagingBucket, dateAccessed, autopauseThreshold, defaultClientId, stopAfterCreation) =>
         ClusterRecord(
           id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
           createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
@@ -166,8 +166,8 @@ trait ClusterComponent extends LeoComponent {
         .filter { _._1.clusterName === name.value }
         .filter { _._1.destroyedDate === Timestamp.from(dummyDate) }
         .result map { recs =>
-        unmarshalFullCluster(recs).headOption
-      }
+          unmarshalFullCluster(recs).headOption
+        }
     }
 
     def getDeletingClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
@@ -176,8 +176,8 @@ trait ClusterComponent extends LeoComponent {
         .filter { _._1.clusterName === name.value }
         .filter { _._1.status === ClusterStatus.Deleting.toString }
         .result map { recs =>
-        unmarshalFullCluster(recs).headOption
-      }
+          unmarshalFullCluster(recs).headOption
+        }
     }
 
     def getClusterById(id: Long): DBIO[Option[Cluster]] = {
@@ -215,8 +215,7 @@ trait ClusterComponent extends LeoComponent {
         .filter { _.clusterName === name.value }
         .map(_.initBucket)
         .result
-        .map { recs => recs.headOption.flatten.flatMap(head => parseGcsPath(head).toOption)
-        }
+        .map { recs => recs.headOption.flatten.flatMap(head => parseGcsPath(head).toOption) }
     }
 
     def getServiceAccountKeyId(project: GoogleProject, name: ClusterName): DBIO[Option[ServiceAccountKeyId]] = {
@@ -333,7 +332,7 @@ trait ClusterComponent extends LeoComponent {
         //   where clusterId = c.id and (key, value) in ${labelMap}
         // ) = ${labelMap.size}
         //
-        clusterStatusQueryByProject.filter { case (cluster, _, _) =>
+        clusterStatusQueryByProject.filter { case (cluster, _) =>
           labelQuery.filter {
             _.clusterId === cluster.id
           }
@@ -390,17 +389,16 @@ trait ClusterComponent extends LeoComponent {
       )
     }
 
-    private def unmarshalMinimalCluster(clusterRecords: Seq[(ClusterRecord, Option[LabelRecord], Option[ExtensionRecord])]): Seq[Cluster] = {
+    private def unmarshalMinimalCluster(clusterLabels: Seq[(ClusterRecord, Option[LabelRecord])]): Seq[Cluster] = {
       // Call foldMap to aggregate a Seq[(ClusterRecord, LabelRecord)] returned by the query to a Map[ClusterRecord, Map[labelKey, labelValue]].
-      val clusterLabelMap: Map[ClusterRecord, (Map[String, List[String]], List[ExtensionRecord])] = clusterRecords.toList.foldMap { case (clusterRecord, labelRecordOpt, extensionOpt) =>
+      val clusterLabelMap: Map[ClusterRecord, Map[String, List[String]]] = clusterLabels.toList.foldMap { case (clusterRecord, labelRecordOpt) =>
         val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> List(labelRecordOpt.value)).toMap
-        val extList =  extensionOpt.toList
-        Map(clusterRecord -> (labelMap, extList))
+        Map(clusterRecord -> labelMap)
       }
 
       // Unmarshal each (ClusterRecord, Map[labelKey, labelValue]) to a Cluster object
-      clusterLabelMap.map { case (clusterRec, (labelMap, extList)) =>
-        unmarshalCluster(clusterRec, Seq.empty, List.empty, labelMap.mapValues(_.toSet.head), extList, List.empty)
+      clusterLabelMap.map { case (clusterRec, labelMap) =>
+        unmarshalCluster(clusterRec, Seq.empty, List.empty, labelMap.mapValues(_.toSet.head), List.empty, List.empty)
       }.toSeq
     }
 
@@ -473,13 +471,10 @@ trait ClusterComponent extends LeoComponent {
   // just clusters and labels: no instances, extensions, etc.
   //   select * from cluster c
   //   left join label l on c.id = l.clusterId
-  val minimalClusterQuery: Query[(ClusterTable, Rep[Option[LabelTable]], Rep[Option[ExtensionTable]]), (ClusterRecord, Option[LabelRecord], Option[ExtensionRecord]), Seq] = {
+  val minimalClusterQuery: Query[(ClusterTable, Rep[Option[LabelTable]]), (ClusterRecord, Option[LabelRecord]), Seq] = {
     for {
-      ((cluster, label), extension) <-
-        clusterQuery joinLeft
-          labelQuery on (_.id === _.clusterId) joinLeft
-          extensionQuery on (_._1.id === _.clusterId)
-    } yield (cluster, label, extension)
+      (cluster, label) <- clusterQuery joinLeft labelQuery on (_.id === _.clusterId)
+    } yield (cluster, label)
   }
 
   // cluster and all associated data: labels, instances, errors, extensions, images.

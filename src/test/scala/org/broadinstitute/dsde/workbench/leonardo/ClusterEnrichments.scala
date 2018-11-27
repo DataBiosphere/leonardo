@@ -53,6 +53,10 @@ object ClusterEnrichments {
   }
 
   def stripFieldsForListCluster(cluster: Cluster): Cluster = {
-    cluster.copy(instances = Set.empty, clusterImages = Set.empty, errors = List.empty)
+    cluster.copy(
+      instances = Set.empty,
+      clusterImages = Set.empty,
+      errors = List.empty,
+      userJupyterExtensionConfig = None)
   }
 }

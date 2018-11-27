@@ -12,6 +12,7 @@ import com.google.api.client.testing.json.MockJsonFactory
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{MockPetClusterServiceAccountProvider, MockSwaggerSamClient}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
@@ -429,7 +430,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // populate some instances for the cluster
     dbFutureValue { _.instanceQuery.saveAllForCluster(
-      getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2)) }
+        getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2)) }
 
     // change cluster status to Running so that it can be deleted
     dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("numbers.and.dots")) }
@@ -465,7 +466,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // populate some instances for the cluster
     dbFutureValue { _.instanceQuery.saveAllForCluster(
-      getClusterId(clusterCreateResponseV2), Seq(masterInstanceV2, workerInstance1V2, workerInstance2V2)) }
+        getClusterId(clusterCreateResponseV2), Seq(masterInstanceV2, workerInstance1V2, workerInstance2V2)) }
 
     // change cluster status to Running so that it can be deleted
     dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponseV2.id, IP("numbers.and.dots")) }
@@ -620,8 +621,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "list all clusters" in isolatedDbTest {
-    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
-
     // create a couple of clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     val cluster1 = leo.createCluster(userInfo, project, clusterName1, testClusterRequest).futureValue
@@ -646,8 +645,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "list all clusters created via v2 API" in isolatedDbTest {
-    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
-
     // create a couple of clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     leo.processClusterCreationRequest(userInfo, project, clusterName1, testClusterRequest).futureValue
@@ -668,8 +665,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "list all active clusters" in isolatedDbTest {
-    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
-
     // create a couple of clusters
     val cluster1 = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
 
@@ -691,8 +686,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "list all active clusters created via v2 API" in isolatedDbTest {
-    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
-
     var cluster1, cluster2, cluster3: Cluster = null.asInstanceOf[Cluster]
 
     // create a couple of clusters
@@ -725,8 +718,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "list clusters with labels" in isolatedDbTest {
-    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
-
     // create a couple of clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     val cluster1 = leo.createCluster(userInfo, project, clusterName1, testClusterRequest).futureValue
@@ -745,8 +736,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "list clusters with labels created via v2 API" in isolatedDbTest {
-    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
-
     // create a couple of clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     leo.processClusterCreationRequest(userInfo, project, clusterName1, testClusterRequest).futureValue
@@ -783,8 +772,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "list clusters with swagger-style labels" in isolatedDbTest {
-    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
-
     // create a couple of clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     val cluster1 = leo.createCluster(userInfo, project, clusterName1, testClusterRequest).futureValue
@@ -806,8 +793,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "list clusters with swagger-style labels, created using v2 API" in isolatedDbTest {
-    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
-
     // create a couple of clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     leo.processClusterCreationRequest(userInfo, project, clusterName1, testClusterRequest).futureValue
@@ -835,8 +820,6 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "list clusters belonging to a project" in isolatedDbTest {
-    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
-
     // create a couple of clusters
     val cluster1 = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
     val cluster2 = leo.createCluster(userInfo, project2, name2, testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))).futureValue
@@ -1060,7 +1043,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // populate some instances for the cluster
     dbFutureValue { _.instanceQuery.saveAllForCluster(
-      getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2)) }
+        getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2)) }
 
     // set the cluster to Running
     dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }

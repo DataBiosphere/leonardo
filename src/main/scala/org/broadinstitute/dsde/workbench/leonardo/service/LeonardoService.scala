@@ -929,7 +929,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   private[service] def processClusterImages(clusterRequest: ClusterRequest): Set[ClusterImage] = {
-    // TODO validate image?
+    // Default to the configured default image if not specified in the request
+    // TODO should we validate the image somehow?
     val jupyterImage = clusterRequest.jupyterDockerImage.getOrElse(dataprocConfig.dataprocDockerImage)
 
     Set(ClusterImage(Jupyter, jupyterImage))
