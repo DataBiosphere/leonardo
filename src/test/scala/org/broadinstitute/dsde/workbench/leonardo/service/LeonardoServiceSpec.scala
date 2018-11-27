@@ -429,7 +429,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // populate some instances for the cluster
     dbFutureValue { _.instanceQuery.saveAllForCluster(
-        getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2)) }
+      getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2)) }
 
     // change cluster status to Running so that it can be deleted
     dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("numbers.and.dots")) }
@@ -465,7 +465,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // populate some instances for the cluster
     dbFutureValue { _.instanceQuery.saveAllForCluster(
-        getClusterId(clusterCreateResponseV2), Seq(masterInstanceV2, workerInstance1V2, workerInstance2V2)) }
+      getClusterId(clusterCreateResponseV2), Seq(masterInstanceV2, workerInstance1V2, workerInstance2V2)) }
 
     // change cluster status to Running so that it can be deleted
     dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponseV2.id, IP("numbers.and.dots")) }
@@ -491,7 +491,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // create the bucket and add files
     val bucketName = generateUniqueBucketName(name1.value + "-init")
     val bucket = bucketHelper.createInitBucket(project, bucketName, ServiceAccountInfo(None, Some(serviceAccountEmail))).futureValue
-    leo.initializeBucketObjects(userInfo.userEmail, project, name1, bucket, testClusterRequest, Some(serviceAccountKey), contentSecurityPolicy).futureValue
+    leo.initializeBucketObjects(userInfo.userEmail, project, name1, bucket, testClusterRequest, Some(serviceAccountKey), contentSecurityPolicy, Set(jupyterImage)).futureValue
 
     // our bucket should now exist
     storageDAO.buckets should contain key (bucket)
@@ -549,7 +549,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "template a script using config values" in isolatedDbTest {
     // Create replacements map
-    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy)
+    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy, Set(jupyterImage))
     val replacements: Map[String, String] = clusterInit.toMap
 
     // Each value in the replacement map will replace it's key in the file being processed
@@ -561,6 +561,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
           |
         |"${name1.value}"
           |"${project.value}"
+          |"${jupyterImage.dockerImage}"
           |"${proxyConfig.jupyterProxyDockerImage}"
           |"${jupyterUserScriptUri.toUri}"
           |"${GcsPath(initBucketPath, GcsObjectName(ClusterInitValues.serviceAccountCredentialsFilename)).toUri}"
@@ -575,7 +576,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   it should "template google_sign_in.js with config values" in isolatedDbTest {
 
     // Create replacements map
-    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequest, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy)
+    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequest, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy, Set(jupyterImage))
     val replacements: Map[String, String] = clusterInit.toMap
 
     // Each value in the replacement map will replace it's key in the file being processed
@@ -619,6 +620,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "list all clusters" in isolatedDbTest {
+    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
+
     // create a couple of clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     val cluster1 = leo.createCluster(userInfo, project, clusterName1, testClusterRequest).futureValue
@@ -626,7 +629,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName2 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))).futureValue
 
-    leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
   }
 
   it should "error when trying to delete a creating cluster" in isolatedDbTest {
@@ -643,6 +646,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "list all clusters created via v2 API" in isolatedDbTest {
+    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
+
     // create a couple of clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     leo.processClusterCreationRequest(userInfo, project, clusterName1, testClusterRequest).futureValue
@@ -658,32 +663,36 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       val cluster1 = leo.getActiveClusterDetails(userInfo, project, clusterName1).futureValue
       val cluster2 = leo.getActiveClusterDetails(userInfo, project, clusterName2).futureValue
 
-      leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
+      leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
     }
   }
 
   it should "list all active clusters" in isolatedDbTest {
+    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
+
     // create a couple of clusters
     val cluster1 = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
 
     val clusterName2 = ClusterName("test-cluster-2")
     val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))).futureValue
 
-    leo.listClusters(userInfo, Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
-    leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
-    leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(userInfo, Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
+    leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
+    leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
 
     val clusterName3 = ClusterName("test-cluster-3")
     val cluster3 = leo.createCluster(userInfo, project, clusterName3, testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))).futureValue
 
     dbFutureValue { _.clusterQuery.completeDeletion(cluster3.id) }
 
-    leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
-    leo.listClusters(userInfo, Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
+    leo.listClusters(userInfo, Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
     leo.listClusters(userInfo, Map("includeDeleted" -> "true")).futureValue.toSet.size shouldBe 3
   }
 
   it should "list all active clusters created via v2 API" in isolatedDbTest {
+    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
+
     var cluster1, cluster2, cluster3: Cluster = null.asInstanceOf[Cluster]
 
     // create a couple of clusters
@@ -697,9 +706,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       cluster1 = leo.getActiveClusterDetails(userInfo, project, name1).futureValue
       cluster2 = leo.getActiveClusterDetails(userInfo, project, clusterName2).futureValue
 
-      leo.listClusters(userInfo, Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
-      leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
-      leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
+      leo.listClusters(userInfo, Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
+      leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
+      leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
     }
 
     val clusterName3 = ClusterName("test-cluster-3")
@@ -709,13 +718,15 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     eventually {
       dbFutureValue { _.clusterQuery.completeDeletion(cluster3.id) }
 
-      leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
-      leo.listClusters(userInfo, Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
+      leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
+      leo.listClusters(userInfo, Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
       leo.listClusters(userInfo, Map("includeDeleted" -> "true")).futureValue.toSet.size shouldBe 3
     }
   }
 
   it should "list clusters with labels" in isolatedDbTest {
+    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
+
     // create a couple of clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     val cluster1 = leo.createCluster(userInfo, project, clusterName1, testClusterRequest).futureValue
@@ -723,17 +734,19 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName2 = ClusterName(s"test-cluster-2")
     val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))).futureValue
 
-    leo.listClusters(userInfo, Map("foo" -> "bar")).futureValue.toSet shouldBe Set(cluster1, cluster2)
-    leo.listClusters(userInfo, Map("foo" -> "bar", "bam" -> "yes")).futureValue.toSet shouldBe Set(cluster1)
-    leo.listClusters(userInfo, Map("foo" -> "bar", "bam" -> "yes", "vcf" -> "no")).futureValue.toSet shouldBe Set(cluster1)
-    leo.listClusters(userInfo, Map("a" -> "b")).futureValue.toSet shouldBe Set(cluster2)
+    leo.listClusters(userInfo, Map("foo" -> "bar")).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
+    leo.listClusters(userInfo, Map("foo" -> "bar", "bam" -> "yes")).futureValue.toSet shouldBe Set(cluster1).map(stripFieldsForListCluster)
+    leo.listClusters(userInfo, Map("foo" -> "bar", "bam" -> "yes", "vcf" -> "no")).futureValue.toSet shouldBe Set(cluster1).map(stripFieldsForListCluster)
+    leo.listClusters(userInfo, Map("a" -> "b")).futureValue.toSet shouldBe Set(cluster2).map(stripFieldsForListCluster)
     leo.listClusters(userInfo, Map("foo" -> "bar", "baz" -> "biz")).futureValue.toSet shouldBe Set.empty
-    leo.listClusters(userInfo, Map("A" -> "B")).futureValue.toSet shouldBe Set(cluster2) // labels are not case sensitive because MySQL
+    leo.listClusters(userInfo, Map("A" -> "B")).futureValue.toSet shouldBe Set(cluster2).map(stripFieldsForListCluster) // labels are not case sensitive because MySQL
     //Assert that extensions were added as labels as well
-    leo.listClusters(userInfo, Map("abc" -> "def", "pqr" -> "pqr", "xyz" -> "xyz")).futureValue.toSet shouldBe Set(cluster1, cluster2)
+    leo.listClusters(userInfo, Map("abc" -> "def", "pqr" -> "pqr", "xyz" -> "xyz")).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
   }
 
   it should "list clusters with labels created via v2 API" in isolatedDbTest {
+    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
+
     // create a couple of clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     leo.processClusterCreationRequest(userInfo, project, clusterName1, testClusterRequest).futureValue
@@ -745,15 +758,15 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       val cluster1 = leo.getActiveClusterDetails(userInfo, project, clusterName1).futureValue
       val cluster2 = leo.getActiveClusterDetails(userInfo, project, clusterName2).futureValue
 
-      leo.listClusters(userInfo, Map("foo" -> "bar")).futureValue.toSet shouldBe Set(cluster1, cluster2)
-      leo.listClusters(userInfo, Map("foo" -> "bar", "bam" -> "yes")).futureValue.toSet shouldBe Set(cluster1)
-      leo.listClusters(userInfo, Map("foo" -> "bar", "bam" -> "yes", "vcf" -> "no")).futureValue.toSet shouldBe Set(cluster1)
-      leo.listClusters(userInfo, Map("a" -> "b")).futureValue.toSet shouldBe Set(cluster2)
+      leo.listClusters(userInfo, Map("foo" -> "bar")).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
+      leo.listClusters(userInfo, Map("foo" -> "bar", "bam" -> "yes")).futureValue.toSet shouldBe Set(cluster1).map(stripFieldsForListCluster)
+      leo.listClusters(userInfo, Map("foo" -> "bar", "bam" -> "yes", "vcf" -> "no")).futureValue.toSet shouldBe Set(cluster1).map(stripFieldsForListCluster)
+      leo.listClusters(userInfo, Map("a" -> "b")).futureValue.toSet shouldBe Set(cluster2).map(stripFieldsForListCluster)
       leo.listClusters(userInfo, Map("foo" -> "bar", "baz" -> "biz")).futureValue.toSet shouldBe Set.empty
-      leo.listClusters(userInfo, Map("A" -> "B")).futureValue.toSet shouldBe Set(cluster2) // labels are not case sensitive because MySQL
+      leo.listClusters(userInfo, Map("A" -> "B")).futureValue.toSet shouldBe Set(cluster2).map(stripFieldsForListCluster) // labels are not case sensitive because MySQL
 
       //Assert that extensions were added as labels as well
-      leo.listClusters(userInfo, Map("abc" -> "def", "pqr" -> "pqr", "xyz" -> "xyz")).futureValue.toSet shouldBe Set(cluster1, cluster2)
+      leo.listClusters(userInfo, Map("abc" -> "def", "pqr" -> "pqr", "xyz" -> "xyz")).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
     }
   }
 
@@ -770,6 +783,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "list clusters with swagger-style labels" in isolatedDbTest {
+    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
+
     // create a couple of clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     val cluster1 = leo.createCluster(userInfo, project, clusterName1, testClusterRequest).futureValue
@@ -777,12 +792,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterName2 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))).futureValue
 
-    leo.listClusters(userInfo, Map("_labels" -> "foo=bar")).futureValue.toSet shouldBe Set(cluster1, cluster2)
-    leo.listClusters(userInfo, Map("_labels" -> "foo=bar,bam=yes")).futureValue.toSet shouldBe Set(cluster1)
-    leo.listClusters(userInfo, Map("_labels" -> "foo=bar,bam=yes,vcf=no")).futureValue.toSet shouldBe Set(cluster1)
-    leo.listClusters(userInfo, Map("_labels" -> "a=b")).futureValue.toSet shouldBe Set(cluster2)
+    leo.listClusters(userInfo, Map("_labels" -> "foo=bar")).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
+    leo.listClusters(userInfo, Map("_labels" -> "foo=bar,bam=yes")).futureValue.toSet shouldBe Set(cluster1).map(stripFieldsForListCluster)
+    leo.listClusters(userInfo, Map("_labels" -> "foo=bar,bam=yes,vcf=no")).futureValue.toSet shouldBe Set(cluster1).map(stripFieldsForListCluster)
+    leo.listClusters(userInfo, Map("_labels" -> "a=b")).futureValue.toSet shouldBe Set(cluster2).map(stripFieldsForListCluster)
     leo.listClusters(userInfo, Map("_labels" -> "baz=biz")).futureValue.toSet shouldBe Set.empty
-    leo.listClusters(userInfo, Map("_labels" -> "A=B")).futureValue.toSet shouldBe Set(cluster2) // labels are not case sensitive because MySQL
+    leo.listClusters(userInfo, Map("_labels" -> "A=B")).futureValue.toSet shouldBe Set(cluster2).map(stripFieldsForListCluster) // labels are not case sensitive because MySQL
     leo.listClusters(userInfo, Map("_labels" -> "foo%3Dbar")).failed.futureValue shouldBe a[ParseLabelsException]
     leo.listClusters(userInfo, Map("_labels" -> "foo=bar;bam=yes")).failed.futureValue shouldBe a[ParseLabelsException]
     leo.listClusters(userInfo, Map("_labels" -> "foo=bar,bam")).failed.futureValue shouldBe a[ParseLabelsException]
@@ -791,6 +806,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "list clusters with swagger-style labels, created using v2 API" in isolatedDbTest {
+    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
+
     // create a couple of clusters
     val clusterName1 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
     leo.processClusterCreationRequest(userInfo, project, clusterName1, testClusterRequest).futureValue
@@ -803,12 +820,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       val cluster1 = leo.getActiveClusterDetails(userInfo, project, clusterName1).futureValue
       val cluster2 = leo.getActiveClusterDetails(userInfo, project, clusterName2).futureValue
 
-      leo.listClusters(userInfo, Map("_labels" -> "foo=bar")).futureValue.toSet shouldBe Set(cluster1, cluster2)
-      leo.listClusters(userInfo, Map("_labels" -> "foo=bar,bam=yes")).futureValue.toSet shouldBe Set(cluster1)
-      leo.listClusters(userInfo, Map("_labels" -> "foo=bar,bam=yes,vcf=no")).futureValue.toSet shouldBe Set(cluster1)
-      leo.listClusters(userInfo, Map("_labels" -> "a=b")).futureValue.toSet shouldBe Set(cluster2)
+      leo.listClusters(userInfo, Map("_labels" -> "foo=bar")).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
+      leo.listClusters(userInfo, Map("_labels" -> "foo=bar,bam=yes")).futureValue.toSet shouldBe Set(cluster1).map(stripFieldsForListCluster)
+      leo.listClusters(userInfo, Map("_labels" -> "foo=bar,bam=yes,vcf=no")).futureValue.toSet shouldBe Set(cluster1).map(stripFieldsForListCluster)
+      leo.listClusters(userInfo, Map("_labels" -> "a=b")).futureValue.toSet shouldBe Set(cluster2).map(stripFieldsForListCluster)
       leo.listClusters(userInfo, Map("_labels" -> "baz=biz")).futureValue.toSet shouldBe Set.empty
-      leo.listClusters(userInfo, Map("_labels" -> "A=B")).futureValue.toSet shouldBe Set(cluster2) // labels are not case sensitive because MySQL
+      leo.listClusters(userInfo, Map("_labels" -> "A=B")).futureValue.toSet shouldBe Set(cluster2).map(stripFieldsForListCluster) // labels are not case sensitive because MySQL
       leo.listClusters(userInfo, Map("_labels" -> "foo%3Dbar")).failed.futureValue shouldBe a[ParseLabelsException]
       leo.listClusters(userInfo, Map("_labels" -> "foo=bar;bam=yes")).failed.futureValue shouldBe a[ParseLabelsException]
       leo.listClusters(userInfo, Map("_labels" -> "foo=bar,bam")).failed.futureValue shouldBe a[ParseLabelsException]
@@ -818,14 +835,16 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   it should "list clusters belonging to a project" in isolatedDbTest {
+    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
+
     // create a couple of clusters
     val cluster1 = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
     val cluster2 = leo.createCluster(userInfo, project2, name2, testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))).futureValue
 
-    leo.listClusters(userInfo, Map.empty, Some(project)).futureValue.toSet shouldBe Set(cluster1)
-    leo.listClusters(userInfo, Map.empty, Some(project2)).futureValue.toSet shouldBe Set(cluster2)
-    leo.listClusters(userInfo, Map("foo" -> "bar"), Some(project)).futureValue.toSet shouldBe Set(cluster1)
-    leo.listClusters(userInfo, Map("foo" -> "bar"), Some(project2)).futureValue.toSet shouldBe Set(cluster2)
+    leo.listClusters(userInfo, Map.empty, Some(project)).futureValue.toSet shouldBe Set(cluster1).map(stripFieldsForListCluster)
+    leo.listClusters(userInfo, Map.empty, Some(project2)).futureValue.toSet shouldBe Set(cluster2).map(stripFieldsForListCluster)
+    leo.listClusters(userInfo, Map("foo" -> "bar"), Some(project)).futureValue.toSet shouldBe Set(cluster1).map(stripFieldsForListCluster)
+    leo.listClusters(userInfo, Map("foo" -> "bar"), Some(project2)).futureValue.toSet shouldBe Set(cluster2).map(stripFieldsForListCluster)
     leo.listClusters(userInfo, Map("k" -> "v"), Some(project)).futureValue.toSet shouldBe Set.empty
     leo.listClusters(userInfo, Map("k" -> "v"), Some(project2)).futureValue.toSet shouldBe Set.empty
     leo.listClusters(userInfo, Map("foo" -> "bar"), Some(GoogleProject("non-existing-project"))).futureValue.toSet shouldBe Set.empty
@@ -1041,7 +1060,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     // populate some instances for the cluster
     dbFutureValue { _.instanceQuery.saveAllForCluster(
-        getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2)) }
+      getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2)) }
 
     // set the cluster to Running
     dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }

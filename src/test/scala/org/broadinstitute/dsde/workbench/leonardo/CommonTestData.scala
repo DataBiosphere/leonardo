@@ -13,6 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, Clus
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockJupyterDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData, _}
@@ -79,6 +80,9 @@ trait CommonTestData{ this: ScalaFutures =>
   val serviceAccountInfo = new ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount)
 
   val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now())
+  val jupyterImage = ClusterImage(Jupyter, "jupyter/jupyter-base:latest")
+  val rstudioImage = ClusterImage(RStudio, "rocker/tidyverse:latest")
+
   def makeDataprocInfo(index: Int): DataprocInfo = {
     DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("operationName" + index.toString)), Option(GcsBucketName("stagingBucketName" + index.toString)), Some(IP("numbers.and.dots")))
   }
@@ -102,7 +106,8 @@ trait CommonTestData{ this: ScalaFutures =>
       userJupyterExtensionConfig = None,
       autopauseThreshold = 30,
       defaultClientId = Some("defaultClientId"),
-      stopAfterCreation = false
+      stopAfterCreation = false,
+      clusterImages = Set(jupyterImage)
     )
   }
 
@@ -123,7 +128,9 @@ trait CommonTestData{ this: ScalaFutures =>
     userJupyterExtensionConfig = None,
     autopauseThreshold = if (autopause) autopauseThreshold else 0,
     defaultClientId = None,
-    stopAfterCreation = false)
+    stopAfterCreation = false,
+    clusterImages = Set(jupyterImage)
+  )
 
   // TODO look into parameterized tests so both provider impls can be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData

@@ -6,8 +6,6 @@ import java.util.UUID._
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData}
 import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.scalatest.{FlatSpecLike, Matchers}
 import org.scalatest.concurrent.ScalaFutures
 
@@ -56,7 +54,12 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |  "dateAccessed": "2018-08-07T10:12:35Z",
         |  "autopauseThreshold": 30,
         |  "defaultClientId": "defaultClientId",
-        |  "stopAfterCreation": true
+        |  "stopAfterCreation": true,
+        |  "clusterImages": [
+        |    { "tool":"Jupyter",
+        |      "dockerImage":"jupyter/jupyter-base:latest"
+        |      }
+        |    ]
         |}
       """.stripMargin.parseJson
 
@@ -90,7 +93,8 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |  "instances": [],
         |  "dateAccessed": "2018-08-07T10:12:35Z",
         |  "autopauseThreshold": 0,
-        |  "stopAfterCreation": false
+        |  "stopAfterCreation": false,
+        |  "clusterImages": []
         |}
       """.stripMargin.parseJson
 
@@ -118,12 +122,12 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
 
   it should "create a map of ClusterInitValues object" in isolatedDbTest {
 
-    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy)
+    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy, Set(jupyterImage))
     val clusterInitMap = clusterInit.toMap
 
     clusterInitMap("googleProject") shouldBe project.value
     clusterInitMap("clusterName") shouldBe name1.value
-    clusterInitMap("jupyterDockerImage") shouldBe dataprocConfig.dataprocDockerImage
+    clusterInitMap("jupyterDockerImage") shouldBe jupyterImage.dockerImage
     clusterInitMap("proxyDockerImage") shouldBe proxyConfig.jupyterProxyDockerImage
     clusterInitMap("defaultClientId") shouldBe testClusterRequestWithExtensionAndScript.defaultClientId.getOrElse("")
 

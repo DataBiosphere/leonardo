@@ -51,4 +51,8 @@ object ClusterEnrichments {
 
     fcs1 == fcs2
   }
+
+  def stripFieldsForListCluster(cluster: Cluster): Cluster = {
+    cluster.copy(instances = Set.empty, clusterImages = Set.empty, errors = List.empty)
+  }
 }
