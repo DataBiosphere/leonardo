@@ -389,28 +389,35 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     machineConfigOpt match {
       case Some(machineConfig) =>
 
-        logger.info(s"New machine config present. Resizing cluster '${existingCluster.clusterName}' " +
-          s"in Google project '${existingCluster.googleProject}'...")
+        (machineConfig.numberOfWorkers, machineConfig.numberOfPreemptibleWorkers) match {
+          case (Some(_), _) | (_, Some(_))
+            if (existingCluster.machineConfig.numberOfWorkers != machineConfig.numberOfWorkers) || (existingCluster.machineConfig.numberOfPreemptibleWorkers != machineConfig.numberOfPreemptibleWorkers) => {
 
-        for {
-          // Add Dataproc Worker role to the cluster service account, if present.
-          // This is needed to be able to spin up Dataproc clusters.
-          // If the Google Compute default service account is being used, this is not necessary.
-          _ <- addDataprocWorkerRoleToServiceAccount(existingCluster.googleProject, existingCluster.serviceAccountInfo.clusterServiceAccount)
-          _ <- gdDAO.resizeCluster(existingCluster.googleProject, existingCluster.clusterName, machineConfig.numberOfWorkers, machineConfig.numberOfPreemptibleWorkers) recoverWith {
-            case gjre: GoogleJsonResponseException =>
-              //typically we will revoke this role in the monitor after everything is complete, but if Google fails to resize the cluster we need to revoke it manually here
-              removeDataprocWorkerRoleFromServiceAccount(existingCluster.googleProject, existingCluster.serviceAccountInfo.clusterServiceAccount)
-              throw InvalidDataprocMachineConfigException(gjre.getMessage)
+            logger.info(s"New machine config present. Resizing cluster '${existingCluster.clusterName}' " +
+              s"in Google project '${existingCluster.googleProject}'...")
+
+            for {
+              // Add Dataproc Worker role to the cluster service account, if present.
+              // This is needed to be able to spin up Dataproc clusters.
+              // If the Google Compute default service account is being used, this is not necessary.
+              _ <- addDataprocWorkerRoleToServiceAccount(existingCluster.googleProject, existingCluster.serviceAccountInfo.clusterServiceAccount)
+              _ <- gdDAO.resizeCluster(existingCluster.googleProject, existingCluster.clusterName, machineConfig.numberOfWorkers, machineConfig.numberOfPreemptibleWorkers) recoverWith {
+                case gjre: GoogleJsonResponseException =>
+                  //typically we will revoke this role in the monitor after everything is complete, but if Google fails to resize the cluster we need to revoke it manually here
+                  removeDataprocWorkerRoleFromServiceAccount(existingCluster.googleProject, existingCluster.serviceAccountInfo.clusterServiceAccount)
+                  throw InvalidDataprocMachineConfigException(gjre.getMessage)
+              }
+              _ <- machineConfig.numberOfWorkers.map { numWorkers =>
+                dbRef.inTransaction { _.clusterQuery.updateNumberOfWorkers(existingCluster.id, numWorkers) }
+              } getOrElse Future.successful(0)
+              _ <- machineConfig.numberOfPreemptibleWorkers.map { numWorkers =>
+                dbRef.inTransaction { _.clusterQuery.updateNumberOfPreemptibleWorkers(existingCluster.id, Option(numWorkers)) }
+              } getOrElse Future.successful(0)
+            } yield { true }
           }
-          resizedNumWorkers <- machineConfig.numberOfWorkers.map { numWorkers =>
-            dbRef.inTransaction { _.clusterQuery.updateNumberOfWorkers(existingCluster.id, numWorkers) }.map(_ > 0)
-          } getOrElse Future.successful(false)
-          resizedNumPreemptibles <- machineConfig.numberOfPreemptibleWorkers.map { numWorkers =>
-            dbRef.inTransaction { _.clusterQuery.updateNumberOfPreemptibleWorkers(existingCluster.id, Option(numWorkers)) }.map(_ > 0)
-          } getOrElse Future.successful(false)
-        } yield { resizedNumWorkers || resizedNumPreemptibles }
-      case None => Future.successful(false) //no-op
+          case _ => Future.successful(false) //no-op because machineConfig values didn't change
+        }
+      case None => Future.successful(false) //no-op because no machineConfig specified
     }
   }
 
