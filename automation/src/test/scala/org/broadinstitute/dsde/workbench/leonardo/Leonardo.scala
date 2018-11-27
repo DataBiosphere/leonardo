@@ -61,7 +61,8 @@ object Leonardo extends RestClient with LazyLogging {
                                     errors: List[ClusterError],
                                     dateAccessed: String,
                                     defaultClientId: Option[String],
-                                    stopAfterCreation: Option[Boolean]) {
+                                    stopAfterCreation: Option[Boolean],
+                                    scopes: Set[String]) {
 
       def toCluster = Cluster(clusterName,
         googleId,
@@ -82,7 +83,8 @@ object Leonardo extends RestClient with LazyLogging {
         errors,
         Instant.parse(dateAccessed),
         defaultClientId,
-        stopAfterCreation.getOrElse(false)
+        stopAfterCreation.getOrElse(false),
+        scopes
       )
     }
 
