@@ -215,10 +215,17 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     val time = Timeout(scaled(Span(timeout.toSeconds, Seconds)))
     val pollInterval = Interval(scaled(Span(5, Seconds)))
     try {
+      val t0 = System.nanoTime()
+
       eventually(time, pollInterval) {
         val ready = (!cellsAreRunning && isKernelReady && kernelNotificationText == "none")
         ready shouldBe true
       }
+
+      val t1 = System.nanoTime()
+      val timediff = FiniteDuration(t1 - t0, NANOSECONDS)
+
+      logger.info(s"kernel was ready after ${timediff.toSeconds} seconds. Timeout was ${timeout.toSeconds}")
     } catch {
       case e: TestFailedDueToTimeoutException => throw KernelNotReadyException(time)
     }
