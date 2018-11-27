@@ -933,6 +933,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     // TODO should we validate the image somehow?
     val jupyterImage = clusterRequest.jupyterDockerImage.getOrElse(dataprocConfig.dataprocDockerImage)
 
-    Set(ClusterImage(Jupyter, jupyterImage))
+    Set(ClusterImage(Jupyter, jupyterImage, Instant.now))
   }
 }

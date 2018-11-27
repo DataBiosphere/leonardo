@@ -80,8 +80,8 @@ trait CommonTestData{ this: ScalaFutures =>
   val serviceAccountInfo = new ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount)
 
   val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now())
-  val jupyterImage = ClusterImage(Jupyter, "jupyter/jupyter-base:latest")
-  val rstudioImage = ClusterImage(RStudio, "rocker/tidyverse:latest")
+  val jupyterImage = ClusterImage(Jupyter, "jupyter/jupyter-base:latest", Instant.now)
+  val rstudioImage = ClusterImage(RStudio, "rocker/tidyverse:latest", Instant.now)
 
   def makeDataprocInfo(index: Int): DataprocInfo = {
     DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("operationName" + index.toString)), Option(GcsBucketName("stagingBucketName" + index.toString)), Some(IP("numbers.and.dots")))

@@ -1,8 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
+import java.sql.Timestamp
+
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterImage, ClusterTool}
 
-case class ClusterImageRecord(clusterId: Long, tool: String, dockerImage: String)
+case class ClusterImageRecord(clusterId: Long,
+                              tool: String,
+                              dockerImage: String,
+                              timestamp: Timestamp)
 
 trait ClusterImageComponent extends LeoComponent {
   this: ClusterComponent =>
@@ -16,11 +21,13 @@ trait ClusterImageComponent extends LeoComponent {
 
     def dockerImage = column[String]("dockerImage", O.Length(1024))
 
+    def timestamp = column[Timestamp]("timestamp", O.SqlType("TIMESTAMP(6)"))
+
     def cluster = foreignKey("FK_CLUSTER_ID", clusterId, clusterQuery)(_.id)
 
     def uniqueKey = index("IDX_CLUSTER_IMAGE_UNIQUE", (clusterId, tool), unique = true)
 
-    def * = (clusterId, tool, dockerImage) <> (ClusterImageRecord.tupled, ClusterImageRecord.unapply)
+    def * = (clusterId, tool, dockerImage, timestamp) <> (ClusterImageRecord.tupled, ClusterImageRecord.unapply)
   }
 
   object clusterImageQuery extends TableQuery(new ClusterImageTable(_)) {
@@ -52,11 +59,20 @@ trait ClusterImageComponent extends LeoComponent {
     }
 
     def marshallClusterImage(clusterId: Long, clusterImage: ClusterImage): ClusterImageRecord = {
-      ClusterImageRecord(clusterId, clusterImage.tool.toString, clusterImage.dockerImage)
+      ClusterImageRecord(
+        clusterId,
+        clusterImage.tool.toString,
+        clusterImage.dockerImage,
+        Timestamp.from(clusterImage.timestamp)
+      )
     }
 
     def unmarshalClusterImage(clusterImageRecord: ClusterImageRecord): ClusterImage = {
-      ClusterImage(ClusterTool.withName(clusterImageRecord.tool), clusterImageRecord.dockerImage)
+      ClusterImage(
+        ClusterTool.withName(clusterImageRecord.tool),
+        clusterImageRecord.dockerImage,
+        clusterImageRecord.timestamp.toInstant
+      )
     }
 
   }

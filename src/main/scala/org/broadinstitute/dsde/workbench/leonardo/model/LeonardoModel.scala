@@ -69,7 +69,8 @@ object ClusterTool extends Enum[ClusterTool] {
   case object RStudio extends ClusterTool
 }
 case class ClusterImage(tool: ClusterTool,
-                        dockerImage: String)
+                        dockerImage: String,
+                        timestamp: Instant)
 
 // The cluster itself
 // Also the API response for "list clusters" and "get active cluster"
@@ -304,7 +305,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val ClusterToolFormat = EnumEntryFormat(ClusterTool.withName)
 
-  implicit val ClusterImageFormat = jsonFormat2(ClusterImage.apply)
+  implicit val ClusterImageFormat = jsonFormat3(ClusterImage.apply)
 
 
   implicit object ClusterFormat extends RootJsonFormat[Cluster] {

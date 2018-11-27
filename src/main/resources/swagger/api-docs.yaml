@@ -870,7 +870,7 @@ definitions:
         description: The default Google Client ID.
       jupyterDockerImage:
         type: String
-        description: The Jupyter image to install. If not set, then a default Jupyter image will be installed.
+        description: The Jupyter docker image to install. May be Dockerhub or GCR. If not set, then a default Jupyter image will be installed.
 
   ClusterError:
     description: 'Errors encountered on cluster create'

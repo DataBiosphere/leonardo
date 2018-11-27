@@ -11,6 +11,9 @@
             <column name="dockerImage" type="VARCHAR(1024)">
                 <constraints nullable="false"/>
             </column>
+            <column name="timestamp" type="TIMESTAMP(6)" defaultValueComputed="NOW(6)">
+                <constraints nullable="false"/>
+            </column>
         </createTable>
         <createIndex indexName="FK_CLUSTER_IMAGE_CLUSTER_ID" tableName="CLUSTER_IMAGE">
             <column name="clusterId"/>
