@@ -657,7 +657,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   }
 
   def verifyHailImport(notebookPage: NotebookPage, vcfPath: GcsPath, clusterName: ClusterName): Unit = {
-    val hailTimeout = 5 minutes
+    val hailTimeout = 10 minutes
     val welcomeToHail =
       """Welcome to
         |     __  __     <>__
@@ -697,17 +697,21 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
         |        VT: str,
         |        SNPSOURCE: array<str>""".stripMargin
 
-    notebookPage.executeCell("import hail as hl") shouldBe None
-    notebookPage.executeCell("hl.init(sc)").get should include(welcomeToHail)
+    val elapsed = time {
+      notebookPage.executeCell("import hail as hl") shouldBe None
+      notebookPage.executeCell("hl.init(sc)").get should include(welcomeToHail)
 
-    notebookPage.executeCell(s"chr20vcf = '${vcfPath.toUri}'") shouldBe None
-    notebookPage.executeCell("imported = hl.import_vcf(chr20vcf)", hailTimeout) shouldBe None
+      notebookPage.executeCell(s"chr20vcf = '${vcfPath.toUri}'") shouldBe None
+      notebookPage.executeCell("imported = hl.import_vcf(chr20vcf)", hailTimeout) shouldBe None
 
-    // notebookPage.executeCell("imported.describe()", hailTimeout).get should include(vcfDescription)
+      // notebookPage.executeCell("imported.describe()", hailTimeout).get should include(vcfDescription)
+    }
+
+    logger.info(s"Hail import for cluster ${cluster.projectNameString}} took ${elapsed.duration.toSeconds} seconds")
 
     // show that the Hail log contains jobs that were run on preemptible nodes
 
-    val preemptibleNodePrefix = clusterName.string + "-sw"
+    val preemptibleNodePrefix = cluster.clusterName.string + "-sw"
     notebookPage.executeCell(s"! grep Finished ~/hail.log | grep $preemptibleNodePrefix").get should include(preemptibleNodePrefix)
   }
 
