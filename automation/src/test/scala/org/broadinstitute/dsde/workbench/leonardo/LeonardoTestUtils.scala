@@ -656,7 +656,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     downloadFile
   }
 
-  def verifyHailImport(notebookPage: NotebookPage, vcfPath: GcsPath, clusterName: ClusterName): Unit = {
+  def verifyHailImport(notebookPage: NotebookPage, vcfPath: GcsPath, cluster: Cluster): Unit = {
     val hailTimeout = 10 minutes
     val welcomeToHail =
       """Welcome to
