@@ -683,6 +683,7 @@ definitions:
       - dateAccessed
       - autopauseThreshold
       - defaultClientId
+      - scopes
     properties:
       id:
         type: string
@@ -826,6 +827,9 @@ definitions:
       defaultClientId:
         type: string
         description: The default Google Client ID.
+      scopes:
+        type: array
+        description: The scopes for the cluster. Defaults will be used if left blank.
 
   ClusterError:
     description: 'Errors encountered on cluster create'
