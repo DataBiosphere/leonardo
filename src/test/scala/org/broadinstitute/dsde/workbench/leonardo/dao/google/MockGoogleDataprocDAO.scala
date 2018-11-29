@@ -6,7 +6,7 @@ import java.util.UUID
 
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, Worker}
+import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, SecondaryWorker, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
@@ -19,6 +19,7 @@ import scala.concurrent.duration._
 class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
 
   val clusters: mutable.Map[ClusterName, Operation] = new TrieMap()
+  val instances: mutable.Map[ClusterName, mutable.Map[DataprocRole, Set[InstanceKey]]] = new TrieMap()
   val badClusterName = ClusterName("badCluster")
   val errorClusterName1 = ClusterName("erroredCluster1")
   val errorClusterName2 = ClusterName("erroredCluster2")
@@ -32,6 +33,11 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
     } else {
       val operation = Operation(OperationName("op-name"), UUID.randomUUID())
       clusters += clusterName -> operation
+
+      val masterInstance = Set(InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName("master-instance")))
+      val workerInstances = machineConfg.numberOfWorkers.map(num => List.tabulate(num) { i => InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName(s"worker-instance-$i")) }.toSet).getOrElse(Set.empty)
+      val secondaryWorkerInstances = machineConfg.numberOfPreemptibleWorkers.map(num => List.tabulate(num) { i => InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName(s"secondary-worker-instance-$i")) }.toSet).getOrElse(Set.empty)
+      instances += clusterName -> mutable.Map(Master -> masterInstance, Worker -> workerInstances, SecondaryWorker -> secondaryWorkerInstances)
       Future.successful(operation)
     }
   }
@@ -64,9 +70,7 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
   override def getClusterInstances(googleProject: GoogleProject, clusterName: ClusterName): Future[Map[DataprocRole, Set[InstanceKey]]] = {
     Future.successful {
       if (clusters.contains(clusterName))
-        Map(Master -> Set(InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName("master-instance"))),
-            Worker -> Set(InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName("worker-instance-1")),
-                          InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName("worker-instance-2"))))
+        instances.getOrElse(clusterName, mutable.Map[DataprocRole, Set[InstanceKey]]()).toMap
       else Map.empty
     }
   }
@@ -93,6 +97,22 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
   }
 
   override def resizeCluster(googleProject: GoogleProject, clusterName: ClusterName, numWorkers: Option[Int], numPreemptibles: Option[Int]): Future[Unit] = {
+    if(numWorkers.isDefined) {
+      val workerInstances = numWorkers.map(num => List.tabulate(num) { i => InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName(s"worker-instance-$i")) }.toSet).getOrElse(Set.empty)
+      val existingSecondaryInstances = instances(clusterName)(SecondaryWorker)
+      val existingMasterInstance = instances(clusterName)(Master)
+
+      instances += (clusterName -> mutable.Map(Master -> existingMasterInstance, Worker -> workerInstances, SecondaryWorker -> existingSecondaryInstances))
+    }
+
+    if(numPreemptibles.isDefined) {
+      val secondaryWorkerInstances = numPreemptibles.map(num => List.tabulate(num) { i => InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName(s"secondary-worker-instance-$i")) }.toSet).getOrElse(Set.empty)
+      val existingWorkerInstances = instances(clusterName)(Worker)
+      val existingMasterInstance = instances(clusterName)(Master)
+
+      instances += (clusterName -> mutable.Map(Master -> existingMasterInstance, Worker -> existingWorkerInstances, SecondaryWorker -> secondaryWorkerInstances))
+    }
+
     Future.successful(())
   }
 }

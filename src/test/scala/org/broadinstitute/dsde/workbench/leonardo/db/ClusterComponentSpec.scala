@@ -64,8 +64,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFutureValue { _.clusterQuery.getServiceAccountKeyId(cluster2.googleProject, cluster2.clusterName) } shouldEqual Some(serviceAccountKey.id)
     dbFutureValue { _.clusterQuery.getServiceAccountKeyId(cluster3.googleProject, cluster3.clusterName) } shouldEqual Some(serviceAccountKey.id)
 
-    dbFutureValue { _.clusterQuery.countByClusterServiceAccountAndStatus(clusterServiceAccount.get, ClusterStatus.Creating) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.countByClusterServiceAccountAndStatus(clusterServiceAccount.get, ClusterStatus.Running) } shouldEqual 0
+    dbFutureValue { _.clusterQuery.countByClusterServiceAccountAndStatuses(clusterServiceAccount.get, Set(ClusterStatus.Creating)) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.countByClusterServiceAccountAndStatuses(clusterServiceAccount.get, Set(ClusterStatus.Running)) } shouldEqual 0
 
     // (project, name) unique key test
 

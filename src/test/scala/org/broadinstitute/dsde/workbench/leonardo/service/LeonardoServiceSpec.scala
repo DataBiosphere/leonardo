@@ -7,6 +7,8 @@ import java.util.UUID
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.testkit.TestKit
+import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
+import com.google.api.client.testing.json.MockJsonFactory
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
@@ -30,7 +32,7 @@ import org.scalatest.concurrent.ScalaFutures
 import spray.json._
 
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{Await, ExecutionContext, Future}
 
 class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers
   with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures
@@ -622,7 +624,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val cluster1 = leo.createCluster(userInfo, project, clusterName1, testClusterRequest).futureValue
 
     val clusterName2 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
-    val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
+    val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))).futureValue
 
     leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
   }
@@ -646,7 +648,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.processClusterCreationRequest(userInfo, project, clusterName1, testClusterRequest).futureValue
 
     val clusterName2 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
-    val testClusterRequest2 = testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))
+    val testClusterRequest2 = testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))
     leo.processClusterCreationRequest(userInfo, project, clusterName2, testClusterRequest2).futureValue
 
     // We can't just use the responses to processClusterCreationRequest() since it won't contain the fields
@@ -665,14 +667,14 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val cluster1 = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
 
     val clusterName2 = ClusterName("test-cluster-2")
-    val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
+    val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))).futureValue
 
     leo.listClusters(userInfo, Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2)
     leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
     leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2)
 
     val clusterName3 = ClusterName("test-cluster-3")
-    val cluster3 = leo.createCluster(userInfo, project, clusterName3, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
+    val cluster3 = leo.createCluster(userInfo, project, clusterName3, testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))).futureValue
 
     dbFutureValue { _.clusterQuery.completeDeletion(cluster3.id) }
 
@@ -688,7 +690,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
 
     val clusterName2 = ClusterName("test-cluster-2")
-    val testClusterRequest2 = testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))
+    val testClusterRequest2 = testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))
     leo.processClusterCreationRequest(userInfo, project, clusterName2, testClusterRequest2).futureValue
 
     eventually {
@@ -701,7 +703,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
 
     val clusterName3 = ClusterName("test-cluster-3")
-    val testClusterRequest3 = testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))
+    val testClusterRequest3 = testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))
     cluster3 = leo.processClusterCreationRequest(userInfo, project, clusterName3, testClusterRequest3).futureValue
 
     eventually {
@@ -719,7 +721,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val cluster1 = leo.createCluster(userInfo, project, clusterName1, testClusterRequest).futureValue
 
     val clusterName2 = ClusterName(s"test-cluster-2")
-    val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
+    val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))).futureValue
 
     leo.listClusters(userInfo, Map("foo" -> "bar")).futureValue.toSet shouldBe Set(cluster1, cluster2)
     leo.listClusters(userInfo, Map("foo" -> "bar", "bam" -> "yes")).futureValue.toSet shouldBe Set(cluster1)
@@ -737,7 +739,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.processClusterCreationRequest(userInfo, project, clusterName1, testClusterRequest).futureValue
 
     val clusterName2 = ClusterName(s"test-cluster-2")
-    leo.processClusterCreationRequest(userInfo, project, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
+    leo.processClusterCreationRequest(userInfo, project, clusterName2, testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))).futureValue
 
     eventually {
       val cluster1 = leo.getActiveClusterDetails(userInfo, project, clusterName1).futureValue
@@ -758,7 +760,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   it should "throw IllegalLabelKeyException when using a forbidden label" in isolatedDbTest {
     forallClusterCreationMethods { (creationMethod, clusterName) =>
       // cluster should not be allowed to have a label with key of "includeDeleted"
-      val modifiedTestClusterRequest = testClusterRequest.copy(labels = Map("includeDeleted" -> "val"))
+      val modifiedTestClusterRequest = testClusterRequest.copy(labels = Some(Map("includeDeleted" -> "val")))
       val includeDeletedResponse = creationMethod(userInfo, project, clusterName, modifiedTestClusterRequest).failed.futureValue
 
       eventually {
@@ -773,7 +775,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val cluster1 = leo.createCluster(userInfo, project, clusterName1, testClusterRequest).futureValue
 
     val clusterName2 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
-    val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
+    val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))).futureValue
 
     leo.listClusters(userInfo, Map("_labels" -> "foo=bar")).futureValue.toSet shouldBe Set(cluster1, cluster2)
     leo.listClusters(userInfo, Map("_labels" -> "foo=bar,bam=yes")).futureValue.toSet shouldBe Set(cluster1)
@@ -794,7 +796,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.processClusterCreationRequest(userInfo, project, clusterName1, testClusterRequest).futureValue
 
     val clusterName2 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
-    val testClusterRequest2 = testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))
+    val testClusterRequest2 = testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))
     leo.processClusterCreationRequest(userInfo, project, clusterName2, testClusterRequest2).futureValue
 
     eventually {
@@ -818,7 +820,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   it should "list clusters belonging to a project" in isolatedDbTest {
     // create a couple of clusters
     val cluster1 = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
-    val cluster2 = leo.createCluster(userInfo, project2, name2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
+    val cluster2 = leo.createCluster(userInfo, project2, name2, testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))).futureValue
 
     leo.listClusters(userInfo, Map.empty, Some(project)).futureValue.toSet shouldBe Set(cluster1)
     leo.listClusters(userInfo, Map.empty, Some(project2)).futureValue.toSet shouldBe Set(cluster2)
@@ -918,6 +920,110 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse)) }
     instances.size shouldBe 3
     instances.map(_.status).toSet shouldBe Set(InstanceStatus.Running)
+  }
+
+  it should "resize a cluster" in isolatedDbTest {
+    // create the cluster
+    val clusterCreateResponse =
+      leo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
+
+    // set the cluster to Running
+    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
+
+    leo.updateCluster(userInfo, project, name1, testClusterRequest.copy(machineConfig = Some(MachineConfig(numberOfWorkers = Some(2))))).futureValue
+
+    //unfortunately we can't actually check that the new instances were added because the monitor
+    //handles that but we will check as much as we can
+
+    //check that status of cluster is Updating
+    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Updating)
+
+    //check that the machine config has been updated
+    dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.machineConfig.numberOfWorkers shouldBe Some(2)
+  }
+
+  it should "gracefully handle an invalid machine config being specific during cluster resize" in isolatedDbTest {
+    val mockPetGoogleDAO: String => GoogleStorageDAO = _ => {
+      new MockGoogleStorageDAO
+    }
+
+    //we meed to use a special version of the MockGoogleDataprocDAO to simulate an error during the call to resizeCluster
+    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, new ErroredMockGoogleDataprocDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
+
+    // create the cluster
+    val clusterCreateResponse =
+      leo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
+
+    // set the cluster to Running
+    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
+
+    intercept[InvalidDataprocMachineConfigException] {
+      Await.result(leo.updateCluster(userInfo, project, name1, testClusterRequest.copy(machineConfig = Some(MachineConfig(numberOfWorkers = Some(2))))), Duration.Inf)
+    }
+
+    //check that status of cluster is still Running
+    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Running)
+
+    //check that the machine config was not updated
+    dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.machineConfig.numberOfWorkers shouldBe Some(0)
+  }
+
+  it should "cluster creation should end in Error state if adding dataproc worker role fails" in isolatedDbTest {
+    val mockPetGoogleDAO: String => GoogleStorageDAO = _ => {
+      new MockGoogleStorageDAO
+    }
+
+    //we meed to use a special version of the MockGoogleDataprocDAO to simulate an error during the call to resizeCluster
+    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, mockGoogleDataprocDAO, computeDAO, new ErroredMockGoogleIamDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
+
+    // create the cluster
+    val clusterCreateResponse =
+      leo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
+
+    eventually {
+      dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Error)
+    }
+  }
+
+  it should "update the autopause threshold for a cluster" in isolatedDbTest {
+    // create the cluster
+    val clusterCreateResponse =
+      leo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
+
+    // set the cluster to Running
+    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
+
+    leo.updateCluster(userInfo, project, name1, testClusterRequest.copy(autopause = Some(true), autopauseThreshold = Some(7))).futureValue
+
+    //unfortunately we can't actually check that the new instances were added because the monitor
+    //handles that but we will check as much as we can
+
+    //check that status of cluster is Updating
+    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Running)
+
+    //check that the machine config has been updated
+    dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.autopauseThreshold shouldBe 7
+  }
+
+  ClusterStatus.monitoredStatuses foreach { status =>
+    it should s"not allow updating a cluster in ${status.toString} state" in isolatedDbTest {
+      // create the cluster
+      val clusterCreateResponse =
+        leo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
+
+      // set the cluster to Running
+      dbFutureValue { _.clusterQuery.updateClusterStatusAndHostIp(clusterCreateResponse.id, status, Some(IP("1.2.3.4"))) }
+
+      intercept[ClusterCannotBeUpdatedException] {
+        Await.result(leo.updateCluster(userInfo, project, name1, testClusterRequest.copy(machineConfig = Some(MachineConfig(numberOfWorkers = Some(2))))), Duration.Inf)
+      }
+
+      //unfortunately we can't actually check that the new instances were added because the monitor
+      //handles that but we will check as much as we can
+
+      //check that status of cluster is Updating
+      dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(status)
+    }
   }
 
   it should "stop a cluster created via v2 API" in isolatedDbTest {
@@ -1039,5 +1145,23 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     creationMethods
       .zip(clusterNames)
       .foreach { case (creationMethod, clusterName) => testCode(creationMethod, clusterName) }
+  }
+
+  private class ErroredMockGoogleDataprocDAO extends MockGoogleDataprocDAO {
+    override def resizeCluster(googleProject: GoogleProject, clusterName: ClusterName, numWorkers: Option[Int] = None, numPreemptibles: Option[Int] = None): Future[Unit] = {
+      val jsonFactory = new MockJsonFactory
+      val testException = GoogleJsonResponseExceptionFactoryTesting.newMock(jsonFactory, 400, "oh no i have failed due to a bad configuration")
+
+      Future.failed(testException)
+    }
+  }
+
+  private class ErroredMockGoogleIamDAO extends MockGoogleIamDAO {
+    override def addIamRolesForUser(iamProject: GoogleProject, email: WorkbenchEmail, rolesToAdd: Set[String]): Future[Unit] = {
+      val jsonFactory = new MockJsonFactory
+      val testException = GoogleJsonResponseExceptionFactoryTesting.newMock(jsonFactory, 400, "oh no i have failed")
+
+      Future.failed(testException)
+    }
   }
 }
