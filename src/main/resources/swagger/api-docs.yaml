@@ -223,7 +223,7 @@ paths:
   '/api/cluster/{googleProject}/{clusterName}':
     patch:
       summary: Updates the configuration of a cluster.
-      description: Cluster must be running. Learn more about scaling clusters here: https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/scaling-clusters
+      description: In order to update the configuration of a cluster, it must first be running
       operationId: updateCluster
       tags:
         - cluster
