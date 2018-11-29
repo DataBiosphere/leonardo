@@ -14,7 +14,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, LeoException}
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
+import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, MachineConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.util.CookieHelper
@@ -69,6 +69,15 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
           } ~
           pathPrefix(Segment / Segment) { (googleProject, clusterName) =>
             pathEndOrSingleSlash {
+              patch {
+                entity(as[ClusterRequest]) { cluster =>
+                  complete {
+                    leonardoService.updateCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName), cluster).map { cluster =>
+                      StatusCodes.Accepted -> cluster
+                    }
+                  }
+                }
+              } ~
               put {
                 entity(as[ClusterRequest]) { cluster =>
                   complete {

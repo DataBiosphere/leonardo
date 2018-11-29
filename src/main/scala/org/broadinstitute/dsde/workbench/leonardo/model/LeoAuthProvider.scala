@@ -23,6 +23,7 @@ object NotebookClusterActions {
   case object ConnectToCluster extends NotebookClusterAction
   case object SyncDataToCluster extends NotebookClusterAction
   case object DeleteCluster extends NotebookClusterAction
+  case object ModifyCluster extends NotebookClusterAction
   case object StopStartCluster extends NotebookClusterAction
   val allActions = Seq(GetClusterStatus, ConnectToCluster, SyncDataToCluster, DeleteCluster, StopStartCluster)
 
