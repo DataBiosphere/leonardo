@@ -1,6 +1,6 @@
 # adapted from https://hub.docker.com/r/jupyter/base-notebook/ AKA https://github.com/jupyter/docker-stacks/tree/master/base-notebook
 
-FROM debian:jessie
+FROM debian:stretch
 
 USER root
 
@@ -12,27 +12,33 @@ ENV DEBIAN_FRONTEND noninteractive
 ENV DEBIAN_REPO http://cdn-fastly.deb.debian.org
 ENV CRAN_REPO http://cran.mtu.edu
 
-RUN echo "deb $DEBIAN_REPO/debian jessie main"                   > /etc/apt/sources.list \
- && echo "deb $DEBIAN_REPO/debian-security jessie/updates main" >> /etc/apt/sources.list \
- && echo "deb $DEBIAN_REPO/debian jessie-backports main"        >> /etc/apt/sources.list \
- && echo "deb $CRAN_REPO/bin/linux/debian jessie-cran34/"       >> /etc/apt/sources.list \
- && apt-key adv --keyserver keys.gnupg.net \
-    --recv-key 'E19F5F87128899B192B1A2C2AD5F960A256A04AF' \
+RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sources.list \
+ && echo "deb $DEBIAN_REPO/debian-security stretch/updates main" >> /etc/apt/sources.list \
+ && echo "deb $DEBIAN_REPO/debian stretch-backports main"        >> /etc/apt/sources.list \
+ && echo "deb $DEBIAN_REPO/debian testing main"                  >> /etc/apt/sources.list \
+ && echo 'APT::Default-Release "stable";' | tee -a /etc/apt/apt.conf.d/00local \
  && apt-get update \
  && apt-get -yq dist-upgrade \
  && apt-get install -yq --no-install-recommends \
     nano \
     sudo \
-    wget \
     gnupg \
+    dirmngr \
+    wget \
     ca-certificates \
     curl \
     build-essential \
     lsb-release \
     procps \
+    openssl \
     # to support userScript pip installs via git
     git \
     locales \
+
+ # R separately because it depends on gnupg installed above
+ && echo "deb $CRAN_REPO/bin/linux/debian stretch-cran35/"       >> /etc/apt/sources.list \
+ && apt-key adv  --no-tty --keyserver keys.gnupg.net \
+    --recv-key 'E19F5F87128899B192B1A2C2AD5F960A256A04AF' \
 
  # Uncomment en_US.UTF-8 for inclusion in generation
  && sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen \
@@ -70,18 +76,17 @@ RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
 # Spark / Hadoop / Hive / Hail
 ##############################
 
-# Use Spark 2.0.2 which corresponds to Dataproc 1.1. See:
+# Use Spark 2.2.0 which corresponds to Dataproc 1.2. See:
 #   https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-versions
-# Dataproc supports Spark 2.2.0, but there are no pre-packaged Hail distributions past 2.1.0. See:
-#   https://hail.is/docs/stable/getting_started.html
-ENV SPARK_VER 2.0.2
+# Note: we are actually using Spark 2.2.1, but the Hail package is built using 2.2.0
+ENV SPARK_VER 2.2.0
 ENV SPARK_HOME=/usr/lib/spark
 
-# result of `gsutil cat gs://hail-common/builds/0.1/latest-hash-spark-2.0.2.txt` on 11 January 2018
-ENV HAILHASH 5c275cc216e1
-ENV HAILJAR hail-0.1-$HAILHASH-Spark-$SPARK_VER.jar
-ENV HAILPYTHON hail-0.1-$HAILHASH.zip
-ENV HAILZIP Hail-0.1-$HAILHASH-Spark-$SPARK_VER.zip
+# result of `gsutil cat gs://hail-common/builds/devel/latest-hash-spark-2.2.0.txt` on 18 October 2018
+ENV HAILHASH 17a988f2a628
+ENV HAILJAR hail-devel-$HAILHASH-Spark-$SPARK_VER.jar
+ENV HAILPYTHON hail-devel-$HAILHASH.zip
+ENV HAILZIP Hail-devel-$HAILHASH-Spark-$SPARK_VER.zip
 ENV HAIL_HOME /etc/hail
 ENV KERNELSPEC_HOME /usr/local/share/jupyter/kernels
 
@@ -92,9 +97,9 @@ RUN mkdir -p /etc/spark/conf.dist && mkdir -p /etc/hadoop/conf.empty && mkdir -p
  && update-alternatives --install /etc/hadoop/conf hadoop-conf /etc/hadoop/conf.empty 100 \
  && update-alternatives --install /etc/hive/conf hive-conf /etc/hive/conf.dist 100 \
  && mkdir $HAIL_HOME && cd $HAIL_HOME \
- && wget -nv http://storage.googleapis.com/hail-common/builds/0.1/jars/$HAILJAR \
- && wget -nv http://storage.googleapis.com/hail-common/builds/0.1/python/$HAILPYTHON \
- && wget -nv http://storage.googleapis.com/hail-common/distributions/0.1/$HAILZIP \
+ && wget -nv http://storage.googleapis.com/hail-common/builds/devel/jars/$HAILJAR \
+ && wget -nv http://storage.googleapis.com/hail-common/builds/devel/python/$HAILPYTHON \
+ && wget -nv http://storage.googleapis.com/hail-common/distributions/devel/$HAILZIP \
  && cd -
 
 #######################
@@ -112,7 +117,7 @@ ENV PYSPARK_DRIVER_PYTHON jupyter
 ENV PYSPARK_DRIVER_PYTHON_OPTS notebook
 
 ENV PATH $SPARK_HOME:$SPARK_HOME/python:$SPARK_HOME/bin:$HAIL_HOME:$PATH
-ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.3-src.zip:$JUPYTER_HOME/custom
+ENV PYTHONPATH $PYTHONPATH:$HAIL_HOME/$HAILPYTHON:$HAIL_HOME/python:$SPARK_HOME/python:$JUPYTER_HOME/custom
 
 RUN apt-get update \
  && apt-get install -yq --no-install-recommends \
@@ -128,76 +133,84 @@ RUN apt-get update \
  # jessie's default pip doesn't work well with jupyter 
  && wget -nv https://bootstrap.pypa.io/get-pip.py \
  && python get-pip.py \
-
+ && pip install ipykernel==4.10.0 \
+ && python2 -m ipykernel install --name python2 --display-name "Python 2" \
  # Hail requires decorator
- && pip install -U decorator==4.2.1 \
- && pip install numpy==1.15.0 \
- && python -mpip install matplotlib \
- && pip install pandas \
- && pip install seaborn \
- && pip install -U jupyter \
- && pip install google-api-core==1.3.0 \
- && pip install google-cloud-bigquery==1.4.0 \
+ && pip install -U decorator==4.3.0 \
+ && pip install numpy==1.15.2 \
+ && pip install py4j==0.10.7 \
+ && python -mpip install matplotlib==2.2.3\
+ && pip install pandas==0.23.4 \
+ && pip install seaborn==0.9.0 \
+ && pip install google-api-core==1.5.0 \
+ && pip install google-cloud-bigquery==1.7.0 \
  && pip install google-cloud-bigquery-datatransfer==0.1.1 \
  && pip install google-cloud-core==0.28.1 \
  && pip install google-cloud-datastore==1.7.0 \
  && pip install google-cloud-resource-manager==0.28.1 \
- && pip install google-cloud-storage==1.10.0 \
- && pip install google-auth==1.5.0 \
- && pip install --ignore-installed firecloud==0.16.7 \
- && pip install -U scikit-learn \
+ && pip install google-cloud-storage==1.13.0 \
+ && pip install google-auth==1.5.1 \
+ && pip install --ignore-installed firecloud==0.16.18 \
+ && pip install -U scikit-learn==0.20.0 \
  && pip install statsmodels==0.9.0 \
- && pip install ggplot \
- && pip install bokeh \
- && pip install pyfasta \
- && pip install pdoc \
- && pip install biopython \
- && pip install bx-python \
- && pip install fastinterval \
- && pip install matplotlib-venn \
- # for jupyter_localize_extension
- && pip install python-datauri \
+ && pip install ggplot==0.11.5 \
+ && pip install bokeh==1.0.0  \
+ && pip install pyfasta==0.5.2 \
+ && pip install pdoc==0.3.2 \
+ && pip install biopython==1.72 \
+ && pip install bx-python==0.8.2 \
+ && pip install fastinterval==0.1.1 \
+ && pip install matplotlib-venn==0.11.5 \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
 
 # Python 3 Kernel
 RUN apt-get update \
- &&  apt-get install -yq --no-install-recommends python3 \
-        python3-dev \
-        python3-tk \
-
+ && apt-get install -t testing -yq --no-install-recommends \
+    python3.6 \
+    python3.6-dev \
+    python3-distutils \
+ && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.6 100 \
  && python3 get-pip.py \
- # install the python 3 kernel
- && pip3 install tornado==5.1 \
- && pip3 install ipykernel==4.8.2 \
- && python3 -m ipykernel install --name python3 --display-name "Python 3" \
- # python 3 packages
- && pip3 install numpy==1.15.0 \
- && python3 -mpip install matplotlib \
- && pip3 install pandas \
- && pip3 install seaborn \
- && pip3 install python-lzo \
- && pip3 install google-api-core==1.3.0 \
- && pip3 install google-cloud-bigquery==1.4.0 \
+ && pip3 install tornado==4.5.3 \
+# # Hail requires decorator
+ && pip3 install -U decorator==4.3.0 \
+ && pip3 install parsimonious==0.8.1 \
+# # python 3 packages
+ && pip3 install numpy==1.15.2 \
+ && pip3 install py4j==0.10.7 \
+ && python3 -mpip install matplotlib==3.0.0 \
+ && pip3 install pandas==0.23.4 \
+ && pip3 install seaborn==0.9.0 \
+ && pip3 install jupyter==1.0.0 \
+ && pip3 install jupyterlab==0.35.2 \
+ && pip3 install python-lzo==1.12 \
+ && pip3 install google-api-core==1.5.0 \
+ && pip3 install google-cloud-bigquery==1.7.0 \
  && pip3 install google-cloud-bigquery-datatransfer==0.1.1 \
  && pip3 install google-cloud-core==0.28.1 \
  && pip3 install google-cloud-datastore==1.7.0 \
  && pip3 install google-cloud-resource-manager==0.28.1 \
- && pip3 install google-cloud-storage==1.10.0 \
- && pip3 install --ignore-installed firecloud==0.16.7 \
- && pip3 install -U scikit-learn \
+ && pip3 install google-cloud-storage==1.13.0 \
+ && pip3 install --ignore-installed firecloud==0.16.18 \
+ && pip3 install scikit-learn==0.20.0 \
  && pip3 install statsmodels==0.9.0 \
- && pip3 install ggplot \
- && pip3 install bokeh \
- && pip3 install pyfasta \
- && pip3 install pdoc \
- && pip3 install biopython \
- && pip3 install bx-python \
- && pip3 install fastinterval \
- && pip3 install matplotlib-venn \
+ && pip3 install ggplot==0.11.5 \
+ && pip3 install bokeh==1.0.0 \
+ && pip3 install pyfasta==0.5.2 \
+ && pip3 install pdoc==0.3.2 \
+ && pip3 install biopython==1.72 \
+ && pip3 install bx-python==0.8.2 \
+ && pip3 install fastinterval==0.1.1 \
+ && pip3 install matplotlib-venn==0.11.5 \
+ # for jupyter_localize_extension
+ && pip3 install python-datauri \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
+
+# fixed current ggplot issue where it imports Timestamp from pandas.lib (deprecated) instead of pandas
+RUN sed -i 's/pandas.lib/pandas/g' /usr/local/lib/python3.6/dist-packages/ggplot/stats/smoothers.py
 
 # make pip install to a user directory, instead of a system directory which requires root.
 # this is useful so `pip install` commands can be run in the context of a notebook.
@@ -207,16 +220,17 @@ ENV PIP_USER=true
 # R Kernel
 #######################
 
-RUN apt-get update \
- && apt-get -t jessie-cran34 install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
+ && apt-get update && apt-get -t stretch-cran35 install -y --no-install-recommends \
     r-base \
     r-base-dev \
     r-recommended \
- && apt-get install -y --no-install-recommends \
+ && apt-get install -t stretch-backports -y --no-install-recommends \
     fonts-dejavu \
     tzdata \
     gfortran \
     gcc \
+    libcurl4 \
     libcurl4-openssl-dev \
     libssl-dev \
     libxml2-dev \
@@ -237,7 +251,7 @@ RUN R -e 'install.packages(c( \
  && R -e 'devtools::install_github("IRkernel/IRkernel")' \
  && R -e 'IRkernel::installspec(user=FALSE)' \
  && chown -R $USER:users /home/jupyter-user/.local  \
- && R -e 'devtools::install_github("apache/spark@v2.0.2", subdir="R/pkg")' \
+ && R -e 'devtools::install_github("apache/spark@v2.2.0", subdir="R/pkg")' \
  && mkdir -p /home/jupyter-user/.rpackages \
  && echo "R_LIBS=/home/jupyter-user/.rpackages" > /home/jupyter-user/.Renviron \
  && chown -R $USER:users /home/jupyter-user/.rpackages
@@ -252,12 +266,6 @@ ADD custom/jupyter_localize_extension.py $JUPYTER_HOME/custom/
 
 RUN chown -R $USER:users $JUPYTER_HOME \
  && find $JUPYTER_HOME/scripts -name '*.sh' -type f | xargs chmod +x
-
-# This is a hacky way to get the ui to stop flickering as a result of kernel switches, restarts and reconnects from within a notebook
-# This edits the already built main.min.js file to prevent the notebook from scheduling a reconnect when a websocket is in a closing state
-# As a result, the websocket is allowed to reconnect on its own and doesn't get stuck in an infinite reconnection loop.
-# It should be removed at the first opportunity :(
-RUN sed -i "s/this._schedule_reconnect();//" ./usr/local/lib/python2.7/dist-packages/notebook/static/notebook/js/main.min.js
 
 USER $USER
 WORKDIR $HOME

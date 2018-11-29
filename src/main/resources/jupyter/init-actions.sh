@@ -281,12 +281,14 @@ if [[ "${ROLE}" == 'Master' ]]; then
       retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
     fi
 
-
     log 'Starting Jupyter Notebook...'
     retry 3 docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/run-jupyter.sh
     log 'All done!'
 fi
 
-
-
-
+export DEBIAN_FRONTEND=noninteractive
+echo "deb http://ftp.de.debian.org/debian testing main"      >> /etc/apt/sources.list
+retry 5 betterAptGet
+retry 5 apt-get -yq --force-yes install -t testing --no-install-recommends \
+    python3.6
+retry 5 update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.6 100
