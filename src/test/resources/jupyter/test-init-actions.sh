@@ -3,6 +3,7 @@
 $(clusterName)
 $(googleProject)
 $(jupyterDockerImage)
+$(proxyDockerImage)
 $(jupyterUserScriptUri)
 $(jupyterServiceAccountCredentials)
 $(jupyterServerExtensions)
