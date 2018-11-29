@@ -27,4 +27,5 @@
     <include file="changesets/20180625_autopause_threshold.xml" relativeToChangelogFile="true" />
     <include file="changesets/20180810_default_client_id.xml" relativeToChangelogFile="true" />
     <include file="changesets/20180919_stop_after_creation.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20181126_cluster_image.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

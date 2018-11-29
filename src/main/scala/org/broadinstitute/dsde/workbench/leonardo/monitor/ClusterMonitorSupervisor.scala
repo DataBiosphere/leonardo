@@ -8,6 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, Data
 import org.broadinstitute.dsde.workbench.leonardo.dao.JupyterDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.Jupyter
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, LeoAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
@@ -81,7 +82,8 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
           cluster.userJupyterExtensionConfig,
           if (cluster.autopauseThreshold == 0) Some(false) else Some(true),
           Some(cluster.autopauseThreshold),
-          cluster.defaultClientId)
+          cluster.defaultClientId,
+          cluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage))
         leoService.internalCreateCluster(cluster.auditInfo.creator, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest).failed.foreach { e =>
           logger.error(s"Error occurred recreating cluster ${cluster.projectNameString}", e)
         }

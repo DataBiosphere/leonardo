@@ -15,6 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, Clus
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.Jupyter
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
@@ -184,6 +185,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       case Some(existingCluster) => throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
       case None =>
         val augmentedClusterRequest = addClusterLabels(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
+        val clusterImages = processClusterImages(clusterRequest)
         val clusterFuture = for {
           // Notify the auth provider that the cluster has been created
           _ <- authProvider.notifyClusterCreated(userEmail, googleProject, clusterName)
@@ -192,7 +194,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           _ <- validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest)
 
           // Create the cluster in Google
-          (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest)
+          (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest, clusterImages)
 
           // Save the cluster in the database
           savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, Option(GcsPath(initBucket, GcsObjectName(""))), serviceAccountKeyOpt.map(_.id)))
@@ -257,12 +259,14 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     val augmentedClusterRequest = addClusterLabels(
       serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
+    val clusterImages = processClusterImages(clusterRequest)
     val machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
     val autopauseThreshold = calculateAutopauseThreshold(
       clusterRequest.autopause, clusterRequest.autopauseThreshold)
     val initialClusterToSave = Cluster.create(
       augmentedClusterRequest, userEmail, clusterName, googleProject,
-      serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold)
+      serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold,
+      clusterImages = clusterImages)
 
     // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
     // and if so, save the cluster creation request parameters in DB
@@ -554,7 +558,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                            cluster: Cluster,
                                            clusterRequest: ClusterRequest)
                                           (implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
-    createGoogleCluster(userEmail, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest)
+    createGoogleCluster(userEmail, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest, cluster.clusterImages)
   }
 
   /* Creates a cluster in the given google project:
@@ -566,7 +570,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                            serviceAccountInfo: ServiceAccountInfo,
                                            googleProject: GoogleProject,
                                            clusterName: ClusterName,
-                                           clusterRequest: ClusterRequest)
+                                           clusterRequest: ClusterRequest,
+                                           clusterImages: Set[ClusterImage])
                                           (implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
     val initBucketName = generateUniqueBucketName("leoinit-"+clusterName.value)
     val stagingBucketName = generateUniqueBucketName("leostaging-"+clusterName.value)
@@ -588,7 +593,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Create the bucket in leo's google project and populate with initialization files.
       // ACLs are granted so the cluster service account can access the bucket at initialization time.
       initBucket <- bucketHelper.createInitBucket(googleProject, initBucketName, serviceAccountInfo)
-      _ <- initializeBucketObjects(userEmail, googleProject, clusterName, initBucket, clusterRequest, serviceAccountKeyOpt, contentSecurityPolicy)
+      _ <- initializeBucketObjects(userEmail, googleProject, clusterName, initBucket, clusterRequest, serviceAccountKeyOpt, contentSecurityPolicy, clusterImages)
 
       // Create the cluster staging bucket. ACLs are granted so the user/pet can access it.
       stagingBucket <- bucketHelper.createStagingBucket(userEmail, googleProject, stagingBucketName, serviceAccountInfo)
@@ -601,7 +606,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       operation <- gdDAO.createCluster(googleProject, clusterName, machineConfig, initScript,
         serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket)
       cluster = Cluster.create(clusterRequest, userEmail, clusterName, googleProject, serviceAccountInfo,
-        machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, Option(operation), Option(stagingBucket))
+        machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, Option(operation), Option(stagingBucket), clusterImages)
     } yield (cluster, initBucket, serviceAccountKeyOpt)
 
     // If anything fails, we need to clean up Google resources that might have been created
@@ -773,11 +778,18 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   /* Process the templated cluster init script and put all initialization files in the init bucket */
-  private[service] def initializeBucketObjects(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountKey: Option[ServiceAccountKey], contentSecurityPolicy: String): Future[Unit] = {
+  private[service] def initializeBucketObjects(userEmail: WorkbenchEmail,
+                                               googleProject: GoogleProject,
+                                               clusterName: ClusterName,
+                                               initBucketName: GcsBucketName,
+                                               clusterRequest: ClusterRequest,
+                                               serviceAccountKey: Option[ServiceAccountKey],
+                                               contentSecurityPolicy: String,
+                                               clusterImages: Set[ClusterImage]): Future[Unit] = {
 
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
     val clusterInit = ClusterInitValues(googleProject, clusterName, initBucketName, clusterRequest, dataprocConfig,
-      clusterFilesConfig, clusterResourcesConfig, proxyConfig, serviceAccountKey, userEmail, contentSecurityPolicy)
+      clusterFilesConfig, clusterResourcesConfig, proxyConfig, serviceAccountKey, userEmail, contentSecurityPolicy, clusterImages)
     val replacements: Map[String, String] = clusterInit.toMap
 
     // Raw files to upload to the bucket, no additional processing needed.
@@ -914,5 +926,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     else clusterRequest
       .copy(labels = Option(allLabels))
       .copy(userJupyterExtensionConfig = updatedUserJupyterExtensionConfig)
+  }
+
+  private[service] def processClusterImages(clusterRequest: ClusterRequest): Set[ClusterImage] = {
+    // Default to the configured default image if not specified in the request
+    // TODO should we validate the image somehow?
+    val jupyterImage = clusterRequest.jupyterDockerImage.getOrElse(dataprocConfig.dataprocDockerImage)
+
+    Set(ClusterImage(Jupyter, jupyterImage, Instant.now))
   }
 }

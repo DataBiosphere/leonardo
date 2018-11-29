@@ -14,7 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq, clusterSetEq}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq, clusterSetEq, stripFieldsForListCluster}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
@@ -78,7 +78,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
 
       // list
       val listResponse = leo.listClusters(userInfo, Map()).futureValue
-      listResponse shouldBe Seq(cluster1)
+      listResponse shouldBe Seq(cluster1).map(stripFieldsForListCluster)
 
       //connect
       val proxyRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
@@ -155,7 +155,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
 
       // list should work for this user
       //list all clusters should be fine, but empty
-      leo.listClusters(userInfo, Map()).futureValue.toSet shouldEqual Set(cluster1)
+      leo.listClusters(userInfo, Map()).futureValue.toSet shouldEqual Set(cluster1).map(stripFieldsForListCluster)
 
       //connect should 401
       val httpRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
