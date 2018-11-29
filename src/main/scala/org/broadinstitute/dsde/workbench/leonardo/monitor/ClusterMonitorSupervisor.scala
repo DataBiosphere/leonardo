@@ -64,7 +64,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
     super.preStart()
 
     // TODO Uncomment out when we're ready for the scheduled task below to take over spawning/control of cluster monitors
-    //timers.startPeriodicTimer(TimerKey, Tick, monitorConfig.pollPeriod)
+    timers.startPeriodicTimer(TimerKey, Tick, monitorConfig.pollPeriod)
     // TODO Re-using monitorConfig.pollPeriod above for the time being but it may make sense to define a different one as necessary
 
     if (autoFreezeConfig.enableAutoFreeze)
@@ -178,8 +178,14 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
 
           // TODO Add ClusterUpdated once https://github.com/DataBiosphere/leonardo/pull/669 is merged
           clustersNotAlreadyBeingMonitored foreach {
-            case c if c.status == ClusterStatus.Deleting => self ! ClusterDeleted(c)
-            case c if c.status == ClusterStatus.Stopping => self ! ClusterStopped(c)
+            case c if c.status == ClusterStatus.Deleting => {
+              logger.info("deleting cluster")
+              self ! ClusterDeleted(c)
+            }
+            case c if c.status == ClusterStatus.Stopping =>{
+              logger.info("stopping cluster")
+              self ! ClusterStopped(c)
+            }
             case c if c.status == ClusterStatus.Starting => self ! ClusterStarted(c)
             case c => self ! ClusterCreated(c)
           }
