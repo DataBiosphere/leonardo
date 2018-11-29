@@ -1,6 +1,7 @@
 import distutils.util
 import subprocess
 import os
+import sys
 import tornado
 from tornado import gen
 from tornado.web import HTTPError
@@ -55,8 +56,12 @@ class LocalizeHandler(IPythonHandler):
 
     try:
       with open(dest, 'w+', buffering=1) as destout:
-        destout.write(uri.data)
-        locout.write('{}: wrote {} bytes\n'.format(dest, len(uri.data)))
+        try:
+          uri_data = uri.data.decode()
+        except AttributeError:
+          uri_data = uri.data
+        destout.write(uri_data)
+        locout.write('{}: wrote {} bytes\n'.format(dest, len(uri_data)))
     except IOError as e:
       locout.write('{}: I/O error({0}): {1}\n'.format(dest, e.errno, e.strerror))
       return False
@@ -105,7 +110,7 @@ class LocalizeHandler(IPythonHandler):
     if type(pathdict) is not dict:
       raise HTTPError(400, "Body must be JSON object of type string/string")
 
-    if not all(map(lambda v: type(v) is unicode, pathdict.values())):
+    if not all(map(lambda v: type(v) is str, pathdict.values())):
       raise HTTPError(400, "Body must be JSON object of type string/string")
 
     try:
