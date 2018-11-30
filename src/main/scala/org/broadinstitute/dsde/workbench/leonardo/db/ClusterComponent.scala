@@ -465,8 +465,8 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.autopauseThreshold,
         clusterRecord.defaultClientId,
         clusterRecord.stopAfterCreation,
-        clusterImageRecords map ClusterComponent.this.clusterImageQuery.unmarshalClusterImage toSet
-        ClusterComponent.this.scopeQuery.unmarshallScopes(scopes) toSet
+        clusterImageRecords map ClusterComponent.this.clusterImageQuery.unmarshalClusterImage toSet,
+        ClusterComponent.this.scopeQuery.unmarshallScopes(scopes)
       )
     }
   }

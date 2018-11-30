@@ -266,8 +266,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val clusterScopes = clusterRequest.scopes.getOrElse(dataprocConfig.defaultScopes)
     val initialClusterToSave = Cluster.create(
       augmentedClusterRequest, userEmail, clusterName, googleProject,
-      serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold,
-      clusterImages = clusterImages, scopes = clusterScopes)
+      serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, clusterScopes,
+      clusterImages = clusterImages)
 
     // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
     // and if so, save the cluster creation request parameters in DB
