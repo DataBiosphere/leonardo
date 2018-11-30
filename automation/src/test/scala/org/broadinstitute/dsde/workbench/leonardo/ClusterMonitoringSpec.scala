@@ -11,6 +11,7 @@ import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsObjectName, GcsPath, parseGcsPath}
 import org.broadinstitute.dsde.workbench.service.util.Tags
+import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 
 import scala.concurrent.duration._
@@ -101,7 +102,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
 
           withNewCluster(project, request = request) { cluster =>
             withWebDriver { implicit driver =>
-              withNewNotebook(cluster, PySpark2) { notebookPage =>
+              withNewNotebook(cluster, PySpark3) { notebookPage =>
                 verifyHailImport(notebookPage, destPath, cluster.clusterName)
               }
             }
@@ -145,6 +146,43 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
       }
     }
 
+    // make sure adding a worker works
+    "should update the cluster to add and then remove a worker node" in {
+      withProject { project => implicit token =>
+        val twoWorkersMachineConfig = MachineConfig(Some(2))
+
+        withNewCluster(project, request = defaultClusterRequest.copy(machineConfig = Option(twoWorkersMachineConfig))) { cluster =>
+          //update the cluster to add another worker node
+          Leonardo.cluster.update(project, cluster.clusterName, ClusterRequest(machineConfig = Option(twoWorkersMachineConfig.copy(numberOfWorkers = Some(3)))))
+
+          eventually(timeout(Span(60, Seconds)), interval(Span(5, Seconds))) {
+            val status = Leonardo.cluster.get(project, cluster.clusterName).status
+            status shouldBe ClusterStatus.Updating
+          }
+
+          eventually(timeout(Span(300, Seconds)), interval(Span(30, Seconds))) {
+            val clusterResponse = Leonardo.cluster.get(project, cluster.clusterName)
+            clusterResponse.machineConfig.numberOfWorkers shouldBe Some(3)
+            clusterResponse.status shouldBe ClusterStatus.Running
+          }
+
+          //now that we have confirmed that we can add a worker node, let's see what happens when we size it back down to 2 workers
+          Leonardo.cluster.update(project, cluster.clusterName, ClusterRequest(machineConfig = Option(twoWorkersMachineConfig)))
+
+          eventually(timeout(Span(60, Seconds)), interval(Span(5, Seconds))) {
+            val status = Leonardo.cluster.get(project, cluster.clusterName).status
+            status shouldBe ClusterStatus.Updating
+          }
+
+          eventually(timeout(Span(300, Seconds)), interval(Span(30, Seconds))) {
+            val clusterResponse = Leonardo.cluster.get(project, cluster.clusterName)
+            clusterResponse.machineConfig.numberOfWorkers shouldBe Some(2)
+            clusterResponse.status shouldBe ClusterStatus.Running
+          }
+        }
+      }
+    }
+
     "should pause and resume a cluster with preemptible instances" in {
       withProject { project => implicit token =>
         withNewGoogleBucket(project) { bucket =>
@@ -167,7 +205,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
           withNewCluster(project, request = request) { cluster =>
             // Verify a Hail job uses preemptibles
             withWebDriver { implicit driver =>
-              withNewNotebook(cluster, PySpark2) { notebookPage =>
+              withNewNotebook(cluster, PySpark3) { notebookPage =>
                 verifyHailImport(notebookPage, destPath, cluster.clusterName)
                 notebookPage.saveAndCheckpoint()
               }
@@ -245,7 +283,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
 
     "should install JupyterLab" taggedAs Tags.SmokeTest in {
       withProject { project => implicit token =>
-        withNewCluster(project, request = ClusterRequest(userJupyterExtensionConfig = Some(jupyterLabExtensionClusterRequest))) { cluster =>
+        withNewCluster(project, request = ClusterRequest()) { cluster =>
           withWebDriver { implicit driver =>
             // Check that the /lab URL is accessible
             val getResult = Try(Leonardo.lab.getApi(project, cluster.clusterName))

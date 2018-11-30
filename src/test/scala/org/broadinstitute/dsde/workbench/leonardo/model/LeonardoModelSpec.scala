@@ -6,8 +6,6 @@ import java.util.UUID._
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData}
 import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.scalatest.{FlatSpecLike, Matchers}
 import org.scalatest.concurrent.ScalaFutures
 
@@ -18,11 +16,15 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
 
   val exampleTime = Instant.parse("2018-08-07T10:12:35Z")
 
-  val cluster = makeCluster(1).copy(dataprocInfo = makeDataprocInfo(1).copy(googleId = Option(fromString("4ba97751-026a-4555-961b-89ae6ce78df4"))),
-                                    auditInfo = auditInfo.copy(createdDate = exampleTime,
-                                                               dateAccessed = exampleTime),
-                                    jupyterExtensionUri = Some(jupyterExtensionUri),
-                                    stopAfterCreation = true)
+  val cluster = makeCluster(1).copy(
+    dataprocInfo = makeDataprocInfo(1).copy(
+      googleId = Option(fromString("4ba97751-026a-4555-961b-89ae6ce78df4"))),
+    auditInfo = auditInfo.copy(createdDate = exampleTime,
+      dateAccessed = exampleTime),
+    jupyterExtensionUri = Some(jupyterExtensionUri),
+    stopAfterCreation = true,
+    clusterImages = Set(jupyterImage.copy(timestamp = exampleTime))
+  )
 
 
   it should "serialize/deserialize to/from JSON" in isolatedDbTest {
@@ -57,6 +59,12 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |  "autopauseThreshold": 30,
         |  "defaultClientId": "defaultClientId",
         |  "stopAfterCreation": true,
+        |  "clusterImages": [
+        |    { "tool": "Jupyter",
+        |      "dockerImage": "jupyter/jupyter-base:latest",
+        |      "timestamp": "2018-08-07T10:12:35Z"
+        |      }
+        |    ],
         |  "scopes":["https://www.googleapis.com/auth/userinfo.email","https://www.googleapis.com/auth/userinfo.profile","https://www.googleapis.com/auth/bigquery","https://www.googleapis.com/auth/source.read_only"]
         |}
       """.stripMargin.parseJson
@@ -91,7 +99,8 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |  "instances": [],
         |  "dateAccessed": "2018-08-07T10:12:35Z",
         |  "autopauseThreshold": 0,
-        |  "stopAfterCreation": false
+        |  "stopAfterCreation": false,
+        |  "clusterImages": []
         |}
       """.stripMargin.parseJson
 
@@ -119,12 +128,12 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
 
   it should "create a map of ClusterInitValues object" in isolatedDbTest {
 
-    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy)
+    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy, Set(jupyterImage))
     val clusterInitMap = clusterInit.toMap
 
     clusterInitMap("googleProject") shouldBe project.value
     clusterInitMap("clusterName") shouldBe name1.value
-    clusterInitMap("jupyterDockerImage") shouldBe dataprocConfig.dataprocDockerImage
+    clusterInitMap("jupyterDockerImage") shouldBe jupyterImage.dockerImage
     clusterInitMap("proxyDockerImage") shouldBe proxyConfig.jupyterProxyDockerImage
     clusterInitMap("defaultClientId") shouldBe testClusterRequestWithExtensionAndScript.defaultClientId.getOrElse("")
 

@@ -13,6 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, Clus
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockJupyterDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData, _}
@@ -62,8 +63,8 @@ trait CommonTestData{ this: ScalaFutures =>
   val contentSecurityPolicy = config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
   val mockJupyterDAO = new MockJupyterDAO
   val singleNodeDefaultMachineConfig = MachineConfig(Some(clusterDefaultsConfig.numberOfWorkers), Some(clusterDefaultsConfig.masterMachineType), Some(clusterDefaultsConfig.masterDiskSize))
-  val testClusterRequest = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), None, None, None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))), Some(true), Some(30), Some("ThisIsADefaultClientID"))
-  val testClusterRequestWithExtensionAndScript = ClusterRequest(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), Some(jupyterExtensionUri), Some(jupyterUserScriptUri), None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))), Some(true), Some(30), Some("ThisIsADefaultClientID"))
+  val testClusterRequest = ClusterRequest(Some(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar")), None, None, None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))), Some(true), Some(30), Some("ThisIsADefaultClientID"))
+  val testClusterRequestWithExtensionAndScript = ClusterRequest(Some(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar")), Some(jupyterExtensionUri), Some(jupyterUserScriptUri), None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))), Some(true), Some(30), Some("ThisIsADefaultClientID"))
 
   val mockSamDAO = new MockSamDAO
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO
@@ -80,6 +81,9 @@ trait CommonTestData{ this: ScalaFutures =>
   val serviceAccountInfo = new ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount)
 
   val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now())
+  val jupyterImage = ClusterImage(Jupyter, "jupyter/jupyter-base:latest", Instant.now)
+  val rstudioImage = ClusterImage(RStudio, "rocker/tidyverse:latest", Instant.now)
+
   def makeDataprocInfo(index: Int): DataprocInfo = {
     DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("operationName" + index.toString)), Option(GcsBucketName("stagingBucketName" + index.toString)), Some(IP("numbers.and.dots")))
   }
@@ -104,6 +108,7 @@ trait CommonTestData{ this: ScalaFutures =>
       autopauseThreshold = 30,
       defaultClientId = Some("defaultClientId"),
       stopAfterCreation = false,
+      clusterImages = Set(jupyterImage),
       scopes = defaultScopes
     )
   }
@@ -126,6 +131,7 @@ trait CommonTestData{ this: ScalaFutures =>
     autopauseThreshold = if (autopause) autopauseThreshold else 0,
     defaultClientId = None,
     stopAfterCreation = false,
+    clusterImages = Set(jupyterImage),
     scopes = defaultScopes
   )
 

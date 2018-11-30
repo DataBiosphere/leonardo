@@ -8,6 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, Data
 import org.broadinstitute.dsde.workbench.leonardo.dao.JupyterDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.Jupyter
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, LeoAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
@@ -30,6 +31,8 @@ object ClusterMonitorSupervisor {
   case class ClusterStopped(cluster: Cluster) extends ClusterSupervisorMessage
   // sent after a cluster is started by the user
   case class ClusterStarted(cluster: Cluster) extends ClusterSupervisorMessage
+  // sent after a cluster is updated by the user
+  case class ClusterUpdated(cluster: Cluster) extends ClusterSupervisorMessage
 
   // sent after cluster creation fails, and the cluster should be recreated
   case class RecreateCluster(cluster: Cluster) extends ClusterSupervisorMessage
@@ -63,11 +66,15 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
       logger.info(s"Monitoring cluster ${cluster.projectNameString} for deletion.")
       startClusterMonitorActor(cluster, if (recreate) Some(RecreateCluster(cluster)) else None)
 
+    case ClusterUpdated(cluster) =>
+      logger.info(s"Monitor cluster ${cluster.projectNameString} for updating.")
+      startClusterMonitorActor(cluster, None)
+
     case RecreateCluster(cluster) =>
       if (monitorConfig.recreateCluster) {
         logger.info(s"Recreating cluster ${cluster.projectNameString}...")
         val clusterRequest = ClusterRequest(
-          cluster.labels,
+          Option(cluster.labels),
           cluster.jupyterExtensionUri,
           cluster.jupyterUserScriptUri,
           Some(cluster.machineConfig),
@@ -75,7 +82,8 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
           cluster.userJupyterExtensionConfig,
           if (cluster.autopauseThreshold == 0) Some(false) else Some(true),
           Some(cluster.autopauseThreshold),
-          cluster.defaultClientId)
+          cluster.defaultClientId,
+          cluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage))
         leoService.internalCreateCluster(cluster.auditInfo.creator, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest).failed.foreach { e =>
           logger.error(s"Error occurred recreating cluster ${cluster.projectNameString}", e)
         }

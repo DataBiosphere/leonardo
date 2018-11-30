@@ -73,8 +73,13 @@ class DataAccess(val profile: JdbcProfile)(implicit val executionContext: Execut
 
     // important to keep the right order for referential integrity !
     // if table X has a Foreign Key to table Y, delete table X first
-    TableQuery[LabelTable].delete andThen TableQuery[ClusterErrorTable].delete andThen TableQuery[InstanceTable].delete andThen TableQuery[ExtensionTable].delete andThen TableQuery[ScopeTable].delete andThen TableQuery[ClusterTable].delete
-
+    TableQuery[LabelTable].delete andThen
+      TableQuery[ClusterErrorTable].delete andThen
+      TableQuery[InstanceTable].delete andThen
+      TableQuery[ExtensionTable].delete andThen
+      TableQuery[ClusterImageTable].delete andThen
+      TableQuery[ScopeTable].delete andThen
+      TableQuery[ClusterTable].delete
   }
 
   def sqlDBStatus() = {

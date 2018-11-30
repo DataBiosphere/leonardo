@@ -7,9 +7,9 @@ import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq, clusterSeqEq, clusterSetEq}
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.FlatSpecLike
 
 class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils {
@@ -46,7 +46,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
     // instances are returned by list* methods
     val expectedClusters123 = Seq(savedCluster1, savedCluster2, savedCluster3).map(_.copy(instances = Set.empty))
-    dbFutureValue { _.clusterQuery.list() } should contain theSameElementsAs expectedClusters123
+    dbFutureValue { _.clusterQuery.list() } should contain theSameElementsAs expectedClusters123.map(stripFieldsForListCluster)
 
     // instances are returned by get* methods
     dbFutureValue { _.clusterQuery.getActiveClusterByName(cluster1.googleProject, cluster1.clusterName) } shouldEqual Some(savedCluster1)
@@ -64,15 +64,15 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFutureValue { _.clusterQuery.getServiceAccountKeyId(cluster2.googleProject, cluster2.clusterName) } shouldEqual Some(serviceAccountKey.id)
     dbFutureValue { _.clusterQuery.getServiceAccountKeyId(cluster3.googleProject, cluster3.clusterName) } shouldEqual Some(serviceAccountKey.id)
 
-    dbFutureValue { _.clusterQuery.countByClusterServiceAccountAndStatus(clusterServiceAccount.get, ClusterStatus.Creating) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.countByClusterServiceAccountAndStatus(clusterServiceAccount.get, ClusterStatus.Running) } shouldEqual 0
+    dbFutureValue { _.clusterQuery.countByClusterServiceAccountAndStatuses(clusterServiceAccount.get, Set(ClusterStatus.Creating)) } shouldEqual 1
+    dbFutureValue { _.clusterQuery.countByClusterServiceAccountAndStatuses(clusterServiceAccount.get, Set(ClusterStatus.Running)) } shouldEqual 0
 
     // (project, name) unique key test
 
     dbFailure { _.clusterQuery.save(cluster4, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(savedCluster1.id) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.listActive() } should contain theSameElementsAs Seq(cluster2, cluster3)
+    dbFutureValue { _.clusterQuery.listActive() } should contain theSameElementsAs Seq(cluster2, cluster3).map(stripFieldsForListCluster)
 
     val cluster1status = dbFutureValue { _.clusterQuery.getClusterById(savedCluster1.id) }.get
     cluster1status.status shouldEqual ClusterStatus.Deleting
@@ -81,7 +81,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     cluster1status.instances shouldBe cluster1.instances
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(savedCluster2.id) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq(cluster3)
+    dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq(cluster3).map(stripFieldsForListCluster)
     val cluster2status = dbFutureValue { _.clusterQuery.getClusterById(savedCluster2.id) }.get
     cluster2status.status shouldEqual ClusterStatus.Deleting
     cluster2status.auditInfo.destroyedDate shouldBe None
@@ -104,20 +104,20 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     val savedCluster3 = makeCluster(3).copy(status = ClusterStatus.Deleted,
                                        labels = Map("a" -> "b", "bam" -> "yes")).save()
 
-    dbFutureValue { _.clusterQuery.listByLabels(Map.empty, false) }.toSet shouldEqual Set(savedCluster1, savedCluster2)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes"), false) }.toSet shouldEqual Set(savedCluster1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map.empty, false) }.toSet shouldEqual Set(savedCluster1, savedCluster2).map(stripFieldsForListCluster)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes"), false) }.toSet shouldEqual Set(savedCluster1).map(stripFieldsForListCluster)
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "no"), false) }.toSet shouldEqual Set.empty[Cluster]
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no"), false) }.toSet shouldEqual Set(savedCluster1)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("foo" -> "bar", "vcf" -> "no"), false) }.toSet shouldEqual Set(savedCluster1)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), false) }.toSet shouldEqual Set(savedCluster1)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no"), false) }.toSet shouldEqual Set(savedCluster1).map(stripFieldsForListCluster)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("foo" -> "bar", "vcf" -> "no"), false) }.toSet shouldEqual Set(savedCluster1).map(stripFieldsForListCluster)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), false) }.toSet shouldEqual Set(savedCluster1).map(stripFieldsForListCluster)
     dbFutureValue { _.clusterQuery.listByLabels(Map("a" -> "b"), false) }.toSet shouldEqual Set.empty[Cluster]
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "b"), false) }.toSet shouldEqual Set.empty[Cluster]
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "c"), false) }.toSet shouldEqual Set.empty[Cluster]
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no"), true) }.toSet shouldEqual Set(savedCluster1)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("foo" -> "bar", "vcf" -> "no"), true) }.toSet shouldEqual Set(savedCluster1)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), true) }.toSet shouldEqual Set(savedCluster1)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("a" -> "b"), true) }.toSet shouldEqual Set(savedCluster3)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "b"), true) }.toSet shouldEqual Set(savedCluster3)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no"), true) }.toSet shouldEqual Set(savedCluster1).map(stripFieldsForListCluster)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("foo" -> "bar", "vcf" -> "no"), true) }.toSet shouldEqual Set(savedCluster1).map(stripFieldsForListCluster)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"), true) }.toSet shouldEqual Set(savedCluster1).map(stripFieldsForListCluster)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("a" -> "b"), true) }.toSet shouldEqual Set(savedCluster3).map(stripFieldsForListCluster)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "b"), true) }.toSet shouldEqual Set(savedCluster3).map(stripFieldsForListCluster)
     dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes", "a" -> "c"), true) }.toSet shouldEqual Set.empty[Cluster]
     dbFutureValue { _.clusterQuery.listByLabels(Map("bogus" -> "value"), true) }.toSet shouldEqual Set.empty[Cluster]
   }
@@ -201,12 +201,12 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
         labels = Map("a" -> "b", "bam" -> "yes"))
       .save()
 
-    dbFutureValue { _.clusterQuery.listByLabels(Map.empty, false, Some(project)) }.toSet shouldEqual Set(savedCluster1)
-    dbFutureValue { _.clusterQuery.listByLabels(Map.empty, true, Some(project)) }.toSet shouldEqual Set(savedCluster1, savedCluster3)
-    dbFutureValue { _.clusterQuery.listByLabels(Map.empty, false, Some(project2)) }.toSet shouldEqual Set(savedCluster2)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes"), true, Some(project)) }.toSet shouldEqual Set(savedCluster1, savedCluster3)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes"), false, Some(project2)) }.toSet shouldEqual Set(savedCluster2)
-    dbFutureValue { _.clusterQuery.listByLabels(Map("a" -> "b"), true, Some(project)) }.toSet shouldEqual Set(savedCluster3)
+    dbFutureValue { _.clusterQuery.listByLabels(Map.empty, false, Some(project)) }.toSet shouldEqual Set(savedCluster1).map(stripFieldsForListCluster)
+    dbFutureValue { _.clusterQuery.listByLabels(Map.empty, true, Some(project)) }.toSet shouldEqual Set(savedCluster1, savedCluster3).map(stripFieldsForListCluster)
+    dbFutureValue { _.clusterQuery.listByLabels(Map.empty, false, Some(project2)) }.toSet shouldEqual Set(savedCluster2).map(stripFieldsForListCluster)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes"), true, Some(project)) }.toSet shouldEqual Set(savedCluster1, savedCluster3).map(stripFieldsForListCluster)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("bam" -> "yes"), false, Some(project2)) }.toSet shouldEqual Set(savedCluster2).map(stripFieldsForListCluster)
+    dbFutureValue { _.clusterQuery.listByLabels(Map("a" -> "b"), true, Some(project)) }.toSet shouldEqual Set(savedCluster3).map(stripFieldsForListCluster)
     dbFutureValue { _.clusterQuery.listByLabels(Map("a" -> "b"), true, Some(project2)) }.toSet shouldEqual Set.empty[Cluster]
   }
 }

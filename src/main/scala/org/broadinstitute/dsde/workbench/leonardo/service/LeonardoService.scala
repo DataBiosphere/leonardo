@@ -15,6 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, Clus
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.Jupyter
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
@@ -24,7 +25,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, UserInfo, WorkbenchEmail, WorkbenchException}
 import org.broadinstitute.dsde.workbench.util.Retry
 import slick.dbio.DBIO
 import spray.json._
@@ -57,6 +58,9 @@ case class ClusterCannotBeDeletedException(googleProject: GoogleProject, cluster
 case class ClusterCannotBeStartedException(googleProject: GoogleProject, clusterName: ClusterName, status: ClusterStatus)
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} cannot be started in ${status.toString} status", StatusCodes.Conflict)
 
+case class ClusterCannotBeUpdatedException(cluster: Cluster)
+  extends LeoException(s"Cluster ${cluster.projectNameString} cannot be updated in ${cluster.status} status", StatusCodes.Conflict)
+
 case class InitializationFileException(googleProject: GoogleProject, clusterName: ClusterName, errorMessage: String)
   extends LeoException(s"Unable to process initialization files for ${googleProject.value}/${clusterName.value}. Returned message: $errorMessage", StatusCodes.Conflict)
 
@@ -74,6 +78,9 @@ case class ParseLabelsException(labelString: String)
 
 case class IllegalLabelKeyException(labelKey: String)
   extends LeoException(s"Labels cannot have a key of '$labelKey'", StatusCodes.NotAcceptable)
+
+case class InvalidDataprocMachineConfigException(errorMsg: String)
+  extends LeoException(s"${errorMsg}", StatusCodes.BadRequest)
 
 class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val clusterFilesConfig: ClusterFilesConfig,
@@ -178,6 +185,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       case Some(existingCluster) => throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
       case None =>
         val augmentedClusterRequest = addClusterLabels(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
+        val clusterImages = processClusterImages(clusterRequest)
         val clusterFuture = for {
           // Notify the auth provider that the cluster has been created
           _ <- authProvider.notifyClusterCreated(userEmail, googleProject, clusterName)
@@ -186,7 +194,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           _ <- validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest)
 
           // Create the cluster in Google
-          (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest)
+          (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest, clusterImages)
 
           // Save the cluster in the database
           savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, Option(GcsPath(initBucket, GcsObjectName(""))), serviceAccountKeyOpt.map(_.id)))
@@ -251,13 +259,15 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     val augmentedClusterRequest = addClusterLabels(
       serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
+    val clusterImages = processClusterImages(clusterRequest)
     val machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
     val autopauseThreshold = calculateAutopauseThreshold(
       clusterRequest.autopause, clusterRequest.autopauseThreshold)
     val clusterScopes = clusterRequest.scopes.getOrElse(dataprocConfig.defaultScopes)
     val initialClusterToSave = Cluster.create(
       augmentedClusterRequest, userEmail, clusterName, googleProject,
-      serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, clusterScopes)
+      serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold,
+      clusterImages = clusterImages, scopes = clusterScopes)
 
     // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
     // and if so, save the cluster creation request parameters in DB
@@ -338,6 +348,81 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   def internalGetActiveClusterDetails(googleProject: GoogleProject, clusterName: ClusterName): Future[Cluster] = {
     dbRef.inTransaction { dataAccess =>
       getActiveCluster(googleProject, clusterName, dataAccess)
+    }
+  }
+
+  def updateCluster(userInfo: UserInfo,
+                    googleProject: GoogleProject,
+                    clusterName: ClusterName,
+                    clusterRequest: ClusterRequest): Future[Cluster] = {
+    for {
+      cluster <- internalGetActiveClusterDetails(googleProject, clusterName) //throws 404 if nonexistent
+
+      _ <- checkClusterPermission(userInfo, ModifyCluster, cluster) //throws 404 if no auth
+
+      updatedCluster <- internalUpdateCluster(cluster, clusterRequest)
+    } yield { updatedCluster }
+  }
+
+  def internalUpdateCluster(existingCluster: Cluster, clusterRequest: ClusterRequest) = {
+    if(existingCluster.status.isUpdatable) {
+      for {
+        _ <- maybeUpdateAutopauseThreshold(existingCluster.id, clusterRequest.autopause, clusterRequest.autopauseThreshold)
+
+        clusterResized <- maybeResizeCluster(existingCluster, clusterRequest.machineConfig)
+
+        // Set the cluster status to Updating only if the cluster was resized
+        _ <- if(clusterResized) { dbRef.inTransaction { _.clusterQuery.updateClusterStatus(existingCluster.id, ClusterStatus.Updating) } } else Future.successful(0)
+
+        updatedCluster <- internalGetActiveClusterDetails(existingCluster.googleProject, existingCluster.clusterName)
+      } yield {
+        if(clusterResized) { clusterMonitorSupervisor ! ClusterUpdated(updatedCluster.copy(status = ClusterStatus.Updating)) }
+        updatedCluster
+      }
+    } else Future.failed(ClusterCannotBeUpdatedException(existingCluster))
+  }
+
+  def maybeUpdateAutopauseThreshold(clusterId: Long, autopause: Option[Boolean], autopauseThreshold: Option[Int]): Future[Int] = {
+    (autopause, autopauseThreshold) match {
+      case (None, None) => Future.successful(0) //no-op. throwing None and None into calculateAutopauseThreshold would be wrong so we won't touch it
+      case _ => dbRef.inTransaction { dataAccess => dataAccess.clusterQuery.updateAutopauseThreshold(clusterId, calculateAutopauseThreshold(autopause, autopauseThreshold)) }
+    }
+  }
+
+  //returns true if cluster was resized, otherwise returns false
+  def maybeResizeCluster(existingCluster: Cluster, machineConfigOpt: Option[MachineConfig]): Future[Boolean] = {
+    machineConfigOpt match {
+      case Some(machineConfig) =>
+
+        (machineConfig.numberOfWorkers, machineConfig.numberOfPreemptibleWorkers) match {
+          case (Some(_), _) | (_, Some(_))
+            if (existingCluster.machineConfig.numberOfWorkers != machineConfig.numberOfWorkers) || (existingCluster.machineConfig.numberOfPreemptibleWorkers != machineConfig.numberOfPreemptibleWorkers) => {
+
+            logger.info(s"New machine config present. Resizing cluster '${existingCluster.clusterName}' " +
+              s"in Google project '${existingCluster.googleProject}'...")
+
+            for {
+              // Add Dataproc Worker role to the cluster service account, if present.
+              // This is needed to be able to spin up Dataproc clusters.
+              // If the Google Compute default service account is being used, this is not necessary.
+              _ <- addDataprocWorkerRoleToServiceAccount(existingCluster.googleProject, existingCluster.serviceAccountInfo.clusterServiceAccount)
+              _ <- gdDAO.resizeCluster(existingCluster.googleProject, existingCluster.clusterName, machineConfig.numberOfWorkers, machineConfig.numberOfPreemptibleWorkers) recoverWith {
+                case gjre: GoogleJsonResponseException =>
+                  //typically we will revoke this role in the monitor after everything is complete, but if Google fails to resize the cluster we need to revoke it manually here
+                  removeDataprocWorkerRoleFromServiceAccount(existingCluster.googleProject, existingCluster.serviceAccountInfo.clusterServiceAccount)
+                  throw InvalidDataprocMachineConfigException(gjre.getMessage)
+              }
+              _ <- machineConfig.numberOfWorkers.map { numWorkers =>
+                dbRef.inTransaction { _.clusterQuery.updateNumberOfWorkers(existingCluster.id, numWorkers) }
+              } getOrElse Future.successful(0)
+              _ <- machineConfig.numberOfPreemptibleWorkers.map { numWorkers =>
+                dbRef.inTransaction { _.clusterQuery.updateNumberOfPreemptibleWorkers(existingCluster.id, Option(numWorkers)) }
+              } getOrElse Future.successful(0)
+            } yield { true }
+          }
+          case _ => Future.successful(false) //no-op because machineConfig values didn't change
+        }
+      case None => Future.successful(false) //no-op because no machineConfig specified
     }
   }
 
@@ -474,7 +559,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                            cluster: Cluster,
                                            clusterRequest: ClusterRequest)
                                           (implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
-    createGoogleCluster(userEmail, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest)
+    createGoogleCluster(userEmail, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest, cluster.clusterImages)
   }
 
   /* Creates a cluster in the given google project:
@@ -486,7 +571,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                            serviceAccountInfo: ServiceAccountInfo,
                                            googleProject: GoogleProject,
                                            clusterName: ClusterName,
-                                           clusterRequest: ClusterRequest)
+                                           clusterRequest: ClusterRequest,
+                                           clusterImages: Set[ClusterImage])
                                           (implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
     val initBucketName = generateUniqueBucketName("leoinit-"+clusterName.value)
     val stagingBucketName = generateUniqueBucketName("leostaging-"+clusterName.value)
@@ -508,7 +594,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Create the bucket in leo's google project and populate with initialization files.
       // ACLs are granted so the cluster service account can access the bucket at initialization time.
       initBucket <- bucketHelper.createInitBucket(googleProject, initBucketName, serviceAccountInfo)
-      _ <- initializeBucketObjects(userEmail, googleProject, clusterName, initBucket, clusterRequest, serviceAccountKeyOpt, contentSecurityPolicy)
+      _ <- initializeBucketObjects(userEmail, googleProject, clusterName, initBucket, clusterRequest, serviceAccountKeyOpt, contentSecurityPolicy, clusterImages)
 
       // Create the cluster staging bucket. ACLs are granted so the user/pet can access it.
       stagingBucket <- bucketHelper.createStagingBucket(userEmail, googleProject, stagingBucketName, serviceAccountInfo)
@@ -522,7 +608,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       operation <- gdDAO.createCluster(googleProject, clusterName, machineConfig, initScript,
         serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket, clusterScopes)
       cluster = Cluster.create(clusterRequest, userEmail, clusterName, googleProject, serviceAccountInfo,
-        machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, clusterScopes, Option(operation), Option(stagingBucket))
+        machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, clusterScopes, Option(operation), Option(stagingBucket), clusterImages)
     } yield (cluster, initBucket, serviceAccountKeyOpt)
 
     // If anything fails, we need to clean up Google resources that might have been created
@@ -623,6 +709,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } getOrElse Future.successful(())
   }
 
+  private[service] def removeDataprocWorkerRoleFromServiceAccount(googleProject: GoogleProject, serviceAccountOpt: Option[WorkbenchEmail]): Future[Unit] = {
+    serviceAccountOpt.map { serviceAccountEmail =>
+      googleIamDAO.removeIamRolesForUser(googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
+    } getOrElse Future.successful(())
+  }
+
   private def validateClusterRequestBucketObjectUri(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterRequest: ClusterRequest)
                                                    (implicit executionContext: ExecutionContext): Future[Unit] = {
     val transformed = for {
@@ -688,11 +780,18 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   /* Process the templated cluster init script and put all initialization files in the init bucket */
-  private[service] def initializeBucketObjects(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, serviceAccountKey: Option[ServiceAccountKey], contentSecurityPolicy: String): Future[Unit] = {
+  private[service] def initializeBucketObjects(userEmail: WorkbenchEmail,
+                                               googleProject: GoogleProject,
+                                               clusterName: ClusterName,
+                                               initBucketName: GcsBucketName,
+                                               clusterRequest: ClusterRequest,
+                                               serviceAccountKey: Option[ServiceAccountKey],
+                                               contentSecurityPolicy: String,
+                                               clusterImages: Set[ClusterImage]): Future[Unit] = {
 
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
     val clusterInit = ClusterInitValues(googleProject, clusterName, initBucketName, clusterRequest, dataprocConfig,
-      clusterFilesConfig, clusterResourcesConfig, proxyConfig, serviceAccountKey, userEmail, contentSecurityPolicy)
+      clusterFilesConfig, clusterResourcesConfig, proxyConfig, serviceAccountKey, userEmail, contentSecurityPolicy, clusterImages)
     val replacements: Map[String, String] = clusterInit.toMap
 
     // Raw files to upload to the bucket, no additional processing needed.
@@ -819,7 +918,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val combinedExtension = clusterRequest.userJupyterExtensionConfig.map(_.combinedExtensions).getOrElse(Map.empty)
 
     // combine default and given labels and add labels for extensions
-    val allLabels = clusterRequest.labels ++ defaultLabels ++ nbExtensions ++ serverExtensions ++ combinedExtension
+    val allLabels = clusterRequest.labels.getOrElse(Map.empty) ++ defaultLabels ++ nbExtensions ++ serverExtensions ++ combinedExtension
 
     val updatedUserJupyterExtensionConfig = if(nbExtensions.isEmpty && serverExtensions.isEmpty && combinedExtension.isEmpty) None else Some(UserJupyterExtensionConfig(nbExtensions, serverExtensions, combinedExtension))
 
@@ -827,7 +926,15 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     if (allLabels.contains(includeDeletedKey))
       throw IllegalLabelKeyException(includeDeletedKey)
     else clusterRequest
-      .copy(labels = allLabels)
+      .copy(labels = Option(allLabels))
       .copy(userJupyterExtensionConfig = updatedUserJupyterExtensionConfig)
+  }
+
+  private[service] def processClusterImages(clusterRequest: ClusterRequest): Set[ClusterImage] = {
+    // Default to the configured default image if not specified in the request
+    // TODO should we validate the image somehow?
+    val jupyterImage = clusterRequest.jupyterDockerImage.getOrElse(dataprocConfig.dataprocDockerImage)
+
+    Set(ClusterImage(Jupyter, jupyterImage, Instant.now))
   }
 }
