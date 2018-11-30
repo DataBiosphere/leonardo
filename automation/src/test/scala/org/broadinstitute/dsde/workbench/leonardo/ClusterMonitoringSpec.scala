@@ -103,7 +103,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
           withNewCluster(project, request = request) { cluster =>
             withWebDriver { implicit driver =>
               withNewNotebook(cluster, PySpark3) { notebookPage =>
-                verifyHailImport(notebookPage, destPath, cluster.clusterName)
+                verifyHailImport(notebookPage, destPath, cluster)
               }
             }
           }
@@ -206,7 +206,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
             // Verify a Hail job uses preemptibles
             withWebDriver { implicit driver =>
               withNewNotebook(cluster, PySpark3) { notebookPage =>
-                verifyHailImport(notebookPage, destPath, cluster.clusterName)
+                verifyHailImport(notebookPage, destPath, cluster)
                 notebookPage.saveAndCheckpoint()
               }
 
