@@ -704,15 +704,16 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       notebookPage.executeCell(s"chr20vcf = '${vcfPath.toUri}'") shouldBe None
       notebookPage.executeCell("imported = hl.import_vcf(chr20vcf)", hailTimeout) shouldBe None
 
-      // notebookPage.executeCell("imported.describe()", hailTimeout).get should include(vcfDescription)
+      notebookPage.executeCell("imported.describe()", hailTimeout).get should include(vcfDescription)
     }
 
     logger.info(s"Hail import for cluster ${cluster.projectNameString}} took ${elapsed.duration.toSeconds} seconds")
 
     // show that the Hail log contains jobs that were run on preemptible nodes
+    // TODO this check is not always reliable
 
-    val preemptibleNodePrefix = cluster.clusterName.string + "-sw"
-    notebookPage.executeCell(s"! grep Finished ~/hail.log | grep $preemptibleNodePrefix").get should include(preemptibleNodePrefix)
+    //val preemptibleNodePrefix = cluster.clusterName.string + "-sw"
+    //notebookPage.executeCell(s"! grep Finished ~/hail.log | grep $preemptibleNodePrefix").get should include(preemptibleNodePrefix)
   }
 
   def uploadDownloadTest(cluster: Cluster, uploadFile: File, timeout: FiniteDuration, fileDownloadDir: String)(assertion: (File, File) => Any)(implicit webDriver: WebDriver, token: AuthToken): Any = {
