@@ -20,8 +20,8 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 object ClusterMonitorSupervisor {
-  def props(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO): Props =
-    Props(new ClusterMonitorSupervisor(monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, authProvider, autoFreezeConfig, jupyterProxyDAO))
+  def props(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO, leonardoService: LeonardoService): Props =
+    Props(new ClusterMonitorSupervisor(monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, authProvider, autoFreezeConfig, jupyterProxyDAO, leonardoService))
 
   sealed trait ClusterSupervisorMessage
   case class RegisterLeoService(service: LeonardoService) extends ClusterSupervisorMessage
@@ -50,11 +50,11 @@ object ClusterMonitorSupervisor {
   private case object Tick extends TimerTick
 }
 
-class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO)
+class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO, leonardoService: LeonardoService)
   extends Actor with Timers with LazyLogging {
   import context.dispatcher
 
-  var leoService: LeonardoService = _
+  var leoService: LeonardoService = leonardoService
 
   val monitoredClusters: ValueBox[Set[Cluster]] = ValueBox(Set.empty)
 
@@ -145,7 +145,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
 
   def startClusterMonitorActor(cluster: Cluster, watchMessageOpt: Option[ClusterSupervisorMessage] = None): Unit = {
     val child = createChildActor(cluster)
-
+    logger.info(watchMessageOpt.toString)
     watchMessageOpt.foreach {
       case RecreateCluster(_) if !monitorConfig.recreateCluster =>
         // don't recreate clusters if not configured to do so
@@ -180,16 +180,18 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
           clustersNotAlreadyBeingMonitored foreach {
             case c if c.status == ClusterStatus.Deleting => {
               logger.info("deleting cluster")
-              self ! ClusterDeleted(c)
+              self ! ClusterDeleted(c, monitorConfig.recreateCluster)
             }
-            case c if c.status == ClusterStatus.Stopping =>{
+            case c if c.status == ClusterStatus.Stopping => {
               logger.info("stopping cluster")
               self ! ClusterStopped(c)
             }
             case c if c.status == ClusterStatus.Starting => self ! ClusterStarted(c)
-            case c => self ! ClusterCreated(c)
+            case c => {
+              logger.info("stop after creation::"  + c.stopAfterCreation)
+              self ! ClusterCreated(c, c.stopAfterCreation)
+            }
           }
-
           monitoredClusters.mutate(_ ++ clustersNotAlreadyBeingMonitored)
         case Failure(e) =>
           logger.error("Error starting cluster monitor", e)

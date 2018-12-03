@@ -58,10 +58,10 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
     val savedRunningCluster = runningCluster.save()
     savedRunningCluster shouldEqual runningCluster
 
-    val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO, computeDAO, iamDAO, storageDAO,
-      DbSingleton.ref, authProvider, autoFreezeConfig, jupyterProxyDAO))
+    val leoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
 
-    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
+    val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO, computeDAO, iamDAO, storageDAO,
+      DbSingleton.ref, authProvider, autoFreezeConfig, jupyterProxyDAO, leoService))
 
     eventually(timeout(Span(30, Seconds))) {
       val c1 = dbFutureValue { _.clusterQuery.getClusterById(savedRunningCluster.id) }

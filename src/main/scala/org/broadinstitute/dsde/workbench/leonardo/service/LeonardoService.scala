@@ -462,6 +462,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   def internalStopCluster(cluster: Cluster): Future[Unit] = {
+    logger.info("Cluster Status :: " + cluster.status.toString)
     if (cluster.status.isStoppable) {
       for {
         // First remove all its preemptible instances in Google, if any
@@ -484,7 +485,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         // Update the cluster status to Stopping
         _ <- dbRef.inTransaction { _.clusterQuery.setToStopping(cluster.id) }
-      } yield { () }
+      } yield { }
 
     } else Future.failed(ClusterCannotBeStoppedException(cluster.googleProject, cluster.clusterName, cluster.status))
   }
