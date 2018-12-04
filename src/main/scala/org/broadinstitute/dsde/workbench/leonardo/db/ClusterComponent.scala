@@ -151,6 +151,12 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
+    def listMonitoredFullCluster(): DBIO[Seq[Cluster]] = {
+      fullClusterQuery.filter { _._1.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }.result map { recs =>
+        unmarshalFullCluster(recs)
+      }
+    }
+
     def countByClusterServiceAccountAndStatuses(clusterServiceAccount: WorkbenchEmail, statuses: Set[ClusterStatus]) = {
       clusterQuery
         .filter { _.clusterServiceAccount === Option(clusterServiceAccount.value) }
@@ -423,7 +429,7 @@ trait ClusterComponent extends LeoComponent {
 
     private def unmarshalClusters(clusterRecords: Seq[ClusterRecord]): Seq[Cluster] = {
       clusterRecords map { rec =>
-        unmarshalCluster(rec, Seq.empty, List.empty, Map.empty, List.empty)
+        unmarshalCluster(rec, Seq.empty, List.empty, Map.empty, List.empty, List.empty)
       }
     }
 

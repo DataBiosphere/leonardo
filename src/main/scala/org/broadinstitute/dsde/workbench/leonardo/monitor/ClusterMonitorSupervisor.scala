@@ -50,7 +50,7 @@ object ClusterMonitorSupervisor {
   private case object Tick extends TimerTick
 }
 
-class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, clusterDnsCache: ActorRef, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO, leonardoService: LeonardoService)
+class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO, leonardoService: LeonardoService)
   extends Actor with Timers with LazyLogging {
   import context.dispatcher
 
@@ -81,6 +81,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
 
     case ClusterDeleted(cluster, recreate) =>
       logger.info(s"Monitoring cluster ${cluster.projectNameString} for deletion.")
+      println("Ext config in supervisor::" + cluster.userJupyterExtensionConfig)
       startClusterMonitorActor(cluster, if (recreate) Some(RecreateCluster(cluster)) else None)
 
     case ClusterUpdated(cluster) =>
@@ -101,6 +102,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
           Some(cluster.autopauseThreshold),
           cluster.defaultClientId,
           cluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage))
+        println("Recreating cluster request :: " + clusterRequest)
         leoService.internalCreateCluster(cluster.auditInfo.creator, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest).failed.foreach { e =>
           logger.error(s"Error occurred recreating cluster ${cluster.projectNameString}", e)
         }
@@ -171,7 +173,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
   // TODO Factor in `stopAfterCreate` field while sending messages, now that we are persisting that field
   private def createClusterMonitors(implicit executionContext: ExecutionContext): Unit = {
     dbRef
-      .inTransaction { _.clusterQuery.listMonitored() }
+      .inTransaction { _.clusterQuery.listMonitoredFullCluster() }
       .onComplete {
         case Success(clusters) =>
           val clustersNotAlreadyBeingMonitored = clusters.toSet -- monitoredClusters.value

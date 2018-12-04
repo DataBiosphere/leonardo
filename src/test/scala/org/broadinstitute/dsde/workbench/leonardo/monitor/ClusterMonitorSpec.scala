@@ -462,7 +462,6 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   it should "monitor until ERROR state with restart" in isolatedDbTest {
     val savedCreatingCluster = creatingCluster.save()
     creatingCluster shouldEqual savedCreatingCluster
-
     val gdDAO = mock[GoogleDataprocDAO]
     val storageDAO = mock[GoogleStorageDAO]
     val computeDAO = stubComputeDAO(InstanceStatus.Running)
@@ -583,10 +582,12 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
         val oldCluster = dbFutureValue {
           _.clusterQuery.getClusterById(savedCreatingCluster.id)
         }
+
         oldCluster shouldBe 'defined
         oldCluster.map(_.status) shouldBe Some(ClusterStatus.Deleted)
         oldCluster.flatMap(_.dataprocInfo.hostIp) shouldBe None
         oldCluster.map(_.instances) shouldBe Some(Set.empty)
+        oldCluster.flatMap(_.userJupyterExtensionConfig) shouldBe Some(userExtConfig)
 
         val newCluster = dbFutureValue {
           _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
@@ -596,7 +597,6 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
         }
         newCluster shouldBe 'defined
         newClusterBucket shouldBe 'defined
-
         newCluster.flatMap(_.dataprocInfo.googleId) shouldBe Some(newClusterId)
         newCluster.map(_.status) shouldBe Some(ClusterStatus.Running)
         newCluster.flatMap(_.dataprocInfo.hostIp) shouldBe Some(IP("1.2.3.4"))
@@ -604,9 +604,9 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
         newCluster.flatMap(_.userJupyterExtensionConfig) shouldBe Some(userExtConfig)
 
         verify(storageDAO, never).deleteBucket(mockitoEq(newClusterBucket.get.bucketName), any[Boolean])
-        // should only add/remove the dataproc.worker role 1 time
-      }
 
+      }
+      // should only add/remove the dataproc.worker role 1 time
       verify(iamDAO, if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()).addIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
       verify(iamDAO, if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
       verify(iamDAO, if (notebookServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])

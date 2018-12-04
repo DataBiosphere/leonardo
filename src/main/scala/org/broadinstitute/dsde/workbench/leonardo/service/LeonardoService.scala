@@ -368,7 +368,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         updatedCluster <- internalGetActiveClusterDetails(existingCluster.googleProject, existingCluster.clusterName)
       } yield {
-        if(clusterResized) { clusterMonitorSupervisor ! ClusterUpdated(updatedCluster.copy(status = ClusterStatus.Updating)) }
         updatedCluster
       }
     } else Future.failed(ClusterCannotBeUpdatedException(existingCluster))
