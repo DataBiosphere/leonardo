@@ -6,8 +6,9 @@ import org.broadinstitute.dsde.workbench.fixture._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.broadinstitute.dsde.workbench.service.test.RandomUtil
+import org.broadinstitute.dsde.workbench.util.addJitter
 import org.scalatest.{BeforeAndAfterAll, Outcome, fixture}
-
+import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 
 
@@ -42,6 +43,10 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     */
   def claimBillingProject(): Unit = {
     Try {
+      val jitter = addJitter(5 seconds, 1 minute)
+      logger.info(s"Sleeping ${jitter.toSeconds} seconds before claiming a billing project")
+      Thread sleep jitter.toMillis
+
       claimedBillingProject = claimGPAllocProject(hermioneCreds)
       billingProject = GoogleProject(claimedBillingProject.projectName)
       logger.info(s"Billing project claimed: ${claimedBillingProject.projectName}")
