@@ -427,12 +427,6 @@ trait ClusterComponent extends LeoComponent {
       }.toSeq
     }
 
-    private def unmarshalClusters(clusterRecords: Seq[ClusterRecord]): Seq[Cluster] = {
-      clusterRecords map { rec =>
-        unmarshalCluster(rec, Seq.empty, List.empty, Map.empty, List.empty, List.empty)
-      }
-    }
-
     private def unmarshalCluster(clusterRecord: ClusterRecord, instanceRecords: Seq[InstanceRecord], errors: List[ClusterErrorRecord], labels: LabelMap, userJupyterExtensionConfig: List[ExtensionRecord], clusterImageRecords: List[ClusterImageRecord], scopes: List[ScopeRecord]): Cluster = {
       val name = ClusterName(clusterRecord.clusterName)
       val project = GoogleProject(clusterRecord.googleProject)

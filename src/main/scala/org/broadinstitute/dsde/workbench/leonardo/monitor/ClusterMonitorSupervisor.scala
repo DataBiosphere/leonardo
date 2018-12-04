@@ -24,7 +24,6 @@ object ClusterMonitorSupervisor {
     Props(new ClusterMonitorSupervisor(monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, authProvider, autoFreezeConfig, jupyterProxyDAO, leonardoService))
 
   sealed trait ClusterSupervisorMessage
-  case class RegisterLeoService(service: LeonardoService) extends ClusterSupervisorMessage
 
   // sent after a cluster is created by the user
   case class ClusterCreated(cluster: Cluster, stopAfterCreate: Boolean = false) extends ClusterSupervisorMessage
@@ -54,8 +53,6 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
   extends Actor with Timers with LazyLogging {
   import context.dispatcher
 
-  var leoService: LeonardoService = leonardoService
-
   val monitoredClusters: ValueBox[Set[Cluster]] = ValueBox(Set.empty)
 
   import context._
@@ -63,7 +60,6 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
   override def preStart(): Unit = {
     super.preStart()
 
-    // TODO Uncomment out when we're ready for the scheduled task below to take over spawning/control of cluster monitors
     timers.startPeriodicTimer(TimerKey, Tick, monitorConfig.pollPeriod)
     // TODO Re-using monitorConfig.pollPeriod above for the time being but it may make sense to define a different one as necessary
 
@@ -72,8 +68,6 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
   }
 
   override def receive: Receive = {
-    case RegisterLeoService(service) =>
-      leoService = service
 
     case ClusterCreated(cluster, stopAfterCreate) =>
       logger.info(s"Monitoring cluster ${cluster.projectNameString} for initialization.")
@@ -81,7 +75,6 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
 
     case ClusterDeleted(cluster, recreate) =>
       logger.info(s"Monitoring cluster ${cluster.projectNameString} for deletion.")
-      println("Ext config in supervisor::" + cluster.userJupyterExtensionConfig)
       startClusterMonitorActor(cluster, if (recreate) Some(RecreateCluster(cluster)) else None)
 
     case ClusterUpdated(cluster) =>
@@ -102,8 +95,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
           Some(cluster.autopauseThreshold),
           cluster.defaultClientId,
           cluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage))
-        println("Recreating cluster request :: " + clusterRequest)
-        leoService.internalCreateCluster(cluster.auditInfo.creator, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest).failed.foreach { e =>
+        leonardoService.internalCreateCluster(cluster.auditInfo.creator, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest).failed.foreach { e =>
           logger.error(s"Error occurred recreating cluster ${cluster.projectNameString}", e)
         }
       } else {
@@ -116,7 +108,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
         dataAccess.clusterQuery.getClusterById(cluster.id)
       }.flatMap {
         case Some(resolvedCluster) if resolvedCluster.status.isStoppable =>
-          leoService.internalStopCluster(resolvedCluster)
+          leonardoService.internalStopCluster(resolvedCluster)
         case Some(resolvedCluster) =>
           logger.warn(s"Unable to stop cluster ${resolvedCluster.projectNameString} in status ${resolvedCluster.status.toString} after creation.")
           Future.successful(())
@@ -147,7 +139,6 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
 
   def startClusterMonitorActor(cluster: Cluster, watchMessageOpt: Option[ClusterSupervisorMessage] = None): Unit = {
     val child = createChildActor(cluster)
-    logger.info(watchMessageOpt.toString)
     watchMessageOpt.foreach {
       case RecreateCluster(_) if !monitorConfig.recreateCluster =>
         // don't recreate clusters if not configured to do so
@@ -163,14 +154,13 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
     clusterList map { cl =>
       cl.foreach { c =>
         logger.info(s"Auto freezing cluster ${c.clusterName} in project ${c.googleProject}")
-        leoService.internalStopCluster(c).failed.foreach { e =>
+        leonardoService.internalStopCluster(c).failed.foreach { e =>
           logger.warn(s"Error occurred auto freezing cluster ${c.projectNameString}", e)
         }
       }
     }
   }
 
-  // TODO Factor in `stopAfterCreate` field while sending messages, now that we are persisting that field
   private def createClusterMonitors(implicit executionContext: ExecutionContext): Unit = {
     dbRef
       .inTransaction { _.clusterQuery.listMonitoredFullCluster() }
@@ -178,7 +168,6 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
         case Success(clusters) =>
           val clustersNotAlreadyBeingMonitored = clusters.toSet -- monitoredClusters.value
 
-          // TODO Add ClusterUpdated once https://github.com/DataBiosphere/leonardo/pull/669 is merged
           clustersNotAlreadyBeingMonitored foreach {
             case c if c.status == ClusterStatus.Deleting => {
               logger.info("deleting cluster")
@@ -189,6 +178,9 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
               self ! ClusterStopped(c)
             }
             case c if c.status == ClusterStatus.Starting => self ! ClusterStarted(c)
+
+            case c if c.status == ClusterStatus.Updating => self ! ClusterUpdated(c)
+
             case c => {
               logger.info("stop after creation::"  + c.stopAfterCreation)
               self ! ClusterCreated(c, c.stopAfterCreation)
