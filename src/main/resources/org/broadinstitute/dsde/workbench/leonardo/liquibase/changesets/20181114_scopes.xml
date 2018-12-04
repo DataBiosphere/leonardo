@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="azmina" id="scopes">
+        <createTable tableName="CLUSTER_SCOPES">
+            <column name="clusterId" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="scope" type="VARCHAR(254)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex indexName="FK_SCOPE_CLUSTER_ID" tableName="CLUSTER_SCOPES">
+            <column name="clusterId"/>
+        </createIndex>
+        <addForeignKeyConstraint baseColumnNames="clusterId" baseTableName="CLUSTER_SCOPES" constraintName="FK_SCOPE_CLUSTER_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="CLUSTER"/>
+        <addUniqueConstraint columnNames="clusterId, scope" constraintName="IDX_SCOPE_UNIQUE" tableName="CLUSTER_SCOPES"/>
+    </changeSet>
+    <changeSet id="set scopes to defaults when scopes is NULL" author="azmina">
+        <sql dbms="mysql">
+            CREATE TABLE defaultScopes
+            (
+                scope VARCHAR(254)
+            );
+
+            INSERT INTO defaultScopes
+                VALUES ("https://www.googleapis.com/auth/userinfo.email"), ("https://www.googleapis.com/auth/userinfo.profile"), ("https://www.googleapis.com/auth/bigquery"), ("https://www.googleapis.com/auth/source.read_only");
+
+            INSERT INTO CLUSTER_SCOPES(clusterId, scope)
+                SELECT id, scope
+                FROM (SELECT id FROM CLUSTER WHERE NOT EXISTS (SELECT 1 FROM CLUSTER_SCOPES WHERE CLUSTER_SCOPES.clusterId = CLUSTER.id)) AS id CROSS JOIN defaultScopes AS scope;
+
+            DROP TABLE defaultScopes;
+       </sql>
+    </changeSet>
+</databaseChangeLog>

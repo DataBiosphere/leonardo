@@ -57,6 +57,7 @@ object ClusterEnrichments {
       instances = Set.empty,
       clusterImages = Set.empty,
       errors = List.empty,
+      scopes = Set.empty,
       userJupyterExtensionConfig = None)
   }
 }

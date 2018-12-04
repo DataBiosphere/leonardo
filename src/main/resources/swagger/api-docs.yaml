@@ -86,7 +86,6 @@ paths:
           description: |
             Optional label key-value pairs to filter results by. Example: Querying by key1=val1,key2=val2
             returns all clusters that contain the key1/val1 and key2/val2 labels (possibly among other labels).
-
             Note: this string format is a workaround because Swagger doesn't support free-form
             query string parameters. The recommended way to use this endpoint is to specify the
             labels as top-level query string parameters. For instance: GET /api/clusters?key1=val1&key2=val2.
@@ -137,7 +136,6 @@ paths:
         description: |
           Optional label key-value pairs to filter results by. Example: Querying by key1=val1,key2=val2
           returns all clusters that contain the key1/val1 and key2/val2 labels (possibly among other labels).
-
           Note: this string format is a workaround because Swagger doesn't support free-form
           query string parameters. The recommended way to use this endpoint is to specify the
           labels as top-level query string parameters. For instance: GET /api/clusters?key1=val1&key2=val2.
@@ -499,13 +497,13 @@ paths:
           description: Internal Error
           schema:
             $ref: '#/definitions/ErrorReport'
+
   '/notebooks/{googleProject}/{clusterName}/api/localize':
     post:
       summary: Localize files to/from a Jupyter notebook server
       description: |
         Sends a command to a Jupyter notebook server to localize files to/from the server. Supports GCS paths and [Data URIs](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URIs).
         Output, including any errors, will appear in `localization.log` in the working directory of the Jupyter notebook server.
-
         By default this operation will happen synchronously and the response status will reflect any errors encountered in the copy.
         However, if the `async` parameter is specfied then the localization will happen asynchronously to the request, and the API will always return 200.
       operationId: proxyLocalize
@@ -533,14 +531,11 @@ paths:
         - in: body
           description: |
             JSON object. Keys represent destinations, values represent sources. The following rules apply:
-
             * If either the source or destination is a GCS path, it will be sent to [gsutil cp](https://cloud.google.com/storage/docs/gsutil/commands/cp). Therefore
               this can be used to localize a file _from_ a bucket _to_ the notebook server; or delocalize a file _from_ the notebook server _to_ a bucket.
             * If the source is a Data URI, then the destination file will be created with the decoded data URI contents. This mode can only be used to localize
               files to the notebook server.
-
             In both cases all paths will be quoted & sanitized, and intermediate local directories will be made.
-
             Note that duplicate keys will lead to unexpected behaviour, so specify the destination filename explicitly if you want to localize multiple files to the same directory.
           name: filesToLocalize
           required: true
@@ -728,6 +723,7 @@ definitions:
       - dateAccessed
       - autopauseThreshold
       - defaultClientId
+      - scopes
     properties:
       id:
         type: string
@@ -785,6 +781,11 @@ definitions:
       defaultClientId:
         type: string
         description: The default Google Client ID.
+      scopes:
+        type: array
+        items:
+          type: string
+        description: The scopes for the cluster.
 
   InstanceKey:
     description: ''
@@ -871,6 +872,13 @@ definitions:
       jupyterDockerImage:
         type: String
         description: The Jupyter docker image to install. May be Dockerhub or GCR. If not set, then a default Jupyter image will be installed.
+      scopes:
+        type: array
+        items:
+          type: string
+        description: The scopes for the cluster. Defaults (userinfo.email, userinfo.profile, bigquery, source.read_only) will be used if left blank.
+        default: ["https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/bigquery", "https://www.googleapis.com/auth/source.read_only"]
+
 
   ClusterError:
     description: 'Errors encountered on cluster create'

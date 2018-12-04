@@ -43,6 +43,7 @@ trait CommonTestData{ this: ScalaFutures =>
   val initBucketPath = GcsBucketName("bucket-path")
   val autopause = true
   val autopauseThreshold = 30
+  val defaultScopes = Set("https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/bigquery", "https://www.googleapis.com/auth/source.read_only")
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
   val whitelistAuthConfig = config.getConfig("auth.whitelistProviderConfig")
@@ -107,7 +108,8 @@ trait CommonTestData{ this: ScalaFutures =>
       autopauseThreshold = 30,
       defaultClientId = Some("defaultClientId"),
       stopAfterCreation = false,
-      clusterImages = Set(jupyterImage)
+      clusterImages = Set(jupyterImage),
+      scopes = defaultScopes
     )
   }
 
@@ -129,7 +131,8 @@ trait CommonTestData{ this: ScalaFutures =>
     autopauseThreshold = if (autopause) autopauseThreshold else 0,
     defaultClientId = None,
     stopAfterCreation = false,
-    clusterImages = Set(jupyterImage)
+    clusterImages = Set(jupyterImage),
+    scopes = defaultScopes
   )
 
   // TODO look into parameterized tests so both provider impls can be tested

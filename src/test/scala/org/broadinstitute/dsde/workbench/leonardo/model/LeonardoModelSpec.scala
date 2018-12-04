@@ -64,7 +64,8 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |      "dockerImage": "jupyter/jupyter-base:latest",
         |      "timestamp": "2018-08-07T10:12:35Z"
         |      }
-        |    ]
+        |    ],
+        |  "scopes":["https://www.googleapis.com/auth/userinfo.email","https://www.googleapis.com/auth/userinfo.profile","https://www.googleapis.com/auth/bigquery","https://www.googleapis.com/auth/source.read_only"]
         |}
       """.stripMargin.parseJson
 
