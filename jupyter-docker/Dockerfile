@@ -161,7 +161,6 @@ RUN apt-get update \
  && pip install bx-python==0.8.2 \
  && pip install fastinterval==0.1.1 \
  && pip install matplotlib-venn==0.11.5 \
- && pip install dsub \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
