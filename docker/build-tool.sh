@@ -100,6 +100,11 @@ fi
 
 GIT_BRANCH="${BRANCH:-$(git rev-parse --abbrev-ref HEAD)}"
 
+# for backwards compatibility; jupyter images are named 'leonardo-notebooks'
+if [ "$IMAGE" == "jupyter" ]; then
+    IMAGE="notebooks"
+fi
+
 # Set up docker binary - use gcloud docker if pushing to gcr.
 DOCKER_BINARY="docker"
 if grep -Fq "gcr.io" <<< "${REPOSITORY}" ; then
