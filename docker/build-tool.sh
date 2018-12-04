@@ -32,7 +32,7 @@ PUSH=false
 IMAGE=""
 REPOSITORY=""
 DOCKER_TAG=""
-GIT_BRANCH=""
+BRANCH=""
 
 if [ -z "$1" ]; then
     echo "No argument supplied!"
@@ -60,7 +60,7 @@ while [ "$1" != "" ]; do
             ;;
         -b | --branch)
             shift
-            GIT_BRANCH=$1
+            BRANCH=$1
             ;;
         -h | --help)
             PRINT_HELP=true
@@ -97,6 +97,8 @@ if $PRINT_HELP; then
   echo -e "${HELP_TEXT}"
   exit 0
 fi
+
+GIT_BRANCH="${BRANCH:-$(git rev-parse --abbrev-ref HEAD)}"
 
 # Set up docker binary - use gcloud docker if pushing to gcr.
 DOCKER_BINARY="docker"
