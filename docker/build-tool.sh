@@ -101,8 +101,9 @@ fi
 GIT_BRANCH="${BRANCH:-$(git rev-parse --abbrev-ref HEAD)}"
 
 # for backwards compatibility; jupyter images are named 'leonardo-notebooks'
+IMAGE_NAME=$IMAGE
 if [ "$IMAGE" == "jupyter" ]; then
-    IMAGE="notebooks"
+    IMAGE_NAME="notebooks"
 fi
 
 # Set up docker binary - use gcloud docker if pushing to gcr.
@@ -114,14 +115,14 @@ fi
 
 function build() {
     echo "building leonardo-$IMAGE docker image..."
-    $DOCKER_BINARY build -t "${REPOSITORY}/leonardo-${IMAGE}:${DOCKER_TAG}" $IMAGE
+    $DOCKER_BINARY build -t "${REPOSITORY}/leonardo-${IMAGE_NAME}:${DOCKER_TAG}" $IMAGE
 }
 
 function push() {
     echo "pushing leonardo-$IMAGE docker image..."
-    $DOCKER_BINARY push "${REPOSITORY}/leonardo-${IMAGE}:${DOCKER_TAG}"
-    $DOCKER_BINARY tag "${REPOSITORY}/leonardo-${IMAGE}:${DOCKER_TAG}" "${REPOSITORY}/leonardo-${IMAGE}:${GIT_BRANCH}"
-    $DOCKER_BINARY push "${REPOSITORY}/leonardo-${IMAGE}:${GIT_BRANCH}"
+    $DOCKER_BINARY push "${REPOSITORY}/leonardo-${IMAGE_NAME}:${DOCKER_TAG}"
+    $DOCKER_BINARY tag "${REPOSITORY}/leonardo-${IMAGE_NAME}:${DOCKER_TAG}" "${REPOSITORY}/leonardo-${IMAGE_NAME}:${GIT_BRANCH}"
+    $DOCKER_BINARY push "${REPOSITORY}/leonardo-${IMAGE_NAME}:${GIT_BRANCH}"
 }
 
 build
