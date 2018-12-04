@@ -7,3 +7,4 @@ trait AllComponents extends ClusterComponent
   with InstanceComponent
   with ExtensionComponent
   with ClusterImageComponent
+  with ScopeComponent

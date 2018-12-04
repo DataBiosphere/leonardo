@@ -312,6 +312,21 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
       }
     }
 
+    "should give cluster user-specified scopes" taggedAs Tags.SmokeTest in {
+      withProject { project => implicit token =>
+        withNewCluster(project, request = ClusterRequest(scopes = Some(Set("https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/source.read_only")))) { cluster =>
+          withWebDriver { implicit driver =>
+            withNewNotebook(cluster) { notebookPage =>
+              val query = """! bq query --disable_ssl_validation --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
+
+              val result = notebookPage.executeCell(query, timeout = 5.minutes).get
+              result should include("BigQuery error in query operation: Invalid credential")
+            }
+          }
+        }
+      }
+    }
+
     "should download file as pdf" in {
       withProject { project => implicit token =>
         withNewGoogleBucket(project) { bucketName =>

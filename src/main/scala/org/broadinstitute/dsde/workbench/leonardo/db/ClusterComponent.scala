@@ -45,7 +45,7 @@ case class ServiceAccountInfoRecord(clusterServiceAccount: Option[String],
                                     serviceAccountKeyId: Option[String])
 
 trait ClusterComponent extends LeoComponent {
-  this: LabelComponent with ClusterErrorComponent with InstanceComponent with ExtensionComponent with ClusterImageComponent =>
+  this: LabelComponent with ClusterErrorComponent with InstanceComponent with ExtensionComponent with ClusterImageComponent with ScopeComponent =>
 
   import profile.api._
 
@@ -122,6 +122,7 @@ trait ClusterComponent extends LeoComponent {
         _ <- instanceQuery.saveAllForCluster(clusterId, cluster.instances.toSeq)
         _ <- extensionQuery.saveAllForCluster(clusterId, cluster.userJupyterExtensionConfig)
         _ <- clusterImageQuery.saveAllForCluster(clusterId, cluster.clusterImages.toSeq)
+        _ <- scopeQuery.saveAllForCluster(clusterId, cluster.scopes)
       } yield cluster.copy(id = clusterId)
     }
 
@@ -398,28 +399,29 @@ trait ClusterComponent extends LeoComponent {
 
       // Unmarshal each (ClusterRecord, Map[labelKey, labelValue]) to a Cluster object
       clusterLabelMap.map { case (clusterRec, labelMap) =>
-        unmarshalCluster(clusterRec, Seq.empty, List.empty, labelMap.mapValues(_.toSet.head), List.empty, List.empty)
+        unmarshalCluster(clusterRec, Seq.empty, List.empty, labelMap.mapValues(_.toSet.head), List.empty, List.empty, List.empty)
       }.toSeq
     }
 
-    private def unmarshalFullCluster(clusterRecords: Seq[(ClusterRecord, Option[InstanceRecord], Option[ClusterErrorRecord], Option[LabelRecord], Option[ExtensionRecord], Option[ClusterImageRecord])]): Seq[Cluster] = {
+    private def unmarshalFullCluster(clusterRecords: Seq[(ClusterRecord, Option[InstanceRecord], Option[ClusterErrorRecord], Option[LabelRecord], Option[ExtensionRecord], Option[ClusterImageRecord], Option[ScopeRecord])]): Seq[Cluster] = {
       // Call foldMap to aggregate a flat sequence of (cluster, instance, label) triples returned by the query
       // to a grouped (cluster -> (instances, labels)) structure.
-      val clusterRecordMap: Map[ClusterRecord, (List[InstanceRecord], List[ClusterErrorRecord], Map[String, List[String]], List[ExtensionRecord], List[ClusterImageRecord])] = clusterRecords.toList.foldMap { case (clusterRecord, instanceRecordOpt, errorRecordOpt, labelRecordOpt, extensionOpt, clusterImageOpt) =>
+      val clusterRecordMap: Map[ClusterRecord, (List[InstanceRecord], List[ClusterErrorRecord], Map[String, List[String]], List[ExtensionRecord], List[ClusterImageRecord], List[ScopeRecord])] = clusterRecords.toList.foldMap { case (clusterRecord, instanceRecordOpt, errorRecordOpt, labelRecordOpt, extensionOpt, clusterImageOpt, scopeOpt) =>
         val instanceList = instanceRecordOpt.toList
         val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> List(labelRecordOpt.value)).toMap
         val errorList = errorRecordOpt.toList
         val extList = extensionOpt.toList
         val clusterImageList = clusterImageOpt.toList
-        Map(clusterRecord -> (instanceList, errorList, labelMap, extList, clusterImageList))
+        val scopeList = scopeOpt.toList
+        Map(clusterRecord -> (instanceList, errorList, labelMap, extList, clusterImageList, scopeList))
       }
 
-      clusterRecordMap.map { case (clusterRecord, (instanceRecords, errorRecords, labels, extensions, clusterImages)) =>
-        unmarshalCluster(clusterRecord, instanceRecords.toSet.toSeq, errorRecords.groupBy(_.timestamp).map(_._2.head).toList, labels.mapValues(_.toSet.head), extensions, clusterImages.toSet.toList)
+      clusterRecordMap.map { case (clusterRecord, (instanceRecords, errorRecords, labels, extensions, clusterImages, scopes)) =>
+        unmarshalCluster(clusterRecord, instanceRecords.toSet.toSeq, errorRecords.groupBy(_.timestamp).map(_._2.head).toList, labels.mapValues(_.toSet.head), extensions, clusterImages.toSet.toList, scopes)
       }.toSeq
     }
 
-    private def unmarshalCluster(clusterRecord: ClusterRecord, instanceRecords: Seq[InstanceRecord], errors: List[ClusterErrorRecord], labels: LabelMap, userJupyterExtensionConfig: List[ExtensionRecord], clusterImageRecords: List[ClusterImageRecord]): Cluster = {
+    private def unmarshalCluster(clusterRecord: ClusterRecord, instanceRecords: Seq[InstanceRecord], errors: List[ClusterErrorRecord], labels: LabelMap, userJupyterExtensionConfig: List[ExtensionRecord], clusterImageRecords: List[ClusterImageRecord], scopes: List[ScopeRecord]): Cluster = {
       val name = ClusterName(clusterRecord.clusterName)
       val project = GoogleProject(clusterRecord.googleProject)
       val machineConfig = MachineConfig(
@@ -463,7 +465,8 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.autopauseThreshold,
         clusterRecord.defaultClientId,
         clusterRecord.stopAfterCreation,
-        clusterImageRecords map ClusterComponent.this.clusterImageQuery.unmarshalClusterImage toSet
+        clusterImageRecords map ClusterComponent.this.clusterImageQuery.unmarshalClusterImage toSet,
+        ClusterComponent.this.scopeQuery.unmarshallScopes(scopes)
       )
     }
   }
@@ -484,16 +487,17 @@ trait ClusterComponent extends LeoComponent {
   //   left join label l on c.id = l.clusterId
   //   left join cluster_extension ext on c.id = ext.clusterId
   //   left join cluster_image ci on c.id = ci.clusterId
-  val fullClusterQuery: Query[(ClusterTable, Rep[Option[InstanceTable]], Rep[Option[ClusterErrorTable]], Rep[Option[LabelTable]], Rep[Option[ExtensionTable]], Rep[Option[ClusterImageTable]]), (ClusterRecord, Option[InstanceRecord], Option[ClusterErrorRecord], Option[LabelRecord], Option[ExtensionRecord], Option[ClusterImageRecord]), Seq] = {
+  val fullClusterQuery: Query[(ClusterTable, Rep[Option[InstanceTable]], Rep[Option[ClusterErrorTable]], Rep[Option[LabelTable]], Rep[Option[ExtensionTable]], Rep[Option[ClusterImageTable]], Rep[Option[ScopeTable]]), (ClusterRecord, Option[InstanceRecord], Option[ClusterErrorRecord], Option[LabelRecord], Option[ExtensionRecord], Option[ClusterImageRecord], Option[ScopeRecord]), Seq] = {
     for {
-      (((((cluster, instance), error), label), extension), image) <-
+      ((((((cluster, instance), error), label), extension), image), scopes) <-
         clusterQuery joinLeft
           instanceQuery on (_.id === _.clusterId) joinLeft
           clusterErrorQuery on (_._1.id === _.clusterId) joinLeft
           labelQuery on (_._1._1.id === _.clusterId) joinLeft
           extensionQuery on (_._1._1._1.id === _.clusterId) joinLeft
-          clusterImageQuery on (_._1._1._1._1.id === _.clusterId)
-    } yield (cluster, instance, error, label, extension, image)
+          clusterImageQuery on (_._1._1._1._1.id === _.clusterId) joinLeft
+          scopeQuery on (_._1._1._1._1._1.id === _.clusterId)
+    } yield (cluster, instance, error, label, extension, image, scopes)
   }
 
   private def fullClusterQueryByUniqueKey(googleProject: GoogleProject,

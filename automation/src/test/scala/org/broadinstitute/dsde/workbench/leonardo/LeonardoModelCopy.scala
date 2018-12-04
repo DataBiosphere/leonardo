@@ -69,7 +69,8 @@ case class Cluster(clusterName: ClusterName,
                    errors:List[ClusterError],
                    dateAccessed: Instant,
                    defaultClientId: Option[String],
-                   stopAfterCreation: Boolean) {
+                   stopAfterCreation: Boolean,
+                   scopes: Set[String]) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.string}"
 }
 
@@ -79,7 +80,8 @@ case class ClusterRequest(labels: LabelMap = Map(),
                           machineConfig: Option[MachineConfig] = None,
                           stopAfterCreation: Option[Boolean] = None,
                           userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
-                          defaultClientId: Option[String] = None)
+                          defaultClientId: Option[String] = None,
+                          scopes: Option[Set[String]] = None)
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
                                       serverExtensions: Map[String, String] = Map(),

@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.model.google._
 import scala.concurrent.Future
 
 trait GoogleDataprocDAO {
-  def createCluster(googleProject: GoogleProject, clusterName: ClusterName, machineConfig: MachineConfig, initScript: GcsPath, clusterServiceAccount: Option[WorkbenchEmail], credentialsFileName: Option[String], stagingBucket: GcsBucketName): Future[Operation]
+  def createCluster(googleProject: GoogleProject, clusterName: ClusterName, machineConfig: MachineConfig, initScript: GcsPath, clusterServiceAccount: Option[WorkbenchEmail], credentialsFileName: Option[String], stagingBucket: GcsBucketName, clusterScopes: Set[String]): Future[Operation]
 
   def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName): Future[Unit]
 

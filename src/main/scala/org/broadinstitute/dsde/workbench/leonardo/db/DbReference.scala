@@ -78,6 +78,7 @@ class DataAccess(val profile: JdbcProfile)(implicit val executionContext: Execut
       TableQuery[InstanceTable].delete andThen
       TableQuery[ExtensionTable].delete andThen
       TableQuery[ClusterImageTable].delete andThen
+      TableQuery[ScopeTable].delete andThen
       TableQuery[ClusterTable].delete
   }
 

@@ -263,9 +263,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
     val autopauseThreshold = calculateAutopauseThreshold(
       clusterRequest.autopause, clusterRequest.autopauseThreshold)
+    val clusterScopes = clusterRequest.scopes.getOrElse(dataprocConfig.defaultScopes)
     val initialClusterToSave = Cluster.create(
       augmentedClusterRequest, userEmail, clusterName, googleProject,
-      serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold,
+      serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, clusterScopes,
       clusterImages = clusterImages)
 
     // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
@@ -602,11 +603,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
       initScript = GcsPath(initBucket, GcsObjectName(clusterResourcesConfig.initActionsScript.value))
       autopauseThreshold = calculateAutopauseThreshold(clusterRequest.autopause, clusterRequest.autopauseThreshold)
+      clusterScopes = clusterRequest.scopes.getOrElse(dataprocConfig.defaultScopes)
       credentialsFileName = serviceAccountInfo.notebookServiceAccount.map(_ => s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}")
       operation <- gdDAO.createCluster(googleProject, clusterName, machineConfig, initScript,
-        serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket)
+        serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket, clusterScopes)
       cluster = Cluster.create(clusterRequest, userEmail, clusterName, googleProject, serviceAccountInfo,
-        machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, Option(operation), Option(stagingBucket), clusterImages)
+        machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, clusterScopes, Option(operation), Option(stagingBucket), clusterImages)
     } yield (cluster, initBucket, serviceAccountKeyOpt)
 
     // If anything fails, we need to clean up Google resources that might have been created
