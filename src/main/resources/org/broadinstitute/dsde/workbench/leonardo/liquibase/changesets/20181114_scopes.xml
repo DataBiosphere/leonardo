@@ -17,7 +17,7 @@
     </changeSet>
     <changeSet id="set scopes to defaults when scopes is NULL" author="azmina">
         <sql dbms="mysql">
-            CREATE TEMPORARY TABLE defaultScopes
+            CREATE TABLE defaultScopes
             (
                 scope VARCHAR(254)
             );
@@ -28,6 +28,8 @@
             INSERT INTO CLUSTER_SCOPES(clusterId, scope)
                 SELECT id, scope
                 FROM (SELECT id FROM CLUSTER WHERE NOT EXISTS (SELECT 1 FROM CLUSTER_SCOPES WHERE CLUSTER_SCOPES.clusterId = CLUSTER.id)) AS id CROSS JOIN defaultScopes AS scope;
+
+            DROP TABLE defaultScopes;
        </sql>
     </changeSet>
 </databaseChangeLog>
