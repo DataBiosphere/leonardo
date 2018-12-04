@@ -22,7 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.{V1, V2}
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.util.{LocalFileUtil, Retry}
+import org.broadinstitute.dsde.workbench.util._
 import org.openqa.selenium.WebDriver
 import org.scalactic.source.Position
 import org.scalatest.{Matchers, Suite}
@@ -406,6 +406,9 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   // testCode is curried so the token can be made implicit:
   // https://stackoverflow.com/questions/14072061/function-literal-with-multiple-implicit-arguments
   def withProject(testCode: GoogleProject => UserAuthToken => Any): Unit = {
+    val jitter = addJitter(5 seconds, 1 minute)
+    logger.info(s"Sleeping ${jitter.toSeconds} seconds before claiming a billing project")
+    Thread sleep jitter.toMillis
     withCleanBillingProject(hermioneCreds) { projectName =>
       val project = GoogleProject(projectName)
       Orchestration.billing.addUserToBillingProject(projectName, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
