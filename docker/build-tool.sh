@@ -100,12 +100,6 @@ fi
 
 GIT_BRANCH="${BRANCH:-$(git rev-parse --abbrev-ref HEAD)}"
 
-# for backwards compatibility; jupyter images are named 'leonardo-notebooks'
-IMAGE_NAME=$IMAGE
-if [ "$IMAGE" == "jupyter" ]; then
-    IMAGE_NAME="notebooks"
-fi
-
 # Set up docker binary - use gcloud docker if pushing to gcr.
 DOCKER_BINARY="docker"
 if grep -Fq "gcr.io" <<< "${REPOSITORY}" ; then
@@ -115,14 +109,23 @@ fi
 
 function build() {
     echo "building leonardo-$IMAGE docker image..."
-    $DOCKER_BINARY build -t "${REPOSITORY}/leonardo-${IMAGE_NAME}:${DOCKER_TAG}" $IMAGE
+    $DOCKER_BINARY build -t "${REPOSITORY}/leonardo-${IMAGE}:${DOCKER_TAG}" $IMAGE
 }
 
 function push() {
     echo "pushing leonardo-$IMAGE docker image..."
-    $DOCKER_BINARY push "${REPOSITORY}/leonardo-${IMAGE_NAME}:${DOCKER_TAG}"
-    $DOCKER_BINARY tag "${REPOSITORY}/leonardo-${IMAGE_NAME}:${DOCKER_TAG}" "${REPOSITORY}/leonardo-${IMAGE_NAME}:${GIT_BRANCH}"
-    $DOCKER_BINARY push "${REPOSITORY}/leonardo-${IMAGE_NAME}:${GIT_BRANCH}"
+    $DOCKER_BINARY push "${REPOSITORY}/leonardo-${IMAGE}:${DOCKER_TAG}"
+    $DOCKER_BINARY tag "${REPOSITORY}/leonardo-${IMAGE}:${DOCKER_TAG}" "${REPOSITORY}/leonardo-${IMAGE}:${GIT_BRANCH}"
+    $DOCKER_BINARY push "${REPOSITORY}/leonardo-${IMAGE}:${GIT_BRANCH}"
+
+    # For backwards compatibility; also tag and push jupyter images named 'leonardo-notebooks'.
+    # Remove this when firecloud-develop leonardo.conf is updated to reference 'leonardo-jupyter'.
+    if [ "$IMAGE" == "jupyter" ]; then
+        $DOCKER_BINARY tag "${REPOSITORY}/leonardo-${IMAGE}:${DOCKER_TAG}" "${REPOSITORY}/leonardo-notebooks:${DOCKER_TAG}"
+        $DOCKER_BINARY push "${REPOSITORY}/leonardo-notebooks:${DOCKER_TAG}"
+        $DOCKER_BINARY tag "${REPOSITORY}/leonardo-${IMAGE}:${GIT_BRANCH}" "${REPOSITORY}/leonardo-notebooks:${GIT_BRANCH}"
+        $DOCKER_BINARY push "${REPOSITORY}/leonardo-notebooks:${GIT_BRANCH}"
+    fi
 }
 
 build
