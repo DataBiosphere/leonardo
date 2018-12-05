@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 import java.io.File
 import java.time.Instant
 
-import akka.actor.{ActorSystem}
+import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import cats.data.OptionT
 import cats.implicits._
