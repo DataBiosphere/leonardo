@@ -52,6 +52,8 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sou
  && apt-get update \
  && apt-get install -yq --no-install-recommends \
     google-cloud-sdk \
+ && curl -sL https://deb.nodesource.com/setup_11.x | bash - \
+ && apt-get install -y nodejs \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 

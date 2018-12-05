@@ -45,14 +45,16 @@ trait ExtensionComponent extends LeoComponent {
         val nbExtensions = (recs.filter(_.extensionType == ExtensionType.NBExtension.toString) map { rec => rec.name -> rec.value }).toMap
         val serverExtensions = (recs.filter(_.extensionType == ExtensionType.ServerExtension.toString) map { rec => rec.name -> rec.value }).toMap
         val combinedExtensions = (recs.filter(_.extensionType == ExtensionType.CombinedExtension.toString) map { rec => rec.name -> rec.value }).toMap
-        UserJupyterExtensionConfig(nbExtensions, serverExtensions, combinedExtensions)
+        val labExtensions = (recs.filter(_.extensionType == ExtensionType.LabExtension.toString) map {rec => rec.name -> rec.value}).toMap
+        UserJupyterExtensionConfig(nbExtensions, serverExtensions, combinedExtensions, labExtensions)
       }
     }
 
     def marshallExtensions(clusterId:Long, userJupyterExtensionConfig: UserJupyterExtensionConfig): List[ExtensionRecord] = {
       ((userJupyterExtensionConfig.nbExtensions map { case(key, value) => ExtensionRecord(clusterId, ExtensionType.NBExtension.toString, key, value)}) ++
       (userJupyterExtensionConfig.serverExtensions map { case(key, value) => ExtensionRecord(clusterId, ExtensionType.ServerExtension.toString, key, value)}) ++
-      (userJupyterExtensionConfig.combinedExtensions map { case(key, value) => ExtensionRecord(clusterId, ExtensionType.CombinedExtension.toString, key, value)})).toList
+      (userJupyterExtensionConfig.combinedExtensions map { case(key, value) => ExtensionRecord(clusterId, ExtensionType.CombinedExtension.toString, key, value)}) ++
+      (userJupyterExtensionConfig.labExtensions map {case(key, value) => ExtensionRecord(clusterId, ExtensionType.LabExtension.toString, key, value)})).toList
     }
 
     def unmarshallExtensions(extList: List[ExtensionRecord]): Option[UserJupyterExtensionConfig] = {
@@ -62,7 +64,8 @@ trait ExtensionComponent extends LeoComponent {
         val nbExtension = extList.filter(_.extensionType == ExtensionType.NBExtension.toString).map(x => x.name -> x.value).toMap
         val serverExtension = extList.filter(_.extensionType == ExtensionType.ServerExtension.toString).map(x => x.name -> x.value).toMap
         val combinedExtension = extList.filter(_.extensionType == ExtensionType.CombinedExtension.toString).map(x => x.name -> x.value).toMap
-        Some(UserJupyterExtensionConfig(nbExtension, serverExtension, combinedExtension))
+        val labExtension = extList.filter(_.extensionType == ExtensionType.LabExtension.toString).map(x => x.name -> x.value).toMap
+        Some(UserJupyterExtensionConfig(nbExtension, serverExtension, combinedExtension, labExtension))
       }
     }
   }
