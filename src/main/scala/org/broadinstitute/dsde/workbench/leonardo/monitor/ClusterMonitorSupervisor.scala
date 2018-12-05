@@ -171,7 +171,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
           clustersNotAlreadyBeingMonitored foreach {
             case c if c.status == ClusterStatus.Deleting => {
               logger.info("deleting cluster")
-              self ! ClusterDeleted(c, monitorConfig.recreateCluster)
+              self ! ClusterDeleted(c)
             }
             case c if c.status == ClusterStatus.Stopping => {
               logger.info("stopping cluster")
