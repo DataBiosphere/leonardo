@@ -61,7 +61,6 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
     super.preStart()
 
     timers.startPeriodicTimer(TimerKey, Tick, monitorConfig.pollPeriod)
-    // TODO Re-using monitorConfig.pollPeriod above for the time being but it may make sense to define a different one as necessary
 
     if (autoFreezeConfig.enableAutoFreeze)
       system.scheduler.schedule(autoFreezeConfig.autoFreezeCheckScheduler, autoFreezeConfig.autoFreezeCheckScheduler, self, AutoFreezeClusters)
