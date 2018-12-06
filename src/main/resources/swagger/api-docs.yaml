@@ -73,6 +73,20 @@ paths:
         - status
       security: [] # no security
 
+  '/version':
+    get:
+      tags:
+        - Version
+      operationId: leonardoVersion
+      summary: Returns the currently deployed version of this service.
+      responses:
+        200:
+          description: OK
+          schema:
+            $ref: '#/definitions/LeonardoVersion'
+      security: []
+
+
   '/api/clusters':
     get:
       summary: List all active clusters
@@ -892,6 +906,12 @@ definitions:
       timestamp:
         type: string
         description: timestamp for error in ISO 8601 format
+
+  LeonardoVersion:
+    type: object
+    properties:
+      version:
+        type: string
 
   MachineConfig:
     description: 'The configuration for a single Dataproc cluster'
