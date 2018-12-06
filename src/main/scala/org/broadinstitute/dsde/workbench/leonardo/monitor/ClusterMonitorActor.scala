@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterDeleted
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterDeleted, RemoveFromList}
 import org.broadinstitute.dsde.workbench.util.addJitter
 import slick.dbio.DBIOAction
 
@@ -148,7 +148,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     } yield {
       // Finally pipe a shutdown message to this actor
       logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is ready for use!")
-      ShutdownActor()
+      ShutdownActor(Some(RemoveFromList(cluster)))
     }
   }
 
@@ -201,7 +201,7 @@ class ClusterMonitorActor(val cluster: Cluster,
           // Remove the Dataproc Worker IAM role for the pet service account
           // Only happens if the cluster was created with the pet service account.
           _ <-  removeIamRolesForUser
-        } yield ShutdownActor()
+        } yield ShutdownActor(Some(RemoveFromList(cluster)))
       }
     }
   }
@@ -231,7 +231,7 @@ class ClusterMonitorActor(val cluster: Cluster,
         dataAccess.clusterQuery.completeDeletion(cluster.id)
       }
       _ <- authProvider.notifyClusterDeleted(cluster.auditInfo.creator, cluster.auditInfo.creator, cluster.googleProject, cluster.clusterName)
-    } yield ShutdownActor()
+    } yield ShutdownActor(Some(RemoveFromList(cluster)))
   }
 
   /**
@@ -247,7 +247,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       _ <- persistInstances(instances)
       // this sets the cluster status to stopped and clears the cluster IP
       _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Stopped) }
-    } yield ShutdownActor()
+    } yield ShutdownActor(Some(RemoveFromList(cluster)))
   }
 
   private def checkCluster: Future[ClusterMonitorMessage] = {
@@ -255,7 +255,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       case status if status.isMonitored => checkClusterInGoogle(status)
       case status =>
         logger.info(s"Stopping monitoring of cluster ${cluster.projectNameString} in status ${status}")
-        Future.successful(ShutdownActor())
+        Future.successful(ShutdownActor(Some(RemoveFromList(cluster))))
     }
   }
 

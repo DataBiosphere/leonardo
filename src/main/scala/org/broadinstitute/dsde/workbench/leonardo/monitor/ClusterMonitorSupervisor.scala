@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.Jupyter
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, LeoAuthProvider}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterSupervisorMessage, _}
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.leonardo.util.ValueBox
 import org.broadinstitute.dsde.workbench.model.WorkbenchException
@@ -35,14 +35,14 @@ object ClusterMonitorSupervisor {
   case class ClusterStarted(cluster: Cluster) extends ClusterSupervisorMessage
   // sent after a cluster is updated by the user
   case class ClusterUpdated(cluster: Cluster) extends ClusterSupervisorMessage
-
   // sent after cluster creation fails, and the cluster should be recreated
   case class RecreateCluster(cluster: Cluster) extends ClusterSupervisorMessage
   // sent after cluster creation succeeds, and the cluster should be stopped
   case class StopClusterAfterCreation(cluster: Cluster) extends ClusterSupervisorMessage
+  //Sent when the cluster should be removed from the monitored cluster list
+  case class RemoveFromList(cluster: Cluster) extends ClusterSupervisorMessage
   // Auto freeze idle clusters
   case object AutoFreezeClusters extends ClusterSupervisorMessage
-
   // Timers ADT
   sealed trait TimerTick extends ClusterSupervisorMessage
   private case object TimerKey extends TimerTick
@@ -130,6 +130,9 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
 
     case Tick =>
       createClusterMonitors
+
+    case RemoveFromList(cluster) =>
+      removeFromMonitoredClusters(cluster)
   }
 
   def createChildActor(cluster: Cluster): ActorRef = {
@@ -189,6 +192,10 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
         case Failure(e) =>
           logger.error("Error starting cluster monitor", e)
       }
+  }
+
+  private def removeFromMonitoredClusters(cluster: Cluster) = {
+    monitoredClusters.mutate(_ -- List(cluster))
   }
 
   override val supervisorStrategy = {
