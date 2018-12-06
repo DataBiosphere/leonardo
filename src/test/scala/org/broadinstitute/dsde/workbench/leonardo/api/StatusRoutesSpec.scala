@@ -23,6 +23,15 @@ import scala.concurrent.duration._
 class StatusRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with CommonTestData with TestLeoRoutes with TestComponent {
   override implicit val patienceConfig = PatienceConfig(timeout = 1.second)
 
+  "GET /version" should "give 200 for ok" in {
+    eventually {
+      Get("/version") ~> leoRoutes.route ~> check {
+        status shouldEqual StatusCodes.OK
+        responseAs[String] should include("n/a")
+      }
+    }
+  }
+
   "GET /status" should "give 200 for ok" in {
     eventually {
       Get("/status") ~> leoRoutes.route ~> check {
