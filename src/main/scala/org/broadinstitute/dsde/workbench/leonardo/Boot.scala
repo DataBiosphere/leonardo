@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Pem, Toke
 import org.broadinstitute.dsde.workbench.google.{GoogleStorageDAO, HttpGoogleIamDAO, HttpGoogleProjectDAO, HttpGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.api.{LeoRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.auth.{LeoAuthProviderHelper, ServiceAccountProviderHelper}
-import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterDnsCacheConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SamConfig, SwaggerConfig, ZombieClusterConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterDnsCacheConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, LeoExecutionModeConfig, MonitorConfig, ProxyConfig, SamConfig, SwaggerConfig, ZombieClusterConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HttpJupyterDAO, HttpSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{HttpGoogleComputeDAO, HttpGoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -50,6 +50,7 @@ object Boot extends App with LazyLogging {
     val contentSecurityPolicy = config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
     val zombieClusterMonitorConfig = config.as[ZombieClusterConfig]("zombieClusterMonitor")
     val clusterDnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")
+    val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leoExecutionMode")
 
     // we need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")
@@ -73,6 +74,13 @@ object Boot extends App with LazyLogging {
       new HttpGoogleStorageDAO(dataprocConfig.applicationName, Token(() => token), "google")
     }
 
+//    ClusterDnsCache
+//    ClusterDateAccessedActor
+//    ProxyService
+//    StatusService
+//    LeoRoutes
+
+
     val (leoServiceAccountEmail, leoServiceAccountPemFile) = serviceAccountProvider.getLeoServiceAccountAndKey
     val gdDAO = new HttpGoogleDataprocDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google", NetworkTag(dataprocConfig.networkTag), dataprocConfig.vpcNetwork.map(VPCNetworkName), dataprocConfig.vpcSubnet.map(VPCSubnetName), dataprocConfig.dataprocDefaultRegion, dataprocConfig.defaultExecutionTimeout)
     val googleComputeDAO = new HttpGoogleComputeDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google")
@@ -81,22 +89,27 @@ object Boot extends App with LazyLogging {
     val googleProjectDAO = new HttpGoogleProjectDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google")
     val samDAO = new HttpSamDAO(samConfig.server)
     val clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, clusterDnsCacheConfig)
-    val jupyterDAO = new HttpJupyterDAO(clusterDnsCache)
+
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, googleComputeDAO, googleStorageDAO, serviceAccountProvider)
     val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, petGoogleStorageDAO, dbRef, authProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
-    val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, authProvider, autoFreezeConfig, jupyterDAO, leonardoService))
-    val clusterDateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, dbRef))
-    val zombieClusterMonitor = system.actorOf(ZombieClusterMonitor.props(zombieClusterMonitorConfig, gdDAO, googleProjectDAO, dbRef))
-    val proxyService = new ProxyService(proxyConfig, gdDAO, dbRef, clusterDnsCache, authProvider, clusterDateAccessedActor)
-    val statusService = new StatusService(gdDAO, samDAO, dbRef, dataprocConfig)
-    val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with StandardUserInfoDirectives
+    if(leoExecutionModeConfig.backLeo) {
+      val jupyterDAO = new HttpJupyterDAO(clusterDnsCache)
+      val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, authProvider, autoFreezeConfig, jupyterDAO, leonardoService))
+      val zombieClusterMonitor = system.actorOf(ZombieClusterMonitor.props(zombieClusterMonitorConfig, gdDAO, googleProjectDAO, dbRef))
+    }
+    if(leoExecutionModeConfig.frontLeo) {
+      val clusterDateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, dbRef))
+      val proxyService = new ProxyService(proxyConfig, gdDAO, dbRef, clusterDnsCache, authProvider, clusterDateAccessedActor)
+      val statusService = new StatusService(gdDAO, samDAO, dbRef, dataprocConfig)
+      val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with StandardUserInfoDirectives
 
-    Http().bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
-      .recover {
-        case t: Throwable =>
-          logger.error("FATAL - failure starting http server", t)
-          throw t
-      }
+      Http().bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
+        .recover {
+          case t: Throwable =>
+            logger.error("FATAL - failure starting http server", t)
+            throw t
+        }
+    }
   }
 
   startup()

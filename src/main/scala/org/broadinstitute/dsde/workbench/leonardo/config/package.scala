@@ -114,4 +114,11 @@ package object config {
       config.getInt("cacheMaxSize")
     )
   }
+
+  implicit val leoExecutionModeConfig: ValueReader[LeoExecutionModeConfig] = ValueReader.relative { config =>
+    LeoExecutionModeConfig(
+      config.getBoolean("frontLeo"),
+      config.getBoolean("backLeo")
+    )
+  }
 }
