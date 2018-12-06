@@ -52,8 +52,6 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sou
  && apt-get update \
  && apt-get install -yq --no-install-recommends \
     google-cloud-sdk \
- && curl -sL https://deb.nodesource.com/setup_11.x | bash - \
- && apt-get install -y nodejs \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
@@ -257,6 +255,12 @@ RUN R -e 'install.packages(c( \
  && mkdir -p /home/jupyter-user/.rpackages \
  && echo "R_LIBS=/home/jupyter-user/.rpackages" > /home/jupyter-user/.Renviron \
  && chown -R $USER:users /home/jupyter-user/.rpackages
+
+
+RUN apt-get update \
+ && apt-get install -t testing -yq --no-install-recommends \
+    nodejs \
+    npm
 
 #######################
 # Utilities

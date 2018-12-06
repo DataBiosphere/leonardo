@@ -917,10 +917,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     val combinedExtension = clusterRequest.userJupyterExtensionConfig.map(_.combinedExtensions).getOrElse(Map.empty)
 
-    // combine default and given labels and add labels for extensions
-    val allLabels = clusterRequest.labels.getOrElse(Map.empty) ++ defaultLabels ++ nbExtensions ++ serverExtensions ++ combinedExtension
+    val labExtension = clusterRequest.userJupyterExtensionConfig.map(_.labExtensions).getOrElse(Map.empty)
 
-    val updatedUserJupyterExtensionConfig = if(nbExtensions.isEmpty && serverExtensions.isEmpty && combinedExtension.isEmpty) None else Some(UserJupyterExtensionConfig(nbExtensions, serverExtensions, combinedExtension))
+    // combine default and given labels and add labels for extensions
+    val allLabels = clusterRequest.labels.getOrElse(Map.empty) ++ defaultLabels ++ nbExtensions ++ serverExtensions ++ combinedExtension ++ labExtension
+
+    val updatedUserJupyterExtensionConfig = if(nbExtensions.isEmpty && serverExtensions.isEmpty && combinedExtension.isEmpty) None else Some(UserJupyterExtensionConfig(nbExtensions, serverExtensions, combinedExtension, labExtension))
 
     // check the labels do not contain forbidden keys
     if (allLabels.contains(includeDeletedKey))
