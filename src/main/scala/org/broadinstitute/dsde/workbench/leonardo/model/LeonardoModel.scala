@@ -13,7 +13,7 @@ import enumeratum.{Enum, EnumEntry}
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster._
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.Jupyter
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.model.google.GoogleJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
