@@ -27,6 +27,7 @@ class StatusRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest wi
     eventually {
       Get("/version") ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.OK
+        responseAs[String] should include("n/a")
       }
     }
   }
