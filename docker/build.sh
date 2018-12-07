@@ -135,7 +135,7 @@ GCR_IMAGE="${GCR_REGISTRY}/$TARGET"
 TESTS_IMAGE=$DEFAULT_IMAGE-tests
 
 # Run gcloud auth if a service account key file was specified.
-if [[ -n $SERVICE_ACCOUNT_KEY_FILE ]]; then
+if [[ -n "$SERVICE_ACCOUNT_KEY_FILE" ]]; then
   TMP_DIR=$(mktemp -d tmp-XXXXXX)
   export CLOUDSDK_CONFIG=$(pwd)/${TMP_DIR}
   gcloud auth activate-service-account --key-file="${SERVICE_ACCOUNT_KEY_FILE}"
@@ -184,8 +184,10 @@ function docker_cmd()
             DOCKER_TAG_TESTS=${GIT_SHA:0:12}
         fi
 
-        # builds the juptyer notebooks docker image that goes on dataproc clusters
-        bash ./jupyter-docker/build.sh build "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
+        # builds the juptyer notebooks and rstudio docker images that go on dataproc clusters
+        bash ./docker/build-tool.sh -i jupyter -r "${NOTEBOOK_REPO}" -t "${DOCKER_TAG}"
+        bash ./docker/build-tool.sh -i rstudio -r "${NOTEBOOK_REPO}" -t "${DOCKER_TAG}"
+
         # Build the UI if specified.
         if $BUILD_UI; then
           bash ./ui/build.sh build "${NOTEBOOK_REPO}" "${DOCKER_TAG}"
@@ -199,7 +201,7 @@ function docker_cmd()
 
         if [ $DOCKER_CMD = "push" ]; then
 
-            if [ -n $DOCKERHUB_REGISTRY ]; then
+            if [ -n "$DOCKERHUB_REGISTRY" ]; then
                 echo "pushing $DOCKERHUB_IMAGE docker image..."
                 $DOCKER_REMOTES_BINARY tag $DEFAULT_IMAGE:${DOCKER_TAG} $DOCKERHUB_IMAGE:${DOCKER_TAG}
                 $DOCKER_REMOTES_BINARY push $DOCKERHUB_IMAGE:${DOCKER_TAG}
@@ -212,14 +214,16 @@ function docker_cmd()
                 $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${GIT_BRANCH}
             fi
 
-            if [ -n $GCR_REGISTRY ]; then
+            if [ -n "$GCR_REGISTRY" ]; then
                 echo "pushing $GCR_IMAGE docker image..."
                 $DOCKER_REMOTES_BINARY tag $DEFAULT_IMAGE:${DOCKER_TAG} ${GCR_IMAGE}:${DOCKER_TAG}
                 $GCR_REMOTES_BINARY push ${GCR_IMAGE}:${DOCKER_TAG}
             fi
-            
-            # pushes the juptyer notebooks docker image that goes on dataproc clusters
-            bash ./jupyter-docker/build.sh push "${NOTEBOOK_REPO}" "${DOCKER_TAG}" "${GIT_BRANCH}"
+           
+            # pushes the juptyer notebooks and rstudio docker images that go on dataproc clusters
+            bash ./docker/build-tool.sh --push -i jupyter -r "${NOTEBOOK_REPO}" -t "${DOCKER_TAG}" -b "${GIT_BRANCH}"
+            bash ./docker/build-tool.sh --push -i rstudio -r "${NOTEBOOK_REPO}" -t "${DOCKER_TAG}" -b "${GIT_BRANCH}"
+ 
             # push the UI docker image.
             if $BUILD_UI; then
               bash ./ui/build.sh push "${NOTEBOOK_REPO}" "${DOCKER_TAG}" "${GIT_BRANCH}"
@@ -233,7 +237,7 @@ function docker_cmd()
 function cleanup()
 {
     echo "cleaning up..."
-    if [[ -n $SERVICE_ACCOUNT_KEY_FILE ]]; then
+    if [[ -n "$SERVICE_ACCOUNT_KEY_FILE" ]]; then
       gcloud auth revoke
       rm -rf ${CLOUDSDK_CONFIG}
     fi
