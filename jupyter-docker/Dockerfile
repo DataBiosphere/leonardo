@@ -256,6 +256,9 @@ RUN R -e 'install.packages(c( \
  && echo "R_LIBS=/home/jupyter-user/.rpackages" > /home/jupyter-user/.Renviron \
  && chown -R $USER:users /home/jupyter-user/.rpackages
 
+#######################
+# JupyterLab Extension Requirements
+#######################
 
 RUN apt-get update \
  && apt-get install -t testing -yq --no-install-recommends \
@@ -272,6 +275,8 @@ ADD custom/jupyter_localize_extension.py $JUPYTER_HOME/custom/
 
 RUN chown -R $USER:users $JUPYTER_HOME \
  && find $JUPYTER_HOME/scripts -name '*.sh' -type f | xargs chmod +x
+
+RUN chown -R $USER:users /usr/local/share/jupyter/lab
 
 USER $USER
 WORKDIR $HOME
