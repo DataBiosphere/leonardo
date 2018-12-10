@@ -171,6 +171,9 @@ RUN apt-get update \
     python3.6 \
     python3.6-dev \
     python3-distutils \
+    # for jupyterlab extensions
+    nodejs \
+    npm \
  && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.6 100 \
  && python3 get-pip.py \
  && pip3 install tornado==4.5.3 \
@@ -256,15 +259,6 @@ RUN R -e 'install.packages(c( \
  && mkdir -p /home/jupyter-user/.rpackages \
  && echo "R_LIBS=/home/jupyter-user/.rpackages" > /home/jupyter-user/.Renviron \
  && chown -R $USER:users /home/jupyter-user/.rpackages
-
-#######################
-# JupyterLab Extension Requirements
-#######################
-
-RUN apt-get update \
- && apt-get install -t testing -yq --no-install-recommends \
-    nodejs \
-    npm
 
 #######################
 # Utilities
