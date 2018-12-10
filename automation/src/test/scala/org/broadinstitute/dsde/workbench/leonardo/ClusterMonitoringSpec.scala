@@ -327,7 +327,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
       }
     }
 
-    "should download file as pdf" in {
+    "should download file as pdf" ignore {
       withProject { project => implicit token =>
         withNewGoogleBucket(project) { bucketName =>
           val enablePdfDownloadScript = ResourceFile("bucket-tests/enable_download_as_pdf.sh")
