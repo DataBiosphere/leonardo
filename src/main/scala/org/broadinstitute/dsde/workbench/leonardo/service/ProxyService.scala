@@ -115,7 +115,7 @@ class ProxyService(proxyConfig: ProxyConfig,
     * @return HttpResponse future representing the proxied response, or NotFound if a notebook
     *         server IP could not be found.
     */
-  def proxyNotebook(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest): Future[HttpResponse] = {
+  def proxyRequest(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest): Future[HttpResponse] = {
     authCheck(userInfo, googleProject, clusterName, ConnectToCluster).flatMap { _ =>
       proxyInternal(userInfo, googleProject, clusterName, request)
     }
