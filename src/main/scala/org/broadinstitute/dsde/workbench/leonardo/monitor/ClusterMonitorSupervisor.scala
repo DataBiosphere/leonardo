@@ -43,27 +43,28 @@ object ClusterMonitorSupervisor {
   case class RemoveFromList(cluster: Cluster) extends ClusterSupervisorMessage
   // Auto freeze idle clusters
   case object AutoFreezeClusters extends ClusterSupervisorMessage
-  // Timers ADT
-  sealed trait TimerTick extends ClusterSupervisorMessage
-  private case object TimerKey extends TimerTick
-  private case object Tick extends TimerTick
+
+
+  case object CheckClusterTimerKey
+  case object AutoFreezeTimerKey
+  private case object CheckForClusters extends ClusterSupervisorMessage
 }
 
 class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO, leonardoService: LeonardoService)
   extends Actor with Timers with LazyLogging {
   import context.dispatcher
 
-  val monitoredClusters: ValueBox[Set[Cluster]] = ValueBox(Set.empty)
+  var monitoredClusters: Set[Cluster] = Set.empty
 
   import context._
 
   override def preStart(): Unit = {
     super.preStart()
 
-    timers.startPeriodicTimer(TimerKey, Tick, monitorConfig.pollPeriod)
+    timers.startPeriodicTimer(CheckClusterTimerKey, CheckForClusters, monitorConfig.pollPeriod)
 
     if (autoFreezeConfig.enableAutoFreeze)
-      system.scheduler.schedule(autoFreezeConfig.autoFreezeCheckScheduler, autoFreezeConfig.autoFreezeCheckScheduler, self, AutoFreezeClusters)
+      timers.startPeriodicTimer(AutoFreezeTimerKey, AutoFreezeClusters, autoFreezeConfig.autoFreezeCheckScheduler)
   }
 
   override def receive: Receive = {
@@ -128,7 +129,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
     case AutoFreezeClusters =>
       autoFreezeClusters()
 
-    case Tick =>
+    case CheckForClusters =>
       createClusterMonitors
 
     case RemoveFromList(cluster) =>
@@ -168,34 +169,29 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
       .inTransaction { _.clusterQuery.listMonitoredFullCluster() }
       .onComplete {
         case Success(clusters) =>
-          val clustersNotAlreadyBeingMonitored = clusters.toSet -- monitoredClusters.value
+          val clustersNotAlreadyBeingMonitored = clusters.toSet -- monitoredClusters
 
           clustersNotAlreadyBeingMonitored foreach {
-            case c if c.status == ClusterStatus.Deleting => {
-              logger.info("deleting cluster")
-              self ! ClusterDeleted(c)
-            }
-            case c if c.status == ClusterStatus.Stopping => {
-              logger.info("stopping cluster")
-              self ! ClusterStopped(c)
-            }
+            case c if c.status == ClusterStatus.Deleting => self ! ClusterDeleted(c)
+
+            case c if c.status == ClusterStatus.Stopping => self ! ClusterStopped(c)
+
             case c if c.status == ClusterStatus.Starting => self ! ClusterStarted(c)
 
             case c if c.status == ClusterStatus.Updating => self ! ClusterUpdated(c)
 
-            case c => {
-              logger.info("stop after creation::"  + c.stopAfterCreation)
-              self ! ClusterCreated(c, c.stopAfterCreation)
-            }
+            case c if c.status == ClusterStatus.Creating => self ! ClusterCreated(c, c.stopAfterCreation)
+
+            case c => logger.warn(s"Unhandled status(${c.status}) in ClusterMonitorSupervisor")
           }
-          monitoredClusters.mutate(_ ++ clustersNotAlreadyBeingMonitored)
+          monitoredClusters ++ clustersNotAlreadyBeingMonitored
         case Failure(e) =>
           logger.error("Error starting cluster monitor", e)
       }
   }
 
   private def removeFromMonitoredClusters(cluster: Cluster) = {
-    monitoredClusters.mutate(_ -- List(cluster))
+    monitoredClusters -- List(cluster)
   }
 
   override val supervisorStrategy = {

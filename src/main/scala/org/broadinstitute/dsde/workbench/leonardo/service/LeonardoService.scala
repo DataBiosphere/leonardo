@@ -461,7 +461,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   def internalStopCluster(cluster: Cluster): Future[Unit] = {
-    logger.info("Cluster Status :: " + cluster.status.toString)
     if (cluster.status.isStoppable) {
       for {
         // First remove all its preemptible instances in Google, if any
