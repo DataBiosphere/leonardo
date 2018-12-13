@@ -118,6 +118,22 @@ class NotebookRKernelSpec extends ClusterFixtureSpec {
         }
       }
     }
+
+    // See https://github.com/DataBiosphere/leonardo/issues/710
+    "should be able to install packages that depend on gfortran" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+          val installTimeout = 5.minutes
+
+          val installOutput = notebookPage.executeCell("""install.packages('qwraps2')""", installTimeout)
+          installOutput shouldBe 'defined
+          installOutput.get should include ("DONE (RcppArmadillo)")
+          installOutput.get should include ("DONE (qwraps2)")
+          installOutput.get should not include ("cannot find -lgfortran")
+        }
+      }
+    }
   }
 
 }
+
