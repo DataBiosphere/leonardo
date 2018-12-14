@@ -246,6 +246,10 @@ if [[ "${ROLE}" == 'Master' ]]; then
         fi
       done
     fi
+    #Install jupyter_contrib_nbextensions Table of Content extension
+    pip install jupyter_contrib_nbextensions jupyter_nbextensions_configurator
+    jupyter nbextension install ~/.local/lib/python3.4/site-packages/jupyter_contrib_nbextensions/nbextensions/toc2 --user
+    jupyter nbextension enable toc2/main
 
     # If a custom.js was specified, copy it into the jupyter docker container.
     if [ ! -z ${JUPYTER_CUSTOM_JS_URI} ] ; then
