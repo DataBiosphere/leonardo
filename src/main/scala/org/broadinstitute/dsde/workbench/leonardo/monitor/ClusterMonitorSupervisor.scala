@@ -13,7 +13,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, LeoAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterSupervisorMessage, _}
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
-import org.broadinstitute.dsde.workbench.leonardo.util.ValueBox
 import org.broadinstitute.dsde.workbench.model.WorkbenchException
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -71,14 +70,17 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
 
     case ClusterCreated(cluster, stopAfterCreate) =>
       logger.info(s"Monitoring cluster ${cluster.projectNameString} for initialization.")
+      monitoredClusters += cluster
       startClusterMonitorActor(cluster, if (stopAfterCreate) Some(StopClusterAfterCreation(cluster)) else None)
 
     case ClusterDeleted(cluster, recreate) =>
       logger.info(s"Monitoring cluster ${cluster.projectNameString} for deletion.")
+      monitoredClusters += cluster
       startClusterMonitorActor(cluster, if (recreate) Some(RecreateCluster(cluster)) else None)
 
     case ClusterUpdated(cluster) =>
       logger.info(s"Monitor cluster ${cluster.projectNameString} for updating.")
+      monitoredClusters += cluster
       startClusterMonitorActor(cluster, None)
 
     case RecreateCluster(cluster) =>
@@ -120,10 +122,12 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
 
     case ClusterStopped(cluster) =>
       logger.info(s"Monitoring cluster ${cluster.projectNameString} after stopping.")
+      monitoredClusters += cluster
       startClusterMonitorActor(cluster)
 
     case ClusterStarted(cluster) =>
       logger.info(s"Monitoring cluster ${cluster.projectNameString} after starting.")
+      monitoredClusters += cluster
       startClusterMonitorActor(cluster)
 
     case AutoFreezeClusters =>
@@ -184,7 +188,6 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
 
             case c => logger.warn(s"Unhandled status(${c.status}) in ClusterMonitorSupervisor")
           }
-          monitoredClusters ++ clustersNotAlreadyBeingMonitored
         case Failure(e) =>
           logger.error("Error starting cluster monitor", e)
       }
