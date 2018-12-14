@@ -194,7 +194,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
   }
 
   private def removeFromMonitoredClusters(cluster: Cluster) = {
-    monitoredClusters -- List(cluster)
+    monitoredClusters -= cluster
   }
 
   override val supervisorStrategy = {

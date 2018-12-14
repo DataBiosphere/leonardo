@@ -422,15 +422,15 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     withClusterSupervisor(dao, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, false) { actor =>
 
-    eventually {
-      val updatedCluster = dbFutureValue {
-        _.clusterQuery.getClusterById(savedDeletingCluster.id)
+      eventually {
+        val updatedCluster = dbFutureValue {
+          _.clusterQuery.getClusterById(savedDeletingCluster.id)
+        }
+        updatedCluster shouldBe 'defined
+        updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Deleted)
+        updatedCluster.flatMap(_.dataprocInfo.hostIp) shouldBe None
+        updatedCluster.map(_.instances) shouldBe Some(Set.empty)
       }
-      updatedCluster shouldBe 'defined
-      updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Deleted)
-      updatedCluster.flatMap(_.dataprocInfo.hostIp) shouldBe None
-      updatedCluster.map(_.instances) shouldBe Some(Set.empty)
-    }
       verify(storageDAO, times(1)).deleteBucket(any[GcsBucketName], any[Boolean])
       verify(iamDAO, never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
       verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
