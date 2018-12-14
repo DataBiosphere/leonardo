@@ -235,7 +235,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
     libssl-dev \
     libxml2-dev \
  && apt-get clean \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ # fixes broken gfortan dependency needed by some R libraries
+ # see: https://github.com/DataBiosphere/leonardo/issues/710
+ && ln -s /usr/lib/x86_64-linux-gnu/libgfortran.so.3 /usr/lib/x86_64-linux-gnu/libgfortran.so
 
 RUN R -e 'install.packages(c( \
     "IRdisplay",  \
