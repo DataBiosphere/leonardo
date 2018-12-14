@@ -127,8 +127,9 @@ class NotebookRKernelSpec extends ClusterFixtureSpec {
 
           val installOutput = notebookPage.executeCell("""install.packages('qwraps2')""", installTimeout)
           installOutput shouldBe 'defined
-          installOutput.get should include ("DONE (RcppArmadillo)")
-          installOutput.get should include ("DONE (qwraps2)")
+          installOutput.get should include ("RcppArmadillo")
+          installOutput.get should include ("Installing package into")
+          installOutput.get should include ("/home/jupyter-user/.rpackages")
           installOutput.get should not include ("cannot find -lgfortran")
         }
       }
