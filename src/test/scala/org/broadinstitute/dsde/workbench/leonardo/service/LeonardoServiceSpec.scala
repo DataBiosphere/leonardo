@@ -63,7 +63,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val mockPetGoogleDAO: String => GoogleStorageDAO = _ => {
       new MockGoogleStorageDAO
     }
-    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
+    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
   }
 
   override def afterAll(): Unit = {
@@ -352,7 +352,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
       new MockGoogleStorageDAO
     }
-    val leoForTest = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, system.actorOf(NoopActor.props), spyProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
+    val leoForTest = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, spyProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
 
     forallClusterCreationMethods(Seq((leoForTest.createCluster _).tupled, (leoForTest.processClusterCreationRequest _).tupled))(Seq(name1, name2)) {
       (creationMethod, clusterName) =>
@@ -950,7 +950,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
 
     //we meed to use a special version of the MockGoogleDataprocDAO to simulate an error during the call to resizeCluster
-    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, new ErroredMockGoogleDataprocDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
+    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, new ErroredMockGoogleDataprocDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
 
     // create the cluster
     val clusterCreateResponse =
@@ -976,7 +976,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
 
     //we meed to use a special version of the MockGoogleDataprocDAO to simulate an error during the call to resizeCluster
-    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, mockGoogleDataprocDAO, computeDAO, new ErroredMockGoogleIamDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, system.actorOf(NoopActor.props), authProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
+    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, mockGoogleDataprocDAO, computeDAO, new ErroredMockGoogleIamDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
 
     // create the cluster
     val clusterCreateResponse =
