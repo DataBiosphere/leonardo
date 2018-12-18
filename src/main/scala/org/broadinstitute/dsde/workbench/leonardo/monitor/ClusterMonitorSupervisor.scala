@@ -173,7 +173,8 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
       .inTransaction { _.clusterQuery.listMonitoredFullCluster() }
       .onComplete {
         case Success(clusters) =>
-          val clustersNotAlreadyBeingMonitored = clusters.toSet -- monitoredClusters
+          val monitoredClusterIds = monitoredClusters.map(_.id)
+          val clustersNotAlreadyBeingMonitored = clusters.filterNot(c => monitoredClusterIds.contains(c.id))
 
           clustersNotAlreadyBeingMonitored foreach {
             case c if c.status == ClusterStatus.Deleting => self ! ClusterDeleted(c)
