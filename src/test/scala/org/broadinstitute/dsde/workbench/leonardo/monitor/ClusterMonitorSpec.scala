@@ -42,7 +42,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
                                             dataprocInfo = makeDataprocInfo(1).copy(hostIp = None),
                                             status = ClusterStatus.Creating,
                                             userJupyterExtensionConfig = Some(userExtConfig),
-                                            stopAfterCreation = true)
+                                            stopAfterCreation = false)
 
   val deletingCluster = makeCluster(2).copy(serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
                                             status = ClusterStatus.Deleting,
@@ -911,8 +911,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - instances are populated in the DB
   // - monitor actor shuts down
   it should "stop a cluster after creation" in isolatedDbTest {
-    val savedCreatingCluster = creatingCluster.save()
-    creatingCluster shouldEqual savedCreatingCluster
+    val stopAfterCreationCluster = creatingCluster.copy(stopAfterCreation = true)
+    stopAfterCreationCluster.save() shouldEqual stopAfterCreationCluster
 
     val gdDAO = mock[GoogleDataprocDAO]
     when {
