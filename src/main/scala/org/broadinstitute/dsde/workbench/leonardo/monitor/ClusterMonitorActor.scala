@@ -301,7 +301,11 @@ class ClusterMonitorActor(val cluster: Cluster,
             case Some(errorDetails) => FailedCluster(errorDetails, googleInstances)
             case None => NotReadyCluster(ClusterStatus.Error, googleInstances)
           }
-        case Deleted => Future.successful(DeletedCluster)
+        // Take care we don't delete a Creating cluster if google hasn't updated their status yet
+        case Deleted if leoClusterStatus == Creating =>
+          Future.successful(NotReadyCluster(ClusterStatus.Creating, googleInstances))
+        case Deleted =>
+          Future.successful(DeletedCluster)
         // if the cluster only contains stopped instances, it's a stopped cluster
         case _ if leoClusterStatus != Starting && leoClusterStatus != Deleting && stoppedInstanceCount == googleInstances.size =>
           Future.successful(StoppedCluster(googleInstances))
