@@ -86,7 +86,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
     case RecreateCluster(cluster) =>
       if (monitorConfig.recreateCluster) {
         logger.info(s"Recreating cluster ${cluster.projectNameString}...")
-        val a = dbRef.inTransaction { dataAccess =>
+        dbRef.inTransaction { dataAccess =>
           dataAccess.clusterQuery.getClusterById(cluster.id)
         }.flatMap {
           case Some(cluster) => val clusterRequest = ClusterRequest(
