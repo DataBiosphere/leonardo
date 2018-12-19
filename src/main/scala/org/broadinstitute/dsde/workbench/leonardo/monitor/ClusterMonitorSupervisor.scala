@@ -89,21 +89,23 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
         dbRef.inTransaction { dataAccess =>
           dataAccess.clusterQuery.getClusterById(cluster.id)
         }.flatMap {
-          case Some(cluster) => val clusterRequest = ClusterRequest(
-            Option(cluster.labels),
-            cluster.jupyterExtensionUri,
-            cluster.jupyterUserScriptUri,
-            Some(cluster.machineConfig),
-            None,
-            cluster.userJupyterExtensionConfig,
-            if (cluster.autopauseThreshold == 0) Some(false) else Some(true),
-            Some(cluster.autopauseThreshold),
-            cluster.defaultClientId,
-            cluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage))
-            leonardoService.internalCreateCluster(cluster.auditInfo.creator, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest).failed.foreach { e =>
+          case Some(cluster) =>
+            val clusterRequest = ClusterRequest(
+              Option(cluster.labels),
+              cluster.jupyterExtensionUri,
+              cluster.jupyterUserScriptUri,
+              Some(cluster.machineConfig),
+              None,
+              cluster.userJupyterExtensionConfig,
+              if (cluster.autopauseThreshold == 0) Some(false) else Some(true),
+              Some(cluster.autopauseThreshold),
+              cluster.defaultClientId,
+              cluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage))
+            val createFuture = leonardoService.internalCreateCluster(cluster.auditInfo.creator, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest)
+            createFuture.failed.foreach { e =>
               logger.error(s"Error occurred recreating cluster ${cluster.projectNameString}", e)
             }
-            Future.successful(())
+            createFuture
           case None => Future.failed(new WorkbenchException(s"Cluster ${cluster.projectNameString} not found in the database"))
         }
       } else {
@@ -178,7 +180,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
     val monitoredClusterIds = monitoredClusters.map(_.id)
     
     dbRef
-      .inTransaction { _.clusterQuery.listMonitored() }
+      .inTransaction { _.clusterQuery.listMonitoredClusterOnly() }
       .onComplete {
         case Success(clusters) =>
           val clustersNotAlreadyBeingMonitored = clusters.filterNot(c => monitoredClusterIds.contains(c.id))
