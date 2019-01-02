@@ -42,17 +42,17 @@ final class NotebookCustomizationSpec extends FreeSpec
               EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
               GcsRoles.Owner)
 
-            withWebDriver { implicit driver =>
-              val clusterRequestWithUserScript = ClusterRequest(Map(), None, Option(userScriptUri))
-              withNewCluster(project, request = clusterRequestWithUserScript, apiVersion = V2) { cluster =>
-                Thread.sleep(10000)
+            val clusterRequestWithUserScript = ClusterRequest(Map(), None, Option(userScriptUri))
+            withNewCluster(project, request = clusterRequestWithUserScript, apiVersion = V2) { cluster =>
+              Thread.sleep(10000)
+              withWebDriver { implicit driver =>
                 withNewNotebook(cluster) { notebookPage =>
                   notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
                   notebookPage.executeCell("""import arrow""")
                   notebookPage.executeCell("""arrow.get(727070400)""") shouldBe Some("<Arrow [1993-01-15T04:00:00+00:00]>")
                 }
-              }(ronAuthToken)
-            }
+              }
+            }(ronAuthToken)
           }
         }
       }

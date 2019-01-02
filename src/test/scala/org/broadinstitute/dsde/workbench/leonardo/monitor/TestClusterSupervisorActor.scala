@@ -8,6 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.JupyterDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, LeoAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 
 object TestClusterSupervisorActor {
   def props(monitorConfig: MonitorConfig,
@@ -20,10 +21,11 @@ object TestClusterSupervisorActor {
             testKit: TestKit,
             authProvider: LeoAuthProvider,
             autoFreezeConfig: AutoFreezeConfig,
-            jupyterProxyDAO: JupyterDAO): Props =
+            jupyterProxyDAO: JupyterDAO,
+            leonardoService: LeonardoService): Props =
     Props(new TestClusterSupervisorActor(
       monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO,
-      dbRef, testKit, authProvider, autoFreezeConfig, jupyterProxyDAO))
+      dbRef, testKit, authProvider, autoFreezeConfig, jupyterProxyDAO, leonardoService))
 }
 
 object TearDown
@@ -41,11 +43,12 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  testKit: TestKit,
                                  authProvider: LeoAuthProvider,
                                  autoFreezeConfig: AutoFreezeConfig,
-                                 jupyterProxyDAO: JupyterDAO)
+                                 jupyterProxyDAO: JupyterDAO,
+                                 leonardoService: LeonardoService)
   extends ClusterMonitorSupervisor(
     monitorConfig, dataprocConfig, gdDAO, googleComputeDAO,
     googleIamDAO, googleStorageDAO, dbRef,
-    authProvider, autoFreezeConfig, jupyterProxyDAO) {
+    authProvider, autoFreezeConfig, jupyterProxyDAO, leonardoService) {
 
   // Keep track of spawned child actors so we can shut them down when this actor is stopped
   var childActors: Seq[ActorRef] = Seq.empty
