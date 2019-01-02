@@ -269,9 +269,8 @@ ADD custom/jupyter_delocalize.py $JUPYTER_HOME/custom/
 ADD custom/jupyter_localize_extension.py $JUPYTER_HOME/custom/
 
 RUN chown -R $USER:users $JUPYTER_HOME \
- && find $JUPYTER_HOME/scripts -name '*.sh' -type f | xargs chmod +x
-
-RUN chown -R $USER:users /usr/local/share/jupyter/lab
+ && find $JUPYTER_HOME/scripts -name '*.sh' -type f | xargs chmod +x \
+ && chown -R $USER:users /usr/local/share/jupyter/lab
 
 USER $USER
 WORKDIR $HOME
