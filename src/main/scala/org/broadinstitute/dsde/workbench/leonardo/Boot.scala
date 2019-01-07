@@ -103,7 +103,6 @@ object Boot extends App with LazyLogging {
           logger.error("FATAL - failure starting http server", t)
           throw t
       }
-
   }
 
   startup()
