@@ -723,7 +723,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       }
       verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
       // removeIamRolesForUser should have been called once now
-      //This seems to be a flakey test. I don't this is a valid assertion since the removeIamRolesForUser can be called 1 or
+      //This seems to be a flakey test. I don't think this is a valid assertion since the removeIamRolesForUser can be called 1 or
       // 2 times based on the timing of the monitor for each cluster
       //verify(iamDAO, if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
       verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])

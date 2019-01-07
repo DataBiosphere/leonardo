@@ -90,20 +90,20 @@ object Boot extends App with LazyLogging {
       val zombieClusterMonitor = system.actorOf(ZombieClusterMonitor.props(zombieClusterMonitorConfig, gdDAO, googleProjectDAO, dbRef))
     }
 
-    if(leoExecutionModeConfig.frontLeo) {
-      val samDAO = new HttpSamDAO(samConfig.server)
-      val clusterDateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, dbRef))
-      val proxyService = new ProxyService(proxyConfig, gdDAO, dbRef, clusterDnsCache, authProvider, clusterDateAccessedActor)
-      val statusService = new StatusService(gdDAO, samDAO, dbRef, dataprocConfig)
-      val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with StandardUserInfoDirectives
 
-      Http().bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
-        .recover {
-          case t: Throwable =>
-            logger.error("FATAL - failure starting http server", t)
-            throw t
-        }
-    }
+    val samDAO = new HttpSamDAO(samConfig.server)
+    val clusterDateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, dbRef))
+    val proxyService = new ProxyService(proxyConfig, gdDAO, dbRef, clusterDnsCache, authProvider, clusterDateAccessedActor)
+    val statusService = new StatusService(gdDAO, samDAO, dbRef, dataprocConfig)
+    val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with StandardUserInfoDirectives
+
+    Http().bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
+      .recover {
+        case t: Throwable =>
+          logger.error("FATAL - failure starting http server", t)
+          throw t
+      }
+
   }
 
   startup()
