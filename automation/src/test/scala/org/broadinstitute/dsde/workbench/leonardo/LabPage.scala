@@ -86,7 +86,7 @@ trait LabPage extends CookieAuthedPage[LabPage] {
 //  // Kernel -> Restart
 //  lazy val restartKernelSelection: Query = cssSelector("[id='restart_kernel']")
 //
-//  // Jupyter asks: Are you sure you want to shutdown the kernel?
+  // Jupyter asks: Are you sure you want to shutdown the kernel?
 //  lazy val shutdownKernelConfirmationSelection: Query = cssSelector("[class='btn btn-default btn-sm btn-danger']")
 //
 //  // Jupyter asks: Are you sure you want to restart the kernel?
@@ -198,7 +198,7 @@ trait LabPage extends CookieAuthedPage[LabPage] {
   def shutdownKernel(): Unit = {
     click on kernelMenu
     click on (await enabled shutdownKernelSelection)
-    click on (await enabled shutdownKernelConfirmationSelection)
+//    click on (await enabled shutdownKernelConfirmationSelection)
     await condition isKernelShutdown
   }
 
