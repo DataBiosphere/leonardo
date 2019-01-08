@@ -54,6 +54,17 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
                   proxyService.proxyRequest(userInfo, googleProject, clusterName, request)
                 }
               }
+            } ~
+            (extractRequest & extractUserInfo) { (request, userInfo) =>
+              (logRequestResultForMetrics(userInfo)) {
+                // Proxy logic handled by the ProxyService class
+                // Note ProxyService calls the LeoAuthProvider internally
+                path("api" / "localize") { // route for custom Jupyter server extension
+                  complete {
+                    proxyService.proxyLocalize(userInfo, googleProject, clusterName, request)
+                  }
+                }
+              }
             }
         } ~
           // No need to lookup the user or consult the auth provider for this endpoint
@@ -69,28 +80,6 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
               }
             }
           }
-      }
-    }
-
-  protected val jupyterRoutes: Route =
-    pathPrefix("notebooks") {
-      corsHandler {
-        pathPrefix(Segment / Segment) { (googleProjectParam, clusterNameParam) =>
-          val googleProject = GoogleProject(googleProjectParam)
-          val clusterName = ClusterName(clusterNameParam)
-
-          (extractRequest & extractUserInfo) { (request, userInfo) =>
-            (logRequestResultForMetrics(userInfo)) {
-              // Proxy logic handled by the ProxyService class
-              // Note ProxyService calls the LeoAuthProvider internally
-              path("api" / "localize") { // route for custom Jupyter server extension
-                complete {
-                  proxyService.proxyLocalize(userInfo, googleProject, clusterName, request)
-                }
-              }
-            }
-          }
-        }
       }
     }
 

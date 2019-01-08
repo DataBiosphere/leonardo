@@ -486,9 +486,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
           instance.dataprocRole match {
             case Some(Master) =>
-              googleComputeDAO.addInstanceMetadata(instance.key, masterInstanceStartupScript).flatMap { _ =>
-                googleComputeDAO.stopInstance(instance.key)
+              if (cluster.clusterImages.map(_.tool) contains (Jupyter)) {
+                googleComputeDAO.addInstanceMetadata(instance.key, masterInstanceStartupScript).flatMap { _ =>
+                  googleComputeDAO.stopInstance(instance.key)
+                }
               }
+              else googleComputeDAO.stopInstance(instance.key)
             case _ =>
               googleComputeDAO.stopInstance(instance.key)
           }
