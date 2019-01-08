@@ -76,6 +76,20 @@ class NotebookInstallSpec extends ClusterFixtureSpec {
       }
     }
 
-  }
+    "should install Table of Content from jupyter_contrib_nbextensions" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster) { notebookPage =>
+          notebookPage.executeCell("! jupyter nbextension list") should include("toc2/main  enabled")
+        }
+      }
+    }
 
+    "should install and enable nbextensions_configurator" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster) { notebookPage =>
+          notebookPage.executeCell("! jupyter serverextension list ") should include("jupyter_nbextensions_configurator  enabled")
+        }
+      }
+    }
+  }
 }
