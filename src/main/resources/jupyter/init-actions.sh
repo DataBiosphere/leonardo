@@ -56,11 +56,11 @@ ROLE=$(/usr/share/google/get_metadata_value attributes/dataproc-role)
 # If a Google credentials file was specified, grab the service account json file and set the GOOGLE_APPLICATION_CREDENTIALS EV.
 # This overrides the credentials on the metadata server.
 # This needs to happen on master and worker nodes.
-JUPYTER_SERVICE_ACCOUNT_CREDENTIALS=$(jupyterServiceAccountCredentials)
-if [ ! -z ${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} ] ; then
-  gsutil cp ${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} /etc
-  JUPYTER_SERVICE_ACCOUNT_CREDENTIALS=`basename ${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}`
-  export GOOGLE_APPLICATION_CREDENTIALS=/etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}
+SERVICE_ACCOUNT_CREDENTIALS=$(jupyterServiceAccountCredentials)
+if [ ! -z ${SERVICE_ACCOUNT_CREDENTIALS} ] ; then
+  gsutil cp ${SERVICE_ACCOUNT_CREDENTIALS} /etc
+  SERVICE_ACCOUNT_CREDENTIALS=`basename ${SERVICE_ACCOUNT_CREDENTIALS}`
+  export GOOGLE_APPLICATION_CREDENTIALS=/etc/${SERVICE_ACCOUNT_CREDENTIALS}
 fi
 
 # Only initialize Jupyter docker containers on the master
@@ -81,9 +81,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
     export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
 
-    JUPYTER_SERVER_CRT=$(jupyterServerCrt)
-    JUPYTER_SERVER_KEY=$(jupyterServerKey)
-    JUPYTER_ROOT_CA=$(rootCaPem)
+    SERVER_CRT=$(jupyterServerCrt)
+    SERVER_KEY=$(jupyterServerKey)
+    ROOT_CA=$(rootCaPem)
     JUPYTER_DOCKER_COMPOSE=$(jupyterDockerCompose)
     RSTUDIO_DOCKER_COMPOSE=$(rstudioDockerCompose)
     PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
@@ -93,8 +93,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_COMBINED_EXTENSIONS=$(jupyterCombinedExtensions)
     JUPYTER_CUSTOM_JS_URI=$(jupyterCustomJsUri)
     JUPYTER_GOOGLE_SIGN_IN_JS_URI=$(jupyterGoogleSignInJsUri)
-    JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
+    JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
 
     log 'Installing prerequisites...'
 
@@ -143,9 +143,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
     chmod a+wx /work
 
     # Add the certificates from the bucket to the VM. They are used by the docker-compose file
-    gsutil cp ${JUPYTER_SERVER_CRT} /certs
-    gsutil cp ${JUPYTER_SERVER_KEY} /certs
-    gsutil cp ${JUPYTER_ROOT_CA} /certs
+    gsutil cp ${SERVER_CRT} /certs
+    gsutil cp ${SERVER_KEY} /certs
+    gsutil cp ${ROOT_CA} /certs
     gsutil cp ${PROXY_SITE_CONF} /etc
     gsutil cp ${JUPYTER_DOCKER_COMPOSE} /etc
     gsutil cp ${RSTUDIO_DOCKER_COMPOSE} /etc
@@ -158,8 +158,16 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # If we have a service account JSON file, create an .env file to set GOOGLE_APPLICATION_CREDENTIALS
     # in the docker container. Otherwise, we should _not_ set this environment variable so it uses the
     # credentials on the metadata server.
-    if [ ! -z ${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} ] ; then
-      echo "GOOGLE_APPLICATION_CREDENTIALS=/etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}" > /etc/google_application_credentials.env
+    if [ ! -z ${SERVICE_ACCOUNT_CREDENTIALS} ] ; then
+      echo "GOOGLE_APPLICATION_CREDENTIALS=/etc/${SERVICE_ACCOUNT_CREDENTIALS}" > /etc/google_application_credentials.env
+      if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
+        log 'Copying SA into Jupyter Docker...'
+        docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${JUPYTER_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
+      fi
+      if [ ! -z ${RSTUDIO_DOCKER_IMAGE} ] ; then
+        log 'Copying SA into RStudio Docker...'
+        docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${RSTUDIO_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
+      fi
     else
       echo "" > /etc/google_application_credentials.env
     fi
@@ -198,13 +206,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
       # Install the Hail additions to Spark conf.
       retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/hail/spark_install_hail.sh
-
-      # Copy the actual service account JSON file into the Jupyter docker container.
-      # TODO: not Jupyter specific
-      if [ ! -z ${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} ] ; then
-        log 'Copying SA into Docker...'
-        docker cp /etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS} ${JUPYTER_SERVER_NAME}:/etc/${JUPYTER_SERVICE_ACCOUNT_CREDENTIALS}
-      fi
 
       #Install NbExtensions
       if [ ! -z "${JUPYTER_NB_EXTENSIONS}" ] ; then
