@@ -93,8 +93,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_COMBINED_EXTENSIONS=$(jupyterCombinedExtensions)
     JUPYTER_CUSTOM_JS_URI=$(jupyterCustomJsUri)
     JUPYTER_GOOGLE_SIGN_IN_JS_URI=$(jupyterGoogleSignInJsUri)
-    JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
     JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
+    JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
 
     log 'Installing prerequisites...'
 
