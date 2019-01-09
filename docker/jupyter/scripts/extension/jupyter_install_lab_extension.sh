@@ -2,7 +2,9 @@
 
 set -e
 
- if [ -n "$1" ]; then
+if [ -n "$1" ]; then
   JUPYTER_EXTENSION=$1
-  jupyter labextension install ${JUPYTER_EXTENSION}
+  JUPYTER_EXTENSION_NAME=`basename ${JUPYTER_EXTENSION%%.*}`
+  tar -xzf ${JUPYTER_EXTENSION} -C${JUPYTER_HOME}/${JUPYTER_EXTENSION_NAME}
+  jupyter labextension install ${JUPYTER_HOME}/${JUPYTER_EXTENSION_NAME}
 fi
