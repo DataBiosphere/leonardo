@@ -38,7 +38,7 @@ case class ClusterPausedException(googleProject: GoogleProject, clusterName: Clu
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} is stopped. Start your cluster before proceeding.", StatusCodes.UnprocessableEntity)
 
 case class ProxyException(googleProject: GoogleProject, clusterName: ClusterName)
-  extends LeoException(s"Unable to proxy connection to Jupyter notebook on ${googleProject.value}/${clusterName.value}", StatusCodes.InternalServerError)
+  extends LeoException(s"Unable to proxy connection to tool on ${googleProject.value}/${clusterName.value}", StatusCodes.InternalServerError)
 
 case class AccessTokenExpiredException()
   extends LeoException(s"Your access token is expired. Try logging in again", StatusCodes.Unauthorized)
@@ -134,7 +134,7 @@ class ProxyService(proxyConfig: ProxyConfig,
           case None => handleHttpRequest(targetHost, request)
         }
         responseFuture recover { case e =>
-          logger.error("Error occurred in Jupyter proxy", e)
+          logger.error("Error occurred in proxy", e)
           throw ProxyException(googleProject, clusterName)
         }
       case HostNotReady =>
