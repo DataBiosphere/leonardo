@@ -11,10 +11,8 @@ services:
       GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
       CLUSTER_NAME: "${CLUSTER_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
-    securityContext:
-      privileged: true
-      capabilities:
-        add:
-          - SYS_ADMIN
+    cap_add:
+      - SYS_ADMIN
+    privileged: true
     env_file:
     - /etc/google_application_credentials.env
