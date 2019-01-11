@@ -11,8 +11,7 @@ services:
       GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
       CLUSTER_NAME: "${CLUSTER_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
-    cap_add:
-      - SYS_ADMIN
-    privileged: true
+    volumes:
+      - ./working-rstudio
     env_file:
-    - /etc/google_application_credentials.env
+      - /etc/google_application_credentials.env
