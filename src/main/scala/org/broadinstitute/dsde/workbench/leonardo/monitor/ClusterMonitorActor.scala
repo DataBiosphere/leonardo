@@ -3,10 +3,11 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 import java.time.Instant
 
 import akka.actor.Status.Failure
-import akka.actor.{Actor, Props}
+import akka.actor.{Actor, ActorSystem, Props}
 import akka.pattern.pipe
 import cats.data.OptionT
 import cats.implicits._
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
@@ -19,7 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterDeleted, ClusterSupervisorMessage, RemoveFromList}
-import org.broadinstitute.dsde.workbench.util.addJitter
+import org.broadinstitute.dsde.workbench.util.{Retry, addJitter}
 import slick.dbio.DBIOAction
 
 import scala.collection.immutable.Set
@@ -63,8 +64,11 @@ class ClusterMonitorActor(val cluster: Cluster,
                           val googleStorageDAO: GoogleStorageDAO,
                           val dbRef: DbReference,
                           val authProvider: LeoAuthProvider,
-                          val jupyterProxyDAO: JupyterDAO) extends Actor with LazyLogging {
+                          val jupyterProxyDAO: JupyterDAO) extends Actor with LazyLogging with Retry {
   import context._
+
+  // the Retry trait needs a reference to the ActorSystem
+  override val system = context.system
 
   override def preStart(): Unit = {
     super.preStart()
@@ -342,6 +346,13 @@ class ClusterMonitorActor(val cluster: Cluster,
     transformed.value
   }
 
+  private def whenGoogle409(throwable: Throwable): Boolean = {
+    throwable match {
+      case t: GoogleJsonResponseException => t.getStatusCode == 409
+      case _ => false
+    }
+  }
+
   private def removeIamRolesForUser: Future[Unit] = {
     // Remove the Dataproc Worker IAM role for the cluster service account
     cluster.serviceAccountInfo.clusterServiceAccount match {
@@ -356,7 +367,11 @@ class ClusterMonitorActor(val cluster: Cluster,
           if (count > 0) {
             Future.successful(())
           } else {
-            googleIamDAO.removeIamRolesForUser(cluster.googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
+            // Retry 409s with exponential backoff. This can happen if concurrent policy updates are made in the same project.
+            // Google recommends a retry in this case.
+            retryExponentially(whenGoogle409, s"IAM policy change failed for Google project '${cluster.googleProject}'") { () =>
+              googleIamDAO.removeIamRolesForUser(cluster.googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
+            }
           }
         }
     }
