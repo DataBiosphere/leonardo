@@ -130,7 +130,7 @@ object Cluster {
       userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
       autopauseThreshold = autopauseThreshold,
       defaultClientId = clusterRequest.defaultClientId,
-      stopAfterCreation= clusterRequest.stopAfterCreation.getOrElse(false),
+      stopAfterCreation = clusterRequest.stopAfterCreation.getOrElse(false),
       clusterImages = clusterImages,
       scopes = clusterScopes)
   }
@@ -372,7 +372,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
         "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
         "autopauseThreshold" -> obj.autopauseThreshold.toJson,
         "defaultClientId" -> obj.defaultClientId.toJson,
-        "stopAfterCreation" -> Option(obj.stopAfterCreation).toJson,
+        "stopAfterCreation" -> obj.stopAfterCreation.toJson,
         "clusterImages" -> obj.clusterImages.toJson,
         "scopes" -> obj.scopes.toJson
       )
