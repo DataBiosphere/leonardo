@@ -209,6 +209,8 @@ RUN apt-get update \
  && pip3 install matplotlib-venn==0.11.5 \
  # for jupyter_localize_extension
  && pip3 install python-datauri \
+ && pip3 install jupyter_contrib_nbextensions \
+ && pip3 install jupyter_nbextensions_configurator \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 

@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
-import java.io.File
+import java.io.{File, IOException}
 import java.time.Instant
 
 import akka.actor.ActorSystem
@@ -686,15 +686,32 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     tea.value.void
   }
 
+  private def whenGoogle409(throwable: Throwable): Boolean = {
+    throwable match {
+      case t: GoogleJsonResponseException => t.getStatusCode == 409
+      case _ => false
+    }
+  }
+
   private[service] def addDataprocWorkerRoleToServiceAccount(googleProject: GoogleProject, serviceAccountOpt: Option[WorkbenchEmail]): Future[Unit] = {
     serviceAccountOpt.map { serviceAccountEmail =>
-      googleIamDAO.addIamRolesForUser(googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
+      // Retry 409s with exponential backoff. This can happen if concurrent policy updates are made in the same project.
+      // Google recommends a retry in this case.
+      val iamFuture: Future[Unit] = retryExponentially(whenGoogle409, s"IAM policy change failed for Google project '$googleProject'") { () =>
+        googleIamDAO.addIamRolesForUser(googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
+      }
+      iamFuture
     } getOrElse Future.successful(())
   }
 
   private[service] def removeDataprocWorkerRoleFromServiceAccount(googleProject: GoogleProject, serviceAccountOpt: Option[WorkbenchEmail]): Future[Unit] = {
     serviceAccountOpt.map { serviceAccountEmail =>
-      googleIamDAO.removeIamRolesForUser(googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
+      // Retry 409s with exponential backoff. This can happen if concurrent policy updates are made in the same project.
+      // Google recommends a retry in this case.
+      val iamFuture: Future[Unit] = retryExponentially(whenGoogle409, s"IAM policy change failed for Google project '$googleProject'") { () =>
+        googleIamDAO.removeIamRolesForUser(googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
+      }
+      iamFuture
     } getOrElse Future.successful(())
   }
 
