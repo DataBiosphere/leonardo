@@ -89,6 +89,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_SERVER_EXTENSIONS=$(jupyterServerExtensions)
     JUPYTER_NB_EXTENSIONS=$(jupyterNbExtensions)
     JUPYTER_COMBINED_EXTENSIONS=$(jupyterCombinedExtensions)
+    JUPYTER_LAB_EXTENSIONS=$(jupyterLabExtensions)
     JUPYTER_CUSTOM_JS_URI=$(jupyterCustomJsUri)
     JUPYTER_GOOGLE_SIGN_IN_JS_URI=$(jupyterGoogleSignInJsUri)
     JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
@@ -243,6 +244,29 @@ if [[ "${ROLE}" == 'Master' ]]; then
           retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_combined_extension.sh ${JUPYTER_EXTENSION_ARCHIVE}
         else
           retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_combined_extension.sh $ext
+        fi
+      done
+    fi
+
+    #Install lab extensions
+    if [ ! -z "${JUPYTER_LAB_EXTENSIONS}" ] ; then
+      for ext in ${JUPYTER_LAB_EXTENSIONS}
+      do
+        log 'Installing JupyterLab extension [$ext]...'
+        pwd
+        if [[ $ext == 'gs://'* ]]; then
+          gsutil cp $ext /etc
+          JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
+          docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+          retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+        elif [[ $ext == 'http://'* || $ext == 'https://'* ]]; then
+          JUPYTER_EXTENSION_FILE=`basename $ext`
+          curl $ext -o /etc/${JUPYTER_EXTENSION_FILE}
+          docker cp /etc/${JUPYTER_EXTENSION_FILE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
+          retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
+
+        else
+          retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh $ext
         fi
       done
     fi
