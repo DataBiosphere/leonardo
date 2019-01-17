@@ -171,6 +171,9 @@ RUN apt-get update \
     python3.6 \
     python3.6-dev \
     python3-distutils \
+    # for jupyterlab extensions
+    nodejs \
+    npm \
  && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.6 100 \
  && python3 get-pip.py \
  && pip3 install tornado==4.5.3 \
@@ -184,7 +187,7 @@ RUN apt-get update \
  && pip3 install pandas==0.23.4 \
  && pip3 install seaborn==0.9.0 \
  && pip3 install jupyter==1.0.0 \
- && pip3 install jupyterlab==0.35.2 \
+ && pip3 install jupyterlab==0.35.4 \
  && pip3 install python-lzo==1.12 \
  && pip3 install google-api-core==1.5.0 \
  && pip3 install google-cloud-bigquery==1.7.0 \
@@ -271,7 +274,8 @@ ADD custom/jupyter_delocalize.py $JUPYTER_HOME/custom/
 ADD custom/jupyter_localize_extension.py $JUPYTER_HOME/custom/
 
 RUN chown -R $USER:users $JUPYTER_HOME \
- && find $JUPYTER_HOME/scripts -name '*.sh' -type f | xargs chmod +x
+ && find $JUPYTER_HOME/scripts -name '*.sh' -type f | xargs chmod +x \
+ && chown -R $USER:users /usr/local/share/jupyter/lab
 
 USER $USER
 WORKDIR $HOME
