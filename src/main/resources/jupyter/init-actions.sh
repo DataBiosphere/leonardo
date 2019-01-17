@@ -253,6 +253,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
       for ext in ${JUPYTER_LAB_EXTENSIONS}
       do
         log 'Installing JupyterLab extension [$ext]...'
+        pwd
         if [[ $ext == 'gs://'* ]]; then
           gsutil cp $ext /etc
           JUPYTER_EXTENSION_ARCHIVE=`basename $ext`

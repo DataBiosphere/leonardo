@@ -975,7 +975,7 @@ definitions:
       labExtensions:
         type: object
         description: |
-          Optional, map of extension name and lab extension. The extension should be a verified jupyterlab extension, a local directory containing the extension, a gzipped tarball, or a URL to a gzipped tarball. 
+          Optional, map of extension name and lab extension. The extension should be a verified jupyterlab extension, a gzipped tarball made using 'npm pack', or a URL to a gzipped tarball made using 'npm pack'.
 
   SubsystemStatus:
     description: status of a subsystem Leonardo depends on
