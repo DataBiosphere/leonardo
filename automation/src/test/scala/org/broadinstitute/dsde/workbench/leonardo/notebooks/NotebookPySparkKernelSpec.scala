@@ -1,4 +1,6 @@
-package org.broadinstitute.dsde.workbench.leonardo
+package org.broadinstitute.dsde.workbench.leonardo.notebooks
+
+import org.broadinstitute.dsde.workbench.leonardo.cluster.ClusterFixtureSpec
 
 import scala.language.postfixOps
 

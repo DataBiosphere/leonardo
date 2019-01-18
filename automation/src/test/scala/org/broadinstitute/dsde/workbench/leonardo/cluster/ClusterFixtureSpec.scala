@@ -1,13 +1,15 @@
-package org.broadinstitute.dsde.workbench.leonardo
+package org.broadinstitute.dsde.workbench.leonardo.cluster
 
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.fixture._
+import org.broadinstitute.dsde.workbench.leonardo.{Cluster, ClusterRequest, LeonardoTestUtils, MachineConfig}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.broadinstitute.dsde.workbench.service.test.RandomUtil
 import org.broadinstitute.dsde.workbench.util.addJitter
 import org.scalatest.{BeforeAndAfterAll, Outcome, fixture}
+
 import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 

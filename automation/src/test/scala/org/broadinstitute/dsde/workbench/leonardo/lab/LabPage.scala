@@ -1,5 +1,4 @@
-package org.broadinstitute.dsde.workbench.leonardo
-
+package org.broadinstitute.dsde.workbench.leonardo.lab
 
 import org.broadinstitute.dsde.workbench.page.CookieAuthedPage
 import org.openqa.selenium.WebDriver

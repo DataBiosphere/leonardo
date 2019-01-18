@@ -20,11 +20,14 @@ import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{ClusterStatus, 
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.{V1, V2}
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
+import org.broadinstitute.dsde.workbench.leonardo.lab._
+import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.util._
 import org.openqa.selenium.WebDriver
 import org.scalactic.source.Position
+import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.{Matchers, Suite}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Minutes, Seconds, Span}
@@ -34,6 +37,8 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.{Failure, Random, Success, Try}
 
+case class KernelNotReadyException(timeElapsed:Timeout)
+  extends Exception(s"Jupyter kernel is NOT ready after waiting ${timeElapsed}")
 
 case class TimeResult[R](result:R, duration:FiniteDuration)
 
@@ -470,6 +475,11 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     testCode(notebooksListPage.open)
   }
 
+  def withLabLauncherPage[T](cluster: Cluster)(testCode: LabLauncherPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+    val labLauncherPage = Leonardo.lab.get(cluster.googleProject, cluster.clusterName)
+    testCode(labLauncherPage.open)
+  }
+
   def withFileUpload[T](cluster: Cluster, file: File)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
       notebooksListPage.upload(file)
@@ -491,7 +501,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   }
 
   implicit val ec: ExecutionContextExecutor = ExecutionContext.global
-  def withNewNotebook[T](cluster: Cluster, kernel: Kernel = Python2, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+  def withNewNotebook[T](cluster: Cluster, kernel: NotebookKernel = notebooks.Python2, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
       val result: Future[T] = retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds, 2 minutes) {() =>
         Future(notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
@@ -502,11 +512,11 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
   }
 
-  def withNewLab[T](cluster: Cluster, kernel: Kernel = Python2, timeout: FiniteDuration = 2.minutes)(testCode: LabPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
-    withNotebooksListPage(cluster) { notebooksListPage =>
+  def withNewLabNotebook[T](cluster: Cluster, kernel: LabKernel = lab.Python2, timeout: FiniteDuration = 2.minutes)(testCode: LabNotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+    withLabLauncherPage(cluster) { labLauncherPage =>
       val result: Future[T] = retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds, 2 minutes) {() =>
-        Future(notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
-          testCode(notebookPage)
+        Future(labLauncherPage.withNewNotebook(kernel, timeout) { labNotebookPage =>
+          testCode(labNotebookPage)
         })
       }
       Await.result(result, 10 minutes)
@@ -790,10 +800,10 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     TimeResult(result, timediff)
   }
 
-  def pipInstall(notebookPage: NotebookPage, kernel: Kernel, packageName: String): Unit = {
+  def pipInstall(notebookPage: NotebookPage, kernel: NotebookKernel, packageName: String): Unit = {
     val pip = kernel match {
-      case Python2 | PySpark2 => "pip2"
-      case Python3 | PySpark3 => "pip3"
+      case notebooks.Python2 | notebooks.PySpark2 => "pip2"
+      case notebooks.Python3 | notebooks.PySpark3 => "pip3"
       case _ => throw new IllegalArgumentException(s"Can't pip install in a ${kernel.string} kernel")
     }
 
@@ -806,14 +816,14 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   }
 
   // https://github.com/aymericdamien/TensorFlow-Examples/blob/master/notebooks/1_Introduction/helloworld.ipynb
-  def verifyTensorFlow(notebookPage: NotebookPage, kernel: Kernel): Unit = {
+  def verifyTensorFlow(notebookPage: NotebookPage, kernel: NotebookKernel): Unit = {
     notebookPage.executeCell("import tensorflow as tf")
     notebookPage.executeCell("hello = tf.constant('Hello, TensorFlow!')") shouldBe None
     notebookPage.executeCell("sess = tf.Session()") shouldBe None
     val helloOutput = notebookPage.executeCell("print(sess.run(hello))")
     kernel match {
-      case Python2 => helloOutput shouldBe Some("Hello, TensorFlow!")
-      case Python3 => helloOutput shouldBe Some("b'Hello, TensorFlow!'")
+      case notebooks.Python2 => helloOutput shouldBe Some("Hello, TensorFlow!")
+      case notebooks.Python3 => helloOutput shouldBe Some("b'Hello, TensorFlow!'")
       case other => fail(s"Unexpected kernel: $other")
     }
   }

@@ -1,15 +1,17 @@
-package org.broadinstitute.dsde.workbench.leonardo
+package org.broadinstitute.dsde.workbench.leonardo.cluster
 
 import java.io.File
 
 import org.broadinstitute.dsde.workbench.ResourceFile
-import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V2
+import org.broadinstitute.dsde.workbench.leonardo._
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.PySpark2
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsObjectName, GcsPath, parseGcsPath}
+import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{FreeSpec, ParallelTestExecution}
@@ -102,7 +104,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
 
           withNewCluster(project, request = request) { cluster =>
             withWebDriver { implicit driver =>
-              withNewNotebook(cluster, PySpark3) { notebookPage =>
+              withNewNotebook(cluster, notebooks.PySpark3) { notebookPage =>
                 verifyHailImport(notebookPage, destPath, cluster)
               }
             }
@@ -119,7 +121,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
 
           withWebDriver { implicit driver =>
             // Create a notebook and execute a cell
-            withNewNotebook(cluster, kernel = Python3) { notebookPage =>
+            withNewNotebook(cluster, kernel = notebooks.Python3) { notebookPage =>
               notebookPage.executeCell(s"""print("$printStr")""") shouldBe Some(printStr)
               notebookPage.saveAndCheckpoint()
             }
@@ -205,7 +207,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
           withNewCluster(project, request = request) { cluster =>
             // Verify a Hail job uses preemptibles
             withWebDriver { implicit driver =>
-              withNewNotebook(cluster, PySpark3) { notebookPage =>
+              withNewNotebook(cluster, notebooks.PySpark3) { notebookPage =>
                 verifyHailImport(notebookPage, destPath, cluster)
                 notebookPage.saveAndCheckpoint()
               }
@@ -265,7 +267,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
           val extensionConfig = multiExtensionClusterRequest.copy(nbExtensions = multiExtensionClusterRequest.nbExtensions + ("translate" -> translateExtensionBucketPath.toUri))
           withNewCluster(project, clusterName, ClusterRequest(userJupyterExtensionConfig = Some(extensionConfig)), apiVersion = V2) { cluster =>
             withWebDriver { implicit driver =>
-              withNewNotebook(cluster, Python3) { notebookPage =>
+              withNewNotebook(cluster, notebooks.Python3) { notebookPage =>
                 //Check if the mark up was translated correctly
                 val nbExt = notebookPage.executeCell("! jupyter nbextension list")
                 nbExt.get should include("jupyter-gmaps/extension  enabled")

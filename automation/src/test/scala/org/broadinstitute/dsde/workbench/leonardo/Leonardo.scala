@@ -18,6 +18,8 @@ import org.broadinstitute.dsde.workbench.config.LeoAuthToken
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V1
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.notebooks.notebooksBasePath
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
+import org.broadinstitute.dsde.workbench.leonardo.lab.LabLauncherPage
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.{DummyClientPage, NotebooksListPage}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 import org.openqa.selenium.WebDriver
@@ -237,10 +239,10 @@ object Leonardo extends RestClient with LazyLogging {
       parseResponse(getRequest(url + path))
     }
 
-    def get(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver): NotebooksListPage = {
-      val path = notebooksBasePath(googleProject, clusterName)
+    def get(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver): LabLauncherPage = {
+      val path = labPath(googleProject, clusterName)
       logger.info(s"Get notebook: GET /$path")
-      new NotebooksListPage(url + path)
+      new LabLauncherPage(url + path)
     }
 
     // TODO: add JupyterLab selenium test logic

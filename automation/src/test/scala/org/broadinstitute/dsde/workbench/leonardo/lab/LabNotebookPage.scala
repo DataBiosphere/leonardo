@@ -1,31 +1,28 @@
-package org.broadinstitute.dsde.workbench.leonardo
+package org.broadinstitute.dsde.workbench.leonardo.lab
 
 import com.typesafe.scalalogging.LazyLogging
 import org.apache.commons.text.StringEscapeUtils
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.page.CookieAuthedPage
 import org.openqa.selenium.{By, WebDriver, WebElement}
-import org.openqa.selenium.interactions.Actions
-import org.scalatest.Assertions
 import org.scalatest.Matchers.convertToAnyShouldWrapper
 import org.scalatest.concurrent.Eventually
 import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.scalatest.exceptions.TestFailedDueToTimeoutException
 import org.scalatest.time.{Seconds, Span}
 
+import org.broadinstitute.dsde.workbench.leonardo.KernelNotReadyException
+
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-case class KernelNotReadyException(timeElapsed:Timeout)
-  extends Exception(s"Jupyter kernel is NOT ready after waiting ${timeElapsed}")
 
-trait LabLauncherPage extends LabPage {
-  implicit val webDriver: WebDriver
+class LabNotebookPage(override val url: String)(override implicit val authToken: AuthToken, override implicit val webDriver: WebDriver)
+  extends LabPage with Eventually with LazyLogging {
 
 
-  override def open(implicit webDriver: WebDriver): LabPage = {
-    super.open.asInstanceOf[LabPage]
+  override def open(implicit webDriver: WebDriver): LabNotebookPage = {
+    super.open.asInstanceOf[LabNotebookPage]
   }
 
   // selects all menus from the header bar
@@ -75,7 +72,7 @@ trait LabLauncherPage extends LabPage {
   lazy val runCellButton: Query = cssSelector("[title='Run the selected cells and advance']")
 
   // Kernel -> Shutdown
-  lazy val shutdownKernelSelection: Query = cssSelector("[id='shutdown_kernel']")
+  lazy val shutdownKernelSelection: Query = cssSelector("[data-command='kernelmenu:shutdown']")
 //
 //  // Kernel -> Restart
 //  lazy val restartKernelSelection: Query = cssSelector("[id='restart_kernel']")
@@ -193,7 +190,7 @@ trait LabLauncherPage extends LabPage {
     click on kernelMenu
     click on (await enabled shutdownKernelSelection)
 //    click on (await enabled shutdownKernelConfirmationSelection)
-    await condition isKernelShutdown
+    await condition isKernelDisconnected
   }
 
 //  /**
@@ -222,7 +219,7 @@ trait LabLauncherPage extends LabPage {
       val t0 = System.nanoTime()
 
       eventually(time, pollInterval) {
-        val ready = !cellsAreRunning && isKernelReady && kernelNotificationText == "none"
+        val ready = !cellsAreRunning && isKernelReady
         ready shouldBe true
       }
 
@@ -236,15 +233,12 @@ trait LabLauncherPage extends LabPage {
   }
 
   def isKernelDisconnected: Boolean = {
-    find(id("kernel_indicator_icon")).exists(_.underlying.getAttribute("class") == "kernel_disconnected_icon")
+    find(className("jp-Toolbar-kernelStatus")).exists(_.underlying.getAttribute("title") == "Kernel Dead")
   }
 
   def isKernelReady: Boolean = {
-    find(id("kernel_indicator_icon")).exists(_.underlying.getAttribute("class") == "kernel_idle_icon")
+    find(className("jp-Toolbar-kernelStatus")).exists(_.underlying.getAttribute("title") == "Kernel Idle")
   }
 
-  def kernelNotificationText: String = {
-    find(id("notification_kernel")).map(_.underlying.getCssValue("display")).getOrElse("")
-  }
 
 }
