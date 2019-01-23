@@ -160,7 +160,7 @@ class LabNotebookPage(override val url: String)(override implicit val authToken:
     val cellNumber = numCellsOnPage
     click on cell
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
-    executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
+    executeScript(s"""arguments[0].CodeMirror-line.setValue("$jsEscapedCode");""", lastCell)
     clickRunCell(timeout)
     await condition (cellIsRendered(cellNumber), timeout.toSeconds)
     cellOutput(cell)

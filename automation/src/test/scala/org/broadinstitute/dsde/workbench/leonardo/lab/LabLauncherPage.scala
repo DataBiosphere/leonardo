@@ -53,11 +53,9 @@ class LabLauncherPage(override val url: String)(override implicit val authToken:
 //    result.get
 //  }
 
-  def withNewNotebook[T](kernel: LabKernel = Python2, timeout: FiniteDuration = 2.minutes)(testCode: LabNotebookPage => T): T = {
-    switchToNewTab {
-      await visible (cssSelector(kernel.cssSelectorString), timeout.toSeconds)
-      click on cssSelector(kernel.cssSelectorString)
-    }
+  def withNewNotebook[T](kernel: LabKernel = Python3, timeout: FiniteDuration = 2.minutes)(testCode: LabNotebookPage => T): T = {
+    await visible (cssSelector(kernel.cssSelectorString), timeout.toSeconds)
+    click on cssSelector(kernel.cssSelectorString)
     // Not calling NotebookPage.open() as it should already be opened
     val labNotebookPage = new LabNotebookPage(currentUrl)
     labNotebookPage.awaitReadyKernel(timeout)
