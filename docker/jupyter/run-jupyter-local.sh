@@ -1,10 +1,10 @@
 #!/bin/bash
 #
 # To rebuild the docker image, run:
-#   docker build jupyter-docker/ -t broadinstitute/leonardo-notebooks:local
+#   docker build docker/jupyter/ -t broadinstitute/leonardo-jupyter:local
 set -e
 
-DOCKER_IMG=broadinstitute/leonardo-notebooks:local
+DOCKER_IMG=broadinstitute/leonardo-jupyter:local
 CONTAINER=jupyter-server
 
 start () {
@@ -21,13 +21,13 @@ start () {
     # Substitute templated vars in the notebook config.
     local tmp_config=$(mktemp notebook_config.XXXX)
     cp src/main/resources/jupyter/jupyter_notebook_config.py ${tmp_config}
-    sed -i 's/$(contentSecurityPolicy)/""/' ${tmp_config}
+    sed -i '' 's/$(contentSecurityPolicy)/""/' ${tmp_config}
     chmod a+rw ${tmp_config}
     docker cp ${tmp_config} ${CONTAINER}:/etc/jupyter/jupyter_notebook_config.py
     rm ${tmp_config}
 
-    docker cp jupyter-docker/custom/jupyter_localize_extension.py ${CONTAINER}:/etc/jupyter/custom/jupyter_localize_extension.py
-    docker cp jupyter-docker/custom/jupyter_delocalize.py ${CONTAINER}:/etc/jupyter/custom/jupyter_delocalize.py
+    docker cp docker/jupyter/custom/jupyter_localize_extension.py ${CONTAINER}:/etc/jupyter/custom/jupyter_localize_extension.py
+    docker cp docker/jupyter/custom/jupyter_delocalize.py ${CONTAINER}:/etc/jupyter/custom/jupyter_delocalize.py
     # To debug startup failures, add -a here to attach.
     docker start -a ${CONTAINER}
 
