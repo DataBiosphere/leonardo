@@ -54,6 +54,7 @@ class LabLauncherPage(override val url: String)(override implicit val authToken:
 //  }
 
   def withNewNotebook[T](kernel: LabKernel = Python3, timeout: FiniteDuration = 2.minutes)(testCode: LabNotebookPage => T): T = {
+    await notVisible (cssSelector("#main-logo"))
     await visible (cssSelector(kernel.cssSelectorString), timeout.toSeconds)
     click on cssSelector(kernel.cssSelectorString)
     // Not calling NotebookPage.open() as it should already be opened

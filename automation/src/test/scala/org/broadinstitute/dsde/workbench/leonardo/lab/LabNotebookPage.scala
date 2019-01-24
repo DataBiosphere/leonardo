@@ -3,30 +3,28 @@ package org.broadinstitute.dsde.workbench.leonardo.lab
 import com.typesafe.scalalogging.LazyLogging
 import org.apache.commons.text.StringEscapeUtils
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.openqa.selenium.{By, WebDriver, WebElement}
 import org.scalatest.Matchers.convertToAnyShouldWrapper
 import org.scalatest.concurrent.Eventually
 import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.scalatest.exceptions.TestFailedDueToTimeoutException
 import org.scalatest.time.{Seconds, Span}
-
 import org.broadinstitute.dsde.workbench.leonardo.KernelNotReadyException
+import org.openqa.selenium.{By, WebDriver, WebElement}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import scala.util.{Failure, Success, Try}
 
 
 class LabNotebookPage(override val url: String)(override implicit val authToken: AuthToken, override implicit val webDriver: WebDriver)
-  extends LabPage with Eventually with LazyLogging {
+  extends LabPage with NotebookPanel with Eventually with LazyLogging {
 
 
   override def open(implicit webDriver: WebDriver): LabNotebookPage = {
     super.open.asInstanceOf[LabNotebookPage]
   }
 
-  // selects all menus from the header bar
-  lazy val menus: Query = cssSelector("[class='p-MenuBar-item']")
 
   // menu elements
 
@@ -42,100 +40,96 @@ class LabNotebookPage(override val url: String)(override implicit val authToken:
     findAll(menus).filter { e => e.text == "Kernel" }.toList.head
   }
 
-  lazy val menuItems: Query = cssSelector("[class='p-Menu-itemLabel']")
 
-//  // selects all submenus which appear in dropdowns after clicking a main menu header
-//  lazy val submenus: Query = cssSelector("[class='p-Menu-itemSubmenuIcon']")
-//
-//  // File -> Download as
-//  lazy val downloadSubMenu: Element = {
-//    findAll(submenus).filter { e => e.text == "Download as" }.toList.head
-//  }
-//
-//  // Cell -> Cell type
-//  lazy val cellTypeSubMenu: Element = {
-//    findAll(submenus).filter { e => e.text == "Cell Type" }.toList.head
-//  }
-//  // File -> Download as -> ipynb
-//  lazy val downloadSelectionAsIpynb: Query = cssSelector("[id='download_ipynb']")
-//
-//  // File -> Download as -> pdf
-//  lazy val downloadSelectionAsPdf: Query = cssSelector("[id='download_pdf']")
-//
-//  // File -> Save and Checkpoint
-//  lazy val saveAndCheckpointSelection: Query = cssSelector("[id='save_checkpoint']")
-//
-//  // Cell -> Run All Cells
-//  lazy val runAllCellsSelection: Query = cssSelector("[id='run_all_cells']")
-
-  // Run Cell toolbar button
-  lazy val runCellButton: Query = cssSelector("[title='Run the selected cells and advance']")
-
-  // Kernel -> Shutdown
-  lazy val shutdownKernelSelection: Query = cssSelector("[data-command='kernelmenu:shutdown']")
-//
-//  // Kernel -> Restart
-//  lazy val restartKernelSelection: Query = cssSelector("[id='restart_kernel']")
-//
+  //  // selects all submenus which appear in dropdowns after clicking a main menu header
+  //  lazy val submenus: Query = cssSelector("[class='p-Menu-itemSubmenuIcon']")
+  //
+  //  // File -> Download as
+  //  lazy val downloadSubMenu: Element = {
+  //    findAll(submenus).filter { e => e.text == "Download as" }.toList.head
+  //  }
+  //
+  //  // Cell -> Cell type
+  //  lazy val cellTypeSubMenu: Element = {
+  //    findAll(submenus).filter { e => e.text == "Cell Type" }.toList.head
+  //  }
+  //  // File -> Download as -> ipynb
+  //  lazy val downloadSelectionAsIpynb: Query = cssSelector("[id='download_ipynb']")
+  //
+  //  // File -> Download as -> pdf
+  //  lazy val downloadSelectionAsPdf: Query = cssSelector("[id='download_pdf']")
+  //
+  //  // File -> Save and Checkpoint
+  //  lazy val saveAndCheckpointSelection: Query = cssSelector("[id='save_checkpoint']")
+  //
+  //  // Cell -> Run All Cells
+  //  lazy val runAllCellsSelection: Query = cssSelector("[id='run_all_cells']")
+  //
+  //  // Kernel -> Restart
+  //  lazy val restartKernelSelection: Query = cssSelector("[id='restart_kernel']")
+  //
   // Jupyter asks: Are you sure you want to shutdown the kernel?
-//  lazy val shutdownKernelConfirmationSelection: Query = cssSelector("[class='btn btn-default btn-sm btn-danger']")
-//
-//  // Jupyter asks: Are you sure you want to restart the kernel?
-//  lazy val restartKernelConfirmationSelection: Query = cssSelector("[class='btn btn-default btn-sm btn-danger']")
-//
+  //  lazy val shutdownKernelConfirmationSelection: Query = cssSelector("[class='btn btn-default btn-sm btn-danger']")
+  //
+  //  // Jupyter asks: Are you sure you want to restart the kernel?
+  //  lazy val restartKernelConfirmationSelection: Query = cssSelector("[class='btn btn-default btn-sm btn-danger']")
+  //
   // selects the numbered left-side cell prompts
-  lazy val prompts: Query = cssSelector("[class='jp-InputArea-prompt']")
-//
-//  lazy val toMarkdownCell:Query = cssSelector("[title='Markdown']")
-//
-//  lazy val translateCell: Query = cssSelector("[title='Translate current cell']")
+  lazy val prompts: String = ".jp-OutputArea-prompt"
+  //
+  //  lazy val toMarkdownCell:Query = cssSelector("[title='Markdown']")
+  //
+  //  lazy val translateCell: Query = cssSelector("[title='Translate current cell']")
 
   // is at least one cell currently executing?
   def cellsAreRunning: Boolean = {
     findAll(prompts).exists { e => e.text == "In [*]:" }
   }
-//
-//  // has the specified cell completed execution?
-//  // since we execute cells one by one, the Nth cell (counting from 1) will also have Cell Number N
+  //
+  //  // has the specified cell completed execution?
+  //  // since we execute cells one by one, the Nth cell (counting from 1) will also have Cell Number N
   def cellIsRendered(cellNumber: Int): Boolean = {
-    findAll(prompts).exists { e => e.text == s"In [$cellNumber]:" }
+    findAll(cssSelector(prompts)).exists { e =>
+      println(e.text)
+      e.text == s"[$cellNumber]:"
+    }
   }
-//
-//  lazy val kernelNotification: Query = cssSelector("[id='notification_kernel']")
-//
-//  // can we see that the kernel connection has terminated?
-//  def isKernelShutdown: Boolean = {
-//    find(kernelNotification).exists { e => e.text == "No kernel" }
-//  }
+  //
+  //  lazy val kernelNotification: Query = cssSelector("[id='notification_kernel']")
+  //
+  //  // can we see that the kernel connection has terminated?
+  //  def isKernelShutdown: Boolean = {
+  //    find(kernelNotification).exists { e => e.text == "No kernel" }
+  //  }
 
-//  def runAllCells(timeout: FiniteDuration = 60 seconds): Unit = {
-//    click on cellMenu
-//    click on (await enabled runAllCellsSelection)
-//    awaitReadyKernel(timeout)
-//  }
+  //  def runAllCells(timeout: FiniteDuration = 60 seconds): Unit = {
+  //    click on cellMenu
+  //    click on (await enabled runAllCellsSelection)
+  //    awaitReadyKernel(timeout)
+  //  }
 
-//  def downloadAsIpynb(): Unit = {
-//    click on fileMenu
-//    // TODO move to WebBrowser in automation lib so we can instead do:
-//    // hover over downloadSubMenu
-//    new Actions(webDriver).moveToElement(downloadSubMenu.underlying).perform()
-//    click on (await enabled downloadSelectionAsIpynb)
-//  }
-//
-//  def downloadAsPdf(): Unit = {
-//    click on fileMenu
-//    // TODO move to WebBrowser in automation lib so we can instead do:
-//    // hover over downloadSubMenu
-//    new Actions(webDriver).moveToElement(downloadSubMenu.underlying).perform()
-//    click on (await enabled downloadSelectionAsPdf)
-//  }
+  //  def downloadAsIpynb(): Unit = {
+  //    click on fileMenu
+  //    // TODO move to WebBrowser in automation lib so we can instead do:
+  //    // hover over downloadSubMenu
+  //    new Actions(webDriver).moveToElement(downloadSubMenu.underlying).perform()
+  //    click on (await enabled downloadSelectionAsIpynb)
+  //  }
+  //
+  //  def downloadAsPdf(): Unit = {
+  //    click on fileMenu
+  //    // TODO move to WebBrowser in automation lib so we can instead do:
+  //    // hover over downloadSubMenu
+  //    new Actions(webDriver).moveToElement(downloadSubMenu.underlying).perform()
+  //    click on (await enabled downloadSelectionAsPdf)
+  //  }
 
-//  def saveAndCheckpoint(): Unit = {
-//    click on fileMenu
-//    click on (await enabled saveAndCheckpointSelection)
-//  }
-//
-  lazy val cells: Query = cssSelector(".CodeMirror-line")
+  //  def saveAndCheckpoint(): Unit = {
+  //    click on fileMenu
+  //    click on (await enabled saveAndCheckpointSelection)
+  //  }
+  //
+  lazy val cells: Query = cssSelector(".jp-Notebook-cell.jp-mod-active.jp-mod-selected .CodeMirror")
 
   def lastCell: WebElement = {
     webDriver.findElements(cells.by).asScala.toList.last
@@ -150,9 +144,9 @@ class LabNotebookPage(override val url: String)(override implicit val authToken:
   }
 
   def cellOutput(cell: WebElement): Option[String] = {
-    val outputs = cell.findElements(By.xpath("../../../..//div[contains(@class,'output_subarea')]"))
+    val outputs = cell.findElements(By.cssSelector(cellOutputSelector))
     outputs.asScala.headOption.map(_.getText)
-  } //?????
+  }
 
   def executeCell(code: String, timeout: FiniteDuration = 1 minute): Option[String] = {
     await enabled cells
@@ -160,53 +154,53 @@ class LabNotebookPage(override val url: String)(override implicit val authToken:
     val cellNumber = numCellsOnPage
     click on cell
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
-    executeScript(s"""arguments[0].CodeMirror-line.setValue("$jsEscapedCode");""", lastCell)
+    executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
     clickRunCell(timeout)
     await condition (cellIsRendered(cellNumber), timeout.toSeconds)
     cellOutput(cell)
   }
 
-//  def translateMarkup(code: String, timeout: FiniteDuration = 1 minute): String = {
-//    await enabled cells
-//    await enabled translateCell
-//    val inputCell = lastCell
-//    val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
-//    executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", inputCell)
-//    changeCodeToMarkdown
-//    await enabled cells
-//    click on translateCell
-//    Thread.sleep(3000) // To fix, this is not good
-//    val outputCell = lastCell
-//    outputCell.getText
-//  }
-//
-//  private def changeCodeToMarkdown(): Unit = {
-//    click on cellMenu
-//    new Actions(webDriver).moveToElement(cellTypeSubMenu.underlying).perform()
-//    await visible translateCell
-//  }
+  //  def translateMarkup(code: String, timeout: FiniteDuration = 1 minute): String = {
+  //    await enabled cells
+  //    await enabled translateCell
+  //    val inputCell = lastCell
+  //    val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
+  //    executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", inputCell)
+  //    changeCodeToMarkdown
+  //    await enabled cells
+  //    click on translateCell
+  //    Thread.sleep(3000) // To fix, this is not good
+  //    val outputCell = lastCell
+  //    outputCell.getText
+  //  }
+  //
+  //  private def changeCodeToMarkdown(): Unit = {
+  //    click on cellMenu
+  //    new Actions(webDriver).moveToElement(cellTypeSubMenu.underlying).perform()
+  //    await visible translateCell
+  //  }
 
   def shutdownKernel(): Unit = {
     click on kernelMenu
-    click on (await enabled shutdownKernelSelection)
-//    click on (await enabled shutdownKernelConfirmationSelection)
+    click on (await enabled cssSelector(shutdownKernelSelection))
+    //    click on (await enabled shutdownKernelConfirmationSelection)
     await condition isKernelDisconnected
   }
 
-//  /**
-//    * Throw TimeoutException if Kernel is not ready after restart when timeout is reached
-//    *
-//    * @param timeout
-//    */
-//  def restartKernel(timeout: FiniteDuration = 1 minute): Unit = {
-//    logger.info("restarting kernel ...")
-//    click on kernelMenu
-//    click on (await enabled restartKernelSelection)
-//    click on (await enabled restartKernelConfirmationSelection)
-//    await notVisible restartKernelConfirmationSelection
-//    await condition (isKernelReady && kernelNotificationText == "none", timeout.toSeconds)
-//  }
-//
+  //  /**
+  //    * Throw TimeoutException if Kernel is not ready after restart when timeout is reached
+  //    *
+  //    * @param timeout
+  //    */
+  //  def restartKernel(timeout: FiniteDuration = 1 minute): Unit = {
+  //    logger.info("restarting kernel ...")
+  //    click on kernelMenu
+  //    click on (await enabled restartKernelSelection)
+  //    click on (await enabled restartKernelConfirmationSelection)
+  //    await notVisible restartKernelConfirmationSelection
+  //    await condition (isKernelReady && kernelNotificationText == "none", timeout.toSeconds)
+  //  }
+  //
   def clickRunCell(timeout: FiniteDuration = 2.minutes): Unit = {
     click on runCellButton
     awaitReadyKernel(timeout)
@@ -240,5 +234,36 @@ class LabNotebookPage(override val url: String)(override implicit val authToken:
     find(className("jp-Toolbar-kernelStatus")).exists(_.underlying.getAttribute("title") == "Kernel Idle")
   }
 
+
+
+
+  private def allCells: List[WebElement] = {
+    val cellQuery: Query = cssSelector(s"$cellSelector")
+    webDriver.findElements(cellQuery.by).asScala.toList
+  }
+
+  private def cellCount: Int = {
+    allCells.size
+  }
+
+  def runCodeInEmptyCell(code: String, timeout: FiniteDuration = 1 minute): Option[String] = {
+    Try {
+      await enabled cssSelector(emptyCellSelector)
+    } match {
+      case Success(value) => ()
+      case Failure(_) => throw new NoSuchElementException(s"Failed to find Notebook cell. css = [$emptyCellSelector]")
+    }
+    // click in cell to select it
+    click on cssSelector(s"$emptyCellSelector .CodeMirror")
+    // use JS to type code in cell
+    val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
+    executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", find(cssSelector(s"$emptyCellSelector .CodeMirror")))
+
+    clickRunCell(timeout)
+    val cell: WebElement = find(cssSelector(s"$emptyCellSelector .CodeMirror")).get.underlying
+    val cellNumber = numCellsOnPage
+    await condition (cellIsRendered(cellNumber), timeout.toSeconds)
+    cellOutput(cell)
+  }
 
 }
