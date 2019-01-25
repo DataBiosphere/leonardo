@@ -10,9 +10,9 @@ class LabSpec extends ClusterFixtureSpec {
     "should execute cells" taggedAs Tags.SmokeTest in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewLabNotebook(clusterFixture.cluster) { labNotebookPage =>
-          labNotebookPage.executeCell("1+1") shouldBe Some("2")
-          labNotebookPage.executeCell("2*3") shouldBe Some("6")
-          labNotebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
+          labNotebookPage.runCodeInEmptyCell("1+1") shouldBe Some("2")
+          labNotebookPage.runCodeInEmptyCell("2*3") shouldBe Some("6")
+          labNotebookPage.runCodeInEmptyCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
         }
       }
     }

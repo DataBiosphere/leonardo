@@ -5,7 +5,7 @@ import org.openqa.selenium.WebDriver
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 sealed trait LabKernel {
   def string: String
@@ -60,8 +60,13 @@ class LabLauncherPage(override val url: String)(override implicit val authToken:
     // Not calling NotebookPage.open() as it should already be opened
     val labNotebookPage = new LabNotebookPage(currentUrl)
     labNotebookPage.awaitReadyKernel(timeout)
-    val result = Try { testCode(labNotebookPage) }
+    val result = Try {
+      testCode(labNotebookPage)
+    } match {
+      case Failure(f) => throw f
+      case Success(value) => value
+    }
     labNotebookPage.shutdownKernel()
-    result.get
+    result
   }
 }

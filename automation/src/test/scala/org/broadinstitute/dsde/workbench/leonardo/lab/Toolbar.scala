@@ -1,7 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.lab
 
-import org.scalatest.selenium.WebBrowser.cssSelector
-import org.scalatest.selenium.WebBrowser.Query
 
 trait Toolbar {
 

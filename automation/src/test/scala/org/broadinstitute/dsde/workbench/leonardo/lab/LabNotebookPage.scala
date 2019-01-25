@@ -9,7 +9,7 @@ import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.scalatest.exceptions.TestFailedDueToTimeoutException
 import org.scalatest.time.{Seconds, Span}
 import org.broadinstitute.dsde.workbench.leonardo.KernelNotReadyException
-import org.openqa.selenium.{By, WebDriver, WebElement}
+import org.openqa.selenium.{By, TimeoutException, WebDriver, WebElement}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
@@ -29,15 +29,15 @@ class LabNotebookPage(override val url: String)(override implicit val authToken:
   // menu elements
 
   lazy val fileMenu: Element = {
-    findAll(menus).filter { e => e.text == "File" }.toList.head
+    findAll(cssSelector(menus)).filter { e => e.text == "File" }.toList.head
   }
 
   lazy val runMenu: Element = {
-    findAll(menus).filter { e => e.text == "Run" }.toList.head
+    findAll(cssSelector(menus)).filter { e => e.text == "Run" }.toList.head
   }
 
   lazy val kernelMenu: Element = {
-    findAll(menus).filter { e => e.text == "Kernel" }.toList.head
+    findAll(cssSelector(menus)).filter { e => e.text == "Kernel" }.toList.head
   }
 
 
@@ -75,7 +75,7 @@ class LabNotebookPage(override val url: String)(override implicit val authToken:
   //  lazy val restartKernelConfirmationSelection: Query = cssSelector("[class='btn btn-default btn-sm btn-danger']")
   //
   // selects the numbered left-side cell prompts
-  lazy val prompts: String = ".jp-OutputArea-prompt"
+  lazy val prompts: String = ".jp-InputPrompt.jp-InputArea-prompt"
   //
   //  lazy val toMarkdownCell:Query = cssSelector("[title='Markdown']")
   //
@@ -90,7 +90,7 @@ class LabNotebookPage(override val url: String)(override implicit val authToken:
   //  // since we execute cells one by one, the Nth cell (counting from 1) will also have Cell Number N
   def cellIsRendered(cellNumber: Int): Boolean = {
     findAll(cssSelector(prompts)).exists { e =>
-      println(e.text)
+      println(s"e.text = ${e.text}")
       e.text == s"[$cellNumber]:"
     }
   }
@@ -129,7 +129,7 @@ class LabNotebookPage(override val url: String)(override implicit val authToken:
   //    click on (await enabled saveAndCheckpointSelection)
   //  }
   //
-  lazy val cells: Query = cssSelector(".jp-Notebook-cell.jp-mod-active.jp-mod-selected .CodeMirror")
+  lazy val cells: Query = cssSelector(".jp-Notebook-cell")
 
   def lastCell: WebElement = {
     webDriver.findElements(cells.by).asScala.toList.last
@@ -202,7 +202,7 @@ class LabNotebookPage(override val url: String)(override implicit val authToken:
   //  }
   //
   def clickRunCell(timeout: FiniteDuration = 2.minutes): Unit = {
-    click on runCellButton
+    click on cssSelector(runCellButton)
     awaitReadyKernel(timeout)
   }
 
@@ -248,22 +248,31 @@ class LabNotebookPage(override val url: String)(override implicit val authToken:
 
   def runCodeInEmptyCell(code: String, timeout: FiniteDuration = 1 minute): Option[String] = {
     Try {
-      await enabled cssSelector(emptyCellSelector)
+      await enabled cells
     } match {
       case Success(value) => ()
-      case Failure(_) => throw new NoSuchElementException(s"Failed to find Notebook cell. css = [$emptyCellSelector]")
+      case Failure(_) => throw new NoSuchElementException(s"Failed to find Notebook cell. css = [${cells.by}]")
     }
-    // click in cell to select it
-    click on cssSelector(s"$emptyCellSelector .CodeMirror")
-    // use JS to type code in cell
+
+    val cell = lastCell
+    val cellNumber = numCellsOnPage
+
+    // click in cell to set it in focus
+    click on cell.findElement(By.cssSelector(".CodeMirror"))
+
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
-    executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", find(cssSelector(s"$emptyCellSelector .CodeMirror")))
+    executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell.findElement(By.cssSelector(".CodeMirror")))
 
     clickRunCell(timeout)
-    val cell: WebElement = find(cssSelector(s"$emptyCellSelector .CodeMirror")).get.underlying
-    val cellNumber = numCellsOnPage
-    await condition (cellIsRendered(cellNumber), timeout.toSeconds)
+
+    try {
+      await condition(cellIsRendered(cellNumber), timeout.toSeconds)
+    } catch {
+      case e: Exception => throw new TimeoutException(s"cellIsRendered($cellNumber) failed.", e)
+    }
+
     cellOutput(cell)
+
   }
 
 }
