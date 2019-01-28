@@ -31,6 +31,8 @@ import org.scalatest.{Matchers, Suite}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Minutes, Seconds, Span}
 
+import org.broadinstitute.dsde.workbench.leonardo.notebooks._
+
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -74,6 +76,19 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   val jupyterLabExtensionClusterRequest = UserJupyterExtensionConfig(
     serverExtensions = Map("jupyterlab" -> "jupyterlab")
   )
+
+  // TODO: move this to NotebookTestUtils and chance cluster-specific functions to only call if necessary after implementing RStudio
+  def saveJupyterLogFile(clusterName: ClusterName, googleProject: GoogleProject, suffix: String)(implicit token: AuthToken): Try[File] = {
+    Try {
+      val jupyterLogOpt = notebooks.Notebook.getContentItem(googleProject, clusterName, "jupyter.log", includeContent = true)
+      val content = jupyterLogOpt.content.getOrElse(throw new RuntimeException(s"Could not download jupyter.log for cluster ${googleProject.value}/${clusterName.string}"))
+      val downloadFile = new File(logDir, s"${googleProject.value}-${clusterName.string}-$suffix-jupyter.log")
+      val fos = new FileOutputStream(downloadFile)
+      fos.write(content.getBytes(StandardCharsets.UTF_8))
+      fos.close()
+      downloadFile
+    }
+  }
 
   // TODO: show diffs as screenshot or other test output?
   def compareFilesExcludingIPs(left: File, right: File): Unit = {
@@ -435,23 +450,6 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   def withLabLauncherPage[T](cluster: Cluster)(testCode: LabLauncherPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     val labLauncherPage = lab.Lab.get(cluster.googleProject, cluster.clusterName)
     testCode(labLauncherPage.open)
-  }
-
-
-  private def whenKernelNotReady(t: Throwable): Boolean = t match {
-    case e: KernelNotReadyException => true
-    case _ => false
-  }
-
-  def withNewLabNotebook[T](cluster: Cluster, kernel: LabKernel = lab.Python2, timeout: FiniteDuration = 2.minutes)(testCode: LabNotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
-    withLabLauncherPage(cluster) { labLauncherPage =>
-      val result: Future[T] = retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds, 2 minutes) {() =>
-        Future(labLauncherPage.withNewNotebook(kernel, timeout) { labNotebookPage =>
-          testCode(labNotebookPage)
-        })
-      }
-      Await.result(result, 10 minutes)
-    }
   }
 
 

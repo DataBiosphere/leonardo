@@ -1,51 +1,31 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, File, FileOutputStream}
+import java.io.{File, FileOutputStream}
 import java.nio.charset.StandardCharsets
-import java.nio.file.Files
 import java.util.Base64
 
-import akka.actor.ActorSystem
-import cats.data.OptionT
-import cats.implicits._
-import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.ResourceFile
-import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
-import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserAuthToken}
-import org.broadinstitute.dsde.workbench.config.Credentials
+import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
-import org.broadinstitute.dsde.workbench.service.{Orchestration, RestException, Sam}
-import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
-import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{ClusterStatus, deletableStatuses}
-import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion
-import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.{V1, V2}
-import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestUtils
-import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
-import org.broadinstitute.dsde.workbench.leonardo.lab._
-import org.broadinstitute.dsde.workbench.leonardo.notebooks._
+import org.broadinstitute.dsde.workbench.service.Sam
+import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.util._
 import org.openqa.selenium.WebDriver
-import org.scalactic.source.Position
-import org.scalatest.concurrent.PatienceConfiguration.Timeout
-import org.scalatest.{Matchers, Suite}
-import org.scalatest.concurrent.{Eventually, ScalaFutures}
-import org.scalatest.time.{Minutes, Seconds, Span}
+import org.scalatest.Suite
 
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import scala.util.{Failure, Random, Success, Try}
-
-case class KernelNotReadyException(timeElapsed:Timeout)
-  extends Exception(s"Jupyter kernel is NOT ready after waiting ${timeElapsed}")
-
-case class TimeResult[R](result:R, duration:FiniteDuration)
+import scala.util.{Failure, Success, Try}
 
 trait NotebookTestUtils extends LeonardoTestUtils {
   this: Suite with BillingFixtures =>
 
+  private def whenKernelNotReady(t: Throwable): Boolean = t match {
+    case e: KernelNotReadyException => true
+    case _ => false
+  }
 
   def verifyNotebookCredentials(notebookPage: NotebookPage, expectedEmail: WorkbenchEmail): Unit = {
     // verify google-auth
@@ -297,18 +277,6 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     downloadFile.deleteOnExit()
   }
 
-  def saveJupyterLogFile(clusterName: ClusterName, googleProject: GoogleProject, suffix: String)(implicit token: AuthToken): Try[File] = {
-    Try {
-      val jupyterLogOpt = notebooks.Notebook.getContentItem(googleProject, clusterName, "jupyter.log", includeContent = true)
-      val content = jupyterLogOpt.content.getOrElse(throw new RuntimeException(s"Could not download jupyter.log for cluster ${googleProject.value}/${clusterName.string}"))
-      val downloadFile = new File(logDir, s"${googleProject.value}-${clusterName.string}-$suffix-jupyter.log")
-      val fos = new FileOutputStream(downloadFile)
-      fos.write(content.getBytes(StandardCharsets.UTF_8))
-      fos.close()
-      downloadFile
-    }
-  }
-
 
   def pipInstall(notebookPage: NotebookPage, kernel: NotebookKernel, packageName: String): Unit = {
     val pip = kernel match {
@@ -337,7 +305,5 @@ trait NotebookTestUtils extends LeonardoTestUtils {
       case other => fail(s"Unexpected kernel: $other")
     }
   }
-
-  def noop[A](x: A): Unit = ()
 
 }
