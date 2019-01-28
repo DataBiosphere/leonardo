@@ -48,7 +48,7 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sou
 
  # R separately because it depends on gnupg installed above
  && echo "deb $CRAN_REPO/bin/linux/debian stretch-cran35/"       >> /etc/apt/sources.list \
- && apt-key adv  --no-tty --keyserver keys.gnupg.net \
+ && apt-key adv  --no-tty --keyserver keyserver.ubuntu.com \
     --recv-key 'E19F5F87128899B192B1A2C2AD5F960A256A04AF' \
 
  # Uncomment en_US.UTF-8 for inclusion in generation
