@@ -79,5 +79,19 @@ final class NotebookCustomizationSpec extends FreeSpec
         }
       }
     }
+
+    "should install user specified lab extensions" in {
+      withProject { project => implicit token =>
+        withNewCluster(project, request = ClusterRequest(userJupyterExtensionConfig = Some(UserJupyterExtensionConfig(labExtensions = Map("jupyterlab-toc" -> "@jupyterlab/toc"))))) { cluster =>
+          withWebDriver { implicit driver =>
+            withNewNotebook(cluster) { notebookPage =>
+              val query = """!jupyter labextension list"""
+              val result = notebookPage.executeCell(query).get
+              result should include("@jupyterlab/toc")
+            }
+          }
+        }
+      }
+    }
   }
 }
