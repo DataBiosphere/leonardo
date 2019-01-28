@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.cluster
 
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V2
-import org.broadinstitute.dsde.workbench.leonardo.{Leonardo, LeonardoTestUtils}
+import org.broadinstitute.dsde.workbench.leonardo.{Leonardo, LeonardoTestUtils, notebooks}
 import org.broadinstitute.dsde.workbench.service.RestException
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 
@@ -70,7 +70,7 @@ class ClusterExceptionSpec extends FreeSpec with LeonardoTestUtils with Parallel
         withNewCluster(project, monitorCreate = true, apiVersion = V2) { cluster =>
           withWebDriver { implicit driver =>
             val thrown = the[Exception] thrownBy {
-              Leonardo.notebooks.setCookie(cluster.googleProject, cluster.clusterName)(voldyAuthToken, driver)
+              notebooks.Notebook.setCookie(cluster.googleProject, cluster.clusterName)(voldyAuthToken, driver)
             }
             thrown.getMessage should include(""""statusCode":401""")
           }

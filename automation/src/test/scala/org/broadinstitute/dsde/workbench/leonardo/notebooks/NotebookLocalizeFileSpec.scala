@@ -27,7 +27,7 @@ class NotebookLocalizeFileSpec extends ClusterFixtureSpec {
         val cluster = clusterFixture.cluster
         withLocalizeDelocalizeFiles(cluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
           // call localize; this should return 200
-          Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, localizeRequest, async = true)
+          Notebook.localize(cluster.googleProject, cluster.clusterName, localizeRequest, async = true)
 
           // check that the files are eventually at their destinations
           implicit val patienceConfig: PatienceConfig = localizePatience
@@ -37,11 +37,11 @@ class NotebookLocalizeFileSpec extends ClusterFixtureSpec {
 
           // call localize again with bad data. This should still return 200 since we're in async mode.
           val badLocalize = Map("file.out" -> "gs://nobuckethere")
-          Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, badLocalize, async = true)
+          Notebook.localize(cluster.googleProject, cluster.clusterName, badLocalize, async = true)
 
           // it should not have localized this file
           val thrown = the[RestException] thrownBy {
-            Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "file.out", includeContent = false)
+            Notebook.getContentItem(cluster.googleProject, cluster.clusterName, "file.out", includeContent = false)
           }
           // why doesn't `RestException` have a status code field?
           thrown.message should include("No such file or directory: file.out")
@@ -61,7 +61,7 @@ class NotebookLocalizeFileSpec extends ClusterFixtureSpec {
         val cluster = clusterFixture.cluster
         withLocalizeDelocalizeFiles(cluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
           // call localize; this should return 200
-          Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, localizeRequest, async = false)
+          Notebook.localize(cluster.googleProject, cluster.clusterName, localizeRequest, async = false)
 
           // check that the files are immediately at their destinations
           verifyLocalizeDelocalize(cluster, localizeFileName, localizeFileContents, GcsPath(bucketName, GcsObjectName(delocalizeFileName)), delocalizeFileContents, localizeDataFileName, localizeDataContents)
@@ -69,7 +69,7 @@ class NotebookLocalizeFileSpec extends ClusterFixtureSpec {
           // call localize again with bad data. This should still return 500 since we're in sync mode.
           val badLocalize = Map("file.out" -> "gs://nobuckethere")
           val thrown = the[RestException] thrownBy {
-            Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, badLocalize, async = false)
+            Notebook.localize(cluster.googleProject, cluster.clusterName, badLocalize, async = false)
           }
           // why doesn't `RestException` have a status code field?
           thrown.message should include("500 : Internal Server Error")
@@ -78,7 +78,7 @@ class NotebookLocalizeFileSpec extends ClusterFixtureSpec {
 
           // it should not have localized this file
           val contentThrown = the[RestException] thrownBy {
-            Leonardo.notebooks.getContentItem(cluster.googleProject, cluster.clusterName, "file.out", includeContent = false)
+            Notebook.getContentItem(cluster.googleProject, cluster.clusterName, "file.out", includeContent = false)
           }
           contentThrown.message should include("No such file or directory: file.out")
         }
@@ -97,7 +97,7 @@ class NotebookLocalizeFileSpec extends ClusterFixtureSpec {
         val cluster = clusterFixture.cluster
         withLocalizeDelocalizeFiles(cluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
           // call localize; this should return 200
-          Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, localizeRequest, async = false)
+          Notebook.localize(cluster.googleProject, cluster.clusterName, localizeRequest, async = false)
 
           // check that the files are at their destinations
           implicit val patienceConfig: PatienceConfig = storagePatience

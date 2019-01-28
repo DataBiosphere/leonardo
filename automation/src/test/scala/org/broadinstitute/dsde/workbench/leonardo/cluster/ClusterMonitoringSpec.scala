@@ -288,7 +288,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
         withNewCluster(project, request = ClusterRequest()) { cluster =>
           withWebDriver { implicit driver =>
             // Check that the /lab URL is accessible
-            val getResult = Try(Leonardo.lab.getApi(project, cluster.clusterName))
+            val getResult = Try(lab.Lab.getApi(project, cluster.clusterName))
             getResult.isSuccess shouldBe true
             getResult.get should not include "ProxyException"
 
@@ -304,7 +304,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
 
             withLocalizeDelocalizeFiles(cluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
               // call localize; this should return 200
-              Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, localizeRequest, async = false)
+              notebooks.Notebook.localize(cluster.googleProject, cluster.clusterName, localizeRequest, async = false)
 
               // check that the files are immediately at their destinations
               verifyLocalizeDelocalize(cluster, localizeFileName, localizeFileContents, GcsPath(bucketName, GcsObjectName(delocalizeFileName)), delocalizeFileContents, localizeDataFileName, localizeDataContents)
