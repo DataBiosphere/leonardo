@@ -1,4 +1,4 @@
-package org.broadinstitute.dsde.workbench.leonardo.cluster
+package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import java.io.File
 
@@ -7,7 +7,6 @@ import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorage
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V2
 import org.broadinstitute.dsde.workbench.leonardo._
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.PySpark2
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsObjectName, GcsPath, parseGcsPath}
@@ -19,7 +18,7 @@ import org.scalatest.{FreeSpec, ParallelTestExecution}
 import scala.concurrent.duration._
 import scala.util.Try
 
-class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with ParallelTestExecution with BillingFixtures {
+class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with ParallelTestExecution with BillingFixtures {
 
   "Leonardo clusters" - {
 
@@ -354,6 +353,19 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
                 }
               }
             }(ronAuthToken)
+          }
+        }
+      }
+    }
+
+    "should throw 401 for invalid token" in {
+      withProject { project => implicit token =>
+        withNewCluster(project, monitorCreate = true, apiVersion = V2) { cluster =>
+          withWebDriver { implicit driver =>
+            val thrown = the[Exception] thrownBy {
+              notebooks.Notebook.setCookie(cluster.googleProject, cluster.clusterName)(voldyAuthToken, driver)
+            }
+            thrown.getMessage should include(""""statusCode":401""")
           }
         }
       }

@@ -1,8 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
-import org.broadinstitute.dsde.workbench.leonardo.cluster.ClusterFixtureSpec
-import org.broadinstitute.dsde.workbench.leonardo.Leonardo
+import org.broadinstitute.dsde.workbench.leonardo.ClusterFixtureSpec
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath}
 import org.broadinstitute.dsde.workbench.service.RestException
 import org.broadinstitute.dsde.workbench.service.util.Tags
@@ -10,7 +9,7 @@ import org.broadinstitute.dsde.workbench.service.util.Tags
 import scala.language.postfixOps
 
 
-class NotebookLocalizeFileSpec extends ClusterFixtureSpec {
+class NotebookLocalizeFileSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
 
   "Leonardo notebooks" - {

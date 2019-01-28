@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, File, FileOutputStream}
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
-import java.util.Base64
 
 import akka.actor.ActorSystem
 import cats.data.OptionT
@@ -30,8 +29,6 @@ import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.{Matchers, Suite}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Minutes, Seconds, Span}
-
-import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 
 import scala.concurrent._
 import scala.concurrent.duration._

@@ -1,24 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo.lab
 
-import java.io.{File, FileOutputStream}
-import java.nio.charset.StandardCharsets
-import java.util.Base64
 
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo._
-import org.broadinstitute.dsde.workbench.leonardo.notebooks._
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.service.Sam
 import org.openqa.selenium.WebDriver
 import org.scalatest.Suite
 
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import scala.util.{Failure, Success, Try}
 
 trait LabTestUtils extends LeonardoTestUtils {
   this: Suite with BillingFixtures =>
@@ -28,6 +19,7 @@ trait LabTestUtils extends LeonardoTestUtils {
     case _ => false
   }
 
+  implicit val ec: ExecutionContextExecutor = ExecutionContext.global
   def withNewLabNotebook[T](cluster: Cluster, kernel: LabKernel = lab.Python2, timeout: FiniteDuration = 2.minutes)(testCode: LabNotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withLabLauncherPage(cluster) { labLauncherPage =>
       val result: Future[T] = retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds, 2 minutes) {() =>

@@ -1,9 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.lab
 
-import org.broadinstitute.dsde.workbench.leonardo.cluster.ClusterFixtureSpec
+import org.broadinstitute.dsde.workbench.leonardo.ClusterFixtureSpec
 import org.broadinstitute.dsde.workbench.service.util.Tags
 
-class LabSpec extends ClusterFixtureSpec {
+class LabSpec extends ClusterFixtureSpec with LabTestUtils {
 
   "Leonardo lab" - {
 

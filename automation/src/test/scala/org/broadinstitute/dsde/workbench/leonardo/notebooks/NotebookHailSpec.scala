@@ -3,14 +3,14 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 import java.nio.file.Files
 
 import org.broadinstitute.dsde.workbench.ResourceFile
-import org.broadinstitute.dsde.workbench.leonardo.cluster.ClusterFixtureSpec
+import org.broadinstitute.dsde.workbench.leonardo.ClusterFixtureSpec
 import org.broadinstitute.dsde.workbench.service.util.Tags
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
 
-class NotebookHailSpec extends ClusterFixtureSpec {
+class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
   "Leonardo notebooks" - {
 

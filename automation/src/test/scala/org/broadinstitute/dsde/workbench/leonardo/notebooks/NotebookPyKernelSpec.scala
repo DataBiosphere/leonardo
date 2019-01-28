@@ -1,14 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import org.broadinstitute.dsde.workbench.leonardo.Leonardo
-import org.broadinstitute.dsde.workbench.leonardo.cluster.ClusterFixtureSpec
+import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, Leonardo}
 import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.broadinstitute.dsde.workbench.service.util.Tags
 
 import scala.concurrent.duration.DurationLong
 import scala.language.postfixOps
 
-class NotebookPyKernelSpec extends ClusterFixtureSpec {
+class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
   "Leonardo notebooks" - {
 
