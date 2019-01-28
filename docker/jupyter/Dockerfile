@@ -168,13 +168,13 @@ RUN apt-get update \
 # Python 3 Kernel
 RUN apt-get update \
  && apt-get install -t testing -yq --no-install-recommends \
-    python3.6 \
-    python3.6-dev \
+    python3.7 \
+    python3.7-dev \
     python3-distutils \
     # for jupyterlab extensions
     nodejs \
     npm \
- && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.6 100 \
+ && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.7 100 \
  && python3 get-pip.py \
  && pip3 install tornado==4.5.3 \
 # # Hail requires decorator
@@ -215,7 +215,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 # fixed current ggplot issue where it imports Timestamp from pandas.lib (deprecated) instead of pandas
-RUN sed -i 's/pandas.lib/pandas/g' /usr/local/lib/python3.6/dist-packages/ggplot/stats/smoothers.py
+RUN sed -i 's/pandas.lib/pandas/g' /usr/local/lib/python3.7/dist-packages/ggplot/stats/smoothers.py
 
 # make pip install to a user directory, instead of a system directory which requires root.
 # this is useful so `pip install` commands can be run in the context of a notebook.
