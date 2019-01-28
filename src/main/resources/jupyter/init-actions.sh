@@ -313,9 +313,39 @@ if [[ "${ROLE}" == 'Master' ]]; then
     log 'All done!'
 fi
 
-export DEBIAN_FRONTEND=noninteractive
-echo "deb http://ftp.de.debian.org/debian testing main"      >> /etc/apt/sources.list
-retry 5 betterAptGet
-retry 5 apt-get -yq --force-yes install -t testing --no-install-recommends \
-    python3.6
-retry 5 update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.6 100
+# lifted from https://github.com/docker-library/python/blob/dd36c08c1f94083476a8579b8bf20c4cd46c6400/3.6/stretch/Dockerfile
+export PYTHON_VERSION=3.6.8
+set -ex \
+ && wget -O python.tar.xz "https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/Python-$PYTHON_VERSION.tar.xz" \
+ && wget -O python.tar.xz.asc "https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/Python-$PYTHON_VERSION.tar.xz.asc" \
+ && export GNUPGHOME="$(mktemp -d)" \
+ && gpg --batch --keyserver ha.pool.sks-keyservers.net --recv-keys "0D96DF4D4110E5C43FBFB17F2D347EA6AA65421D" \
+ && gpg --batch --verify python.tar.xz.asc python.tar.xz \
+ && { command -v gpgconf > /dev/null && gpgconf --kill all || :; } \
+ && rm -rf "$GNUPGHOME" python.tar.xz.asc \
+ && mkdir -p /usr/src/python \
+ && tar -xJC /usr/src/python --strip-components=1 -f python.tar.xz \
+ && rm python.tar.xz \
+ \
+ && cd /usr/src/python \
+ && gnuArch="$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)" \
+ && ./configure \
+    --build="$gnuArch" \
+    --enable-loadable-sqlite-extensions \
+    --enable-shared \
+    --with-system-expat \
+    --with-system-ffi \
+    --without-ensurepip \
+ && make -j "$(nproc)" \
+ && make install \
+ && ldconfig \
+ \
+ && find /usr/local -depth \
+    \( \
+        \( -type d -a \( -name test -o -name tests \) \) \
+        -o \
+        \( -type f -a \( -name '*.pyc' -o -name '*.pyo' \) \) \
+    \) -exec rm -rf '{}' + \
+ && rm -rf /usr/src/python \
+ \
+ && python3 --version
