@@ -7,6 +7,7 @@ import scala.concurrent.duration.FiniteDuration
 case class DataprocConfig(
                            applicationName: String,
                            dataprocDefaultRegion: String,
+                           dataprocZone: Option[String],
                            leoGoogleProject: GoogleProject,
                            dataprocDockerImage: String,
                            clusterUrlBase: String,
