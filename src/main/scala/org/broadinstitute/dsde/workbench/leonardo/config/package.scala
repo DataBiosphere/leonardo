@@ -21,6 +21,7 @@ package object config {
     DataprocConfig(
       config.getString("applicationName"),
       config.getString("dataprocDefaultRegion"),
+      config.getAs[String]("dataprocZone"),
       GoogleProject(config.getString("leoGoogleProject")),
       config.getString("dataprocDockerImage"),
       config.getString("clusterUrlBase"),
