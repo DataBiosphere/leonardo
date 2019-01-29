@@ -313,9 +313,25 @@ if [[ "${ROLE}" == 'Master' ]]; then
     log 'All done!'
 fi
 
-export DEBIAN_FRONTEND=noninteractive
-echo "deb http://ftp.de.debian.org/debian testing main"      >> /etc/apt/sources.list
-retry 5 betterAptGet
-retry 5 apt-get -yq --force-yes install -t testing --no-install-recommends \
-    python3.6
-retry 5 update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.6 100
+# Install Python 3.6 on the master and worker VMs
+export PYTHON_VERSION=3.6.8
+log "Installing Python $PYTHON_VERSION on the VM..."
+wget -O python.tar.xz "https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/Python-$PYTHON_VERSION.tar.xz"
+mkdir -p /usr/src/python
+tar -xJC /usr/src/python --strip-components=1 -f python.tar.xz
+rm python.tar.xz
+cd /usr/src/python
+gnuArch="$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)"
+./configure \
+  --build="$gnuArch" \
+  --enable-loadable-sqlite-extensions \
+  --enable-shared \
+  --with-system-expat \
+  --with-system-ffi \
+  --without-ensurepip
+make -j "$(nproc)"
+make install
+ldconfig
+python3 --version
+
+log "Finished installing Python $PYTHON_VERSION"
