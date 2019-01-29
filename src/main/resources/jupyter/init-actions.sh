@@ -331,6 +331,7 @@ gnuArch="$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)"
   --without-ensurepip
 make -j "$(nproc)"
 make install
+ldconfig
 python3 --version
 
 log "Finished installing Python $PYTHON_VERSION"
