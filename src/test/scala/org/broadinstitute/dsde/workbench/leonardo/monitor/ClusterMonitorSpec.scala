@@ -278,62 +278,13 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
   // Pre:
   // - cluster exists in the DB with status Creating
-  // - dataproc DAO returns status ERROR, but no error code
-  // - compute DAO returns RUNNING
-  // Post:
-  // - cluster is not changed in the DB
-  // - instances are populated in the DB
-  // - monitor actor does not shut down
-  it should "keep monitoring in ERROR state with no error code" in isolatedDbTest {
-    val savedCreatingCluster = creatingCluster.save()
-    creatingCluster shouldEqual savedCreatingCluster
-    
-    val dao = mock[GoogleDataprocDAO]
-    when {
-      dao.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
-    } thenReturn Future.successful(ClusterStatus.Error)
-
-    when {
-      dao.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
-    } thenReturn Future.successful(clusterInstances)
-
-    when {
-      dao.getClusterErrorDetails(mockitoEq(creatingCluster.dataprocInfo.operationName))
-    } thenReturn Future.successful(None)
-
-    val iamDAO = mock[GoogleIamDAO]
-    when {
-      iamDAO.removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
-    } thenReturn Future.successful(())
-
-    val computeDAO = stubComputeDAO(InstanceStatus.Running)
-    val storageDAO = mock[GoogleStorageDAO]
-    val authProvider = mock[LeoAuthProvider]
-
-    withClusterSupervisor(dao, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, true) { actor =>
-
-      eventually {
-        val updatedCluster = dbFutureValue {
-          _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
-        }
-        updatedCluster shouldBe 'defined
-        updatedCluster shouldBe Some(savedCreatingCluster.copy(instances = Set(masterInstance, workerInstance1, workerInstance2)))
-      }
-      verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
-      verify(iamDAO, never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
-      verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
-    }
-  }
-
-  // Pre:
-  // - cluster exists in the DB with status Creating
   // - dataproc DAO returns status ERROR and error code CANCELLED
   // - compute DAO returns RUNNING
   // Post:
   // - cluster status is set to Error in the DB
   // - instances are populated in the DB
   // - monitor actor shuts down
-  it should "monitor until ERROR state with no restart" in isolatedDbTest {
+  it should "monitor until ERROR state with no restart and getClusterStatus returns Some(ErrorDetail) " in isolatedDbTest {
     val savedCreatingCluster = creatingCluster.save()
     creatingCluster shouldEqual savedCreatingCluster
 
@@ -345,6 +296,66 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     when {
       gdDAO.getClusterErrorDetails(mockitoEq(creatingCluster.dataprocInfo.operationName))
     } thenReturn Future.successful(Some(ClusterErrorDetails(Code.CANCELLED.value, Some("test message"))))
+
+    when {
+      gdDAO.deleteCluster(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+    } thenReturn Future.successful(())
+
+    when {
+      gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+    } thenReturn Future.successful(clusterInstances)
+
+    val iamDAO = mock[GoogleIamDAO]
+    when {
+      iamDAO.removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
+    } thenReturn Future.successful(())
+
+    when {
+      iamDAO.removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
+    } thenReturn Future.successful(())
+
+    val computeDAO = stubComputeDAO(InstanceStatus.Running)
+    val storageDAO = mock[GoogleStorageDAO]
+    val authProvider = mock[LeoAuthProvider]
+
+    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, false) { actor =>
+
+      eventually {
+        val updatedCluster = dbFutureValue {
+          _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
+        }
+        updatedCluster shouldBe 'defined
+        updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Error)
+        updatedCluster.flatMap(_.dataprocInfo.hostIp) shouldBe None
+        updatedCluster.map(_.instances) shouldBe Some(Set(masterInstance, workerInstance1, workerInstance2))
+      }
+      verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
+      verify(iamDAO, if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
+      verify(iamDAO, if (notebookServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
+    }
+  }
+
+
+  // Pre:
+  // - cluster exists in the DB with status Creating
+  // - dataproc DAO returns status ERROR and error code CANCELLED
+  // - compute DAO returns RUNNING
+  // Post:
+  // - cluster status is set to Error in the DB
+  // - instances are populated in the DB
+  // - monitor actor shuts down
+  it should "monitor until ERROR state with no restart and getClusterErrorDetails returns None " in isolatedDbTest {
+    val savedCreatingCluster = creatingCluster.save()
+    creatingCluster shouldEqual savedCreatingCluster
+
+    val gdDAO = mock[GoogleDataprocDAO]
+    when {
+      gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+    } thenReturn Future.successful(ClusterStatus.Error)
+
+    when {
+      gdDAO.getClusterErrorDetails(mockitoEq(creatingCluster.dataprocInfo.operationName))
+    } thenReturn Future.successful(None)
 
     when {
       gdDAO.deleteCluster(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
