@@ -338,7 +338,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
   // Pre:
   // - cluster exists in the DB with status Creating
-  // - dataproc DAO returns status ERROR and error code CANCELLED
+  // - dataproc DAO returns status ERROR and no ERROR CODE
   // - compute DAO returns RUNNING
   // Post:
   // - cluster status is set to Error in the DB
