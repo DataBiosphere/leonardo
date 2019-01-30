@@ -343,16 +343,6 @@ RUN R -e 'install.packages(c( \
 # Utilities
 #######################
 
-
-##GCSFUSE
-ENV GCSFUSE_REPO gcsfuse-jessie
-
-RUN echo "deb http://packages.cloud.google.com/apt $GCSFUSE_REPO main" \
-    | tee /etc/apt/sources.list.d/gcsfuse.list \
-  && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - \
-  && apt-get update \
-  && apt-get install --yes gcsfuse
-
 ADD scripts $JUPYTER_HOME/scripts
 ADD custom/jupyter_delocalize.py $JUPYTER_HOME/custom/
 ADD custom/jupyter_localize_extension.py $JUPYTER_HOME/custom/
