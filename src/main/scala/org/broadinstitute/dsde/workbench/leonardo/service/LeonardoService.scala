@@ -1,9 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
-import java.io.File
+import java.io.{File, IOException}
 import java.time.Instant
 
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import cats.data.OptionT
 import cats.implicits._
@@ -22,10 +22,9 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor._
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, UserInfo, WorkbenchEmail, WorkbenchException}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.Retry
 import slick.dbio.DBIO
 import spray.json._
@@ -95,7 +94,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val leoGoogleStorageDAO: GoogleStorageDAO,
                       protected val petGoogleStorageDAO: String => GoogleStorageDAO,
                       protected val dbRef: DbReference,
-                      protected val clusterMonitorSupervisor: ActorRef,
                       protected val authProvider: LeoAuthProvider,
                       protected val serviceAccountProvider: ServiceAccountProvider,
                       protected val whitelist: Set[String],
@@ -130,9 +128,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       Future.failed(new AuthorizationError(Some(userInfo.userEmail)))
     }
   }
-
-  // Register this instance with the cluster monitor supervisor so our cluster monitor can potentially delete and recreate clusters
-  clusterMonitorSupervisor ! RegisterLeoService(this)
 
   protected def checkProjectPermission(userInfo: UserInfo, action: ProjectAction, project: GoogleProject): Future[Unit] = {
     authProvider.hasProjectPermission(userInfo, action, project) map {
@@ -199,8 +194,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           // Save the cluster in the database
           savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, Option(GcsPath(initBucket, GcsObjectName(""))), serviceAccountKeyOpt.map(_.id)))
         } yield {
-          // Notify the cluster monitor that the cluster has been created
-          clusterMonitorSupervisor ! ClusterCreated(savedCluster, clusterRequest.stopAfterCreation.getOrElse(false))
           savedCluster
         }
 
@@ -297,7 +290,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
             logger.info(s"Successfully submitted to Google the request to create cluster " +
               s"'${updatedCluster.clusterName}' on Google project '${updatedCluster.googleProject}', " +
               s"and updated the database record accordingly. Will monitor the cluster creation process...")
-            clusterMonitorSupervisor ! ClusterCreated(updatedCluster, clusterRequest.stopAfterCreation.getOrElse(false))
           case Failure(e) =>
             logger.error(s"Failed the asynchronous portion of the creation of cluster '$clusterName' " +
               s"on Google project '$googleProject'.", e)
@@ -376,7 +368,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         updatedCluster <- internalGetActiveClusterDetails(existingCluster.googleProject, existingCluster.clusterName)
       } yield {
-        if(clusterResized) { clusterMonitorSupervisor ! ClusterUpdated(updatedCluster.copy(status = ClusterStatus.Updating)) }
         updatedCluster
       }
     } else Future.failed(ClusterCannotBeUpdatedException(existingCluster))
@@ -451,11 +442,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         // Change the cluster status to Deleting in the database
         // Note this also changes the instance status to Deleting
         _ <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.id))
-      } yield {
-        // Notify the cluster monitor supervisor of cluster deletion.
-        // This will kick off polling until the cluster is actually deleted in Google.
-        clusterMonitorSupervisor ! ClusterDeleted(cluster.copy(status = ClusterStatus.Deleting))
-      }
+      } yield { () }
     } else if (cluster.status == ClusterStatus.Creating) {
       Future.failed(ClusterCannotBeDeletedException(cluster.googleProject, cluster.clusterName))
     } else Future.successful(())
@@ -496,9 +483,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         // Update the cluster status to Stopping
         _ <- dbRef.inTransaction { _.clusterQuery.setToStopping(cluster.id) }
-      } yield {
-        clusterMonitorSupervisor ! ClusterStopped(cluster.copy(status = ClusterStatus.Stopping))
-      }
+      } yield { }
 
     } else Future.failed(ClusterCannotBeStoppedException(cluster.googleProject, cluster.clusterName, cluster.status))
   }
@@ -530,9 +515,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         // Update the cluster status to Starting
         _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Starting) }
-      } yield {
-        clusterMonitorSupervisor ! ClusterStarted(cluster.copy(status = ClusterStatus.Starting))
-      }
+      } yield { () }
 
     } else Future.failed(ClusterCannotBeStartedException(cluster.googleProject, cluster.clusterName, cluster.status))
   }
@@ -703,15 +686,32 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     tea.value.void
   }
 
+  private def whenGoogle409(throwable: Throwable): Boolean = {
+    throwable match {
+      case t: GoogleJsonResponseException => t.getStatusCode == 409
+      case _ => false
+    }
+  }
+
   private[service] def addDataprocWorkerRoleToServiceAccount(googleProject: GoogleProject, serviceAccountOpt: Option[WorkbenchEmail]): Future[Unit] = {
     serviceAccountOpt.map { serviceAccountEmail =>
-      googleIamDAO.addIamRolesForUser(googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
+      // Retry 409s with exponential backoff. This can happen if concurrent policy updates are made in the same project.
+      // Google recommends a retry in this case.
+      val iamFuture: Future[Unit] = retryExponentially(whenGoogle409, s"IAM policy change failed for Google project '$googleProject'") { () =>
+        googleIamDAO.addIamRolesForUser(googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
+      }
+      iamFuture
     } getOrElse Future.successful(())
   }
 
   private[service] def removeDataprocWorkerRoleFromServiceAccount(googleProject: GoogleProject, serviceAccountOpt: Option[WorkbenchEmail]): Future[Unit] = {
     serviceAccountOpt.map { serviceAccountEmail =>
-      googleIamDAO.removeIamRolesForUser(googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
+      // Retry 409s with exponential backoff. This can happen if concurrent policy updates are made in the same project.
+      // Google recommends a retry in this case.
+      val iamFuture: Future[Unit] = retryExponentially(whenGoogle409, s"IAM policy change failed for Google project '$googleProject'") { () =>
+        googleIamDAO.removeIamRolesForUser(googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
+      }
+      iamFuture
     } getOrElse Future.successful(())
   }
 
@@ -917,10 +917,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     val combinedExtension = clusterRequest.userJupyterExtensionConfig.map(_.combinedExtensions).getOrElse(Map.empty)
 
-    // combine default and given labels and add labels for extensions
-    val allLabels = clusterRequest.labels.getOrElse(Map.empty) ++ defaultLabels ++ nbExtensions ++ serverExtensions ++ combinedExtension
+    val labExtension = clusterRequest.userJupyterExtensionConfig.map(_.labExtensions).getOrElse(Map.empty)
 
-    val updatedUserJupyterExtensionConfig = if(nbExtensions.isEmpty && serverExtensions.isEmpty && combinedExtension.isEmpty) None else Some(UserJupyterExtensionConfig(nbExtensions, serverExtensions, combinedExtension))
+    // combine default and given labels and add labels for extensions
+    val allLabels = clusterRequest.labels.getOrElse(Map.empty) ++ defaultLabels ++ nbExtensions ++ serverExtensions ++ combinedExtension ++ labExtension
+
+    val updatedUserJupyterExtensionConfig = if(nbExtensions.isEmpty && serverExtensions.isEmpty && combinedExtension.isEmpty && labExtension.isEmpty) None else Some(UserJupyterExtensionConfig(nbExtensions, serverExtensions, combinedExtension, labExtension))
 
     // check the labels do not contain forbidden keys
     if (allLabels.contains(includeDeletedKey))

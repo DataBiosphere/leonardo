@@ -136,18 +136,30 @@ trait ClusterComponent extends LeoComponent {
     // note: list* methods don't query the INSTANCE table
 
     def list(): DBIO[Seq[Cluster]] = {
-      minimalClusterQuery.result.map(unmarshalMinimalCluster)
+      clusterLabelQuery.result.map(unmarshalMinimalCluster)
     }
 
     def listActive(): DBIO[Seq[Cluster]] = {
-      minimalClusterQuery.filter { _._1.status inSetBind ClusterStatus.activeStatuses.map(_.toString) }.result map { recs =>
+      clusterLabelQuery.filter { _._1.status inSetBind ClusterStatus.activeStatuses.map(_.toString) }.result map { recs =>
         unmarshalMinimalCluster(recs)
       }
     }
 
+    def listMonitoredClusterOnly(): DBIO[Seq[Cluster]] = {
+      clusterQuery.filter{_.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }.result map { recs =>
+        recs.map(rec => unmarshalCluster(rec,Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty))
+      }
+    }
+
     def listMonitored(): DBIO[Seq[Cluster]] = {
-      minimalClusterQuery.filter { _._1.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }.result map { recs =>
+      clusterLabelQuery.filter { _._1.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }.result map { recs =>
         unmarshalMinimalCluster(recs)
+      }
+    }
+
+    def listMonitoredFullCluster(): DBIO[Seq[Cluster]] = {
+      fullClusterQuery.filter { _._1.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }.result map { recs =>
+        unmarshalFullCluster(recs)
       }
     }
 
@@ -313,7 +325,7 @@ trait ClusterComponent extends LeoComponent {
     }
 
     def listByLabels(labelMap: LabelMap, includeDeleted: Boolean, googleProjectOpt: Option[GoogleProject] = None): DBIO[Seq[Cluster]] = {
-      val clusterStatusQuery = if (includeDeleted) minimalClusterQuery else minimalClusterQuery.filterNot { _._1.status === "Deleted" }
+      val clusterStatusQuery = if (includeDeleted) clusterLabelQuery else clusterLabelQuery.filterNot { _._1.status === "Deleted" }
       val clusterStatusQueryByProject = googleProjectOpt match {
         case Some(googleProject) => clusterStatusQuery.filter { _._1.googleProject === googleProject.value }
         case None => clusterStatusQuery
@@ -474,7 +486,7 @@ trait ClusterComponent extends LeoComponent {
   // just clusters and labels: no instances, extensions, etc.
   //   select * from cluster c
   //   left join label l on c.id = l.clusterId
-  val minimalClusterQuery: Query[(ClusterTable, Rep[Option[LabelTable]]), (ClusterRecord, Option[LabelRecord]), Seq] = {
+  val clusterLabelQuery: Query[(ClusterTable, Rep[Option[LabelTable]]), (ClusterRecord, Option[LabelRecord]), Seq] = {
     for {
       (cluster, label) <- clusterQuery joinLeft labelQuery on (_.id === _.clusterId)
     } yield (cluster, label)

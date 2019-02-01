@@ -3,10 +3,11 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 import java.time.Instant
 
 import akka.actor.Status.Failure
-import akka.actor.{Actor, Props}
+import akka.actor.{Actor, ActorSystem, Props}
 import akka.pattern.pipe
 import cats.data.OptionT
 import cats.implicits._
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
@@ -18,8 +19,8 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.ClusterDeleted
-import org.broadinstitute.dsde.workbench.util.addJitter
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterDeleted, ClusterSupervisorMessage, RemoveFromList}
+import org.broadinstitute.dsde.workbench.util.{Retry, addJitter}
 import slick.dbio.DBIOAction
 
 import scala.collection.immutable.Set
@@ -43,7 +44,7 @@ object ClusterMonitorActor {
   private[monitor] case class FailedCluster(errorDetails: ClusterErrorDetails, instances: Set[Instance]) extends ClusterMonitorMessage
   private[monitor] case object DeletedCluster extends ClusterMonitorMessage
   private[monitor] case class StoppedCluster(instances: Set[Instance]) extends ClusterMonitorMessage
-  private[monitor] case class ShutdownActor(notifyParentMsg: Option[Any] = None) extends ClusterMonitorMessage
+  private[monitor] case class ShutdownActor(notifyParentMsg: ClusterSupervisorMessage) extends ClusterMonitorMessage
 }
 
 /**
@@ -63,8 +64,11 @@ class ClusterMonitorActor(val cluster: Cluster,
                           val googleStorageDAO: GoogleStorageDAO,
                           val dbRef: DbReference,
                           val authProvider: LeoAuthProvider,
-                          val jupyterProxyDAO: JupyterDAO) extends Actor with LazyLogging {
+                          val jupyterProxyDAO: JupyterDAO) extends Actor with LazyLogging with Retry {
   import context._
+
+  // the Retry trait needs a reference to the ActorSystem
+  override val system = context.system
 
   override def preStart(): Unit = {
     super.preStart()
@@ -94,7 +98,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       handleStoppedCluster(instances) pipeTo self
 
     case ShutdownActor(notifyParentMsg) =>
-      notifyParentMsg.foreach(msg => parent ! msg)
+      parent ! notifyParentMsg
       stop(self)
 
     case Failure(e) =>
@@ -148,7 +152,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     } yield {
       // Finally pipe a shutdown message to this actor
       logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is ready for use!")
-      ShutdownActor()
+      ShutdownActor(RemoveFromList(cluster))
     }
   }
 
@@ -190,7 +194,7 @@ class ClusterMonitorActor(val cluster: Cluster,
         dbRef.inTransaction { dataAccess =>
           dataAccess.clusterQuery.markPendingDeletion(cluster.id)
         } map { _ =>
-          ShutdownActor(Some(ClusterDeleted(cluster, recreate = true)))
+          ShutdownActor(ClusterDeleted(cluster, recreate = true))
         }
       } else {
         // Update the database record to Error and shutdown this actor.
@@ -201,7 +205,7 @@ class ClusterMonitorActor(val cluster: Cluster,
           // Remove the Dataproc Worker IAM role for the pet service account
           // Only happens if the cluster was created with the pet service account.
           _ <-  removeIamRolesForUser
-        } yield ShutdownActor()
+        } yield ShutdownActor(RemoveFromList(cluster))
       }
     }
   }
@@ -231,7 +235,7 @@ class ClusterMonitorActor(val cluster: Cluster,
         dataAccess.clusterQuery.completeDeletion(cluster.id)
       }
       _ <- authProvider.notifyClusterDeleted(cluster.auditInfo.creator, cluster.auditInfo.creator, cluster.googleProject, cluster.clusterName)
-    } yield ShutdownActor()
+    } yield ShutdownActor(RemoveFromList(cluster))
   }
 
   /**
@@ -247,7 +251,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       _ <- persistInstances(instances)
       // this sets the cluster status to stopped and clears the cluster IP
       _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Stopped) }
-    } yield ShutdownActor()
+    } yield ShutdownActor(RemoveFromList(cluster))
   }
 
   private def checkCluster: Future[ClusterMonitorMessage] = {
@@ -255,7 +259,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       case status if status.isMonitored => checkClusterInGoogle(status)
       case status =>
         logger.info(s"Stopping monitoring of cluster ${cluster.projectNameString} in status ${status}")
-        Future.successful(ShutdownActor())
+        Future.successful(ShutdownActor(RemoveFromList(cluster)))
     }
   }
 
@@ -301,7 +305,11 @@ class ClusterMonitorActor(val cluster: Cluster,
             case Some(errorDetails) => FailedCluster(errorDetails, googleInstances)
             case None => NotReadyCluster(ClusterStatus.Error, googleInstances)
           }
-        case Deleted => Future.successful(DeletedCluster)
+        // Take care we don't delete a Creating cluster if google hasn't updated their status yet
+        case Deleted if leoClusterStatus == Creating =>
+          Future.successful(NotReadyCluster(ClusterStatus.Creating, googleInstances))
+        case Deleted =>
+          Future.successful(DeletedCluster)
         // if the cluster only contains stopped instances, it's a stopped cluster
         case _ if leoClusterStatus != Starting && leoClusterStatus != Deleting && stoppedInstanceCount == googleInstances.size =>
           Future.successful(StoppedCluster(googleInstances))
@@ -338,6 +346,13 @@ class ClusterMonitorActor(val cluster: Cluster,
     transformed.value
   }
 
+  private def whenGoogle409(throwable: Throwable): Boolean = {
+    throwable match {
+      case t: GoogleJsonResponseException => t.getStatusCode == 409
+      case _ => false
+    }
+  }
+
   private def removeIamRolesForUser: Future[Unit] = {
     // Remove the Dataproc Worker IAM role for the cluster service account
     cluster.serviceAccountInfo.clusterServiceAccount match {
@@ -352,7 +367,11 @@ class ClusterMonitorActor(val cluster: Cluster,
           if (count > 0) {
             Future.successful(())
           } else {
-            googleIamDAO.removeIamRolesForUser(cluster.googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
+            // Retry 409s with exponential backoff. This can happen if concurrent policy updates are made in the same project.
+            // Google recommends a retry in this case.
+            retryExponentially(whenGoogle409, s"IAM policy change failed for Google project '${cluster.googleProject}'") { () =>
+              googleIamDAO.removeIamRolesForUser(cluster.googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
+            }
           }
         }
     }

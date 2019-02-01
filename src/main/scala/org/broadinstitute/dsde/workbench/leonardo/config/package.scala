@@ -21,6 +21,7 @@ package object config {
     DataprocConfig(
       config.getString("applicationName"),
       config.getString("dataprocDefaultRegion"),
+      config.getAs[String]("dataprocZone"),
       GoogleProject(config.getString("leoGoogleProject")),
       config.getString("dataprocDockerImage"),
       config.getString("clusterUrlBase"),
@@ -112,6 +113,12 @@ package object config {
     ClusterDnsCacheConfig(
       toScalaDuration(config.getDuration("cacheExpiryTime")),
       config.getInt("cacheMaxSize")
+    )
+  }
+
+  implicit val leoExecutionModeConfig: ValueReader[LeoExecutionModeConfig] = ValueReader.relative { config =>
+    LeoExecutionModeConfig(
+      config.getBoolean("backLeo")
     )
   }
 }

@@ -17,7 +17,7 @@ class NotebookInstallSpec extends ClusterFixtureSpec {
               |bx.bitset.sys.copyright""".stripMargin
 
           notebookPage.executeCell("1+1") shouldBe Some("2")
-          notebookPage.executeCell(getPythonVersion) shouldBe Some("3.6.7")
+          notebookPage.executeCell(getPythonVersion) shouldBe Some("3.6.8")
           notebookPage.executeCell(getBxPython).get should include("Copyright (c)")
         }
       }
@@ -76,6 +76,20 @@ class NotebookInstallSpec extends ClusterFixtureSpec {
       }
     }
 
-  }
+    "should install Table of Content from jupyter_contrib_nbextensions" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster) { notebookPage =>
+          notebookPage.executeCell("! jupyter nbextension list").get should include("toc2/main  enabled")
+        }
+      }
+    }
 
+    "should install and enable nbextensions_configurator" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster) { notebookPage =>
+          notebookPage.executeCell("! jupyter serverextension list ").get should include("jupyter_nbextensions_configurator  enabled")
+        }
+      }
+    }
+  }
 }

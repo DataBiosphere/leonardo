@@ -39,7 +39,8 @@ case class ClusterRequest(labels: Option[LabelMap] = Option(Map.empty),
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
                                       serverExtensions: Map[String, String] = Map(),
-                                      combinedExtensions: Map[String, String] = Map())
+                                      combinedExtensions: Map[String, String] = Map(),
+                                      labExtensions: Map[String, String] = Map())
 
 
 // A resource that is required by a cluster
@@ -130,7 +131,7 @@ object Cluster {
       userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
       autopauseThreshold = autopauseThreshold,
       defaultClientId = clusterRequest.defaultClientId,
-      stopAfterCreation= clusterRequest.stopAfterCreation.getOrElse(false),
+      stopAfterCreation = clusterRequest.stopAfterCreation.getOrElse(false),
       clusterImages = clusterImages,
       scopes = clusterScopes)
   }
@@ -228,6 +229,7 @@ case class ClusterInitValues(googleProject: String,
                              jupyterNbExtensions: String,
                              jupyterCombinedExtensions: String,
                              jupyterNotebookConfigUri: String,
+                             jupyterLabExtensions: String,
                              defaultClientId: String
                             ){
   def toMap: Map[String, String] = this.getClass.getDeclaredFields.map(_.getName).zip(this.productIterator.to).toMap.mapValues(_.toString)}
@@ -262,6 +264,7 @@ object ClusterInitValues {
       clusterRequest.userJupyterExtensionConfig.map(x => x.nbExtensions.values.mkString(" ")).getOrElse(""),
       clusterRequest.userJupyterExtensionConfig.map(x => x.combinedExtensions.values.mkString(" ")).getOrElse(""),
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value)).toUri,
+      clusterRequest.userJupyterExtensionConfig.map(x => x.labExtensions.values.mkString(" ")).getOrElse(""),
       clusterRequest.defaultClientId.getOrElse("")
     )
 }
@@ -273,6 +276,7 @@ object ExtensionType extends Enum[ExtensionType] {
   case object NBExtension extends ExtensionType
   case object ServerExtension extends ExtensionType
   case object CombinedExtension extends ExtensionType
+  case object LabExtension extends ExtensionType
 }
 
 object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
@@ -295,7 +299,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     }
   }
 
-  implicit val UserClusterExtensionConfigFormat = jsonFormat3(UserJupyterExtensionConfig.apply)
+  implicit val UserClusterExtensionConfigFormat = jsonFormat4(UserJupyterExtensionConfig.apply)
 
   implicit val ClusterRequestFormat = jsonFormat11(ClusterRequest)
 
@@ -372,7 +376,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
         "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
         "autopauseThreshold" -> obj.autopauseThreshold.toJson,
         "defaultClientId" -> obj.defaultClientId.toJson,
-        "stopAfterCreation" -> Option(obj.stopAfterCreation).toJson,
+        "stopAfterCreation" -> obj.stopAfterCreation.toJson,
         "clusterImages" -> obj.clusterImages.toJson,
         "scopes" -> obj.scopes.toJson
       )

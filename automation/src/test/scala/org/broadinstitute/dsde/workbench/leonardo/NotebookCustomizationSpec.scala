@@ -42,17 +42,17 @@ final class NotebookCustomizationSpec extends FreeSpec
               EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
               GcsRoles.Owner)
 
-            withWebDriver { implicit driver =>
-              val clusterRequestWithUserScript = ClusterRequest(Map(), None, Option(userScriptUri))
-              withNewCluster(project, request = clusterRequestWithUserScript, apiVersion = V2) { cluster =>
-                Thread.sleep(10000)
+            val clusterRequestWithUserScript = ClusterRequest(Map(), None, Option(userScriptUri))
+            withNewCluster(project, request = clusterRequestWithUserScript, apiVersion = V2) { cluster =>
+              Thread.sleep(10000)
+              withWebDriver { implicit driver =>
                 withNewNotebook(cluster) { notebookPage =>
                   notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
                   notebookPage.executeCell("""import arrow""")
                   notebookPage.executeCell("""arrow.get(727070400)""") shouldBe Some("<Arrow [1993-01-15T04:00:00+00:00]>")
                 }
-              }(ronAuthToken)
-            }
+              }
+            }(ronAuthToken)
           }
         }
       }
@@ -73,6 +73,20 @@ final class NotebookCustomizationSpec extends FreeSpec
                 //Check if the mark up was translated correctly
                 notebookPage.translateMarkup("Hello") should include("Bonjour")
               }
+            }
+          }
+        }
+      }
+    }
+
+    "should install user specified lab extensions" in {
+      withProject { project => implicit token =>
+        withNewCluster(project, request = ClusterRequest(userJupyterExtensionConfig = Some(UserJupyterExtensionConfig(labExtensions = Map("jupyterlab-toc" -> "@jupyterlab/toc"))))) { cluster =>
+          withWebDriver { implicit driver =>
+            withNewNotebook(cluster) { notebookPage =>
+              val query = """!jupyter labextension list"""
+              val result = notebookPage.executeCell(query).get
+              result should include("@jupyterlab/toc")
             }
           }
         }

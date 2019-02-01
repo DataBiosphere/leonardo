@@ -38,6 +38,7 @@ class HttpGoogleDataprocDAO(appName: String,
                             vpcNetwork: Option[VPCNetworkName],
                             vpcSubnet: Option[VPCSubnetName],
                             defaultRegion: String,
+                            zoneOpt: Option[String],
                             defaultExecutionTimeout: FiniteDuration)
                            (implicit override val system: ActorSystem, override val executionContext: ExecutionContext)
   extends AbstractHttpGoogleDAO(appName, googleCredentialMode, workbenchMetricBaseName) with GoogleDataprocDAO {
@@ -243,6 +244,11 @@ class HttpGoogleDataprocDAO(appName: String,
     val masterConfig = new InstanceGroupConfig()
       .setMachineTypeUri(machineConfig.masterMachineType.get)
       .setDiskConfig(new DiskConfig().setBootDiskSizeGb(machineConfig.masterDiskSize.get))
+
+    // Set the zone, if specified. If not specified, Dataproc will pick a zone within the configured region.
+    zoneOpt.foreach { zone =>
+      gceClusterConfig.setZoneUri(zone)
+    }
 
     // Create a Cluster Config and give it the GceClusterConfig, the NodeInitializationAction and the InstanceGroupConfig
     createClusterConfig(machineConfig, credentialsFileName)

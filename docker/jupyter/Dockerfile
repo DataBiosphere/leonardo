@@ -31,13 +31,24 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sou
     lsb-release \
     procps \
     openssl \
+    make \
+    libssl-dev \
+    zlib1g-dev \
+    libbz2-dev \
+    libreadline-dev \
+    libsqlite3-dev \
+    llvm \
+    libncurses5-dev \
+    libncursesw5-dev \
+    xz-utils \
+    tk-dev \
     # to support userScript pip installs via git
     git \
     locales \
 
  # R separately because it depends on gnupg installed above
  && echo "deb $CRAN_REPO/bin/linux/debian stretch-cran35/"       >> /etc/apt/sources.list \
- && apt-key adv  --no-tty --keyserver keys.gnupg.net \
+ && apt-key adv  --no-tty --keyserver keyserver.ubuntu.com \
     --recv-key 'E19F5F87128899B192B1A2C2AD5F960A256A04AF' \
 
  # Uncomment en_US.UTF-8 for inclusion in generation
@@ -61,9 +72,9 @@ ENV LC_ALL en_US.UTF-8
 # Java
 #######################
 
-ENV JAVA_VER jdk1.8.0_191
-ENV JAVA_TGZ jdk-8u191-linux-x64.tar.gz
-ENV JAVA_URL http://download.oracle.com/otn-pub/java/jdk/8u191-b12/2787e4a523244c269598db4e85c51e0c/$JAVA_TGZ
+ENV JAVA_VER jdk1.8.0_201
+ENV JAVA_TGZ jdk-8u201-linux-x64.tar.gz
+ENV JAVA_URL https://download.oracle.com/otn-pub/java/jdk/8u201-b09/42970487e3af4f5aa5bca3f542482c60/$JAVA_TGZ
 ENV JAVA_HOME /usr/lib/jdk/$JAVA_VER
 
 RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
@@ -130,7 +141,7 @@ RUN apt-get update \
 
  # NOTE! not sure why, but this must run before pip installation
  && useradd -m -s /bin/bash -N -u $UID $USER \
- # jessie's default pip doesn't work well with jupyter 
+ # jessie's default pip doesn't work well with jupyter
  && wget -nv https://bootstrap.pypa.io/get-pip.py \
  && python get-pip.py \
  && pip install ipykernel==4.10.0 \
@@ -166,13 +177,79 @@ RUN apt-get update \
 
 
 # Python 3 Kernel
+ENV PYTHON_VERSION 3.6.8
+
+# lifted from https://github.com/docker-library/python/blob/dd36c08c1f94083476a8579b8bf20c4cd46c6400/3.6/stretch/Dockerfile
+RUN set -ex \
+ \
+ && wget -O python.tar.xz "https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/Python-$PYTHON_VERSION.tar.xz" \
+ && wget -O python.tar.xz.asc "https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/Python-$PYTHON_VERSION.tar.xz.asc" \
+ && export GNUPGHOME="$(mktemp -d)" \
+ && gpg --batch --keyserver ha.pool.sks-keyservers.net --recv-keys "0D96DF4D4110E5C43FBFB17F2D347EA6AA65421D" \
+ && gpg --batch --verify python.tar.xz.asc python.tar.xz \
+ && { command -v gpgconf > /dev/null && gpgconf --kill all || :; } \
+ && rm -rf "$GNUPGHOME" python.tar.xz.asc \
+ && mkdir -p /usr/src/python \
+ && tar -xJC /usr/src/python --strip-components=1 -f python.tar.xz \
+ && rm python.tar.xz \
+ \
+ && cd /usr/src/python \
+ && gnuArch="$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)" \
+ && ./configure \
+    --build="$gnuArch" \
+    --enable-loadable-sqlite-extensions \
+    --enable-shared \
+    --with-system-expat \
+    --with-system-ffi \
+    --without-ensurepip \
+ && make -j "$(nproc)" \
+ && make install \
+ && ldconfig \
+ \
+ && find /usr/local -depth \
+    \( \
+        \( -type d -a \( -name test -o -name tests \) \) \
+        -o \
+        \( -type f -a \( -name '*.pyc' -o -name '*.pyo' \) \) \
+    \) -exec rm -rf '{}' + \
+ && rm -rf /usr/src/python \
+ \
+ && python3 --version
+
+# make some useful symlinks that are expected to exist
+RUN cd /usr/local/bin \
+	&& ln -s idle3 idle \
+	&& ln -s pydoc3 pydoc \
+	&& ln -s python3 python \
+	&& ln -s python3-config python-config
+
+# if this is called "PIP_VERSION", pip explodes with "ValueError: invalid truth value '<VERSION>'"
+ENV PYTHON_PIP_VERSION 19.0.1
+
+RUN set -ex; \
+    \
+    wget -O get-pip.py 'https://bootstrap.pypa.io/get-pip.py'; \
+	\
+    python get-pip.py \
+        --disable-pip-version-check \
+        --no-cache-dir \
+        "pip==$PYTHON_PIP_VERSION" \
+    ; \
+    pip --version; \
+    \
+    find /usr/local -depth \
+        \( \
+            \( -type d -a \( -name test -o -name tests \) \) \
+            -o \
+            \( -type f -a \( -name '*.pyc' -o -name '*.pyo' \) \) \
+        \) -exec rm -rf '{}' +; \
+    rm -f get-pip.py
+
 RUN apt-get update \
  && apt-get install -t testing -yq --no-install-recommends \
-    python3.6 \
-    python3.6-dev \
-    python3-distutils \
- && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.6 100 \
- && python3 get-pip.py \
+    # for jupyterlab extensions
+    nodejs \
+    npm \
  && pip3 install tornado==4.5.3 \
 # # Hail requires decorator
  && pip3 install -U decorator==4.3.0 \
@@ -184,7 +261,7 @@ RUN apt-get update \
  && pip3 install pandas==0.23.4 \
  && pip3 install seaborn==0.9.0 \
  && pip3 install jupyter==1.0.0 \
- && pip3 install jupyterlab==0.35.2 \
+ && pip3 install jupyterlab==0.35.4 \
  && pip3 install python-lzo==1.12 \
  && pip3 install google-api-core==1.5.0 \
  && pip3 install google-cloud-bigquery==1.7.0 \
@@ -206,11 +283,13 @@ RUN apt-get update \
  && pip3 install matplotlib-venn==0.11.5 \
  # for jupyter_localize_extension
  && pip3 install python-datauri \
+ && pip3 install jupyter_contrib_nbextensions \
+ && pip3 install jupyter_nbextensions_configurator \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
 # fixed current ggplot issue where it imports Timestamp from pandas.lib (deprecated) instead of pandas
-RUN sed -i 's/pandas.lib/pandas/g' /usr/local/lib/python3.6/dist-packages/ggplot/stats/smoothers.py
+RUN sed -i 's/pandas.lib/pandas/g' /usr/local/lib/python3.6/site-packages/ggplot/stats/smoothers.py
 
 # make pip install to a user directory, instead of a system directory which requires root.
 # this is useful so `pip install` commands can be run in the context of a notebook.
@@ -235,7 +314,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
     libssl-dev \
     libxml2-dev \
  && apt-get clean \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ # fixes broken gfortan dependency needed by some R libraries
+ # see: https://github.com/DataBiosphere/leonardo/issues/710
+ && ln -s /usr/lib/x86_64-linux-gnu/libgfortran.so.3 /usr/lib/x86_64-linux-gnu/libgfortran.so
 
 RUN R -e 'install.packages(c( \
     "IRdisplay",  \
@@ -266,7 +348,8 @@ ADD custom/jupyter_delocalize.py $JUPYTER_HOME/custom/
 ADD custom/jupyter_localize_extension.py $JUPYTER_HOME/custom/
 
 RUN chown -R $USER:users $JUPYTER_HOME \
- && find $JUPYTER_HOME/scripts -name '*.sh' -type f | xargs chmod +x
+ && find $JUPYTER_HOME/scripts -name '*.sh' -type f | xargs chmod +x \
+ && chown -R $USER:users /usr/local/share/jupyter/lab
 
 USER $USER
 WORKDIR $HOME
