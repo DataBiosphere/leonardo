@@ -130,4 +130,27 @@ object Notebook extends RestClient with LazyLogging {
       }
     }
   }
+
+  sealed trait ApiVersion {
+    override def toString: String
+    def toUrlSegment: String
+  }
+
+  object ApiVersion {
+    case object V1 extends ApiVersion {
+      override def toString: String = "v1"
+      def toUrlSegment: String = ""
+    }
+
+    case object V2 extends ApiVersion {
+      override def toString: String = "v2"
+      def toUrlSegment: String = "/v2"
+    }
+
+    def fromString(s: String): Option[ApiVersion] = s match {
+      case "v1" => Some(V1)
+      case "v2" => Some(V2)
+      case _ => None
+    }
+  }
 }
