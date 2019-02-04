@@ -27,7 +27,7 @@ ENV RSTUDIO_HOME /etc/rstudio
 ADD rserver.conf $RSTUDIO_HOME/rserver.conf
 
 RUN sed 's/alwaysSaveHistory="0"/alwaysSaveHistory="1"/g' \
- && sed 's/loadRData="0"="0"/loadRData="0"="1"/g' \
+ && sed 's/loadRData="0"/loadRData="1"/g' \
  && sed 's/saveAction="0"/saveAction="1"/g'
 
 EXPOSE $RSTUDIO_PORT
