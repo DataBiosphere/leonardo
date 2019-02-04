@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
 
+#Updates the Leo jar of a fiab to reflect current local code.
+#Run using "./automation/hotswap.sh fiab-your-fiab-name" from inside the leo directory
+
+if [ -z "$1" ]
+    then
+        echo "No arguments supplied. Please provide fiab name as an argument."
+        exit 1
+fi
 
 FIAB=$1
 
