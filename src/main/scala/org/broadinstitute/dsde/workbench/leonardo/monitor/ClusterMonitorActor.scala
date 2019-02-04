@@ -70,6 +70,8 @@ class ClusterMonitorActor(val cluster: Cluster,
   // the Retry trait needs a reference to the ActorSystem
   override val system = context.system
 
+  private val internalError = "Internal Error"
+
   override def preStart(): Unit = {
     super.preStart()
     scheduleInitialMonitorPass
@@ -303,7 +305,7 @@ class ClusterMonitorActor(val cluster: Cluster,
         case Error if leoClusterStatus != Deleting && leoClusterStatus != Stopping =>
           gdDAO.getClusterErrorDetails(cluster.dataprocInfo.operationName).map {
             case Some(errorDetails) => FailedCluster(errorDetails, googleInstances)
-            case None => NotReadyCluster(ClusterStatus.Error, googleInstances)
+            case None => FailedCluster(ClusterErrorDetails(Code.INTERNAL.value, Some(internalError)), googleInstances)
           }
         // Take care we don't delete a Creating cluster if google hasn't updated their status yet
         case Deleted if leoClusterStatus == Creating =>
