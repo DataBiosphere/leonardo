@@ -255,7 +255,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
         log 'Installing JupyterLab extension [$ext]...'
         pwd
         if [[ $ext == 'gs://'* ]]; then
-          gsutil cp $ext /etc
+          gsutil cp -r $ext /etc
           JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
           docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
           retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
