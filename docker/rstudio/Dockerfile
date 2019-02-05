@@ -28,8 +28,8 @@ ADD rserver.conf $RSTUDIO_HOME/rserver.conf
 
 ENV RSTUDIO_USERSETTING /home/rstudio/.rstudio/monitored/user-settings/user-settings
 
-RUN sed 's/alwaysSaveHistory="0"/alwaysSaveHistory="1"/g'  RSTUDIO_USERSETTING \
- && sed 's/loadRData="0"/loadRData="1"/g' RSTUDIO_USERSETTING \
- && sed 's/saveAction="0"/saveAction="1"/g' RSTUDIO_USERSETTING
+RUN sed -i 's/alwaysSaveHistory="0"/alwaysSaveHistory="1"/g'  $RSTUDIO_USERSETTING \
+&& sed -i 's/loadRData="0"/loadRData="1"/g' $RSTUDIO_USERSETTING \
+&& sed -i 's/saveAction="0"/saveAction="1"/g' $RSTUDIO_USERSETTING
 
 EXPOSE $RSTUDIO_PORT
