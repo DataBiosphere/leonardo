@@ -18,7 +18,7 @@ import scala.util.{Failure, Success, Try}
 
 
 class LabNotebookPage(override val url: String)(override implicit val authToken: AuthToken, override implicit val webDriver: WebDriver)
-  extends LabPage with NotebookPanel with Eventually with LazyLogging {
+  extends LabPage with NotebookPanel with NotebookCell with Eventually with LazyLogging {
 
 
   override def open(implicit webDriver: WebDriver): LabNotebookPage = {
@@ -39,9 +39,6 @@ class LabNotebookPage(override val url: String)(override implicit val authToken:
     findAll(cssSelector(menus)).filter { e => e.text == "Kernel" }.toList.head
   }
 
-  // selects the numbered left-side cell prompts
-  lazy val prompts: String = ".jp-InputPrompt.jp-InputArea-prompt"
-
   // is at least one cell currently executing?
   def cellsAreRunning: Boolean = {
     findAll(prompts).exists { e => e.text == "In [*]:" }
@@ -52,7 +49,7 @@ class LabNotebookPage(override val url: String)(override implicit val authToken:
     findAll(cssSelector(prompts)).exists { e => e.text == s"[$cellNumber]:"}
   }
 
-  lazy val cells: Query = cssSelector(".jp-Notebook-cell")
+  lazy val cells: Query = cssSelector(cellSelector)
 
   def lastCell: WebElement = {
     webDriver.findElements(cells.by).asScala.toList.last
@@ -104,19 +101,12 @@ class LabNotebookPage(override val url: String)(override implicit val authToken:
   }
 
   def isKernelDisconnected: Boolean = {
-    find(className("jp-Toolbar-kernelStatus")).exists(_.underlying.getAttribute("title") == "Kernel Dead")
+    find(className(kernelStatus)).exists(_.underlying.getAttribute("title") == "Kernel Dead")
   }
 
   def isKernelReady: Boolean = {
-    find(className("jp-Toolbar-kernelStatus")).exists(_.underlying.getAttribute("title") == "Kernel Idle")
+    find(className(kernelStatus)).exists(_.underlying.getAttribute("title") == "Kernel Idle")
   }
-
-
-  private def allCells: List[WebElement] = {
-    val cellQuery: Query = cssSelector(s"$cellSelector")
-    webDriver.findElements(cellQuery.by).asScala.toList
-  }
-
 
   def runCodeInEmptyCell(code: String, timeout: FiniteDuration = 1 minute): Option[String] = {
     Try {

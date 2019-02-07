@@ -24,62 +24,60 @@ object Notebook extends RestClient with LazyLogging {
 
   private val url = LeonardoConfig.Leonardo.apiUrl
 
+  def handleContentItemResponse(response: String): ContentItem = {
+    mapper.readValue(response, classOf[ContentItem])
+  }
 
-    def handleContentItemResponse(response: String): ContentItem = {
-      mapper.readValue(response, classOf[ContentItem])
-    }
+  def notebooksBasePath(googleProject: GoogleProject, clusterName: ClusterName): String =
+    s"notebooks/${googleProject.value}/${clusterName.string}"
 
-    def notebooksBasePath(googleProject: GoogleProject, clusterName: ClusterName): String =
-      s"notebooks/${googleProject.value}/${clusterName.string}"
+  def notebooksTreePath(googleProject: GoogleProject, clusterName: ClusterName): String =
+    s"${notebooksBasePath(googleProject, clusterName)}/tree"
 
-    def notebooksTreePath(googleProject: GoogleProject, clusterName: ClusterName): String =
-      s"${notebooksBasePath(googleProject, clusterName)}/tree"
+  def contentsPath(googleProject: GoogleProject, clusterName: ClusterName, contentPath: String): String =
+    s"${notebooksBasePath(googleProject, clusterName)}/api/contents/$contentPath"
 
-    def contentsPath(googleProject: GoogleProject, clusterName: ClusterName, contentPath: String): String =
-      s"${notebooksBasePath(googleProject, clusterName)}/api/contents/$contentPath"
+  def localizePath(googleProject: GoogleProject, clusterName: ClusterName, async: Boolean = false): String =
+    s"${notebooksBasePath(googleProject, clusterName)}/api/localize${if (async) "?async=true" else ""}"
 
-    def localizePath(googleProject: GoogleProject, clusterName: ClusterName, async: Boolean = false): String =
-      s"${notebooksBasePath(googleProject, clusterName)}/api/localize${if (async) "?async=true" else ""}"
+  def get(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver): NotebooksListPage = {
+    val path = notebooksBasePath(googleProject, clusterName)
+    logger.info(s"Get notebook: GET /$path")
+    new NotebooksListPage(url + path)
+  }
 
-    def get(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver): NotebooksListPage = {
-      val path = notebooksBasePath(googleProject, clusterName)
-      logger.info(s"Get notebook: GET /$path")
-      new NotebooksListPage(url + path)
-    }
+  def getApi(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): String = {
+    val path = notebooksBasePath(googleProject, clusterName)
+    logger.info(s"Get notebook: GET /$path")
+    parseResponse(getRequest(url + path))
+  }
 
-    def getApi(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): String = {
-      val path = notebooksBasePath(googleProject, clusterName)
-      logger.info(s"Get notebook: GET /$path")
-      parseResponse(getRequest(url + path))
-    }
+  def getApiHeaders(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): Seq[HttpHeader] = {
+    val path = notebooksTreePath(googleProject, clusterName)
+    logger.info(s"Get notebook: GET /$path")
+    getRequest(url + path).headers
+  }
 
-    def getApiHeaders(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): Seq[HttpHeader] = {
-      val path = notebooksTreePath(googleProject, clusterName)
-      logger.info(s"Get notebook: GET /$path")
-      getRequest(url + path).headers
-    }
+  def localize(googleProject: GoogleProject, clusterName: ClusterName, locMap: Map[String, String], async: Boolean = false)(implicit token: AuthToken): String = {
+    val path = localizePath(googleProject, clusterName, async)
+    logger.info(s"Localize notebook files: POST /$path")
+    val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
+    postRequest(url + path, locMap, httpHeaders = List(cookie))
+  }
 
-    def localize(googleProject: GoogleProject, clusterName: ClusterName, locMap: Map[String, String], async: Boolean = false)(implicit token: AuthToken): String = {
-      val path = localizePath(googleProject, clusterName, async)
-      logger.info(s"Localize notebook files: POST /$path")
-      val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
-      postRequest(url + path, locMap, httpHeaders = List(cookie))
-    }
+  def getContentItem(googleProject: GoogleProject, clusterName: ClusterName, contentPath: String, includeContent: Boolean = true)(implicit token: AuthToken): ContentItem = {
+    val path = contentsPath(googleProject, clusterName, contentPath) + (if(includeContent) "?content=1" else "")
+    logger.info(s"Get notebook contents: GET /$path")
+    val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
+    handleContentItemResponse(parseResponse(getRequest(url + path, httpHeaders = List(cookie))))
+  }
 
-    def getContentItem(googleProject: GoogleProject, clusterName: ClusterName, contentPath: String, includeContent: Boolean = true)(implicit token: AuthToken): ContentItem = {
-      val path = contentsPath(googleProject, clusterName, contentPath) + (if(includeContent) "?content=1" else "")
-      logger.info(s"Get notebook contents: GET /$path")
-      val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
-      handleContentItemResponse(parseResponse(getRequest(url + path, httpHeaders = List(cookie))))
-    }
+  def setCookie(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver): String = {
+    val path = notebooksBasePath(googleProject, clusterName) + "/setCookie"
+    logger.info(s"Set cookie: GET /$path")
+    parseResponse(getRequest(url + path, httpHeaders = List(Authorization(OAuth2BearerToken(token.value)))))
 
-    def setCookie(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver): String = {
-      val path = notebooksBasePath(googleProject, clusterName) + "/setCookie"
-      logger.info(s"Set cookie: GET /$path")
-      parseResponse(getRequest(url + path, httpHeaders = List(Authorization(OAuth2BearerToken(token.value)))))
-
-    }
-
+  }
 
   object dummyClient {
     import akka.http.scaladsl.Http
@@ -128,29 +126,6 @@ object Notebook extends RestClient with LazyLogging {
       replacementMap.foldLeft(raw) { case (source, (key, replacement)) =>
         source.replaceAllLiterally("$("+key+")", s"""'$replacement'""")
       }
-    }
-  }
-
-  sealed trait ApiVersion {
-    override def toString: String
-    def toUrlSegment: String
-  }
-
-  object ApiVersion {
-    case object V1 extends ApiVersion {
-      override def toString: String = "v1"
-      def toUrlSegment: String = ""
-    }
-
-    case object V2 extends ApiVersion {
-      override def toString: String = "v2"
-      def toUrlSegment: String = "/v2"
-    }
-
-    def fromString(s: String): Option[ApiVersion] = s match {
-      case "v1" => Some(V1)
-      case "v2" => Some(V2)
-      case _ => None
     }
   }
 }

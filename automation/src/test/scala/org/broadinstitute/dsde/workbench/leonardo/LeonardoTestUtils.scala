@@ -20,6 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.{V1, V2}
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.lab._
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.util._
@@ -77,7 +78,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   // TODO: move this to NotebookTestUtils and chance cluster-specific functions to only call if necessary after implementing RStudio
   def saveJupyterLogFile(clusterName: ClusterName, googleProject: GoogleProject, suffix: String)(implicit token: AuthToken): Try[File] = {
     Try {
-      val jupyterLogOpt = notebooks.Notebook.getContentItem(googleProject, clusterName, "jupyter.log", includeContent = true)
+      val jupyterLogOpt = Notebook.getContentItem(googleProject, clusterName, "jupyter.log", includeContent = true)
       val content = jupyterLogOpt.content.getOrElse(throw new RuntimeException(s"Could not download jupyter.log for cluster ${googleProject.value}/${clusterName.string}"))
       val downloadFile = new File(logDir, s"${googleProject.value}-${clusterName.string}-$suffix-jupyter.log")
       val fos = new FileOutputStream(downloadFile)
@@ -298,7 +299,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
       // Verify notebook error
       val caught = the [RestException] thrownBy {
-        notebooks.Notebook.getApi(googleProject, clusterName)
+        Notebook.getApi(googleProject, clusterName)
       }
       caught.message shouldBe s"""{"statusCode":422,"source":"leonardo","causes":[],"exceptionClass":"org.broadinstitute.dsde.workbench.leonardo.service.ClusterPausedException","stackTrace":[],"message":"Cluster ${googleProject.value}/${clusterName.string} is stopped. Start your cluster before proceeding."}"""
     }
@@ -325,7 +326,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       }
 
       logger.info(s"Checking if cluster is proxyable yet")
-      val getResult = Try(notebooks.Notebook.getApi(googleProject, clusterName))
+      val getResult = Try(Notebook.getApi(googleProject, clusterName))
       getResult.isSuccess shouldBe true
       getResult.get should not include "ProxyException"
 

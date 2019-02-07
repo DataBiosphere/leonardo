@@ -1,5 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.lab
 
+import org.scalatest.selenium.WebBrowser._
+import org.openqa.selenium.WebElement
+
+
 
 trait Toolbar {
 
@@ -13,6 +17,8 @@ trait Toolbar {
 
   // Kernel -> Shutdown
   lazy val shutdownKernelSelection: String = "[data-command='kernelmenu:shutdown']"
+
+  lazy val kernelStatus: String = "jp-Toolbar-kernelStatus"
 
 }
 

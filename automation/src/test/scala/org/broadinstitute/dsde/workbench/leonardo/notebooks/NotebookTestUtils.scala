@@ -66,7 +66,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   }
 
   def withNotebooksListPage[T](cluster: Cluster)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
-    val notebooksListPage = notebooks.Notebook.get(cluster.googleProject, cluster.clusterName)
+    val notebooksListPage = Notebook.get(cluster.googleProject, cluster.clusterName)
     testCode(notebooksListPage.open)
   }
 
@@ -87,7 +87,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   }
 
   implicit val ec: ExecutionContextExecutor = ExecutionContext.global
-  def withNewNotebook[T](cluster: Cluster, kernel: NotebookKernel = notebooks.Python2, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+  def withNewNotebook[T](cluster: Cluster, kernel: NotebookKernel = Python2, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
       val result: Future[T] = retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds, 2 minutes) {() =>
         Future(notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
@@ -108,13 +108,13 @@ trait NotebookTestUtils extends LeonardoTestUtils {
 
   def withDummyClientPage[T](cluster: Cluster)(testCode: DummyClientPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     // start a server to load the dummy client page
-    val bindingFuture = notebooks.Notebook.dummyClient.startServer
+    val bindingFuture = Notebook.dummyClient.startServer
     val testResult = Try {
-      val dummyClientPage = notebooks.Notebook.dummyClient.get(cluster.googleProject, cluster.clusterName)
+      val dummyClientPage = Notebook.dummyClient.get(cluster.googleProject, cluster.clusterName)
       testCode(dummyClientPage)
     }
     // stop the server
-    notebooks.Notebook.dummyClient.stopServer(bindingFuture)
+    Notebook.dummyClient.stopServer(bindingFuture)
     testResult.get
   }
 
@@ -175,7 +175,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     implicit val patienceConfig: PatienceConfig = storagePatience
 
     // the localized file should exist on the notebook VM
-    val item = notebooks.Notebook.getContentItem(cluster.googleProject, cluster.clusterName, localizedFileName, includeContent = true)
+    val item = Notebook.getContentItem(cluster.googleProject, cluster.clusterName, localizedFileName, includeContent = true)
     item.content shouldBe Some(localizedFileContents)
 
     // the delocalized file should exist in the Google bucket
@@ -183,13 +183,13 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     bucketData.map(_.toString) shouldBe Some(delocalizedBucketContents)
 
     // the data file should exist on the notebook VM
-    val dataItem = notebooks.Notebook.getContentItem(cluster.googleProject, cluster.clusterName, dataFileName, includeContent = true)
+    val dataItem = Notebook.getContentItem(cluster.googleProject, cluster.clusterName, dataFileName, includeContent = true)
     dataItem.content shouldBe Some(dataFileContents)
   }
 
   def verifyAndSaveLocalizationLog(cluster: Cluster)(implicit token: AuthToken): File = {
     // check localization.log for existence
-    val localizationLog = notebooks.Notebook.getContentItem(cluster.googleProject, cluster.clusterName, "localization.log", includeContent = true)
+    val localizationLog = Notebook.getContentItem(cluster.googleProject, cluster.clusterName, "localization.log", includeContent = true)
     localizationLog.content shouldBe defined
 
     // Save localization.log to test output to aid in debugging
@@ -280,8 +280,8 @@ trait NotebookTestUtils extends LeonardoTestUtils {
 
   def pipInstall(notebookPage: NotebookPage, kernel: NotebookKernel, packageName: String): Unit = {
     val pip = kernel match {
-      case notebooks.Python2 | notebooks.PySpark2 => "pip2"
-      case notebooks.Python3 | notebooks.PySpark3 => "pip3"
+      case Python2 | PySpark2 => "pip2"
+      case Python3 | PySpark3 => "pip3"
       case _ => throw new IllegalArgumentException(s"Can't pip install in a ${kernel.string} kernel")
     }
 
@@ -300,8 +300,8 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     notebookPage.executeCell("sess = tf.Session()") shouldBe None
     val helloOutput = notebookPage.executeCell("print(sess.run(hello))")
     kernel match {
-      case notebooks.Python2 => helloOutput shouldBe Some("Hello, TensorFlow!")
-      case notebooks.Python3 => helloOutput shouldBe Some("b'Hello, TensorFlow!'")
+      case Python2 => helloOutput shouldBe Some("Hello, TensorFlow!")
+      case Python3 => helloOutput shouldBe Some("b'Hello, TensorFlow!'")
       case other => fail(s"Unexpected kernel: $other")
     }
   }

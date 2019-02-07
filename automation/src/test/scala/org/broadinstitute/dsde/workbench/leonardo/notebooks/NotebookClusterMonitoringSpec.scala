@@ -103,7 +103,7 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
 
           withNewCluster(project, request = request) { cluster =>
             withWebDriver { implicit driver =>
-              withNewNotebook(cluster, notebooks.PySpark3) { notebookPage =>
+              withNewNotebook(cluster, PySpark3) { notebookPage =>
                 verifyHailImport(notebookPage, destPath, cluster)
               }
             }
@@ -120,7 +120,7 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
 
           withWebDriver { implicit driver =>
             // Create a notebook and execute a cell
-            withNewNotebook(cluster, kernel = notebooks.Python3) { notebookPage =>
+            withNewNotebook(cluster, kernel = Python3) { notebookPage =>
               notebookPage.executeCell(s"""print("$printStr")""") shouldBe Some(printStr)
               notebookPage.saveAndCheckpoint()
             }
@@ -206,7 +206,7 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
           withNewCluster(project, request = request) { cluster =>
             // Verify a Hail job uses preemptibles
             withWebDriver { implicit driver =>
-              withNewNotebook(cluster, notebooks.PySpark3) { notebookPage =>
+              withNewNotebook(cluster, PySpark3) { notebookPage =>
                 verifyHailImport(notebookPage, destPath, cluster)
                 notebookPage.saveAndCheckpoint()
               }
@@ -266,7 +266,7 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
           val extensionConfig = multiExtensionClusterRequest.copy(nbExtensions = multiExtensionClusterRequest.nbExtensions + ("translate" -> translateExtensionBucketPath.toUri))
           withNewCluster(project, clusterName, ClusterRequest(userJupyterExtensionConfig = Some(extensionConfig)), apiVersion = V2) { cluster =>
             withWebDriver { implicit driver =>
-              withNewNotebook(cluster, notebooks.Python3) { notebookPage =>
+              withNewNotebook(cluster, Python3) { notebookPage =>
                 //Check if the mark up was translated correctly
                 val nbExt = notebookPage.executeCell("! jupyter nbextension list")
                 nbExt.get should include("jupyter-gmaps/extension  enabled")
@@ -303,7 +303,7 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
 
             withLocalizeDelocalizeFiles(cluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
               // call localize; this should return 200
-              notebooks.Notebook.localize(cluster.googleProject, cluster.clusterName, localizeRequest, async = false)
+              Notebook.localize(cluster.googleProject, cluster.clusterName, localizeRequest, async = false)
 
               // check that the files are immediately at their destinations
               verifyLocalizeDelocalize(cluster, localizeFileName, localizeFileContents, GcsPath(bucketName, GcsObjectName(delocalizeFileName)), delocalizeFileContents, localizeDataFileName, localizeDataContents)
@@ -363,7 +363,7 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
         withNewCluster(project, monitorCreate = true, apiVersion = V2) { cluster =>
           withWebDriver { implicit driver =>
             val thrown = the[Exception] thrownBy {
-              notebooks.Notebook.setCookie(cluster.googleProject, cluster.clusterName)(voldyAuthToken, driver)
+              Notebook.setCookie(cluster.googleProject, cluster.clusterName)(voldyAuthToken, driver)
             }
             thrown.getMessage should include(""""statusCode":401""")
           }
