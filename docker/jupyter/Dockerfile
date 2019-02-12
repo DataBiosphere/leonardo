@@ -285,6 +285,7 @@ RUN apt-get update \
  && pip3 install python-datauri \
  && pip3 install jupyter_contrib_nbextensions \
  && pip3 install jupyter_nbextensions_configurator \
+ && pip3 install cookiecutter \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
