@@ -105,7 +105,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
     # install Docker
     # https://docs.docker.com/install/linux/docker-ce/debian/
-    export DOCKER_CE_VERSION="18.03.0~ce-0~debian"
+    export DOCKER_CE_VERSION="18.09.2~ce-0~debian"
     retry 5 betterAptGet
     retry 5 apt-get install -y -q \
      apt-transport-https \
