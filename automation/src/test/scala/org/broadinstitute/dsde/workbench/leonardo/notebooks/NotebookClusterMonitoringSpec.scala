@@ -282,16 +282,11 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
       }
     }
 
-    "should install JupyterLab" taggedAs Tags.SmokeTest in {
+    "should localize/delocalize" taggedAs Tags.SmokeTest in {
       withProject { project => implicit token =>
         withNewCluster(project, request = ClusterRequest()) { cluster =>
           withWebDriver { implicit driver =>
-            // Check that the /lab URL is accessible
-            val getResult = Try(lab.Lab.getApi(project, cluster.clusterName))
-            getResult.isSuccess shouldBe true
-            getResult.get should not include "ProxyException"
-
-            // Check that localization still works
+            // Check that localization works
             // See https://github.com/DataBiosphere/leonardo/issues/417, where installing JupyterLab
             // broke the initialization of jupyter_localize_extension.py.
             val localizeFileName = "localize_sync.txt"

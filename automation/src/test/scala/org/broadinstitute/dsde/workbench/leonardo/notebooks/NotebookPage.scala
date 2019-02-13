@@ -237,5 +237,4 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   def kernelNotificationText: String = {
     find(id("notification_kernel")).map(_.underlying.getCssValue("display")).getOrElse("")
   }
-
 }
