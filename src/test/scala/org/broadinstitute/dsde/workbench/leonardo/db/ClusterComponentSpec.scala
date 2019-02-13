@@ -209,4 +209,16 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFutureValue { _.clusterQuery.listByLabels(Map("a" -> "b"), true, Some(project)) }.toSet shouldEqual Set(savedCluster3).map(stripFieldsForListCluster)
     dbFutureValue { _.clusterQuery.listByLabels(Map("a" -> "b"), true, Some(project2)) }.toSet shouldEqual Set.empty[Cluster]
   }
+
+  it should "get for dns cache" in isolatedDbTest {
+    val savedCluster1 = makeCluster(1)
+      .copy(
+        labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
+        instances = Set(masterInstance, workerInstance1, workerInstance2))
+      .save(Some(serviceAccountKey.id))
+
+    // Result should not include labels or instances
+    dbFutureValue { _.clusterQuery.getActiveClusterForDnsCache(savedCluster1.googleProject, savedCluster1.clusterName) } shouldEqual
+      Some(savedCluster1).map(stripFieldsForListCluster andThen (_.copy(labels = Map.empty)))
+  }
 }

@@ -60,7 +60,7 @@ class ClusterDnsCache(proxyConfig: ProxyConfig, dbRef: DbReference, dnsCacheConf
         def load(key: DnsCacheKey) = {
           logger.debug(s"DNS Cache miss for ${key.clusterName} / ${key.clusterName}...loading from DB...")
           dbRef
-            .inTransaction { _.clusterQuery.getActiveClusterByName(key.googleProject, key.clusterName) }
+            .inTransaction { _.clusterQuery.getActiveClusterForDnsCache(key.googleProject, key.clusterName) }
             .map {
               case Some(cluster) => getHostStatusAndUpdateHostToIpIfHostReady(cluster)
               case None => HostNotFound

@@ -8,10 +8,11 @@ object Dependencies {
   val scalaLoggingV = "3.9.0"
   val scalaTestV    = "3.0.5"
   val slickV        = "3.2.3"
+  val catsV         = "1.3.1"
 
-  val workbenchUtilV    = "0.3-0e9d080"
+  val workbenchUtilV    = "0.5-6942040"
   val workbenchModelV   = "0.11-2bddd5b"
-  val workbenchGoogleV  = "0.16-4fe117d"
+  val workbenchGoogleV  = "0.18-6942040"
   val workbenchMetricsV = "0.3-c5b80d2"
 
   val samV =  "1.0-5cdffb4"
@@ -48,7 +49,7 @@ object Dependencies {
   val scalaLogging: ModuleID =   "com.typesafe.scala-logging" %% "scala-logging"   % scalaLoggingV
   val swaggerUi: ModuleID =      "org.webjars"                %  "swagger-ui"      % "2.2.5"
   val ficus: ModuleID =          "com.iheart"                 %% "ficus"           % "1.4.3"
-  val cats: ModuleID =           "org.typelevel"              %% "cats"            % "0.9.0"
+  val cats: ModuleID =           "org.typelevel"              %% "cats-core"       % catsV
   val httpClient: ModuleID =     "org.apache.httpcomponents"  % "httpclient"       % "4.5.5"  // upgrading a transitive dependency to avoid security warnings
   val enumeratum: ModuleID =     "com.beachape"               %% "enumeratum"      % "1.5.13"
 
