@@ -92,5 +92,21 @@ final class NotebookCustomizationSpec extends FreeSpec
         }
       }
     }
+
+    "should install user specified lab extensions from a js file" in {
+      withProject { project => implicit token =>
+        val exampleLabExtensionFile = ResourceFile("bucket-tests/example_lab_extension.js")
+        withResourceFileInBucket(project, exampleLabExtensionFile, "text/plain") { exampleLabExtensionBucketPath =>
+          val clusterRequestWithLabExtension = ClusterRequest(Map(), Option(exampleLabExtensionBucketPath.toUri), None)
+          withNewCluster(project, request = clusterRequestWithLabExtension) { cluster =>
+            withWebDriver { implicit driver =>
+              withNewNotebook(cluster) { notebookPage =>
+                notebookPage.executeCell("!jupyter labextension list").get should include("example_lab_extension")
+              }
+            }
+          }
+        }
+      }
+    }
   }
 }
