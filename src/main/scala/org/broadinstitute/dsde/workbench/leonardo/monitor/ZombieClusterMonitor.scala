@@ -86,8 +86,8 @@ class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO
 
   private def isProjectActiveInGoogle(googleProject: GoogleProject): Future[Boolean] = {
     // Check the project and its billing info
-    (googleProjectDAO.isProjectActive(googleProject.value) |@| googleProjectDAO.isBillingActive(googleProject.value))
-      .map(_ && _)
+    (googleProjectDAO.isProjectActive(googleProject.value), googleProjectDAO.isBillingActive(googleProject.value))
+      .mapN(_ && _)
       .recover { case e =>
         logger.warn(s"Unable to check status of project ${googleProject.value} for zombie cluster detection", e)
         true

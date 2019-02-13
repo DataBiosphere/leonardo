@@ -728,7 +728,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Validate the user script URI
       _ <- clusterRequest.jupyterUserScriptUri match {
         case Some(userScriptUri) => OptionT.liftF[Future, Unit](validateBucketObjectUri(userEmail, petToken, userScriptUri.toUri))
-        case None => OptionT.pure[Future, Unit](())
+        case None => OptionT.pure[Future](())
       }
 
       // Validate the extension URIs
@@ -736,7 +736,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         case Some(config) =>
           val extensionsToValidate = (config.nbExtensions.values ++ config.serverExtensions.values ++ config.combinedExtensions.values).filter(_.startsWith("gs://"))
           OptionT.liftF(Future.traverse(extensionsToValidate)(x => validateBucketObjectUri(userEmail, petToken, x)))
-        case None => OptionT.pure[Future, Unit](())
+        case None => OptionT.pure[Future](())
       }
     } yield ()
 
