@@ -3,8 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo.lab
 import org.scalatest.selenium.WebBrowser._
 import org.openqa.selenium.WebElement
 
-
-
 trait Toolbar {
 
   // selects all menus from the header bar
