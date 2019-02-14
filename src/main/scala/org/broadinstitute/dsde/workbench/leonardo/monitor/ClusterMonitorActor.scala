@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import java.time.Instant
+import java.time.temporal.{ChronoUnit, TemporalUnit}
 
 import akka.actor.Status.Failure
 import akka.actor.{Actor, ActorSystem, Props}
@@ -230,6 +231,9 @@ class ClusterMonitorActor(val cluster: Cluster,
       // delete the init bucket so we don't continue to accrue costs after cluster is deleted
       _ <- deleteInitBucket
 
+      // set the staging bucket to be deleted in ten days so that logs are still accessible until then
+      _ <- setStagingBucketLifecycle
+
       // delete instances in the DB
       _ <- persistInstances(Set.empty)
 
@@ -399,6 +403,20 @@ class ClusterMonitorActor(val cluster: Cluster,
       case Some(bucketPath) =>
         googleStorageDAO.deleteBucket(bucketPath.bucketName, recurse = true) map { _ =>
           logger.debug(s"Deleted init bucket $bucketPath for cluster ${cluster.googleProject}/${cluster.clusterName}")
+        }
+    }
+  }
+
+  private def setStagingBucketLifecycle: Future[Unit] = {
+    // Get the init bucket path for this cluster, then set the age for it to be deleted to a week after the deletion of the cluster.
+    dbRef.inTransaction { dataAccess =>
+      dataAccess.clusterQuery.getInitBucket(cluster.googleProject, cluster.clusterName)
+    } flatMap {
+      case None => Future.successful( logger.warn(s"Could not lookup bucket for cluster ${cluster.projectNameString}: cluster not in db") )
+      case Some(bucketPath) =>
+        val ageToDelete = cluster.auditInfo.createdDate.until(Instant.now(), ChronoUnit.DAYS).toInt + 10
+        googleStorageDAO.setBucketLifecycle(bucketPath.bucketName, ageToDelete) map { _ =>
+          logger.debug(s"Set staging bucket $bucketPath for cluster ${cluster.googleProject}/${cluster.clusterName} to be deleted in ten days.")
         }
     }
   }
