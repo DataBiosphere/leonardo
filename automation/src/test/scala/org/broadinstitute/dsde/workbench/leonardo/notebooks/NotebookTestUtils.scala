@@ -108,13 +108,13 @@ trait NotebookTestUtils extends LeonardoTestUtils {
 
   def withDummyClientPage[T](cluster: Cluster)(testCode: DummyClientPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     // start a server to load the dummy client page
-    val bindingFuture = Notebook.dummyClient.startServer
+    val bindingFuture = DummyClient.startServer
     val testResult = Try {
-      val dummyClientPage = Notebook.dummyClient.get(cluster.googleProject, cluster.clusterName)
+      val dummyClientPage = DummyClient.get(cluster.googleProject, cluster.clusterName)
       testCode(dummyClientPage)
     }
     // stop the server
-    Notebook.dummyClient.stopServer(bindingFuture)
+    DummyClient.stopServer(bindingFuture)
     testResult.get
   }
 

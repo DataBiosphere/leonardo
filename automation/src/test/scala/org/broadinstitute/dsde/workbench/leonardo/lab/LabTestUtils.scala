@@ -29,12 +29,12 @@ trait LabTestUtils extends LeonardoTestUtils {
   implicit val ec: ExecutionContextExecutor = ExecutionContext.global
   def withNewLabNotebook[T](cluster: Cluster, kernel: LabKernel = lab.Python2, timeout: FiniteDuration = 2.minutes)(testCode: LabNotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withLabLauncherPage(cluster) { labLauncherPage =>
-      val result: Future[T] = retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds, 2 minutes) {() =>
+      val result: Future[T] = retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds, 5 minutes) {() =>
         Future(labLauncherPage.withNewLabNotebook(kernel, timeout) { labNotebookPage =>
           testCode(labNotebookPage)
         })
       }
-      Await.result(result, 10 minutes)
+      Await.result(result, 5 minutes)
     }
   }
 }
