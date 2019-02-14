@@ -97,7 +97,7 @@ final class NotebookCustomizationSpec extends FreeSpec
       withProject { project => implicit token =>
         val exampleLabExtensionFile = ResourceFile("bucket-tests/example_lab_extension.js")
         withResourceFileInBucket(project, exampleLabExtensionFile, "text/plain") { exampleLabExtensionBucketPath =>
-          val clusterRequestWithLabExtension = ClusterRequest(Map(), Option(exampleLabExtensionBucketPath.toUri), None)
+          val clusterRequestWithLabExtension = ClusterRequest(userJupyterExtensionConfig = Some(UserJupyterExtensionConfig(labExtensions = Map("example_lab_extension" -> exampleLabExtensionBucketPath.toUri))))
           withNewCluster(project, request = clusterRequestWithLabExtension) { cluster =>
             withWebDriver { implicit driver =>
               withNewNotebook(cluster) { notebookPage =>
