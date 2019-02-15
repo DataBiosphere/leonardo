@@ -408,7 +408,7 @@ class ClusterMonitorActor(val cluster: Cluster,
   }
 
   private def setStagingBucketLifecycle: Future[Unit] = {
-    // Get the init bucket path for this cluster, then set the age for it to be deleted to a week after the deletion of the cluster.
+    // Get the staging bucket path for this cluster, then set the age for it to be deleted to a week after the deletion of the cluster.
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getStagingBucket(cluster.googleProject, cluster.clusterName)
     } flatMap {
