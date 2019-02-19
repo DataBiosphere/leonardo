@@ -412,7 +412,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getStagingBucket(cluster.googleProject, cluster.clusterName)
     } flatMap {
-      case None => Future.successful( logger.warn(s"Could not lookup staging bucket for cluster ${cluster.projectNameString}: cluster not in db") )
+      case None => Future.successful( logger.warn(s"Could not lookup staging bucket for cluster ${cluster.projectNameString}: cluster not in db, this is the given staging bucket: ${cluster.dataprocInfo.stagingBucket}") )
       case Some(bucketPath) =>
         val ageToDelete = cluster.auditInfo.createdDate.until(Instant.now(), ChronoUnit.DAYS).toInt + 10
         googleStorageDAO.setBucketLifecycle(bucketPath.bucketName, ageToDelete) map { _ =>
