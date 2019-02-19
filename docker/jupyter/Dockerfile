@@ -285,6 +285,7 @@ RUN apt-get update \
  && pip3 install python-datauri \
  && pip3 install jupyter_contrib_nbextensions \
  && pip3 install jupyter_nbextensions_configurator \
+ && pip3 install cookiecutter \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
@@ -334,7 +335,7 @@ RUN R -e 'install.packages(c( \
  && R -e 'devtools::install_github("IRkernel/IRkernel")' \
  && R -e 'IRkernel::installspec(user=FALSE)' \
  && chown -R $USER:users /home/jupyter-user/.local  \
- && R -e 'devtools::install_github("apache/spark@v2.2.0", subdir="R/pkg")' \
+ && R -e 'devtools::install_github("apache/spark@v2.2.3", subdir="R/pkg")' \
  && mkdir -p /home/jupyter-user/.rpackages \
  && echo "R_LIBS=/home/jupyter-user/.rpackages" > /home/jupyter-user/.Renviron \
  && chown -R $USER:users /home/jupyter-user/.rpackages
