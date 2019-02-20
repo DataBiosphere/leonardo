@@ -228,6 +228,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     logger.info(s"Cluster ${cluster.projectNameString} has been deleted.")
 
     for {
+
       // delete the init bucket so we don't continue to accrue costs after cluster is deleted
       _ <- deleteInitBucket
 
@@ -408,16 +409,19 @@ class ClusterMonitorActor(val cluster: Cluster,
   }
 
   private def setStagingBucketLifecycle: Future[Unit] = {
-    // Get the staging bucket path for this cluster, then set the age for it to be deleted to a week after the deletion of the cluster.
+    // Get the staging bucket path for this cluster, then set the age for it to be deleted to ten days after the deletion of the cluster.
     dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.getStagingBucket(cluster.googleProject, cluster.clusterName)
+      dataAccess.clusterQuery.getClusterById(cluster.id)
+        //getStagingBucket(cluster.googleProject, cluster.clusterName)
     } flatMap {
       case None => Future.successful( logger.warn(s"Could not lookup staging bucket for cluster ${cluster.projectNameString}: cluster not in db, this is the given staging bucket: ${cluster.dataprocInfo.stagingBucket}") )
       case Some(bucketPath) =>
         val ageToDelete = cluster.auditInfo.createdDate.until(Instant.now(), ChronoUnit.DAYS).toInt + 10
-        googleStorageDAO.setBucketLifecycle(bucketPath.bucketName, ageToDelete) map { _ =>
-          logger.debug(s"Set staging bucket $bucketPath for cluster ${cluster.googleProject}/${cluster.clusterName} to be deleted in ten days.")
-        }
+        logger.warn(s"${bucketPath}")
+        Future.successful()
+//        googleStorageDAO.setBucketLifecycle(bucketPath.bucketName, ageToDelete) map { _ =>
+//          logger.debug(s"Set staging bucket $bucketPath for cluster ${cluster.googleProject}/${cluster.clusterName} to be deleted in ten days.")
+//        }
     }
   }
 

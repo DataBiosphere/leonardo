@@ -246,10 +246,10 @@ trait ClusterComponent extends LeoComponent {
     }
 
     def getStagingBucket(project: GoogleProject, name: ClusterName): DBIO[Option[GcsPath]] = {
-      fullClusterQuery
-        .filter { _._1.googleProject === project.value }
-        .filter { _._1.clusterName === name.value }
-        .map(_._1.stagingBucket)
+      clusterQuery
+        .filter { _.googleProject === project.value }
+        .filter { _.clusterName === name.value }
+        .map(_.stagingBucket)
         .result
         .map { recs => recs.headOption.flatten.flatMap(head => parseGcsPath(head).toOption) }
     }
