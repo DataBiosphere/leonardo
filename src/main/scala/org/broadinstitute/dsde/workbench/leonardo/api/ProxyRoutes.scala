@@ -72,6 +72,7 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
                     proxyFuture
                   }
               }
+            }
       } ~
         // No need to lookup the user or consult the auth provider for this endpoint
         path("invalidateToken") {
