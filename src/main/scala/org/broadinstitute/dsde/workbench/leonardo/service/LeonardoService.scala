@@ -817,6 +817,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     // Fill in templated resources with the given replacements
     val initScriptContent = templateResource(clusterResourcesConfig.initActionsScript, replacements)
     val googleSignInJsContent = templateResource(clusterResourcesConfig.jupyterGoogleSignInJs, replacements)
+    val labGoogleSignInJsContent = templateResource(clusterResourcesConfig.jupyterLabGoogleSignInJs, replacements)
     val jupyterNotebookConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookConfigUri, replacements)
 
     for {
@@ -825,6 +826,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
       // Upload the googleSignInJs file to the bucket
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterGoogleSignInJs.value), googleSignInJsContent, "text/plain")
+
+      // Upload the lab googleSignInJs file to the bucket
+      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterLabGoogleSignInJs.value), labGoogleSignInJsContent, "text/plain")
 
       // Update the jupytyer notebook config file
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value), jupyterNotebookConfigContent, "text/plain")

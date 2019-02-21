@@ -92,6 +92,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_LAB_EXTENSIONS=$(jupyterLabExtensions)
     JUPYTER_CUSTOM_JS_URI=$(jupyterCustomJsUri)
     JUPYTER_GOOGLE_SIGN_IN_JS_URI=$(jupyterGoogleSignInJsUri)
+    JUPYYER_LAB_GOOGLE_SIGN_IN_JS_URI=$(jupyterLabGoogleSignInJsUri)
     JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
 
@@ -290,6 +291,15 @@ if [[ "${ROLE}" == 'Master' ]]; then
       JUPYTER_GOOGLE_SIGN_IN_JS=`basename ${JUPYTER_GOOGLE_SIGN_IN_JS_URI}`
       retry 3 docker exec ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
       docker cp /etc/${JUPYTER_GOOGLE_SIGN_IN_JS} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
+    fi
+
+    # If a google_sign_in_lab.js was specified, install it as a Lab extension
+    if [ ! -z ${JUPYYER_LAB_GOOGLE_SIGN_IN_JS_URI} ] ; then
+      log 'Installing JupyterLab Google sign in extension...'
+      gsutil cp ${JUPYYER_LAB_GOOGLE_SIGN_IN_JS_URI} /etc
+      JUPYYER_LAB_GOOGLE_SIGN_IN_JS=`basename ${JUPYYER_LAB_GOOGLE_SIGN_IN_JS_URI}`
+      docker cp /etc/${JUPYYER_LAB_GOOGLE_SIGN_IN_JS} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYYER_LAB_GOOGLE_SIGN_IN_JS}
+      retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYYER_LAB_GOOGLE_SIGN_IN_JS}
     fi
 
     if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG_URI} ] ; then

@@ -87,6 +87,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterResourcesConfig.jupyterProxySiteConf.value,
     clusterResourcesConfig.jupyterCustomJs.value,
     clusterResourcesConfig.jupyterGoogleSignInJs.value,
+    clusterResourcesConfig.jupyterLabGoogleSignInJs.value,
     clusterResourcesConfig.jupyterNotebookConfigUri.value)
 
   lazy val initFiles = (configFiles ++ serviceAccountCredentialFile).map(GcsObjectName(_))
@@ -577,22 +578,24 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     result shouldEqual expected
   }
 
-  it should "template google_sign_in.js with config values" in isolatedDbTest {
+  List(clusterResourcesConfig.jupyterGoogleSignInJs, clusterResourcesConfig.jupyterLabGoogleSignInJs).foreach { res =>
+    it should s"template $res with config values" in isolatedDbTest {
 
-    // Create replacements map
-    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequest, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy, Set(jupyterImage))
-    val replacements: Map[String, String] = clusterInit.toMap
+      // Create replacements map
+      val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequest, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy, Set(jupyterImage))
+      val replacements: Map[String, String] = clusterInit.toMap
 
-    // Each value in the replacement map will replace it's key in the file being processed
-    val result = leo.templateResource(clusterResourcesConfig.jupyterGoogleSignInJs, replacements)
+      // Each value in the replacement map will replace it's key in the file being processed
+      val result = leo.templateResource(res, replacements)
 
-    // Check that the values in the bash script file were correctly replaced
-    val expected =
-      s"""|"${userInfo.userEmail.value}"
-          |"${testClusterRequest.defaultClientId.value}"
-          |""".stripMargin
+      // Check that the values in the bash script file were correctly replaced
+      val expected =
+        s"""|"${userInfo.userEmail.value}"
+            |"${testClusterRequest.defaultClientId.value}"
+            |""".stripMargin
 
-    result shouldEqual expected
+      result shouldEqual expected
+    }
   }
 
   it should "throw a JupyterExtensionException when the extensionUri is too long" in isolatedDbTest {

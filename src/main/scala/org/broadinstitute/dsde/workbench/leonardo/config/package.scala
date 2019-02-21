@@ -52,6 +52,7 @@ package object config {
       ClusterResource(config.getString("proxySiteConf")),
       ClusterResource(config.getString("jupyterCustomJs")),
       ClusterResource(config.getString("jupyterGoogleSignInJs")),
+      ClusterResource(config.getString("jupyterLabGoogleSignInJs")),
       ClusterResource(config.getString("jupyterNotebookConfigUri"))
     )
   }
