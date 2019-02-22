@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
+import akka.actor.ActorSystem
 import akka.event.{Logging, LoggingAdapter}
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
@@ -11,6 +12,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.server.RouteResult.Complete
 import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
+import akka.stream.Materializer
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.ConnectToCluster
 import org.broadinstitute.dsde.workbench.leonardo.util.CookieHelper
 import org.broadinstitute.dsde.workbench.model.UserInfo
@@ -19,6 +21,8 @@ import scala.concurrent.ExecutionContext
 
 trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper { self: LazyLogging =>
   val proxyService: ProxyService
+  implicit val system: ActorSystem
+  implicit val materializer: Materializer
   implicit val executionContext: ExecutionContext
 
   protected val proxyRoutes: Route =
