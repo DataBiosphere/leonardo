@@ -250,7 +250,6 @@ RUN apt-get update \
     # for jupyterlab extensions
     nodejs \
     npm \
- && npm install gapi-client \
  && pip3 install tornado==4.5.3 \
 # # Hail requires decorator
  && pip3 install -U decorator==4.3.0 \

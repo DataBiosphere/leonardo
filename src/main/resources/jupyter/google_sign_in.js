@@ -1,14 +1,3 @@
-require.config({
-    "shim": {
-        "gapi": {
-            "exports": "gapi"
-        }
-    },
-    "paths": {
-        "gapi": "https://apis.google.com/js/platform"
-    }
-})
-
 // TEMPLATED CODE
 // Leonardo has logic to find/replace templated values in the format $(...).
 // This will be replaced with the real email login hint before uploading to the notebook server.
@@ -42,27 +31,27 @@ function receive(event) {
 }
 
 function startTimer() {
-    require(['gapi'], function (gapi) {
-        gapi.load('auth2', function () {
-            function doAuth() {
-                if (googleClientId) {
-                    gapi.auth2.authorize({
-                        'client_id': googleClientId,
-                        'scope': 'openid profile email',
-                        'login_hint': loginHint,
-                        'prompt': 'none'
-                    }, function (result) {
-                        if (result.error) {
-                            return;
-                        }
-                        set_cookie(result.access_token, result.expires_in);
-                    });
-                }
+    loadGapi('auth2', function () {
+        function doAuth() {
+            if (googleClientId) {
+                gapi.auth2.authorize({
+                    'client_id': googleClientId,
+                    'scope': 'openid profile email',
+                    'login_hint': loginHint,
+                    'prompt': 'none'
+                }, function (result) {
+                    if (result.error) {
+                        console.error("Error occurred authorizing with Google: " + result.error);
+                        return;
+                    }
+                    set_cookie(result.access_token, result.expires_in);
+                });
             }
+        }
 
-            // refresh token every 2 minutes
-            setInterval(doAuth, 120000);
-        });
+        // refresh token every 2 minutes
+        console.log('Starting token refresh timer');
+        setInterval(doAuth, 120000);
     });
 
 
@@ -80,7 +69,27 @@ function set_cookie(token, expires_in) {
     document.cookie = "LeoToken="+token+";secure;expires="+expiresDate.toUTCString()+";path=/";
 }
 
+function loadGapi(google_lib, continuation) {
+    console.log('Loading Google APIs');
+    // Get the gapi script from Google.
+    const gapiScript = document.createElement('script');
+    gapiScript.src = 'https://apis.google.com/js/api.js';
+    gapiScript.type = 'text/javascript';
+    gapiScript.async = true;
+
+    // Load requested API scripts onto the page.
+    gapiScript.onload = function () {
+        console.log("Loading Google library '"+google_lib+"'");
+        gapi.load(google_lib, continuation);
+    }
+    gapiScript.onerror = function () {
+        console.error('Unable to load Google APIs');
+    }
+    document.head.appendChild(gapiScript);
+}
+
 function init() {
+    console.log('Starting google_sign_in extension');
     startTimer();
     window.addEventListener('message', receive);
     if (!googleClientId && window.opener) {

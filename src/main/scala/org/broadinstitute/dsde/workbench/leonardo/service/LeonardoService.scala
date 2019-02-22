@@ -806,7 +806,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val resourcesToUpload = List(
       clusterResourcesConfig.clusterDockerCompose,
       clusterResourcesConfig.jupyterProxySiteConf,
-      clusterResourcesConfig.jupyterCustomJs)
+      clusterResourcesConfig.jupyterGooglePlugin,
+      clusterResourcesConfig.jupyterLabGooglePlugin)
 
     // Uploads the service account private key to the init bucket, if defined.
     // This is a no-op if createClusterAsPetServiceAccount is true.
@@ -816,8 +817,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     // Fill in templated resources with the given replacements
     val initScriptContent = templateResource(clusterResourcesConfig.initActionsScript, replacements)
-    val googleSignInJsContent = templateResource(clusterResourcesConfig.jupyterGoogleSignInJs, replacements)
-    val labGoogleSignInJsContent = templateResource(clusterResourcesConfig.jupyterLabGoogleSignInJs, replacements)
+    val googleSignInJsContent = templateResource(clusterResourcesConfig.googleSignInJs, replacements)
     val jupyterNotebookConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookConfigUri, replacements)
 
     for {
@@ -825,10 +825,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.initActionsScript.value), initScriptContent, "text/plain")
 
       // Upload the googleSignInJs file to the bucket
-      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterGoogleSignInJs.value), googleSignInJsContent, "text/plain")
-
-      // Upload the lab googleSignInJs file to the bucket
-      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterLabGoogleSignInJs.value), labGoogleSignInJsContent, "text/plain")
+      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.googleSignInJs.value), googleSignInJsContent, "text/plain")
 
       // Update the jupytyer notebook config file
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value), jupyterNotebookConfigContent, "text/plain")
