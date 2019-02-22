@@ -1,3 +1,13 @@
+/*
+ * This library is designed to run as a Jupyter/JupyterLab extension to refresh the user's
+ * Google credentials while using a notebook. This flow is described in more detail here:
+ * https://github.com/DataBiosphere/leonardo/wiki/Connecting-to-a-Leo-Notebook#token-refresh
+ *
+ * Note since this runs inside both Jupyter and JupyterLab, it should not use any
+ * libraries/functionality that exists in one but not the other. Examples: node, requireJS.
+ */
+
+
 // TEMPLATED CODE
 // Leonardo has logic to find/replace templated values in the format $(...).
 // This will be replaced with the real email login hint before uploading to the notebook server.
