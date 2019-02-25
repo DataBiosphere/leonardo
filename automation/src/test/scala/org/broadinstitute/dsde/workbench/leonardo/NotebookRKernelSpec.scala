@@ -19,10 +19,10 @@ class NotebookRKernelSpec extends ClusterFixtureSpec {
 
           // Make sure unicode characters display correctly
           notebookPage.executeCell("""install.packages("skimr")""")
+          notebookPage.executeCell("library(skimr)")
 
           val output = notebookPage.executeCell(
-            """library(skimr)
-              |data(iris)
+            """data(iris)
               |skim(iris)""".stripMargin)
 
           output shouldBe 'defined
