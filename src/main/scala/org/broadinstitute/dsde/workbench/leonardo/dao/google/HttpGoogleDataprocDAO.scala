@@ -308,11 +308,11 @@ class HttpGoogleDataprocDAO(appName: String,
 
     new SoftwareConfig().setProperties((authProps ++ dataprocProps ++ yarnProps).asJava)
 
-      // This gives us Spark 2.2.3. See:
-      //   https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-release-1.2
-      // If changing this make sure the version of Spark is compatible with Hail and SparkR
-      // installed in the Jupyter Dockerfile.
-      .setImageVersion("1.2.65-deb9")
+      // This gives us Spark 2.0.2. See:
+      //   https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-versions
+      // Dataproc supports Spark 2.2.0, but there are no pre-packaged Hail distributions past 2.1.0. See:
+      //   https://hail.is/docs/stable/getting_started.html
+      .setImageVersion("1.2-deb9")
   }
 
   private def getMultiNodeClusterConfig(machineConfig: MachineConfig): DataprocClusterConfig = {
