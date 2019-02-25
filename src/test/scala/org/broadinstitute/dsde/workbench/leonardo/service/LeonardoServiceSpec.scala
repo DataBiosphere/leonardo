@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{MockPetClusterServiceAccountProvider, MockSwaggerSamClient}
+import org.broadinstitute.dsde.workbench.leonardo.config.ClusterResourcesConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, LeoComponent, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
@@ -85,8 +86,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterFilesConfig.jupyterServerKey.getName,
     clusterFilesConfig.jupyterRootCaPem.getName,
     clusterResourcesConfig.jupyterProxySiteConf.value,
-    clusterResourcesConfig.jupyterCustomJs.value,
-    clusterResourcesConfig.jupyterGoogleSignInJs.value,
+    clusterResourcesConfig.googleSignInJs.value,
+    clusterResourcesConfig.jupyterGooglePlugin.value,
+    clusterResourcesConfig.jupyterLabGooglePlugin.value,
     clusterResourcesConfig.jupyterNotebookConfigUri.value)
 
   lazy val initFiles = (configFiles ++ serviceAccountCredentialFile).map(GcsObjectName(_))
@@ -577,14 +579,14 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     result shouldEqual expected
   }
 
-  it should "template google_sign_in.js with config values" in isolatedDbTest {
+  it should s"template google_sign_in.js with config values" in isolatedDbTest {
 
     // Create replacements map
     val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequest, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy, Set(jupyterImage))
     val replacements: Map[String, String] = clusterInit.toMap
 
     // Each value in the replacement map will replace it's key in the file being processed
-    val result = leo.templateResource(clusterResourcesConfig.jupyterGoogleSignInJs, replacements)
+    val result = leo.templateResource(clusterResourcesConfig.googleSignInJs, replacements)
 
     // Check that the values in the bash script file were correctly replaced
     val expected =

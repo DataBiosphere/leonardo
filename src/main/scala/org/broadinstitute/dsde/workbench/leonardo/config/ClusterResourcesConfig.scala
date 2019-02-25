@@ -5,8 +5,9 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ClusterResource
 case class ClusterResourcesConfig(initActionsScript: ClusterResource,
                                   clusterDockerCompose: ClusterResource,
                                   jupyterProxySiteConf: ClusterResource,
-                                  jupyterCustomJs: ClusterResource,
-                                  jupyterGoogleSignInJs: ClusterResource,
+                                  googleSignInJs: ClusterResource,
+                                  jupyterGooglePlugin: ClusterResource,
+                                  jupyterLabGooglePlugin: ClusterResource,
                                   jupyterNotebookConfigUri: ClusterResource
                                  )
 
