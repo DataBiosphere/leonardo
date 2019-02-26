@@ -2,12 +2,13 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 
 import java.time.Instant
 import java.util.concurrent.TimeUnit
+import java.util.regex.Pattern
 
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.`Content-Disposition`
+import akka.http.scaladsl.model.headers.{RawHeader, `Content-Disposition`}
 import akka.http.scaladsl.model.ws._
 import akka.pattern.ask
 import akka.stream.ActorMaterializer
@@ -38,7 +39,7 @@ case class ClusterPausedException(googleProject: GoogleProject, clusterName: Clu
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} is stopped. Start your cluster before proceeding.", StatusCodes.UnprocessableEntity)
 
 case class ProxyException(googleProject: GoogleProject, clusterName: ClusterName)
-  extends LeoException(s"Unable to proxy connection to Jupyter notebook on ${googleProject.value}/${clusterName.value}", StatusCodes.InternalServerError)
+  extends LeoException(s"Unable to proxy connection to tool on ${googleProject.value}/${clusterName.value}", StatusCodes.InternalServerError)
 
 case class AccessTokenExpiredException()
   extends LeoException(s"Your access token is expired. Try logging in again", StatusCodes.Unauthorized)
@@ -115,7 +116,7 @@ class ProxyService(proxyConfig: ProxyConfig,
     * @return HttpResponse future representing the proxied response, or NotFound if a notebook
     *         server IP could not be found.
     */
-  def proxyNotebook(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest): Future[HttpResponse] = {
+  def proxyRequest(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest): Future[HttpResponse] = {
     authCheck(userInfo, googleProject, clusterName, ConnectToCluster).flatMap { _ =>
       proxyInternal(userInfo, googleProject, clusterName, request)
     }
@@ -134,7 +135,7 @@ class ProxyService(proxyConfig: ProxyConfig,
           case None => handleHttpRequest(targetHost, request)
         }
         responseFuture recover { case e =>
-          logger.error("Error occurred in Jupyter proxy", e)
+          logger.error("Error occurred in proxy", e)
           throw ProxyException(googleProject, clusterName)
         }
       case HostNotReady =>
@@ -162,10 +163,57 @@ class ProxyService(proxyConfig: ProxyConfig,
     // Now build a Source[Request] out of the original HttpRequest. We need to make some modifications
     // to the original request in order for the proxy to work:
 
+    // We support 2 tools and a legacy path for Jupyter. Eventually we will deprecate the legacy path.
+    val rstudioPattern = "(\\/proxy\\/[^\\/]*\\/[^\\/]*\\/rstudio\\/)(.*)?".r
+    val jupyterPattern = "\\/proxy\\/([^\\/]*)\\/([^\\/]*)\\/jupyter\\/?(.*)?".r
+    val jupyterLegacyPattern = "\\/notebooks\\/[^\\/]*\\/[^\\/]*\\/?(.*)?".r
+
+    // We take care of three things here:
+    // 1) We need to supply a header specifying which tool. This will allow the cluster-site.conf to
+    //    redirect the request to the appropriate port.
+    // 2) We need to rewrite the path to strip off the prefix prior to the tool name
+    // 3) /tool/ is added in front of these rewritten paths because we cannot have an empty Uri.
+    //    The cluster-site.conf will ignore /tool/ anyway so this is merely a workaround.
+    val (toolHeader, rewrittenPath) = request.uri.path.toString match {
+      case rstudioPattern(_, newPath) => {
+        val toolHeader = RawHeader("X-Leonardo-Tool", "rstudio")
+        val rewrittenPath = Uri.Path("/tool/" + newPath)
+
+        (toolHeader, rewrittenPath)
+      }
+      //for now we will convert the newly supported jupyter path into the legacy path
+      //once we fully remove the legacy path, we will need to upgrade various jupyter configs
+      //to ensure that the correct paths are used(i.e. see jupyter_notebook_config.py)
+      case jupyterPattern(project, cluster, path) => {
+        val toolHeader = RawHeader("X-Leonardo-Tool", "jupyter")
+        val rewrittenPath = Uri.Path("/notebooks/" + project + "/" + cluster + "/" + path)
+
+        println(rewrittenPath.toString)
+
+        (toolHeader, rewrittenPath)
+      }
+      case jupyterLegacyPattern(_) => {
+        val toolHeader = RawHeader("X-Leonardo-Tool", "jupyter")
+        val rewrittenPath = Uri.Path(request.uri.path.toString) //just pass the old one through
+
+        println(rewrittenPath.toString)
+
+        (toolHeader, rewrittenPath)
+      }
+      // If we don't recognize which tool it is, we'll add a "none" header for the tool and pass the
+      // request through. apache will deal with it from there.
+      case _ => {
+        val toolHeader = RawHeader("X-Leonardo-Tool", "none")
+        val rewrittenPath = request.uri.path
+
+        (toolHeader, rewrittenPath)
+      }
+    }
+
     // 1. filter out headers not needed for the backend server
-    val newHeaders = filterHeaders(request.headers)
+    val newHeaders = filterHeaders(request.headers) ++ Seq(toolHeader)
     // 2. strip out Uri.Authority:
-    val newUri = Uri(path = request.uri.path, queryString = request.uri.queryString())
+    val newUri = Uri(path = rewrittenPath, queryString = request.uri.queryString())
     // 3. build a new HttpRequest
     val newRequest = request.copy(headers = newHeaders, uri = newUri)
 
