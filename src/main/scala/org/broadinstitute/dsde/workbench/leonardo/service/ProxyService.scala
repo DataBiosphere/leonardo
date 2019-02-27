@@ -147,48 +147,22 @@ class ProxyService(proxyConfig: ProxyConfig,
     }
   }
 
-  private def addToolHeader(request: HttpRequest): (RawHeader, Uri.Path) = {
-    // We support 2 tools and a legacy path for Jupyter. Eventually we will deprecate the legacy path.
-    val rstudioPattern = "(\\/proxy\\/[^\\/]*\\/[^\\/]*\\/rstudio\\/)(.*)?".r
+  // From the outside, we are going to support TWO paths to access Jupyter:
+  // 1)   /notebooks/{googleProject}/{clusterName}/
+  // 2)   /proxy/{googleProject}/{clusterName}/jupyter/
+  //
+  // To greatly simplify things on the backend, we will funnel all requests into path #1. Eventually
+  // we will remove that path and #2 will be the sole entry point for users. At that point, we can
+  // update the code in here to not rewrite any paths for Jupyter. We will also need to update the
+  // paths in related areas like jupyter_notebook_config.py
+  private def rewriteJupyterPath(request: HttpRequest): Uri.Path = {
     val jupyterPattern = "\\/proxy\\/([^\\/]*)\\/([^\\/]*)\\/jupyter\\/?(.*)?".r
-    val jupyterLegacyPattern = "\\/notebooks\\/[^\\/]*\\/[^\\/]*\\/?(.*)?".r
 
-    // We take care of three things here:
-    // 1) We need to supply a header specifying which tool. This will allow the cluster-site.conf to
-    //    redirect the request to the appropriate port.
-    // 2) We need to rewrite the path to strip off the prefix prior to the tool name
-    // 3) /tool/ is added in front of these rewritten paths because we cannot have an empty Uri.
-    //    The cluster-site.conf will ignore /tool/ anyway so this is merely a workaround.
     request.uri.path.toString match {
-      case rstudioPattern(_, newPath) => {
-        val toolHeader = RawHeader("X-Leonardo-Tool", "rstudio")
-        val rewrittenPath = Uri.Path("/tool/" + newPath)
-
-        (toolHeader, rewrittenPath)
-      }
-      //for now we will convert the newly supported jupyter path into the legacy path
-      //once we fully remove the legacy path, we will need to upgrade various jupyter configs
-      //to ensure that the correct paths are used(i.e. see jupyter_notebook_config.py)
       case jupyterPattern(project, cluster, path) => {
-        val toolHeader = RawHeader("X-Leonardo-Tool", "jupyter")
-        val rewrittenPath = Uri.Path("/notebooks/" + project + "/" + cluster + "/" + path)
-
-        (toolHeader, rewrittenPath)
+        Uri.Path("/notebooks/" + project + "/" + cluster + "/" + path)
       }
-      case jupyterLegacyPattern(_) => {
-        val toolHeader = RawHeader("X-Leonardo-Tool", "jupyter")
-        val rewrittenPath = Uri.Path(request.uri.path.toString) //just pass the old one through
-
-        (toolHeader, rewrittenPath)
-      }
-      // If we don't recognize which tool it is, we'll add a "none" header for the tool and pass the
-      // request through. apache will deal with it from there.
-      case _ => {
-        val toolHeader = RawHeader("X-Leonardo-Tool", "none")
-        val rewrittenPath = request.uri.path
-
-        (toolHeader, rewrittenPath)
-      }
+      case _ => request.uri.path
     }
   }
 
@@ -208,10 +182,11 @@ class ProxyService(proxyConfig: ProxyConfig,
     // Now build a Source[Request] out of the original HttpRequest. We need to make some modifications
     // to the original request in order for the proxy to work:
 
-    val (toolHeader, rewrittenPath) = addToolHeader(request)
+    // Rewrite the path if it is proxy/*/*/jupyter/, otherwise pass it through as is (see rewriteJupyterPath)
+    val rewrittenPath = rewriteJupyterPath(request)
 
     // 1. filter out headers not needed for the backend server
-    val newHeaders = filterHeaders(request.headers) ++ Seq(toolHeader)
+    val newHeaders = filterHeaders(request.headers)
     // 2. strip out Uri.Authority:
     val newUri = Uri(path = rewrittenPath, queryString = request.uri.queryString())
     // 3. build a new HttpRequest
@@ -269,11 +244,12 @@ class ProxyService(proxyConfig: ProxyConfig,
     // Initialize a Flow for the WebSocket conversation.
     // `Message` is the root of the ADT for WebSocket messages. A Message may be a TextMessage or a BinaryMessage.
     val flow = Flow.fromSinkAndSourceMat(Sink.asPublisher[Message](fanout = false), Source.asSubscriber[Message])(Keep.both)
-    
+
     // Make a single WebSocketRequest to the notebook server, passing in our Flow. This returns a Future[WebSocketUpgradeResponse].
     // Keep our publisher/subscriber (e.g. sink/source) for use later. These are returned because we specified Keep.both above.
+    // Note that we are rewriting the paths for any requests that are routed to /proxy/*/*/jupyter/
     val (responseFuture, (publisher, subscriber)) = Http().singleWebSocketRequest(
-      WebSocketRequest(request.uri.copy(authority = request.uri.authority.copy(host = targetHost, port = proxyConfig.jupyterPort), scheme = "wss"), extraHeaders = filterHeaders(request.headers),
+      WebSocketRequest(request.uri.copy(path = rewriteJupyterPath(request), authority = request.uri.authority.copy(host = targetHost, port = proxyConfig.jupyterPort), scheme = "wss"), extraHeaders = filterHeaders(request.headers),
         upgrade.requestedProtocols.headOption),
       flow
     )
