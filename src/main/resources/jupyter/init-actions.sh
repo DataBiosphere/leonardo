@@ -287,6 +287,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
         done
       fi
 
+      retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/install_jupyter_contrib_nbextensions.sh
+
       # If a google_sign_in.js was specified, copy it into the jupyter docker container.
       if [ ! -z ${GOOGLE_SIGN_IN_JS_URI} ] ; then
         log 'Installing Google sign in extension...'
