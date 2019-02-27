@@ -38,7 +38,7 @@
     </appender>
 
 
-    <logger name="org.broadinstitute.dsde" level="debug" additivity="false">
+    <logger name="org.broadinstitute.dsde" level="info" additivity="false">
         <appender-ref ref="file"/>
         <appender-ref ref="console"/>
         <appender-ref ref="SYSLOG"/>
@@ -46,7 +46,7 @@
     </logger>
 
 
-    <logger name="akka" level="debug" additivity="false">
+    <logger name="akka" level="info" additivity="false">
         <appender-ref ref="file"/>
         <appender-ref ref="console"/>
         <appender-ref ref="SYSLOG"/>
@@ -56,7 +56,7 @@
     <!-- see https://github.com/slick/slick/blob/master/common-test-resources/logback.xml for more Slick logging -->
 
     <!--
-    <logger name="slick.jdbc.JdbcBackend.statement" level="WARN" additivity="false">
+    <logger name="slick.jdbc.JdbcBackend.statement" level="DEBUG" additivity="false">
         <appender-ref ref="file"/>
         <appender-ref ref="console"/>
     </logger>
