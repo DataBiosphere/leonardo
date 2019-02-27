@@ -69,6 +69,9 @@ class HttpGoogleDataprocDAO(appName: String,
       .setClusterName(clusterName.value)
       .setConfig(getClusterConfig(machineConfig, initScript, clusterServiceAccount, credentialsFileName, stagingBucket, clusterScopes))
 
+    printf("init path: %s", initScript)
+    printf("staging path: %s", stagingBucket)
+
     val request = dataproc.projects().regions().clusters().create(googleProject.value, defaultRegion, cluster)
 
     retryWithRecoverWhen500orGoogleError { () =>

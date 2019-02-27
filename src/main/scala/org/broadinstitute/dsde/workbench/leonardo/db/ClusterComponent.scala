@@ -11,6 +11,8 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GcsPathSupport, GoogleProject, ServiceAccountKey, ServiceAccountKeyId, parseGcsPath}
+import com.typesafe.scalalogging.LazyLogging
+
 
 case class ClusterRecord(id: Long,
                          clusterName: String,
@@ -246,12 +248,15 @@ trait ClusterComponent extends LeoComponent {
     }
 
     def getStagingBucket(project: GoogleProject, name: ClusterName): DBIO[Option[GcsPath]] = {
+
       clusterQuery
         .filter { _.googleProject === project.value }
         .filter { _.clusterName === name.value }
         .map(_.stagingBucket)
         .result
-        .map { recs => recs.headOption.flatten.flatMap(head => parseGcsPath(head).toOption) }
+        // staging bucket is saved as a bucket name rather than a path
+        .map { recs => recs.headOption.flatten.flatMap(head => parseGcsPath("gs://" + head + "/").toOption)
+      }
     }
 
     def getServiceAccountKeyId(project: GoogleProject, name: ClusterName): DBIO[Option[ServiceAccountKeyId]] = {

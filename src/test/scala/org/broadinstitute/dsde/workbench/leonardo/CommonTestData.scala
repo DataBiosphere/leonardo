@@ -85,7 +85,7 @@ trait CommonTestData{ this: ScalaFutures =>
   val rstudioImage = ClusterImage(RStudio, "rocker/tidyverse:latest", Instant.now)
 
   def makeDataprocInfo(index: Int): DataprocInfo = {
-    DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("operationName" + index.toString)), Option(GcsBucketName("stagingBucketName" + index.toString)), Some(IP("numbers.and.dots")))
+    DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("operationName" + index.toString)), Option(GcsBucketName("stagingbucketname" + index.toString)), Some(IP("numbers.and.dots")))
   }
 
   def makeCluster(index: Int): Cluster = {
