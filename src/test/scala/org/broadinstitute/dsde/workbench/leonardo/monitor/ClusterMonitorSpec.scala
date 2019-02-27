@@ -542,6 +542,10 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(())
 
     when {
+      storageDAO.setBucketLifecycle(any[GcsBucketName], any[Int], any[GcsLifecycleType])
+    } thenReturn Future.successful(())
+
+    when {
       computeDAO.updateFirewallRule(mockitoEq(creatingCluster.googleProject), any[FirewallRule])
     } thenReturn Future.successful(())
 
