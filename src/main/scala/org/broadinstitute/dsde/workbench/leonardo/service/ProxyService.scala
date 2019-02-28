@@ -2,12 +2,13 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 
 import java.time.Instant
 import java.util.concurrent.TimeUnit
+import java.util.regex.Pattern
 
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.`Content-Disposition`
+import akka.http.scaladsl.model.headers.{RawHeader, `Content-Disposition`}
 import akka.http.scaladsl.model.ws._
 import akka.pattern.ask
 import akka.stream.ActorMaterializer
@@ -38,7 +39,7 @@ case class ClusterPausedException(googleProject: GoogleProject, clusterName: Clu
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} is stopped. Start your cluster before proceeding.", StatusCodes.UnprocessableEntity)
 
 case class ProxyException(googleProject: GoogleProject, clusterName: ClusterName)
-  extends LeoException(s"Unable to proxy connection to Jupyter notebook on ${googleProject.value}/${clusterName.value}", StatusCodes.InternalServerError)
+  extends LeoException(s"Unable to proxy connection to tool on ${googleProject.value}/${clusterName.value}", StatusCodes.InternalServerError)
 
 case class AccessTokenExpiredException()
   extends LeoException(s"Your access token is expired. Try logging in again", StatusCodes.Unauthorized)
@@ -115,7 +116,7 @@ class ProxyService(proxyConfig: ProxyConfig,
     * @return HttpResponse future representing the proxied response, or NotFound if a notebook
     *         server IP could not be found.
     */
-  def proxyNotebook(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest): Future[HttpResponse] = {
+  def proxyRequest(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest): Future[HttpResponse] = {
     authCheck(userInfo, googleProject, clusterName, ConnectToCluster).flatMap { _ =>
       proxyInternal(userInfo, googleProject, clusterName, request)
     }
@@ -134,7 +135,7 @@ class ProxyService(proxyConfig: ProxyConfig,
           case None => handleHttpRequest(targetHost, request)
         }
         responseFuture recover { case e =>
-          logger.error("Error occurred in Jupyter proxy", e)
+          logger.error("Error occurred in proxy", e)
           throw ProxyException(googleProject, clusterName)
         }
       case HostNotReady =>
@@ -143,6 +144,25 @@ class ProxyService(proxyConfig: ProxyConfig,
         throw ClusterPausedException(googleProject, clusterName)
       case HostNotFound =>
         throw ClusterNotFoundException(googleProject, clusterName)
+    }
+  }
+
+  // From the outside, we are going to support TWO paths to access Jupyter:
+  // 1)   /notebooks/{googleProject}/{clusterName}/
+  // 2)   /proxy/{googleProject}/{clusterName}/jupyter/
+  //
+  // To greatly simplify things on the backend, we will funnel all requests into path #1. Eventually
+  // we will remove that path and #2 will be the sole entry point for users. At that point, we can
+  // update the code in here to not rewrite any paths for Jupyter. We will also need to update the
+  // paths in related areas like jupyter_notebook_config.py
+  private def rewriteJupyterPath(request: HttpRequest): Uri.Path = {
+    val jupyterPattern = "\\/proxy\\/([^\\/]*)\\/([^\\/]*)\\/jupyter\\/?(.*)?".r
+
+    request.uri.path.toString match {
+      case jupyterPattern(project, cluster, path) => {
+        Uri.Path("/notebooks/" + project + "/" + cluster + "/" + path)
+      }
+      case _ => request.uri.path
     }
   }
 
@@ -162,10 +182,13 @@ class ProxyService(proxyConfig: ProxyConfig,
     // Now build a Source[Request] out of the original HttpRequest. We need to make some modifications
     // to the original request in order for the proxy to work:
 
+    // Rewrite the path if it is proxy/*/*/jupyter/, otherwise pass it through as is (see rewriteJupyterPath)
+    val rewrittenPath = rewriteJupyterPath(request)
+
     // 1. filter out headers not needed for the backend server
     val newHeaders = filterHeaders(request.headers)
     // 2. strip out Uri.Authority:
-    val newUri = Uri(path = request.uri.path, queryString = request.uri.queryString())
+    val newUri = Uri(path = rewrittenPath, queryString = request.uri.queryString())
     // 3. build a new HttpRequest
     val newRequest = request.copy(headers = newHeaders, uri = newUri)
 
@@ -224,8 +247,9 @@ class ProxyService(proxyConfig: ProxyConfig,
 
     // Make a single WebSocketRequest to the notebook server, passing in our Flow. This returns a Future[WebSocketUpgradeResponse].
     // Keep our publisher/subscriber (e.g. sink/source) for use later. These are returned because we specified Keep.both above.
+    // Note that we are rewriting the paths for any requests that are routed to /proxy/*/*/jupyter/
     val (responseFuture, (publisher, subscriber)) = Http().singleWebSocketRequest(
-      WebSocketRequest(request.uri.copy(authority = request.uri.authority.copy(host = targetHost, port = proxyConfig.jupyterPort), scheme = "wss"), extraHeaders = filterHeaders(request.headers),
+      WebSocketRequest(request.uri.copy(path = rewriteJupyterPath(request), authority = request.uri.authority.copy(host = targetHost, port = proxyConfig.jupyterPort), scheme = "wss"), extraHeaders = filterHeaders(request.headers),
         upgrade.requestedProtocols.headOption),
       flow
     )
