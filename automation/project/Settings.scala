@@ -25,7 +25,7 @@ object Settings {
   )
 
   val testSettings = List(
-    testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oFD", "-u", "test-reports", "-fW", "test-reports/TEST-summary.log", "-M", "rerun.txt", "-A", "rerun.txt")
+    testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oFD", "-u", "test-reports", "-fW", "test-reports/TEST-summary.log")
   )
 
   //common settings for all sbt subprojects
