@@ -1,4 +1,4 @@
-FROM rocker/tidyverse:latest 
+FROM rocker/tidyverse:latest
 
 # google-cloud-sdk
 RUN apt-get update && apt-get install -yq --no-install-recommends \

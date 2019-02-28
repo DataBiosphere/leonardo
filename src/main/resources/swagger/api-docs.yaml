@@ -18,6 +18,8 @@ tags:
     description: Clusters API
   - name: notebooks
     description: Notebooks API
+  - name: proxy
+    description: Proxy API
   - name: status
     description: Status API
 
@@ -470,7 +472,7 @@ paths:
 
   '/notebooks/{googleProject}/{clusterName}':
     get:
-      summary: Access Jupyter notebooks on a Dataproc cluster
+      summary: (Deprecated) Access Jupyter notebooks on a Dataproc cluster
       description: |
         This URI supports all HTTP methods, not just GET as implied by this Swagger.
         Proxies all requests through to the Jupyter notebook server running on the given cluster.
@@ -589,7 +591,7 @@ paths:
 
   '/notebooks/{googleProject}/{clusterName}/setCookie':
     get:
-      summary: Sets a browser cookie needed to authorize connections to a Jupyter notebook
+      summary: (Deprecated) Sets a browser cookie needed to authorize connections to a Jupyter notebook
       description: |
         If using Google token-based authorization to a Jupyter notebook, the Leo proxy accepts a
         Google token passed as a cookie value. This endpoint facilitates setting that cookie.
@@ -625,7 +627,7 @@ paths:
 
   '/notebooks/invalidateToken':
     get:
-      summary: Invalidates a token
+      summary: (Deprecated) Invalidates a token
       description: |
         If using Google token-based auth, call this endpoint when a user's Google token is invalidated
         (e.g. when logging out of the application). This ensures that the token is also invalidated in Leo
@@ -633,6 +635,187 @@ paths:
       operationId: invalidateToken
       tags:
         - notebooks
+      responses:
+        '200':
+          description: Successfully invalidated a token
+        '500':
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/ErrorReport'
+  '/proxy/{googleProject}/{clusterName}/jupyter/':
+    get:
+      summary: Access Jupyter (if installed) on a Dataproc cluster
+      description: |
+        This URI supports all HTTP methods, not just GET as implied by this Swagger.
+        Proxies all requests through to the tool server running on the given cluster.
+      operationId: proxyClusterJupyter
+      tags:
+        - proxy
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          type: string
+        - in: path
+          name: clusterName
+          description: clusterName
+          required: true
+          type: string
+      responses:
+        '200':
+          description: Proxy connection successful
+        '403':
+          description: Proxy connection unauthorized
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '404':
+          description: Cluster not found
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '420':
+          description: Cluster not ready
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '422':
+          description: Cluster is stopped
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '500':
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/ErrorReport'
+  '/proxy/{googleProject}/{clusterName}/jupyter/lab':
+    get:
+      summary: Access Jupyter Lab (if installed) on a Dataproc cluster
+      description: |
+        This URI supports all HTTP methods, not just GET as implied by this Swagger.
+        Proxies all requests through to the tool server running on the given cluster.
+      operationId: proxyClusterJupyterLab
+      tags:
+        - proxy
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          type: string
+        - in: path
+          name: clusterName
+          description: clusterName
+          required: true
+          type: string
+      responses:
+        '200':
+          description: Proxy connection successful
+        '403':
+          description: Proxy connection unauthorized
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '404':
+          description: Cluster not found
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '420':
+          description: Cluster not ready
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '422':
+          description: Cluster is stopped
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '500':
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/ErrorReport'
+#  '/proxy/{googleProject}/{clusterName}/rstudio/':
+#    get:
+#      summary: Access RStudio (if installed) on a Dataproc cluster
+#      description: |
+#        This URI supports all HTTP methods, not just GET as implied by this Swagger.
+#        Proxies all requests through to the tool server running on the given cluster.
+#      operationId: proxyClusterRStudio
+#      tags:
+#        - proxy
+#      parameters:
+#        - in: path
+#          name: googleProject
+#          description: googleProject
+#          required: true
+#          type: string
+#        - in: path
+#          name: clusterName
+#          description: clusterName
+#          required: true
+#          type: string
+#      responses:
+#        '200':
+#          description: Proxy connection successful
+#        '403':
+#          description: Proxy connection unauthorized
+#          schema:
+#            $ref: '#/definitions/ErrorReport'
+#        '404':
+#          description: Cluster not found
+#          schema:
+#            $ref: '#/definitions/ErrorReport'
+#        '420':
+#          description: Cluster not ready
+#          schema:
+#            $ref: '#/definitions/ErrorReport'
+#        '422':
+#          description: Cluster is stopped
+#          schema:
+#            $ref: '#/definitions/ErrorReport'
+#        '500':
+#          description: Internal Error
+#          schema:
+#            $ref: '#/definitions/ErrorReport'
+  '/proxy/{googleProject}/{clusterName}/setCookie':
+    get:
+      summary: Sets a browser cookie needed to authorize connections to a Dataproc cluster
+      description: |
+        If using Google token-based authorization to a cluster, the Leo proxy accepts a
+        Google token passed as a cookie value. This endpoint facilitates setting that cookie.
+        It accepts a bearer token in an Authorization header and responds with a Set-Cookie header.
+      operationId: setCookie
+      tags:
+        - proxy
+      parameters:
+        - in: path
+          name: googleProject
+          required: true
+          type: string
+        - in: path
+          name: clusterName
+          description: clusterName
+          required: true
+          type: string
+      responses:
+        '204':
+          description: Successfully set a cookie
+        '401':
+          description: Proxy connection unauthorized
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '404':
+          description: Cluster not found
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        '500':
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/ErrorReport'
+  '/proxy/invalidateToken':
+    get:
+      summary: Invalidates a token
+      description: |
+        If using Google token-based auth, call this endpoint when a user's Google token is invalidated
+        (e.g. when logging out of the application). This ensures that the token is also invalidated in Leo
+        and that the user's proxied connections stop working.
+      operationId: invalidateToken
+      tags:
+        - proxy
       responses:
         '200':
           description: Successfully invalidated a token

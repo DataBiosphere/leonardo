@@ -282,7 +282,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
       // Verify notebook error
       val caught = the [RestException] thrownBy {
-        Leonardo.notebooks.getApi(googleProject, clusterName)
+        Leonardo.notebooks.getTree(googleProject, clusterName)
       }
       caught.message shouldBe s"""{"statusCode":422,"source":"leonardo","causes":[],"exceptionClass":"org.broadinstitute.dsde.workbench.leonardo.service.ClusterPausedException","stackTrace":[],"message":"Cluster ${googleProject.value}/${clusterName.string} is stopped. Start your cluster before proceeding."}"""
     }

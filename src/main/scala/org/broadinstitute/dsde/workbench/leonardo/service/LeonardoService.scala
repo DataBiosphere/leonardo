@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, Clus
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.Jupyter
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
@@ -473,9 +473,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
           instance.dataprocRole match {
             case Some(Master) =>
-              googleComputeDAO.addInstanceMetadata(instance.key, masterInstanceStartupScript).flatMap { _ =>
-                googleComputeDAO.stopInstance(instance.key)
+              if (cluster.clusterImages.map(_.tool) contains (Jupyter)) {
+                googleComputeDAO.addInstanceMetadata(instance.key, masterInstanceStartupScript).flatMap { _ =>
+                  googleComputeDAO.stopInstance(instance.key)
+                }
               }
+              else googleComputeDAO.stopInstance(instance.key)
             case _ =>
               googleComputeDAO.stopInstance(instance.key)
           }
@@ -804,8 +807,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     // Note: initActionsScript and jupyterGoogleSignInJs are not included
     // because they are post-processed by templating logic.
     val resourcesToUpload = List(
-      clusterResourcesConfig.clusterDockerCompose,
-      clusterResourcesConfig.jupyterProxySiteConf,
+      clusterResourcesConfig.jupyterDockerCompose,
+      clusterResourcesConfig.rstudioDockerCompose,
+      clusterResourcesConfig.proxyDockerCompose,
+      clusterResourcesConfig.proxySiteConf,
       clusterResourcesConfig.jupyterGooglePlugin,
       clusterResourcesConfig.jupyterLabGooglePlugin)
 
@@ -934,10 +939,17 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   private[service] def processClusterImages(clusterRequest: ClusterRequest): Set[ClusterImage] = {
-    // Default to the configured default image if not specified in the request
-    // TODO should we validate the image somehow?
-    val jupyterImage = clusterRequest.jupyterDockerImage.getOrElse(dataprocConfig.dataprocDockerImage)
+    val now = Instant.now
 
-    Set(ClusterImage(Jupyter, jupyterImage, Instant.now))
+    val images = Set(
+      clusterRequest.jupyterDockerImage.map(i => ClusterImage(Jupyter, i, now)),
+      clusterRequest.rstudioDockerImage.map(i => ClusterImage(RStudio, i, now))
+    ).flatten
+
+    if (images.isEmpty) {
+      Set(ClusterImage(Jupyter, dataprocConfig.dataprocDockerImage, now))
+    } else {
+      images
+    }
   }
 }
