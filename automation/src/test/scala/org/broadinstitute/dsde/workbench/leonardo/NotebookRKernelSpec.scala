@@ -1,11 +1,20 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.service.util.Tags
+import org.scalatest.{Exceptional, Outcome}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import scala.util.Try
 
 class NotebookRKernelSpec extends ClusterFixtureSpec {
+
+  override def withFixture(test: NoArgTest): Outcome = {
+    val outcome = Try { super.withFixture(test) }.recover {
+      case t: Throwable => Exceptional(t)
+    }.getOrElse(Exceptional(new RuntimeException("No test outcome.")))
+    outcome
+  }
 
   "Leonardo notebooks" - {
 
