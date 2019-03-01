@@ -165,6 +165,8 @@ RUN apt-get update \
  && pip install -U scikit-learn==0.20.0 \
  && pip install statsmodels==0.9.0 \
  && pip install ggplot==0.11.5 \
+ # fixed current ggplot issue where it imports Timestamp from pandas.lib (deprecated) instead of pandas
+ && sed -i 's/pandas.lib/pandas/g' /usr/local/lib/python2.7/site-packages/ggplot/stats/smoothers.py \
  && pip install bokeh==1.0.0  \
  && pip install pyfasta==0.5.2 \
  && pip install pdoc==0.3.2 \
@@ -274,6 +276,8 @@ RUN apt-get update \
  && pip3 install scikit-learn==0.20.0 \
  && pip3 install statsmodels==0.9.0 \
  && pip3 install ggplot==0.11.5 \
+ # fixed current ggplot issue where it imports Timestamp from pandas.lib (deprecated) instead of pandas
+ && sed -i 's/pandas.lib/pandas/g' /usr/local/lib/python3.6/site-packages/ggplot/stats/smoothers.py \
  && pip3 install bokeh==1.0.0 \
  && pip3 install pyfasta==0.5.2 \
  && pip3 install pdoc==0.3.2 \
