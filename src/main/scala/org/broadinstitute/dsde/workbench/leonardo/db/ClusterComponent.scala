@@ -4,6 +4,7 @@ import java.time.Instant
 import java.sql.Timestamp
 import java.util.UUID
 
+import cats.data.Chain
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -190,6 +191,19 @@ trait ClusterComponent extends LeoComponent {
         .filter { _._1.status === ClusterStatus.Deleting.toString }
         .result map { recs =>
           unmarshalFullCluster(recs).headOption
+        }
+    }
+
+    def getActiveClusterForDnsCache(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
+      clusterQuery
+        .filter { _.googleProject === project.value }
+        .filter { _.clusterName === name.value }
+        .filter { _.destroyedDate === Timestamp.from(dummyDate) }
+        .result
+        .map { recs =>
+          recs.headOption.map { clusterRec =>
+            unmarshalCluster(clusterRec, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty)
+          }
         }
     }
 
@@ -404,32 +418,36 @@ trait ClusterComponent extends LeoComponent {
 
     private def unmarshalMinimalCluster(clusterLabels: Seq[(ClusterRecord, Option[LabelRecord])]): Seq[Cluster] = {
       // Call foldMap to aggregate a Seq[(ClusterRecord, LabelRecord)] returned by the query to a Map[ClusterRecord, Map[labelKey, labelValue]].
-      val clusterLabelMap: Map[ClusterRecord, Map[String, List[String]]] = clusterLabels.toList.foldMap { case (clusterRecord, labelRecordOpt) =>
-        val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> List(labelRecordOpt.value)).toMap
+      // Note we use Chain instead of List inside the foldMap because the Chain monoid is much more efficient than the List monoid.
+      // See: https://typelevel.org/cats/datatypes/chain.html
+      val clusterLabelMap: Map[ClusterRecord, Map[String, Chain[String]]] = clusterLabels.toList.foldMap { case (clusterRecord, labelRecordOpt) =>
+        val labelMap = labelRecordOpt.map(labelRecord => labelRecord.key -> Chain(labelRecord.value)).toMap
         Map(clusterRecord -> labelMap)
       }
 
       // Unmarshal each (ClusterRecord, Map[labelKey, labelValue]) to a Cluster object
       clusterLabelMap.map { case (clusterRec, labelMap) =>
-        unmarshalCluster(clusterRec, Seq.empty, List.empty, labelMap.mapValues(_.toSet.head), List.empty, List.empty, List.empty)
+        unmarshalCluster(clusterRec, Seq.empty, List.empty, labelMap.mapValues(_.toList.toSet.head), List.empty, List.empty, List.empty)
       }.toSeq
     }
 
     private def unmarshalFullCluster(clusterRecords: Seq[(ClusterRecord, Option[InstanceRecord], Option[ClusterErrorRecord], Option[LabelRecord], Option[ExtensionRecord], Option[ClusterImageRecord], Option[ScopeRecord])]): Seq[Cluster] = {
       // Call foldMap to aggregate a flat sequence of (cluster, instance, label) triples returned by the query
       // to a grouped (cluster -> (instances, labels)) structure.
-      val clusterRecordMap: Map[ClusterRecord, (List[InstanceRecord], List[ClusterErrorRecord], Map[String, List[String]], List[ExtensionRecord], List[ClusterImageRecord], List[ScopeRecord])] = clusterRecords.toList.foldMap { case (clusterRecord, instanceRecordOpt, errorRecordOpt, labelRecordOpt, extensionOpt, clusterImageOpt, scopeOpt) =>
+      // Note we use Chain instead of List inside the foldMap because the Chain monoid is much more efficient than the List monoid.
+      // See: https://typelevel.org/cats/datatypes/chain.html
+      val clusterRecordMap: Map[ClusterRecord, (Chain[InstanceRecord], Chain[ClusterErrorRecord], Map[String, Chain[String]], Chain[ExtensionRecord], Chain[ClusterImageRecord], Chain[ScopeRecord])] = clusterRecords.toList.foldMap { case (clusterRecord, instanceRecordOpt, errorRecordOpt, labelRecordOpt, extensionOpt, clusterImageOpt, scopeOpt) =>
         val instanceList = instanceRecordOpt.toList
-        val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> List(labelRecordOpt.value)).toMap
+        val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> Chain(labelRecordOpt.value)).toMap
         val errorList = errorRecordOpt.toList
         val extList = extensionOpt.toList
         val clusterImageList = clusterImageOpt.toList
         val scopeList = scopeOpt.toList
-        Map(clusterRecord -> (instanceList, errorList, labelMap, extList, clusterImageList, scopeList))
+        Map(clusterRecord -> (Chain.fromSeq(instanceList), Chain.fromSeq(errorList), labelMap, Chain.fromSeq(extList), Chain.fromSeq(clusterImageList), Chain.fromSeq(scopeList)))
       }
 
       clusterRecordMap.map { case (clusterRecord, (instanceRecords, errorRecords, labels, extensions, clusterImages, scopes)) =>
-        unmarshalCluster(clusterRecord, instanceRecords.toSet.toSeq, errorRecords.groupBy(_.timestamp).map(_._2.head).toList, labels.mapValues(_.toSet.head), extensions, clusterImages.toSet.toList, scopes)
+        unmarshalCluster(clusterRecord, instanceRecords.toList, errorRecords.toList.groupBy(_.timestamp).map(_._2.head).toList, labels.mapValues(_.toList.toSet.head), extensions.toList, clusterImages.toList, scopes.toList)
       }.toSeq
     }
 

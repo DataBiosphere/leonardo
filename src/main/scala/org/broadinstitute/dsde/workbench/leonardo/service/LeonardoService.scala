@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, Clus
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.Jupyter
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
@@ -473,9 +473,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
           instance.dataprocRole match {
             case Some(Master) =>
-              googleComputeDAO.addInstanceMetadata(instance.key, masterInstanceStartupScript).flatMap { _ =>
-                googleComputeDAO.stopInstance(instance.key)
+              if (cluster.clusterImages.map(_.tool) contains (Jupyter)) {
+                googleComputeDAO.addInstanceMetadata(instance.key, masterInstanceStartupScript).flatMap { _ =>
+                  googleComputeDAO.stopInstance(instance.key)
+                }
               }
+              else googleComputeDAO.stopInstance(instance.key)
             case _ =>
               googleComputeDAO.stopInstance(instance.key)
           }
@@ -728,7 +731,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Validate the user script URI
       _ <- clusterRequest.jupyterUserScriptUri match {
         case Some(userScriptUri) => OptionT.liftF[Future, Unit](validateBucketObjectUri(userEmail, petToken, userScriptUri.toUri))
-        case None => OptionT.pure[Future, Unit](())
+        case None => OptionT.pure[Future](())
       }
 
       // Validate the extension URIs
@@ -736,7 +739,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         case Some(config) =>
           val extensionsToValidate = (config.nbExtensions.values ++ config.serverExtensions.values ++ config.combinedExtensions.values).filter(_.startsWith("gs://"))
           OptionT.liftF(Future.traverse(extensionsToValidate)(x => validateBucketObjectUri(userEmail, petToken, x)))
-        case None => OptionT.pure[Future, Unit](())
+        case None => OptionT.pure[Future](())
       }
     } yield ()
 
@@ -804,9 +807,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     // Note: initActionsScript and jupyterGoogleSignInJs are not included
     // because they are post-processed by templating logic.
     val resourcesToUpload = List(
-      clusterResourcesConfig.clusterDockerCompose,
-      clusterResourcesConfig.jupyterProxySiteConf,
-      clusterResourcesConfig.jupyterCustomJs)
+      clusterResourcesConfig.jupyterDockerCompose,
+      clusterResourcesConfig.rstudioDockerCompose,
+      clusterResourcesConfig.proxyDockerCompose,
+      clusterResourcesConfig.proxySiteConf,
+      clusterResourcesConfig.jupyterGooglePlugin,
+      clusterResourcesConfig.jupyterLabGooglePlugin)
 
     // Uploads the service account private key to the init bucket, if defined.
     // This is a no-op if createClusterAsPetServiceAccount is true.
@@ -816,7 +822,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     // Fill in templated resources with the given replacements
     val initScriptContent = templateResource(clusterResourcesConfig.initActionsScript, replacements)
-    val googleSignInJsContent = templateResource(clusterResourcesConfig.jupyterGoogleSignInJs, replacements)
+    val googleSignInJsContent = templateResource(clusterResourcesConfig.googleSignInJs, replacements)
     val jupyterNotebookConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookConfigUri, replacements)
 
     for {
@@ -824,7 +830,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.initActionsScript.value), initScriptContent, "text/plain")
 
       // Upload the googleSignInJs file to the bucket
-      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterGoogleSignInJs.value), googleSignInJsContent, "text/plain")
+      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.googleSignInJs.value), googleSignInJsContent, "text/plain")
 
       // Update the jupytyer notebook config file
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value), jupyterNotebookConfigContent, "text/plain")
@@ -933,10 +939,17 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   private[service] def processClusterImages(clusterRequest: ClusterRequest): Set[ClusterImage] = {
-    // Default to the configured default image if not specified in the request
-    // TODO should we validate the image somehow?
-    val jupyterImage = clusterRequest.jupyterDockerImage.getOrElse(dataprocConfig.dataprocDockerImage)
+    val now = Instant.now
 
-    Set(ClusterImage(Jupyter, jupyterImage, Instant.now))
+    val images = Set(
+      clusterRequest.jupyterDockerImage.map(i => ClusterImage(Jupyter, i, now)),
+      clusterRequest.rstudioDockerImage.map(i => ClusterImage(RStudio, i, now))
+    ).flatten
+
+    if (images.isEmpty) {
+      Set(ClusterImage(Jupyter, dataprocConfig.dataprocDockerImage, now))
+    } else {
+      images
+    }
   }
 }

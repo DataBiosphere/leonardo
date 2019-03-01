@@ -52,6 +52,12 @@ object Notebook extends RestClient with LazyLogging {
     parseResponse(getRequest(url + path))
   }
 
+  def getTree(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): String = {
+    val path = notebooksTreePath(googleProject, clusterName)
+    logger.info(s"Get notebook tree: GET /$path")
+    parseResponse(getRequest(url + path))
+  }
+
   def getApiHeaders(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): Seq[HttpHeader] = {
     val path = notebooksTreePath(googleProject, clusterName)
     logger.info(s"Get notebook: GET /$path")
