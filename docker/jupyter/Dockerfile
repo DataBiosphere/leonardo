@@ -293,9 +293,6 @@ RUN apt-get update \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
-# fixed current ggplot issue where it imports Timestamp from pandas.lib (deprecated) instead of pandas
-RUN sed -i 's/pandas.lib/pandas/g' /usr/local/lib/python3.6/site-packages/ggplot/stats/smoothers.py
-
 # make pip install to a user directory, instead of a system directory which requires root.
 # this is useful so `pip install` commands can be run in the context of a notebook.
 ENV PIP_USER=true
