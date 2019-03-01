@@ -21,6 +21,11 @@ RUN R -e 'install.packages(c( \
     repos="http://cran.mtu.edu")' \
  && R -e 'devtools::install_github("DataBiosphere/Ronaldo")'
 
+# install python dev libs
+RUN apt-get update
+RUN apt-get install -y libpython-dev
+RUN apt-get install -y libpython3-dev
+
 ENV RSTUDIO_PORT 8001
 ENV RSTUDIO_HOME /etc/rstudio
 
