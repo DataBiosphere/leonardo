@@ -300,10 +300,7 @@ class ClusterMonitorActor(val cluster: Cluster,
                     NotReadyCluster(ClusterStatus.Running, googleInstances)
                   else
                     ReadyCluster(ip, googleInstances)
-                }    //cluster.clusterImages.map(image => isProxyAvailable(image.tool)) contains false)
-//                  Future.successful(NotReadyCluster(ClusterStatus.Running, googleInstances))
-//                else
-//                  Future.successful(ReadyCluster(ip, googleInstances))
+                }
               }
             case None => Future.successful(NotReadyCluster(ClusterStatus.Running, googleInstances))
           }

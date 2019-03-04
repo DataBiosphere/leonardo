@@ -22,10 +22,11 @@ object TestClusterSupervisorActor {
             authProvider: LeoAuthProvider,
             autoFreezeConfig: AutoFreezeConfig,
             jupyterProxyDAO: ToolDAO,
+            rstudioProxyDAO: ToolDAO,
             leonardoService: LeonardoService): Props =
     Props(new TestClusterSupervisorActor(
       monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO,
-      dbRef, testKit, authProvider, autoFreezeConfig, jupyterProxyDAO, leonardoService))
+      dbRef, testKit, authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, leonardoService))
 }
 
 object TearDown
@@ -44,11 +45,12 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  authProvider: LeoAuthProvider,
                                  autoFreezeConfig: AutoFreezeConfig,
                                  jupyterProxyDAO: ToolDAO,
+                                 rstudioProxyDAO: ToolDAO,
                                  leonardoService: LeonardoService)
   extends ClusterMonitorSupervisor(
     monitorConfig, dataprocConfig, gdDAO, googleComputeDAO,
     googleIamDAO, googleStorageDAO, dbRef,
-    authProvider, autoFreezeConfig, jupyterProxyDAO, leonardoService) {
+    authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, leonardoService) {
 
   // Keep track of spawned child actors so we can shut them down when this actor is stopped
   var childActors: Seq[ActorRef] = Seq.empty
