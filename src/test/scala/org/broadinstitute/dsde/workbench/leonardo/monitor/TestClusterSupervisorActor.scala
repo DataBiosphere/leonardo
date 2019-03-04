@@ -4,7 +4,7 @@ import akka.actor.{ActorRef, Props}
 import akka.testkit.TestKit
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, DataprocConfig, MonitorConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.JupyterDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, LeoAuthProvider}
@@ -21,7 +21,7 @@ object TestClusterSupervisorActor {
             testKit: TestKit,
             authProvider: LeoAuthProvider,
             autoFreezeConfig: AutoFreezeConfig,
-            jupyterProxyDAO: JupyterDAO,
+            jupyterProxyDAO: ToolDAO,
             leonardoService: LeonardoService): Props =
     Props(new TestClusterSupervisorActor(
       monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO,
@@ -43,7 +43,7 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  testKit: TestKit,
                                  authProvider: LeoAuthProvider,
                                  autoFreezeConfig: AutoFreezeConfig,
-                                 jupyterProxyDAO: JupyterDAO,
+                                 jupyterProxyDAO: ToolDAO,
                                  leonardoService: LeonardoService)
   extends ClusterMonitorSupervisor(
     monitorConfig, dataprocConfig, gdDAO, googleComputeDAO,

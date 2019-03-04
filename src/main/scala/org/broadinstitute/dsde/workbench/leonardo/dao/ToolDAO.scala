@@ -4,6 +4,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import scala.concurrent.Future
 
-trait JupyterDAO {
+trait ToolDAO {
   def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean]
 }

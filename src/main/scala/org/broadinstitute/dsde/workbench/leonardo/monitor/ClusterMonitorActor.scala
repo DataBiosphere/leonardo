@@ -12,7 +12,7 @@ import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.JupyterDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -31,8 +31,8 @@ object ClusterMonitorActor {
   /**
     * Creates a Props object used for creating a {{{ClusterMonitorActor}}}.
     */
-  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, authProvider: LeoAuthProvider, jupyterProxyDAO: JupyterDAO): Props =
-    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, authProvider, jupyterProxyDAO))
+  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, authProvider: LeoAuthProvider, jupyterProxyDAO: ToolDAO, rstudioProxyDAO: ToolDAO): Props =
+    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, authProvider, jupyterProxyDAO, rstudioProxyDAO))
 
   // ClusterMonitorActor messages:
 
@@ -64,7 +64,8 @@ class ClusterMonitorActor(val cluster: Cluster,
                           val googleStorageDAO: GoogleStorageDAO,
                           val dbRef: DbReference,
                           val authProvider: LeoAuthProvider,
-                          val jupyterProxyDAO: JupyterDAO) extends Actor with LazyLogging with Retry {
+                          val jupyterProxyDAO: ToolDAO,
+                          val rstudioProxyDAO: ToolDAO) extends Actor with LazyLogging with Retry {
   import context._
 
   // the Retry trait needs a reference to the ActorSystem
@@ -294,10 +295,15 @@ class ClusterMonitorActor(val cluster: Cluster,
               // Otherwise, when a cluster is resumed and transitions from Starting to Running, we get stuck
               // in that state - at least with the way HttpJupyterDAO.isProxyAvailable works
               dbRef.inTransaction { _.clusterQuery.updateClusterHostIp(cluster.id, Some(ip)) }.flatMap { _ =>
-                jupyterProxyDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName).map {
-                  case true => ReadyCluster(ip, googleInstances)
-                  case false => NotReadyCluster(ClusterStatus.Running, googleInstances)
-                }
+                Future.traverse(cluster.clusterImages)(image => isProxyAvailable(image.tool)).map { list =>
+                  if (list contains false)
+                    NotReadyCluster(ClusterStatus.Running, googleInstances)
+                  else
+                    ReadyCluster(ip, googleInstances)
+                }    //cluster.clusterImages.map(image => isProxyAvailable(image.tool)) contains false)
+//                  Future.successful(NotReadyCluster(ClusterStatus.Running, googleInstances))
+//                else
+//                  Future.successful(ReadyCluster(ip, googleInstances))
               }
             case None => Future.successful(NotReadyCluster(ClusterStatus.Running, googleInstances))
           }
@@ -318,6 +324,14 @@ class ClusterMonitorActor(val cluster: Cluster,
         case _ => Future.successful(NotReadyCluster(googleStatus, googleInstances))
       }
     } yield result
+  }
+
+  private def isProxyAvailable(clusterTool: ClusterTool): Future[Boolean] = {
+    val toolDAO : ToolDAO = clusterTool match {
+      case ClusterTool.Jupyter => jupyterProxyDAO
+      case _ => rstudioProxyDAO // there are only two tools and it is impossible to create a cluster with no tools
+    }
+    toolDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName)
   }
 
   private def persistInstances(instances: Set[Instance]): Future[Unit] = {
