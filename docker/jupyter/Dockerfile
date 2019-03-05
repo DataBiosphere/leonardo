@@ -93,13 +93,10 @@ RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
 ENV SPARK_VER 2.2.0
 ENV SPARK_HOME=/usr/lib/spark
 
-# result of `gsutil cat gs://hail-common/builds/0.2/latest-hash/cloudtools-3-spark-2.2.0.txt` on 03 March 2019
-ENV HAILHASH 3b1cb0772301
-# todo: I don't know why there isn't a hail.zip tagged with the latest hash. The below is the most recent zip hash.
-ENV HAILZIPHASH d6fad4092d44
+# result of `gsutil cat gs://hail-common/builds/0.2/latest-hash/cloudtools-3-spark-2.2.0.txt` on 05 March 2019
+ENV HAILHASH bb21797a1f06
 ENV HAILJAR hail-0.2-$HAILHASH-Spark-$SPARK_VER.jar
 ENV HAILPYTHON hail-0.2-$HAILHASH.zip
-ENV HAILZIP Hail-0.2-$HAILZIPHASH-Spark-$SPARK_VER.zip
 ENV HAIL_HOME /etc/hail
 ENV KERNELSPEC_HOME /usr/local/share/jupyter/kernels
 
@@ -112,7 +109,6 @@ RUN mkdir -p /etc/spark/conf.dist && mkdir -p /etc/hadoop/conf.empty && mkdir -p
  && mkdir $HAIL_HOME && cd $HAIL_HOME \
  && wget -nv http://storage.googleapis.com/hail-common/builds/0.2/jars/$HAILJAR \
  && wget -nv http://storage.googleapis.com/hail-common/builds/0.2/python/$HAILPYTHON \
- && wget -nv http://storage.googleapis.com/hail-common/distributions/0.2/$HAILZIP \
  && cd -
 
 #######################
