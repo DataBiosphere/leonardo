@@ -418,7 +418,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       case Some(bucketPath) =>
         val ageToDelete = cluster.auditInfo.createdDate.until(Instant.now(), ChronoUnit.DAYS).toInt + clusterBucketConfig.stagingBucketExpiration.toDays.toInt
         googleStorageDAO.setBucketLifecycle(bucketPath.bucketName, ageToDelete, GcsLifecycleTypes.Delete) map { _ =>
-          logger.debug(s"Set staging bucket $bucketPath for cluster ${cluster.googleProject}/${cluster.clusterName} to be deleted in ten days.")
+          logger.debug(s"Set staging bucket $bucketPath for cluster ${cluster.googleProject}/${cluster.clusterName} to be deleted in ${ageToDelete} days.")
         }
     }
   }
