@@ -174,6 +174,12 @@ object Leonardo extends RestClient with LazyLogging {
       mapper.readValue(response, classOf[ContentItem])
     }
 
+    def proxyBasePath(googleProject: GoogleProject, clusterName: ClusterName): String =
+      s"proxy/${googleProject.value}/${clusterName.string}"
+
+    def jupyterProxyBasePath(googleProject: GoogleProject, clusterName: ClusterName): String =
+      s"proxy/${googleProject.value}/${clusterName.string}/jupyter"
+
     def notebooksBasePath(googleProject: GoogleProject, clusterName: ClusterName): String =
       s"notebooks/${googleProject.value}/${clusterName.string}"
 
@@ -195,6 +201,12 @@ object Leonardo extends RestClient with LazyLogging {
     def getApi(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): String = {
       val path = notebooksBasePath(googleProject, clusterName)
       logger.info(s"Get notebook: GET /$path")
+      parseResponse(getRequest(url + path))
+    }
+
+    def getTree(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): String = {
+      val path = notebooksTreePath(googleProject, clusterName)
+      logger.info(s"Get notebook tree: GET /$path")
       parseResponse(getRequest(url + path))
     }
 

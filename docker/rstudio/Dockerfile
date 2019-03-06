@@ -1,10 +1,12 @@
-FROM rocker/tidyverse:latest 
+FROM rocker/tidyverse:latest
 
-# google-cloud-sdk
+# google-cloud-sdk and python dev libs
 RUN apt-get update && apt-get install -yq --no-install-recommends \
     gnupg \
     curl \
     lsb-release \
+    libpython-dev \
+    libpython3-dev \
  && export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" \
  && echo "deb http://packages.cloud.google.com/apt $CLOUD_SDK_REPO main" > /etc/apt/sources.list.d/google-cloud-sdk.list \
  && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - \
@@ -12,7 +14,9 @@ RUN apt-get update && apt-get install -yq --no-install-recommends \
  && apt-get install -yq --no-install-recommends \
     google-cloud-sdk \
  && apt-get clean \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py \
+ && python get-pip.py
 
 # google-cloud R packages
 RUN R -e 'install.packages(c( \

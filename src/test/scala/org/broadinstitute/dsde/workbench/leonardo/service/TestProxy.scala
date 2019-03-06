@@ -61,27 +61,29 @@ trait TestProxy { this: ScalaFutures =>
 
   // The backend route (i.e. the route behind the proxy)
   def backendRoute: Route =
-    pathPrefix("notebooks" / googleProject / clusterName) {
-      extractRequest { request =>
-        // Jupyter sets Access-Control-Allow-Origin = *, so simulate that here
-        respondWithHeader(`Access-Control-Allow-Origin`.*) {
-          path("websocket") {
-            handleWebSocketMessages(greeter)
-          } ~
-          // this path is so that we can test our fix for LEO-214 - cleaning "utf-8''" out of
-          //  notebook download names. Jupyter usually adds the Content-Disposition header to the response.
-          path("content-disposition-test") {
-            complete{
-              HttpResponse(headers = immutable.Seq(`Content-Disposition`(ContentDispositionTypes.attachment, Map("filename" -> "utf-8''notebook.ipynb"))))
-            }
-          } ~
-          complete {
-            Data(
-              request.method.value,
-              request.uri.path.toString,
-              request.uri.queryString(),
-              request.headers.map(h => h.name -> h.value).toMap
-            )
+    pathPrefix("notebooks" | "proxy") {
+      pathPrefix(googleProject / clusterName) {
+        extractRequest { request =>
+          // Jupyter sets Access-Control-Allow-Origin = *, so simulate that here
+          respondWithHeader(`Access-Control-Allow-Origin`.*) {
+            path("websocket") {
+              handleWebSocketMessages(greeter)
+            } ~
+              // this path is so that we can test our fix for LEO-214 - cleaning "utf-8''" out of
+              //  notebook download names. Jupyter usually adds the Content-Disposition header to the response.
+              path("content-disposition-test") {
+                complete {
+                  HttpResponse(headers = immutable.Seq(`Content-Disposition`(ContentDispositionTypes.attachment, Map("filename" -> "utf-8''notebook.ipynb"))))
+                }
+              } ~
+              complete {
+                Data(
+                  request.method.value,
+                  request.uri.path.toString,
+                  request.uri.queryString(),
+                  request.headers.map(h => h.name -> h.value).toMap
+                )
+              }
           }
         }
       }

@@ -120,5 +120,17 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec {
         }
       }
     }
+
+    // https://github.com/DataBiosphere/leonardo/issues/797
+    Seq(Python2, Python3).foreach { kernel =>
+      s"should be able to import ggplot for ${kernel.toString}" in { clusterFixture =>
+        withWebDriver { implicit driver =>
+          withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
+            notebookPage.executeCell("from ggplot import *").get should not include ("ImportError")
+            notebookPage.executeCell("ggplot") shouldBe Some("ggplot.ggplot.ggplot")
+          }
+        }
+      }
+    }
   }
 }

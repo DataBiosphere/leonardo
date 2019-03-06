@@ -26,7 +26,8 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
   implicit val executionContext: ExecutionContext
 
   protected val proxyRoutes: Route =
-    pathPrefix("notebooks") {
+    //note that the "notebooks" path prefix is deprecated
+    pathPrefix("proxy" | "notebooks") {
 
       corsHandler {
 
@@ -53,6 +54,22 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
               (logRequestResultForMetrics(userInfo)) {
                 // Proxy logic handled by the ProxyService class
                 // Note ProxyService calls the LeoAuthProvider internally
+                complete {
+                  val proxyFuture = proxyService.proxyRequest(userInfo, googleProject, clusterName, request)
+                  // we are discarding the request entity here. we have noticed that PUT requests caused by
+                  // saving a notebook when a cluster is stopped correlate perfectly with CPU spikes.
+                  // in that scenario, the requests appear to pile up, causing apache to hog CPU.
+                  proxyFuture.failed.foreach { _ =>
+                    request.entity.discardBytes().future
+                  }
+                  proxyFuture
+                }
+              }
+            } ~
+            (extractRequest & extractUserInfo) { (request, userInfo) =>
+              (logRequestResultForMetrics(userInfo)) {
+                // Proxy logic handled by the ProxyService class
+                // Note ProxyService calls the LeoAuthProvider internally
                 path("api" / "localize") { // route for custom Jupyter server extension
                   complete {
                     val proxyFuture = proxyService.proxyLocalize(userInfo, googleProject, clusterName, request)
@@ -64,33 +81,23 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
                     }
                     proxyFuture
                   }
-                } ~
-                  complete {
-                    val proxyFuture = proxyService.proxyNotebook(userInfo, googleProject, clusterName, request)
-                    // we are discarding the request entity here. we have noticed that PUT requests caused by
-                    // saving a notebook when a cluster is stopped correlate perfectly with CPU spikes.
-                    // in that scenario, the requests appear to pile up, causing apache to hog CPU.
-                    proxyFuture.failed.foreach { _ =>
-                      request.entity.discardBytes().future
-                    }
-                    proxyFuture
-                  }
+                }
               }
             }
-      } ~
-        // No need to lookup the user or consult the auth provider for this endpoint
-        path("invalidateToken") {
-          get {
-            extractToken { token =>
-              complete {
-                proxyService.invalidateAccessToken(token).map { _ =>
-                  logger.debug(s"Invalidated access token $token")
-                  StatusCodes.OK
+        } ~
+          // No need to lookup the user or consult the auth provider for this endpoint
+          path("invalidateToken") {
+            get {
+              extractToken { token =>
+                complete {
+                  proxyService.invalidateAccessToken(token).map { _ =>
+                    logger.debug(s"Invalidated access token $token")
+                    StatusCodes.OK
+                  }
                 }
               }
             }
           }
-        }
       }
     }
 
