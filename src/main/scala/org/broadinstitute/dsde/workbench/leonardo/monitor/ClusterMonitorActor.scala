@@ -292,7 +292,6 @@ class ClusterMonitorActor(val cluster: Cluster,
         case Running if leoClusterStatus == Starting && runningInstanceCount == googleInstances.size =>
           getMasterIp.flatMap {
             case Some(ip) =>
-              println(s"XYX here: ${cluster.clusterImages}")
               // Update the Host IP in the database so DNS cache can be properly populated with the first cache miss
               // Otherwise, when a cluster is resumed and transitions from Starting to Running, we get stuck
               // in that state - at least with the way HttpJupyterDAO.isProxyAvailable works
@@ -326,7 +325,6 @@ class ClusterMonitorActor(val cluster: Cluster,
   }
 
   private def isProxyAvailable(clusterTool: ClusterTool): Future[Boolean] = {
-    printf("calling with tool: %s", clusterTool)
     val toolDAO : ToolDAO = clusterTool match {
       case ClusterTool.Jupyter => jupyterProxyDAO
       case _ => rstudioProxyDAO // there are only two tools and it is impossible to create a cluster with no tools

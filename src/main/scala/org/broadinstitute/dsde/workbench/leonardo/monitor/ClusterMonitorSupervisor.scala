@@ -149,7 +149,6 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
   }
 
   def createChildActor(cluster: Cluster): ActorRef = {
-    println(s"childActor: ${cluster.clusterImages}")
     context.actorOf(ClusterMonitorActor.props(cluster, monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, authProvider, jupyterProxyDAO, rstudioProxyDAO))
   }
 
