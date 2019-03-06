@@ -838,7 +838,12 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       jupyterDAO.isProxyAvailable(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
     } thenReturn Future.successful(true)
 
-    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, jupyterDAO, mockRStudioDAO, false) { actor =>
+    val rstudioDAO = mock[ToolDAO]
+    when {
+      rstudioDAO.isProxyAvailable(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
+    } thenReturn Future.successful(true)
+
+    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, jupyterDAO, rstudioDAO, false) { actor =>
 
       eventually {
         val updatedCluster = dbFutureValue {
@@ -854,70 +859,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       verify(iamDAO, never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
       verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
       verify(jupyterDAO, times(1)).isProxyAvailable(any[GoogleProject], any[ClusterName])
-    }
-  }
-
-  // Pre:
-  // - cluster exists in the DB with status Starting
-  // - dataproc DAO returns status RUNNING
-  // - Jupyter DAO returns status as False
-  // - compute DAO returns all instances running
-  // Post:
-  // - cluster is not updated in the DB with status Running
-  it should "cluster should not got from STARTING to RUNNING if Jupyter is not ready" in isolatedDbTest {
-    val savedStartingCluster = startingCluster.save()
-    savedStartingCluster shouldEqual startingCluster
-
-    val gdDAO = mock[GoogleDataprocDAO]
-    when {
-      gdDAO.getClusterStatus(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
-    } thenReturn Future.successful(ClusterStatus.Running)
-    when {
-      gdDAO.getClusterInstances(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
-    } thenReturn Future.successful(clusterInstances)
-    when {
-      gdDAO.getClusterMasterInstance(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
-    } thenReturn Future.successful(Some(masterInstance.key))
-    when {
-      gdDAO.getClusterStagingBucket(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
-    } thenReturn Future.successful(Some(GcsBucketName("staging-bucket")))
-
-    val computeDAO = stubComputeDAO(InstanceStatus.Running)
-    val storageDAO = mock[GoogleStorageDAO]
-    when {
-      storageDAO.deleteBucket(any[GcsBucketName], any[Boolean])
-    } thenReturn Future.successful(())
-
-    when {
-      storageDAO.setBucketAccessControl(any[GcsBucketName], any[GcsEntity], any[GcsRole])
-    } thenReturn Future.successful(())
-
-    when {
-      storageDAO.setDefaultObjectAccessControl(any[GcsBucketName], any[GcsEntity], any[GcsRole])
-    } thenReturn Future.successful(())
-
-    val iamDAO = mock[GoogleIamDAO]
-    when {
-      iamDAO.removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
-    } thenReturn Future.successful(())
-    val authProvider = mock[LeoAuthProvider]
-
-
-    val jupyterDAO = mock[ToolDAO]
-    when {
-      jupyterDAO.isProxyAvailable(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
-    } thenReturn Future.successful(false)
-
-    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, jupyterDAO, mockRStudioDAO, false) { actor =>
-
-      eventually {
-        val updatedCluster = dbFutureValue {
-          _.clusterQuery.getActiveClusterByName(startingCluster.googleProject, startingCluster.clusterName)
-        }
-        updatedCluster shouldBe 'defined
-        updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Starting)
-      }
-      verify(jupyterDAO, times(1)).isProxyAvailable(any[GoogleProject], any[ClusterName])
+      verify(rstudioDAO, times(1)).isProxyAvailable(any[GoogleProject], any[ClusterName])
     }
   }
   
