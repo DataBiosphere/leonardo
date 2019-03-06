@@ -146,18 +146,11 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-//    def listMonitoredClusterOnly(): DBIO[Seq[Cluster]] = {
-//      clusterQuery.filter{_.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }.result map { recs =>
-//        recs.map(rec => unmarshalCluster(rec, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty))
-//      }
-//    }
-
     def listMonitoredClusterOnly(): DBIO[Seq[Cluster]] = {
-      clusterImagesQuery.filter{_._1.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }.result map { recs =>
-        unmarshalImageCluster(recs)
+      clusterQuery.filter{_.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }.result map { recs =>
+        recs.map(rec => unmarshalCluster(rec, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty))
       }
     }
-
 
     def listMonitored(): DBIO[Seq[Cluster]] = {
       clusterLabelQuery.filter { _._1.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }.result map { recs =>
@@ -438,19 +431,6 @@ trait ClusterComponent extends LeoComponent {
       }.toSeq
     }
 
-    private def unmarshalImageCluster(clusterImages: Seq[(ClusterRecord, Option[ClusterImageRecord])]): Seq[Cluster] = {
-      // Same logic as above
-      val clusterImageMap: Map[ClusterRecord, Chain[ClusterImageRecord]] = clusterImages.toList.foldMap { case (clusterRecord, imageRecordOpt) =>
-        val clusterImages = imageRecordOpt.map(Chain(_)).getOrElse(Chain.empty)
-        Map(clusterRecord -> clusterImages)
-      }
-
-      // Unmarshal each (ClusterRecord, Chain[ImageRecord]) to a Cluster object
-      clusterImageMap.map { case (clusterRec, clusterImages) =>
-        unmarshalCluster(clusterRec, Seq.empty, List.empty, Map.empty, List.empty, clusterImages.toList, List.empty)
-      }.toSeq
-    }
-
     private def unmarshalFullCluster(clusterRecords: Seq[(ClusterRecord, Option[InstanceRecord], Option[ClusterErrorRecord], Option[LabelRecord], Option[ExtensionRecord], Option[ClusterImageRecord], Option[ScopeRecord])]): Seq[Cluster] = {
       // Call foldMap to aggregate a flat sequence of (cluster, instance, label) triples returned by the query
       // to a grouped (cluster -> (instances, labels)) structure.
@@ -528,12 +508,6 @@ trait ClusterComponent extends LeoComponent {
     for {
       (cluster, label) <- clusterQuery joinLeft labelQuery on (_.id === _.clusterId)
     } yield (cluster, label)
-  }
-
-  val clusterImagesQuery: Query[(ClusterTable, Rep[Option[ClusterImageTable]]), (ClusterRecord, Option[ClusterImageRecord]), Seq] = {
-    for {
-      (cluster, image) <- clusterQuery joinLeft clusterImageQuery on (_.id === _.clusterId)
-    } yield (cluster, image)
   }
 
   // cluster and all associated data: labels, instances, errors, extensions, images.

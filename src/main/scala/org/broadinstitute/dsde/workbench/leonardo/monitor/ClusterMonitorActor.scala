@@ -296,11 +296,11 @@ class ClusterMonitorActor(val cluster: Cluster,
               // Otherwise, when a cluster is resumed and transitions from Starting to Running, we get stuck
               // in that state - at least with the way HttpJupyterDAO.isProxyAvailable works
               dbRef.inTransaction { _.clusterQuery.updateClusterHostIp(cluster.id, Some(ip)) }.flatMap { _ =>
-                Future.traverse(cluster.clusterImages)(image => isProxyAvailable(image.tool)).map { list =>
-                  if (list contains false)
-                    NotReadyCluster(ClusterStatus.Running, googleInstances)
+                dbRef.inTransaction { _.clusterImageQuery.getAllForCluster(cluster.id)}.flatMap { images =>
+                  if (images.map(image => isProxyAvailable(image.tool)) contains Future(false))
+                    Future.successful(NotReadyCluster(ClusterStatus.Running, googleInstances))
                   else
-                    ReadyCluster(ip, googleInstances)
+                    Future.successful(ReadyCluster(ip, googleInstances))
                 }
               }
             case None => Future.successful(NotReadyCluster(ClusterStatus.Running, googleInstances))
