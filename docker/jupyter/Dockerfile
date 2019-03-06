@@ -93,11 +93,10 @@ RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
 ENV SPARK_VER 2.2.0
 ENV SPARK_HOME=/usr/lib/spark
 
-# result of `gsutil cat gs://hail-common/builds/devel/latest-hash-spark-2.2.0.txt` on 18 October 2018
-ENV HAILHASH 17a988f2a628
-ENV HAILJAR hail-devel-$HAILHASH-Spark-$SPARK_VER.jar
-ENV HAILPYTHON hail-devel-$HAILHASH.zip
-ENV HAILZIP Hail-devel-$HAILHASH-Spark-$SPARK_VER.zip
+# result of `gsutil cat gs://hail-common/builds/0.2/latest-hash/cloudtools-3-spark-2.2.0.txt` on 05 March 2019
+ENV HAILHASH bb21797a1f06
+ENV HAILJAR hail-0.2-$HAILHASH-Spark-$SPARK_VER.jar
+ENV HAILPYTHON hail-0.2-$HAILHASH.zip
 ENV HAIL_HOME /etc/hail
 ENV KERNELSPEC_HOME /usr/local/share/jupyter/kernels
 
@@ -108,9 +107,8 @@ RUN mkdir -p /etc/spark/conf.dist && mkdir -p /etc/hadoop/conf.empty && mkdir -p
  && update-alternatives --install /etc/hadoop/conf hadoop-conf /etc/hadoop/conf.empty 100 \
  && update-alternatives --install /etc/hive/conf hive-conf /etc/hive/conf.dist 100 \
  && mkdir $HAIL_HOME && cd $HAIL_HOME \
- && wget -nv http://storage.googleapis.com/hail-common/builds/devel/jars/$HAILJAR \
- && wget -nv http://storage.googleapis.com/hail-common/builds/devel/python/$HAILPYTHON \
- && wget -nv http://storage.googleapis.com/hail-common/distributions/devel/$HAILZIP \
+ && wget -nv http://storage.googleapis.com/hail-common/builds/0.2/jars/$HAILJAR \
+ && wget -nv http://storage.googleapis.com/hail-common/builds/0.2/python/$HAILPYTHON \
  && cd -
 
 #######################
@@ -165,6 +163,8 @@ RUN apt-get update \
  && pip install -U scikit-learn==0.20.0 \
  && pip install statsmodels==0.9.0 \
  && pip install ggplot==0.11.5 \
+ # fixed current ggplot issue where it imports Timestamp from pandas.lib (deprecated) instead of pandas
+ && sed -i 's/pandas.lib/pandas/g' /usr/local/lib/python2.7/dist-packages/ggplot/stats/smoothers.py \
  && pip install bokeh==1.0.0  \
  && pip install pyfasta==0.5.2 \
  && pip install pdoc==0.3.2 \
@@ -274,6 +274,8 @@ RUN apt-get update \
  && pip3 install scikit-learn==0.20.0 \
  && pip3 install statsmodels==0.9.0 \
  && pip3 install ggplot==0.11.5 \
+ # fixed current ggplot issue where it imports Timestamp from pandas.lib (deprecated) instead of pandas
+ && sed -i 's/pandas.lib/pandas/g' /usr/local/lib/python3.6/site-packages/ggplot/stats/smoothers.py \
  && pip3 install bokeh==1.0.0 \
  && pip3 install pyfasta==0.5.2 \
  && pip3 install pdoc==0.3.2 \
@@ -288,9 +290,6 @@ RUN apt-get update \
  && pip3 install cookiecutter \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
-
-# fixed current ggplot issue where it imports Timestamp from pandas.lib (deprecated) instead of pandas
-RUN sed -i 's/pandas.lib/pandas/g' /usr/local/lib/python3.6/site-packages/ggplot/stats/smoothers.py
 
 # make pip install to a user directory, instead of a system directory which requires root.
 # this is useful so `pip install` commands can be run in the context of a notebook.

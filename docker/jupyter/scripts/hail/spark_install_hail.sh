@@ -11,7 +11,6 @@ echo "SPARK_HOME: ${SPARK_HOME}" >> $LOG
 echo "HAIL_HOME: ${HAIL_HOME}" >> $LOG
 echo "HAILJAR: ${HAILJAR}" >> $LOG
 echo "HAILPYTHON: ${HAILPYTHON}" >> $LOG
-echo "HAILZIP: ${HAILZIP}" >> $LOG
 
 # Render our "extras" with the Hail configs
 cat <<EOT >> ${SPARK_EXTRAS}
@@ -23,7 +22,7 @@ cat <<EOT >> ${SPARK_EXTRAS}
 # Distributes from master node to the working directories of executors
 
 spark.jars ${HAIL_HOME}/${HAILJAR}
-spark.submit.pyFiles ${HAIL_HOME}/${HAILZIP},${HAIL_HOME}/${HAILPYTHON}
+spark.submit.pyFiles ${HAIL_HOME}/${HAILPYTHON}
 
 # Add JARs to Classpaths: driver can use absolute paths
 spark.driver.extraClassPath ${HAIL_HOME}/${HAILJAR}
