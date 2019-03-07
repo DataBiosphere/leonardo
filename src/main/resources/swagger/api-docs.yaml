@@ -642,7 +642,7 @@ paths:
           description: Internal Error
           schema:
             $ref: '#/definitions/ErrorReport'
-  '/proxy/{googleProject}/{clusterName}/jupyter/':
+  '/proxy/{googleProject}/{clusterName}/jupyter':
     get:
       summary: Access Jupyter (if installed) on a Dataproc cluster
       description: |
@@ -728,7 +728,7 @@ paths:
           description: Internal Error
           schema:
             $ref: '#/definitions/ErrorReport'
-#  '/proxy/{googleProject}/{clusterName}/rstudio/':
+#  '/proxy/{googleProject}/{clusterName}/rstudio':
 #    get:
 #      summary: Access RStudio (if installed) on a Dataproc cluster
 #      description: |
