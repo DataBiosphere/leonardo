@@ -51,7 +51,7 @@ object Boot extends App with LazyLogging {
     val zombieClusterMonitorConfig = config.as[ZombieClusterConfig]("zombieClusterMonitor")
     val clusterDnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")
     val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leoExecutionMode")
-    val clusterBucketConfig = config.as[ClusterBucketConfig]("stagingBucketExpiration")
+    val clusterBucketConfig = config.as[ClusterBucketConfig]("clusterBucket")
 
     // we need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")
