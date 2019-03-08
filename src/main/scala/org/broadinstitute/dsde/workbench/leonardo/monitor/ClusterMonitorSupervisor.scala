@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
+import cats.implicits._
 import akka.actor.SupervisorStrategy.Restart
 import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props, Timers}
 import com.typesafe.scalalogging.LazyLogging
@@ -160,19 +161,21 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
     }
   }
 
-  def autoFreezeClusters(): Future[Unit] = {
-    val clusterList = dbRef.inTransaction {
-      _.clusterQuery.getClustersReadyToAutoFreeze()
-    }
-    clusterList map { cl =>
-      cl.foreach { c =>
-        logger.info(s"Auto freezing cluster ${c.clusterName} in project ${c.googleProject}")
-        leonardoService.internalStopCluster(c).failed.foreach { e =>
-          logger.warn(s"Error occurred auto freezing cluster ${c.projectNameString}", e)
-        }
+  def autoFreezeClusters(): Future[Unit] = for {
+      clusters <- dbRef.inTransaction {
+        _.clusterQuery.getClustersReadyToAutoFreeze()
       }
-    }
-  }
+      pauseableClusters <- clusters.toList.filterA {
+        cluster => jupyterProxyDAO.isAllKernalsIdle(cluster.googleProject, cluster.clusterName)
+      }
+      _ <- pauseableClusters.traverse{
+        cl =>
+          logger.info(s"Auto freezing cluster ${cl.clusterName} in project ${cl.googleProject}")
+          leonardoService.internalStopCluster(cl).attempt.map { e =>
+            e.fold(t => logger.warn(s"Error occurred auto freezing cluster ${cl.projectNameString}", e), identity)
+          }
+      }
+    } yield ()
 
   private def createClusterMonitors(): Unit = {
     val monitoredClusterIds = monitoredClusters.map(_.id)

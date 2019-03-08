@@ -7,4 +7,6 @@ import scala.concurrent.Future
 class MockJupyterDAO extends ToolDAO{
 
   override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = Future.successful(true)
+
+  override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = Future.successful(true)
 }

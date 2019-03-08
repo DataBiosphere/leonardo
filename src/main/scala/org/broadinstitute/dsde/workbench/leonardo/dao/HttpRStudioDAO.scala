@@ -32,4 +32,6 @@ class HttpRStudioDAO(val clusterDnsCache: ClusterDnsCache)(implicit system: Acto
     implicit val timeout: Timeout = Timeout(5 seconds)
     clusterDnsCache.getHostStatus(DnsCacheKey(googleProject, clusterName)).mapTo[HostStatus]
   }
+
+  override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = Future.successful(true) //TODO: implement this properly
 }
