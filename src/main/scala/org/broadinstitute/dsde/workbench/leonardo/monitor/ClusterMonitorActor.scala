@@ -297,10 +297,12 @@ class ClusterMonitorActor(val cluster: Cluster,
               // in that state - at least with the way HttpJupyterDAO.isProxyAvailable works
               dbRef.inTransaction { _.clusterQuery.updateClusterHostIp(cluster.id, Some(ip)) }.flatMap { _ =>
                 dbRef.inTransaction { _.clusterImageQuery.getAllForCluster(cluster.id)}.flatMap { images =>
-                  if (images.map(image => isProxyAvailable(image.tool)) contains Future(false))
-                    Future.successful(NotReadyCluster(ClusterStatus.Running, googleInstances))
-                  else
-                    Future.successful(ReadyCluster(ip, googleInstances))
+                  Future.traverse(images) { image => isProxyAvailable(image.tool) }.map { isAvailable =>
+                    if (isAvailable.forall(_ == true))
+                      ReadyCluster(ip, googleInstances)
+                    else
+                      NotReadyCluster(ClusterStatus.Running, googleInstances)
+                  }
                 }
               }
             case None => Future.successful(NotReadyCluster(ClusterStatus.Running, googleInstances))
@@ -327,7 +329,8 @@ class ClusterMonitorActor(val cluster: Cluster,
   private def isProxyAvailable(clusterTool: ClusterTool): Future[Boolean] = {
     val toolDAO : ToolDAO = clusterTool match {
       case ClusterTool.Jupyter => jupyterProxyDAO
-      case _ => rstudioProxyDAO // there are only two tools and it is impossible to create a cluster with no tools
+      case ClusterTool.RStudio => rstudioProxyDAO
+      case _ => 
     }
     toolDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName)
   }
