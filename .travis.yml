@@ -4,7 +4,7 @@ jdk:
 language: scala
 
 scala:
-  - 2.12.2
+  - 2.12.8
 
 sudo: required
 

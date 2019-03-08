@@ -18,6 +18,7 @@ test-output/
 *.pyc
 __pycache__
 .DS_Store
+.metals
 
 # Automation exclusions
 automation/chrome/
