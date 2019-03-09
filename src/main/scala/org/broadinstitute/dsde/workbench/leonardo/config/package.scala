@@ -125,4 +125,10 @@ package object config {
       config.getBoolean("backLeo")
     )
   }
+
+  implicit val clusterBucketConfig: ValueReader[ClusterBucketConfig] = ValueReader.relative { config =>
+    ClusterBucketConfig(
+      toScalaDuration(config.getDuration("stagingBucketExpiration"))
+    )
+  }
 }

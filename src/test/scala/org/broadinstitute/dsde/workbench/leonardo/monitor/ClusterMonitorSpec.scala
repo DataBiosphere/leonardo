@@ -20,6 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.google.GcsLifecycleTypes.GcsLifecycleType
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsObjectName, GcsPath, GoogleProject, ServiceAccountKeyId}
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
@@ -105,7 +106,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => new MockGoogleStorageDAO
     val leoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
-    val supervisorActor = system.actorOf(TestClusterSupervisorActor.props(monitorConfig, dataprocConfig, gdDAO, computeDAO, iamDAO, storageDAO, DbSingleton.ref, testKit, authProvider, autoFreezeConfig, jupyterDAO, leoService))
+    val supervisorActor = system.actorOf(TestClusterSupervisorActor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, computeDAO, iamDAO, storageDAO, DbSingleton.ref, testKit, authProvider, autoFreezeConfig, jupyterDAO, leoService))
 
     supervisorActor
   }
@@ -419,7 +420,11 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val computeDAO = mock[GoogleComputeDAO]
     val iamDAO = mock[GoogleIamDAO]
+
     val storageDAO = mock[GoogleStorageDAO]
+    when {
+      storageDAO.setBucketLifecycle(any[GcsBucketName], any[Int], any[GcsLifecycleType])
+    } thenReturn Future.successful(())
 
     when {
       storageDAO.deleteBucket(any[GcsBucketName], any[Boolean])
@@ -443,6 +448,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
         updatedCluster.map(_.instances) shouldBe Some(Set.empty)
       }
       verify(storageDAO, times(1)).deleteBucket(any[GcsBucketName], any[Boolean])
+      verify(storageDAO, times(1)).setBucketLifecycle(any[GcsBucketName], any[Int], any[GcsLifecycleType])
       verify(iamDAO, never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
       verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
       verify(authProvider).notifyClusterDeleted(mockitoEq(deletingCluster.auditInfo.creator), mockitoEq(deletingCluster.auditInfo.creator), mockitoEq(deletingCluster.googleProject), mockitoEq(deletingCluster.clusterName))(any[ExecutionContext])
@@ -533,6 +539,10 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     when {
       storageDAO.deleteBucket(any[GcsBucketName], mockitoEq(true))
+    } thenReturn Future.successful(())
+
+    when {
+      storageDAO.setBucketLifecycle(any[GcsBucketName], any[Int], any[GcsLifecycleType])
     } thenReturn Future.successful(())
 
     when {
