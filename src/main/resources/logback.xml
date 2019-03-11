@@ -46,7 +46,7 @@
     </logger>
 
 
-    <logger name="akka" level="info" additivity="false">
+    <logger name="akka" level="debug" additivity="false">
         <appender-ref ref="file"/>
         <appender-ref ref="console"/>
         <appender-ref ref="SYSLOG"/>
