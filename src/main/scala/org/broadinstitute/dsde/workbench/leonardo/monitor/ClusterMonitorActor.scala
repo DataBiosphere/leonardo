@@ -4,6 +4,7 @@ import java.time.Instant
 
 import akka.actor.Status.Failure
 import akka.actor.{Actor, ActorSystem, Props}
+import akka.http.scaladsl.model.StatusCodes
 import akka.pattern.pipe
 import cats.data.OptionT
 import cats.implicits._
@@ -20,12 +21,16 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterDeleted, ClusterSupervisorMessage, RemoveFromList}
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.{Retry, addJitter}
 import slick.dbio.DBIOAction
 
 import scala.collection.immutable.Set
 import scala.concurrent.Future
 import scala.concurrent.duration._
+
+case class InvalidClusterToolException(clusterName: ClusterName, googleProject: GoogleProject, clusterTool: ClusterTool)
+  extends LeoException(s"Cluster ${clusterName}/${googleProject} was initialized with invalid tool: ${clusterTool}", StatusCodes.InternalServerError)
 
 object ClusterMonitorActor {
   /**
@@ -330,7 +335,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     val toolDAO : ToolDAO = clusterTool match {
       case ClusterTool.Jupyter => jupyterProxyDAO
       case ClusterTool.RStudio => rstudioProxyDAO
-      case _ => 
+      case _ => throw InvalidClusterToolException(cluster.clusterName, cluster.googleProject, clusterTool)
     }
     toolDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName)
   }

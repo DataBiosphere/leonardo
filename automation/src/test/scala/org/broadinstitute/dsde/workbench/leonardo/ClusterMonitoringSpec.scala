@@ -281,6 +281,11 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
       }
     }
 
+    "should install RStudio" taggedAs Tags.SmokeTest in {
+      withProject { project => implicit token =>
+      withNewCluster(project, request = ClusterRequest)}
+    }
+
     "should install JupyterLab" taggedAs Tags.SmokeTest in {
       withProject { project => implicit token =>
         withNewCluster(project, request = ClusterRequest()) { cluster =>
