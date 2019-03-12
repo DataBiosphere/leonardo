@@ -9,7 +9,7 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
-import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterDnsCacheConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SwaggerConfig, ZombieClusterConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, ClusterDefaultsConfig, ClusterDnsCacheConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SwaggerConfig, ZombieClusterConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockJupyterDAO, MockRStudioDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
@@ -60,6 +60,7 @@ trait CommonTestData{ this: ScalaFutures =>
   val clusterUrlBase = dataprocConfig.clusterUrlBase
   val serviceAccountsConfig = config.getConfig("serviceAccounts.config")
   val monitorConfig = config.as[MonitorConfig]("monitor")
+  val clusterBucketConfig = config.as[ClusterBucketConfig]("clusterBucket")
   val contentSecurityPolicy = config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
   val mockJupyterDAO = new MockJupyterDAO
   val mockRStudioDAO = new MockRStudioDAO
@@ -86,7 +87,7 @@ trait CommonTestData{ this: ScalaFutures =>
   val rstudioImage = ClusterImage(RStudio, "rocker/tidyverse:latest", Instant.now)
 
   def makeDataprocInfo(index: Int): DataprocInfo = {
-    DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("operationName" + index.toString)), Option(GcsBucketName("stagingBucketName" + index.toString)), Some(IP("numbers.and.dots")))
+    DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("operationName" + index.toString)), Option(GcsBucketName("stagingbucketname" + index.toString)), Some(IP("numbers.and.dots")))
   }
 
   def makeCluster(index: Int): Cluster = {

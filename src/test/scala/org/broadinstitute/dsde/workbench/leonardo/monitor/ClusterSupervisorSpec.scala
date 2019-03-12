@@ -63,7 +63,7 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
       storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, whitelistAuthProvider, serviceAccountProvider, whitelist,
       bucketHelper, contentSecurityPolicy)
 
-    val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, gdDAO,
+    val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO,
       computeDAO, iamDAO, storageDAO, DbSingleton.ref, authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, leoService))
 
     eventually(timeout(Span(30, Seconds))) {

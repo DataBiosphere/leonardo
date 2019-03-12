@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 
 import akka.actor.Status.Failure
 import akka.actor.{Actor, ActorSystem, Props}
@@ -14,6 +15,7 @@ import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
+import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig, ClusterBucketConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -21,6 +23,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterDeleted, ClusterSupervisorMessage, RemoveFromList}
+import org.broadinstitute.dsde.workbench.model.google.GcsLifecycleTypes
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.{Retry, addJitter}
 import slick.dbio.DBIOAction
@@ -36,8 +39,8 @@ object ClusterMonitorActor {
   /**
     * Creates a Props object used for creating a {{{ClusterMonitorActor}}}.
     */
-  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, authProvider: LeoAuthProvider, jupyterProxyDAO: ToolDAO, rstudioProxyDAO: ToolDAO): Props =
-    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, authProvider, jupyterProxyDAO, rstudioProxyDAO))
+  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, authProvider: LeoAuthProvider, jupyterProxyDAO: ToolDAO, rstudioProxyDAO: ToolDAO): Props =
+    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, authProvider, jupyterProxyDAO, rstudioProxyDAO))
 
   // ClusterMonitorActor messages:
 
@@ -63,6 +66,7 @@ object ClusterMonitorActor {
 class ClusterMonitorActor(val cluster: Cluster,
                           val monitorConfig: MonitorConfig,
                           val dataprocConfig: DataprocConfig,
+                          val clusterBucketConfig: ClusterBucketConfig,
                           val gdDAO: GoogleDataprocDAO,
                           val googleComputeDAO: GoogleComputeDAO,
                           val googleIamDAO: GoogleIamDAO,
@@ -235,6 +239,9 @@ class ClusterMonitorActor(val cluster: Cluster,
     for {
       // delete the init bucket so we don't continue to accrue costs after cluster is deleted
       _ <- deleteInitBucket
+
+      // set the staging bucket to be deleted in ten days so that logs are still accessible until then
+      _ <- setStagingBucketLifecycle
 
       // delete instances in the DB
       _ <- persistInstances(Set.empty)
@@ -415,10 +422,24 @@ class ClusterMonitorActor(val cluster: Cluster,
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getInitBucket(cluster.googleProject, cluster.clusterName)
     } flatMap {
-      case None => Future.successful( logger.warn(s"Could not lookup bucket for cluster ${cluster.projectNameString}: cluster not in db") )
+      case None => Future.successful( logger.warn(s"Could not lookup init bucket for cluster ${cluster.projectNameString}: cluster not in db") )
       case Some(bucketPath) =>
         googleStorageDAO.deleteBucket(bucketPath.bucketName, recurse = true) map { _ =>
           logger.debug(s"Deleted init bucket $bucketPath for cluster ${cluster.googleProject}/${cluster.clusterName}")
+        }
+    }
+  }
+
+  private def setStagingBucketLifecycle: Future[Unit] = {
+    // Get the staging bucket path for this cluster, then set the age for it to be deleted the specified number of days after the deletion of the cluster.
+    dbRef.inTransaction { dataAccess =>
+      dataAccess.clusterQuery.getStagingBucket(cluster.googleProject, cluster.clusterName)
+    } flatMap {
+      case None => Future.successful( logger.warn(s"Could not lookup staging bucket for cluster ${cluster.projectNameString}: cluster not in db") )
+      case Some(bucketPath) =>
+        val ageToDelete = cluster.auditInfo.createdDate.until(Instant.now(), ChronoUnit.DAYS).toInt + clusterBucketConfig.stagingBucketExpiration.toDays.toInt
+        googleStorageDAO.setBucketLifecycle(bucketPath.bucketName, ageToDelete, GcsLifecycleTypes.Delete) map { _ =>
+          logger.debug(s"Set staging bucket $bucketPath for cluster ${cluster.googleProject}/${cluster.clusterName} to be deleted in ${ageToDelete} days.")
         }
     }
   }

@@ -93,11 +93,10 @@ RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
 ENV SPARK_VER 2.2.0
 ENV SPARK_HOME=/usr/lib/spark
 
-# result of `gsutil cat gs://hail-common/builds/devel/latest-hash-spark-2.2.0.txt` on 18 October 2018
-ENV HAILHASH 17a988f2a628
-ENV HAILJAR hail-devel-$HAILHASH-Spark-$SPARK_VER.jar
-ENV HAILPYTHON hail-devel-$HAILHASH.zip
-ENV HAILZIP Hail-devel-$HAILHASH-Spark-$SPARK_VER.zip
+# result of `gsutil cat gs://hail-common/builds/0.2/latest-hash/cloudtools-3-spark-2.2.0.txt` on 05 March 2019
+ENV HAILHASH bb21797a1f06
+ENV HAILJAR hail-0.2-$HAILHASH-Spark-$SPARK_VER.jar
+ENV HAILPYTHON hail-0.2-$HAILHASH.zip
 ENV HAIL_HOME /etc/hail
 ENV KERNELSPEC_HOME /usr/local/share/jupyter/kernels
 
@@ -108,9 +107,8 @@ RUN mkdir -p /etc/spark/conf.dist && mkdir -p /etc/hadoop/conf.empty && mkdir -p
  && update-alternatives --install /etc/hadoop/conf hadoop-conf /etc/hadoop/conf.empty 100 \
  && update-alternatives --install /etc/hive/conf hive-conf /etc/hive/conf.dist 100 \
  && mkdir $HAIL_HOME && cd $HAIL_HOME \
- && wget -nv http://storage.googleapis.com/hail-common/builds/devel/jars/$HAILJAR \
- && wget -nv http://storage.googleapis.com/hail-common/builds/devel/python/$HAILPYTHON \
- && wget -nv http://storage.googleapis.com/hail-common/distributions/devel/$HAILZIP \
+ && wget -nv http://storage.googleapis.com/hail-common/builds/0.2/jars/$HAILJAR \
+ && wget -nv http://storage.googleapis.com/hail-common/builds/0.2/python/$HAILPYTHON \
  && cd -
 
 #######################
