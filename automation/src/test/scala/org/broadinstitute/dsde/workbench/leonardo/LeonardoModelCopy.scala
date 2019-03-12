@@ -50,6 +50,7 @@ object ServiceAccountInfo {
   )
 }
 
+
 case class Cluster(clusterName: ClusterName,
                    googleId: UUID,
                    googleProject: GoogleProject,
@@ -81,6 +82,8 @@ case class ClusterRequest(labels: LabelMap = Map(),
                           stopAfterCreation: Option[Boolean] = None,
                           userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
                           defaultClientId: Option[String] = None,
+                          jupyterDockerImage: Option[String] = None,
+                          rstudioDockerImage: Option[String] = None,
                           scopes: Option[Set[String]] = None)
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
@@ -141,3 +144,4 @@ object ClusterStatus extends Enumeration {
     values.find(_.toString.equalsIgnoreCase(str)).getOrElse(throw new IllegalArgumentException(s"Unknown cluster status: $str"))
   }
 }
+
