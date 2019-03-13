@@ -42,8 +42,7 @@ class LabLauncherPage(override val url: String)(override implicit val authToken:
   extends LabPage {
 
   override def open(implicit webDriver: WebDriver): LabLauncherPage = super.open.asInstanceOf[LabLauncherPage]
-
-
+  
   def withNewLabNotebook[T](kernel: LabKernel = Python3, timeout: FiniteDuration = 2.minutes)(testCode: LabNotebookPage => T): T = {
     await notVisible (cssSelector("#main-logo"))
     await visible (cssSelector(kernel.cssSelectorString), timeout.toSeconds)
@@ -60,6 +59,5 @@ class LabLauncherPage(override val url: String)(override implicit val authToken:
     labNotebookPage.shutdownKernel()
     result
   }
-
 
 }
