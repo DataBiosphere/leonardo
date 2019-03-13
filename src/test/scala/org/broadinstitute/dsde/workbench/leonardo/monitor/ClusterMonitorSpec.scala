@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import java.io.{ByteArrayInputStream, File}
+import java.time.Instant
 import java.util.UUID
 
 import akka.actor.{ActorRef, ActorSystem, Terminated}
@@ -8,7 +9,7 @@ import akka.testkit.TestKit
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.leonardo.dao.JupyterDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
@@ -54,11 +55,16 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
                                             status = ClusterStatus.Stopping)
 
   val startingCluster = makeCluster(4).copy(serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
-                                            status = ClusterStatus.Starting)
+                                            status = ClusterStatus.Starting,
+                                            clusterImages = Set(ClusterImage(ClusterTool.RStudio, "rstudio_image", Instant.now()), ClusterImage(ClusterTool.Jupyter, "jupyter_image", Instant.now())))
 
-  val errorCluster = makeCluster(5).copy(
-    serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
-    status = ClusterStatus.Error)
+  val errorCluster = makeCluster(5).copy(serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+                                         status = ClusterStatus.Error)
+
+  val stoppedCluster = makeCluster(6).copy(serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
+                                           dataprocInfo = makeDataprocInfo(1).copy(hostIp = None),
+                                           status = ClusterStatus.Stopped,
+                                           clusterImages = Set(ClusterImage(ClusterTool.RStudio, "rstudio_image", Instant.now())))
 
   val clusterInstances = Map(Master -> Set(masterInstance.key),
                              Worker -> Set(workerInstance1.key, workerInstance2.key))
@@ -102,17 +108,17 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     super.afterAll()
   }
 
-  def createClusterSupervisor(gdDAO: GoogleDataprocDAO, computeDAO: GoogleComputeDAO, iamDAO: GoogleIamDAO, storageDAO: GoogleStorageDAO, authProvider: LeoAuthProvider, jupyterDAO: JupyterDAO): ActorRef = {
+  def createClusterSupervisor(gdDAO: GoogleDataprocDAO, computeDAO: GoogleComputeDAO, iamDAO: GoogleIamDAO, storageDAO: GoogleStorageDAO, authProvider: LeoAuthProvider, jupyterDAO: ToolDAO, rstudioDAO: ToolDAO): ActorRef = {
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => new MockGoogleStorageDAO
     val leoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
-    val supervisorActor = system.actorOf(TestClusterSupervisorActor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, computeDAO, iamDAO, storageDAO, DbSingleton.ref, testKit, authProvider, autoFreezeConfig, jupyterDAO, leoService))
+    val supervisorActor = system.actorOf(TestClusterSupervisorActor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, computeDAO, iamDAO, storageDAO, DbSingleton.ref, testKit, authProvider, autoFreezeConfig, jupyterDAO, rstudioDAO, leoService))
 
     supervisorActor
   }
 
-  def withClusterSupervisor[T](gdDAO: GoogleDataprocDAO, computeDAO: GoogleComputeDAO, iamDAO: GoogleIamDAO, storageDAO: GoogleStorageDAO, authProvider: LeoAuthProvider, jupyterDAO: JupyterDAO = mockJupyterDAO, runningChild: Boolean = true)(testCode: ActorRef => T): T = {
-    val supervisor = createClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, jupyterDAO)
+  def withClusterSupervisor[T](gdDAO: GoogleDataprocDAO, computeDAO: GoogleComputeDAO, iamDAO: GoogleIamDAO, storageDAO: GoogleStorageDAO, authProvider: LeoAuthProvider, jupyterDAO: ToolDAO = mockJupyterDAO, rstudioDAO: ToolDAO = mockRStudioDAO, runningChild: Boolean = true)(testCode: ActorRef => T): T = {
+    val supervisor = createClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, jupyterDAO, rstudioDAO)
     val testResult = Try(testCode(supervisor))
     testKit watch supervisor
     supervisor ! TearDown
@@ -172,7 +178,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val authProvider = mock[LeoAuthProvider]
 
-    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, false) { actor =>
+    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, mockRStudioDAO, false) { actor =>
 
       eventually {
         val updatedCluster = dbFutureValue {
@@ -216,7 +222,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       val storageDAO = mock[GoogleStorageDAO]
       val authProvider = mock[LeoAuthProvider]
 
-      withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, true) { actor =>
+      withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, mockRStudioDAO, true) { actor =>
 
         eventually {
           val updatedCluster = dbFutureValue {
@@ -262,7 +268,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val storageDAO = mock[GoogleStorageDAO]
     val authProvider = mock[LeoAuthProvider]
 
-    withClusterSupervisor(dao, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, true) { actor =>
+    withClusterSupervisor(dao, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, mockRStudioDAO, true) { actor =>
 
       eventually {
         val updatedCluster = dbFutureValue {
@@ -319,7 +325,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val storageDAO = mock[GoogleStorageDAO]
     val authProvider = mock[LeoAuthProvider]
 
-    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, false) { actor =>
+    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, mockRStudioDAO, false) { actor =>
 
       eventually {
         val updatedCluster = dbFutureValue {
@@ -379,7 +385,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val storageDAO = mock[GoogleStorageDAO]
     val authProvider = mock[LeoAuthProvider]
 
-    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, false) { actor =>
+    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, mockRStudioDAO, false) { actor =>
 
       eventually {
         val updatedCluster = dbFutureValue {
@@ -436,7 +442,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       authProvider.notifyClusterDeleted(mockitoEq(deletingCluster.auditInfo.creator), mockitoEq(deletingCluster.auditInfo.creator), mockitoEq(deletingCluster.googleProject), mockitoEq(deletingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(())
 
-    withClusterSupervisor(dao, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, false) { actor =>
+    withClusterSupervisor(dao, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, mockRStudioDAO, false) { actor =>
 
       eventually {
         val updatedCluster = dbFutureValue {
@@ -576,7 +582,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       authProvider.notifyClusterDeleted(mockitoEq(creatingCluster.auditInfo.creator), mockitoEq(creatingCluster.auditInfo.creator), mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))(any[ExecutionContext])
     } thenReturn Future.successful(())
 
-    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, false) { actor =>
+    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, mockRStudioDAO, false) { actor =>
 
       eventually {
         val oldCluster = dbFutureValue {
@@ -638,7 +644,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val storageDAO = mock[GoogleStorageDAO]
     val authProvider = mock[LeoAuthProvider]
 
-    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, true) { actor =>
+    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, mockRStudioDAO, true) { actor =>
 
       eventually {
         val updatedCluster = dbFutureValue {
@@ -717,7 +723,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val authProvider = mock[LeoAuthProvider]
 
     // Create the first cluster
-    val supervisor = withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, false) { actor =>
+    val supervisor = withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, mockRStudioDAO, false) { actor =>
 
       eventually {
         val updatedCluster = dbFutureValue {
@@ -774,7 +780,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val iamDAO = mock[GoogleIamDAO]
     val authProvider = mock[LeoAuthProvider]
 
-    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, false) { actor =>
+    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, mockRStudioDAO, false) { actor =>
 
       eventually {
         val updatedCluster = dbFutureValue {
@@ -837,12 +843,17 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(())
     val authProvider = mock[LeoAuthProvider]
 
-    val jupyterDAO = mock[JupyterDAO]
+    val jupyterDAO = mock[ToolDAO]
     when {
-      jupyterDAO.isProxyAvailable(any[GoogleProject], any[ClusterName])
+      jupyterDAO.isProxyAvailable(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
     } thenReturn Future.successful(true)
 
-    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, jupyterDAO, false) { actor =>
+    val rstudioDAO = mock[ToolDAO]
+    when {
+      rstudioDAO.isProxyAvailable(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
+    } thenReturn Future.successful(true)
+
+    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, jupyterDAO, rstudioDAO, false) { actor =>
 
       eventually {
         val updatedCluster = dbFutureValue {
@@ -857,69 +868,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       // starting a cluster should not touch IAM roles
       verify(iamDAO, never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
       verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
-    }
-  }
-
-  // Pre:
-  // - cluster exists in the DB with status Starting
-  // - dataproc DAO returns status RUNNING
-  // - Jupyter DAO returns status as False
-  // - compute DAO returns all instances running
-  // Post:
-  // - cluster is not updated in the DB with status Running
-  it should "cluster should not got from STARTING to RUNNING if Jupyter is not ready" in isolatedDbTest {
-    val savedStartingCluster = startingCluster.save()
-    savedStartingCluster shouldEqual startingCluster
-
-    val gdDAO = mock[GoogleDataprocDAO]
-    when {
-      gdDAO.getClusterStatus(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
-    } thenReturn Future.successful(ClusterStatus.Running)
-    when {
-      gdDAO.getClusterInstances(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
-    } thenReturn Future.successful(clusterInstances)
-    when {
-      gdDAO.getClusterMasterInstance(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
-    } thenReturn Future.successful(Some(masterInstance.key))
-    when {
-      gdDAO.getClusterStagingBucket(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
-    } thenReturn Future.successful(Some(GcsBucketName("staging-bucket")))
-
-    val computeDAO = stubComputeDAO(InstanceStatus.Running)
-    val storageDAO = mock[GoogleStorageDAO]
-    when {
-      storageDAO.deleteBucket(any[GcsBucketName], any[Boolean])
-    } thenReturn Future.successful(())
-
-    when {
-      storageDAO.setBucketAccessControl(any[GcsBucketName], any[GcsEntity], any[GcsRole])
-    } thenReturn Future.successful(())
-
-    when {
-      storageDAO.setDefaultObjectAccessControl(any[GcsBucketName], any[GcsEntity], any[GcsRole])
-    } thenReturn Future.successful(())
-
-    val iamDAO = mock[GoogleIamDAO]
-    when {
-      iamDAO.removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
-    } thenReturn Future.successful(())
-    val authProvider = mock[LeoAuthProvider]
-
-
-    val jupyterDAO = mock[JupyterDAO]
-    when {
-      jupyterDAO.isProxyAvailable(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
-    } thenReturn Future.successful(false)
-
-    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, jupyterDAO, false) { actor =>
-
-      eventually {
-        val updatedCluster = dbFutureValue {
-          _.clusterQuery.getActiveClusterByName(startingCluster.googleProject, startingCluster.clusterName)
-        }
-        updatedCluster shouldBe 'defined
-        updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Starting)
-      }
+      verify(jupyterDAO, times(1)).isProxyAvailable(any[GoogleProject], any[ClusterName])
+      verify(rstudioDAO, times(1)).isProxyAvailable(any[GoogleProject], any[ClusterName])
     }
   }
   
@@ -989,7 +939,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val authProvider = mock[LeoAuthProvider]
 
-    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, false) { actor =>
+    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, mockRStudioDAO, false) { actor =>
 
       eventually {
         val updatedCluster = dbFutureValue { _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName) }
@@ -1022,7 +972,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val iamDAO = mock[GoogleIamDAO]
     val authProvider = mock[LeoAuthProvider]
 
-    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, false) { actor =>
+    withClusterSupervisor(gdDAO, computeDAO, iamDAO, storageDAO, authProvider, mockJupyterDAO, mockRStudioDAO, false) { actor =>
 
       eventually {
         val dbCluster = dbFutureValue {

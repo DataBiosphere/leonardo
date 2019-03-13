@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 import java.io.File
 
 import org.broadinstitute.dsde.workbench.ResourceFile
+import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V2
