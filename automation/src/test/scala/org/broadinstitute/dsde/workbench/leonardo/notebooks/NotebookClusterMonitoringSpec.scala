@@ -17,7 +17,6 @@ import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 
 import scala.concurrent.duration._
-import scala.util.Try
 
 class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with ParallelTestExecution with BillingFixtures {
 
