@@ -281,6 +281,18 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
       }
     }
 
+    "should install RStudio" taggedAs Tags.SmokeTest in {
+      withProject { project => implicit token =>
+        withNewCluster(project, request = ClusterRequest(rstudioDockerImage = Some("us.gcr.io/broad-dsp-gcr-public/leonardo-rstudio:860d5862f3f5"))) { cluster =>
+          withWebDriver {implicit driver =>
+            val getResult = Try(Leonardo.rstudio.getApi(project, cluster.clusterName))
+            getResult.isSuccess shouldBe true
+            getResult.get should not include "ProxyException"
+          }
+        }
+      }
+    }
+
     "should install JupyterLab" taggedAs Tags.SmokeTest in {
       withProject { project => implicit token =>
         withNewCluster(project, request = ClusterRequest()) { cluster =>

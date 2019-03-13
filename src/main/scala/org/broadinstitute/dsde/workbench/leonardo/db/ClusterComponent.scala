@@ -148,7 +148,7 @@ trait ClusterComponent extends LeoComponent {
 
     def listMonitoredClusterOnly(): DBIO[Seq[Cluster]] = {
       clusterQuery.filter{_.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }.result map { recs =>
-        recs.map(rec => unmarshalCluster(rec,Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty))
+        recs.map(rec => unmarshalCluster(rec, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty))
       }
     }
 

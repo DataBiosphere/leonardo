@@ -251,6 +251,17 @@ object Leonardo extends RestClient with LazyLogging {
     // TODO: add JupyterLab selenium test logic
   }
 
+  object rstudio {
+    def rstudioPath(googleProject: GoogleProject, clusterName: ClusterName): String =
+      s"proxy/${googleProject.value}/${clusterName.string}/rstudio"
+
+    def getApi(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): String = {
+      val path = rstudioPath(googleProject, clusterName)
+      logger.info(s"Get rstudio: GET /$path")
+      parseResponse(getRequest(url + path))
+    }
+  }
+
   object dummyClient {
     import akka.http.scaladsl.Http
     import akka.http.scaladsl.model._
