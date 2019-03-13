@@ -18,7 +18,7 @@ import scala.util.{Failure, Success, Try}
 
 
 class LabNotebookPage(override val url: String)(override implicit val authToken: AuthToken, override implicit val webDriver: WebDriver)
-  extends LabPage with NotebookPanel with NotebookCell with Eventually with LazyLogging {
+  extends LabPage with Toolbar with NotebookCell with Eventually with LazyLogging {
 
 
   override def open(implicit webDriver: WebDriver): LabNotebookPage = {

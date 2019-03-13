@@ -300,7 +300,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
       // Verify notebook error
       val caught = the [RestException] thrownBy {
-        Notebook.getApi(googleProject, clusterName)
+        Notebook.getTree(googleProject, clusterName)
       }
       caught.message shouldBe s"""{"statusCode":422,"source":"leonardo","causes":[],"exceptionClass":"org.broadinstitute.dsde.workbench.leonardo.service.ClusterPausedException","stackTrace":[],"message":"Cluster ${googleProject.value}/${clusterName.string} is stopped. Start your cluster before proceeding."}"""
     }
@@ -443,12 +443,6 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       deleteAndMonitor(googleProject, name)
       testResult.get
     }
-  }
-
-
-  def withLabLauncherPage[T](cluster: Cluster)(testCode: LabLauncherPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
-    val labLauncherPage = lab.Lab.get(cluster.googleProject, cluster.clusterName)
-    testCode(labLauncherPage.open)
   }
 
 

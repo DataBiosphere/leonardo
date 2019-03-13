@@ -60,4 +60,6 @@ class LabLauncherPage(override val url: String)(override implicit val authToken:
     labNotebookPage.shutdownKernel()
     result
   }
+
+
 }
