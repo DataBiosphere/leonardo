@@ -4,7 +4,7 @@ import akka.actor.{ActorRef, Props}
 import akka.testkit.TestKit
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, DataprocConfig, MonitorConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.JupyterDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, LeoAuthProvider}
@@ -22,11 +22,12 @@ object TestClusterSupervisorActor {
             testKit: TestKit,
             authProvider: LeoAuthProvider,
             autoFreezeConfig: AutoFreezeConfig,
-            jupyterProxyDAO: JupyterDAO,
+            jupyterProxyDAO: ToolDAO,
+            rstudioProxyDAO: ToolDAO,
             leonardoService: LeonardoService): Props =
     Props(new TestClusterSupervisorActor(
       monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO,
-      dbRef, testKit, authProvider, autoFreezeConfig, jupyterProxyDAO, leonardoService))
+      dbRef, testKit, authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, leonardoService))
 }
 
 object TearDown
@@ -45,12 +46,13 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  testKit: TestKit,
                                  authProvider: LeoAuthProvider,
                                  autoFreezeConfig: AutoFreezeConfig,
-                                 jupyterProxyDAO: JupyterDAO,
+                                 jupyterProxyDAO: ToolDAO,
+                                 rstudioProxyDAO: ToolDAO,
                                  leonardoService: LeonardoService)
   extends ClusterMonitorSupervisor(
     monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO,
     googleIamDAO, googleStorageDAO, dbRef,
-    authProvider, autoFreezeConfig, jupyterProxyDAO, leonardoService) {
+    authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, leonardoService) {
 
   // Keep track of spawned child actors so we can shut them down when this actor is stopped
   var childActors: Seq[ActorRef] = Seq.empty
