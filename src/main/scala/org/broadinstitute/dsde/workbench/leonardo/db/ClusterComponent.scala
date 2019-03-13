@@ -245,6 +245,18 @@ trait ClusterComponent extends LeoComponent {
         .map { recs => recs.headOption.flatten.flatMap(head => parseGcsPath(head).toOption) }
     }
 
+    def getStagingBucket(project: GoogleProject, name: ClusterName): DBIO[Option[GcsPath]] = {
+
+      clusterQuery
+        .filter { _.googleProject === project.value }
+        .filter { _.clusterName === name.value }
+        .map(_.stagingBucket)
+        .result
+        // staging bucket is saved as a bucket name rather than a path
+        .map { recs => recs.headOption.flatten.flatMap(head => parseGcsPath("gs://" + head + "/").toOption)
+      }
+    }
+
     def getServiceAccountKeyId(project: GoogleProject, name: ClusterName): DBIO[Option[ServiceAccountKeyId]] = {
       clusterQuery
         .filter { _.googleProject === project.value }

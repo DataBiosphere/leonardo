@@ -61,6 +61,7 @@
         <appender-ref ref="console"/>
     </logger>
     -->
+
     <!--
     <logger name="slick.jdbc.JdbcBackend.benchmark" level="DEBUG" additivity="false">
         <appender-ref ref="file"/>

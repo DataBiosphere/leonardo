@@ -52,7 +52,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |  "createdDate": "2018-08-07T10:12:35Z",
         |  "labels": {},
         |  "jupyterExtensionUri": "gs://extension_bucket/extension_path",
-        |  "stagingBucket": "stagingBucketName1",
+        |  "stagingBucket": "stagingbucketname1",
         |  "errors": [],
         |  "instances": [],
         |  "dateAccessed": "2018-08-07T10:12:35Z",
