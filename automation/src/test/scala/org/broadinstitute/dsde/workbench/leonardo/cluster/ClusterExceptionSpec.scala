@@ -1,10 +1,10 @@
-package org.broadinstitute.dsde.workbench.leonardo
+package org.broadinstitute.dsde.workbench.leonardo.cluster
 
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V2
+import org.broadinstitute.dsde.workbench.leonardo.LeonardoTestUtils
 import org.broadinstitute.dsde.workbench.service.RestException
 import org.scalatest.{FreeSpec, ParallelTestExecution}
-import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.deletableStatuses
 
 class ClusterExceptionSpec extends FreeSpec with LeonardoTestUtils with ParallelTestExecution with BillingFixtures {
 
@@ -60,19 +60,6 @@ class ClusterExceptionSpec extends FreeSpec with LeonardoTestUtils with Parallel
           withWebDriver { implicit driver =>
             val caught = the[RestException] thrownBy stopCluster(project, cluster.clusterName, monitor = false)
             caught.message should include(""""statusCode":409""")
-          }
-        }
-      }
-    }
-
-    "should throw 401 for invalid token" in {
-      withProject { project => implicit token =>
-        withNewCluster(project, monitorCreate = true, apiVersion = V2) { cluster =>
-          withWebDriver { implicit driver =>
-            val thrown = the[Exception] thrownBy {
-              Leonardo.notebooks.setCookie(cluster.googleProject, cluster.clusterName)(voldyAuthToken, driver)
-            }
-            thrown.getMessage should include(""""statusCode":401""")
           }
         }
       }

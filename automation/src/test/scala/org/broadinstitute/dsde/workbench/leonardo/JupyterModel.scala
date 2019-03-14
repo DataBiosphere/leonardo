@@ -9,5 +9,6 @@ case class ContentItem (
                        created: String,
                        content: Option[String],
                        last_modified: String,
-                       path: String
+                       path: String,
+                       size: Int
 )

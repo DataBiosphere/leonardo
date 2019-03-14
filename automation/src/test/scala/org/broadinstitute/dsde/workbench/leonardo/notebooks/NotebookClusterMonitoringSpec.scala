@@ -1,4 +1,4 @@
-package org.broadinstitute.dsde.workbench.leonardo
+package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import java.io.File
 
@@ -7,17 +7,18 @@ import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V2
+import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsObjectName, GcsPath, parseGcsPath}
+import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 
 import scala.concurrent.duration._
-import scala.util.Try
 
-class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with ParallelTestExecution with BillingFixtures {
+class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with ParallelTestExecution with BillingFixtures {
 
   "Leonardo clusters" - {
 
@@ -281,28 +282,11 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
       }
     }
 
-    "should install RStudio" taggedAs Tags.SmokeTest in {
-      withProject { project => implicit token =>
-        withNewCluster(project, request = ClusterRequest(rstudioDockerImage = Some("us.gcr.io/broad-dsp-gcr-public/leonardo-rstudio:860d5862f3f5"))) { cluster =>
-          withWebDriver {implicit driver =>
-            val getResult = Try(Leonardo.rstudio.getApi(project, cluster.clusterName))
-            getResult.isSuccess shouldBe true
-            getResult.get should not include "ProxyException"
-          }
-        }
-      }
-    }
-
-    "should install JupyterLab" taggedAs Tags.SmokeTest in {
+    "should localize/delocalize" taggedAs Tags.SmokeTest in {
       withProject { project => implicit token =>
         withNewCluster(project, request = ClusterRequest()) { cluster =>
           withWebDriver { implicit driver =>
-            // Check that the /lab URL is accessible
-            val getResult = Try(Leonardo.lab.getApi(project, cluster.clusterName))
-            getResult.isSuccess shouldBe true
-            getResult.get should not include "ProxyException"
-
-            // Check that localization still works
+            // Check that localization works
             // See https://github.com/DataBiosphere/leonardo/issues/417, where installing JupyterLab
             // broke the initialization of jupyter_localize_extension.py.
             val localizeFileName = "localize_sync.txt"
@@ -314,7 +298,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
 
             withLocalizeDelocalizeFiles(cluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
               // call localize; this should return 200
-              Leonardo.notebooks.localize(cluster.googleProject, cluster.clusterName, localizeRequest, async = false)
+              Notebook.localize(cluster.googleProject, cluster.clusterName, localizeRequest, async = false)
 
               // check that the files are immediately at their destinations
               verifyLocalizeDelocalize(cluster, localizeFileName, localizeFileContents, GcsPath(bucketName, GcsObjectName(delocalizeFileName)), delocalizeFileContents, localizeDataFileName, localizeDataContents)
@@ -364,6 +348,19 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
                 }
               }
             }(ronAuthToken)
+          }
+        }
+      }
+    }
+
+    "should throw 401 for invalid token" in {
+      withProject { project => implicit token =>
+        withNewCluster(project, monitorCreate = true, apiVersion = V2) { cluster =>
+          withWebDriver { implicit driver =>
+            val thrown = the[Exception] thrownBy {
+              Notebook.setCookie(cluster.googleProject, cluster.clusterName)(voldyAuthToken, driver)
+            }
+            thrown.getMessage should include(""""statusCode":401""")
           }
         }
       }
