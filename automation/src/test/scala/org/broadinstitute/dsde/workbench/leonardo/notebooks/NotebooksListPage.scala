@@ -1,39 +1,40 @@
-package org.broadinstitute.dsde.workbench.leonardo
+package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import java.io.File
 
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.openqa.selenium.WebDriver
 
+import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.duration._
 import scala.util.Try
 
-sealed trait Kernel {
+sealed trait NotebookKernel {
   def string: String
   def cssSelectorString: String = "ul#new-menu > li[id] > a"
 }
 
-case object Python2 extends Kernel {
+case object Python2 extends NotebookKernel {
   def string: String = "Python 2"
   override def cssSelectorString: String = super.cssSelectorString + "[title='Create a new notebook with Python 2']"
 }
 
-case object Python3 extends Kernel {
+case object Python3 extends NotebookKernel {
   def string: String = "Python 3"
   override def cssSelectorString: String = super.cssSelectorString + "[title='Create a new notebook with Python 3']"
 }
 
-case object PySpark2 extends Kernel {
+case object PySpark2 extends NotebookKernel {
   def string: String = "PySpark 2"
   override def cssSelectorString: String = super.cssSelectorString + "[title='Create a new notebook with PySpark 2']"
 }
 
-case object PySpark3 extends Kernel {
+case object PySpark3 extends NotebookKernel {
   def string: String = "PySpark 3"
   override def cssSelectorString: String = super.cssSelectorString + "[title='Create a new notebook with PySpark 3']"
 }
 
-case object RKernel extends Kernel {
+case object RKernel extends NotebookKernel {
   def string: String = "R"
   override def cssSelectorString: String = super.cssSelectorString + "[title='Create a new notebook with R']"
 }
@@ -61,7 +62,7 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
     result.get
   }
 
-  def withNewNotebook[T](kernel: Kernel = Python2, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T): T = {
+  def withNewNotebook[T](kernel: NotebookKernel = Python2, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T): T = {
     switchToNewTab {
       await visible (newButton, timeout.toSeconds)
       click on newButton

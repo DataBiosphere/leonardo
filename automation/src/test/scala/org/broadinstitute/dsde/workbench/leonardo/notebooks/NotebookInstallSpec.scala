@@ -1,8 +1,10 @@
-package org.broadinstitute.dsde.workbench.leonardo
+package org.broadinstitute.dsde.workbench.leonardo.notebooks
+
+import org.broadinstitute.dsde.workbench.leonardo.ClusterFixtureSpec
 
 import scala.language.postfixOps
 
-class NotebookInstallSpec extends ClusterFixtureSpec {
+class NotebookInstallSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
   "Leonardo notebooks" - {
 

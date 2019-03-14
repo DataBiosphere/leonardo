@@ -1,10 +1,11 @@
-package org.broadinstitute.dsde.workbench.leonardo
+package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V2
-import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles, GoogleProject}
+import org.broadinstitute.dsde.workbench.leonardo.{ClusterRequest, UserJupyterExtensionConfig}
+import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.{FreeSpec, ParallelTestExecution}
@@ -12,7 +13,7 @@ import org.scalatest.{FreeSpec, ParallelTestExecution}
 import scala.language.postfixOps
 
 final class NotebookCustomizationSpec extends FreeSpec
-  with LeonardoTestUtils with ParallelTestExecution with BillingFixtures {
+  with NotebookTestUtils with ParallelTestExecution with BillingFixtures {
 
   "Leonardo" - {
     // Note: There is a complementary test in NotebookInstallSpec that verifies that
