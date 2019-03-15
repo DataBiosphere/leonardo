@@ -309,8 +309,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
     tzdata \
     gfortran \
     gcc \
-    libcurl4 \
-    libcurl4-openssl-dev \
+#    libcurl4 \
+#    libcurl4-openssl-dev \
     libssl-dev \
     libxml2-dev \
  && apt-get clean \
