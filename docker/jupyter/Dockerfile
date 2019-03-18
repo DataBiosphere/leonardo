@@ -301,9 +301,12 @@ ENV PIP_USER=true
 
 RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
  && apt-get update && apt-get -t stretch-cran35 install -y --no-install-recommends \
-    r-base \
-    r-base-dev \
-    r-recommended \
+    r-base-core=3.5.2-1 \
+    r-base=3.5.2-1 \
+    r-base-dev=3.5.2-1 \
+    r-recommended=3.5.2-1 \
+    r-cran-mgcv \
+    r-cran-codetools \
  && apt-get install -t stretch-backports -y --no-install-recommends \
     fonts-dejavu \
     tzdata \
