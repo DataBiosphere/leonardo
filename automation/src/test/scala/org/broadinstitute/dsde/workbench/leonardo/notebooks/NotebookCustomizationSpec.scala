@@ -94,6 +94,21 @@ final class NotebookCustomizationSpec extends FreeSpec
       }
     }
 
+    "should allow users to install extensions after cluster creation" in {
+      withProject { project => implicit token =>
+        withNewCluster(project) { cluster =>
+          withWebDriver { implicit driver =>
+            withNewNotebook(cluster) { notebookPage =>
+              val query = """!jupyter labextension install @jupyterlab/toc"""
+              val result = notebookPage.executeCell(query).get
+              println(result)
+              result should not include("Permission denied")
+            }
+          }
+        }
+      }
+    }
+
     "should install user specified lab extensions from a js file" in {
       withProject { project => implicit token =>
         val exampleLabExtensionFile = ResourceFile("bucket-tests/example_lab_extension.js")
