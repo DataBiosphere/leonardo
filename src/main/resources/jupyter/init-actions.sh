@@ -315,7 +315,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
         gsutil cp ${JUPYTER_LAB_GOOGLE_PLUGIN_URI} /etc
         JUPYTER_LAB_GOOGLE_PLUGIN=`basename ${JUPYTER_LAB_GOOGLE_PLUGIN_URI}`
         docker cp /etc/${JUPYTER_LAB_GOOGLE_PLUGIN} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_LAB_GOOGLE_PLUGIN}
-        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_LAB_GOOGLE_PLUGIN}
+        retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_LAB_GOOGLE_PLUGIN}
       fi
 
       if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG_URI} ] ; then
