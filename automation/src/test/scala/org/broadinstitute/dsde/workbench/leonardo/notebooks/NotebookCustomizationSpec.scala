@@ -101,7 +101,6 @@ final class NotebookCustomizationSpec extends FreeSpec
             withNewNotebook(cluster) { notebookPage =>
               val query = """!jupyter labextension install @jupyterlab/toc"""
               val result = notebookPage.executeCell(query).get
-              println(result)
               result should not include("Permission denied")
             }
           }
