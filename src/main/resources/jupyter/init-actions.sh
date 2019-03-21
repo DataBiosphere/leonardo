@@ -263,7 +263,48 @@ if [[ "${ROLE}" == 'Master' ]]; then
           fi
         done
       fi
-      
+
+      retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/install_jupyter_contrib_nbextensions.sh
+
+      # If a google_sign_in.js was specified, copy it into the jupyter docker container.
+      if [ ! -z ${GOOGLE_SIGN_IN_JS_URI} ] ; then
+        log 'Installing Google sign in extension...'
+        gsutil cp ${GOOGLE_SIGN_IN_JS_URI} /etc
+        GOOGLE_SIGN_IN_JS=`basename ${GOOGLE_SIGN_IN_JS_URI}`
+        retry 3 docker exec ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
+        docker cp /etc/${GOOGLE_SIGN_IN_JS} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
+      fi
+
+      # If a jupyter_google_plugin.js was specified, copy it into the jupyter docker container.
+      if [ ! -z ${JUPYTER_GOOGLE_PLUGIN_URI} ] ; then
+        log 'Installing jupyter_google_plugin.js extension...'
+        gsutil cp ${JUPYTER_GOOGLE_PLUGIN_URI} /etc
+        JUPYTER_GOOGLE_PLUGIN=`basename ${JUPYTER_GOOGLE_PLUGIN_URI}`
+        retry 3 docker exec ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
+        # note this needs to be named custom.js in the container
+        docker cp /etc/${JUPYTER_GOOGLE_PLUGIN} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/custom.js
+      fi
+
+      if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG_URI} ] ; then
+        log 'Copy Jupyter notebook config...'
+        gsutil cp ${JUPYTER_NOTEBOOK_CONFIG_URI} /etc
+        JUPYTER_NOTEBOOK_CONFIG=`basename ${JUPYTER_NOTEBOOK_CONFIG_URI}`
+        docker cp /etc/${JUPYTER_NOTEBOOK_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/
+      fi
+
+      # If a Jupyter user script was specified, copy it into the jupyter docker container.
+      if [ ! -z ${JUPYTER_USER_SCRIPT_URI} ] ; then
+        log 'Installing Jupyter user extension [$JUPYTER_USER_SCRIPT_URI]...'
+        gsutil cp ${JUPYTER_USER_SCRIPT_URI} /etc
+        JUPYTER_USER_SCRIPT=`basename ${JUPYTER_USER_SCRIPT_URI}`
+        docker cp /etc/${JUPYTER_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
+        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
+        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
+      fi
+
+       docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter-user:users ${JUPYTER_HOME}
+       docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter-user:users /usr/local/share/jupyter/lab
+
       #Install lab extensions
       #Note: lab extensions need to installed as jupyter user, not root
       if [ ! -z "${JUPYTER_LAB_EXTENSIONS}" ] ; then
@@ -288,27 +329,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
         done
       fi
 
-      retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/install_jupyter_contrib_nbextensions.sh
-
-      # If a google_sign_in.js was specified, copy it into the jupyter docker container.
-      if [ ! -z ${GOOGLE_SIGN_IN_JS_URI} ] ; then
-        log 'Installing Google sign in extension...'
-        gsutil cp ${GOOGLE_SIGN_IN_JS_URI} /etc
-        GOOGLE_SIGN_IN_JS=`basename ${GOOGLE_SIGN_IN_JS_URI}`
-        retry 3 docker exec ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
-        docker cp /etc/${GOOGLE_SIGN_IN_JS} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
-      fi
-
-      # If a jupyter_google_plugin.js was specified, copy it into the jupyter docker container.
-      if [ ! -z ${JUPYTER_GOOGLE_PLUGIN_URI} ] ; then
-        log 'Installing jupyter_google_plugin.js extension...'
-        gsutil cp ${JUPYTER_GOOGLE_PLUGIN_URI} /etc
-        JUPYTER_GOOGLE_PLUGIN=`basename ${JUPYTER_GOOGLE_PLUGIN_URI}`
-        retry 3 docker exec ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
-        # note this needs to be named custom.js in the container
-        docker cp /etc/${JUPYTER_GOOGLE_PLUGIN} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/custom.js
-      fi
-
       # If a jupyterlab_google_plugin.js was specified, install it as a Lab extension
       if [ ! -z ${JUPYTER_LAB_GOOGLE_PLUGIN_URI} ] ; then
         log 'Installing jupyterlab_google_plugin.js extension...'
@@ -316,23 +336,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
         JUPYTER_LAB_GOOGLE_PLUGIN=`basename ${JUPYTER_LAB_GOOGLE_PLUGIN_URI}`
         docker cp /etc/${JUPYTER_LAB_GOOGLE_PLUGIN} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_LAB_GOOGLE_PLUGIN}
         retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_LAB_GOOGLE_PLUGIN}
-      fi
-
-      if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG_URI} ] ; then
-        log 'Copy Jupyter notebook config...'
-        gsutil cp ${JUPYTER_NOTEBOOK_CONFIG_URI} /etc
-        JUPYTER_NOTEBOOK_CONFIG=`basename ${JUPYTER_NOTEBOOK_CONFIG_URI}`
-        docker cp /etc/${JUPYTER_NOTEBOOK_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/
-      fi
-
-      # If a Jupyter user script was specified, copy it into the jupyter docker container.
-      if [ ! -z ${JUPYTER_USER_SCRIPT_URI} ] ; then
-        log 'Installing Jupyter user extension [$JUPYTER_USER_SCRIPT_URI]...'
-        gsutil cp ${JUPYTER_USER_SCRIPT_URI} /etc
-        JUPYTER_USER_SCRIPT=`basename ${JUPYTER_USER_SCRIPT_URI}`
-        docker cp /etc/${JUPYTER_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
-        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
-        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
       fi
 
       log 'Starting Jupyter Notebook...'
