@@ -93,8 +93,8 @@ RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
 ENV SPARK_VER 2.2.0
 ENV SPARK_HOME=/usr/lib/spark
 
-# result of `gsutil cat gs://hail-common/builds/0.2/latest-hash/cloudtools-3-spark-2.2.0.txt` on 05 March 2019
-ENV HAILHASH bb21797a1f06
+# result of `gsutil cat gs://hail-common/builds/0.2/latest-hash/cloudtools-3-spark-2.2.0.txt` on 22 March 2019
+ENV HAILHASH bb41118d9587
 ENV HAILJAR hail-0.2-$HAILHASH-Spark-$SPARK_VER.jar
 ENV HAILPYTHON hail-0.2-$HAILHASH.zip
 ENV HAIL_HOME /etc/hail
