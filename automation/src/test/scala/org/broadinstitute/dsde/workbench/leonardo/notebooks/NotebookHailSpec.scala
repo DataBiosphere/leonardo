@@ -45,7 +45,7 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
                |     __  __     <>__
                |    / /_/ /__  __/ /
                |   / __  / _ `/ / /
-               |  /_/ /_/\_,_/_/_/   version $expectedHailVersion""".stripMargin
+               |  /_/ /_/\\_,_/_/_/   version $expectedHailVersion""".stripMargin
 
           notebookPage.executeCell(importHail).get should include (importHailOutput)
         }
