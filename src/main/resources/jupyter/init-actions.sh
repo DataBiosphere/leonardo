@@ -263,29 +263,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
           fi
         done
       fi
-      
-      #Install lab extensions
-      if [ ! -z "${JUPYTER_LAB_EXTENSIONS}" ] ; then
-        for ext in ${JUPYTER_LAB_EXTENSIONS}
-        do
-          log 'Installing JupyterLab extension [$ext]...'
-          pwd
-          if [[ $ext == 'gs://'* ]]; then
-            gsutil cp -r $ext /etc
-            JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
-            docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-            retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-          elif [[ $ext == 'http://'* || $ext == 'https://'* ]]; then
-            JUPYTER_EXTENSION_FILE=`basename $ext`
-            curl $ext -o /etc/${JUPYTER_EXTENSION_FILE}
-            docker cp /etc/${JUPYTER_EXTENSION_FILE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
-            retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
-
-          else
-            retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh $ext
-          fi
-        done
-      fi
 
       retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/install_jupyter_contrib_nbextensions.sh
 
@@ -308,15 +285,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
         docker cp /etc/${JUPYTER_GOOGLE_PLUGIN} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/custom.js
       fi
 
-      # If a jupyterlab_google_plugin.js was specified, install it as a Lab extension
-      if [ ! -z ${JUPYTER_LAB_GOOGLE_PLUGIN_URI} ] ; then
-        log 'Installing jupyterlab_google_plugin.js extension...'
-        gsutil cp ${JUPYTER_LAB_GOOGLE_PLUGIN_URI} /etc
-        JUPYTER_LAB_GOOGLE_PLUGIN=`basename ${JUPYTER_LAB_GOOGLE_PLUGIN_URI}`
-        docker cp /etc/${JUPYTER_LAB_GOOGLE_PLUGIN} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_LAB_GOOGLE_PLUGIN}
-        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_LAB_GOOGLE_PLUGIN}
-      fi
-
       if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG_URI} ] ; then
         log 'Copy Jupyter notebook config...'
         gsutil cp ${JUPYTER_NOTEBOOK_CONFIG_URI} /etc
@@ -332,6 +300,42 @@ if [[ "${ROLE}" == 'Master' ]]; then
         docker cp /etc/${JUPYTER_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
         retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
         retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
+      fi
+
+       docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter-user:users ${JUPYTER_HOME}
+       docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter-user:users /usr/local/share/jupyter/lab
+
+      #Install lab extensions
+      #Note: lab extensions need to installed as jupyter user, not root
+      if [ ! -z "${JUPYTER_LAB_EXTENSIONS}" ] ; then
+        for ext in ${JUPYTER_LAB_EXTENSIONS}
+        do
+          log 'Installing JupyterLab extension [$ext]...'
+          pwd
+          if [[ $ext == 'gs://'* ]]; then
+            gsutil cp -r $ext /etc
+            JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
+            docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+            retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+          elif [[ $ext == 'http://'* || $ext == 'https://'* ]]; then
+            JUPYTER_EXTENSION_FILE=`basename $ext`
+            curl $ext -o /etc/${JUPYTER_EXTENSION_FILE}
+            docker cp /etc/${JUPYTER_EXTENSION_FILE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
+            retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
+
+          else
+            retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh $ext
+          fi
+        done
+      fi
+
+      # If a jupyterlab_google_plugin.js was specified, install it as a Lab extension
+      if [ ! -z ${JUPYTER_LAB_GOOGLE_PLUGIN_URI} ] ; then
+        log 'Installing jupyterlab_google_plugin.js extension...'
+        gsutil cp ${JUPYTER_LAB_GOOGLE_PLUGIN_URI} /etc
+        JUPYTER_LAB_GOOGLE_PLUGIN=`basename ${JUPYTER_LAB_GOOGLE_PLUGIN_URI}`
+        docker cp /etc/${JUPYTER_LAB_GOOGLE_PLUGIN} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_LAB_GOOGLE_PLUGIN}
+        retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_LAB_GOOGLE_PLUGIN}
       fi
 
       log 'Starting Jupyter Notebook...'

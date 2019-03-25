@@ -69,7 +69,6 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   val multiExtensionClusterRequest = UserJupyterExtensionConfig(
     nbExtensions = Map("map" -> "gmaps"),
-    serverExtensions = Map("jupyterlab" -> "jupyterlab"),
     combinedExtensions = Map("pizza" -> "pizzabutton")
   )
   val jupyterLabExtensionClusterRequest = UserJupyterExtensionConfig(
