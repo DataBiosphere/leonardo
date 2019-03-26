@@ -14,7 +14,7 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
   "Leonardo notebooks" - {
     // Should match the HAILHASH env var in the Jupyter Dockerfile
-    val expectedHailVersion = "0.2.11-bb41118d9587"
+    val expectedHailVersion = "0.2.11-daed180b84d8"
     val hailTutorialUploadFile = ResourceFile(s"diff-tests/hail-tutorial.ipynb")
 
     // See https://hail.is/docs/stable/tutorials-landing.html
