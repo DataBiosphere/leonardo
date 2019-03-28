@@ -13,18 +13,9 @@ import scala.language.postfixOps
 class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
   "Leonardo notebooks" - {
-
-    val hailUploadFile = ResourceFile(s"diff-tests/import-hail.ipynb")
+    // Should match the HAILHASH env var in the Jupyter Dockerfile
+    val expectedHailVersion = "0.2.11-daed180b84d8"
     val hailTutorialUploadFile = ResourceFile(s"diff-tests/hail-tutorial.ipynb")
-
-    "should upload notebook and verify execution" taggedAs Tags.SmokeTest in { clusterFixture =>
-      // output for this notebook includes an IP address which can vary
-
-      val downloadDir = createDownloadDirectory()
-      withWebDriver(downloadDir) { implicit driver =>
-        uploadDownloadTest(clusterFixture.cluster, hailUploadFile, 2.minutes, downloadDir)(compareFilesExcludingIPs)
-      }
-    }
 
     // See https://hail.is/docs/stable/tutorials-landing.html
     // Note this is for the stable Hail version (0.1). The tutorial script has changed in Hail 0.2.
@@ -37,6 +28,26 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
           // issue reported in https://github.com/DataBiosphere/leonardo/issues/222.
           val downloadFileContents: String = Files.readAllLines(downloadFile.toPath).asScala.mkString
           downloadFileContents should not include "ClassCastException"
+        }
+      }
+    }
+
+    "should install the right Hail version" taggedAs Tags.SmokeTest in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster, PySpark3) { notebookPage =>
+          val importHail =
+            """import hail as hl
+              |hl.init(sc)
+            """.stripMargin
+
+          val importHailOutput =
+            s"""Welcome to
+               |     __  __     <>__
+               |    / /_/ /__  __/ /
+               |   / __  / _ `/ / /
+               |  /_/ /_/\\_,_/_/_/   version $expectedHailVersion""".stripMargin
+
+          notebookPage.executeCell(importHail).get should include (importHailOutput)
         }
       }
     }
