@@ -147,7 +147,7 @@ class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
             notebookPage.executeCell("Sys.getenv('GOOGLE_PROJECT')").get shouldBe clusterFixture.billingProject.value
             notebookPage.executeCell("Sys.getenv('WORKSPACE_NAMESPACE')").get shouldBe clusterFixture.billingProject.value
             notebookPage.executeCell("Sys.getenv('WORKSPACE_NAME')").get shouldBe "Untitled Folder"
-            // TODO: workspace bucket is not yet supported in R
+            // workspace bucket is not wired up in tests
             notebookPage.executeCell("Sys.getenv('WORKSPACE_BUCKET')").get shouldBe ""
           }
         }

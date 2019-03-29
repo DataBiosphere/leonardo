@@ -15,7 +15,7 @@
 PWD="$(pwd)"
 export WORKSPACE_NAME="$(basename $PWD)"
 
-# Parse the .delocalize.json file in the workspace directory to obtain the workspace bucket.
+# Parse the .delocalize.json file (if it exists) in the workspace directory to obtain the workspace bucket.
 DELOCALIZE_FILE="$PWD/.delocalize.json"
 if [ -f "$DELOCALIZE_FILE" ]; then
     export WORKSPACE_BUCKET="$(dirname "$(cat "$DELOCALIZE_FILE" | jq -r '.destination')")"
