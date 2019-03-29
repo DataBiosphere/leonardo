@@ -47,6 +47,7 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
   val uploadNewButton: Query = cssSelector("[title='Click to browse for a file to upload.']")
   val finishUploadButton: Query = cssSelector("[class='btn btn-primary btn-xs upload_button']")
   val newButton: Query = cssSelector("[id='new-buttons']")
+  val newFolder = cssSelector("ul#new-menu > li[id] > a[title='Folder']")
 
   def upload(file: File): Unit = {
     uploadNewButton.findElement.get.underlying.sendKeys(file.getAbsolutePath)
@@ -74,6 +75,17 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
     notebookPage.awaitReadyKernel(timeout)
     val result = Try { testCode(notebookPage) }
     notebookPage.shutdownKernel()
+    result.get
+  }
+
+  def withNewFolder[T](timeout: FiniteDuration = 2.minutes)(testCode: NotebooksListPage => T): T = {
+    await visible (newButton, timeout.toSeconds)
+    click on newButton
+    await visible (newFolder, timeout.toSeconds)
+    click on newFolder
+    val notebooksListPage = new NotebooksListPage(currentUrl + "/Untitled%20Folder").open
+    val result = Try { testCode(notebooksListPage) }
+    // TODO: delete the folder? or we don't care?
     result.get
   }
 

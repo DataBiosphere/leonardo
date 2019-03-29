@@ -352,7 +352,9 @@ ADD custom/jupyter_localize_extension.py $JUPYTER_HOME/custom/
 
 RUN chown -R $USER:users $JUPYTER_HOME \
  && find $JUPYTER_HOME/scripts -name '*.sh' -type f | xargs chmod +x \
- && chown -R $USER:users /usr/local/share/jupyter/lab
+ && chown -R $USER:users /usr/local/share/jupyter/lab \
+ && cp $JUPYTER_HOME/scripts/kernel/workspace.py /home/jupyter-user/.ipython/profile_default/startup/ \
+ && chown -R $USER:users /home/jupyter-user/.ipython/profile_default/startup
 
 USER $USER
 WORKDIR $HOME

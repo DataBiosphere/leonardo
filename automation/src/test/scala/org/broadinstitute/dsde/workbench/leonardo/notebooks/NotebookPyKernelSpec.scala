@@ -133,5 +133,22 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
         }
       }
     }
+
+    Seq(Python2, Python3).foreach { kernel =>
+      s"should have the workspace-related environment variables set in ${kernel.toString} kernel" in { clusterFixture =>
+        withWebDriver { implicit driver =>
+          withNewFolder(clusterFixture.cluster) { notebooksListPage =>
+            notebooksListPage.withNewNotebook(kernel) { notebookPage =>
+              notebookPage.executeCell("! echo $GOOGLE_PROJECT").get shouldBe clusterFixture.billingProject.value
+              notebookPage.executeCell("! echo $WORKSPACE_NAMESPACE").get shouldBe clusterFixture.billingProject.value
+              notebookPage.executeCell("! echo $WORKSPACE_NAME").get shouldBe "Untitled Folder"
+              // TODO: we obtain the workspace bucket using FISS which is not yet supported in tests.
+              // See https://github.com/DataBiosphere/leonardo/issues/155
+              notebookPage.executeCell("! echo $WORKSPACE_BUCKET").get shouldBe ""
+            }
+          }
+        }
+      }
+    }
   }
 }
