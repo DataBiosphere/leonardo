@@ -45,6 +45,7 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sou
     # to support userScript pip installs via git
     git \
     locales \
+    jq \
 
  # R separately because it depends on gnupg installed above
  && echo "deb $CRAN_REPO/bin/linux/debian stretch-cran35/"       >> /etc/apt/sources.list \
@@ -352,9 +353,7 @@ ADD custom/jupyter_localize_extension.py $JUPYTER_HOME/custom/
 
 RUN chown -R $USER:users $JUPYTER_HOME \
  && find $JUPYTER_HOME/scripts -name '*.sh' -type f | xargs chmod +x \
- && chown -R $USER:users /usr/local/share/jupyter/lab \
- && cp $JUPYTER_HOME/scripts/kernel/workspace.py /home/jupyter-user/.ipython/profile_default/startup/ \
- && chown -R $USER:users /home/jupyter-user/.ipython/profile_default/startup
+ && chown -R $USER:users /usr/local/share/jupyter/lab
 
 USER $USER
 WORKDIR $HOME
