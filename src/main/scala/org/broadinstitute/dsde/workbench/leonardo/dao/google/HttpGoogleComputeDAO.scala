@@ -11,7 +11,7 @@ import com.google.api.client.http.HttpResponseException
 import com.google.api.services.cloudresourcemanager.CloudResourceManager
 import com.google.api.services.compute.model.Firewall.Allowed
 import com.google.api.services.compute.model.Metadata.Items
-import com.google.api.services.compute.model.{Firewall, Metadata, Instance => GoogleInstance}
+import com.google.api.services.compute.model.{DisksResizeRequest, Firewall, InstancesSetMachineTypeRequest, Metadata, Instance => GoogleInstance}
 import com.google.api.services.compute.{Compute, ComputeScopes}
 import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
@@ -168,6 +168,20 @@ class HttpGoogleComputeDAO(appName: String,
       accessConfigs <- Option(interface.getAccessConfigs)
       accessConfig <- accessConfigs.asScala.headOption
     } yield IP(accessConfig.getNatIP)
+  }
+
+  override def setMachineType(instanceKey: InstanceKey, newMachineType: MachineType): Future[Unit] = {
+    val request = compute.instances().setMachineType(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value,
+      new InstancesSetMachineTypeRequest().setMachineType(newMachineType.value))
+
+    retryWhen500orGoogleError(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
+  }
+
+  override def resizeDisk(instanceKey: InstanceKey, newSize: Int): Future[Unit] = {
+    val request = compute.disks().resize(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value,
+      new DisksResizeRequest().setSizeGb(newSize.toLong))
+
+    retryWhen500orGoogleError(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
   }
 
   private implicit class GoogleExceptionSupport[A](future: Future[A]) {

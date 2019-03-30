@@ -5,7 +5,7 @@ import java.time.Instant
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
-import cats.data.OptionT
+import cats.data.{Ior, OptionT}
 import cats.implicits._
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
@@ -59,6 +59,9 @@ case class ClusterCannotBeStartedException(googleProject: GoogleProject, cluster
 
 case class ClusterCannotBeUpdatedException(cluster: Cluster)
   extends LeoException(s"Cluster ${cluster.projectNameString} cannot be updated in ${cluster.status} status", StatusCodes.Conflict)
+
+case class ClusterDiskSizeCannotBeDecreasedException(cluster: Cluster)
+  extends LeoException(s"Cluster ${cluster.projectNameString}'s master disk size cannot be decreased", StatusCodes.PreconditionFailed)
 
 case class InitializationFileException(googleProject: GoogleProject, clusterName: ClusterName, errorMessage: String)
   extends LeoException(s"Unable to process initialization files for ${googleProject.value}/${clusterName.value}. Returned message: $errorMessage", StatusCodes.Conflict)
@@ -363,14 +366,28 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         clusterResized <- maybeResizeCluster(existingCluster, clusterRequest.machineConfig)
 
+        masterMachineTypeChanged <- maybeChangeMasterMachineType(existingCluster, clusterRequest.machineConfig)
+
+        masterDiskSizeChanged <- maybeChangeMasterDiskSize(existingCluster, clusterRequest.machineConfig)
+
         // Set the cluster status to Updating only if the cluster was resized
-        _ <- if(clusterResized) { dbRef.inTransaction { _.clusterQuery.updateClusterStatus(existingCluster.id, ClusterStatus.Updating) } } else Future.successful(0)
+        _ <- if (clusterResized || masterMachineTypeChanged || masterDiskSizeChanged) {
+          dbRef.inTransaction { _.clusterQuery.updateClusterStatus(existingCluster.id, ClusterStatus.Updating) }
+        } else Future.successful(0)
 
         updatedCluster <- internalGetActiveClusterDetails(existingCluster.googleProject, existingCluster.clusterName)
       } yield {
         updatedCluster
       }
     } else Future.failed(ClusterCannotBeUpdatedException(existingCluster))
+  }
+
+  private def getUpdatedValue[A](existing: Option[A], updated: Option[A]): Option[A] = {
+    if (updated.isDefined && updated != existing) {
+      updated
+    } else {
+      None
+    }
   }
 
   def maybeUpdateAutopauseThreshold(clusterId: Long, autopause: Option[Boolean], autopauseThreshold: Option[Int]): Future[Int] = {
@@ -380,40 +397,105 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
+
   //returns true if cluster was resized, otherwise returns false
   def maybeResizeCluster(existingCluster: Cluster, machineConfigOpt: Option[MachineConfig]): Future[Boolean] = {
-    machineConfigOpt match {
-      case Some(machineConfig) =>
+    val updatedNumWorkersAndPreemptiblesOpt = machineConfigOpt.flatMap { machineConfig =>
+      Ior.fromOptions(
+        getUpdatedValue(existingCluster.machineConfig.numberOfWorkers, machineConfig.numberOfWorkers),
+        getUpdatedValue(existingCluster.machineConfig.numberOfPreemptibleWorkers, machineConfig.numberOfPreemptibleWorkers))
+    }
 
-        (machineConfig.numberOfWorkers, machineConfig.numberOfPreemptibleWorkers) match {
-          case (Some(_), _) | (_, Some(_))
-            if (existingCluster.machineConfig.numberOfWorkers != machineConfig.numberOfWorkers) || (existingCluster.machineConfig.numberOfPreemptibleWorkers != machineConfig.numberOfPreemptibleWorkers) => {
+    updatedNumWorkersAndPreemptiblesOpt match {
+      case Some(updatedNumWorkersAndPreemptibles) =>
+        logger.info(s"New machine config present. Resizing cluster '${existingCluster.clusterName}' " +
+          s"in Google project '${existingCluster.googleProject}'...")
 
-            logger.info(s"New machine config present. Resizing cluster '${existingCluster.clusterName}' " +
-              s"in Google project '${existingCluster.googleProject}'...")
+        for {
+          // Add Dataproc Worker role to the cluster service account, if present.
+          // This is needed to be able to spin up Dataproc clusters.
+          // If the Google Compute default service account is being used, this is not necessary.
+          _ <- addDataprocWorkerRoleToServiceAccount(existingCluster.googleProject, existingCluster.serviceAccountInfo.clusterServiceAccount)
 
-            for {
-              // Add Dataproc Worker role to the cluster service account, if present.
-              // This is needed to be able to spin up Dataproc clusters.
-              // If the Google Compute default service account is being used, this is not necessary.
-              _ <- addDataprocWorkerRoleToServiceAccount(existingCluster.googleProject, existingCluster.serviceAccountInfo.clusterServiceAccount)
-              _ <- gdDAO.resizeCluster(existingCluster.googleProject, existingCluster.clusterName, machineConfig.numberOfWorkers, machineConfig.numberOfPreemptibleWorkers) recoverWith {
-                case gjre: GoogleJsonResponseException =>
-                  //typically we will revoke this role in the monitor after everything is complete, but if Google fails to resize the cluster we need to revoke it manually here
-                  removeDataprocWorkerRoleFromServiceAccount(existingCluster.googleProject, existingCluster.serviceAccountInfo.clusterServiceAccount)
-                  throw InvalidDataprocMachineConfigException(gjre.getMessage)
-              }
-              _ <- machineConfig.numberOfWorkers.map { numWorkers =>
-                dbRef.inTransaction { _.clusterQuery.updateNumberOfWorkers(existingCluster.id, numWorkers) }
-              } getOrElse Future.successful(0)
-              _ <- machineConfig.numberOfPreemptibleWorkers.map { numWorkers =>
-                dbRef.inTransaction { _.clusterQuery.updateNumberOfPreemptibleWorkers(existingCluster.id, Option(numWorkers)) }
-              } getOrElse Future.successful(0)
-            } yield { true }
+          // Resize the clsuter
+          _ <- gdDAO.resizeCluster(existingCluster.googleProject, existingCluster.clusterName, updatedNumWorkersAndPreemptibles.left, updatedNumWorkersAndPreemptibles.right) recoverWith {
+            case gjre: GoogleJsonResponseException =>
+              //typically we will revoke this role in the monitor after everything is complete, but if Google fails to resize the cluster we need to revoke it manually here
+              removeDataprocWorkerRoleFromServiceAccount(existingCluster.googleProject, existingCluster.serviceAccountInfo.clusterServiceAccount)
+              throw InvalidDataprocMachineConfigException(gjre.getMessage)
           }
-          case _ => Future.successful(false) //no-op because machineConfig values didn't change
-        }
-      case None => Future.successful(false) //no-op because no machineConfig specified
+
+          // Update the DB
+          _ <- dbRef.inTransaction { dataAccess =>
+            updatedNumWorkersAndPreemptibles.fold(
+              a => dataAccess.clusterQuery.updateNumberOfWorkers(existingCluster.id, a),
+              a => dataAccess.clusterQuery.updateNumberOfPreemptibleWorkers(existingCluster.id, Option(a)),
+              (a, b) => dataAccess.clusterQuery.updateNumberOfWorkers(existingCluster.id, a)
+                .flatMap(_ =>  dataAccess.clusterQuery.updateNumberOfPreemptibleWorkers(existingCluster.id, Option(b)))
+            )
+          }
+        } yield true
+
+      case None => Future.successful(false)
+    }
+  }
+
+  def maybeChangeMasterMachineType(existingCluster: Cluster, machineConfigOpt: Option[MachineConfig]): Future[Boolean] = {
+    val updatedMasterMachineTypeOpt = machineConfigOpt.flatMap { machineConfig =>
+      getUpdatedValue(existingCluster.machineConfig.masterMachineType, machineConfig.masterMachineType)
+    }
+
+    updatedMasterMachineTypeOpt match {
+      case Some(updatedMasterMachineType) =>
+        logger.info(s"New machine config present. Changing machine type to ${updatedMasterMachineType} for cluster " +
+          s"'${existingCluster.clusterName}' in Google project '${existingCluster.googleProject}'...")
+
+        Future.traverse(existingCluster.instances) { instance =>
+          instance.dataprocRole match {
+            case Some(Master) =>
+              googleComputeDAO.setMachineType(instance.key, MachineType(updatedMasterMachineType))
+            case _ =>
+              // don't update worker instances
+              Future.successful(())
+          }
+        }.flatMap { _ =>
+          dbRef.inTransaction { _.clusterQuery.updateMasterMachineType(existingCluster.id, MachineType(updatedMasterMachineType)) }
+        }.as(true)
+
+      case None =>
+        Future.successful(false)
+    }
+  }
+
+  def maybeChangeMasterDiskSize(existingCluster: Cluster, machineConfigOpt: Option[MachineConfig]): Future[Boolean] = {
+    val updatedMasterDiskSizeOpt = machineConfigOpt.flatMap { machineConfig =>
+      getUpdatedValue(existingCluster.machineConfig.masterDiskSize, machineConfig.masterDiskSize)
+    }
+
+    val diskSizeIncreased = (newSize: Int) => existingCluster.machineConfig.masterDiskSize.exists(_ < newSize)
+
+    updatedMasterDiskSizeOpt match {
+      case Some(updatedMasterDiskSize) if diskSizeIncreased(updatedMasterDiskSize) =>
+        logger.info(s"New machine config present. Changing master disk size to $updatedMasterDiskSize} GB for cluster " +
+          s"'${existingCluster.clusterName}' in Google project '${existingCluster.googleProject}'...")
+
+        Future.traverse(existingCluster.instances) { instance =>
+          instance.dataprocRole match {
+            case Some(Master) =>
+              googleComputeDAO.resizeDisk(instance.key, updatedMasterDiskSize)
+            case _ =>
+              // don't update worker instances
+              Future.successful(())
+          }
+        }.flatMap { _ =>
+          dbRef.inTransaction { _.clusterQuery.udpateMasterDiskSize(existingCluster.id, updatedMasterDiskSize) }
+        }.as(true)
+
+      case Some(_) =>
+        Future.failed(ClusterDiskSizeCannotBeDecreasedException(existingCluster))
+
+      case None =>
+        Future.successful(false)
     }
   }
 
