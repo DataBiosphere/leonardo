@@ -221,4 +221,30 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFutureValue { _.clusterQuery.getActiveClusterForDnsCache(savedCluster1.googleProject, savedCluster1.clusterName) } shouldEqual
       Some(savedCluster1).map(stripFieldsForListCluster andThen (_.copy(labels = Map.empty)))
   }
+
+  it should "update master machine type" in isolatedDbTest {
+    val savedCluster1 = makeCluster(1)
+      .copy(machineConfig =
+        MachineConfig(Some(3), Some("test-master-machine-type"), Some(500), Some("test-worker-machine-type"), Some(200), Some(2), Some(1)))
+      .save()
+
+    val newMachineType = MachineType("this-is-a-new-machine-type")
+    dbFutureValue { _.clusterQuery.updateMasterMachineType(savedCluster1.id, newMachineType) }
+
+    dbFutureValue { _.clusterQuery.getClusterById(savedCluster1.id).map(_.map(_.machineConfig.masterMachineType)) } shouldBe
+      Option(newMachineType).map(_.value)
+  }
+
+  it should "update master disk size" in isolatedDbTest {
+    val savedCluster1 = makeCluster(1)
+      .copy(machineConfig =
+        MachineConfig(Some(3), Some("test-master-machine-type"), Some(500), Some("test-worker-machine-type"), Some(200), Some(2), Some(1)))
+      .save()
+
+    val newDiskSize = 1000
+    dbFutureValue { _.clusterQuery.updateMasterMachineType(savedCluster1.id, newDiskSize) }
+
+    dbFutureValue { _.clusterQuery.getClusterById(savedCluster1.id).map(_.map(_.machineConfig.masterDiskSize)) } shouldBe
+      Option(newDiskSize)
+  }
 }

@@ -27,5 +27,5 @@ trait GoogleComputeDAO {
 
   def setMachineType(instanceKey: InstanceKey, newMachineType: MachineType): Future[Unit]
 
-  def resizeDisk(instanceKey: InstanceKey, newSize: Int): Future[Unit]
+  def resizeDisk(instanceKey: InstanceKey, newSizeGb: Int): Future[Unit]
 }

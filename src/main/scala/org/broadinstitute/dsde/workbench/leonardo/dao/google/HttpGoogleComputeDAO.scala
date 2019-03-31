@@ -177,9 +177,9 @@ class HttpGoogleComputeDAO(appName: String,
     retryWhen500orGoogleError(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
   }
 
-  override def resizeDisk(instanceKey: InstanceKey, newSize: Int): Future[Unit] = {
+  override def resizeDisk(instanceKey: InstanceKey, newSizeGb: Int): Future[Unit] = {
     val request = compute.disks().resize(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value,
-      new DisksResizeRequest().setSizeGb(newSize.toLong))
+      new DisksResizeRequest().setSizeGb(newSizeGb.toLong))
 
     retryWhen500orGoogleError(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
   }

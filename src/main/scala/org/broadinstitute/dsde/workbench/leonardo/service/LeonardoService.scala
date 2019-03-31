@@ -61,7 +61,7 @@ case class ClusterCannotBeUpdatedException(cluster: Cluster)
   extends LeoException(s"Cluster ${cluster.projectNameString} cannot be updated in ${cluster.status} status", StatusCodes.Conflict)
 
 case class ClusterDiskSizeCannotBeDecreasedException(cluster: Cluster)
-  extends LeoException(s"Cluster ${cluster.projectNameString}'s master disk size cannot be decreased", StatusCodes.PreconditionFailed)
+  extends LeoException(s"Cluster ${cluster.projectNameString}: decreasing master disk size is not allowed", StatusCodes.PreconditionFailed)
 
 case class InitializationFileException(googleProject: GoogleProject, clusterName: ClusterName, errorMessage: String)
   extends LeoException(s"Unable to process initialization files for ${googleProject.value}/${clusterName.value}. Returned message: $errorMessage", StatusCodes.Conflict)
@@ -360,7 +360,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   def internalUpdateCluster(existingCluster: Cluster, clusterRequest: ClusterRequest) = {
-    if(existingCluster.status.isUpdatable) {
+    if (existingCluster.status.isUpdatable) {
       for {
         _ <- maybeUpdateAutopauseThreshold(existingCluster.id, clusterRequest.autopause, clusterRequest.autopauseThreshold)
 
@@ -370,7 +370,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         masterDiskSizeChanged <- maybeChangeMasterDiskSize(existingCluster, clusterRequest.machineConfig)
 
-        // Set the cluster status to Updating only if the cluster was resized
+        // Set the cluster status to Updating only if the cluster was resized or its machine type/disk changed
         _ <- if (clusterResized || masterMachineTypeChanged || masterDiskSizeChanged) {
           dbRef.inTransaction { _.clusterQuery.updateClusterStatus(existingCluster.id, ClusterStatus.Updating) }
         } else Future.successful(0)
@@ -382,7 +382,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } else Future.failed(ClusterCannotBeUpdatedException(existingCluster))
   }
 
-  private def getUpdatedValue[A](existing: Option[A], updated: Option[A]): Option[A] = {
+  private def getUpdatedValueIfChanged[A](existing: Option[A], updated: Option[A]): Option[A] = {
     if (updated.isDefined && updated != existing) {
       updated
     } else {
@@ -402,14 +402,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   def maybeResizeCluster(existingCluster: Cluster, machineConfigOpt: Option[MachineConfig]): Future[Boolean] = {
     val updatedNumWorkersAndPreemptiblesOpt = machineConfigOpt.flatMap { machineConfig =>
       Ior.fromOptions(
-        getUpdatedValue(existingCluster.machineConfig.numberOfWorkers, machineConfig.numberOfWorkers),
-        getUpdatedValue(existingCluster.machineConfig.numberOfPreemptibleWorkers, machineConfig.numberOfPreemptibleWorkers))
+        getUpdatedValueIfChanged(existingCluster.machineConfig.numberOfWorkers, machineConfig.numberOfWorkers),
+        getUpdatedValueIfChanged(existingCluster.machineConfig.numberOfPreemptibleWorkers, machineConfig.numberOfPreemptibleWorkers))
     }
 
     updatedNumWorkersAndPreemptiblesOpt match {
       case Some(updatedNumWorkersAndPreemptibles) =>
-        logger.info(s"New machine config present. Resizing cluster '${existingCluster.clusterName}' " +
-          s"in Google project '${existingCluster.googleProject}'...")
+        logger.info(s"New machine config present. Resizing cluster '${existingCluster.projectNameString}'...")
 
         for {
           // Add Dataproc Worker role to the cluster service account, if present.
@@ -442,20 +441,21 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   def maybeChangeMasterMachineType(existingCluster: Cluster, machineConfigOpt: Option[MachineConfig]): Future[Boolean] = {
     val updatedMasterMachineTypeOpt = machineConfigOpt.flatMap { machineConfig =>
-      getUpdatedValue(existingCluster.machineConfig.masterMachineType, machineConfig.masterMachineType)
+      getUpdatedValueIfChanged(existingCluster.machineConfig.masterMachineType, machineConfig.masterMachineType)
     }
 
     updatedMasterMachineTypeOpt match {
       case Some(updatedMasterMachineType) =>
-        logger.info(s"New machine config present. Changing machine type to ${updatedMasterMachineType} for cluster " +
-          s"'${existingCluster.clusterName}' in Google project '${existingCluster.googleProject}'...")
+        logger.info(s"New machine config present. Changing machine type to ${updatedMasterMachineType} for cluster ${existingCluster.projectNameString}...")
 
         Future.traverse(existingCluster.instances) { instance =>
           instance.dataprocRole match {
             case Some(Master) =>
               googleComputeDAO.setMachineType(instance.key, MachineType(updatedMasterMachineType))
             case _ =>
-              // don't update worker instances
+              // Note: we don't support changing the machine type for worker instances. While this is possible
+              // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
+              // and rebuilding the cluster if new worker machine/disk sizes are needed.
               Future.successful(())
           }
         }.flatMap { _ =>
@@ -469,22 +469,24 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   def maybeChangeMasterDiskSize(existingCluster: Cluster, machineConfigOpt: Option[MachineConfig]): Future[Boolean] = {
     val updatedMasterDiskSizeOpt = machineConfigOpt.flatMap { machineConfig =>
-      getUpdatedValue(existingCluster.machineConfig.masterDiskSize, machineConfig.masterDiskSize)
+      getUpdatedValueIfChanged(existingCluster.machineConfig.masterDiskSize, machineConfig.masterDiskSize)
     }
 
+    // Note: GCE allows you to increase a persistent disk, but not decrease. Throw an exception if the user tries to decrease their disk.
     val diskSizeIncreased = (newSize: Int) => existingCluster.machineConfig.masterDiskSize.exists(_ < newSize)
 
     updatedMasterDiskSizeOpt match {
       case Some(updatedMasterDiskSize) if diskSizeIncreased(updatedMasterDiskSize) =>
-        logger.info(s"New machine config present. Changing master disk size to $updatedMasterDiskSize} GB for cluster " +
-          s"'${existingCluster.clusterName}' in Google project '${existingCluster.googleProject}'...")
+        logger.info(s"New machine config present. Changing master disk size to $updatedMasterDiskSize} GB for cluster ${existingCluster.projectNameString}...")
 
         Future.traverse(existingCluster.instances) { instance =>
           instance.dataprocRole match {
             case Some(Master) =>
               googleComputeDAO.resizeDisk(instance.key, updatedMasterDiskSize)
             case _ =>
-              // don't update worker instances
+              // Note: we don't support changing the machine type for worker instances. While this is possible
+              // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
+              // and rebuilding the cluster if new worker machine/disk sizes are needed.
               Future.successful(())
           }
         }.flatMap { _ =>
