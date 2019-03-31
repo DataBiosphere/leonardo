@@ -106,14 +106,6 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     }
   }
 
-  def withNewFolder[T](cluster: Cluster, timeout: FiniteDuration = 2.minutes)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
-    withNotebooksListPage(cluster) { notebooksListPage =>
-      notebooksListPage.withNewFolder(timeout) { newNotebooksListPage =>
-        testCode(newNotebooksListPage)
-      }
-    }
-  }
-
   def withDummyClientPage[T](cluster: Cluster)(testCode: DummyClientPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     // start a server to load the dummy client page
     val bindingFuture = DummyClient.startServer

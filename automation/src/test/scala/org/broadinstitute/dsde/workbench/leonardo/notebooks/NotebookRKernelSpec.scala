@@ -142,14 +142,12 @@ class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
     s"should have the workspace-related environment variables set" in { clusterFixture =>
       withWebDriver { implicit driver =>
-        withNewFolder(clusterFixture.cluster) { notebooksListPage =>
-          notebooksListPage.withNewNotebook(RKernel) { notebookPage =>
-            notebookPage.executeCell("Sys.getenv('GOOGLE_PROJECT')").get shouldBe clusterFixture.billingProject.value
-            notebookPage.executeCell("Sys.getenv('WORKSPACE_NAMESPACE')").get shouldBe clusterFixture.billingProject.value
-            notebookPage.executeCell("Sys.getenv('WORKSPACE_NAME')").get shouldBe "Untitled Folder"
-            // workspace bucket is not wired up in tests
-            notebookPage.executeCell("Sys.getenv('WORKSPACE_BUCKET')").get shouldBe ""
-          }
+        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+          notebookPage.executeCell("Sys.getenv('GOOGLE_PROJECT')").get shouldBe s"'${clusterFixture.billingProject.value}'"
+          notebookPage.executeCell("Sys.getenv('WORKSPACE_NAMESPACE')").get shouldBe s"'${clusterFixture.billingProject.value}'"
+          notebookPage.executeCell("Sys.getenv('WORKSPACE_NAME')").get shouldBe "'jupyter-user'"
+          // workspace bucket is not wired up in tests
+          notebookPage.executeCell("Sys.getenv('WORKSPACE_BUCKET')").get shouldBe "''"
         }
       }
     }
