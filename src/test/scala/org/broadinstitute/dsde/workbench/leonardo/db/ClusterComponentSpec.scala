@@ -231,8 +231,8 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     val newMachineType = MachineType("this-is-a-new-machine-type")
     dbFutureValue { _.clusterQuery.updateMasterMachineType(savedCluster1.id, newMachineType) }
 
-    dbFutureValue { _.clusterQuery.getClusterById(savedCluster1.id).map(_.map(_.machineConfig.masterMachineType)) } shouldBe
-      Option(newMachineType).map(_.value)
+    dbFutureValue { _.clusterQuery.getClusterById(savedCluster1.id) }.flatMap(_.machineConfig.masterMachineType) shouldBe
+      Option(newMachineType.value)
   }
 
   it should "update master disk size" in isolatedDbTest {
@@ -244,7 +244,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     val newDiskSize = 1000
     dbFutureValue { _.clusterQuery.updateMasterDiskSize(savedCluster1.id, newDiskSize) }
 
-    dbFutureValue { _.clusterQuery.getClusterById(savedCluster1.id).map(_.map(_.machineConfig.masterDiskSize)) } shouldBe
+    dbFutureValue { _.clusterQuery.getClusterById(savedCluster1.id) }.flatMap(_.machineConfig.masterDiskSize) shouldBe
       Option(newDiskSize)
   }
 }
