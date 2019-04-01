@@ -147,24 +147,27 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
       }
     }
 
-    // make sure adding a worker works
-    "should update the cluster to add and then remove a worker node" in {
+    // make sure adding a worker and changing the master machine type/disk works
+    "should update the cluster to add/remove worker nodes and change master machine type/disk" in {
       withProject { project => implicit token =>
-        val twoWorkersMachineConfig = MachineConfig(Some(2))
+        val initialMachineConfig = MachineConfig(numberOfWorkers = Some(2), masterMachineType = Some("n1-standard-2"), masterDiskSize = Some(50))
 
-        withNewCluster(project, request = defaultClusterRequest.copy(machineConfig = Option(twoWorkersMachineConfig))) { cluster =>
-          //update the cluster to add another worker node
-          Leonardo.cluster.update(project, cluster.clusterName, ClusterRequest(machineConfig = Option(twoWorkersMachineConfig.copy(numberOfWorkers = Some(3)))))
+        withNewCluster(project, request = defaultClusterRequest.copy(machineConfig = Option(initialMachineConfig))) { cluster =>
+          //update the cluster to add another worker node and change the master machine type/disk
+          val newMachineConfig = MachineConfig(numberOfWorkers = Some(3), masterMachineType = Some("n1-standard-4"), masterDiskSize = Some(100))
+          Leonardo.cluster.update(project, cluster.clusterName, ClusterRequest(machineConfig = Option(newMachineConfig)))
 
           eventually(timeout(Span(60, Seconds)), interval(Span(5, Seconds))) {
             val status = Leonardo.cluster.get(project, cluster.clusterName).status
             status shouldBe ClusterStatus.Updating
           }
 
-          val timeToAddWorker = time{
-            eventually(timeout(Span(420, Seconds)), interval(Span(30, Seconds))) {
+          val timeToAddWorker = time {
+            eventually(timeout(Span(300, Seconds)), interval(Span(30, Seconds))) {
               val clusterResponse = Leonardo.cluster.get(project, cluster.clusterName)
-              clusterResponse.machineConfig.numberOfWorkers shouldBe Some(3)
+              clusterResponse.machineConfig.numberOfWorkers shouldBe newMachineConfig.numberOfWorkers
+              clusterResponse.machineConfig.masterMachineType shouldBe newMachineConfig.masterMachineType
+              clusterResponse.machineConfig.masterDiskSize shouldBe newMachineConfig.masterDiskSize
               clusterResponse.status shouldBe ClusterStatus.Running
             }
           }
@@ -172,6 +175,7 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
           logger.info(s"Adding worker to ${cluster.projectNameString}} took ${timeToAddWorker.duration.toSeconds} seconds")
 
           //now that we have confirmed that we can add a worker node, let's see what happens when we size it back down to 2 workers
+          val twoWorkersMachineConfig = MachineConfig(numberOfWorkers = Some(2))
           Leonardo.cluster.update(project, cluster.clusterName, ClusterRequest(machineConfig = Option(twoWorkersMachineConfig)))
 
           eventually(timeout(Span(60, Seconds)), interval(Span(5, Seconds))) {
@@ -179,10 +183,12 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
             status shouldBe ClusterStatus.Updating
           }
 
-          val timeToRemoveWorker = time {
-            eventually(timeout(Span(420, Seconds)), interval(Span(30, Seconds))) {
+          val timeToRemoveWorker = time { 
+            eventually(timeout(Span(300, Seconds)), interval(Span(30, Seconds))) {
               val clusterResponse = Leonardo.cluster.get(project, cluster.clusterName)
               clusterResponse.machineConfig.numberOfWorkers shouldBe Some(2)
+              clusterResponse.machineConfig.masterMachineType shouldBe newMachineConfig.masterMachineType
+              clusterResponse.machineConfig.masterDiskSize shouldBe newMachineConfig.masterDiskSize
               clusterResponse.status shouldBe ClusterStatus.Running
             }
           }
