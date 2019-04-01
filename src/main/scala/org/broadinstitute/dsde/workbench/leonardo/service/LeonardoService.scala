@@ -490,7 +490,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
               Future.successful(())
           }
         }.flatMap { _ =>
-          dbRef.inTransaction { _.clusterQuery.udpateMasterDiskSize(existingCluster.id, updatedMasterDiskSize) }
+          dbRef.inTransaction { _.clusterQuery.updateMasterDiskSize(existingCluster.id, updatedMasterDiskSize) }
         }.as(true)
 
       case Some(_) =>

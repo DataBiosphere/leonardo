@@ -242,7 +242,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       .save()
 
     val newDiskSize = 1000
-    dbFutureValue { _.clusterQuery.updateMasterMachineType(savedCluster1.id, newDiskSize) }
+    dbFutureValue { _.clusterQuery.updateMasterDiskSize(savedCluster1.id, newDiskSize) }
 
     dbFutureValue { _.clusterQuery.getClusterById(savedCluster1.id).map(_.map(_.machineConfig.masterDiskSize)) } shouldBe
       Option(newDiskSize)

@@ -346,7 +346,7 @@ trait ClusterComponent extends LeoComponent {
       findByIdQuery(id).map(_.masterMachineType).update(newMachineType.value)
     }
 
-    def udpateMasterDiskSize(id: Long, newSizeGb: Int): DBIO[Int] = {
+    def updateMasterDiskSize(id: Long, newSizeGb: Int): DBIO[Int] = {
       findByIdQuery(id).map(_.masterDiskSize).update(newSizeGb)
     }
 
