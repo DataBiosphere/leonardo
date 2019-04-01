@@ -238,7 +238,7 @@ function cleanup()
 {
     echo "cleaning up..."
     if [[ -n "$SERVICE_ACCOUNT_KEY_FILE" ]]; then
-      gcloud auth revoke
+      gcloud auth revoke && echo 'Token revoke succeeded' || echo 'Token revoke failed -- skipping'
       rm -rf ${CLOUDSDK_CONFIG}
     fi
 }
