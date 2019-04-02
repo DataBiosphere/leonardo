@@ -361,6 +361,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   def internalUpdateCluster(existingCluster: Cluster, clusterRequest: ClusterRequest) = {
     if (existingCluster.status.isUpdatable) {
+      // TODO accumulate errors instead of fail-fast
       for {
         _ <- maybeUpdateAutopauseThreshold(existingCluster.id, clusterRequest.autopause, clusterRequest.autopauseThreshold)
 
@@ -444,6 +445,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       getUpdatedValueIfChanged(existingCluster.machineConfig.masterMachineType, machineConfig.masterMachineType)
     }
 
+    // TODO clsuter needs to be stop/started
+
     updatedMasterMachineTypeOpt match {
       case Some(updatedMasterMachineType) =>
         logger.info(s"New machine config present. Changing machine type to ${updatedMasterMachineType} for cluster ${existingCluster.projectNameString}...")
@@ -477,7 +480,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     updatedMasterDiskSizeOpt match {
       case Some(updatedMasterDiskSize) if diskSizeIncreased(updatedMasterDiskSize) =>
-        logger.info(s"New machine config present. Changing master disk size to $updatedMasterDiskSize} GB for cluster ${existingCluster.projectNameString}...")
+        logger.info(s"New machine config present. Changing master disk size to $updatedMasterDiskSize GB for cluster ${existingCluster.projectNameString}...")
 
         Future.traverse(existingCluster.instances) { instance =>
           instance.dataprocRole match {

@@ -172,7 +172,7 @@ class HttpGoogleComputeDAO(appName: String,
 
   override def setMachineType(instanceKey: InstanceKey, newMachineType: MachineType): Future[Unit] = {
     val request = compute.instances().setMachineType(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value,
-      new InstancesSetMachineTypeRequest().setMachineType(newMachineType.value))
+      new InstancesSetMachineTypeRequest().setMachineType(buildMachineTypeUri(instanceKey, newMachineType.value)))
 
     retryWhen500orGoogleError(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
   }
@@ -182,6 +182,11 @@ class HttpGoogleComputeDAO(appName: String,
       new DisksResizeRequest().setSizeGb(newSizeGb.toLong))
 
     retryWhen500orGoogleError(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
+  }
+
+  private def buildMachineTypeUri(instanceKey: InstanceKey, machineType: String): String = {
+    // TODO handle other inputs?
+    s"zones/${instanceKey.zone.value}/machineTypes/$machineType"
   }
 
   private implicit class GoogleExceptionSupport[A](future: Future[A]) {
