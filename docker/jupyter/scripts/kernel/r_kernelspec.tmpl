@@ -1,0 +1,13 @@
+{
+  "language": "R",
+  "display_name": "R",
+  "argv": [
+    "${JUPYTER_HOME}/scripts/kernel/kernel_bootstrap.sh",
+    "/usr/lib/R/bin/R",
+    "--slave",
+    "-e",
+    "IRkernel::main()",
+    "--args",
+    "{connection_file}"
+  ]
+}

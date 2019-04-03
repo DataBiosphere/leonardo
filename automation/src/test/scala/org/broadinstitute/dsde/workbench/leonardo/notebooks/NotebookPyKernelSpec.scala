@@ -133,5 +133,19 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
         }
       }
     }
+
+    Seq(Python2, Python3).foreach { kernel =>
+      s"should have the workspace-related environment variables set in ${kernel.toString} kernel" in { clusterFixture =>
+        withWebDriver { implicit driver =>
+          withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
+            notebookPage.executeCell("! echo $GOOGLE_PROJECT").get shouldBe clusterFixture.billingProject.value
+            notebookPage.executeCell("! echo $WORKSPACE_NAMESPACE").get shouldBe clusterFixture.billingProject.value
+            notebookPage.executeCell("! echo $WORKSPACE_NAME").get shouldBe "jupyter-user"
+            // workspace bucket is not wired up in tests
+            notebookPage.executeCell("! echo $WORKSPACE_BUCKET").get shouldBe ""
+          }
+        }
+      }
+    }
   }
 }

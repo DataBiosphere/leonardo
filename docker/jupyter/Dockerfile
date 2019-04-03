@@ -45,6 +45,7 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sou
     # to support userScript pip installs via git
     git \
     locales \
+    jq \
 
  # R separately because it depends on gnupg installed above
  && echo "deb $CRAN_REPO/bin/linux/debian stretch-cran35/"       >> /etc/apt/sources.list \
