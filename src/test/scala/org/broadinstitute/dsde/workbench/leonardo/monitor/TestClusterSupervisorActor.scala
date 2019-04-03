@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 import akka.actor.{ActorRef, Props}
 import akka.testkit.TestKit
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, DataprocConfig, MonitorConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, ClusterLifecycleConfig, DataprocConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -21,13 +21,13 @@ object TestClusterSupervisorActor {
             dbRef: DbReference,
             testKit: TestKit,
             authProvider: LeoAuthProvider,
-            autoFreezeConfig: AutoFreezeConfig,
+            clusterLifecycleConfig: ClusterLifecycleConfig,
             jupyterProxyDAO: ToolDAO,
             rstudioProxyDAO: ToolDAO,
             leonardoService: LeonardoService): Props =
     Props(new TestClusterSupervisorActor(
       monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO,
-      dbRef, testKit, authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, leonardoService))
+      dbRef, testKit, authProvider, clusterLifecycleConfig, jupyterProxyDAO, rstudioProxyDAO, leonardoService))
 }
 
 object TearDown
@@ -45,14 +45,14 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  dbRef: DbReference,
                                  testKit: TestKit,
                                  authProvider: LeoAuthProvider,
-                                 autoFreezeConfig: AutoFreezeConfig,
+                                 clusterLifecycleConfig: ClusterLifecycleConfig,
                                  jupyterProxyDAO: ToolDAO,
                                  rstudioProxyDAO: ToolDAO,
                                  leonardoService: LeonardoService)
   extends ClusterMonitorSupervisor(
     monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO,
     googleIamDAO, googleStorageDAO, dbRef,
-    authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, leonardoService) {
+    authProvider, clusterLifecycleConfig, jupyterProxyDAO, rstudioProxyDAO, leonardoService) {
 
   // Keep track of spawned child actors so we can shut them down when this actor is stopped
   var childActors: Seq[ActorRef] = Seq.empty

@@ -112,7 +112,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => new MockGoogleStorageDAO
     val leoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, autoDeleteConfig, gdDAO, computeDAO, iamDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, whitelistAuthProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
-    val supervisorActor = system.actorOf(TestClusterSupervisorActor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, computeDAO, iamDAO, storageDAO, DbSingleton.ref, testKit, authProvider, autoFreezeConfig, jupyterDAO, rstudioDAO, leoService))
+    val supervisorActor = system.actorOf(TestClusterSupervisorActor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, computeDAO, iamDAO, storageDAO, DbSingleton.ref, testKit, authProvider, clusterLifecycleConfig, jupyterDAO, rstudioDAO, leoService))
 
     supervisorActor
   }

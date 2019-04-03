@@ -64,7 +64,7 @@ class ClusterSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
       bucketHelper, contentSecurityPolicy)
 
     val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO,
-      computeDAO, iamDAO, storageDAO, DbSingleton.ref, authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, leoService))
+      computeDAO, iamDAO, storageDAO, DbSingleton.ref, authProvider, clusterLifecycleConfig, jupyterProxyDAO, rstudioProxyDAO, leoService))
 
     eventually(timeout(Span(30, Seconds))) {
       val c1 = dbFutureValue { _.clusterQuery.getClusterById(savedRunningCluster.id) }

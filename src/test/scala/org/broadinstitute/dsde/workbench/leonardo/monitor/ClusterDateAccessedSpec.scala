@@ -33,7 +33,7 @@ class ClusterDateAccessedSpec extends TestKit(ActorSystem("leonardotest")) with
     savedTestCluster1 shouldEqual testCluster1
 
     val currentTime = Instant.now()
-    val dateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, DbSingleton.ref))
+    val dateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(clusterLifecycleConfig, DbSingleton.ref))
     dateAccessedActor ! UpdateDateAccessed(testCluster1.clusterName, testCluster1.googleProject, currentTime)
     eventually(timeout(Span(5, Seconds))) {
       val c1 = dbFutureValue { _.clusterQuery.getClusterById(savedTestCluster1.id) }
