@@ -9,7 +9,7 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
-import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, ClusterDefaultsConfig, ClusterDnsCacheConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SwaggerConfig, ZombieClusterConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AutoDeleteConfig, AutoFreezeConfig, ClusterBucketConfig, ClusterDefaultsConfig, ClusterDnsCacheConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SwaggerConfig, ZombieClusterConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockJupyterDAO, MockRStudioDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
@@ -43,6 +43,8 @@ trait CommonTestData{ this: ScalaFutures =>
   val initBucketPath = GcsBucketName("bucket-path")
   val autopause = true
   val autopauseThreshold = 30
+  val autoDelete = true
+  val autoDeleteThreshold = 30
   val defaultScopes = Set("https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/bigquery", "https://www.googleapis.com/auth/source.read_only")
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
@@ -55,6 +57,7 @@ trait CommonTestData{ this: ScalaFutures =>
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
   val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
+  val autoDeleteConfig = config.as[AutoDeleteConfig]("autoDelete")
   val zombieClusterConfig = config.as[ZombieClusterConfig]("zombieClusterMonitor")
   val dnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")
   val clusterUrlBase = dataprocConfig.clusterUrlBase
@@ -65,8 +68,8 @@ trait CommonTestData{ this: ScalaFutures =>
   val mockJupyterDAO = new MockJupyterDAO
   val mockRStudioDAO = new MockRStudioDAO
   val singleNodeDefaultMachineConfig = MachineConfig(Some(clusterDefaultsConfig.numberOfWorkers), Some(clusterDefaultsConfig.masterMachineType), Some(clusterDefaultsConfig.masterDiskSize))
-  val testClusterRequest = ClusterRequest(Some(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar")), None, None, None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))), Some(true), Some(30), Some("ThisIsADefaultClientID"))
-  val testClusterRequestWithExtensionAndScript = ClusterRequest(Some(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar")), Some(jupyterExtensionUri), Some(jupyterUserScriptUri), None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))), Some(true), Some(30), Some("ThisIsADefaultClientID"))
+  val testClusterRequest = ClusterRequest(Some(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar")), None, None, None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))), Some(true), Some(30), Some(true), Some(30), Some("ThisIsADefaultClientID"))
+  val testClusterRequestWithExtensionAndScript = ClusterRequest(Some(Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar")), Some(jupyterExtensionUri), Some(jupyterUserScriptUri), None, None, Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))), Some(true), Some(30), Some(true), Some(30), Some("ThisIsADefaultClientID"))
 
   val mockSamDAO = new MockSamDAO
   val mockGoogleDataprocDAO = new MockGoogleDataprocDAO
@@ -108,6 +111,7 @@ trait CommonTestData{ this: ScalaFutures =>
       instances = Set.empty,
       userJupyterExtensionConfig = None,
       autopauseThreshold = 30,
+      autoDeleteThreshold = 30,
       defaultClientId = Some("defaultClientId"),
       stopAfterCreation = false,
       clusterImages = Set(jupyterImage),
@@ -131,6 +135,7 @@ trait CommonTestData{ this: ScalaFutures =>
     instances = Set.empty,
     userJupyterExtensionConfig = None,
     autopauseThreshold = if (autopause) autopauseThreshold else 0,
+    autoDeleteThreshold = if (autoDelete) autoDeleteThreshold else 0,
     defaultClientId = None,
     stopAfterCreation = false,
     clusterImages = Set(jupyterImage, rstudioImage),

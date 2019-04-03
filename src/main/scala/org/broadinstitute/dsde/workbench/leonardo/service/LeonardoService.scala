@@ -257,12 +257,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
     val autopauseThreshold = calculateAutopauseThreshold(
       clusterRequest.autopause, clusterRequest.autopauseThreshold)
-    val autoDelete = calculateAutoDeleteThreshold(
+    val autoDeleteThreshold = calculateAutoDeleteThreshold(
       clusterRequest.autoDelete, clusterRequest.autoDeleteThreshold)
     val clusterScopes = clusterRequest.scopes.getOrElse(dataprocConfig.defaultScopes)
     val initialClusterToSave = Cluster.create(
       augmentedClusterRequest, userEmail, clusterName, googleProject,
-      serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, autoDelete, clusterScopes,
+      serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, autoDeleteThreshold, clusterScopes,
       clusterImages = clusterImages)
 
     // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
