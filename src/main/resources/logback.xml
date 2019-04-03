@@ -44,6 +44,7 @@
         <appender-ref ref="SYSLOG"/>
         <appender-ref ref="Sentry" />
     </logger>
+    
 
     <logger name="akka" level="info" additivity="false">
         <appender-ref ref="file"/>
