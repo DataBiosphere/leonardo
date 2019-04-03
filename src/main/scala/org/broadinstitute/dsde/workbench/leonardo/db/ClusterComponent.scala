@@ -30,6 +30,7 @@ case class ClusterRecord(id: Long,
                          stagingBucket: Option[String],
                          dateAccessed: Timestamp,
                          autopauseThreshold: Int,
+                         autoDeleteThreshold: Int,
                          defaultClientId: Option[String],
                          stopAfterCreation: Boolean)
 
@@ -77,6 +78,7 @@ trait ClusterComponent extends LeoComponent {
     def stagingBucket = column[Option[String]]("stagingBucket", O.Length(254))
     def dateAccessed= column[Timestamp]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
     def autopauseThreshold = column[Int]("autopauseThreshold")
+    def autoDeleteThreshold = column[Int]("autoDeleteThreshold")
     def defaultClientId = column[Option[String]]("defaultClientId", O.Length(1024))
     def stopAfterCreation = column[Boolean]("stopAfterCreation")
 
@@ -90,17 +92,17 @@ trait ClusterComponent extends LeoComponent {
       id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
       createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
       (numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers),
-      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket, dateAccessed, autopauseThreshold, defaultClientId, stopAfterCreation
+      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket, dateAccessed, autopauseThreshold, autoDeleteThreshold, defaultClientId, stopAfterCreation
     ).shaped <> ({
       case (id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
             createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket, machineConfig,
-            serviceAccountInfo, stagingBucket, dateAccessed, autopauseThreshold, defaultClientId, stopAfterCreation) =>
+            serviceAccountInfo, stagingBucket, dateAccessed, autopauseThreshold, autoDeleteThreshold, defaultClientId, stopAfterCreation) =>
         ClusterRecord(
           id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
           createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
           MachineConfigRecord.tupled.apply(machineConfig),
           ServiceAccountInfoRecord.tupled.apply(serviceAccountInfo),
-          stagingBucket, dateAccessed, autopauseThreshold, defaultClientId, stopAfterCreation)
+          stagingBucket, dateAccessed, autopauseThreshold, autoDeleteThreshold, defaultClientId, stopAfterCreation)
     }, { c: ClusterRecord =>
       def mc(_mc: MachineConfigRecord) = MachineConfigRecord.unapply(_mc).get
       def sa(_sa: ServiceAccountInfoRecord) = ServiceAccountInfoRecord.unapply(_sa).get
@@ -108,7 +110,7 @@ trait ClusterComponent extends LeoComponent {
         c.id, c.clusterName, c.googleId, c.googleProject, c.operationName, c.status, c.hostIp, c.creator,
         c.createdDate, c.destroyedDate, c.jupyterExtensionUri, c.jupyterUserScriptUri, c.initBucket,
         mc(c.machineConfig), sa(c.serviceAccountInfo), c.stagingBucket, c.dateAccessed, c.autopauseThreshold,
-        c.defaultClientId, c.stopAfterCreation
+        c.autoDeleteThreshold, c.defaultClientId, c.stopAfterCreation
       ))
     })
   }
@@ -282,6 +284,16 @@ trait ClusterComponent extends LeoComponent {
         .result map { recs => unmarshalFullCluster(recs)}
     }
 
+    def getClustersReadyToAutoDelete(): DBIO[Seq[Cluster]] = {
+      val now = SimpleFunction.nullary[Timestamp]("NOW")
+      val tsdiff = SimpleFunction.ternary[String, Timestamp, Timestamp, Int]("TIMESTAMPDIFF")
+      val day = SimpleLiteral[String]("DAY")
+
+      fullClusterQuery.filter { record => tsdiff(day, record._1.dateAccessed, now) >= record._1.autoDeleteThreshold}
+        .filter(_._1.status inSetBind ClusterStatus.deletableStatuses.map(_.toString))
+        .result map { recs => unmarshalFullCluster(recs)}
+    }
+
     def markPendingDeletion(id: Long): DBIO[Int] = {
       findByIdQuery(id)
         .map(c => (c.status, c.hostIp))
@@ -423,6 +435,7 @@ trait ClusterComponent extends LeoComponent {
         cluster.dataprocInfo.stagingBucket.map(_.value),
         Timestamp.from(cluster.auditInfo.dateAccessed),
         cluster.autopauseThreshold,
+        cluster.autoDeleteThreshold,
         cluster.defaultClientId,
         cluster.stopAfterCreation
       )
@@ -505,6 +518,7 @@ trait ClusterComponent extends LeoComponent {
         instanceRecords map ClusterComponent.this.instanceQuery.unmarshalInstance toSet,
         ClusterComponent.this.extensionQuery.unmarshallExtensions(userJupyterExtensionConfig),
         clusterRecord.autopauseThreshold,
+        clusterRecord.autoDeleteThreshold,
         clusterRecord.defaultClientId,
         clusterRecord.stopAfterCreation,
         clusterImageRecords map ClusterComponent.this.clusterImageQuery.unmarshalClusterImage toSet,

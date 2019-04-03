@@ -11,7 +11,7 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AutoDeleteConfig, AutoFreezeConfig, ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
@@ -88,6 +88,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val proxyConfig: ProxyConfig,
                       protected val swaggerConfig: SwaggerConfig,
                       protected val autoFreezeConfig: AutoFreezeConfig,
+                      protected val autoDeleteConfig: AutoDeleteConfig,
                       protected val gdDAO: GoogleDataprocDAO,
                       protected val googleComputeDAO: GoogleComputeDAO,
                       protected val googleIamDAO: GoogleIamDAO,
@@ -256,10 +257,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
     val autopauseThreshold = calculateAutopauseThreshold(
       clusterRequest.autopause, clusterRequest.autopauseThreshold)
+    val autoDelete = calculateAutoDeleteThreshold(
+      clusterRequest.autoDelete, clusterRequest.autoDeleteThreshold)
     val clusterScopes = clusterRequest.scopes.getOrElse(dataprocConfig.defaultScopes)
     val initialClusterToSave = Cluster.create(
       augmentedClusterRequest, userEmail, clusterName, googleProject,
-      serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, clusterScopes,
+      serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, autoDelete, clusterScopes,
       clusterImages = clusterImages)
 
     // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
@@ -425,12 +428,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually destroy it
       _ <- checkClusterPermission(userInfo,  DeleteCluster, cluster, throw403 = true)
 
-      _ <- internalDeleteCluster(userInfo.userEmail, cluster)
+      _ <- internalDeleteCluster(cluster)
     } yield { () }
   }
 
   //NOTE: This function MUST ALWAYS complete ALL steps. i.e. if deleting thing1 fails, it must still proceed to delete thing2
-  def internalDeleteCluster(userEmail: WorkbenchEmail, cluster: Cluster): Future[Unit] = {
+  def internalDeleteCluster(cluster: Cluster): Future[Unit] = {
     if (cluster.status.isDeletable) {
       for {
         // Delete the notebook service account key in Google, if present
@@ -589,12 +592,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
       initScript = GcsPath(initBucket, GcsObjectName(clusterResourcesConfig.initActionsScript.value))
       autopauseThreshold = calculateAutopauseThreshold(clusterRequest.autopause, clusterRequest.autopauseThreshold)
+      autoDeleteThreshold = calculateAutoDeleteThreshold(clusterRequest.autoDelete, clusterRequest.autoDeleteThreshold)
       clusterScopes = clusterRequest.scopes.getOrElse(dataprocConfig.defaultScopes)
       credentialsFileName = serviceAccountInfo.notebookServiceAccount.map(_ => s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}")
       operation <- gdDAO.createCluster(googleProject, clusterName, machineConfig, initScript,
         serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket, clusterScopes)
       cluster = Cluster.create(clusterRequest, userEmail, clusterName, googleProject, serviceAccountInfo,
-        machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, clusterScopes, Option(operation), Option(stagingBucket), clusterImages)
+        machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, autoDeleteThreshold, clusterScopes, Option(operation), Option(stagingBucket), clusterImages)
     } yield (cluster, initBucket, serviceAccountKeyOpt)
 
     // If anything fails, we need to clean up Google resources that might have been created
@@ -615,6 +619,20 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       case _ =>
         if (autopauseThreshold.isEmpty) autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
         else Math.max(AutoPauseOffValue, autopauseThreshold.get)
+    }
+  }
+
+  private def calculateAutoDeleteThreshold(autoDelete: Option[Boolean], autoDeleteThreshold: Option[Int]): Int = {
+    val AutoDeleteOffValue = 0
+
+    autoDelete match {
+      case None =>
+        autoDeleteConfig.autoDeleteAfter.toDays.toInt
+      case Some(false) =>
+        AutoDeleteOffValue
+      case _ =>
+        if (autoDeleteThreshold.isEmpty) autoDeleteConfig.autoDeleteAfter.toDays.toInt
+        else Math.max(AutoDeleteOffValue, autoDeleteThreshold.get)
     }
   }
 

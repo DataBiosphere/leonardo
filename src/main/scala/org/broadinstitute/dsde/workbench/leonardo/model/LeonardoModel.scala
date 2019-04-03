@@ -32,6 +32,8 @@ case class ClusterRequest(labels: Option[LabelMap] = Option(Map.empty),
                           userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
                           autopause: Option[Boolean] = None,
                           autopauseThreshold: Option[Int] = None,
+                          autoDelete: Option[Boolean] = None,
+                          autoDeleteThreshold: Option[Int] = None,
                           defaultClientId: Option[String] = None,
                           jupyterDockerImage: Option[String] = None,
                           rstudioDockerImage: Option[String] = None,
@@ -93,6 +95,7 @@ case class Cluster(id: Long = 0, // DB AutoInc
                    instances: Set[Instance],
                    userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
                    autopauseThreshold: Int,
+                   autoDeleteThreshold: Int,
                    defaultClientId: Option[String],
                    stopAfterCreation: Boolean,
                    clusterImages: Set[ClusterImage],
@@ -111,6 +114,7 @@ object Cluster {
              machineConfig: MachineConfig,
              clusterUrlBase: String,
              autopauseThreshold: Int,
+             autoDeleteThreshold: Int,
              clusterScopes: Set[String],
              operation: Option[Operation] = None,
              stagingBucket: Option[GcsBucketName] = None,
@@ -131,6 +135,7 @@ object Cluster {
       instances = Set.empty,
       userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
       autopauseThreshold = autopauseThreshold,
+      autoDeleteThreshold = autoDeleteThreshold,
       defaultClientId = clusterRequest.defaultClientId,
       stopAfterCreation = clusterRequest.stopAfterCreation.getOrElse(false),
       clusterImages = clusterImages,
@@ -312,7 +317,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val UserClusterExtensionConfigFormat = jsonFormat4(UserJupyterExtensionConfig.apply)
 
-  implicit val ClusterRequestFormat = jsonFormat12(ClusterRequest)
+  implicit val ClusterRequestFormat = jsonFormat14(ClusterRequest)
 
   implicit val ClusterResourceFormat = ValueObjectFormat(ClusterResource)
 
@@ -354,6 +359,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
             fields.getOrElse("instances", JsNull).convertTo[Set[Instance]],
             fields.getOrElse("userJupyterExtensionConfig", JsNull).convertTo[Option[UserJupyterExtensionConfig]],
             fields.getOrElse("autopauseThreshold", JsNull).convertTo[Int],
+            fields.getOrElse("autoDeleteThreshold", JsNull).convertTo[Int],
             fields.getOrElse("defaultClientId", JsNull).convertTo[Option[String]],
             fields.getOrElse("stopAfterCreation", JsNull).convertTo[Boolean],
             fields.getOrElse("clusterImages", JsNull).convertTo[Set[ClusterImage]],

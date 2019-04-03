@@ -99,6 +99,8 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
               cluster.userJupyterExtensionConfig,
               if (cluster.autopauseThreshold == 0) Some(false) else Some(true),
               Some(cluster.autopauseThreshold),
+              if (cluster.autoDeleteThreshold == 0) Some(false) else Some(true),
+              Some(cluster.autoDeleteThreshold),
               cluster.defaultClientId,
               cluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage))
             val createFuture = leonardoService.internalCreateCluster(cluster.auditInfo.creator, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest)
@@ -171,6 +173,20 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
         logger.info(s"Auto freezing cluster ${c.clusterName} in project ${c.googleProject}")
         leonardoService.internalStopCluster(c).failed.foreach { e =>
           logger.warn(s"Error occurred auto freezing cluster ${c.projectNameString}", e)
+        }
+      }
+    }
+  }
+
+  def autoDeleteClusters(): Future[Unit] = {
+    val clusterList = dbRef.inTransaction {
+      _.clusterQuery.getClustersReadyToAutoDelete()
+    }
+    clusterList map { cl =>
+      cl.foreach { c =>
+        logger.info(s"Auto deleting cluster ${c.clusterName} in project ${c.googleProject}")
+        leonardoService.internalDeleteCluster(c).failed.foreach { e =>
+          logger.warn(s"Error occurred auto deleting cluster ${c.projectNameString}", e)
         }
       }
     }

@@ -45,6 +45,33 @@
         <appender-ref ref="Sentry" />
     </logger>
 
+    <logger name="org.broadinstitute.dsde.workbench.google.HttpGoogleIamDAO" level="debug" additivity="false">
+        <appender-ref ref="file"/>
+        <appender-ref ref="console"/>
+        <appender-ref ref="SYSLOG"/>
+        <appender-ref ref="Sentry" />
+    </logger>
+
+    <logger name="org.broadinstitute.dsde.workbench.google.HttpGoogleComputeDAO" level="debug" additivity="false">
+        <appender-ref ref="file"/>
+        <appender-ref ref="console"/>
+        <appender-ref ref="SYSLOG"/>
+        <appender-ref ref="Sentry" />
+    </logger>
+
+    <logger name="org.broadinstitute.dsde.workbench.leonardo.dao.google.HttpGoogleDataprocDAO" level="debug" additivity="false">
+        <appender-ref ref="file"/>
+        <appender-ref ref="console"/>
+        <appender-ref ref="SYSLOG"/>
+        <appender-ref ref="Sentry" />
+    </logger>
+
+    <logger name="org.broadinstitute.dsde.workbench.leonardo.dao.google.HttpGoogleStorageDAO" level="debug" additivity="false">
+        <appender-ref ref="file"/>
+        <appender-ref ref="console"/>
+        <appender-ref ref="SYSLOG"/>
+        <appender-ref ref="Sentry" />
+    </logger>
 
     <logger name="akka" level="info" additivity="false">
         <appender-ref ref="file"/>
