@@ -45,6 +45,7 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sou
     # to support userScript pip installs via git
     git \
     locales \
+    jq \
 
  # R separately because it depends on gnupg installed above
  && echo "deb $CRAN_REPO/bin/linux/debian stretch-cran35/"       >> /etc/apt/sources.list \
@@ -185,7 +186,7 @@ RUN set -ex \
  && wget -O python.tar.xz "https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/Python-$PYTHON_VERSION.tar.xz" \
  && wget -O python.tar.xz.asc "https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/Python-$PYTHON_VERSION.tar.xz.asc" \
  && export GNUPGHOME="$(mktemp -d)" \
- && gpg --batch --keyserver ha.pool.sks-keyservers.net --recv-keys "0D96DF4D4110E5C43FBFB17F2D347EA6AA65421D" \
+ && gpg --batch --keyserver keyserver.ubuntu.com --recv-keys "0D96DF4D4110E5C43FBFB17F2D347EA6AA65421D" \
  && gpg --batch --verify python.tar.xz.asc python.tar.xz \
  && { command -v gpgconf > /dev/null && gpgconf --kill all || :; } \
  && rm -rf "$GNUPGHOME" python.tar.xz.asc \

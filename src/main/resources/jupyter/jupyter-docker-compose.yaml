@@ -26,6 +26,7 @@ services:
     restart: always
     environment:
       GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
+      WORKSPACE_NAMESPACE: "${GOOGLE_PROJECT}"
       CLUSTER_NAME: "${CLUSTER_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
     env_file:
