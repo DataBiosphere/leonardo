@@ -29,5 +29,5 @@
     <include file="changesets/20180919_stop_after_creation.xml" relativeToChangelogFile="true" />
     <include file="changesets/20181114_scopes.xml" relativeToChangelogFile="true" />
     <include file="changesets/20181126_cluster_image.xml" relativeToChangelogFile="true" />
-    <!--<include file="changesets/20190403_cluster_auto_delete_threshold.xml" relativeToChangelogFile="true" />-->
+    <include file="changesets/20190403_cluster_auto_delete_threshold.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>
