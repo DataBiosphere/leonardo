@@ -164,6 +164,12 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
+    def listClustersByCreator(creator: WorkbenchEmail): DBIO[Seq[Cluster]] = {
+      clusterQuery.filter { _.creator === creator.value }.result map { recs =>
+        recs.map(rec => unmarshalCluster(rec, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty))
+      }
+    }
+
     def countByClusterServiceAccountAndStatuses(clusterServiceAccount: WorkbenchEmail, statuses: Set[ClusterStatus]) = {
       clusterQuery
         .filter { _.clusterServiceAccount === Option(clusterServiceAccount.value) }

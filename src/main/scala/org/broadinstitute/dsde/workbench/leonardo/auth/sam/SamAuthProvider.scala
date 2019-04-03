@@ -141,6 +141,7 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
       createdClusters <- retryableFutureToFuture(retryUntilSuccessOrTimeout(shouldInvalidateSamCacheAndRetry, s"SamAuthProvider.filterUserVisibleClusters.createdClusters call failed")(samRetryInterval, samRetryTimeout) { () =>
         Future(blocking(samClient.listCreatedClusters(userInfo)).toSet)
       })
+
     } yield {
       clusters.filter { case (project, name) =>
         owningProjects.contains(project) || createdClusters.contains((project, name))
