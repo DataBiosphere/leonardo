@@ -1063,6 +1063,12 @@ definitions:
       autopauseThreshold:
         type: integer
         description: The number of minutes of idle time to elapse before the cluster is autopaused. If autopause is set to false, this value is disregarded. A value of 0 is equivalent to autopause being turned off. If autopause is enabled and this is unset, a system default threshold will be used.
+      autoDelete:
+        type: boolean
+        description: Whether auto-delete feature is enabled for this specific cluster. If unset, auto-delete will be enabled and a system default threshold will be used.
+      autoDeleteThreshold:
+        type: integer
+        description: The number of days of idle time to elapse before the cluster is automatically deleted. If autoDelete is set to false, this value is disregarded. A value of 0 is equivalent to autoDelete being turned off. If autoDelete is enabled and this is unset, a system default threshold will be used.
       defaultClientId:
         type: string
         description: The default Google Client ID.
