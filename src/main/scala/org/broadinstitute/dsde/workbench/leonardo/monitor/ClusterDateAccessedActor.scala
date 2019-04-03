@@ -3,19 +3,19 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 import java.time.Instant
 
 import akka.actor.{Actor, Props}
-
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo.config.AutoFreezeConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterLifecycleConfig}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterDateAccessedActor.{Flush, UpdateDateAccessed}
+
 import scala.concurrent.duration._
 
 object ClusterDateAccessedActor {
 
-  def props(autoFreezeConfig: AutoFreezeConfig, dbReference: DbReference): Props =
-    Props(new ClusterDateAccessedActor(autoFreezeConfig, dbReference))
+  def props(clusterLifecycleConfig: ClusterLifecycleConfig, dbReference: DbReference): Props =
+    Props(new ClusterDateAccessedActor(clusterLifecycleConfig, dbReference))
 
   sealed trait ClusterAccessDateMessage
 
@@ -25,7 +25,7 @@ object ClusterDateAccessedActor {
 
 }
 
-class ClusterDateAccessedActor(autoFreezeConfig: AutoFreezeConfig, dbRef: DbReference) extends Actor with LazyLogging {
+class ClusterDateAccessedActor(clusterLifecycleConfig: ClusterLifecycleConfig, dbRef: DbReference) extends Actor with LazyLogging {
 
   var dateAccessedMap: Map[(ClusterName, GoogleProject), Instant] = Map.empty
 
@@ -33,7 +33,7 @@ class ClusterDateAccessedActor(autoFreezeConfig: AutoFreezeConfig, dbRef: DbRefe
 
   override def preStart(): Unit = {
     super.preStart()
-    system.scheduler.schedule(autoFreezeConfig.dateAccessedMonitorScheduler, autoFreezeConfig.dateAccessedMonitorScheduler, self, Flush)
+    system.scheduler.schedule(clusterLifecycleConfig.dateAccessedMonitorScheduler, clusterLifecycleConfig.dateAccessedMonitorScheduler, self, Flush)
   }
 
   override def receive: Receive = {

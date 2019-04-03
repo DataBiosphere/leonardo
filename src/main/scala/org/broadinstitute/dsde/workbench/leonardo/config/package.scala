@@ -97,11 +97,9 @@ package object config {
     SamConfig(config.getString("server"))
   }
 
-
   implicit val autoFreezeConfigReader: ValueReader[AutoFreezeConfig] = ValueReader.relative { config =>
     AutoFreezeConfig(
       config.getBoolean("enableAutoFreeze"),
-      toScalaDuration(config.getDuration("dateAccessedMonitorScheduler")),
       toScalaDuration(config.getDuration("autoFreezeAfter")),
       toScalaDuration(config.getDuration("autoFreezeCheckScheduler"))
     )
@@ -110,9 +108,16 @@ package object config {
   implicit val autoDeleteConfigReader: ValueReader[AutoDeleteConfig] = ValueReader.relative { config =>
     AutoDeleteConfig(
       config.getBoolean("enableAutoDelete"),
-      toScalaDuration(config.getDuration("dateAccessedMonitorScheduler")),
       toScalaDuration(config.getDuration("autoDeleteAfter")),
       toScalaDuration(config.getDuration("autoDeleteCheckScheduler"))
+    )
+  }
+
+  implicit val clusterLifecycleConfigReader: ValueReader[ClusterLifecycleConfig] = ValueReader.relative { config =>
+    ClusterLifecycleConfig(
+      toScalaDuration(config.getDuration("dateAccessedMonitorScheduler")),
+      config.as[AutoFreezeConfig]("clusterLifecycle.autoFreeze"),
+      config.as[AutoDeleteConfig]("clusterLifecycle.autoDelete")
     )
   }
 

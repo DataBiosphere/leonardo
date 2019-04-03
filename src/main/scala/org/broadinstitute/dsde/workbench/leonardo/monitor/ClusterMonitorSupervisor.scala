@@ -4,7 +4,7 @@ import akka.actor.SupervisorStrategy.Restart
 import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props, Timers}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, DataprocConfig, MonitorConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, ClusterLifecycleConfig, DataprocConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -19,8 +19,8 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 object ClusterMonitorSupervisor {
-  def props(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: ToolDAO, rstudioProxyDAO: ToolDAO, leonardoService: LeonardoService): Props =
-    Props(new ClusterMonitorSupervisor(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, leonardoService))
+  def props(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, authProvider: LeoAuthProvider, clusterLifecycleConfig: ClusterLifecycleConfig, jupyterProxyDAO: ToolDAO, rstudioProxyDAO: ToolDAO, leonardoService: LeonardoService): Props =
+    Props(new ClusterMonitorSupervisor(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, authProvider, clusterLifecycleConfig, jupyterProxyDAO, rstudioProxyDAO, leonardoService))
 
   sealed trait ClusterSupervisorMessage
 
@@ -42,14 +42,17 @@ object ClusterMonitorSupervisor {
   case class RemoveFromList(cluster: Cluster) extends ClusterSupervisorMessage
   // Auto freeze idle clusters
   case object AutoFreezeClusters extends ClusterSupervisorMessage
+  // Auto delete stale clusters
+  case object AutoDeleteClusters extends ClusterSupervisorMessage
 
 
   case object CheckClusterTimerKey
   case object AutoFreezeTimerKey
+  case object AutoDeleteTimerKey
   private case object CheckForClusters extends ClusterSupervisorMessage
 }
 
-class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: ToolDAO, rstudioProxyDAO: ToolDAO, leonardoService: LeonardoService)
+class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, authProvider: LeoAuthProvider, clusterLifecycleConfig: ClusterLifecycleConfig, jupyterProxyDAO: ToolDAO, rstudioProxyDAO: ToolDAO, leonardoService: LeonardoService)
   extends Actor with Timers with LazyLogging {
   import context.dispatcher
 
@@ -62,8 +65,11 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
 
     timers.startPeriodicTimer(CheckClusterTimerKey, CheckForClusters, monitorConfig.pollPeriod)
 
-    if (autoFreezeConfig.enableAutoFreeze)
-      timers.startPeriodicTimer(AutoFreezeTimerKey, AutoFreezeClusters, autoFreezeConfig.autoFreezeCheckScheduler)
+    if (clusterLifecycleConfig.autoFreezeConfig.enableAutoFreeze)
+      timers.startPeriodicTimer(AutoFreezeTimerKey, AutoFreezeClusters, clusterLifecycleConfig.autoFreezeConfig.autoFreezeCheckScheduler)
+
+    if (clusterLifecycleConfig.autoDeleteConfig.enableAutoDelete)
+      timers.startPeriodicTimer(AutoDeleteTimerKey, AutoDeleteClusters, clusterLifecycleConfig.autoFreezeConfig.autoFreezeCheckScheduler)
   }
 
   override def receive: Receive = {
