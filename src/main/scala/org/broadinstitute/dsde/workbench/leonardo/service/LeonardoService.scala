@@ -528,6 +528,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       paramMap <- processListClustersParameters(params)
       clusterList <- dbRef.inTransaction { da => da.clusterQuery.listByLabels(paramMap._1, paramMap._2, googleProjectOpt) }
       samVisibleClusters <- authProvider.filterUserVisibleClusters(userInfo, clusterList.map(c => (c.googleProject, c.clusterName)).toList)
+      // Making the assumption that users will always be able to access clusters that they create
+      // Fix for https://github.com/DataBiosphere/leonardo/issues/821
       createdClusters <- dbRef.inTransaction { da => da.clusterQuery.listClustersByCreator(userInfo.userEmail).map(c => c.toList.map(cluster => (cluster.googleProject, cluster.clusterName))) }
     } yield {
       val visibleClusters = samVisibleClusters:::createdClusters

@@ -119,10 +119,6 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       clusterGetResponseException shouldBe a [ClusterNotFoundException]
       clusterGetResponseException.asInstanceOf[ClusterNotFoundException].statusCode shouldBe StatusCodes.NotFound
 
-      //list all clusters should be fine, but empty
-      val emptyList = leo.listClusters(userInfo, Map()).futureValue
-      emptyList shouldBe 'empty
-
       //connect to cluster
       val httpRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
       val clusterNotFoundException = proxy.proxyRequest(userInfo, GoogleProject(googleProject), ClusterName(clusterName), httpRequest).failed.futureValue
