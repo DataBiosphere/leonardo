@@ -59,7 +59,7 @@ function startTimer() {
             }
         }
 
-        // refresh token every 2 minutes
+        // refresh token every 3 minutes
         console.log('Starting token refresh timer');
         setInterval(doAuth, 180000);
     });
