@@ -444,6 +444,16 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
   }
 
+  def withRestartCluster[T](cluster: Cluster)(testCode: Cluster => T)(implicit token: AuthToken): T = {
+    stopAndMonitor(cluster.googleProject, cluster.clusterName)
+    val resolvedCluster = Leonardo.cluster.get(cluster.googleProject, cluster.clusterName)
+    resolvedCluster.status shouldBe ClusterStatus.Stopped
+    val testResult = Try {
+      testCode(resolvedCluster)
+    }
+    startAndMonitor(cluster.googleProject, cluster.clusterName)
+    testResult.get
+  }
 
   def withNewGoogleBucket[T](googleProject: GoogleProject, bucketName: GcsBucketName = generateUniqueBucketName("leo-auto"))(testCode: GcsBucketName => T): T = {
     implicit val patienceConfig: PatienceConfig = storagePatience
