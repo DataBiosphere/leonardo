@@ -365,12 +365,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   def internalUpdateCluster(existingCluster: Cluster, clusterRequest: ClusterRequest) = {
-    if (existingCluster.status.isUpdatable) {
-      implicit val booleanSumMonoidInstance = new Monoid[Boolean] {
-        def empty = false
-        def combine(a: Boolean, b: Boolean) = a || b
-      }
+    implicit val booleanSumMonoidInstance = new Monoid[Boolean] {
+      def empty = false
+      def combine(a: Boolean, b: Boolean) = a || b
+    }
 
+    if (existingCluster.status.isUpdatable) {
       for {
         autopauseChanged <- maybeUpdateAutopauseThreshold(existingCluster.id, clusterRequest.autopause, clusterRequest.autopauseThreshold).as(false).attempt
 
