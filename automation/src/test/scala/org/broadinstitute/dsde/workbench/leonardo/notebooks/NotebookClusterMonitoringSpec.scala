@@ -181,7 +181,7 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
           eventually(timeout(Span(300, Seconds)), interval(Span(30, Seconds))) {
             val clusterResponse = Leonardo.cluster.get(project, cluster.clusterName)
             clusterResponse.machineConfig.numberOfWorkers shouldBe Some(2)
-            clusterResponse.machineConfig.masterMachineType shouldBe newMachineConfig.masterMachineType
+            clusterResponse.machineConfig.masterMachineType shouldBe initialMachineConfig.masterMachineType
             clusterResponse.machineConfig.masterDiskSize shouldBe newMachineConfig.masterDiskSize
             clusterResponse.status shouldBe ClusterStatus.Running
           }
