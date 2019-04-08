@@ -5,6 +5,7 @@ import java.time.Instant
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
+import cats.Monoid
 import cats.data.{Ior, OptionT}
 import cats.implicits._
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
@@ -20,6 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
@@ -59,6 +61,9 @@ case class ClusterCannotBeStartedException(googleProject: GoogleProject, cluster
 
 case class ClusterCannotBeUpdatedException(cluster: Cluster)
   extends LeoException(s"Cluster ${cluster.projectNameString} cannot be updated in ${cluster.status} status", StatusCodes.Conflict)
+
+case class ClusterMachineTypeCannotBeChangedException(cluster: Cluster)
+  extends LeoException(s"Cluster ${cluster.projectNameString} in ${cluster.status} status must be stopped in order to change machine type", StatusCodes.Conflict)
 
 case class ClusterDiskSizeCannotBeDecreasedException(cluster: Cluster)
   extends LeoException(s"Cluster ${cluster.projectNameString}: decreasing master disk size is not allowed", StatusCodes.PreconditionFailed)
@@ -361,25 +366,34 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   def internalUpdateCluster(existingCluster: Cluster, clusterRequest: ClusterRequest) = {
     if (existingCluster.status.isUpdatable) {
-      // TODO accumulate errors instead of fail-fast
+      implicit val booleanSumMonoidInstance = new Monoid[Boolean] {
+        def empty = false
+        def combine(a: Boolean, b: Boolean) = a || b
+      }
+
       for {
-        _ <- maybeUpdateAutopauseThreshold(existingCluster.id, clusterRequest.autopause, clusterRequest.autopauseThreshold)
+        autopauseChanged <- maybeUpdateAutopauseThreshold(existingCluster.id, clusterRequest.autopause, clusterRequest.autopauseThreshold).as(false).attempt
 
-        clusterResized <- maybeResizeCluster(existingCluster, clusterRequest.machineConfig)
+        clusterResized <- maybeResizeCluster(existingCluster, clusterRequest.machineConfig).attempt
 
-        masterMachineTypeChanged <- maybeChangeMasterMachineType(existingCluster, clusterRequest.machineConfig)
+        masterMachineTypeChanged <- maybeChangeMasterMachineType(existingCluster, clusterRequest.machineConfig).attempt
 
-        masterDiskSizeChanged <- maybeChangeMasterDiskSize(existingCluster, clusterRequest.machineConfig)
+        masterDiskSizeChanged <- maybeChangeMasterDiskSize(existingCluster, clusterRequest.machineConfig).attempt
+
+        (errors, shouldResize) = List(autopauseChanged, clusterResized, masterMachineTypeChanged, masterDiskSizeChanged).separate
 
         // Set the cluster status to Updating only if the cluster was resized or its machine type/disk changed
-        _ <- if (clusterResized || masterMachineTypeChanged || masterDiskSizeChanged) {
-          dbRef.inTransaction { _.clusterQuery.updateClusterStatus(existingCluster.id, ClusterStatus.Updating) }
-        } else Future.successful(0)
+        _ <- if (shouldResize.combineAll) {
+          dbRef.inTransaction { _.clusterQuery.updateClusterStatus(existingCluster.id, ClusterStatus.Updating) }.void
+        } else Future.successful(())
 
-        updatedCluster <- internalGetActiveClusterDetails(existingCluster.googleProject, existingCluster.clusterName)
-      } yield {
-        updatedCluster
-      }
+        cluster <- errors match {
+          case Nil => internalGetActiveClusterDetails(existingCluster.googleProject, existingCluster.clusterName)
+          // Just return the first error; we don't have a great mechanism to return all errors
+          case h :: _ => Future.failed(h)
+        }
+      } yield cluster
+
     } else Future.failed(ClusterCannotBeUpdatedException(existingCluster))
   }
 
@@ -445,10 +459,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       getUpdatedValueIfChanged(existingCluster.machineConfig.masterMachineType, machineConfig.masterMachineType)
     }
 
-    // TODO clsuter needs to be stop/started
-
     updatedMasterMachineTypeOpt match {
-      case Some(updatedMasterMachineType) =>
+      // Note: instance must be stopped in order to change machine type
+      // TODO future enchancement: add capability to Leo to manage stop/update/restart transitions itself.
+      case Some(updatedMasterMachineType) if existingCluster.status == Stopped =>
         logger.info(s"New machine config present. Changing machine type to ${updatedMasterMachineType} for cluster ${existingCluster.projectNameString}...")
 
         Future.traverse(existingCluster.instances) { instance =>
@@ -464,6 +478,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         }.flatMap { _ =>
           dbRef.inTransaction { _.clusterQuery.updateMasterMachineType(existingCluster.id, MachineType(updatedMasterMachineType)) }
         }.as(true)
+
+      case Some(_) =>
+        Future.failed(ClusterMachineTypeCannotBeChangedException(existingCluster))
 
       case None =>
         Future.successful(false)
@@ -1042,4 +1059,5 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       images
     }
   }
+
 }
