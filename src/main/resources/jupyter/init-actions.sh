@@ -194,9 +194,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
       COMPOSE_FILES+=(-f /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
     fi
 
-    docker-compose "${COMPOSE_FILES[@]}" config
+    retry 5 docker-compose "${COMPOSE_FILES[@]}" config
     retry 5 docker-compose "${COMPOSE_FILES[@]}" pull
-    docker-compose "${COMPOSE_FILES[@]}" up -d
+    retry 5 docker-compose "${COMPOSE_FILES[@]}" up -d
 
     # Jupyter-specific setup, only do if Jupyter is installed
     if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
@@ -347,7 +347,7 @@ fi
 # Install Python 3.6 on the master and worker VMs
 export PYTHON_VERSION=3.6.8
 log "Installing Python $PYTHON_VERSION on the VM..."
-wget -O python.tar.xz "https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/Python-$PYTHON_VERSION.tar.xz"
+retry 5 wget -O python.tar.xz "https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/Python-$PYTHON_VERSION.tar.xz"
 mkdir -p /usr/src/python
 tar -xJC /usr/src/python --strip-components=1 -f python.tar.xz
 rm python.tar.xz
