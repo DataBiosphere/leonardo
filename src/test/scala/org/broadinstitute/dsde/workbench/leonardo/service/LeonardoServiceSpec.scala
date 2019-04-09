@@ -1165,6 +1165,40 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     instances.map(_.status).toSet shouldBe Set(InstanceStatus.Stopped)
   }
 
+  it should "always return cluster returned by the user for list clusters" in isolatedDbTest {
+    // check that the cluster does not exist
+    gdDAO.clusters should not contain key(name1)
+
+    // create the cluster
+    val clusterCreateResponse =
+      leo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
+
+    eventually {
+      // check that the cluster was created
+      gdDAO.clusters should contain key name1
+    }
+
+    // populate some instances for the cluster and set its status to Stopped
+    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped))) }
+    dbFutureValue { _.clusterQuery.updateClusterStatus(clusterCreateResponse.id, ClusterStatus.Stopped) }
+
+    // start the cluster
+    leo.startCluster(userInfo, project, name1).futureValue
+
+    // cluster should still exist in Google
+    gdDAO.clusters should contain key (name1)
+
+    // cluster status should be Starting in the DB
+    dbFutureValue { _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse) }.get
+      .status shouldBe ClusterStatus.Starting
+
+    // instance status should still be Stopped in the DB
+    // the ClusterMonitorActor is what updates instance status
+    val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse)) }
+    instances.size shouldBe 3
+    instances.map(_.status).toSet shouldBe Set(InstanceStatus.Stopped)
+  }
+
   type ClusterCreationInput = (UserInfo, GoogleProject, ClusterName, ClusterRequest)
   type ClusterCreation = ClusterCreationInput => Future[Cluster]
 
