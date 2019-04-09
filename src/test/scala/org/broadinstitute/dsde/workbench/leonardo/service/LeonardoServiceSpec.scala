@@ -1027,10 +1027,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     leo.updateCluster(userInfo, project, name1, testClusterRequest.copy(autopause = Some(true), autopauseThreshold = Some(7))).futureValue
 
-    //check that status of cluster is Updating
+    //check that status of cluster is still Running
     dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Running)
 
-    //check that the machine config has been updated
+    //check that the autopause threshold has been updated
     dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.autopauseThreshold shouldBe 7
   }
 
@@ -1045,8 +1045,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val newMachineType = "n1-micro-1"
     leo.updateCluster(userInfo, project, name1, testClusterRequest.copy(machineConfig = Some(MachineConfig(masterMachineType = Some(newMachineType))))).futureValue
 
-    //check that status of cluster is Updating
-    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Updating)
+    //check that status of cluster is still Stopped
+    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Stopped)
 
     //check that the machine config has been updated
     dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.machineConfig.masterMachineType shouldBe Some(newMachineType)
@@ -1080,8 +1080,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val newDiskSize = 1000
     leo.updateCluster(userInfo, project, name1, testClusterRequest.copy(machineConfig = Some(MachineConfig(masterDiskSize = Some(newDiskSize))))).futureValue
 
-    //check that status of cluster is Updating
-    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Updating)
+    //check that status of cluster is still Running
+    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Running)
 
     //check that the machine config has been updated
     dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.machineConfig.masterDiskSize shouldBe Some(newDiskSize)

@@ -372,7 +372,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     if (existingCluster.status.isUpdatable) {
       for {
-        autopauseChanged <- maybeUpdateAutopauseThreshold(existingCluster.id, clusterRequest.autopause, clusterRequest.autopauseThreshold).as(false).attempt
+        autopauseChanged <- maybeUpdateAutopauseThreshold(existingCluster, clusterRequest.autopause, clusterRequest.autopauseThreshold).attempt
 
         clusterResized <- maybeResizeCluster(existingCluster, clusterRequest.machineConfig).attempt
 
@@ -380,10 +380,16 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         masterDiskSizeChanged <- maybeChangeMasterDiskSize(existingCluster, clusterRequest.machineConfig).attempt
 
-        (errors, shouldResize) = List(autopauseChanged, clusterResized, masterMachineTypeChanged, masterDiskSizeChanged).separate
+        // Note: only resizing a cluster triggers a status transition to Updating
+        (errors, shouldUpdate) = List(
+          autopauseChanged.map(_ => false),
+          clusterResized,
+          masterMachineTypeChanged.map(_ => false),
+          masterDiskSizeChanged.map(_ => false)
+        ).separate
 
-        // Set the cluster status to Updating only if the cluster was resized or its machine type/disk changed
-        _ <- if (shouldResize.combineAll) {
+        // Set the cluster status to Updating if the cluster was resized
+        _ <- if (shouldUpdate.combineAll) {
           dbRef.inTransaction { _.clusterQuery.updateClusterStatus(existingCluster.id, ClusterStatus.Updating) }.void
         } else Future.successful(())
 
@@ -405,13 +411,19 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
-  def maybeUpdateAutopauseThreshold(clusterId: Long, autopause: Option[Boolean], autopauseThreshold: Option[Int]): Future[Int] = {
-    (autopause, autopauseThreshold) match {
-      case (None, None) => Future.successful(0) //no-op. throwing None and None into calculateAutopauseThreshold would be wrong so we won't touch it
-      case _ => dbRef.inTransaction { dataAccess => dataAccess.clusterQuery.updateAutopauseThreshold(clusterId, calculateAutopauseThreshold(autopause, autopauseThreshold)) }
+  def maybeUpdateAutopauseThreshold(existingCluster: Cluster, autopause: Option[Boolean], autopauseThreshold: Option[Int]): Future[Boolean] = {
+    val updatedAutopauseThresholdOpt = getUpdatedValueIfChanged(Option(existingCluster.autopauseThreshold), Option(calculateAutopauseThreshold(autopause, autopauseThreshold)))
+    updatedAutopauseThresholdOpt match {
+      case Some(updatedAutopauseThreshold) =>
+        logger.info(s"Changing autopause threshold for cluster ${existingCluster.projectNameString}")
+
+        dbRef.inTransaction { dataAccess =>
+          dataAccess.clusterQuery.updateAutopauseThreshold(existingCluster.id, updatedAutopauseThreshold)
+        }.as(true)
+
+      case None => Future.successful(false)
     }
   }
-
 
   //returns true if cluster was resized, otherwise returns false
   def maybeResizeCluster(existingCluster: Cluster, machineConfigOpt: Option[MachineConfig]): Future[Boolean] = {

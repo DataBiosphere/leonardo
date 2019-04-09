@@ -185,7 +185,6 @@ class HttpGoogleComputeDAO(appName: String,
   }
 
   private def buildMachineTypeUri(instanceKey: InstanceKey, machineType: String): String = {
-    // TODO handle other inputs?
     s"zones/${instanceKey.zone.value}/machineTypes/$machineType"
   }
 

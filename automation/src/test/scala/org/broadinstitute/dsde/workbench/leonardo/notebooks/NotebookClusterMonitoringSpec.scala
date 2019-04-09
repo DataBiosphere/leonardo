@@ -190,10 +190,9 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
           // Note this requires a cluster restart. A future enhancement may be for Leo to handle this internally.
           withRestartCluster(cluster) { cluster =>
             Leonardo.cluster.update(project, cluster.clusterName, ClusterRequest(machineConfig = Option(newMachineConfig.copy(masterMachineType = Some("n1-standard-4")))))
-            eventually(timeout(Span(60, Seconds)), interval(Span(5, Seconds))) {
-              val status = Leonardo.cluster.get(project, cluster.clusterName).status
-              status shouldBe ClusterStatus.Updating
-            }
+            // cluster status should still be Stopped
+            val status = Leonardo.cluster.get(project, cluster.clusterName).status
+            status shouldBe ClusterStatus.Stopped
           }
 
           eventually(timeout(Span(300, Seconds)), interval(Span(30, Seconds))) {
