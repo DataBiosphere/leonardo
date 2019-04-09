@@ -171,7 +171,8 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
           }
 
           // now that we have confirmed that we can add a worker node, let's see what happens when we size it back down to 2 workers
-          Leonardo.cluster.update(project, cluster.clusterName, ClusterRequest(machineConfig = Option(newMachineConfig.copy(numberOfWorkers = Some(2)))))
+          val twoWorkersConfig = newMachineConfig.copy(numberOfWorkers = Some(2))
+          Leonardo.cluster.update(project, cluster.clusterName, ClusterRequest(machineConfig = Option(twoWorkersConfig)))
 
           eventually(timeout(Span(60, Seconds)), interval(Span(5, Seconds))) {
             val status = Leonardo.cluster.get(project, cluster.clusterName).status
@@ -180,16 +181,17 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
 
           eventually(timeout(Span(300, Seconds)), interval(Span(30, Seconds))) {
             val clusterResponse = Leonardo.cluster.get(project, cluster.clusterName)
-            clusterResponse.machineConfig.numberOfWorkers shouldBe Some(2)
+            clusterResponse.machineConfig.numberOfWorkers shouldBe twoWorkersConfig.numberOfWorkers
             clusterResponse.machineConfig.masterMachineType shouldBe initialMachineConfig.masterMachineType
-            clusterResponse.machineConfig.masterDiskSize shouldBe newMachineConfig.masterDiskSize
+            clusterResponse.machineConfig.masterDiskSize shouldBe twoWorkersConfig.masterDiskSize
             clusterResponse.status shouldBe ClusterStatus.Running
           }
 
           // finally, change the master machine type
           // Note this requires a cluster restart. A future enhancement may be for Leo to handle this internally.
+          val newMachineTypeConfig = twoWorkersConfig.copy(masterMachineType = Some("n1-standard-4"))
           withRestartCluster(cluster) { cluster =>
-            Leonardo.cluster.update(project, cluster.clusterName, ClusterRequest(machineConfig = Option(newMachineConfig.copy(masterMachineType = Some("n1-standard-4")))))
+            Leonardo.cluster.update(project, cluster.clusterName, ClusterRequest(machineConfig = Option(newMachineTypeConfig)))
             // cluster status should still be Stopped
             val status = Leonardo.cluster.get(project, cluster.clusterName).status
             status shouldBe ClusterStatus.Stopped
@@ -197,9 +199,9 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
 
           eventually(timeout(Span(300, Seconds)), interval(Span(30, Seconds))) {
             val clusterResponse = Leonardo.cluster.get(project, cluster.clusterName)
-            clusterResponse.machineConfig.numberOfWorkers shouldBe newMachineConfig.numberOfWorkers
-            clusterResponse.machineConfig.masterMachineType shouldBe Some("n1-standard-4")
-            clusterResponse.machineConfig.masterDiskSize shouldBe newMachineConfig.masterDiskSize
+            clusterResponse.machineConfig.numberOfWorkers shouldBe newMachineTypeConfig.numberOfWorkers
+            clusterResponse.machineConfig.masterMachineType shouldBe newMachineTypeConfig.masterMachineType
+            clusterResponse.machineConfig.masterDiskSize shouldBe newMachineTypeConfig.masterDiskSize
             clusterResponse.status shouldBe ClusterStatus.Running
           }
         }
