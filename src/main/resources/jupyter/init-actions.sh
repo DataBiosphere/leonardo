@@ -194,6 +194,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
       COMPOSE_FILES+=(-f /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
     fi
 
+    cat "${COMPOSE_FILES[@]}"
+    
     retry 5 docker-compose "${COMPOSE_FILES[@]}" config
     retry 5 docker-compose "${COMPOSE_FILES[@]}" pull
     retry 5 docker-compose "${COMPOSE_FILES[@]}" up -d
