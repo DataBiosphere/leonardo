@@ -17,12 +17,15 @@ import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq, clusterSetEq, stripFieldsForListCluster}
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
+import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
 import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers, OptionValues}
+
+import scala.concurrent.{ExecutionContext, Future}
 
 class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers with MockitoSugar with TestComponent with ScalaFutures with OptionValues with GcsPathUtils with TestProxy with BeforeAndAfterAll with CommonTestData{
 
@@ -36,6 +39,11 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
 
   private val alwaysYesProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), serviceAccountProvider)
   private val alwaysNoProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysNoProviderConfig"), serviceAccountProvider)
+  private val noVisibleClustersProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), serviceAccountProvider) {
+    override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterName)])(implicit executionContext: ExecutionContext): Future[List[(GoogleProject, ClusterName)]] = {
+      Future.successful(List.empty)
+    }
+  }
 
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
@@ -119,10 +127,6 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       clusterGetResponseException shouldBe a [ClusterNotFoundException]
       clusterGetResponseException.asInstanceOf[ClusterNotFoundException].statusCode shouldBe StatusCodes.NotFound
 
-      //list all clusters should be fine, but empty
-      val emptyList = leo.listClusters(userInfo, Map()).futureValue
-      emptyList shouldBe 'empty
-
       //connect to cluster
       val httpRequest = HttpRequest(GET, Uri(s"/notebooks/$googleProject/$clusterName"))
       val clusterNotFoundException = proxy.proxyRequest(userInfo, GoogleProject(googleProject), ClusterName(clusterName), httpRequest).failed.futureValue
@@ -194,6 +198,17 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       // creation and deletion notifications should have been fired
       verify(spyProvider).notifyClusterCreated(userEmail, project, cluster1Name)
       verify(spyProvider).notifyClusterDeleted(userEmail, userEmail, project, cluster1Name)
+    }
+
+    "should return clusters the user created even if the auth provider doesn't" in isolatedDbTest {
+      val leo = leoWithAuthProvider(noVisibleClustersProvider)
+
+      // create
+      val cluster1 = leo.createCluster(userInfo, project, cluster1Name, testClusterRequest).futureValue
+
+      // list
+      val listResponse = leo.listClusters(userInfo, Map()).futureValue
+      listResponse shouldBe Seq(cluster1).map(stripFieldsForListCluster)
     }
   }
 }

@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.auth
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.model.{NotebookClusterActions, ProjectActions}
 import org.broadinstitute.dsde.workbench.leonardo.service.ClusterNotFoundException
 import org.broadinstitute.dsde.workbench.model.UserInfo
@@ -82,5 +83,4 @@ class LeoAuthProviderHelperSpec extends TestKit(ActorSystem("leonardotest")) wit
     response shouldBe a [AuthProviderException]
     response.asInstanceOf[AuthProviderException].isTimeout shouldBe true
   }
-
 }
