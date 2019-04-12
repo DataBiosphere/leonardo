@@ -161,11 +161,15 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
             status shouldBe ClusterStatus.Updating
           }
 
-          eventually(timeout(Span(300, Seconds)), interval(Span(30, Seconds))) {
-            val clusterResponse = Leonardo.cluster.get(project, cluster.clusterName)
-            clusterResponse.machineConfig.numberOfWorkers shouldBe Some(3)
-            clusterResponse.status shouldBe ClusterStatus.Running
+          val timeToAddWorker = time{
+            eventually(timeout(Span(420, Seconds)), interval(Span(30, Seconds))) {
+              val clusterResponse = Leonardo.cluster.get(project, cluster.clusterName)
+              clusterResponse.machineConfig.numberOfWorkers shouldBe Some(3)
+              clusterResponse.status shouldBe ClusterStatus.Running
+            }
           }
+
+          logger.info(s"Adding worker to ${cluster.projectNameString}} took ${timeToAddWorker.duration.toSeconds} seconds")
 
           //now that we have confirmed that we can add a worker node, let's see what happens when we size it back down to 2 workers
           Leonardo.cluster.update(project, cluster.clusterName, ClusterRequest(machineConfig = Option(twoWorkersMachineConfig)))
@@ -175,11 +179,15 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
             status shouldBe ClusterStatus.Updating
           }
 
-          eventually(timeout(Span(300, Seconds)), interval(Span(30, Seconds))) {
-            val clusterResponse = Leonardo.cluster.get(project, cluster.clusterName)
-            clusterResponse.machineConfig.numberOfWorkers shouldBe Some(2)
-            clusterResponse.status shouldBe ClusterStatus.Running
+          val timeToRemoveWorker = time {
+            eventually(timeout(Span(420, Seconds)), interval(Span(30, Seconds))) {
+              val clusterResponse = Leonardo.cluster.get(project, cluster.clusterName)
+              clusterResponse.machineConfig.numberOfWorkers shouldBe Some(2)
+              clusterResponse.status shouldBe ClusterStatus.Running
+            }
           }
+
+          logger.info(s"Removing worker to ${cluster.projectNameString}} took ${timeToRemoveWorker.duration.toSeconds} seconds")
         }
       }
     }
