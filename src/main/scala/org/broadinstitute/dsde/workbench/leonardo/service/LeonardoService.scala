@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
-import java.io.{File, IOException}
+import java.io.File
 import java.time.Instant
 
 import akka.actor.ActorSystem

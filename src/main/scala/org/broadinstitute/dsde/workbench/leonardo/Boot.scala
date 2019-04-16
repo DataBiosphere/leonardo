@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import cats.implicits._
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
@@ -10,7 +11,7 @@ import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Pem, Toke
 import org.broadinstitute.dsde.workbench.google.{GoogleStorageDAO, HttpGoogleIamDAO, HttpGoogleProjectDAO, HttpGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.api.{LeoRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.auth.{LeoAuthProviderHelper, ServiceAccountProviderHelper}
-import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterDnsCacheConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, LeoExecutionModeConfig, MonitorConfig, ProxyConfig, SamConfig, SwaggerConfig, ZombieClusterConfig, ClusterBucketConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, ClusterDefaultsConfig, ClusterDnsCacheConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, LeoExecutionModeConfig, MonitorConfig, ProxyConfig, SamConfig, SwaggerConfig, ZombieClusterConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HttpJupyterDAO, HttpRStudioDAO, HttpSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{HttpGoogleComputeDAO, HttpGoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -20,8 +21,10 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterDateAccessedAc
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 
+import scala.concurrent.Future
+
 object Boot extends App with LazyLogging {
-  private def startup(): Unit = {
+  private def startup(): Future[Unit] = {
 
     // Specifies the name service providers to use, in priority order.
     // "dns,Jupyter" maps to the org.broadinstitute.dsde.workbench.leonardo.dns.JupyterNameService class.
@@ -103,7 +106,7 @@ object Boot extends App with LazyLogging {
         case t: Throwable =>
           logger.error("FATAL - failure starting http server", t)
           throw t
-      }
+      }.void
   }
 
   startup()

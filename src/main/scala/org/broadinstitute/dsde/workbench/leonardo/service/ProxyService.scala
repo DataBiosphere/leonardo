@@ -2,15 +2,13 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 
 import java.time.Instant
 import java.util.concurrent.TimeUnit
-import java.util.regex.Pattern
 
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.{RawHeader, `Content-Disposition`}
+import akka.http.scaladsl.model.headers.`Content-Disposition`
 import akka.http.scaladsl.model.ws._
-import akka.pattern.ask
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.util.Timeout

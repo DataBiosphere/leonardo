@@ -1,19 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import java.time.Instant
-import java.util.UUID
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
-import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.model.{AuditInfo, Cluster, DataprocInfo, ServiceAccountInfo}
-import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, MachineConfig, OperationName}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterDateAccessedActor.UpdateDateAccessed
-import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
-import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
+import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.time.{Seconds, Span}
+import org.scalatest.{BeforeAndAfterAll, FlatSpecLike}
 
 
 class ClusterDateAccessedSpec extends TestKit(ActorSystem("leonardotest")) with

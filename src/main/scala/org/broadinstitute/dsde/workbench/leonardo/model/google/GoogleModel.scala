@@ -10,8 +10,6 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat, RootJsonFormat}
 
-import scala.language.implicitConversions
-
 // Primitives
 case class ClusterName(value: String) extends ValueObject
 case class InstanceName(value: String) extends ValueObject

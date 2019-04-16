@@ -1,24 +1,20 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
-import java.time.Instant
-import java.util.UUID
-
 import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.{HttpRequest, StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleIamDAO, MockGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq, clusterSetEq, stripFieldsForListCluster}
 import org.broadinstitute.dsde.workbench.leonardo.auth.MockLeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, _}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq, clusterSetEq, stripFieldsForListCluster}
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.model.UserInfo
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest.concurrent.ScalaFutures

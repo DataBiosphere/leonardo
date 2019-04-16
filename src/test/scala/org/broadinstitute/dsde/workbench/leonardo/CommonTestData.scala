@@ -12,7 +12,6 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterService
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, ClusterDefaultsConfig, ClusterDnsCacheConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SwaggerConfig, ZombieClusterConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockJupyterDAO, MockRStudioDAO, MockSamDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._

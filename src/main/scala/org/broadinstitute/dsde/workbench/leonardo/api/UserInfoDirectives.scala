@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
-import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.server.{Directive0, Directive1, Directives}
+import akka.http.scaladsl.server.Directive1
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
 /**

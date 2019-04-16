@@ -11,9 +11,7 @@ import akka.stream.ActorMaterializer
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
-import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, UserInfo}
 import org.broadinstitute.dsde.workbench.util.health.StatusJsonSupport._
 import org.broadinstitute.dsde.workbench.util.health.StatusCheckResponse
 
