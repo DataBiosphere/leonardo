@@ -23,6 +23,8 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sou
     unzip \
     nano \
     sudo \
+    default-jre \
+    default-jdk \
     gnupg \
     dirmngr \
     wget \
@@ -75,16 +77,16 @@ ENV LC_ALL en_US.UTF-8
 # Java
 #######################
 
-ENV JAVA_VER jdk1.8.0_201
-ENV JAVA_TGZ jdk-8u201-linux-x64.tar.gz
-ENV JAVA_URL https://download.oracle.com/otn-pub/java/jdk/8u201-b09/42970487e3af4f5aa5bca3f542482c60/$JAVA_TGZ
-ENV JAVA_HOME /usr/lib/jdk/$JAVA_VER
-
-RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
- && mkdir -p /usr/lib/jdk && tar -zxf $JAVA_TGZ -C /usr/lib/jdk \
- && update-alternatives --install /usr/bin/java java $JAVA_HOME/bin/java 100 \
- && update-alternatives --install /usr/bin/javac javac $JAVA_HOME/bin/javac 100 \
- && rm $JAVA_TGZ
+#ENV JAVA_VER jdk1.8.0_201
+#ENV JAVA_TGZ jdk-8u201-linux-x64.tar.gz
+#ENV JAVA_URL https://download.oracle.com/otn-pub/java/jdk/8u201-b09/42970487e3af4f5aa5bca3f542482c60/$JAVA_TGZ
+#ENV JAVA_HOME /usr/lib/jdk/$JAVA_VER
+#
+#RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
+# && mkdir -p /usr/lib/jdk && tar -zxf $JAVA_TGZ -C /usr/lib/jdk \
+# && update-alternatives --install /usr/bin/java java $JAVA_HOME/bin/java 100 \
+# && update-alternatives --install /usr/bin/javac javac $JAVA_HOME/bin/javac 100 \
+# && rm $JAVA_TGZ
 
 RUN set -e
 ENV GATK_VERSION 4.1.0.0
