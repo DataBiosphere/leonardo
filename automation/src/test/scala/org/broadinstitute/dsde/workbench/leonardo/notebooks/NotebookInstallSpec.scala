@@ -50,8 +50,8 @@ class NotebookInstallSpec extends ClusterFixtureSpec with NotebookTestUtils {
       s"should be able to pip install packages using ${kernel.string}" in { clusterFixture =>
         withWebDriver { implicit driver =>
           withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
-            // install tensorflow
-            pipInstall(notebookPage, kernel, "tensorflow==1.9.0")
+            // install pydot
+            pipInstall(notebookPage, kernel, "pydot")
             notebookPage.saveAndCheckpoint()
           }
         }
