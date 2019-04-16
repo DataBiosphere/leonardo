@@ -187,15 +187,16 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # Note the `docker-compose pull` is retried to avoid intermittent network errors, but
     # `docker-compose up` is not retried.
     COMPOSE_FILES=(-f /etc/`basename ${PROXY_DOCKER_COMPOSE}`)
+    cat /etc/`basename ${PROXY_DOCKER_COMPOSE}`
     if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
       COMPOSE_FILES+=(-f /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`)
+      cat /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`
     fi
     if [ ! -z ${RSTUDIO_DOCKER_IMAGE} ] ; then
       COMPOSE_FILES+=(-f /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
+      cat /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`
     fi
 
-    echo "${COMPOSE_FILES[@]}"
-    
     retry 5 docker-compose "${COMPOSE_FILES[@]}" config
     retry 5 docker-compose "${COMPOSE_FILES[@]}" pull
     retry 5 docker-compose "${COMPOSE_FILES[@]}" up -d
