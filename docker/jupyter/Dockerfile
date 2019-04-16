@@ -95,7 +95,6 @@ RUN curl -L -o $GATK_ZIP_PATH https://github.com/broadinstitute/gatk/releases/do
  && unzip -o $GATK_ZIP_PATH -d /etc/ \
  && ln -s /etc/gatk-$GATK_VERSION/gatk /bin/gatk
 
-
 ##############################
 # Spark / Hadoop / Hive / Hail
 ##############################
@@ -187,7 +186,6 @@ RUN apt-get update \
  && pip install matplotlib-venn==0.11.5 \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
-
 
 # Python 3 Kernel
 ENV PYTHON_VERSION 3.6.8
