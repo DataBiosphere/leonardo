@@ -11,7 +11,7 @@ import cats.implicits._
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
@@ -100,6 +100,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val gdDAO: GoogleDataprocDAO,
                       protected val googleComputeDAO: GoogleComputeDAO,
                       protected val googleIamDAO: GoogleIamDAO,
+                      protected val googleProjectDAO: GoogleProjectDAO,
                       protected val leoGoogleStorageDAO: GoogleStorageDAO,
                       protected val petGoogleStorageDAO: String => GoogleStorageDAO,
                       protected val dbRef: DbReference,
@@ -717,8 +718,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       autopauseThreshold = calculateAutopauseThreshold(clusterRequest.autopause, clusterRequest.autopauseThreshold)
       clusterScopes = if(clusterRequest.scopes.isEmpty) dataprocConfig.defaultScopes else clusterRequest.scopes
       credentialsFileName = serviceAccountInfo.notebookServiceAccount.map(_ => s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}")
-
-      createClusterConfig = CreateClusterConfig(machineConfig, initScript, serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket, clusterScopes, clusterRequest.properties)
+      projectLabels <- googleProjectDAO.getLabels(googleProject.value)
+      network = getClusterNetwork(projectLabels)
+      subnet = getClusterSubnet(projectLabels)
+      createClusterConfig = CreateClusterConfig(machineConfig, initScript, serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket, clusterScopes, network, subnet, clusterRequest.properties)
       operation <- gdDAO.createCluster(googleProject, clusterName, createClusterConfig)
       cluster = Cluster.create(clusterRequest, userEmail, clusterName, googleProject, serviceAccountInfo,
         machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, clusterScopes, Option(operation), Option(stagingBucket), clusterImages)
@@ -728,6 +731,33 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     googleFuture.andThen { case Failure(t) =>
       // Don't wait for this future
       cleanUpGoogleResourcesOnError(t, googleProject, clusterName, initBucketName, serviceAccountInfo)
+    }
+  }
+
+
+  private def getClusterNetwork(projectLabels: Map[String, String]): Option[VPCNetworkName] = {
+    //if we specify a network label in config, we should use that to see if the project has a network specified
+    //if it does, we will use that, else we will look to see if leo config has a network specified, else we will use the default
+    dataprocConfig.projectVPCNetworkLabel match {
+      case Some(label) =>
+        projectLabels.get(label).map(VPCNetworkName) match {
+          case Some(network) => Option(network)
+          case None => dataprocConfig.vpcNetwork.map(VPCNetworkName)
+        }
+      case None => dataprocConfig.vpcNetwork.map(VPCNetworkName)
+    }
+  }
+
+  private def getClusterSubnet(projectLabels: Map[String, String]): Option[VPCSubnetName] = {
+    //if we specify a subnet label in config, we should use that to see if the project has a subnet specified
+    //if it does, we will use that, else we will look to see if leo config has a subnet specified, else we will use the default
+    dataprocConfig.projectVPCSubnetLabel match {
+      case Some(label) =>
+        projectLabels.get(label).map(VPCSubnetName) match {
+          case Some(subnet) => Option(subnet)
+          case None => dataprocConfig.vpcSubnet.map(VPCSubnetName)
+        }
+      case None => dataprocConfig.vpcSubnet.map(VPCSubnetName)
     }
   }
 

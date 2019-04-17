@@ -33,8 +33,6 @@ class HttpGoogleDataprocDAO(appName: String,
                             googleCredentialMode: GoogleCredentialMode,
                             override val workbenchMetricBaseName: String,
                             networkTag: NetworkTag,
-                            vpcNetwork: Option[VPCNetworkName],
-                            vpcSubnet: Option[VPCSubnetName],
                             defaultRegion: String,
                             zoneOpt: Option[String],
                             defaultExecutionTimeout: FiniteDuration)
@@ -213,7 +211,16 @@ class HttpGoogleDataprocDAO(appName: String,
       val baseConfig = new GceClusterConfig()
         .setTags(List(networkTag.value).asJava)
 
-      (vpcNetwork, vpcSubnet) match {
+      //Dataproc only allows you to specify a subnet OR a network. Subnets will be preferred if present.
+      //High-security networks specified inside of the project will always take precedence over anything
+      //else. Thus, VPC configuration takes the following precedence:
+      // 1) High-security subnet in the project (if present)
+      // 2) High-security network in the project (if present)
+      // 3) Subnet specified in leonardo.conf (if present)
+      // 4) Network specified in leonardo.conf (if present)
+      // 5) The default network in the project
+
+      (config.vpcNetwork, config.vpcSubnet) match {
         case (_, Some(subnet)) =>
           baseConfig.setSubnetworkUri(subnet.value)
         case (Some(network), _) =>
