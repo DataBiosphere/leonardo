@@ -162,13 +162,17 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
             status shouldBe ClusterStatus.Updating
           }
 
-          eventually(timeout(Span(300, Seconds)), interval(Span(30, Seconds))) {
-            val clusterResponse = Leonardo.cluster.get(project, cluster.clusterName)
-            clusterResponse.machineConfig.numberOfWorkers shouldBe newMachineConfig.numberOfWorkers
-            clusterResponse.machineConfig.masterMachineType shouldBe initialMachineConfig.masterMachineType
-            clusterResponse.machineConfig.masterDiskSize shouldBe newMachineConfig.masterDiskSize
-            clusterResponse.status shouldBe ClusterStatus.Running
+          val timeToAddWorker = time {
+            eventually(timeout(Span(300, Seconds)), interval(Span(30, Seconds))) {
+              val clusterResponse = Leonardo.cluster.get(project, cluster.clusterName)
+              clusterResponse.machineConfig.numberOfWorkers shouldBe newMachineConfig.numberOfWorkers
+              clusterResponse.machineConfig.masterMachineType shouldBe initialMachineConfig.masterMachineType
+              clusterResponse.machineConfig.masterDiskSize shouldBe newMachineConfig.masterDiskSize
+              clusterResponse.status shouldBe ClusterStatus.Running
+            }
           }
+
+          logger.info(s"Adding worker to ${cluster.projectNameString}} took ${timeToAddWorker.duration.toSeconds} seconds")
 
           // now that we have confirmed that we can add a worker node, let's see what happens when we size it back down to 2 workers
           val twoWorkersConfig = newMachineConfig.copy(numberOfWorkers = Some(2))
@@ -179,13 +183,17 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
             status shouldBe ClusterStatus.Updating
           }
 
-          eventually(timeout(Span(300, Seconds)), interval(Span(30, Seconds))) {
-            val clusterResponse = Leonardo.cluster.get(project, cluster.clusterName)
-            clusterResponse.machineConfig.numberOfWorkers shouldBe twoWorkersConfig.numberOfWorkers
-            clusterResponse.machineConfig.masterMachineType shouldBe initialMachineConfig.masterMachineType
-            clusterResponse.machineConfig.masterDiskSize shouldBe twoWorkersConfig.masterDiskSize
-            clusterResponse.status shouldBe ClusterStatus.Running
+          val timeToRemoveWorker = time {
+            eventually(timeout(Span(300, Seconds)), interval(Span(30, Seconds))) {
+              val clusterResponse = Leonardo.cluster.get(project, cluster.clusterName)
+              clusterResponse.machineConfig.numberOfWorkers shouldBe twoWorkersConfig.numberOfWorkers
+              clusterResponse.machineConfig.masterMachineType shouldBe initialMachineConfig.masterMachineType
+              clusterResponse.machineConfig.masterDiskSize shouldBe twoWorkersConfig.masterDiskSize
+              clusterResponse.status shouldBe ClusterStatus.Running
+            }
           }
+
+          logger.info(s"Removing worker to ${cluster.projectNameString}} took ${timeToRemoveWorker.duration.toSeconds} seconds")
 
           // finally, change the master machine type
           // Note this requires a cluster restart. A future enhancement may be for Leo to handle this internally.
@@ -197,13 +205,11 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
             status shouldBe ClusterStatus.Stopped
           }
 
-          eventually(timeout(Span(300, Seconds)), interval(Span(30, Seconds))) {
-            val clusterResponse = Leonardo.cluster.get(project, cluster.clusterName)
-            clusterResponse.machineConfig.numberOfWorkers shouldBe newMachineTypeConfig.numberOfWorkers
-            clusterResponse.machineConfig.masterMachineType shouldBe newMachineTypeConfig.masterMachineType
-            clusterResponse.machineConfig.masterDiskSize shouldBe newMachineTypeConfig.masterDiskSize
-            clusterResponse.status shouldBe ClusterStatus.Running
-          }
+          val clusterResponse = Leonardo.cluster.get(project, cluster.clusterName)
+          clusterResponse.machineConfig.numberOfWorkers shouldBe newMachineTypeConfig.numberOfWorkers
+          clusterResponse.machineConfig.masterMachineType shouldBe newMachineTypeConfig.masterMachineType
+          clusterResponse.machineConfig.masterDiskSize shouldBe newMachineTypeConfig.masterDiskSize
+          clusterResponse.status shouldBe ClusterStatus.Running
         }
       }
     }
