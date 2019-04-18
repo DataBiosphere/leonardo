@@ -21,13 +21,15 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchIdentityJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model._
-import spray.json._
+import spray.json.{RootJsonFormat, RootJsonReader, _}
+import ca.mrvisser.sealerate
 
 // Create cluster API request
-case class ClusterRequest(labels: Option[LabelMap] = Option(Map.empty),
+final case class ClusterRequest(labels: LabelMap,
                           jupyterExtensionUri: Option[GcsPath] = None,
                           jupyterUserScriptUri: Option[GcsPath] = None,
                           machineConfig: Option[MachineConfig] = None,
+                          properties: Map[String, String],
                           stopAfterCreation: Option[Boolean] = None,
                           userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
                           autopause: Option[Boolean] = None,
@@ -35,7 +37,7 @@ case class ClusterRequest(labels: Option[LabelMap] = Option(Map.empty),
                           defaultClientId: Option[String] = None,
                           jupyterDockerImage: Option[String] = None,
                           rstudioDockerImage: Option[String] = None,
-                          scopes: Option[Set[String]] = None)
+                          scopes: Set[String] = Set.empty)
 
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
@@ -77,13 +79,14 @@ case class ClusterImage(tool: ClusterTool,
 
 // The cluster itself
 // Also the API response for "list clusters" and "get active cluster"
-case class Cluster(id: Long = 0, // DB AutoInc
+final case class Cluster(id: Long = 0, // DB AutoInc
                    clusterName: ClusterName,
                    googleProject: GoogleProject,
                    serviceAccountInfo: ServiceAccountInfo,
                    dataprocInfo: DataprocInfo,
                    auditInfo: AuditInfo,
                    machineConfig: MachineConfig,
+                   properties: Map[String, String],
                    clusterUrl: URL,
                    status: ClusterStatus,
                    labels: LabelMap,
@@ -122,9 +125,10 @@ object Cluster {
       dataprocInfo = DataprocInfo(operation.map(_.uuid), operation.map(_.name), stagingBucket, None),
       auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
       machineConfig = machineConfig,
+      properties = clusterRequest.properties,
       clusterUrl = getClusterUrl(googleProject, clusterName, clusterUrlBase),
       status = ClusterStatus.Creating,
-      labels = clusterRequest.labels.getOrElse(Map()),
+      labels = clusterRequest.labels,
       jupyterExtensionUri = clusterRequest.jupyterExtensionUri,
       jupyterUserScriptUri = clusterRequest.jupyterUserScriptUri,
       errors = List.empty,
@@ -280,6 +284,71 @@ object ClusterInitValues {
     )
 }
 
+sealed abstract class PropertyFilePrefix
+object PropertyFilePrefix {
+  case object CapacityScheduler extends PropertyFilePrefix {
+    override def toString: String = "capacity-scheduler"
+  }
+  case object Core extends PropertyFilePrefix {
+    override def toString: String = "core"
+  }
+  case object Distcp extends PropertyFilePrefix {
+    override def toString: String = "distcp"
+  }
+  case object HadoopEnv extends PropertyFilePrefix {
+    override def toString: String = "hadoop-env"
+  }
+  case object Hdfs extends PropertyFilePrefix {
+    override def toString: String = "hdfs"
+  }
+  case object Hive extends PropertyFilePrefix {
+    override def toString: String = "hive"
+  }
+  case object Mapred extends PropertyFilePrefix {
+    override def toString: String = "mapred"
+  }
+  case object MapredEnv extends PropertyFilePrefix {
+    override def toString: String = "mapred-env"
+  }
+  case object Pig extends PropertyFilePrefix {
+    override def toString: String = "pig"
+  }
+  case object Presto extends PropertyFilePrefix {
+    override def toString: String = "presto"
+  }
+  case object PrestoJvm extends PropertyFilePrefix {
+    override def toString: String = "presto-jvm"
+  }
+  case object Spark extends PropertyFilePrefix {
+    override def toString: String = "spark"
+  }
+  case object SparkEnv extends PropertyFilePrefix {
+    override def toString: String = "spark-env"
+  }
+  case object Yarn extends PropertyFilePrefix {
+    override def toString: String = "yarn"
+  }
+  case object YarnEnv extends PropertyFilePrefix {
+    override def toString: String = "yarn-env"
+  }
+  case object Zeppelin extends PropertyFilePrefix {
+    override def toString: String = "zeppelin"
+  }
+  case object ZeppelinEnv extends PropertyFilePrefix {
+    override def toString: String = "zeppelin-env"
+  }
+  case object Zookeeper extends PropertyFilePrefix {
+    override def toString: String = "zookeeper"
+  }
+  case object Dataproc extends PropertyFilePrefix {
+    override def toString: String = "dataproc"
+  }
+
+  def values: Set[PropertyFilePrefix] = sealerate.values[PropertyFilePrefix]
+
+  def stringToObject: Map[String, PropertyFilePrefix] = values.map(v =>  v.toString -> v).toMap
+}
+
 sealed trait ExtensionType extends EnumEntry
 object ExtensionType extends Enum[ExtensionType] {
   val values = findValues
@@ -312,7 +381,36 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val UserClusterExtensionConfigFormat = jsonFormat4(UserJupyterExtensionConfig.apply)
 
-  implicit val ClusterRequestFormat = jsonFormat12(ClusterRequest)
+  implicit val ClusterRequestFormat: RootJsonReader[ClusterRequest] = (json: JsValue) => {
+    val fields = json.asJsObject.fields
+    val properties = for {
+      props <- fields.get("properties").map(_.convertTo[Map[String, String]])
+    } yield {
+      // validating user's properties input has valid prefix
+      props.keys.toList.map{
+        s =>
+          val prefix = s.split(":")(0)
+          PropertyFilePrefix.stringToObject.get(prefix).getOrElse(throw new RuntimeException(s"invalid properties $s"))
+      }
+      props
+    }
+
+    ClusterRequest(
+      fields.get("labels").map(_.convertTo[LabelMap]).getOrElse(Map.empty),
+      fields.get("jupyterExtensionUri").map(_.convertTo[GcsPath]),
+      fields.get("jupyterUserScriptUri").map(_.convertTo[GcsPath]),
+      fields.get("machineConfig").map(_.convertTo[MachineConfig]),
+      properties.getOrElse(Map.empty),
+      fields.get("stopAfterCreation").map(_.convertTo[Boolean]),
+      fields.get("userJupyterExtensionConfig").map(_.convertTo[UserJupyterExtensionConfig]),
+      fields.get("autopause").map(_.convertTo[Boolean]),
+      fields.get("autopauseThreshold").map(_.convertTo[Int]),
+      fields.get("defaultClientId").map(_.convertTo[String]),
+      fields.get("jupyterDockerImage").map(_.convertTo[String]),
+      fields.get("rstudioDockerImage").map(_.convertTo[String]),
+      fields.get("scopes").map(_.convertTo[Set[String]]).getOrElse(Set.empty)
+    )
+  }
 
   implicit val ClusterResourceFormat = ValueObjectFormat(ClusterResource)
 
@@ -345,6 +443,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
                       fields.getOrElse("destroyedDate", JsNull).convertTo[Option[Instant]],
                       fields.getOrElse("dateAccessed", JsNull).convertTo[Instant]),
             fields.getOrElse("machineConfig", JsNull).convertTo[MachineConfig],
+            fields.getOrElse("properties", JsNull).convertTo[Option[Map[String, String]]].getOrElse(Map.empty),
             fields.getOrElse("clusterUrl", JsNull).convertTo[URL],
             fields.getOrElse("status", JsNull).convertTo[ClusterStatus],
             fields.getOrElse("labels", JsNull).convertTo[LabelMap],

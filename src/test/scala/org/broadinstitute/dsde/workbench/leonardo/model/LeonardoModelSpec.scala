@@ -26,6 +26,18 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     clusterImages = Set(jupyterImage.copy(timestamp = exampleTime))
   )
 
+  "ClusterRequestFormat" should "successfully decode json" in isolatedDbTest {
+    val inputJson =
+      """
+        |{
+        |}
+      """.stripMargin.parseJson
+
+    val expectedClusterRequest = ClusterRequest(labels = Map.empty, properties = Map.empty, scopes = Set.empty)
+
+    val decodeResult = inputJson.convertTo[ClusterRequest]
+    decodeResult shouldBe(expectedClusterRequest)
+  }
 
   it should "serialize/deserialize to/from JSON" in isolatedDbTest {
 

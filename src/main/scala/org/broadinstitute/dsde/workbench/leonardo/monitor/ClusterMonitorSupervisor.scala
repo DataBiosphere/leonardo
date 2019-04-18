@@ -90,10 +90,11 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
         }.flatMap {
           case Some(cluster) =>
             val clusterRequest = ClusterRequest(
-              Option(cluster.labels),
+              cluster.labels,
               cluster.jupyterExtensionUri,
               cluster.jupyterUserScriptUri,
               Some(cluster.machineConfig),
+              cluster.properties,
               None,
               cluster.userJupyterExtensionConfig,
               if (cluster.autopauseThreshold == 0) Some(false) else Some(true),

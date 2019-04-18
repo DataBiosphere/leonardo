@@ -14,7 +14,7 @@ import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, Workbe
 import org.scalatest.FlatSpec
 import slick.dbio.DBIO
 import spray.json._
-
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments._
 import scala.concurrent.duration._
 
 class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData with TestLeoRoutes with TestComponent {
@@ -30,6 +30,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     override val userInfo: UserInfo =  UserInfo(OAuth2BearerToken(tokenValue), WorkbenchUserId("badUser"), WorkbenchEmail("badUser@example.com"), 0)
   }
 
+  val defaultClusterRequest = ClusterRequest(Map.empty, None, properties = Map.empty)
   "LeoRoutes" should "200 on ping" in {
     Get("/ping") ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
@@ -51,7 +52,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
   }
 
   it should "200 when creating and getting cluster" in isolatedDbTest {
-    val newCluster = ClusterRequest(Some(Map.empty), Some(jupyterExtensionUri), Some(jupyterUserScriptUri), None, None, Some(UserJupyterExtensionConfig(Map("abc" ->"def"))))
+    val newCluster = ClusterRequest(Map.empty, Some(jupyterExtensionUri), Some(jupyterUserScriptUri), None, Map.empty, None, Some(UserJupyterExtensionConfig(Map("abc" ->"def"))))
 
     forallClusterCreationVersions(clusterName) { (version, clstrName, statusCode) =>
       Put(s"/api/cluster$version/${googleProject.value}/$clstrName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
@@ -84,7 +85,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
   }
 
   it should "404 when getting a cluster as a non-white-listed user" in isolatedDbTest {
-    val newCluster = ClusterRequest(Some(Map.empty), None)
+    val newCluster = defaultClusterRequest
 
     forallClusterCreationVersions(ClusterName("not-your-cluster")) { (version, clstrName, statusCode) =>
       Put(s"/api/cluster$version/${googleProject.value}/$clstrName", newCluster.toJson) ~> leoRoutes.route ~> check {
@@ -98,7 +99,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
   }
 
   it should "202 when deleting a cluster" in isolatedDbTest {
-    val newCluster = ClusterRequest(Some(Map.empty), None)
+    val newCluster = defaultClusterRequest
 
     forallClusterCreationVersions(clusterName) { (version, clstrName, statusCode) =>
       Put(s"/api/cluster$version/${googleProject.value}/$clstrName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
@@ -128,7 +129,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
   }
 
   it should "202 when resizing a running cluster" in isolatedDbTest {
-    val newCluster = ClusterRequest(Some(Map.empty), None)
+    val newCluster = defaultClusterRequest
     val clusterName = "my-cluster"
 
     Put(s"/api/cluster/v2/${googleProject.value}/$clusterName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
@@ -149,7 +150,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
   }
 
   it should "409 when updating a non-running cluster" in isolatedDbTest {
-    val newCluster = ClusterRequest(Some(Map.empty), None)
+    val newCluster = defaultClusterRequest
     val clusterName = "my-cluster"
 
     Put(s"/api/cluster/v2/${googleProject.value}/$clusterName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
@@ -173,7 +174,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
   }
 
   it should "list clusters" in isolatedDbTest {
-    val newCluster = ClusterRequest(Some(Map.empty), None)
+    val newCluster = defaultClusterRequest
 
     for (i <- 1 to 5) {
       Put(s"/api/cluster/${googleProject.value}/${clusterName.value}-$i", newCluster.toJson) ~> leoRoutes.route ~> check {
@@ -207,8 +208,8 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
   }
 
   it should "list clusters with labels" in isolatedDbTest {
-    val newCluster = ClusterRequest(Some(Map.empty), None)
-    def clusterWithLabels(i: Int) = newCluster.copy(labels = Some(Map(s"label$i" -> s"value$i")))
+    val newCluster = defaultClusterRequest
+    def clusterWithLabels(i: Int) = newCluster.copy(labels = Map(s"label$i" -> s"value$i"))
 
     for (i <- 1 to 5) {
       Put(s"/api/cluster/${googleProject.value}/${clusterName.value}-$i", clusterWithLabels(i).toJson) ~> leoRoutes.route ~> check {
@@ -268,7 +269,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
   }
 
   it should "list clusters by project" in isolatedDbTest {
-    val newCluster = ClusterRequest(Some(Map.empty), None)
+    val newCluster = defaultClusterRequest
 
     // listClusters should return no clusters initially
     Get(s"/api/clusters/${googleProject.value}") ~> timedLeoRoutes.route ~> check {
@@ -334,7 +335,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
   }
 
   it should "202 when stopping and starting a cluster" in isolatedDbTest {
-    val newCluster = ClusterRequest(Some(Map.empty), None)
+    val newCluster = defaultClusterRequest
     
     forallClusterCreationVersions(clusterName) { (version, clstrName, statusCode) =>
       Put(s"/api/cluster$version/${googleProject.value}/$clstrName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
@@ -380,12 +381,11 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
 
   Seq(true, false).foreach { stopAfterCreation =>
     it should s"create a cluster with stopAfterCreation = $stopAfterCreation" in isolatedDbTest {
-      val request = ClusterRequest(Some(Map.empty), Some(jupyterExtensionUri), Some(jupyterUserScriptUri), stopAfterCreation = Some(stopAfterCreation))
+      val request = ClusterRequest(Map.empty, Some(jupyterExtensionUri), Some(jupyterUserScriptUri), stopAfterCreation = Some(stopAfterCreation), properties = Map.empty)
 
       forallClusterCreationVersions(clusterName) { (version, clstrName, statusCode) =>
         Put(s"/api/cluster$version/${googleProject.value}/$clstrName", request.toJson) ~> timedLeoRoutes.route ~> check {
           status shouldEqual statusCode
-
           validateCookie {
             header[`Set-Cookie`]
           }

@@ -1,7 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
+import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest}
 import org.scalactic.Equality
+import spray.json.RootJsonWriter
+import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
+import org.broadinstitute.dsde.workbench.leonardo.model.google.GoogleJsonSupport.MachineConfigFormat
 
 object ClusterEnrichments {
   // When in scope, Equality instances override Scalatest's default equality ignoring the id field
@@ -60,4 +63,6 @@ object ClusterEnrichments {
       scopes = Set.empty,
       userJupyterExtensionConfig = None)
   }
+
+  implicit val clusterRequestWriter: RootJsonWriter[ClusterRequest] = jsonFormat13(ClusterRequest)
 }

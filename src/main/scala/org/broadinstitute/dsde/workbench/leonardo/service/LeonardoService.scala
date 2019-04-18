@@ -265,7 +265,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
     val autopauseThreshold = calculateAutopauseThreshold(
       clusterRequest.autopause, clusterRequest.autopauseThreshold)
-    val clusterScopes = clusterRequest.scopes.getOrElse(dataprocConfig.defaultScopes)
+    val clusterScopes = if(clusterRequest.scopes.isEmpty) dataprocConfig.defaultScopes else clusterRequest.scopes
     val initialClusterToSave = Cluster.create(
       augmentedClusterRequest, userEmail, clusterName, googleProject,
       serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, clusterScopes,
@@ -709,10 +709,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
       initScript = GcsPath(initBucket, GcsObjectName(clusterResourcesConfig.initActionsScript.value))
       autopauseThreshold = calculateAutopauseThreshold(clusterRequest.autopause, clusterRequest.autopauseThreshold)
-      clusterScopes = clusterRequest.scopes.getOrElse(dataprocConfig.defaultScopes)
+      clusterScopes = if(clusterRequest.scopes.isEmpty) dataprocConfig.defaultScopes else clusterRequest.scopes
       credentialsFileName = serviceAccountInfo.notebookServiceAccount.map(_ => s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}")
-      operation <- gdDAO.createCluster(googleProject, clusterName, machineConfig, initScript,
-        serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket, clusterScopes)
+
+      createClusterConfig = CreateClusterConfig(machineConfig, initScript, serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket, clusterScopes, clusterRequest.properties)
+      operation <- gdDAO.createCluster(googleProject, clusterName, createClusterConfig)
       cluster = Cluster.create(clusterRequest, userEmail, clusterName, googleProject, serviceAccountInfo,
         machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, clusterScopes, Option(operation), Option(stagingBucket), clusterImages)
     } yield (cluster, initBucket, serviceAccountKeyOpt)
@@ -1044,7 +1045,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val labExtension = clusterRequest.userJupyterExtensionConfig.map(_.labExtensions).getOrElse(Map.empty)
 
     // combine default and given labels and add labels for extensions
-    val allLabels = clusterRequest.labels.getOrElse(Map.empty) ++ defaultLabels ++ nbExtensions ++ serverExtensions ++ combinedExtension ++ labExtension
+    val allLabels = clusterRequest.labels ++ defaultLabels ++ nbExtensions ++ serverExtensions ++ combinedExtension ++ labExtension
 
     val updatedUserJupyterExtensionConfig = if(nbExtensions.isEmpty && serverExtensions.isEmpty && combinedExtension.isEmpty && labExtension.isEmpty) None else Some(UserJupyterExtensionConfig(nbExtensions, serverExtensions, combinedExtension, labExtension))
 
@@ -1052,7 +1053,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     if (allLabels.contains(includeDeletedKey))
       throw IllegalLabelKeyException(includeDeletedKey)
     else clusterRequest
-      .copy(labels = Option(allLabels))
+      .copy(labels = allLabels)
       .copy(userJupyterExtensionConfig = updatedUserJupyterExtensionConfig)
   }
 
