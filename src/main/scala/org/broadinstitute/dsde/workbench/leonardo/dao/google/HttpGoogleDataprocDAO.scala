@@ -10,17 +10,15 @@ import cats.data.OptionT
 import cats.implicits._
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
-import com.google.api.services.bigquery.BigqueryScopes
 import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.dataproc.Dataproc
-import com.google.api.services.dataproc.model.{Cluster => DataprocCluster, ClusterConfig => DataprocClusterConfig, ClusterStatus => DataprocClusterStatus, Operation => DataprocOperation, _}
-import com.google.api.services.oauth2.{Oauth2, Oauth2Scopes}
-import com.google.api.services.sourcerepo.v1.CloudSourceRepositoriesScopes
+import com.google.api.services.dataproc.model.{Cluster => DataprocCluster, ClusterConfig => DataprocClusterConfig, ClusterStatus => _, Operation => DataprocOperation, _}
+import com.google.api.services.oauth2.Oauth2
 import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, SecondaryWorker, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.service.{AuthenticationError, AuthorizationError, BucketObjectAccessException, DataprocDisabledException}
+import org.broadinstitute.dsde.workbench.leonardo.service.{AuthenticationError, DataprocDisabledException}
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject}
@@ -207,7 +205,7 @@ class HttpGoogleDataprocDAO(appName: String,
           logger.error(msg, e)
           throw new WorkbenchException(msg, e)
         // Google throws IllegalArgumentException when passed an invalid token. Handle this case and rethrow a 401.
-        case e: IllegalArgumentException =>
+        case _: IllegalArgumentException =>
           throw AuthenticationError()
       }
   }

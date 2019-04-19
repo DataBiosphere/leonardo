@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervis
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.model.WorkbenchException
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
 object ClusterMonitorSupervisor {
@@ -54,8 +54,6 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
   import context.dispatcher
 
   var monitoredClusters: Set[Cluster] = Set.empty
-
-  import context._
 
   override def preStart(): Unit = {
     super.preStart()
@@ -176,7 +174,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
     }
   }
 
-  private def createClusterMonitors(implicit executionContext: ExecutionContext): Unit = {
+  private def createClusterMonitors(): Unit = {
     val monitoredClusterIds = monitoredClusters.map(_.id)
     
     dbRef
