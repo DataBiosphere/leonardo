@@ -25,20 +25,6 @@ import scala.concurrent.Future
 
 object Boot extends App with LazyLogging {
   private def startup(): Future[Unit] = {
-
-    // Specifies the name service providers to use, in priority order.
-    // "dns,Jupyter" maps to the org.broadinstitute.dsde.workbench.leonardo.dns.JupyterNameService class.
-    // "default" is the Java default name service.
-    //
-    // We do this so we can map *.jupyter-{{env}}.firecloud.org names to real Dataproc IP addresses, and
-    // still pass SSL wildcard certificate verification. If we change this to not use a wildcard cert
-    // and instead generate a new cert per Dataproc cluster, then we could probably generate the certs
-    // based on the IP address and get rid of this code.
-    //
-    // See also: http://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html
-    System.setProperty("sun.net.spi.nameservice.provider.1", "dns,Jupyter")
-    System.setProperty("sun.net.spi.nameservice.provider.2", "default")
-
     val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
     val whitelist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
     val dataprocConfig = config.as[DataprocConfig]("dataproc")
