@@ -135,7 +135,7 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
       Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie))
         .addHeader(RawHeader("foo", "bar"))
         .addHeader(RawHeader("baz", "biz")) ~> leoRoutes.route ~> check {
-        responseAs[Data].headers should contain allElementsOf Map("foo" -> "bar", "baz" -> "biz")
+        responseAs[Data].headers.toList should contain allElementsOf Map("foo" -> "bar", "baz" -> "biz").toList
       }
     }
 

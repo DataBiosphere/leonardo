@@ -115,7 +115,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
 
     samAuthProvider.samClient.notebookClusters shouldBe empty
     samAuthProvider.notifyClusterCreated(userInfo.userEmail, project, name1).futureValue
-    samAuthProvider.samClient.notebookClusters should contain ((project, name1, userInfo.userEmail) -> Set("connect", "read_policies", "status", "delete", "sync"))
+    samAuthProvider.samClient.notebookClusters.toList should contain ((project, name1, userInfo.userEmail) -> Set("connect", "read_policies", "status", "delete", "sync"))
     samAuthProvider.samClient.notebookClusters.remove((project, name1, userInfo.userEmail))
   }
 
@@ -124,7 +124,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     samAuthProvider.samClient.notebookClusters += (project, name1, userInfo.userEmail) -> Set()
 
     samAuthProvider.notifyClusterDeleted(userInfo.userEmail, userInfo.userEmail, project, name1).futureValue
-    samAuthProvider.samClient.notebookClusters should not contain ((project, name1, userInfo.userEmail) -> Set("connect", "read_policies", "status", "delete", "sync"))
+    samAuthProvider.samClient.notebookClusters.toList should not contain ((project, name1, userInfo.userEmail) -> Set("connect", "read_policies", "status", "delete", "sync"))
   }
 
   "should cache hasNotebookClusterPermission results" in isolatedDbTest {

@@ -10,7 +10,6 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.AutoFreezeConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterDateAccessedActor.{Flush, UpdateDateAccessed}
-import scala.concurrent.duration._
 
 object ClusterDateAccessedActor {
 
