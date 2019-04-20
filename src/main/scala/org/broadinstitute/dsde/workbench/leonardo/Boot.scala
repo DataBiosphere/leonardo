@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import cats.implicits._
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
@@ -10,7 +11,7 @@ import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Pem, Toke
 import org.broadinstitute.dsde.workbench.google.{GoogleStorageDAO, HttpGoogleIamDAO, HttpGoogleProjectDAO, HttpGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.api.{LeoRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.auth.{LeoAuthProviderHelper, ServiceAccountProviderHelper}
-import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterDnsCacheConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, LeoExecutionModeConfig, MonitorConfig, ProxyConfig, SamConfig, SwaggerConfig, ZombieClusterConfig, ClusterBucketConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, ClusterDefaultsConfig, ClusterDnsCacheConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, LeoExecutionModeConfig, MonitorConfig, ProxyConfig, SamConfig, SwaggerConfig, ZombieClusterConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HttpJupyterDAO, HttpRStudioDAO, HttpSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{HttpGoogleComputeDAO, HttpGoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -20,22 +21,10 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterDateAccessedAc
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 
+import scala.concurrent.Future
+
 object Boot extends App with LazyLogging {
-  private def startup(): Unit = {
-
-    // Specifies the name service providers to use, in priority order.
-    // "dns,Jupyter" maps to the org.broadinstitute.dsde.workbench.leonardo.dns.JupyterNameService class.
-    // "default" is the Java default name service.
-    //
-    // We do this so we can map *.jupyter-{{env}}.firecloud.org names to real Dataproc IP addresses, and
-    // still pass SSL wildcard certificate verification. If we change this to not use a wildcard cert
-    // and instead generate a new cert per Dataproc cluster, then we could probably generate the certs
-    // based on the IP address and get rid of this code.
-    //
-    // See also: http://docs.oracle.com/javase/8/docs/technotes/guides/net/properties.html
-    System.setProperty("sun.net.spi.nameservice.provider.1", "dns,Jupyter")
-    System.setProperty("sun.net.spi.nameservice.provider.2", "default")
-
+  private def startup(): Future[Unit] = {
     val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
     val whitelist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
     val dataprocConfig = config.as[DataprocConfig]("dataproc")
@@ -103,7 +92,7 @@ object Boot extends App with LazyLogging {
         case t: Throwable =>
           logger.error("FATAL - failure starting http server", t)
           throw t
-      }
+      }.void
   }
 
   startup()

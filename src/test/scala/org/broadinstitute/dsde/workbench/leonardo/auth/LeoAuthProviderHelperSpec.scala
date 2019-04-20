@@ -82,5 +82,4 @@ class LeoAuthProviderHelperSpec extends TestKit(ActorSystem("leonardotest")) wit
     response shouldBe a [AuthProviderException]
     response.asInstanceOf[AuthProviderException].isTimeout shouldBe true
   }
-
 }

@@ -187,11 +187,14 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # Note the `docker-compose pull` is retried to avoid intermittent network errors, but
     # `docker-compose up` is not retried.
     COMPOSE_FILES=(-f /etc/`basename ${PROXY_DOCKER_COMPOSE}`)
+    cat /etc/`basename ${PROXY_DOCKER_COMPOSE}`
     if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
       COMPOSE_FILES+=(-f /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`)
+      cat /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`
     fi
     if [ ! -z ${RSTUDIO_DOCKER_IMAGE} ] ; then
       COMPOSE_FILES+=(-f /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
+      cat /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`
     fi
 
     retry 5 docker-compose "${COMPOSE_FILES[@]}" config
@@ -302,8 +305,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
         retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
       fi
 
-       docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter-user:users ${JUPYTER_HOME}
-       docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter-user:users /usr/local/share/jupyter/lab
+       retry 5 docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter-user:users ${JUPYTER_HOME}
+       retry 5 docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter-user:users /usr/local/share/jupyter/lab
 
       #Install lab extensions
       #Note: lab extensions need to installed as jupyter user, not root

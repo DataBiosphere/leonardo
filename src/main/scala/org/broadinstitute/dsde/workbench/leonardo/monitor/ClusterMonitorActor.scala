@@ -4,7 +4,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 import akka.actor.Status.Failure
-import akka.actor.{Actor, ActorSystem, Props}
+import akka.actor.{Actor, Props}
 import akka.http.scaladsl.model.StatusCodes
 import akka.pattern.pipe
 import cats.data.OptionT
@@ -119,12 +119,12 @@ class ClusterMonitorActor(val cluster: Cluster,
       throw e
   }
 
-  private def scheduleInitialMonitorPass: Unit = {
+  private def scheduleInitialMonitorPass(): Unit = {
     // Wait anything _up to_ the poll interval for a much wider distribution of cluster monitor start times when Leo starts up
     system.scheduler.scheduleOnce(addJitter(0 seconds, monitorConfig.pollPeriod), self, QueryForCluster)
   }
 
-  private def scheduleNextMonitorPass: Unit = {
+  private def scheduleNextMonitorPass(): Unit = {
     system.scheduler.scheduleOnce(addJitter(monitorConfig.pollPeriod), self, QueryForCluster)
   }
 
@@ -357,12 +357,10 @@ class ClusterMonitorActor(val cluster: Cluster,
   private def getClusterInstances: Future[Set[Instance]] = {
     for {
       map <- gdDAO.getClusterInstances(cluster.googleProject, cluster.clusterName)
-      instances <- Future.traverse(map) { case (role, instances) =>
-        Future.traverse(instances) { instance =>
-          googleComputeDAO.getInstance(instance).map(_.map(_.copy(dataprocRole = Some(role))))
-        }
+      instances <- map.toList.flatTraverse { case (role, instances) =>
+        instances.toList.traverseFilter(instance => googleComputeDAO.getInstance(instance).map(_.map(_.copy(dataprocRole = Some(role)))))
       }
-    } yield instances.flatten.flatten.toSet
+    } yield instances.toSet
   }
 
   private def getMasterIp: Future[Option[IP]] = {

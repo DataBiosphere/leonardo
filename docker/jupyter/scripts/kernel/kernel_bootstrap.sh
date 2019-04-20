@@ -13,7 +13,7 @@
 
 # The workspace name is simply the CWD of the running notebook.
 PWD="$(pwd)"
-export WORKSPACE_NAME="$(basename $PWD)"
+export WORKSPACE_NAME="$(basename "$PWD")"
 
 # Parse the .delocalize.json file (if it exists) in the workspace directory to obtain the workspace bucket.
 DELOCALIZE_FILE="$PWD/.delocalize.json"

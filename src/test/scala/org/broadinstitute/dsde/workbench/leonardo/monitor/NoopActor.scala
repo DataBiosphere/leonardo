@@ -11,6 +11,6 @@ object NoopActor {
   */
 class NoopActor extends Actor {
   override def receive: Receive = {
-    case msg => // noop
+    case _ => ()// noop
   }
 }
