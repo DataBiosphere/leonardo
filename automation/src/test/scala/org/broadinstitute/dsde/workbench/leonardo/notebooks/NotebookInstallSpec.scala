@@ -59,8 +59,7 @@ class NotebookInstallSpec extends ClusterFixtureSpec with NotebookTestUtils {
         withWebDriver { implicit driver =>
           // need to restart the kernel for the install to take effect
           withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
-            // verify that tensorflow is installed
-            verifyTensorFlow(notebookPage, kernel)
+            notebookPage.executeCell("import fuzzywuzzy").get should not include("ModuleNotFoundError")
           }
         }
       }
