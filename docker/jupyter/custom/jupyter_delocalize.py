@@ -125,7 +125,7 @@ class DelocalizingContentsManager(FileContentsManager):
       return ret
 
     self._log_and_call_file_cmd_async(
-        ['cp', os_path, self._remote_path(meta, os_path)])
+        ['-h', os.path.expandvars('x-goog-meta-editor: $OWNER_EMAIL'), 'cp', os_path, self._remote_path(meta, os_path)])
     return ret
 
   def rename_file(self, old_path, new_path):
