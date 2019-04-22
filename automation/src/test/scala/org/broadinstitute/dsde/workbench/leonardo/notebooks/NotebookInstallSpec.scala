@@ -50,7 +50,7 @@ class NotebookInstallSpec extends ClusterFixtureSpec with NotebookTestUtils {
       s"should be able to pip install packages using ${kernel.string}" in { clusterFixture =>
         withWebDriver { implicit driver =>
           withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
-            // install a random package
+            // install a package that is not installed by default
             pipInstall(notebookPage, kernel, "fuzzywuzzy")
             notebookPage.saveAndCheckpoint()
           }
