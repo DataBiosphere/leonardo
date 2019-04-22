@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 
+import scala.concurrent.duration._
 import scala.language.postfixOps
 
 final class NotebookCustomizationSpec extends FreeSpec
@@ -100,7 +101,7 @@ final class NotebookCustomizationSpec extends FreeSpec
           withWebDriver { implicit driver =>
             withNewNotebook(cluster) { notebookPage =>
               val query = """!jupyter labextension install @jupyterlab/toc"""
-              val result = notebookPage.executeCell(query).get
+              val result = notebookPage.executeCell(query, timeout = 5.minutes).get
               result should not include("Permission denied")
             }
           }

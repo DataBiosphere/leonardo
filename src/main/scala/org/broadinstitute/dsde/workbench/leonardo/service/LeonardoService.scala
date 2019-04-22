@@ -391,7 +391,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         // Set the cluster status to Updating if the cluster was resized
         _ <- if (shouldUpdate.combineAll) {
           dbRef.inTransaction { _.clusterQuery.updateClusterStatus(existingCluster.id, ClusterStatus.Updating) }.void
-        } else Future.successful(())
+        } else Future.unit
 
         cluster <- errors match {
           case Nil => internalGetActiveClusterDetails(existingCluster.googleProject, existingCluster.clusterName)
@@ -485,7 +485,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
               // Note: we don't support changing the machine type for worker instances. While this is possible
               // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
               // and rebuilding the cluster if new worker machine/disk sizes are needed.
-              Future.successful(())
+              Future.unit
           }
         }.flatMap { _ =>
           dbRef.inTransaction { _.clusterQuery.updateMasterMachineType(existingCluster.id, MachineType(updatedMasterMachineType)) }
@@ -519,7 +519,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
               // Note: we don't support changing the machine type for worker instances. While this is possible
               // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
               // and rebuilding the cluster if new worker machine/disk sizes are needed.
-              Future.successful(())
+              Future.unit
           }
         }.flatMap { _ =>
           dbRef.inTransaction { _.clusterQuery.updateMasterDiskSize(existingCluster.id, updatedMasterDiskSize) }
@@ -561,7 +561,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       } yield { () }
     } else if (cluster.status == ClusterStatus.Creating) {
       Future.failed(ClusterCannotBeDeletedException(cluster.googleProject, cluster.clusterName))
-    } else Future.successful(())
+    } else Future.unit
   }
 
   def stopCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Unit] = {
@@ -582,7 +582,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         // First remove all its preemptible instances in Google, if any
         _ <- if (cluster.machineConfig.numberOfPreemptibleWorkers.exists(_ > 0))
                gdDAO.resizeCluster(cluster.googleProject, cluster.clusterName, numPreemptibles = Some(0))
-             else Future.successful(())
+             else Future.unit
 
         // Now stop each instance individually
         _ <- Future.traverse(cluster.nonPreemptibleInstances) { instance =>
@@ -625,7 +625,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         // Add back the preemptible instances
         _ <- if (cluster.machineConfig.numberOfPreemptibleWorkers.exists(_ > 0))
                gdDAO.resizeCluster(cluster.googleProject, cluster.clusterName, numPreemptibles = cluster.machineConfig.numberOfPreemptibleWorkers)
-             else Future.successful(())
+             else Future.unit
 
         // Start each instance individually
         _ <- Future.traverse(cluster.nonPreemptibleInstances) { instance =>
@@ -823,7 +823,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         googleIamDAO.addIamRolesForUser(googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
       }
       iamFuture
-    } getOrElse Future.successful(())
+    } getOrElse Future.unit
   }
 
   private[service] def removeDataprocWorkerRoleFromServiceAccount(googleProject: GoogleProject, serviceAccountOpt: Option[WorkbenchEmail]): Future[Unit] = {
@@ -834,7 +834,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         googleIamDAO.removeIamRolesForUser(googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
       }
       iamFuture
-    } getOrElse Future.successful(())
+    } getOrElse Future.unit
   }
 
   private def validateClusterRequestBucketObjectUri(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterRequest: ClusterRequest)
@@ -937,7 +937,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     // This is a no-op if createClusterAsPetServiceAccount is true.
     val uploadPrivateKeyFuture: Future[Unit] = serviceAccountKey.flatMap(_.privateKeyData.decode).map { k =>
       leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(ClusterInitValues.serviceAccountCredentialsFilename), k, "text/plain")
-    } getOrElse(Future.successful(()))
+    } getOrElse(Future.unit)
 
     // Fill in templated resources with the given replacements
     val initScriptContent = templateResource(clusterResourcesConfig.initActionsScript, replacements)

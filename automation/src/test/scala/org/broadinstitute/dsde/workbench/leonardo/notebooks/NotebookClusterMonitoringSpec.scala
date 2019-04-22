@@ -163,7 +163,7 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
           }
 
           val timeToAddWorker = time {
-            eventually(timeout(Span(300, Seconds)), interval(Span(30, Seconds))) {
+            eventually(timeout(Span(420, Seconds)), interval(Span(30, Seconds))) {
               val clusterResponse = Leonardo.cluster.get(project, cluster.clusterName)
               clusterResponse.machineConfig.numberOfWorkers shouldBe newMachineConfig.numberOfWorkers
               clusterResponse.machineConfig.masterMachineType shouldBe initialMachineConfig.masterMachineType
@@ -184,7 +184,7 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
           }
 
           val timeToRemoveWorker = time {
-            eventually(timeout(Span(300, Seconds)), interval(Span(30, Seconds))) {
+            eventually(timeout(Span(420, Seconds)), interval(Span(30, Seconds))) {
               val clusterResponse = Leonardo.cluster.get(project, cluster.clusterName)
               clusterResponse.machineConfig.numberOfWorkers shouldBe twoWorkersConfig.numberOfWorkers
               clusterResponse.machineConfig.masterMachineType shouldBe initialMachineConfig.masterMachineType
