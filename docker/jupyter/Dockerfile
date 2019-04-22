@@ -305,7 +305,7 @@ RUN apt-get update \
  && pip3 install keras==2.2.0 \
  && pip3 install markdown==2.6.9 \
  && pip3 install patsy==0.4.1 \
- && pip3 install protobuf==3.5.0.post1 \
+ && pip3 install protobuf==3.7.1 \
  && pip3 install pymc3==3.1 \
  && pip3 install pyparsing==2.2.0 \
  && pip3 install pysam==0.13 \
