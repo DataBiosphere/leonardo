@@ -57,4 +57,12 @@ class MockGoogleComputeDAO extends GoogleComputeDAO {
     val rng = new Random
     Future.successful(Some(rng.nextLong()))
   }
+
+  override def setMachineType(instanceKey: InstanceKey, newMachineType: MachineType): Future[Unit] = {
+    Future.successful(())
+  }
+
+  def resizeDisk(instanceKey: InstanceKey, newSizeGb: Int): Future[Unit] = {
+    Future.successful(())
+  }
 }

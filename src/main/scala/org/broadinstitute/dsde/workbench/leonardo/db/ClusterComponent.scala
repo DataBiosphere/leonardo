@@ -342,6 +342,14 @@ trait ClusterComponent extends LeoComponent {
       findByIdQuery(id).map(_.numberOfPreemptibleWorkers).update(numberOfPreemptibleWorkers)
     }
 
+    def updateMasterMachineType(id: Long, newMachineType: MachineType): DBIO[Int] = {
+      findByIdQuery(id).map(_.masterMachineType).update(newMachineType.value)
+    }
+
+    def updateMasterDiskSize(id: Long, newSizeGb: Int): DBIO[Int] = {
+      findByIdQuery(id).map(_.masterDiskSize).update(newSizeGb)
+    }
+
     def setToRunning(id: Long, hostIp: IP): DBIO[Int] = {
       updateClusterStatusAndHostIp(id, ClusterStatus.Running, Some(hostIp))
     }
