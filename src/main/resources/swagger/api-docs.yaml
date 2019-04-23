@@ -1112,7 +1112,7 @@ definitions:
       masterDiskSize:
         type: integer
         description: |
-          Optional, the size in megabytes of the disk on the master node. Minimum size is 10GB. If unspecified, default size is 100GB.
+          Optional, the size in gigabytes of the disk on the master node. Minimum size is 10GB. If unspecified, default size is 100GB.
       workerMachineType:
         type: string
         description: |
@@ -1122,7 +1122,7 @@ definitions:
       workerDiskSize:
         type: integer
         description: |
-          Optional, the size in megabytes of the disk on the master node. Minimum size is 10GB. If unspecified, default size is 100GB.
+          Optional, the size in gigabytes of the disk on the master node. Minimum size is 10GB. If unspecified, default size is 100GB.
           Ignored if numberOfWorkers is 0.
       numberOfWorkerLocalSSDs:
         type: integer
@@ -1213,3 +1213,13 @@ definitions:
         description: |
           Optional, the number of preemptible workers. If unspecified, the default number is 0. Ignored if numberOfWorkers is 0.
           For more information, see https://cloud.google.com/compute/docs/instances/preemptible
+      masterMachineType:
+        type: string
+        description: |
+          Optional, the machine type determines the number of CPUs and memory for the master node. For example "n1-standard-16"
+          or "n1-highmem-64". To decide which is right for you, see https://cloud.google.com/compute/docs/machine-types
+      masterDiskSize:
+        type: integer
+        description: |
+          Optional, the size in gigabytes of the disk on the master node. Minimum size is 10GB. Note: disk size cannot be
+          decreased in an update request, only increased.
