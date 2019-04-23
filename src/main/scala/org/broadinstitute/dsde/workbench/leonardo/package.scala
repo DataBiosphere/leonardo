@@ -4,4 +4,5 @@ import org.broadinstitute.dsde.workbench.model.ErrorReportSource
 
 package object leonardo {
   implicit val errorReportSource = ErrorReportSource("leonardo")
+  final val autoPauseOffValue = 0
 }
