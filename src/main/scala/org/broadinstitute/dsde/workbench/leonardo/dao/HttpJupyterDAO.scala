@@ -44,7 +44,7 @@ class HttpJupyterDAO(val clusterDnsCache: ClusterDnsCache)(implicit system: Acto
       hostStatus <- getTargetHost(googleProject, clusterName)
       resp <- hostStatus match {
         case HostReady(host) =>
-          val sessionUri = Uri(s"https://${host.toString}/notebooks/$googleProject/$clusterName/api/sessions") //TODO: validate this url is correct
+          val sessionUri = Uri(s"https://${host.toString}/notebooks/$googleProject/$clusterName/api/sessions")
 
           for {
             resp <- http.singleRequest(HttpRequest(uri = sessionUri))
