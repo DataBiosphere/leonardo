@@ -6,6 +6,7 @@ import java.util.UUID
 
 import cats.data.Chain
 import cats.implicits._
+import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
@@ -277,7 +278,9 @@ trait ClusterComponent extends LeoComponent {
       val tsdiff = SimpleFunction.ternary[String, Timestamp, Timestamp, Int]("TIMESTAMPDIFF")
       val minute = SimpleLiteral[String]("MINUTE")
 
-      fullClusterQuery.filter { record => tsdiff(minute, record._1.dateAccessed, now) >= record._1.autopauseThreshold}
+      fullClusterQuery
+        .filter { _._1.autopauseThreshold =!= autoPauseOffValue }
+        .filter { record => tsdiff(minute, record._1.dateAccessed, now) >= record._1.autopauseThreshold}
         .filter(_._1.status inSetBind ClusterStatus.stoppableStatuses.map(_.toString))
         .result map { recs => unmarshalFullCluster(recs)}
     }

@@ -12,6 +12,7 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
@@ -724,16 +725,14 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   private def calculateAutopauseThreshold(autopause: Option[Boolean], autopauseThreshold: Option[Int]): Int = {
-    val AutoPauseOffValue = 0
-
     autopause match {
       case None =>
         autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
       case Some(false) =>
-        AutoPauseOffValue
+        autoPauseOffValue
       case _ =>
         if (autopauseThreshold.isEmpty) autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
-        else Math.max(AutoPauseOffValue, autopauseThreshold.get)
+        else Math.max(autoPauseOffValue, autopauseThreshold.get)
     }
   }
 
