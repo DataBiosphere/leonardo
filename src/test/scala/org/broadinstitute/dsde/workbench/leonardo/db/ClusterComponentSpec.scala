@@ -179,7 +179,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     val autopauseDisabledCluster = makeCluster(4).copy(
       auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(100, ChronoUnit.DAYS)),
       status = ClusterStatus.Running,
-      autopauseThreshold = 0)
+      autopauseThreshold = 0).save()
 
     val autoFreezeList = dbFutureValue { _.clusterQuery.getClustersReadyToAutoFreeze() }
     autoFreezeList should contain (runningCluster1)
