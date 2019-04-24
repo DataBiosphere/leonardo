@@ -67,7 +67,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
   }
 
   it should "not auto freeze the cluster if jupyter kernel is still running" in isolatedDbTest {
-    val runningCluster = makeCluster(2).copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(45, ChronoUnit.SECONDS)),
+    val runningCluster = makeCluster(2).copy(status = ClusterStatus.Running, auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(45, ChronoUnit.SECONDS)),
       autopauseThreshold = 1).save()
 
     val clusterRes = dbFutureValue { _.clusterQuery.getClusterById(runningCluster.id) }
@@ -103,7 +103,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
 
     eventually(timeout(Span(30, Seconds))) {
       val c1 = dbFutureValue { _.clusterQuery.getClusterById(runningCluster.id) }
-      c1.map(_.status) shouldNot be (Some(ClusterStatus.Stopped))
+      c1.map(_.status) shouldBe (Some(ClusterStatus.Running))
     }
   }
 }
