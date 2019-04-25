@@ -39,6 +39,28 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     decodeResult shouldBe(expectedClusterRequest)
   }
 
+  it should "successfully decode json with null values" in isolatedDbTest {
+    val inputJson =
+      """
+        |{
+        |  "defaultClientId": null,
+        |  "jupyterDockerImage": null,
+        |  "jupyterExtensionUri": null,
+        |  "jupyterUserScriptUri": null,
+        |  "machineConfig": null,
+        |  "rstudioDockerImage": null,
+        |  "scopes": null,
+        |  "stopAfterCreation": null,
+        |  "userJupyterExtensionConfig": null
+        |}
+      """.stripMargin.parseJson
+
+    val expectedClusterRequest = ClusterRequest(labels = Map.empty, properties = Map.empty, scopes = Set.empty)
+
+    val decodeResult = inputJson.convertTo[ClusterRequest]
+    decodeResult shouldBe(expectedClusterRequest)
+  }
+
   it should "serialize/deserialize to/from JSON" in isolatedDbTest {
 
     val expectedJson =

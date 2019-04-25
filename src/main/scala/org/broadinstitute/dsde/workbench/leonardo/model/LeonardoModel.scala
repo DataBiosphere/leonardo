@@ -394,21 +394,22 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
       }
       props
     }
+    val fieldsWithoutNull = fields.filterNot(_._2 != null)
 
     ClusterRequest(
-      fields.get("labels").map(_.convertTo[LabelMap]).getOrElse(Map.empty),
-      fields.get("jupyterExtensionUri").map(_.convertTo[GcsPath]),
-      fields.get("jupyterUserScriptUri").map(_.convertTo[GcsPath]),
-      fields.get("machineConfig").map(_.convertTo[MachineConfig]),
+      fieldsWithoutNull.get("labels").map(_.convertTo[LabelMap]).getOrElse(Map.empty),
+      fieldsWithoutNull.get("jupyterExtensionUri").map(_.convertTo[GcsPath]),
+      fieldsWithoutNull.get("jupyterUserScriptUri").map(_.convertTo[GcsPath]),
+      fieldsWithoutNull.get("machineConfig").map(_.convertTo[MachineConfig]),
       properties.getOrElse(Map.empty),
-      fields.get("stopAfterCreation").map(_.convertTo[Boolean]),
-      fields.get("userJupyterExtensionConfig").map(_.convertTo[UserJupyterExtensionConfig]),
-      fields.get("autopause").map(_.convertTo[Boolean]),
-      fields.get("autopauseThreshold").map(_.convertTo[Int]),
-      fields.get("defaultClientId").map(_.convertTo[String]),
-      fields.get("jupyterDockerImage").map(_.convertTo[String]),
-      fields.get("rstudioDockerImage").map(_.convertTo[String]),
-      fields.get("scopes").map(_.convertTo[Set[String]]).getOrElse(Set.empty)
+      fieldsWithoutNull.get("stopAfterCreation").map(_.convertTo[Boolean]),
+      fieldsWithoutNull.get("userJupyterExtensionConfig").map(_.convertTo[UserJupyterExtensionConfig]),
+      fieldsWithoutNull.get("autopause").map(_.convertTo[Boolean]),
+      fieldsWithoutNull.get("autopauseThreshold").map(_.convertTo[Int]),
+      fieldsWithoutNull.get("defaultClientId").map(_.convertTo[String]),
+      fieldsWithoutNull.get("jupyterDockerImage").map(_.convertTo[String]),
+      fieldsWithoutNull.get("rstudioDockerImage").map(_.convertTo[String]),
+      fieldsWithoutNull.get("scopes").map(_.convertTo[Set[String]]).getOrElse(Set.empty)
     )
   }
 
