@@ -343,7 +343,6 @@ RUN aptitude update && aptitude install -y apt-utils \
     fonts-dejavu \
     tzdata \
     gfortran \
-    gcc \
     libcurl4 \
     libcurl4-openssl-dev \
     libssl-dev \
