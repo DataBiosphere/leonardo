@@ -20,8 +20,11 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sou
  && apt-get update \
  && apt-get -yq dist-upgrade \
  && apt-get install -yq --no-install-recommends \
+    unzip \
     nano \
     sudo \
+    default-jre \
+    default-jdk \
     gnupg \
     dirmngr \
     wget \
@@ -42,6 +45,7 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sou
     libncursesw5-dev \
     xz-utils \
     tk-dev \
+    samtools \
     # to support userScript pip installs via git
     git \
     locales \
@@ -70,19 +74,17 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sou
 ENV LC_ALL en_US.UTF-8
 
 #######################
-# Java
+# GATK
 #######################
 
-ENV JAVA_VER jdk1.8.0_201
-ENV JAVA_TGZ jdk-8u201-linux-x64.tar.gz
-ENV JAVA_URL https://download.oracle.com/otn-pub/java/jdk/8u201-b09/42970487e3af4f5aa5bca3f542482c60/$JAVA_TGZ
-ENV JAVA_HOME /usr/lib/jdk/$JAVA_VER
+RUN set -e
+ENV GATK_VERSION 4.1.0.0
+ENV GATK_ZIP_PATH /tmp/gatk-${GATK_VERSION}.zip
 
-RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" $JAVA_URL \
- && mkdir -p /usr/lib/jdk && tar -zxf $JAVA_TGZ -C /usr/lib/jdk \
- && update-alternatives --install /usr/bin/java java $JAVA_HOME/bin/java 100 \
- && update-alternatives --install /usr/bin/javac javac $JAVA_HOME/bin/javac 100 \
- && rm $JAVA_TGZ
+ #download the gatk zip
+RUN curl -L -o $GATK_ZIP_PATH https://github.com/broadinstitute/gatk/releases/download/$GATK_VERSION/gatk-$GATK_VERSION.zip \
+ && unzip -o $GATK_ZIP_PATH -d /etc/ \
+ && ln -s /etc/gatk-$GATK_VERSION/gatk /bin/gatk
 
 ##############################
 # Spark / Hadoop / Hive / Hail
@@ -176,7 +178,6 @@ RUN apt-get update \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
-
 # Python 3 Kernel
 ENV PYTHON_VERSION 3.6.8
 
@@ -219,10 +220,10 @@ RUN set -ex \
 
 # make some useful symlinks that are expected to exist
 RUN cd /usr/local/bin \
-	&& ln -s idle3 idle \
-	&& ln -s pydoc3 pydoc \
-	&& ln -s python3 python \
-	&& ln -s python3-config python-config
+   && ln -s idle3 idle \
+   && ln -s pydoc3 pydoc \
+   && ln -s python3 python \
+   && ln -s python3-config python-config
 
 # if this is called "PIP_VERSION", pip explodes with "ValueError: invalid truth value '<VERSION>'"
 ENV PYTHON_PIP_VERSION 19.0.1
@@ -230,7 +231,7 @@ ENV PYTHON_PIP_VERSION 19.0.1
 RUN set -ex; \
     \
     wget -O get-pip.py 'https://bootstrap.pypa.io/get-pip.py'; \
-	\
+   \
     python get-pip.py \
         --disable-pip-version-check \
         --no-cache-dir \
@@ -284,10 +285,40 @@ RUN apt-get update \
  && pip3 install bx-python==0.8.2 \
  && pip3 install fastinterval==0.1.1 \
  && pip3 install matplotlib-venn==0.11.5 \
+ && pip3 install bleach==1.5.0 \
+ && pip3 install cycler==0.10.0 \
+ && pip3 install enum34==1.1.6 \
+ && pip3 install h5py==2.7.1 \
+ && pip3 install html5lib==0.9999999 \
+ && pip3 install joblib==0.11 \
+ && pip3 install keras==2.2.0 \
+ && pip3 install markdown==2.6.9 \
+ && pip3 install patsy==0.4.1 \
+ && pip3 install protobuf==3.7.1 \
+ && pip3 install pymc3==3.1 \
+ && pip3 install pyparsing==2.2.0 \
+ && pip3 install pysam==0.13 \
+ && pip3 install python-dateutil==2.6.1 \
+ && pip3 install pytz==2017.3 \
+ && pip3 install pyvcf==0.6.8 \
+ && pip3 install pyyaml==3.12 \
+ && pip3 install scipy==1.0.0 \
+ && pip3 install six==1.11.0 \
+ && pip3 install tensorflow==1.9.0 \
+ && pip3 install theano==0.9.0 \
+ && pip3 install tqdm==4.19.4 \
+ && pip3 install werkzeug==0.12.2 \
+ && pip3 install certifi==2016.2.28 \
+ && pip3 install intel-openmp==2018.0.0 \
+ && pip3 install mkl==2018.0.3 \
+ && pip3 install readline==6.2 \
+ && pip3 install setuptools==36.4.0 \
+ && pip3 install wheel \
  # for jupyter_localize_extension
  && pip3 install python-datauri \
  && pip3 install jupyter_contrib_nbextensions \
  && pip3 install jupyter_nbextensions_configurator \
+ && pip3 install /etc/gatk-$GATK_VERSION/gatkPythonPackageArchive.zip \
  && pip3 install cookiecutter \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*

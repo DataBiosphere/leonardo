@@ -50,8 +50,8 @@ class NotebookInstallSpec extends ClusterFixtureSpec with NotebookTestUtils {
       s"should be able to pip install packages using ${kernel.string}" in { clusterFixture =>
         withWebDriver { implicit driver =>
           withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
-            // install tensorflow
-            pipInstall(notebookPage, kernel, "tensorflow==1.9.0")
+            // install a package that is not installed by default
+            pipInstall(notebookPage, kernel, "fuzzywuzzy")
             notebookPage.saveAndCheckpoint()
           }
         }
@@ -59,8 +59,7 @@ class NotebookInstallSpec extends ClusterFixtureSpec with NotebookTestUtils {
         withWebDriver { implicit driver =>
           // need to restart the kernel for the install to take effect
           withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
-            // verify that tensorflow is installed
-            verifyTensorFlow(notebookPage, kernel)
+            notebookPage.executeCell("import fuzzywuzzy").getOrElse("") should not include("ModuleNotFoundError")
           }
         }
       }

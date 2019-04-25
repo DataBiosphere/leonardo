@@ -305,5 +305,4 @@ trait NotebookTestUtils extends LeonardoTestUtils {
       case other => fail(s"Unexpected kernel: $other")
     }
   }
-
 }
