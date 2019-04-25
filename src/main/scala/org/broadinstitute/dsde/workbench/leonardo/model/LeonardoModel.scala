@@ -394,7 +394,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
       }
       props
     }
-    val fieldsWithoutNull = fields.filterNot(_._2 != null)
+
+    val fieldsWithoutNull = fields.filterNot(x => x._2 == null || x._2 == JsNull)
 
     ClusterRequest(
       fieldsWithoutNull.get("labels").map(_.convertTo[LabelMap]).getOrElse(Map.empty),

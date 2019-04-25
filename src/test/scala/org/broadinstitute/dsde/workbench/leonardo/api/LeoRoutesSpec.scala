@@ -336,7 +336,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
 
   it should "202 when stopping and starting a cluster" in isolatedDbTest {
     val newCluster = defaultClusterRequest
-    
+
     forallClusterCreationVersions(clusterName) { (version, clstrName, statusCode) =>
       Put(s"/api/cluster$version/${googleProject.value}/$clstrName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
         status shouldEqual statusCode
