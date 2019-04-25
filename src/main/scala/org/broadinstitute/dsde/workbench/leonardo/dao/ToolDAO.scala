@@ -6,4 +6,5 @@ import scala.concurrent.Future
 
 trait ToolDAO {
   def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean]
+  def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean]
 }
