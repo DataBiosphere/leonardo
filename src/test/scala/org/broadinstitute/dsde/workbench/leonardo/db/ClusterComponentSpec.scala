@@ -13,6 +13,12 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.scalatest.FlatSpecLike
 
 class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils {
+  "ClusterComponent" should "save cluster with properties properly" in isolatedDbTest {
+    val cluster = makeCluster(1).copy(properties = Map("spark:spark.executor.memory" -> "10g"))
+    val savedCluster = cluster.save()
+    savedCluster shouldEqual(cluster)
+  }
+
   "ClusterComponent" should "list, save, get, and delete" in isolatedDbTest {
     dbFutureValue { _.clusterQuery.list() } shouldEqual Seq()
 

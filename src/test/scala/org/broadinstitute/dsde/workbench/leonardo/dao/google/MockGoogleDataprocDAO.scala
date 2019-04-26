@@ -27,7 +27,7 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
 
   private def googleID = UUID.randomUUID()
 
-  override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, machineConfg: MachineConfig, initScript: GcsPath, clusterServiceAccount: Option[WorkbenchEmail], credentialsFileName: Option[String], stagingBucket: GcsBucketName, scopes: Set[String]): Future[Operation] = {
+  override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, config: CreateClusterConfig): Future[Operation] = {
     if (clusterName == badClusterName) {
       Future.failed(new Exception("bad cluster!"))
     } else {
@@ -35,8 +35,8 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
       clusters += clusterName -> operation
 
       val masterInstance = Set(InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName("master-instance")))
-      val workerInstances = machineConfg.numberOfWorkers.map(num => List.tabulate(num) { i => InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName(s"worker-instance-$i")) }.toSet).getOrElse(Set.empty)
-      val secondaryWorkerInstances = machineConfg.numberOfPreemptibleWorkers.map(num => List.tabulate(num) { i => InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName(s"secondary-worker-instance-$i")) }.toSet).getOrElse(Set.empty)
+      val workerInstances = config.machineConfig.numberOfWorkers.map(num => List.tabulate(num) { i => InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName(s"worker-instance-$i")) }.toSet).getOrElse(Set.empty)
+      val secondaryWorkerInstances = config.machineConfig.numberOfPreemptibleWorkers.map(num => List.tabulate(num) { i => InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName(s"secondary-worker-instance-$i")) }.toSet).getOrElse(Set.empty)
       instances += clusterName -> mutable.Map(Master -> masterInstance, Worker -> workerInstances, SecondaryWorker -> secondaryWorkerInstances)
       Future.successful(operation)
     }

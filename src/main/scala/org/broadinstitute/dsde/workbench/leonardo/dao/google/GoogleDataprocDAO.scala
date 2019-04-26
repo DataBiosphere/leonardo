@@ -4,13 +4,13 @@ import java.time.Instant
 import java.util.UUID
 
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google._
 
 import scala.concurrent.Future
 
 trait GoogleDataprocDAO {
-  def createCluster(googleProject: GoogleProject, clusterName: ClusterName, machineConfig: MachineConfig, initScript: GcsPath, clusterServiceAccount: Option[WorkbenchEmail], credentialsFileName: Option[String], stagingBucket: GcsBucketName, clusterScopes: Set[String]): Future[Operation]
+  def createCluster(googleProject: GoogleProject, clusterName: ClusterName, createClusterConfig: CreateClusterConfig): Future[Operation]
 
   def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName): Future[Unit]
 
