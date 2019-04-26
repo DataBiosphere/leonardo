@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.db
+package org.broadinstitute.dsde.workbench.leonardo
+package db
 
 import java.time.Instant
 import java.sql.Timestamp
@@ -7,6 +8,8 @@ import java.util.UUID
 import cats.data.Chain
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo._
+import io.circe.{Json, Printer}
+import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
@@ -27,6 +30,7 @@ case class ClusterRecord(id: Long,
                          jupyterUserScriptUri: Option[String],
                          initBucket: Option[String],
                          machineConfig: MachineConfigRecord,
+                         properties: Map[String, String],
                          serviceAccountInfo: ServiceAccountInfoRecord,
                          stagingBucket: Option[String],
                          dateAccessed: Timestamp,
@@ -50,6 +54,10 @@ trait ClusterComponent extends LeoComponent {
   this: LabelComponent with ClusterErrorComponent with InstanceComponent with ExtensionComponent with ClusterImageComponent with ScopeComponent =>
 
   import profile.api._
+
+  // mysql 5.6 doesns't support json. Hence writing properties field as string in json format
+  private implicit val jsValueMappedColumnType: BaseColumnType[Json] =
+    MappedColumnType.base[Json, String](_.pretty(Printer.noSpaces), s => io.circe.parser.parse(s).fold(e => throw e, identity))
 
   class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
     def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
@@ -80,6 +88,7 @@ trait ClusterComponent extends LeoComponent {
     def autopauseThreshold = column[Int]("autopauseThreshold")
     def defaultClientId = column[Option[String]]("defaultClientId", O.Length(1024))
     def stopAfterCreation = column[Boolean]("stopAfterCreation")
+    def properties = column[Option[Json]]("properties")
 
     def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName, destroyedDate), unique = true)
 
@@ -91,15 +100,16 @@ trait ClusterComponent extends LeoComponent {
       id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
       createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
       (numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers),
-      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket, dateAccessed, autopauseThreshold, defaultClientId, stopAfterCreation
+      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket, dateAccessed, autopauseThreshold, defaultClientId, stopAfterCreation, properties
     ).shaped <> ({
       case (id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
             createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket, machineConfig,
-            serviceAccountInfo, stagingBucket, dateAccessed, autopauseThreshold, defaultClientId, stopAfterCreation) =>
+            serviceAccountInfo, stagingBucket, dateAccessed, autopauseThreshold, defaultClientId, stopAfterCreation, properties) =>
         ClusterRecord(
           id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
           createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
           MachineConfigRecord.tupled.apply(machineConfig),
+          properties.map(x => x.as[Map[String, String]].fold(e => throw new RuntimeException(s"fail to read `properties` field due to ${e.getMessage}"), identity)).getOrElse(Map.empty), //in theory, throw should never happen
           ServiceAccountInfoRecord.tupled.apply(serviceAccountInfo),
           stagingBucket, dateAccessed, autopauseThreshold, defaultClientId, stopAfterCreation)
     }, { c: ClusterRecord =>
@@ -109,7 +119,7 @@ trait ClusterComponent extends LeoComponent {
         c.id, c.clusterName, c.googleId, c.googleProject, c.operationName, c.status, c.hostIp, c.creator,
         c.createdDate, c.destroyedDate, c.jupyterExtensionUri, c.jupyterUserScriptUri, c.initBucket,
         mc(c.machineConfig), sa(c.serviceAccountInfo), c.stagingBucket, c.dateAccessed, c.autopauseThreshold,
-        c.defaultClientId, c.stopAfterCreation
+        c.defaultClientId, c.stopAfterCreation, if(c.properties.isEmpty) None else Some(c.properties.asJson)
       ))
     })
   }
@@ -426,6 +436,7 @@ trait ClusterComponent extends LeoComponent {
           cluster.machineConfig.numberOfWorkerLocalSSDs,
           cluster.machineConfig.numberOfPreemptibleWorkers
         ),
+        cluster.properties,
         ServiceAccountInfoRecord(
           cluster.serviceAccountInfo.clusterServiceAccount.map(_.value),
           cluster.serviceAccountInfo.notebookServiceAccount.map(_.value),
@@ -507,6 +518,7 @@ trait ClusterComponent extends LeoComponent {
         dataprocInfo,
         auditInfo,
         machineConfig,
+        clusterRecord.properties,
         Cluster.getClusterUrl(project, name),
         ClusterStatus.withName(clusterRecord.status),
         labels,

@@ -631,7 +631,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val cluster1 = leo.createCluster(userInfo, project, clusterName1, testClusterRequest).futureValue
 
     val clusterName2 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
-    val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))).futureValue
+    val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
     leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
   }
@@ -655,7 +655,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.processClusterCreationRequest(userInfo, project, clusterName1, testClusterRequest).futureValue
 
     val clusterName2 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
-    val testClusterRequest2 = testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))
+    val testClusterRequest2 = testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))
     leo.processClusterCreationRequest(userInfo, project, clusterName2, testClusterRequest2).futureValue
 
     // We can't just use the responses to processClusterCreationRequest() since it won't contain the fields
@@ -674,14 +674,14 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val cluster1 = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
 
     val clusterName2 = ClusterName("test-cluster-2")
-    val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))).futureValue
+    val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
     leo.listClusters(userInfo, Map("includeDeleted" -> "false")).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
     leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
     leo.listClusters(userInfo, Map.empty).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
 
     val clusterName3 = ClusterName("test-cluster-3")
-    val cluster3 = leo.createCluster(userInfo, project, clusterName3, testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))).futureValue
+    val cluster3 = leo.createCluster(userInfo, project, clusterName3, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
     dbFutureValue { _.clusterQuery.completeDeletion(cluster3.id) }
 
@@ -697,7 +697,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
 
     val clusterName2 = ClusterName("test-cluster-2")
-    val testClusterRequest2 = testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))
+    val testClusterRequest2 = testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))
     leo.processClusterCreationRequest(userInfo, project, clusterName2, testClusterRequest2).futureValue
 
     eventually {
@@ -710,7 +710,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
 
     val clusterName3 = ClusterName("test-cluster-3")
-    val testClusterRequest3 = testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))
+    val testClusterRequest3 = testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))
     cluster3 = leo.processClusterCreationRequest(userInfo, project, clusterName3, testClusterRequest3).futureValue
 
     eventually {
@@ -728,7 +728,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val cluster1 = leo.createCluster(userInfo, project, clusterName1, testClusterRequest).futureValue
 
     val clusterName2 = ClusterName(s"test-cluster-2")
-    val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))).futureValue
+    val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
     leo.listClusters(userInfo, Map("foo" -> "bar")).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
     leo.listClusters(userInfo, Map("foo" -> "bar", "bam" -> "yes")).futureValue.toSet shouldBe Set(cluster1).map(stripFieldsForListCluster)
@@ -746,7 +746,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.processClusterCreationRequest(userInfo, project, clusterName1, testClusterRequest).futureValue
 
     val clusterName2 = ClusterName(s"test-cluster-2")
-    leo.processClusterCreationRequest(userInfo, project, clusterName2, testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))).futureValue
+    leo.processClusterCreationRequest(userInfo, project, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
     eventually {
       val cluster1 = leo.getActiveClusterDetails(userInfo, project, clusterName1).futureValue
@@ -767,7 +767,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   it should "throw IllegalLabelKeyException when using a forbidden label" in isolatedDbTest {
     forallClusterCreationMethods { (creationMethod, clusterName) =>
       // cluster should not be allowed to have a label with key of "includeDeleted"
-      val modifiedTestClusterRequest = testClusterRequest.copy(labels = Some(Map("includeDeleted" -> "val")))
+      val modifiedTestClusterRequest = testClusterRequest.copy(labels = Map("includeDeleted" -> "val"))
       val includeDeletedResponse = creationMethod(userInfo, project, clusterName, modifiedTestClusterRequest).failed.futureValue
 
       eventually {
@@ -782,7 +782,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val cluster1 = leo.createCluster(userInfo, project, clusterName1, testClusterRequest).futureValue
 
     val clusterName2 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
-    val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))).futureValue
+    val cluster2 = leo.createCluster(userInfo, project, clusterName2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
     leo.listClusters(userInfo, Map("_labels" -> "foo=bar")).futureValue.toSet shouldBe Set(cluster1, cluster2).map(stripFieldsForListCluster)
     leo.listClusters(userInfo, Map("_labels" -> "foo=bar,bam=yes")).futureValue.toSet shouldBe Set(cluster1).map(stripFieldsForListCluster)
@@ -803,7 +803,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.processClusterCreationRequest(userInfo, project, clusterName1, testClusterRequest).futureValue
 
     val clusterName2 = ClusterName(s"cluster-${UUID.randomUUID.toString}")
-    val testClusterRequest2 = testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))
+    val testClusterRequest2 = testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))
     leo.processClusterCreationRequest(userInfo, project, clusterName2, testClusterRequest2).futureValue
 
     eventually {
@@ -827,7 +827,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   it should "list clusters belonging to a project" in isolatedDbTest {
     // create a couple of clusters
     val cluster1 = leo.createCluster(userInfo, project, name1, testClusterRequest).futureValue
-    val cluster2 = leo.createCluster(userInfo, project2, name2, testClusterRequest.copy(labels = Some(Map("a" -> "b", "foo" -> "bar")))).futureValue
+    val cluster2 = leo.createCluster(userInfo, project2, name2, testClusterRequest.copy(labels = Map("a" -> "b", "foo" -> "bar"))).futureValue
 
     leo.listClusters(userInfo, Map.empty, Some(project)).futureValue.toSet shouldBe Set(cluster1).map(stripFieldsForListCluster)
     leo.listClusters(userInfo, Map.empty, Some(project2)).futureValue.toSet shouldBe Set(cluster2).map(stripFieldsForListCluster)

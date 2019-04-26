@@ -1050,6 +1050,12 @@ definitions:
       machineConfig:
         description: The machine configurations for the master and worker nodes
         $ref: '#/definitions/MachineConfig'
+      properties:
+        description: >
+          Example {"spark:spark.executor.memory": "10g"}. See https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties for allowed property settings
+        type: object
+        additionalProperties:
+          type: string
       stopAfterCreation:
         description: |
           If true, Leo will immediately stop the cluster once it's created, with the end result being a
@@ -1073,7 +1079,8 @@ definitions:
         type: array
         items:
           type: string
-        description: The scopes for the cluster. Defaults (userinfo.email, userinfo.profile, bigquery, source.read_only) will be used if left blank. Important- If you choose to specify custom scopes, the defaults will be overwritten. Thus, if you need the defaults, you will need to include the default scopes in your custom list of scopes.
+        description: >
+          The scopes for the cluster. Defaults (userinfo.email, userinfo.profile, bigquery, source.read_only) will be used if left blank. Important: If you choose to specify custom scopes, the defaults will be overwritten. Thus, if you need the defaults, you will need to include the default scopes in your custom list of scopes.
         default: ["https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/bigquery", "https://www.googleapis.com/auth/source.read_only"]
 
 

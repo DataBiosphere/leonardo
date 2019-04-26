@@ -5,9 +5,9 @@ import java.util.UUID
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import enumeratum._
-import org.broadinstitute.dsde.workbench.model.{ValueObject, ValueObjectFormat}
+import org.broadinstitute.dsde.workbench.model.{ValueObject, ValueObjectFormat, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport._
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject}
 import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat, RootJsonFormat}
 
 // Primitives
@@ -25,6 +25,14 @@ case class MachineConfig(numberOfWorkers: Option[Int] = None,
                          numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                          numberOfPreemptibleWorkers: Option[Int] = None)
 
+final case class CreateClusterConfig(
+                                      machineConfig: MachineConfig,
+                                      initScript: GcsPath,
+                                      clusterServiceAccount: Option[WorkbenchEmail],
+                                      credentialsFileName: Option[String],
+                                      stagingBucket: GcsBucketName,
+                                      clusterScopes: Set[String],
+                                      properties: Map[String, String]) //valid properties are https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties
 // Dataproc Operation
 case class OperationName(value: String) extends ValueObject
 case class Operation(name: OperationName, uuid: UUID)

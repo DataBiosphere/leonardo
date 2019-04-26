@@ -44,7 +44,7 @@ object Dependencies {
   val jacksonDatabind: ModuleID =    "com.fasterxml.jackson.core" % "jackson-databind"    % jacksonV excludeAll(excludeJacksonAnnotation)
   val jacksonCore: ModuleID =        "com.fasterxml.jackson.core" % "jackson-core"        % jacksonV
 
-  val logbackClassic: ModuleID = "ch.qos.logback"             %  "logback-classic" % "1.2.3"
+  val logbackClassic: ModuleID = "ch.qos.logback"             %  "logback-classic" % "1.2.3"  
   val ravenLogback: ModuleID =   "com.getsentry.raven"        %  "raven-logback"   % "8.0.3" excludeAll(excludeJacksonCore, excludeSlf4j, excludeLogbackCore, excludeLogbackClassic)
   val scalaLogging: ModuleID =   "com.typesafe.scala-logging" %% "scala-logging"   % scalaLoggingV
   val swaggerUi: ModuleID =      "org.webjars"                %  "swagger-ui"      % "2.2.5"
@@ -82,6 +82,7 @@ object Dependencies {
   val hikariCP: ModuleID =  "com.typesafe.slick" %% "slick-hikaricp"        % slickV excludeAll(excludeSlf4j)
   val mysql: ModuleID =     "mysql"               % "mysql-connector-java"  % "8.0.11"
   val liquibase: ModuleID = "org.liquibase"       % "liquibase-core"        % "3.5.3"
+  val sealerate: ModuleID = "ca.mrvisser" %% "sealerate" % "0.0.5"
 
   val rootDependencies = Seq(
     // proactively pull in latest versions of Jackson libs, instead of relying on the versions
@@ -124,6 +125,8 @@ object Dependencies {
     workbenchGoogle,
     workbenchGoogleTest,
     workbenchMetrics,
-    sam
+    sam,
+
+    sealerate
   )
 }

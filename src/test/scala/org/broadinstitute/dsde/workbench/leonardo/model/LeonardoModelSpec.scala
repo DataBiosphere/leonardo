@@ -3,12 +3,12 @@ package org.broadinstitute.dsde.workbench.leonardo.model
 import java.time.Instant
 import java.util.UUID._
 
-import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData}
-import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
+import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
 import org.scalatest.{FlatSpecLike, Matchers}
 import org.scalatest.concurrent.ScalaFutures
-
 import spray.json._
 
 
@@ -26,6 +26,61 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     clusterImages = Set(jupyterImage.copy(timestamp = exampleTime))
   )
 
+  "ClusterRequestFormat" should "successfully decode json" in isolatedDbTest {
+    val inputJson =
+      """
+        |{
+        |}
+      """.stripMargin.parseJson
+
+    val expectedClusterRequest = ClusterRequest(labels = Map.empty, properties = Map.empty, scopes = Set.empty)
+
+    val decodeResult = inputJson.convertTo[ClusterRequest]
+    decodeResult shouldBe(expectedClusterRequest)
+  }
+
+  it should "successfully decode cluster request with null values" in isolatedDbTest {
+    val inputJson =
+      """
+        |{
+        |  "defaultClientId": null,
+        |  "jupyterDockerImage": null,
+        |  "jupyterExtensionUri": null,
+        |  "jupyterUserScriptUri": null,
+        |  "machineConfig": null,
+        |  "rstudioDockerImage": null,
+        |  "scopes": null,
+        |  "stopAfterCreation": null,
+        |  "userJupyterExtensionConfig": null
+        |}
+      """.stripMargin.parseJson
+
+    val expectedClusterRequest = ClusterRequest(labels = Map.empty, properties = Map.empty, scopes = Set.empty)
+
+    val decodeResult = inputJson.convertTo[ClusterRequest]
+    decodeResult shouldBe(expectedClusterRequest)
+  }
+
+  it should "successfully decode cluster request with jupyterExtensionUri properly" in isolatedDbTest {
+    val inputJson =
+      """
+        |{
+        |  "jupyterExtensionUri": "gs://extension_bucket/extension_path",
+        |  "jupyterUserScriptUri": "gs://userscript_bucket/userscript.sh",
+        |  "labels": {},
+        |  "properties": {},
+        |  "scopes": [],
+        |  "userJupyterExtensionConfig": null
+        |}
+      """.stripMargin.parseJson
+
+    val expectedClusterRequest = ClusterRequest(labels = Map.empty, properties = Map.empty, scopes = Set.empty,
+      jupyterExtensionUri = Some(GcsPath(GcsBucketName("extension_bucket"), GcsObjectName("extension_path"))),
+      jupyterUserScriptUri = Some(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh"))))
+
+    val decodeResult = inputJson.convertTo[ClusterRequest]
+    decodeResult shouldBe(expectedClusterRequest)
+  }
 
   it should "serialize/deserialize to/from JSON" in isolatedDbTest {
 
@@ -106,7 +161,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
 
     val testJson = cluster.toJson(ClusterFormat)
     testJson should equal (expectedJson)
-    
+
     val returnedCluster = testJson.convertTo[Cluster]
     returnedCluster shouldBe cluster
 
