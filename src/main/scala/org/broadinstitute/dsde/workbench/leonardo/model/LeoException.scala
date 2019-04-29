@@ -12,3 +12,7 @@ abstract class LeoException(
     ErrorReport(Option(getMessage).getOrElse(""), Some(statusCode), Seq(), Seq(), Some(this.getClass))
   }
 }
+
+final case class RequestValidationError(message: String) extends RuntimeException{
+  override def getMessage: String = message
+}

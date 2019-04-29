@@ -202,7 +202,7 @@ paths:
           type: string
         - in: path
           name: clusterName
-          description: clusterName
+          description: clusterName. only lowercase alphanumeric characters, numbers and dashes are allowed in cluster name
           required: true
           type: string
         - in: body
