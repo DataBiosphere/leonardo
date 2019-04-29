@@ -4,6 +4,8 @@ import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchException}
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
 
+import scala.util.control.NoStackTrace
+
 abstract class LeoException(
                         val message: String = null,
                         val statusCode: StatusCode = StatusCodes.InternalServerError,
@@ -13,6 +15,6 @@ abstract class LeoException(
   }
 }
 
-final case class RequestValidationError(message: String) extends RuntimeException{
+final case class RequestValidationError(message: String) extends NoStackTrace {
   override def getMessage: String = message
 }
