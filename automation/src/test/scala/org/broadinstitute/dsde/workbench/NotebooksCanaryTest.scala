@@ -35,7 +35,6 @@ class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils 
 
     "should launch a notebook" in {
 
-      //      Thread.sleep(2000)
 
       val localizeFileName = "localize_sync.txt"
       val localizeFileContents = "Sync localize test"
@@ -44,27 +43,31 @@ class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils 
       val localizeDataFileName = "localize_data_aync.txt"
       val localizeDataContents = "Hello World"
 
+      var clusterName = ClusterName("")
 
       withProject { project =>
         implicit token =>
+
           withNewCluster(project, monitorDelete = true, apiVersion = V2) { cluster =>
             // verify that the cluster is running
             cluster.status shouldBe ClusterStatus.Running
+
+            Thread.sleep(2000)
 
             withWebDriver { implicit driver =>
               withLocalizeDelocalizeFiles(cluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
                 Notebook.localize(project, cluster.clusterName, localizeRequest, async = false)
                 // verify that the files are at their locations
                 verifyLocalizeDelocalize(cluster, localizeFileName, localizeFileContents, GcsPath(bucketName, GcsObjectName(delocalizeFileName)), delocalizeFileContents, localizeDataFileName, localizeDataContents)
-                //cleanup step
-                Leonardo.cluster.delete(project, cluster.clusterName)
-                //check for deleted cluster
-                //                val deletedCluster = Leonardo.cluster.get(project, cluster.clusterName)
-                //                deletedCluster.status shouldBe ClusterStatus.Deleted
-                cluster.status shouldBe ClusterStatus.Deleted
               }
             }
+            clusterName = cluster.clusterName
           }
+//          val deletedCluster = Leonardo.cluster.get(project, clusterName)
+//          deletedCluster.status shouldBe ClusterStatus.Deleted
+          monitorDelete(project, clusterName)
+        println("cluster has been deleted")
+
       }
     }
   }
