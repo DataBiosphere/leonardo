@@ -32,5 +32,6 @@ c.NotebookApp.tornado_settings = {
     'static_url_prefix':'/notebooks/' + fragment + '/static/',
     'headers': {
         'Content-Security-Policy': $(contentSecurityPolicy)
-    }
+    },
+    'ws_ping_interval':0
 }
