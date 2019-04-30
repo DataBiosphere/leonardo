@@ -33,5 +33,5 @@ c.NotebookApp.tornado_settings = {
     'headers': {
         'Content-Security-Policy': $(contentSecurityPolicy)
     },
-    'ws_ping_interval':0
+    'websocket_ping_interval':0
 }
