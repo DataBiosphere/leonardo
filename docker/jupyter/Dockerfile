@@ -337,6 +337,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
     r-base=3.5.2-1 \
     r-base-dev=3.5.2-1 \
     r-recommended=3.5.2-1 \
+    r-cran-kernsmooth \
+    r-cran-mass \
+    r-cran-class \
+    r-cran-nnet \
+    r-cran-spatial \
     r-cran-mgcv \
     r-cran-codetools \
  && apt-get install -t stretch-backports -y --no-install-recommends \
