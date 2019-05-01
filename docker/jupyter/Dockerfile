@@ -333,10 +333,10 @@ ENV PIP_USER=true
 
 RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
  && apt-get update && apt-get -t stretch-cran35 install -y --no-install-recommends \
-    r-base-core=3.5.2-1 \
-    r-base=3.5.2-1 \
-    r-base-dev=3.5.2-1 \
-    r-recommended=3.5.2-1 \
+    r-base-core \
+    r-base \
+    r-base-dev \
+    r-recommended \
     r-cran-kernsmooth \
     r-cran-mass \
     r-cran-class \
