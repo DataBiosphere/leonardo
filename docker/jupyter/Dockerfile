@@ -346,7 +346,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
  && apt-get install -t stretch-backports -y --no-install-recommends \
     fonts-dejavu \
     tzdata \
-    gfortran \
+    gfortran \cl
     gcc \
     libcurl4 \
     libcurl4-openssl-dev \
@@ -360,6 +360,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
 
 RUN R -e 'install.packages(c( \
     "IRdisplay",  \
+    "broom", \
+    "modelr", \
     "evaluate",  \
     "pbdZMQ",  \
     "devtools",  \
