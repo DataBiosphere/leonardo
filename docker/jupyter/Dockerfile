@@ -332,16 +332,15 @@ ENV PIP_USER=true
 #######################
 
 RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
- && apt-get update && apt-get -t stretch-cran35 install -y --no-install-recommends \
+ && apt-get update && apt-get -t stretch-cran35 install -y \
     r-base-core=3.5.2-1 \
     r-base=3.5.2-1 \
     r-base-dev=3.5.2-1 \
     r-recommended=3.5.2-1 \
-    r-cran-kernsmooth \
-    r-cran-mass \
-    r-cran-class \
-    r-cran-nnet \
-    r-cran-spatial \
+    r-cran-kernsmooth=2.23-15-3+b4 \
+    r-cran-mass=7.3-51.1-1 \
+    r-cran-nnet=7.3-12-2+b2 \
+    r-cran-spatial=7.3-11-2+b2 \
     r-cran-mgcv \
     r-cran-codetools \
  && apt-get install -t stretch-backports -y --no-install-recommends \
