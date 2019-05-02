@@ -341,8 +341,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
     r-cran-mass=7.3-51.1-1 \
     r-cran-nnet=7.3-12-2+b2 \
     r-cran-spatial=7.3-11-2+b2 \
-    r-cran-mgcv \
-    r-cran-codetools \
+    r-cran-mgcv=1.8-27-1 \
+    r-cran-codetools=0.2-16-1 \
  && apt-get install -t stretch-backports -y --no-install-recommends \
     fonts-dejavu \
     tzdata \
@@ -360,7 +360,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
 
 RUN R -e 'install.packages(c( \
     "IRdisplay",  \
-    "broom", \
+    "tidymodels", \
     "modelr", \
     "evaluate",  \
     "pbdZMQ",  \
