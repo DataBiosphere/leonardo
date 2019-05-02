@@ -346,7 +346,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
  && apt-get install -t stretch-backports -y --no-install-recommends \
     fonts-dejavu \
     tzdata \
-    gfortran \cl
+    gfortran \
     gcc \
     libcurl4 \
     libcurl4-openssl-dev \
