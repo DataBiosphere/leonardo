@@ -140,7 +140,7 @@ object Cluster {
       clusterImages = clusterImages,
       scopes = clusterScopes)
   }
-  
+
   // TODO it's hacky to re-parse the Leo config in the model object.
   // It would be better to pass the clusterUrlBase config value to the getClusterUrl method as a parameter.
   // The reason we can't always do that is getClusterUrl is called by ClusterComponent, which is not aware of leonardo.conf.
@@ -240,7 +240,8 @@ case class ClusterInitValues(googleProject: String,
                              jupyterCombinedExtensions: String,
                              jupyterNotebookConfigUri: String,
                              jupyterLabExtensions: String,
-                             defaultClientId: String
+                             defaultClientId: String,
+                             stagingBucket: String
                             ){
   def toMap: Map[String, String] = this.getClass.getDeclaredFields.map(_.getName).zip(this.productIterator.to).toMap.mapValues(_.toString)}
 
@@ -280,7 +281,8 @@ object ClusterInitValues {
       clusterRequest.userJupyterExtensionConfig.map(x => x.combinedExtensions.values.mkString(" ")).getOrElse(""),
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value)).toUri,
       clusterRequest.userJupyterExtensionConfig.map(x => x.labExtensions.values.mkString(" ")).getOrElse(""),
-      clusterRequest.defaultClientId.getOrElse("")
+      clusterRequest.defaultClientId.getOrElse(""),
+
     )
 }
 
