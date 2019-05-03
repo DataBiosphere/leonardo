@@ -131,7 +131,7 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
     }
   }
 
-  it should "should not zombify Creating clusters" in isolatedDbTest {
+  it should "should zombify creating cluster after hang period" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
     // create a Running and a Creating cluster in the same project
@@ -160,8 +160,10 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
         c1.errors.head.errorCode shouldBe -1
         c1.errors.head.errorMessage should include ("An underlying resource was removed in Google")
 
-        c2.status shouldBe ClusterStatus.Creating
-        c2.errors shouldBe 'empty
+        c2.status shouldBe ClusterStatus.Error
+        c2.errors.size shouldBe 1
+        c2.errors.head.errorCode shouldBe -1
+        c2.errors.head.errorMessage should include ("An underlying resource was removed in Google")
       }
     }
   }

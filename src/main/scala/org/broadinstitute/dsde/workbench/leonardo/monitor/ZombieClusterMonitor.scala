@@ -96,15 +96,15 @@ class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO
   }
 
   private def isClusterActiveInGoogle(cluster: Cluster): Future[Boolean] = {
-    // Clusters in Creating status may not yet exist in Google. Therefore treat all Creating clusters as active.
+    // Clusters in Creating status may not yet exist in Google. Clusters in creating (that are not hanging, as defined by config.creationHangTolerance) are considered active
     if (cluster.status == ClusterStatus.Creating) {
 
-        val minutesSinceImageCreation: Long = Duration.between(cluster.auditInfo.createdDate, Instant.now()).toMinutes()
+        val secondsSinceClusterCreation: Long = Duration.between(cluster.auditInfo.createdDate, Instant.now()).getSeconds
 
-        if (minutesSinceImageCreation > config.creationHangTolerance.toMinutes) {
+        //determine if the creating cluster has been hanging past the tolerance threshold
+        if (secondsSinceClusterCreation > config.creationHangTolerance.toSeconds) {
            Future.successful(false)
         } else {
-          logger.info("Minutes since image creation: " ++ minutesSinceImageCreation.toString)
           Future.successful(true)
         }
 

@@ -234,9 +234,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
         done
       fi
 
-      #REMOVE THIS LINE BEFORE PUSHING
-      sleep 3600
-
       #Install serverExtensions
       if [ ! -z "${JUPYTER_SERVER_EXTENSIONS}" ] ; then
         for ext in ${JUPYTER_SERVER_EXTENSIONS}
