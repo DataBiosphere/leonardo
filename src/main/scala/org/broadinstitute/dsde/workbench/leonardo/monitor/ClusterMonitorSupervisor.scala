@@ -166,18 +166,18 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
       clusters <- dbRef.inTransaction {
         _.clusterQuery.getClustersReadyToAutoFreeze()
       }
-      pauseableClusters <- clusters.toList.filterA {
-        cluster =>
-          jupyterProxyDAO.isAllKernalsIdle(cluster.googleProject, cluster.clusterName)
-            .map {
-              isIdle =>
-                if(!isIdle){
-                  logger.info(s"Not going to auto pause cluster ${cluster.googleProject}/${cluster.clusterName} due to active kernels")
-                }
-                isIdle
-            }
-      }
-      _ <- pauseableClusters.traverse{
+//      pauseableClusters <- clusters.toList.filterA {
+//        cluster =>
+//          jupyterProxyDAO.isAllKernalsIdle(cluster.googleProject, cluster.clusterName)
+//            .map {
+//              isIdle =>
+//                if(!isIdle){
+//                  logger.info(s"Not going to auto pause cluster ${cluster.googleProject}/${cluster.clusterName} due to active kernels")
+//                }
+//                isIdle
+//            }
+//      }
+      _ <- clusters.toList.traverse{
         cl =>
           logger.info(s"Auto freezing cluster ${cl.clusterName} in project ${cl.googleProject}")
           leonardoService.internalStopCluster(cl).attempt.map { e =>
