@@ -168,14 +168,19 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
       }
       pauseableClusters <- clusters.toList.filterA {
         cluster =>
-          jupyterProxyDAO.isAllKernalsIdle(cluster.googleProject, cluster.clusterName)
-            .map {
-              isIdle =>
-                if(!isIdle){
-                  logger.info(s"Not going to auto pause cluster ${cluster.googleProject}/${cluster.clusterName} due to active kernels")
-                }
-                isIdle
-            }
+          jupyterProxyDAO.isAllKernalsIdle(cluster.googleProject, cluster.clusterName).attempt.map {
+            attempted =>
+              attempted match {
+                case Left(t) =>
+                  logger.error(s"Fail to get kernel status for ${cluster.googleProject}/${cluster.clusterName} due to $t")
+                  true
+                case Right(isIdle) =>
+                  if (!isIdle) {
+                    logger.info(s"Not going to auto pause cluster ${cluster.googleProject}/${cluster.clusterName} due to active kernels")
+                  }
+                  isIdle
+              }
+          }
       }
       _ <- pauseableClusters.traverse{
         cl =>
