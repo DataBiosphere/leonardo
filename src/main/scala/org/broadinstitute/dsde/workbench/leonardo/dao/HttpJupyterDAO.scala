@@ -49,7 +49,11 @@ class HttpJupyterDAO(val clusterDnsCache: ClusterDnsCache)(implicit system: Acto
           for {
             resp <- http.singleRequest(HttpRequest(uri = sessionUri))
             respString <- Unmarshal(resp.entity).to[String]
-            parsedResp = parse(respString).flatMap(json => json.as[List[Session]])
+            parsedResp = parse(respString).flatMap{
+              json =>
+                println("qqqqqqqqiiiii: "+json)
+                json.as[List[Session]]
+            }
             res <- Future.fromTry(parsedResp.toTry)
           } yield res.forall(k => k.kernel.executionState == Idle)
         case _ => Future.successful(false)

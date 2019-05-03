@@ -8,20 +8,17 @@ import akka.testkit.TestKit
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockJupyterDAO, MockRStudioDAO, ToolDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockJupyterDAO, MockRStudioDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus}
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.mockito.MockitoSugar
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
-
-import scala.concurrent.Future
 
 class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
   with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll
