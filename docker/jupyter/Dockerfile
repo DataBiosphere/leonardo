@@ -343,6 +343,33 @@ RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
     r-cran-spatial=7.3-11-2+b2 \
     r-cran-mgcv=1.8-27-1 \
     r-cran-codetools=0.2-16-1 \
+    r-cran-tidyverse=1.2.1-1 \
+    r-cran-broom=0.5.1+dfsg-1 \
+    r-cran-dplyr=0.7.8-1 \
+    r-cran-dbplyr=1.3.0-1 \
+    r-cran-ggplot2=3.1.0-1 \
+    r-cran-haven=2.1.0-1 \
+    r-cran-lubridate=1.7.4-2 \
+    r-cran-modelr=0.1.3-1 \
+    r-cran-readr=1.3.1-1 \
+    r-cran-readxl=1.3.0-1 \
+    r-cran-reprex=0.2.1-2 \
+    r-cran-rvest=0.3.2-1 \
+    r-cran-tidyr=0.8.2-1 \
+    r-cran-xml2=1.2.0-3 \
+    r-cran-devtools=2.0.1-1 \
+    r-cran-evaluate=0.13-1 \
+    r-cran-pbdzmq=0.3.3+dfsg-1+b1 \
+    r-cran-reshape2=1.4.3-2 \
+    r-cran-tidyselect=0.2.5-1 \
+    r-cran-usethis=1.4.0-1 \
+    r-cran-bindrcpp=0.2.2-2 \
+    r-cran-rcpp=1.0.0-1 \
+    r-cran-plyr=1.8.4-2 \
+    r-cran-scales=1.0.0-2 \
+    r-cran-fs=1.2.6+dfsg-1 \
+    r-cran-rmarkdown=1.11+dfsg-1 \
+    r-cran-littler=0.3.6-1 \
  && apt-get install -t stretch-backports -y --no-install-recommends \
     fonts-dejavu \
     tzdata \
@@ -360,16 +387,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
 
 RUN R -e 'install.packages(c( \
     "IRdisplay",  \
-    "tidymodels", \
-    "modelr", \
-    "evaluate",  \
-    "pbdZMQ",  \
-    "devtools",  \
     "uuid",  \
     "reshape2",  \
     "bigrquery",  \
-    "googleCloudStorageR",  \
-    "tidyverse"), \
+    "googleCloudStorageR"), \
     repos="http://cran.mtu.edu")' \
  && R -e 'devtools::install_github("DataBiosphere/Ronaldo")' \
  && R -e 'devtools::install_github("IRkernel/IRkernel")' \
@@ -379,6 +400,7 @@ RUN R -e 'install.packages(c( \
  && mkdir -p /home/jupyter-user/.rpackages \
  && echo "R_LIBS=/home/jupyter-user/.rpackages" > /home/jupyter-user/.Renviron \
  && chown -R $USER:users /home/jupyter-user/.rpackages
+
 
 #######################
 # Utilities
