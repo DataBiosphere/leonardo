@@ -51,7 +51,7 @@ class HttpJupyterDAO(val clusterDnsCache: ClusterDnsCache)(implicit system: Acto
             respString <- Unmarshal(resp.entity).to[String]
             parsedResp = parse(respString).flatMap{
               json =>
-                println("qqqqqqqqiiiii: "+json)
+                logger.info(s"kernel sessions: $json")
                 json.as[List[Session]]
             }
             res <- Future.fromTry(parsedResp.toTry)
