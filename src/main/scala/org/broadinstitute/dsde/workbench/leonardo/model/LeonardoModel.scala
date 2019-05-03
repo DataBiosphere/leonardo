@@ -251,7 +251,7 @@ object ClusterInitValues {
   def apply(googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, dataprocConfig: DataprocConfig,
             clusterFilesConfig: ClusterFilesConfig, clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig,
             serviceAccountKey: Option[ServiceAccountKey], userEmailLoginHint: WorkbenchEmail, contentSecurityPolicy: String,
-            clusterImages: Set[ClusterImage]): ClusterInitValues =
+            clusterImages: Set[ClusterImage], stagingBucket: GcsBucketName): ClusterInitValues =
     ClusterInitValues(
       googleProject.value,
       clusterName.value,
@@ -282,7 +282,7 @@ object ClusterInitValues {
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value)).toUri,
       clusterRequest.userJupyterExtensionConfig.map(x => x.labExtensions.values.mkString(" ")).getOrElse(""),
       clusterRequest.defaultClientId.getOrElse(""),
-
+      "gs://" + stagingBucket.value
     )
 }
 
