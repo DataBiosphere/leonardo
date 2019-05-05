@@ -35,6 +35,7 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sou
     procps \
     openssl \
     make \
+    aptitude \
     libssl-dev \
     zlib1g-dev \
     libbz2-dev \
@@ -331,46 +332,15 @@ ENV PIP_USER=true
 # R Kernel
 #######################
 
-RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
- && apt-get update && apt-get -t stretch-cran35 install -y --no-install-recommends \
-    r-base-core=3.5.2-1 \
+# using aptitude for R packages so that all dependencies are automatically installed 
+RUN aptitude update && aptitude install -y apt-utils \
+ && aptitude update && aptitude -t stretch-cran35 install -y \
     r-base=3.5.2-1 \
     r-base-dev=3.5.2-1 \
+    r-base-core=3.5.2-1 \
     r-recommended=3.5.2-1 \
-    r-cran-kernsmooth=2.23-15-3+b4 \
-    r-cran-mass=7.3-51.1-1 \
-    r-cran-nnet=7.3-12-2+b2 \
-    r-cran-spatial=7.3-11-2+b2 \
-    r-cran-mgcv=1.8-27-1 \
-    r-cran-codetools=0.2-16-1 \
     r-cran-tidyverse=1.2.1-1 \
-    r-cran-broom=0.5.1+dfsg-1 \
-    r-cran-dplyr=0.7.8-1 \
-    r-cran-dbplyr=1.3.0-1 \
-    r-cran-ggplot2=3.1.0-1 \
-    r-cran-haven=2.1.0-1 \
-    r-cran-lubridate=1.7.4-2 \
-    r-cran-modelr=0.1.3-1 \
-    r-cran-readr=1.3.1-1 \
-    r-cran-readxl=1.3.0-1 \
-    r-cran-reprex=0.2.1-2 \
-    r-cran-rvest=0.3.2-1 \
-    r-cran-tidyr=0.8.2-1 \
-    r-cran-xml2=1.2.0-3 \
-    r-cran-devtools=2.0.1-1 \
-    r-cran-evaluate=0.13-1 \
-    r-cran-pbdzmq=0.3.3+dfsg-1+b1 \
-    r-cran-reshape2=1.4.3-2 \
-    r-cran-tidyselect=0.2.5-1 \
-    r-cran-usethis=1.4.0-1 \
-    r-cran-bindrcpp=0.2.2-2 \
-    r-cran-rcpp=1.0.0-1 \
-    r-cran-plyr=1.8.4-2 \
-    r-cran-scales=1.0.0-2 \
-    r-cran-fs=1.2.6+dfsg-1 \
-    r-cran-rmarkdown=1.11+dfsg-1 \
-    r-cran-littler=0.3.6-1 \
- && apt-get install -t stretch-backports -y --no-install-recommends \
+ && aptitude install -t stretch-cran35 -y \
     fonts-dejavu \
     tzdata \
     gfortran \
@@ -379,7 +349,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
     libcurl4-openssl-dev \
     libssl-dev \
     libxml2-dev \
- && apt-get clean \
+ && aptitude clean \
  && rm -rf /var/lib/apt/lists/* \
  # fixes broken gfortan dependency needed by some R libraries
  # see: https://github.com/DataBiosphere/leonardo/issues/710
@@ -387,6 +357,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
 
 RUN R -e 'install.packages(c( \
     "IRdisplay",  \
+    "evaluate",  \
+    "pbdZMQ",  \
+    "devtools",  \
     "uuid",  \
     "reshape2",  \
     "bigrquery",  \
@@ -400,7 +373,6 @@ RUN R -e 'install.packages(c( \
  && mkdir -p /home/jupyter-user/.rpackages \
  && echo "R_LIBS=/home/jupyter-user/.rpackages" > /home/jupyter-user/.Renviron \
  && chown -R $USER:users /home/jupyter-user/.rpackages
-
 
 #######################
 # Utilities
