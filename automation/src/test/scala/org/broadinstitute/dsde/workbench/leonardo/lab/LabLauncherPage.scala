@@ -4,7 +4,6 @@ import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.openqa.selenium.WebDriver
 
 import scala.concurrent.duration._
-import scala.language.postfixOps
 import scala.util.{Failure, Success, Try}
 
 sealed trait LabKernel {

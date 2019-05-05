@@ -23,7 +23,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   this: Suite with BillingFixtures =>
 
   private def whenKernelNotReady(t: Throwable): Boolean = t match {
-    case e: KernelNotReadyException => true
+    case _: KernelNotReadyException => true
     case _ => false
   }
 

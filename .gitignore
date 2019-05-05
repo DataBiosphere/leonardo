@@ -23,8 +23,8 @@ __pycache__
 # Automation exclusions
 automation/chrome/
 automation/failure_screenshots/
-automation/test-reports/
 automation/src/test/resources/users.json
 automation/src/test/resources/application.conf
 automation/src/test/resources/firecloud-account.pem
 automation/src/test/resources/trial-billing-account.pem
+test-reports/

@@ -109,7 +109,7 @@ class ClusterConcurrencySpec extends FreeSpec with LeonardoTestUtils with Parall
     "should be able to delete a stopping cluster" in {
       withProject { project => implicit token =>
         logger.info(s"${project.value}: should be able to delete a stopping cluster")
-        withWebDriver { implicit driver =>
+        withWebDriver { _ =>
           withNewCluster(project, apiVersion = V2) { cluster =>
             // delete without waiting for the stop to complete
             stopCluster(cluster.googleProject, cluster.clusterName, monitor = false)

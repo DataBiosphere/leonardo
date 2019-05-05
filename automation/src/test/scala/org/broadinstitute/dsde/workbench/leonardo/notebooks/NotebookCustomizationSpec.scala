@@ -11,7 +11,6 @@ import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 
 import scala.concurrent.duration._
-import scala.language.postfixOps
 
 final class NotebookCustomizationSpec extends FreeSpec
   with NotebookTestUtils with ParallelTestExecution with BillingFixtures {

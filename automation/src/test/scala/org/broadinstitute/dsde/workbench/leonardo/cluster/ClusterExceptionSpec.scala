@@ -16,7 +16,7 @@ class ClusterExceptionSpec extends FreeSpec with LeonardoTestUtils with Parallel
         logger.info(s"${project.value}: should not be able to stop an errored cluster")
 
         withNewErroredCluster(project) { cluster =>
-          withWebDriver { implicit driver =>
+          withWebDriver { _ =>
             val caught = the[RestException] thrownBy stopCluster(cluster.googleProject, cluster.clusterName, monitor = false)
             caught.message should include(""""statusCode":409""")
           }
@@ -57,7 +57,7 @@ class ClusterExceptionSpec extends FreeSpec with LeonardoTestUtils with Parallel
         logger.info(s"${project.value}: should not be able to stop a creating cluster")
 
         withNewCluster(project, monitorCreate = false, monitorDelete = true, apiVersion = V2) { cluster =>
-          withWebDriver { implicit driver =>
+          withWebDriver { _ =>
             val caught = the[RestException] thrownBy stopCluster(project, cluster.clusterName, monitor = false)
             caught.message should include(""""statusCode":409""")
           }

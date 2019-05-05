@@ -8,7 +8,6 @@ import org.broadinstitute.dsde.workbench.service.util.Tags
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.DurationInt
-import scala.language.postfixOps
 
 class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
 

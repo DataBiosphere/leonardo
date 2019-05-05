@@ -5,7 +5,6 @@ import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.broadinstitute.dsde.workbench.service.util.Tags
 
 import scala.concurrent.duration.DurationLong
-import scala.language.postfixOps
 
 class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
 

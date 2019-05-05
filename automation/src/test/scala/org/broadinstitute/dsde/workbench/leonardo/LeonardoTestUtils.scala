@@ -3,34 +3,31 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, File, FileOutputStream}
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
-import java.util.Base64
 
 import akka.actor.ActorSystem
 import cats.data.OptionT
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.ResourceFile
-import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserAuthToken}
 import org.broadinstitute.dsde.workbench.config.Credentials
+import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
-import org.broadinstitute.dsde.workbench.service.{Orchestration, RestException, Sam}
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
-import org.broadinstitute.dsde.workbench.leonardo.lab._
-import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{ClusterStatus, deletableStatuses}
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.{V1, V2}
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
+import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
+import org.broadinstitute.dsde.workbench.service.{Orchestration, RestException, Sam}
 import org.broadinstitute.dsde.workbench.util._
-import org.openqa.selenium.WebDriver
 import org.scalactic.source.Position
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
-import org.scalatest.{Matchers, Suite}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Minutes, Seconds, Span}
+import org.scalatest.{Matchers, Suite}
 
 import scala.concurrent._
 import scala.concurrent.duration._
@@ -526,10 +523,10 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       stagingBucketObjects <- OptionT.liftF[Future, List[GcsObjectName]](googleStorageDAO.listObjectsWithPrefix(stagingBucketName, "google-cloud-dataproc-metainfo"))
       initLogFile <- OptionT.fromOption[Future](stagingBucketObjects.find(_.value.endsWith("dataproc-initialization-script-0_output")))
       initContent <- OptionT(googleStorageDAO.getObject(stagingBucketName, initLogFile))
-      initDownloadFile <- OptionT.pure[Future, File](downloadLogFile(initContent, new File(initLogFile.value).getName))
+      initDownloadFile <- OptionT.pure[Future](downloadLogFile(initContent, new File(initLogFile.value).getName))
       startupLogFile <- OptionT.fromOption[Future](stagingBucketObjects.find(_.value.endsWith("dataproc-startup-script_output")))
       startupContent <- OptionT(googleStorageDAO.getObject(stagingBucketName, startupLogFile))
-      startupDownloadFile <- OptionT.pure[Future, File](downloadLogFile(startupContent, new File(startupLogFile.value).getName))
+      startupDownloadFile <- OptionT.pure[Future](downloadLogFile(startupContent, new File(startupLogFile.value).getName))
     } yield (initDownloadFile, startupDownloadFile)
 
     transformed.value

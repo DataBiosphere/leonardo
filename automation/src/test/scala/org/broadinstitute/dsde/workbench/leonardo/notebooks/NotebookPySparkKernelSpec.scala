@@ -2,8 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import org.broadinstitute.dsde.workbench.leonardo.ClusterFixtureSpec
 
-import scala.language.postfixOps
-
 class NotebookPySparkKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
 

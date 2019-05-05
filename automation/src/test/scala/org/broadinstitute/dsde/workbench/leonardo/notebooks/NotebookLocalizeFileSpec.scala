@@ -6,9 +6,6 @@ import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath}
 import org.broadinstitute.dsde.workbench.service.RestException
 import org.broadinstitute.dsde.workbench.service.util.Tags
 
-import scala.language.postfixOps
-
-
 class NotebookLocalizeFileSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
 

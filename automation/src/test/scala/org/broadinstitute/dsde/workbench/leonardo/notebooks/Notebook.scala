@@ -1,21 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import akka.Done
 import akka.http.scaladsl.model.HttpHeader
 import akka.http.scaladsl.model.headers.{Authorization, Cookie, HttpCookiePair, OAuth2BearerToken}
-import akka.http.scaladsl.server.Route
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.config.LeoAuthToken
-import org.broadinstitute.dsde.workbench.leonardo.{ClusterName, LeonardoConfig}
+import org.broadinstitute.dsde.workbench.leonardo.{ClusterName, ContentItem, LeonardoConfig}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.RestClient
-import org.broadinstitute.dsde.workbench.leonardo.ContentItem
 import org.openqa.selenium.WebDriver
-
-import scala.concurrent.Future
-import scala.io.Source
 
 /**
   * Leonardo API service client.
@@ -78,7 +70,7 @@ object Notebook extends RestClient with LazyLogging {
     handleContentItemResponse(parseResponse(getRequest(url + path, httpHeaders = List(cookie))))
   }
 
-  def setCookie(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver): String = {
+  def setCookie(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): String = {
     val path = notebooksBasePath(googleProject, clusterName) + "/setCookie"
     logger.info(s"Set cookie: GET /$path")
     parseResponse(getRequest(url + path, httpHeaders = List(Authorization(OAuth2BearerToken(token.value)))))

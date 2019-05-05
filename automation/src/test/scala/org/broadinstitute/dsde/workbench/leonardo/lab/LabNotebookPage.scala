@@ -96,7 +96,7 @@ class LabNotebookPage(override val url: String)(override implicit val authToken:
 
       logger.info(s"kernel was ready after ${timediff.toSeconds} seconds. Timeout was ${timeout.toSeconds}")
     } catch {
-      case e: TestFailedDueToTimeoutException => throw KernelNotReadyException(time)
+      case _: TestFailedDueToTimeoutException => throw KernelNotReadyException(time)
     }
   }
 
@@ -112,7 +112,7 @@ class LabNotebookPage(override val url: String)(override implicit val authToken:
     Try {
       await enabled cells
     } match {
-      case Success(value) => ()
+      case Success(_) => ()
       case Failure(_) => throw new NoSuchElementException(s"Failed to find Notebook cell. css = [${cells.by}]")
     }
 

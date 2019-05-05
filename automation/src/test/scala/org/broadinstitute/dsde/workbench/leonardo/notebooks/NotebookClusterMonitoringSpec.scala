@@ -386,9 +386,9 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
     "should throw 401 for invalid token" in {
       withProject { project => implicit token =>
         withNewCluster(project, monitorCreate = true, apiVersion = V2) { cluster =>
-          withWebDriver { implicit driver =>
+          withWebDriver { _ =>
             val thrown = the[Exception] thrownBy {
-              Notebook.setCookie(cluster.googleProject, cluster.clusterName)(voldyAuthToken, driver)
+              Notebook.setCookie(cluster.googleProject, cluster.clusterName)(voldyAuthToken)
             }
             thrown.getMessage should include(""""statusCode":401""")
           }

@@ -2,13 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo.lab
 
 import org.broadinstitute.dsde.workbench.leonardo.ClusterFixtureSpec
 import org.broadinstitute.dsde.workbench.service.util.Tags
-import org.scalatest.FreeSpec
-import org.broadinstitute.dsde.workbench.leonardo._
-
-
-import scala.util.Try
-
-
 
 class LabSpec extends ClusterFixtureSpec with LabTestUtils {
 

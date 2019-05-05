@@ -222,7 +222,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
 
       logger.info(s"kernel was ready after ${timediff.toSeconds} seconds. Timeout was ${timeout.toSeconds}")
     } catch {
-      case e: TestFailedDueToTimeoutException => throw KernelNotReadyException(time)
+      case _: TestFailedDueToTimeoutException => throw KernelNotReadyException(time)
     }
   }
 

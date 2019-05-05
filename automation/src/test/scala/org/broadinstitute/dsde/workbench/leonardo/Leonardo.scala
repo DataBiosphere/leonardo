@@ -4,25 +4,15 @@ import java.net.URL
 import java.time.Instant
 import java.util.UUID
 
-import akka.http.scaladsl.model.headers.{Authorization, Cookie, HttpCookiePair, OAuth2BearerToken}
-import akka.Done
-import akka.http.scaladsl.model.{HttpHeader, StatusCodes}
-import akka.http.scaladsl.server.Route
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.ResourceFile
-import org.broadinstitute.dsde.workbench.service.RestClient
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.config.LeoAuthToken
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V1
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
-import org.openqa.selenium.WebDriver
-
-import scala.concurrent.Future
-import scala.io.Source
+import org.broadinstitute.dsde.workbench.service.RestClient
 
 /**
   * Leonardo API service client.

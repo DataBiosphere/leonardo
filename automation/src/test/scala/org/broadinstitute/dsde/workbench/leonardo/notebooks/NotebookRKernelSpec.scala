@@ -4,7 +4,6 @@ import org.broadinstitute.dsde.workbench.leonardo.ClusterFixtureSpec
 import org.broadinstitute.dsde.workbench.service.util.Tags
 
 import scala.concurrent.duration._
-import scala.language.postfixOps
 
 class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
