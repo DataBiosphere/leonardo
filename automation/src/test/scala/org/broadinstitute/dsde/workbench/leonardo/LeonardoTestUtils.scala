@@ -138,7 +138,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
     cluster.googleProject shouldBe expectedProject
     cluster.clusterName shouldBe expectedName
-
+    
     val expectedStopAfterCreation = clusterRequest.stopAfterCreation.getOrElse(false)
     cluster.stopAfterCreation shouldBe expectedStopAfterCreation
 

@@ -332,7 +332,7 @@ ENV PIP_USER=true
 # R Kernel
 #######################
 
-# using aptitude for R packages so that all dependencies are automatically installed 
+# using aptitude for R packages so that all dependencies are automatically installed
 RUN aptitude update && aptitude install -y apt-utils \
  && aptitude update && aptitude -t stretch-cran35 install -y \
     r-base=3.5.2-1 \
