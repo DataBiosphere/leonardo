@@ -51,7 +51,7 @@ $ ./docker/run-mysql.sh start leonardo
 Build Leonardo and run tests.
 ```
 export SBT_OPTS="-Xmx2G -Xms1G -Dmysql.host=localhost -Dmysql.port=3311"
-sbt clean compile test
+sbt clean compile "project http" test
 ```
 Once you're done, tear down MySQL.
 ```

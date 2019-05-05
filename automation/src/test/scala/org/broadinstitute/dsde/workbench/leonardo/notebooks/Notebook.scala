@@ -1,8 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-
 import java.io.File
-import java.nio.file.Path
 
 import akka.http.scaladsl.model.HttpHeader
 import akka.http.scaladsl.model.headers.{Authorization, Cookie, HttpCookiePair, OAuth2BearerToken}
@@ -12,7 +10,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{ClusterName, ContentItem, Leo
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.RestClient
 import org.openqa.selenium.WebDriver
-
 
 /**
   * Leonardo API service client.
@@ -99,7 +96,7 @@ object Notebook extends RestClient with LazyLogging {
     handleNotebookContentResponse(parseResponse(getRequest(url + path, httpHeaders = List(cookie))))
   }
 
-  def setCookie(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver): String = {
+  def setCookie(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): String = {
     val path = notebooksBasePath(googleProject, clusterName) + "/setCookie"
     logger.info(s"Set cookie: GET /$path")
     parseResponse(getRequest(url + path, httpHeaders = List(Authorization(OAuth2BearerToken(token.value)))))

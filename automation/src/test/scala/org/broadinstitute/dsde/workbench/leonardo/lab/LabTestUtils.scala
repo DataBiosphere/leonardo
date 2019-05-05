@@ -7,13 +7,12 @@ import org.scalatest.Suite
 
 import scala.concurrent._
 import scala.concurrent.duration._
-import scala.language.postfixOps
 
 trait LabTestUtils extends LeonardoTestUtils {
   this: Suite =>
 
   private def whenKernelNotReady(t: Throwable): Boolean = t match {
-    case e: KernelNotReadyException => true
+    case _: KernelNotReadyException => true
     case _ => false
   }
 

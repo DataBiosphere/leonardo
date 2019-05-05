@@ -10,7 +10,6 @@ import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
-import scala.language.postfixOps
 
 /**
   * This spec verfies different cluster creation options, such as user scripts, extensions, etc.

@@ -40,7 +40,7 @@ FIAB=true ./config/docker-rsync-local-ui.sh
 	
 ### Run tests
 
-`sbt -Djsse.enableSNIExtension=false -Dheadless=false test`
+`sbt -Djsse.enableSNIExtension=false -Dheadless=false "project automation" test`
 
 IntelliJ
 - Edit Configurations -> Defaults -> ScalaTest

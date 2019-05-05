@@ -29,7 +29,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   this: Suite =>
 
   private def whenKernelNotReady(t: Throwable): Boolean = t match {
-    case e: KernelNotReadyException => true
+    case _: KernelNotReadyException => true
     case _ => false
   }
 
@@ -360,7 +360,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   def getObjectAsString(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[Option[String]] = {
     google2StorageResource.use {
       google2StorageDAO =>
-        google2StorageDAO.unsafeGetObject(workspaceBucketName, notebookName, None)
+        google2StorageDAO.unsafeGetBlobBody(workspaceBucketName, notebookName, None)
     }
   }
 

@@ -174,6 +174,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
               logger.info("ClusterMonitoringSpec: Hail verification is disabled after pause/resuming a cluster. See https://github.com/DataBiosphere/leonardo/issues/459.")
 
               notebookPage.saveAndCheckpoint()
+
             }
           }
         }
