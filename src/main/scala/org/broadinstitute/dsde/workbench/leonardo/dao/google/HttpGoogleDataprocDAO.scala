@@ -243,23 +243,19 @@ class HttpGoogleDataprocDAO(appName: String,
       gceClusterConfig.setZoneUri(zone)
     }
 
-    val softwareConfig = new SoftwareConfig()
-      .setProperties(config.properties.asJava
-      )
     // Create a Cluster Config and give it the GceClusterConfig, the NodeInitializationAction and the InstanceGroupConfig
-    createClusterConfig(config.machineConfig, config.credentialsFileName)
+    createClusterConfig(config.machineConfig, config.credentialsFileName, config.properties)
       .setGceClusterConfig(gceClusterConfig)
       .setInitializationActions(initActions.asJava)
       .setMasterConfig(masterConfig)
       .setConfigBucket(config.stagingBucket.value)
-      .setSoftwareConfig(softwareConfig)
   }
 
   // Expects a Machine Config with master configs defined for a 0 worker cluster and both master and worker
   // configs defined for 2 or more workers.
-  private def createClusterConfig(machineConfig: MachineConfig, credentialsFileName: Option[String]): DataprocClusterConfig = {
+  private def createClusterConfig(machineConfig: MachineConfig, credentialsFileName: Option[String], userProperties: Map[String, String]): DataprocClusterConfig = {
 
-    val swConfig: SoftwareConfig = getSoftwareConfig(machineConfig.numberOfWorkers, credentialsFileName)
+    val swConfig: SoftwareConfig = getSoftwareConfig(machineConfig.numberOfWorkers, credentialsFileName, userProperties)
 
     // If the number of workers is zero, make a Single Node cluster, else make a Standard one
     if (machineConfig.numberOfWorkers.get == 0) {
@@ -269,7 +265,7 @@ class HttpGoogleDataprocDAO(appName: String,
       getMultiNodeClusterConfig(machineConfig).setSoftwareConfig(swConfig)
   }
 
-  private def getSoftwareConfig(numWorkers: Option[Int], credentialsFileName: Option[String]) = {
+  private def getSoftwareConfig(numWorkers: Option[Int], credentialsFileName: Option[String], userProperties: Map[String, String]) = {
     val authProps: Map[String, String] = credentialsFileName match {
       case None =>
         // If we're not using a notebook service account, no need to set Hadoop properties since
@@ -303,7 +299,7 @@ class HttpGoogleDataprocDAO(appName: String,
       "spark:spark.yarn.am.memory" -> "640m"
     )
 
-    new SoftwareConfig().setProperties((authProps ++ dataprocProps ++ yarnProps).asJava)
+    new SoftwareConfig().setProperties((authProps ++ dataprocProps ++ yarnProps ++ userProperties).asJava)
 
       // This gives us Spark 2.0.2. See:
       //   https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-versions
