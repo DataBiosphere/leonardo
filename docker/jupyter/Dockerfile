@@ -35,6 +35,7 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sou
     procps \
     openssl \
     make \
+    aptitude \
     libssl-dev \
     zlib1g-dev \
     libbz2-dev \
@@ -331,15 +332,14 @@ ENV PIP_USER=true
 # R Kernel
 #######################
 
-RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
- && apt-get update && apt-get -t stretch-cran35 install -y --no-install-recommends \
-    r-base-core=3.5.2-1 \
+# using aptitude for R packages so that all dependencies are automatically installed
+RUN aptitude update && aptitude install -y apt-utils \
+ && aptitude update && aptitude -t stretch-cran35 install -y \
     r-base=3.5.2-1 \
     r-base-dev=3.5.2-1 \
+    r-base-core=3.5.2-1 \
     r-recommended=3.5.2-1 \
-    r-cran-mgcv \
-    r-cran-codetools \
- && apt-get install -t stretch-backports -y --no-install-recommends \
+ && aptitude install -t stretch-cran35 -y \
     fonts-dejavu \
     tzdata \
     gfortran \
@@ -348,7 +348,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends apt-utils \
     libcurl4-openssl-dev \
     libssl-dev \
     libxml2-dev \
- && apt-get clean \
+ && aptitude clean \
  && rm -rf /var/lib/apt/lists/* \
  # fixes broken gfortan dependency needed by some R libraries
  # see: https://github.com/DataBiosphere/leonardo/issues/710
@@ -362,7 +362,7 @@ RUN R -e 'install.packages(c( \
     "uuid",  \
     "reshape2",  \
     "bigrquery",  \
-    "googleCloudStorageR",  \
+    "googleCloudStorageR", \
     "tidyverse"), \
     repos="http://cran.mtu.edu")' \
  && R -e 'devtools::install_github("DataBiosphere/Ronaldo")' \

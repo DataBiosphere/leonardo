@@ -49,9 +49,9 @@ class HttpJupyterDAO(val clusterDnsCache: ClusterDnsCache)(implicit system: Acto
           for {
             resp <- http.singleRequest(HttpRequest(uri = sessionUri))
             respString <- Unmarshal(resp.entity).to[String]
-            parsedResp = parse(respString).flatMap(json => json.as[AllSessionsResponse])
+            parsedResp = parse(respString).flatMap(json => json.as[List[Session]])
             res <- Future.fromTry(parsedResp.toTry)
-          } yield res.kernel.forall(k => k.executionState == Idle)
+          } yield res.forall(k => k.kernel.executionState == Idle)
         case _ => Future.successful(false)
       }
     } yield resp
@@ -61,7 +61,7 @@ class HttpJupyterDAO(val clusterDnsCache: ClusterDnsCache)(implicit system: Acto
 object HttpJupyterDAO {
   implicit val executionStateDecoder: Decoder[ExecutionState] = Decoder.decodeString.map(s => if(s == Idle.toString) Idle else OtherState(s))
   implicit val kernalDecoder: Decoder[Kernel] = Decoder.forProduct1("execution_state")(Kernel)
-  implicit val allSessionsResponseDecoder: Decoder[AllSessionsResponse] = Decoder.forProduct1("kernel")(AllSessionsResponse)
+  implicit val sessionDecoder: Decoder[Session] = Decoder.forProduct1("kernel")(Session)
 }
 
 sealed abstract class ExecutionState
@@ -74,5 +74,6 @@ object ExecutionState {
   }
 }
 
+final case class Session(kernel: Kernel)
 final case class Kernel(executionState: ExecutionState)
 final case class AllSessionsResponse(kernel: List[Kernel])
