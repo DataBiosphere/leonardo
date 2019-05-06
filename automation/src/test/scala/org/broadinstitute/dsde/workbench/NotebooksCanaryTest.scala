@@ -40,8 +40,6 @@ class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils 
       val localizeDataFileName = "localize_data_aync.txt"
       val localizeDataContents = "Hello World"
 
-//      var clusterName = ClusterName("")
-
       val canaryProject = GoogleProject("automated-notebooks-canary")
 //      val canaryCluster = "notebooks-canary-test-cluster"
 
