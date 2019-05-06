@@ -96,6 +96,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_GOOGLE_PLUGIN_URI=$(jupyterGooglePluginUri)
     JUPYTER_LAB_GOOGLE_PLUGIN_URI=$(jupyterLabGooglePluginUri)
     JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
+    JUPYTER_USER_SCRIPT_OUTPUT_URI=$(jupyterUserScriptOutputUri)
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
 
     log 'Installing prerequisites...'
@@ -302,8 +303,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
         JUPYTER_USER_SCRIPT=`basename ${JUPYTER_USER_SCRIPT_URI}`
         docker cp /etc/${JUPYTER_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
         retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
-        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT} &> userscript_output.txt
-        gsutil cp userscript_output.txt
+        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT} &> us_output.txt
+        gsutil cp us_output.txt ${JUPYTER_USER_SCRIPT_OUTPUT_URI}
       fi
 
        retry 5 docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter-user:users ${JUPYTER_HOME}

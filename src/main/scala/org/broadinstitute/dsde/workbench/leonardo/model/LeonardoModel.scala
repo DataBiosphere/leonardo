@@ -229,6 +229,7 @@ case class ClusterInitValues(googleProject: String,
                              proxyServerName: String,
                              jupyterExtensionUri: String,
                              jupyterUserScriptUri: String,
+                             jupyterUserScriptOutputUri: String,
                              jupyterServiceAccountCredentials: String,
                              googleSignInJsUri: String,
                              jupyterGooglePluginUri: String,
@@ -240,8 +241,7 @@ case class ClusterInitValues(googleProject: String,
                              jupyterCombinedExtensions: String,
                              jupyterNotebookConfigUri: String,
                              jupyterLabExtensions: String,
-                             defaultClientId: String,
-                             stagingBucket: String
+                             defaultClientId: String
                             ){
   def toMap: Map[String, String] = this.getClass.getDeclaredFields.map(_.getName).zip(this.productIterator.to).toMap.mapValues(_.toString)}
 
@@ -270,6 +270,7 @@ object ClusterInitValues {
       proxyConfig.proxyServerName,
       clusterRequest.jupyterExtensionUri.map(_.toUri).getOrElse(""),
       clusterRequest.jupyterUserScriptUri.map(_.toUri).getOrElse(""),
+      GcsPath(stagingBucket, GcsObjectName("userscript_output.txt")).toUri,
       serviceAccountKey.map(_ => GcsPath(initBucketName, GcsObjectName(serviceAccountCredentialsFilename)).toUri).getOrElse(""),
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.googleSignInJs.value)).toUri,
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterGooglePlugin.value)).toUri,
@@ -281,8 +282,7 @@ object ClusterInitValues {
       clusterRequest.userJupyterExtensionConfig.map(x => x.combinedExtensions.values.mkString(" ")).getOrElse(""),
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value)).toUri,
       clusterRequest.userJupyterExtensionConfig.map(x => x.labExtensions.values.mkString(" ")).getOrElse(""),
-      clusterRequest.defaultClientId.getOrElse(""),
-      "gs://" + stagingBucket.value
+      clusterRequest.defaultClientId.getOrElse("")
     )
 }
 
