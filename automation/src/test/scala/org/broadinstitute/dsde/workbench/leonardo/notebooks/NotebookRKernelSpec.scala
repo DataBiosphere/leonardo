@@ -18,8 +18,10 @@ class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
           // Check the locale is set to en_US.UTF-8
           notebookPage.executeCell("""Sys.getenv("LC_ALL")""") shouldBe Some("'en_US.UTF-8'")
 
+          val installTimeout = 3.minutes
+
           // Make sure unicode characters display correctly
-          notebookPage.executeCell("""install.packages("skimr")""")
+          notebookPage.executeCell("""install.packages("skimr")""", installTimeout)
           notebookPage.executeCell("library(skimr)")
 
           val output = notebookPage.executeCell(
@@ -94,7 +96,7 @@ class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
           // https://github.com/mlr-org/mlr
 
           // it may take a little while to install
-          val installTimeout = 5.minutes
+          val installTimeout = 10.minutes
 
           val installOutput = notebookPage.executeCell("""devtools::install_github("mlr-org/mlr")""", installTimeout)
           installOutput shouldBe 'defined
