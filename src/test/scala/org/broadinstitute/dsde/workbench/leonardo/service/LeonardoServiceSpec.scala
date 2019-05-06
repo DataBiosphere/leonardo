@@ -496,7 +496,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // create the bucket and add files
     val bucketName = generateUniqueBucketName(name1.value + "-init")
     val bucket = bucketHelper.createInitBucket(project, bucketName, ServiceAccountInfo(None, Some(serviceAccountEmail))).futureValue
-    leo.initializeBucketObjects(userInfo.userEmail, project, name1, bucket, testClusterRequest, Some(serviceAccountKey), contentSecurityPolicy, Set(jupyterImage)).futureValue
+    leo.initializeBucketObjects(userInfo.userEmail, project, name1, bucket, testClusterRequest, Some(serviceAccountKey), contentSecurityPolicy, Set(jupyterImage), stagingBucketName).futureValue
 
     // our bucket should now exist
     storageDAO.buckets should contain key (bucket)
@@ -554,7 +554,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "template a script using config values" in isolatedDbTest {
     // Create replacements map
-    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy, Set(jupyterImage, rstudioImage))
+    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy, Set(jupyterImage, rstudioImage), stagingBucketName)
     val replacements: Map[String, String] = clusterInit.toMap
 
     // Each value in the replacement map will replace it's key in the file being processed
@@ -582,7 +582,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   it should s"template google_sign_in.js with config values" in isolatedDbTest {
 
     // Create replacements map
-    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequest, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy, Set(jupyterImage))
+    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequest, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy, Set(jupyterImage), stagingBucketName)
     val replacements: Map[String, String] = clusterInit.toMap
 
     // Each value in the replacement map will replace it's key in the file being processed
