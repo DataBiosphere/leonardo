@@ -343,6 +343,7 @@ RUN aptitude update && aptitude install -y apt-utils \
     fonts-dejavu \
     tzdata \
     gfortran \
+    gcc \
     libcurl4 \
     libcurl4-openssl-dev \
     libssl-dev \
@@ -383,7 +384,10 @@ ADD custom/jupyter_localize_extension.py $JUPYTER_HOME/custom/
 
 RUN chown -R $USER:users $JUPYTER_HOME \
  && find $JUPYTER_HOME/scripts -name '*.sh' -type f | xargs chmod +x \
- && chown -R $USER:users /usr/local/share/jupyter/lab
+ && chown -R $USER:users /usr/local/share/jupyter/lab \
+ && update-alternatives --remove-all gcc \
+ && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-6 200 \
+ && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 100
 
 USER $USER
 WORKDIR $HOME
