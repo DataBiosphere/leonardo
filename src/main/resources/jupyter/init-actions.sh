@@ -303,7 +303,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
         JUPYTER_USER_SCRIPT=`basename ${JUPYTER_USER_SCRIPT_URI}`
         docker cp /etc/${JUPYTER_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
         retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
-        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT} &> us_output.txt || EXIT_CODE=$? && true ;
+        docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT} &> us_output.txt || EXIT_CODE=$? && true ;
         gsutil cp us_output.txt ${JUPYTER_USER_SCRIPT_OUTPUT_URI}
         $EXIT_CODE
       fi
