@@ -13,7 +13,7 @@ import akka.stream.scaladsl._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, LeoException}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterRequest, LeoException, RequestValidationError}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
@@ -21,6 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.CookieHelper
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchException, WorkbenchExceptionWithErrorReport}
+import LeoRoutes._
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -52,73 +53,78 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
           }
         } ~
         pathPrefix("cluster") {
-          pathPrefix("v2" / Segment / Segment) { (googleProject, clusterName) =>
-            pathEndOrSingleSlash {
-              put {
-                entity(as[ClusterRequest]) { cluster =>
-                  complete {
-                    leonardoService
-                      .processClusterCreationRequest(userInfo, GoogleProject(googleProject), ClusterName(clusterName), cluster)
-                      .map { cluster =>
-                        StatusCodes.Accepted -> cluster
+          pathPrefix("v2" / Segment / Segment) { (googleProject, clusterNameString) =>
+            validateClusterNameDirective(clusterNameString){
+              clusterName =>
+                pathEndOrSingleSlash {
+                  put {
+                    entity(as[ClusterRequest]) { cluster =>
+                      complete {
+                        leonardoService
+                          .processClusterCreationRequest(userInfo, GoogleProject(googleProject), clusterName, cluster)
+                          .map { cluster =>
+                            StatusCodes.Accepted -> cluster
+                          }
                       }
+                    }
                   }
                 }
-              }
             }
           } ~
-          pathPrefix(Segment / Segment) { (googleProject, clusterName) =>
-            pathEndOrSingleSlash {
-              patch {
-                entity(as[ClusterRequest]) { cluster =>
-                  complete {
-                    leonardoService.updateCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName), cluster).map { cluster =>
-                      StatusCodes.Accepted -> cluster
+          pathPrefix(Segment / Segment) { (googleProject, clusterNameString) =>
+            validateClusterNameDirective(clusterNameString) { clusterName =>
+              pathEndOrSingleSlash {
+                patch {
+                  entity(as[ClusterRequest]) { cluster =>
+                    complete {
+                      leonardoService.updateCluster(userInfo, GoogleProject(googleProject), clusterName, cluster).map { cluster =>
+                        StatusCodes.Accepted -> cluster
+                      }
+                    }
+                  }
+                } ~
+                  put {
+                    entity(as[ClusterRequest]) { cluster =>
+                      complete {
+                        leonardoService.createCluster(userInfo, GoogleProject(googleProject), clusterName, cluster).map { cluster =>
+                          StatusCodes.OK -> cluster
+                        }
+                      }
+                    }
+                  } ~
+                  get {
+                    complete {
+                      leonardoService.getActiveClusterDetails(userInfo, GoogleProject(googleProject), clusterName).map { clusterDetails =>
+                        StatusCodes.OK -> clusterDetails
+                      }
+                    }
+                  } ~
+                  delete {
+                    complete {
+                      leonardoService.deleteCluster(userInfo, GoogleProject(googleProject), clusterName).map { _ =>
+                        StatusCodes.Accepted
+                      }
+                    }
+                  }
+              } ~
+                path("stop") {
+                  post {
+                    complete {
+                      leonardoService.stopCluster(userInfo, GoogleProject(googleProject), clusterName).map { _ =>
+                        StatusCodes.Accepted
+                      }
+                    }
+                  }
+                } ~
+                path("start") {
+                  post {
+                    complete {
+                      leonardoService.startCluster(userInfo, GoogleProject(googleProject), clusterName).map { _ =>
+                        StatusCodes.Accepted
+                      }
                     }
                   }
                 }
-              } ~
-              put {
-                entity(as[ClusterRequest]) { cluster =>
-                  complete {
-                    leonardoService.createCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName), cluster).map { cluster =>
-                      StatusCodes.OK -> cluster
-                    }
-                  }
-                }
-              } ~
-              get {
-                complete {
-                  leonardoService.getActiveClusterDetails(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { clusterDetails =>
-                    StatusCodes.OK -> clusterDetails
-                  }
-                }
-              } ~
-              delete {
-                complete {
-                  leonardoService.deleteCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
-                    StatusCodes.Accepted
-                  }
-                }
-              }
-            } ~
-            path("stop") {
-              post {
-                complete {
-                  leonardoService.stopCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
-                    StatusCodes.Accepted
-                  }
-                }
-              }
-            } ~
-            path("start") {
-              post {
-                complete {
-                  leonardoService.startCluster(userInfo, GoogleProject(googleProject), ClusterName(clusterName)).map { _ =>
-                    StatusCodes.Accepted
-                  }
-                }
-              }
             }
           }
         } ~
@@ -154,6 +160,8 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
 
   private val myExceptionHandler = {
     ExceptionHandler {
+      case requestValidationError: RequestValidationError =>
+        complete(StatusCodes.BadRequest, requestValidationError.getMessage)
       case leoException: LeoException =>
         complete(leoException.statusCode, leoException.toErrorReport)
       case withErrorReport: WorkbenchExceptionWithErrorReport =>
@@ -192,4 +200,24 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
     DebuggingDirectives.logRequestResult(LoggingMagnet(myLoggingFunction))
   }
 
+}
+
+object LeoRoutes {
+  private val clusterNameReg = "([a-z|0-9|-])*".r
+  private def validateClusterName(clusterNameString: String): Either[Throwable, ClusterName] = {
+    clusterNameString match {
+      case clusterNameReg(_) => Right(ClusterName(clusterNameString))
+      case _ => Left(new RequestValidationError(s"invalid cluster name ${clusterNameString}. Only lowercase alphanumeric characters, numbers and dashes are allowed in cluster name"))
+    }
+  }
+
+  def validateClusterNameDirective(clusterNameString: String): Directive1[ClusterName] = {
+    Directive {
+      inner =>
+        validateClusterName(clusterNameString) match {
+          case Left(e) => failWith(e)
+          case Right(c) => inner(Tuple1(c))
+        }
+    }
+  }
 }
