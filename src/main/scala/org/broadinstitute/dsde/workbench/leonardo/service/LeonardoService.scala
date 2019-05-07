@@ -444,7 +444,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           // If the Google Compute default service account is being used, this is not necessary.
           _ <- addDataprocWorkerRoleToServiceAccount(existingCluster.googleProject, existingCluster.serviceAccountInfo.clusterServiceAccount)
 
-          // Resize the clsuter
+          // Resize the cluster
           _ <- gdDAO.resizeCluster(existingCluster.googleProject, existingCluster.clusterName, updatedNumWorkersAndPreemptibles.left, updatedNumWorkersAndPreemptibles.right) recoverWith {
             case gjre: GoogleJsonResponseException =>
               //typically we will revoke this role in the monitor after everything is complete, but if Google fails to resize the cluster we need to revoke it manually here
