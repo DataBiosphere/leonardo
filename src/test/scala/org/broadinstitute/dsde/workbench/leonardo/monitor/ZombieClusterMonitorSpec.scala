@@ -149,9 +149,10 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
       }
     }
 
+    val shouldHangAfter: Span = zombieClusterConfig.creationHangTolerance.plus(zombieClusterConfig.zombieCheckPeriod)
     // the Running cluster should be a zombie but the Creating one shouldn't
     withZombieActor(gdDAO = gdDAO) { _ =>
-      eventually(timeout(Span(10, Seconds))) {
+      eventually(timeout(shouldHangAfter)) {
         val c1 = dbFutureValue { _.clusterQuery.getClusterById(savedTestCluster1.id) }.get
         val c2 = dbFutureValue { _.clusterQuery.getClusterById(savedTestCluster2.id) }.get
 
@@ -166,6 +167,31 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
         c2.errors.head.errorMessage should include ("An underlying resource was removed in Google")
       }
     }
+  }
+
+  it should "should not zombify cluster before hang period" in isolatedDbTest {
+    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
+
+    val creatingTestCluster = testCluster2.copy(status = ClusterStatus.Creating)
+    val savedTestCluster2 = creatingTestCluster.save()
+    savedTestCluster2 shouldEqual creatingTestCluster
+
+    val shouldNotHangBefore = zombieClusterConfig.creationHangTolerance.minus(zombieClusterConfig.zombieCheckPeriod)
+    // stub GoogleDataprocDAO to flag both clusters as deleted
+    val gdDAO = new MockGoogleDataprocDAO {
+      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] = {
+        Future.successful(ClusterStatus.Deleted)
+      }
+    }
+
+    // the Running cluster should be a zombie but the Creating one shouldn't
+    withZombieActor(gdDAO = gdDAO) { _ =>
+        Thread.sleep(shouldNotHangBefore.toSeconds)
+
+        val c1 = dbFutureValue { _.clusterQuery.getClusterById(savedTestCluster2.id) }.get
+        c1.status shouldBe ClusterStatus.Creating
+        c1.errors.size shouldBe 0
+      }
   }
 
   it should "should not zombify upon errors from Google" in isolatedDbTest {
