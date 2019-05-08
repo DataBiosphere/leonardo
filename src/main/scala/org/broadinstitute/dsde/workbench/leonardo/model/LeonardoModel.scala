@@ -140,7 +140,7 @@ object Cluster {
       clusterImages = clusterImages,
       scopes = clusterScopes)
   }
-
+  
   // TODO it's hacky to re-parse the Leo config in the model object.
   // It would be better to pass the clusterUrlBase config value to the getClusterUrl method as a parameter.
   // The reason we can't always do that is getClusterUrl is called by ClusterComponent, which is not aware of leonardo.conf.
