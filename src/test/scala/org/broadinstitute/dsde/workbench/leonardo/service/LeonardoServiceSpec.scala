@@ -557,7 +557,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy, Set(jupyterImage, rstudioImage), stagingBucketName)
     val replacements: Map[String, String] = clusterInit.toMap
 
-    // Each value in the replacement map will replace it's key in the file being processed
+    // Each value in the replacement map will replace its key in the file being processed
     val result = leo.templateResource(clusterResourcesConfig.initActionsScript, replacements)
 
     // Check that the values in the bash script file were correctly replaced
@@ -574,6 +574,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
           |"${testClusterRequestWithExtensionAndScript.userJupyterExtensionConfig.get.serverExtensions.values.mkString(" ")}"
           |"${testClusterRequestWithExtensionAndScript.userJupyterExtensionConfig.get.nbExtensions.values.mkString(" ")}"
           |"${testClusterRequestWithExtensionAndScript.userJupyterExtensionConfig.get.combinedExtensions.values.mkString(" ")}"
+          |"${GcsPath(stagingBucketName, GcsObjectName("userscript_output.txt")).toUri}"
           |""".stripMargin
 
     result shouldEqual expected
