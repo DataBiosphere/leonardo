@@ -38,29 +38,47 @@ class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils 
 
       val project = GoogleProject("automated-notebooks-canary")
 
-//          val cluster = Cluster(
-//            ClusterName("cluster-notebook"),
-//            UUID fromString("6aca69be-cf15-40d1-ac76-6c4207f52da8"),
-//            project,
-//            ServiceAccountInfo.apply(None, None),
-//            MachineConfig(None),
-//            new URL("https://leonardo.dsde-alpha.broadinstitute.org/notebooks/automated-notebooks-canary/cluster-notebook"),
-//            OperationName(""),
-//            ClusterStatus(0),
-//            None,
-//            WorkbenchEmail(""),
-//            Instant.ofEpochSecond(0),
-//            None,
-//            Map(),
-//            None,
-//            None,
-//            None,
-//            List(),
-//            Instant.ofEpochSecond(0),
-//            None,
-//            false,
-//            Set()
-//            )
+      val debug = true
+
+      if (debug) {
+        val cluster = Cluster(
+          ClusterName("cluster-notebook"),
+          UUID fromString ("6aca69be-cf15-40d1-ac76-6c4207f52da8"),
+          project,
+          ServiceAccountInfo.apply(None, None),
+          MachineConfig(None),
+          new URL("https://leonardo.dsde-alpha.broadinstitute.org/notebooks/automated-notebooks-canary/cluster-notebook"),
+          OperationName(""),
+          ClusterStatus(0),
+          None,
+          WorkbenchEmail(""),
+          Instant.ofEpochSecond(0),
+          None,
+          Map(),
+          None,
+          None,
+          None,
+          List(),
+          Instant.ofEpochSecond(0),
+          None,
+          false,
+          Set()
+        )
+
+        withWebDriver { implicit driver =>
+          //startCluster(project, cluster.clusterName, true)
+          withNewNotebook(cluster, Python3) { notebook =>
+            notebook.executeCell("""print("hi")""") shouldBe (Some("hi"))
+          }
+        }
+
+        withWebDriver { implicit driver =>
+          withLocalizeDelocalizeFiles(cluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
+            Notebook.localize(project, cluster.clusterName, localizeRequest, async = false)
+            verifyLocalizeDelocalize(cluster, localizeFileName, localizeFileContents, GcsPath(bucketName, GcsObjectName(delocalizeFileName)), delocalizeFileContents, localizeDataFileName, localizeDataContents)
+          }
+        }
+      }
 
       // create new cluster
       // localize
@@ -74,22 +92,21 @@ class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils 
       // withLocalizeDe
       // run once an hour
 
-
-          withNewCluster(project, monitorDelete = true, apiVersion = V2) { cluster =>
-            withWebDriver { implicit driver =>
-              withNewNotebook(cluster, Python3) { notebook =>
-                notebook.executeCell("""print("hi")""") shouldBe(Some("hi"))
-              }
+      else {
+        withNewCluster(project, monitorDelete = true, apiVersion = V2) { cluster =>
+          withWebDriver { implicit driver =>
+            withNewNotebook(cluster, Python3) { notebook =>
+              notebook.executeCell("""print("hi")""") shouldBe (Some("hi"))
             }
-      withWebDriver { implicit driver =>
-        withLocalizeDelocalizeFiles(cluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
-          Notebook.localize(project, cluster.clusterName, localizeRequest, async = false)
-          verifyLocalizeDelocalize(cluster, localizeFileName, localizeFileContents, GcsPath(bucketName, GcsObjectName(delocalizeFileName)), delocalizeFileContents, localizeDataFileName, localizeDataContents)
+          }
+          withWebDriver { implicit driver =>
+            withLocalizeDelocalizeFiles(cluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
+              Notebook.localize(project, cluster.clusterName, localizeRequest, async = false)
+              verifyLocalizeDelocalize(cluster, localizeFileName, localizeFileContents, GcsPath(bucketName, GcsObjectName(delocalizeFileName)), delocalizeFileContents, localizeDataFileName, localizeDataContents)
+            }
+          }
         }
       }
-          }
-                println("cluster has been deleted")
-      }
     }
-
   }
+}
