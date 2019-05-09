@@ -428,6 +428,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   //returns true if cluster was resized, otherwise returns false
   def maybeResizeCluster(existingCluster: Cluster, machineConfigOpt: Option[MachineConfig]): Future[Boolean] = {
+    //machineConfig.numberOfPreemtible undefined, and a 0 is passed in
+    //
     val updatedNumWorkersAndPreemptiblesOpt = machineConfigOpt.flatMap { machineConfig =>
       Ior.fromOptions(
         getUpdatedValueIfChanged(existingCluster.machineConfig.numberOfWorkers, machineConfig.numberOfWorkers),
