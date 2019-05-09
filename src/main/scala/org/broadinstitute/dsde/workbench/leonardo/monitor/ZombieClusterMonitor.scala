@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import java.time.Instant
+import java.time.Duration
 
 import akka.actor.{Actor, Props, Timers}
 import cats.implicits._
@@ -95,17 +96,16 @@ class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO
   }
 
   private def isClusterActiveInGoogle(cluster: Cluster): Future[Boolean] = {
-    // Clusters in Creating status may not yet exist in Google. Therefore treat all Creating clusters as active.
-    if (cluster.status == ClusterStatus.Creating) {
-      Future.successful(true)
-    } else {
-      // Check if status returned by GoogleDataprocDAO is an "active" status.
-      gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName) map { clusterStatus =>
-        ClusterStatus.activeStatuses contains clusterStatus
-      } recover { case e =>
-        logger.warn(s"Unable to check status of cluster ${cluster.projectNameString} for zombie cluster detection", e)
-        true
-      }
+
+    val secondsSinceClusterCreation: Long = Duration.between(cluster.auditInfo.createdDate, Instant.now()).getSeconds
+    //this or'd with the google cluster status gives creating clusters a grace period before they are marked as zombies
+    val isWithinHangTolerance =  cluster.status == ClusterStatus.Creating && secondsSinceClusterCreation > config.creationHangTolerance.toSeconds
+
+   gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName) map { clusterStatus =>
+      (ClusterStatus.activeStatuses contains clusterStatus) || isWithinHangTolerance
+    } recover { case e =>
+      logger.warn(s"Unable to check status of cluster ${cluster.projectNameString} for zombie cluster detection", e)
+      true
     }
   }
 

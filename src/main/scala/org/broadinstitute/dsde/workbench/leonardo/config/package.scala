@@ -109,7 +109,8 @@ package object config {
   implicit val zombieClusterConfig: ValueReader[ZombieClusterConfig] = ValueReader.relative { config =>
     ZombieClusterConfig(
       config.getBoolean("enableZombieClusterMonitor"),
-      toScalaDuration(config.getDuration("pollPeriod"))
+      toScalaDuration(config.getDuration("pollPeriod")),
+      toScalaDuration(config.getDuration("creationHangTolerance"))
     )
   }
 
