@@ -405,7 +405,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   private def getUpdatedValueIfChanged[A](existing: Option[A], updated: Option[A]): Option[A] = {
-    if (updated.isDefined && updated != existing) {
+    //If there is no existing config, we will not consider an update value of 0 as different from None.
+    //Doing otherwise will cause errors from google's APIs; such as passing numberOfPreemptibleWorkers = 0 from consumers when numWorkers = 0, which is invalid
+    if (updated.isDefined && updated != Option(existing.getOrElse(0))) {
       updated
     } else {
       None
