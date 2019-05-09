@@ -147,5 +147,15 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
         }
       }
     }
+
+    // https://github.com/DataBiosphere/leonardo/issues/891
+    "should be able to install python libraries with C bindings" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
+          notebookPage.executeCell("! pip install Cython").get should include ("Successfully installed Cython")
+          notebookPage.executeCell("! pip install POT").get should include ("Successfully installed POT")
+        }
+      }
+    }
   }
 }

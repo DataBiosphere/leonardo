@@ -29,7 +29,7 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
     super.afterAll()
   }
 
-  "ZombieClusterMonitor" should "should detect zombie clusters when the project is inactive" in isolatedDbTest {
+  "ZombieClusterMonitor" should "detect zombie clusters when the project is inactive" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
     // create 2 running clusters in the same project
@@ -60,7 +60,7 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
     }
   }
 
-  it should "should detect zombie clusters when the project's billing is inactive" in isolatedDbTest {
+  it should "detect zombie clusters when the project's billing is inactive" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
     // create 2 running clusters in the same project
@@ -91,7 +91,7 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
     }
   }
 
-  it should "should detect zombie clusters when the cluster is inactive" in isolatedDbTest {
+  it should "detect zombie clusters when the cluster is inactive" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
     // create 2 running clusters in the same project
@@ -131,7 +131,7 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
     }
   }
 
-  it should "should zombify creating cluster after hang period" in isolatedDbTest {
+  it should "zombify creating cluster after hang period" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
     // create a Running and a Creating cluster in the same project
@@ -169,7 +169,7 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
     }
   }
 
-  it should "should not zombify cluster before hang period" in isolatedDbTest {
+  it should "not zombify cluster before hang period" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
     val creatingTestCluster = testCluster2.copy(status = ClusterStatus.Creating)
@@ -194,7 +194,7 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
       }
   }
 
-  it should "should not zombify upon errors from Google" in isolatedDbTest {
+  it should "not zombify upon errors from Google" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
     // running cluster in "bad" project - should not get zombified

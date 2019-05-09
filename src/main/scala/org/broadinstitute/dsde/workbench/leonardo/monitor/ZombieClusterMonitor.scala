@@ -96,26 +96,16 @@ class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO
   }
 
   private def isClusterActiveInGoogle(cluster: Cluster): Future[Boolean] = {
-    // Clusters in Creating status may not yet exist in Google. Clusters in creating (that are not hanging, as defined by config.creationHangTolerance) are considered active
-    if (cluster.status == ClusterStatus.Creating) {
 
-        val secondsSinceClusterCreation: Long = Duration.between(cluster.auditInfo.createdDate, Instant.now()).getSeconds
+    val secondsSinceClusterCreation: Long = Duration.between(cluster.auditInfo.createdDate, Instant.now()).getSeconds
+    //this or'd with the google cluster status gives creating clusters a grace period before they are marked as zombies
+    val isWithinHangTolerance =  cluster.status == ClusterStatus.Creating && secondsSinceClusterCreation > config.creationHangTolerance.toSeconds
 
-        //determine if the creating cluster has been hanging past the tolerance threshold
-        if (secondsSinceClusterCreation > config.creationHangTolerance.toSeconds) {
-           Future.successful(false)
-        } else {
-          Future.successful(true)
-        }
-
-    } else {
-      // Check if status returned by GoogleDataprocDAO is an "active" status.
-      gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName) map { clusterStatus =>
-        ClusterStatus.activeStatuses contains clusterStatus
-      } recover { case e =>
-        logger.warn(s"Unable to check status of cluster ${cluster.projectNameString} for zombie cluster detection", e)
-        true
-      }
+   gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName) map { clusterStatus =>
+      (ClusterStatus.activeStatuses contains clusterStatus) || isWithinHangTolerance
+    } recover { case e =>
+      logger.warn(s"Unable to check status of cluster ${cluster.projectNameString} for zombie cluster detection", e)
+      true
     }
   }
 
