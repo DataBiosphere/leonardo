@@ -4,11 +4,23 @@
 #   docker build docker/jupyter/ -t broadinstitute/leonardo-jupyter:local
 set -e
 
-DOCKER_IMG=broadinstitute/leonardo-jupyter:local
+DOCKER_IMG=${DOCKER_IMG:-broadinstitute/leonardo-jupyter:local}
+ROOTLESS=${ROOTLESS}
 CONTAINER=jupyter-server
+
+check_rootless () {
+    if [ -n "${ROOTLESS}" ]; then
+        export DOCKER_HOST="unix:///run/user/$(id -u)/docker.sock"
+        if ! pidof dockerd; then
+            ./docker/jupyter/rootless-install.sh
+        fi
+    fi
+}
 
 start () {
     # check if jupyter is running
+    check_rootless
+
     RUNNING=$(docker inspect -f {{.State.Running}} $CONTAINER 2> /dev/null || echo "false")
 
     if $RUNNING; then
@@ -16,12 +28,15 @@ start () {
     fi
 
     echo "Starting Jupyter server container..."
-    docker create -it --rm --name ${CONTAINER} -p 8000:8000 -e GOOGLE_PROJECT=project -e CLUSTER_NAME=cluster "${DOCKER_IMG}"
+    docker pull "${DOCKER_IMG}"
+    docker create -it --rm --name ${CONTAINER} -p 8000:8000 -e GOOGLE_PROJECT=project -e CLUSTER_NAME=cluster \
+        ${ROOTLESS:+-v $(dirname $(which docker)):/opt/docker/bin:ro --privileged} "${DOCKER_IMG}"
 
     # Substitute templated vars in the notebook config.
     local tmp_config=$(mktemp notebook_config.XXXX)
     cp src/main/resources/jupyter/jupyter_notebook_config.py ${tmp_config}
-    sed -i '' 's/$(contentSecurityPolicy)/""/' ${tmp_config}
+    sed -i 's/localhost/0.0.0.0/' ${tmp_config}
+    sed -i 's/\$(contentSecurityPolicy)/""/' ${tmp_config}
     chmod a+rw ${tmp_config}
     docker cp ${tmp_config} ${CONTAINER}:/etc/jupyter/jupyter_notebook_config.py
     rm ${tmp_config}
@@ -37,6 +52,7 @@ start () {
 
 stop() {
     echo "Stopping docker $CONTAINER container..."
+    check_rootless
     docker stop $CONTAINER 2> /dev/null || echo "${CONTAINER} stop failed. Container already stopped."
     docker rm -v $CONTAINER 2> /dev/null || echo "${CONTAINER} rm -v failed. Container already destroyed."
 }

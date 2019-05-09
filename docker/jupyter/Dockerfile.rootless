@@ -1,0 +1,18 @@
+FROM us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:develop
+
+USER root
+
+RUN apt-get update -qq && \
+    apt-get install -qq --no-install-recommends \
+      gosu \
+      iptables \
+      kmod \
+    && \
+    groupadd docker && \
+    usermod -aG docker $USER
+
+ENV PATH=$PATH:/opt/docker/bin
+
+ADD scripts/rootless.sh /sbin/
+
+ENTRYPOINT ["/sbin/rootless.sh"]

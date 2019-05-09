@@ -44,7 +44,7 @@ Warning: may be incomplete! Consult the Dockerfile for the source of truth.
    * googleCloudStorageR
    * tidyverse
    * DataBiosphere/Ronaldo
-    
+
 ## Extensions
 * jupyter_localize_extension.py
    * Server-side extension to provide the `/localize` endpoint to localize/delocalize files between
@@ -54,3 +54,6 @@ Warning: may be incomplete! Consult the Dockerfile for the source of truth.
      which persists notebooks to a configurable GCS location upon save.
 * google_sign_in.js
    * Front-end extension which keeps the user signed into Google while using a notebook.
+* rootless mode
+   * Provides a way to run Docker inside a rootless Notebook container.
+     For details, see [rootless.md](rootless.md).
