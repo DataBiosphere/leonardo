@@ -30,7 +30,8 @@ start () {
     echo "Starting Jupyter server container..."
     docker pull "${DOCKER_IMG}"
     docker create -it --rm --name ${CONTAINER} -p 8000:8000 -e GOOGLE_PROJECT=project -e CLUSTER_NAME=cluster \
-        ${ROOTLESS:+-v $(dirname $(which docker)):/opt/docker/bin:ro --privileged} "${DOCKER_IMG}"
+        ${ROOTLESS:+-v $(dirname $(which docker)):/opt/docker/bin:ro -v /lib/modules:/lib/modules:ro --privileged} \
+        "${DOCKER_IMG}"
 
     # Substitute templated vars in the notebook config.
     local tmp_config=$(mktemp notebook_config.XXXX)
