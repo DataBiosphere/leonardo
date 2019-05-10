@@ -405,10 +405,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   private def getUpdatedValueIfChanged[A](existing: Option[A], updated: Option[A]): Option[A] = {
-    if (updated.isDefined && updated != existing) {
-      updated
-    } else {
-      None
+    (existing, updated) match {
+      case (None, Some(0)) => None //An updated value of 0 is considered the same as None to prevent google APIs from complaining
+      case (_, Some(x)) if updated != existing => Some(x)
+      case _ => None
     }
   }
 
@@ -428,6 +428,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   //returns true if cluster was resized, otherwise returns false
   def maybeResizeCluster(existingCluster: Cluster, machineConfigOpt: Option[MachineConfig]): Future[Boolean] = {
+    //machineConfig.numberOfPreemtible undefined, and a 0 is passed in
+    //
     val updatedNumWorkersAndPreemptiblesOpt = machineConfigOpt.flatMap { machineConfig =>
       Ior.fromOptions(
         getUpdatedValueIfChanged(existingCluster.machineConfig.numberOfWorkers, machineConfig.numberOfWorkers),
@@ -444,11 +446,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           // If the Google Compute default service account is being used, this is not necessary.
           _ <- addDataprocWorkerRoleToServiceAccount(existingCluster.googleProject, existingCluster.serviceAccountInfo.clusterServiceAccount)
 
-          // Resize the clsuter
+          // Resize the cluster
           _ <- gdDAO.resizeCluster(existingCluster.googleProject, existingCluster.clusterName, updatedNumWorkersAndPreemptibles.left, updatedNumWorkersAndPreemptibles.right) recoverWith {
             case gjre: GoogleJsonResponseException =>
               //typically we will revoke this role in the monitor after everything is complete, but if Google fails to resize the cluster we need to revoke it manually here
               removeDataprocWorkerRoleFromServiceAccount(existingCluster.googleProject, existingCluster.serviceAccountInfo.clusterServiceAccount)
+
+              logger.info("did not successfully update cluster")
               throw InvalidDataprocMachineConfigException(gjre.getMessage)
           }
 

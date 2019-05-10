@@ -177,8 +177,11 @@ object MachineConfigOps {
     def combine(defined: MachineConfig, default: MachineConfig): MachineConfig = {
       val minimumDiskSize = 10
       defined.numberOfWorkers match {
-        case None | Some(0) => MachineConfig(Some(0), defined.masterMachineType.orElse(default.masterMachineType),
-          checkNegativeValue(defined.masterDiskSize.orElse(default.masterDiskSize)).map(s => math.max(minimumDiskSize, s)))
+        case None | Some(0) => MachineConfig(
+          Some(0),
+          defined.masterMachineType.orElse(default.masterMachineType),
+          checkNegativeValue(defined.masterDiskSize.orElse(default.masterDiskSize)).map(s => math.max(minimumDiskSize, s)),
+        )
         case Some(numWorkers) if numWorkers == 1 => throw OneWorkerSpecifiedInClusterRequestException()
         case numWorkers => MachineConfig(checkNegativeValue(numWorkers),
           defined.masterMachineType.orElse(default.masterMachineType),
