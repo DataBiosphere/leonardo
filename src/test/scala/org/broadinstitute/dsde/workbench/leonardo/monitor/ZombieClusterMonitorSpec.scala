@@ -91,7 +91,7 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
     }
   }
 
-  it should "should detect zombie clusters when the cluster is inactive" in isolatedDbTest {
+  it should "detect zombie clusters when the cluster is inactive" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
     // create 2 running clusters in the same project
