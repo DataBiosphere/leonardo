@@ -305,7 +305,14 @@ if [[ "${ROLE}" == 'Master' ]]; then
         retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
         docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT} &> us_output.txt || EXIT_CODE=$? && true ;
         retry 3 gsutil cp us_output.txt ${JUPYTER_USER_SCRIPT_OUTPUT_URI}
-        $EXIT_CODE
+        if [ $EXIT_CODE -ne 0 ]; then
+            log "User script failed with exit code $EXIT_CODE. Output is saved to $JUPYTER_USER_SCRIPT_OUTPUT_URI."
+            gsutil setmeta -h "x-goog-meta-passed":"false" ${JUPYTER_USER_SCRIPT_OUTPUT_URI}
+            exit $EXIT_CODE
+        else
+            gsutil setmeta -h "x-goog-meta-passed":"true" ${JUPYTER_USER_SCRIPT_OUTPUT_URI}
+        fi
+
       fi
 
        retry 5 docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter-user:users ${JUPYTER_HOME}
