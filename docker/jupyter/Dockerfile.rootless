@@ -7,7 +7,7 @@ RUN apt-get update -qq && \
       gosu \
       iptables \
       kmod \
-    && \
+    && rm -rf /var/lib/apt/lists/* && \
     groupadd docker && \
     usermod -aG docker $USER
 
