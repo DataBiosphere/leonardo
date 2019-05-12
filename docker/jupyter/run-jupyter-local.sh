@@ -10,6 +10,18 @@ CONTAINER=jupyter-server
 
 check_rootless () {
     if [ -n "${ROOTLESS}" ]; then
+        export DOCKER_BIN="${HOME}/bin"
+        if ! command -v slirp4netns ; then
+            echo "Installing slirp4netns..."
+            tmp=$(mktemp -d)
+            (
+                cd $tmp
+                curl -sL https://github.com/rootless-containers/slirp4netns/archive/v0.3.0.tar.gz | tar xz --strip 1
+                ./autogen.sh && ./configure && make
+                cp slirp4netns "${DOCKER_BIN}/"
+                rm -rf $tmp
+            )
+        fi
         export DOCKER_HOST="unix:///run/user/$(id -u)/docker.sock"
         if ! pidof dockerd; then
             ./docker/jupyter/rootless-install.sh
@@ -30,7 +42,7 @@ start () {
     echo "Starting Jupyter server container..."
     docker pull "${DOCKER_IMG}"
     docker create -it --rm --name ${CONTAINER} -p 8000:8000 -e GOOGLE_PROJECT=project -e CLUSTER_NAME=cluster \
-        ${ROOTLESS:+-v $(dirname $(which docker)):/opt/docker/bin:ro -v /lib/modules:/lib/modules:ro -v docker:/var/lib/docker --privileged} \
+        ${ROOTLESS:+-v "${DOCKER_BIN}:/opt/docker/bin:ro" -v /lib/modules:/lib/modules:ro -v docker:/var/lib/docker --privileged} \
         "${DOCKER_IMG}"
 
     # Substitute templated vars in the notebook config.
