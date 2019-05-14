@@ -31,7 +31,7 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
 case class ClusterNotReadyException(googleProject: GoogleProject, clusterName: ClusterName)
-  extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} is not ready yet. It may be updating, try again later", StatusCodes.EnhanceYourCalm)
+  extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} is not ready yet. It may be updating, try again later", StatusCodes.UnprocessableEntity)
 
 case class ClusterPausedException(googleProject: GoogleProject, clusterName: ClusterName)
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} is stopped. Start your cluster before proceeding.", StatusCodes.UnprocessableEntity)
