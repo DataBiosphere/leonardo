@@ -13,6 +13,7 @@ object Dependencies {
   val workbenchUtilV    = "0.5-4c7acd5"
   val workbenchModelV   = "0.11-2bddd5b"
   val workbenchGoogleV  = "0.18-6942040"
+  val workbenchGoogleV2 = "0.2-ccd9f33-SNAP"
   val workbenchMetricsV = "0.3-c5b80d2"
 
   val samV =  "1.0-5cdffb4"
@@ -44,7 +45,7 @@ object Dependencies {
   val jacksonDatabind: ModuleID =    "com.fasterxml.jackson.core" % "jackson-databind"    % jacksonV excludeAll(excludeJacksonAnnotation)
   val jacksonCore: ModuleID =        "com.fasterxml.jackson.core" % "jackson-core"        % jacksonV
 
-  val logbackClassic: ModuleID = "ch.qos.logback"             %  "logback-classic" % "1.2.3"  
+  val logbackClassic: ModuleID = "ch.qos.logback"             %  "logback-classic" % "1.2.3"
   val ravenLogback: ModuleID =   "com.getsentry.raven"        %  "raven-logback"   % "8.0.3" excludeAll(excludeJacksonCore, excludeSlf4j, excludeLogbackCore, excludeLogbackClassic)
   val scalaLogging: ModuleID =   "com.typesafe.scala-logging" %% "scala-logging"   % scalaLoggingV
   val swaggerUi: ModuleID =      "org.webjars"                %  "swagger-ui"      % "2.2.5"
@@ -73,6 +74,7 @@ object Dependencies {
   val workbenchUtil: ModuleID       = "org.broadinstitute.dsde.workbench" %% "workbench-util"    % workbenchUtilV   excludeAll(excludeWorkbenchModel, excludeGoogleError)
   val workbenchModel: ModuleID      = "org.broadinstitute.dsde.workbench" %% "workbench-model"   % workbenchModelV  excludeAll(excludeGoogleError)
   val workbenchGoogle: ModuleID     = "org.broadinstitute.dsde.workbench" %% "workbench-google"  % workbenchGoogleV excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics, excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent)
+  val workbenchGoogle2: ModuleID     = "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogleV2 excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics, excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent)
   val workbenchGoogleTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-google"  % workbenchGoogleV % "test" classifier "tests" excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel)
   val workbenchMetrics: ModuleID    = "org.broadinstitute.dsde.workbench" %% "workbench-metrics" % workbenchMetricsV excludeAll(excludeWorkbenchUtil, excludeSlf4j)
 
@@ -123,6 +125,7 @@ object Dependencies {
     workbenchUtil,
     workbenchModel,
     workbenchGoogle,
+    workbenchGoogle2,
     workbenchGoogleTest,
     workbenchMetrics,
     sam,

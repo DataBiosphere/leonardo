@@ -8,14 +8,16 @@ import akka.actor.{Actor, Props}
 import akka.http.scaladsl.model.StatusCodes
 import akka.pattern.pipe
 import cats.data.OptionT
+import cats.effect.IO
 import cats.implicits._
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
-import org.broadinstitute.dsde.workbench.leonardo.config.{DataprocConfig, MonitorConfig, ClusterBucketConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterBucketConfig, DataprocConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -39,8 +41,8 @@ object ClusterMonitorActor {
   /**
     * Creates a Props object used for creating a {{{ClusterMonitorActor}}}.
     */
-  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, dbRef: DbReference, authProvider: LeoAuthProvider, jupyterProxyDAO: ToolDAO, rstudioProxyDAO: ToolDAO): Props =
-    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, authProvider, jupyterProxyDAO, rstudioProxyDAO))
+  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, google2StorageDAO: GoogleStorageService[IO], dbRef: DbReference, authProvider: LeoAuthProvider, jupyterProxyDAO: ToolDAO, rstudioProxyDAO: ToolDAO): Props =
+    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, google2StorageDAO, dbRef, authProvider, jupyterProxyDAO, rstudioProxyDAO))
 
   // ClusterMonitorActor messages:
 
@@ -71,6 +73,7 @@ class ClusterMonitorActor(val cluster: Cluster,
                           val googleComputeDAO: GoogleComputeDAO,
                           val googleIamDAO: GoogleIamDAO,
                           val googleStorageDAO: GoogleStorageDAO,
+                          val google2StorageDAO: GoogleStorageService[IO],
                           val dbRef: DbReference,
                           val authProvider: LeoAuthProvider,
                           val jupyterProxyDAO: ToolDAO,
@@ -176,30 +179,55 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ShutdownActor
     */
   private def handleFailedCluster(errorDetails: ClusterErrorDetails, instances: Set[Instance]): Future[ClusterMonitorMessage] = {
-    val deleteFuture = Future.sequence(Seq(
-      // Delete the cluster in Google
-      gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName),
-      // Remove the service account key in Google, if present.
-      // Only happens if the cluster was NOT created with the pet service account.
-      removeServiceAccountKey,
-      // create or update instances in the DB
-      persistInstances(instances),
-      // save cluster errors to the DB
-      dbRef.inTransaction { dataAccess =>
-        val clusterId = dataAccess.clusterQuery.getIdByUniqueKey(cluster)
-        clusterId flatMap {
-          case Some(a) => dataAccess.clusterErrorQuery.save(a, ClusterError(errorDetails.message.getOrElse("Error not available"), errorDetails.code, Instant.now))
-          case None => {
-            logger.warn(s"Could not find Id for Cluster ${cluster.projectNameString}  with google cluster ID ${cluster.dataprocInfo.googleId}.")
-            DBIOAction.successful(0)
+    logger.warn("handling failed cluster")
+    for {
+
+      _ <- cluster.dataprocInfo.stagingBucket.traverse{ stagingBucketName =>
+        for {
+          metadata <- google2StorageDAO.getObjectMetadata(stagingBucketName, GcsBlobName("userscript_output.txt"), None).compile.last.unsafeToFuture()
+          userscriptFailed = metadata match {
+            case Some(GetMetadataResponse.Metadata(_, metadataMap)) => metadataMap.exists(_ == "passed"->"false")
+            case _ => false
+          }
+          _ = logger.warn(userscriptFailed.toString)
+          _ <- if (userscriptFailed) {
+            dbRef.inTransaction { dataAccess =>
+              val clusterId = dataAccess.clusterQuery.getIdByUniqueKey(cluster)
+              clusterId flatMap {
+                case Some(a) => dataAccess.clusterErrorQuery.save(a, ClusterError("Userscript failed.", errorDetails.code, Instant.now))
+                case None => {
+                  logger.warn(s"Could not find ID for Cluster ${cluster.projectNameString}  with google cluster ID ${cluster.dataprocInfo.googleId}.")
+                  DBIOAction.successful(0)
+                }
+              }
+            }.void.handleError(e => logger.info("Error updating cluster to reflect that user script failed."))
+          } else Future.successful(())
+        } yield ()
+      }
+
+      _ <- Future.sequence(Seq(
+        // Delete the cluster in Google
+        gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName),
+        // Remove the service account key in Google, if present.
+        // Only happens if the cluster was NOT created with the pet service account.
+        removeServiceAccountKey,
+        // create or update instances in the DB
+        persistInstances(instances),
+        // save cluster errors to the DB
+        dbRef.inTransaction { dataAccess =>
+          val clusterId = dataAccess.clusterQuery.getIdByUniqueKey(cluster)
+          clusterId flatMap {
+            case Some(a) => dataAccess.clusterErrorQuery.save(a, ClusterError(errorDetails.message.getOrElse("Error not available"), errorDetails.code, Instant.now))
+            case None => {
+              logger.warn(s"Could not find Id for Cluster ${cluster.projectNameString}  with google cluster ID ${cluster.dataprocInfo.googleId}.")
+              DBIOAction.successful(0)
+            }
           }
         }
-      }
-    ))
+      ))
 
-    deleteFuture.flatMap { _ =>
       // Decide if we should try recreating the cluster
-      if (shouldRecreateCluster(errorDetails.code, errorDetails.message)) {
+      res <- if (shouldRecreateCluster(errorDetails.code, errorDetails.message)) {
         // Update the database record to Deleting, shutdown this actor, and register a callback message
         // to the supervisor telling it to recreate the cluster.
         logger.info(s"Cluster ${cluster.projectNameString} is in an error state with $errorDetails. Attempting to recreate...")
@@ -219,7 +247,7 @@ class ClusterMonitorActor(val cluster: Cluster,
           _ <-  removeIamRolesForUser
         } yield ShutdownActor(RemoveFromList(cluster))
       }
-    }
+    } yield res
   }
 
   private def shouldRecreateCluster(code: Int, message: Option[String]): Boolean = {
