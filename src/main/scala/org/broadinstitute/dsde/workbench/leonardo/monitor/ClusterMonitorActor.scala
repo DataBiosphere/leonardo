@@ -179,9 +179,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ShutdownActor
     */
   private def handleFailedCluster(errorDetails: ClusterErrorDetails, instances: Set[Instance]): Future[ClusterMonitorMessage] = {
-    logger.warn("handling failed cluster")
     for {
-
       _ <- cluster.dataprocInfo.stagingBucket.traverse{ stagingBucketName =>
         for {
           metadata <- google2StorageDAO.getObjectMetadata(stagingBucketName, GcsBlobName("userscript_output.txt"), None).compile.last.unsafeToFuture()
@@ -189,7 +187,6 @@ class ClusterMonitorActor(val cluster: Cluster,
             case Some(GetMetadataResponse.Metadata(_, metadataMap)) => metadataMap.exists(_ == "passed"->"false")
             case _ => false
           }
-          _ = logger.warn(userscriptFailed.toString)
           _ <- if (userscriptFailed) {
             dbRef.inTransaction { dataAccess =>
               val clusterId = dataAccess.clusterQuery.getIdByUniqueKey(cluster)
