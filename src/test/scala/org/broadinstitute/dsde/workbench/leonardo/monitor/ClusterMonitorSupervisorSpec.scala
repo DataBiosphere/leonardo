@@ -5,8 +5,10 @@ import java.time.temporal.ChronoUnit
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
+import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockJupyterDAO, MockRStudioDAO, ToolDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
@@ -42,6 +44,8 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
 
     val storageDAO = mock[GoogleStorageDAO]
 
+    val storage2DAO = mock[GoogleStorageService[IO]]
+
     val iamDAO = mock[GoogleIamDAO]
 
     val authProvider = mock[LeoAuthProvider]
@@ -58,7 +62,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
       bucketHelper, contentSecurityPolicy)
 
     val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO,
-      computeDAO, iamDAO, storageDAO, DbSingleton.ref, authProvider, autoFreezeConfig, MockJupyterDAO, MockRStudioDAO, leoService))
+      computeDAO, iamDAO, storageDAO, storage2DAO, DbSingleton.ref, authProvider, autoFreezeConfig, MockJupyterDAO, MockRStudioDAO, leoService))
 
     eventually(timeout(Span(30, Seconds))) {
       val c1 = dbFutureValue { _.clusterQuery.getClusterById(runningCluster.id) }
@@ -77,6 +81,8 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
     val computeDAO = mock[GoogleComputeDAO]
 
     val storageDAO = mock[GoogleStorageDAO]
+
+    val storage2DAO = mock[GoogleStorageService[IO]]
 
     val iamDAO = mock[GoogleIamDAO]
 
@@ -99,7 +105,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
       bucketHelper, contentSecurityPolicy)
 
     val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO,
-      computeDAO, iamDAO, storageDAO, DbSingleton.ref, authProvider, autoFreezeConfig, jupyterProxyDAO, MockRStudioDAO, leoService))
+      computeDAO, iamDAO, storageDAO, storage2DAO, DbSingleton.ref, authProvider, autoFreezeConfig, jupyterProxyDAO, MockRStudioDAO, leoService))
 
     eventually(timeout(Span(30, Seconds))) {
       val c1 = dbFutureValue { _.clusterQuery.getClusterById(runningCluster.id) }
