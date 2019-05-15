@@ -501,13 +501,13 @@ paths:
           description: Cluster not found
           schema:
             $ref: '#/definitions/ErrorReport'
-        '420':
-          description: Cluster not ready
-          schema:
-            $ref: '#/definitions/ErrorReport'
         '422':
           description: Cluster is stopped
           schema:
+            $ref: '#/definitions/ErrorReport'
+        423':
+          description: Cluster not ready for requests. It could be starting.
+            schema:
             $ref: '#/definitions/ErrorReport'
         '500':
           description: Internal Error
