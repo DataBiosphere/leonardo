@@ -507,7 +507,7 @@ paths:
             $ref: '#/definitions/ErrorReport'
         423':
           description: Cluster not ready for requests. It could be starting.
-            schema:
+          schema:
             $ref: '#/definitions/ErrorReport'
         '500':
           description: Internal Error
