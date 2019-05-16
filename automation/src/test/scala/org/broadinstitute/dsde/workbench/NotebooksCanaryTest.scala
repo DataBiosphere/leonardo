@@ -12,10 +12,8 @@ import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V2
 import org.broadinstitute.dsde.workbench.leonardo.{cluster, _}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
-import org.openqa.selenium.WebDriver
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 
-import scala.concurrent.duration.FiniteDuration
 
 class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils with ParallelTestExecution with
   BillingFixtures {
@@ -66,7 +64,7 @@ class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils 
         )
 
         withWebDriver { implicit driver =>
-          //startCluster(project, cluster.clusterName, true)
+//          startCluster(project, cluster.clusterName, true)
           withNewNotebook(cluster, Python3) { notebook =>
             notebook.executeCell("""print("hi")""") shouldBe (Some("hi"))
           }
@@ -79,11 +77,6 @@ class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils 
           }
         }
       }
-
-      // create new cluster
-      // localize
-      // open a notebook withNewNotebook
-
 
       // withNewCluster
       // with new notebook
