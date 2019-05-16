@@ -13,7 +13,7 @@ object Dependencies {
   val workbenchUtilV    = "0.5-4c7acd5"
   val workbenchModelV   = "0.11-2bddd5b"
   val workbenchGoogleV  = "0.18-6942040"
-  val workbenchGoogleV2 = "0.2-2149dba"
+  val workbenchGoogle2V = "0.2-2149dba"
   val workbenchMetricsV = "0.3-c5b80d2"
 
   val samV =  "1.0-5cdffb4"
@@ -74,8 +74,9 @@ object Dependencies {
   val workbenchUtil: ModuleID       = "org.broadinstitute.dsde.workbench" %% "workbench-util"    % workbenchUtilV   excludeAll(excludeWorkbenchModel, excludeGoogleError)
   val workbenchModel: ModuleID      = "org.broadinstitute.dsde.workbench" %% "workbench-model"   % workbenchModelV  excludeAll(excludeGoogleError)
   val workbenchGoogle: ModuleID     = "org.broadinstitute.dsde.workbench" %% "workbench-google"  % workbenchGoogleV excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics, excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent)
-  val workbenchGoogle2: ModuleID     = "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogleV2 excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics, excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent)
+  val workbenchGoogle2: ModuleID     = "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics, excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent)
   val workbenchGoogleTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-google"  % workbenchGoogleV % "test" classifier "tests" excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel)
+  val workbenchGoogle2Test: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-google2" % workbenchGoogle2V % "test" classifier "tests" //for generators
   val workbenchMetrics: ModuleID    = "org.broadinstitute.dsde.workbench" %% "workbench-metrics" % workbenchMetricsV excludeAll(excludeWorkbenchUtil, excludeSlf4j)
 
   val sam: ModuleID = "org.broadinstitute.dsde.sam-client" %% "sam" % samV
@@ -85,6 +86,7 @@ object Dependencies {
   val mysql: ModuleID =     "mysql"               % "mysql-connector-java"  % "8.0.11"
   val liquibase: ModuleID = "org.liquibase"       % "liquibase-core"        % "3.5.3"
   val sealerate: ModuleID = "ca.mrvisser" %% "sealerate" % "0.0.5"
+  val googleCloudNio: ModuleID = "com.google.cloud" % "google-cloud-nio" % "0.71.0-alpha" % "test"
 
   val rootDependencies = Seq(
     // proactively pull in latest versions of Jackson libs, instead of relying on the versions
@@ -127,9 +129,11 @@ object Dependencies {
     workbenchGoogle,
     workbenchGoogle2,
     workbenchGoogleTest,
+    workbenchGoogle2Test,
     workbenchMetrics,
     sam,
 
-    sealerate
+    sealerate,
+    googleCloudNio
   )
 }
