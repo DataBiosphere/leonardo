@@ -347,7 +347,7 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
 
               val result = notebookPage.executeCell(query, timeout = 5.minutes).get
               result should include("BigQuery error in query operation")
-              result.replace("&#010;", " ") should include("Invalid credential")
+              result.replace(System.lineSeparator(), " ") should include("Invalid credential")
             }
           }
         }
