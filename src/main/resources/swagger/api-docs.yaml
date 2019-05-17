@@ -202,7 +202,7 @@ paths:
           type: string
         - in: path
           name: clusterName
-          description: clusterName
+          description: clusterName. only lowercase alphanumeric characters, numbers and dashes are allowed in cluster name
           required: true
           type: string
         - in: body
@@ -501,12 +501,12 @@ paths:
           description: Cluster not found
           schema:
             $ref: '#/definitions/ErrorReport'
-        '420':
-          description: Cluster not ready
-          schema:
-            $ref: '#/definitions/ErrorReport'
         '422':
           description: Cluster is stopped
+          schema:
+            $ref: '#/definitions/ErrorReport'
+        423':
+          description: Cluster not ready for requests. It could be starting.
           schema:
             $ref: '#/definitions/ErrorReport'
         '500':

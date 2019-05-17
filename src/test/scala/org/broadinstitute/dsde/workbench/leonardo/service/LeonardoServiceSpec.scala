@@ -1230,6 +1230,26 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     instances.map(_.status).toSet shouldBe Set(InstanceStatus.Stopped)
   }
 
+  it should "update disk size for 0 workers when a consumer specifies numberOfPreemptibleWorkers" in isolatedDbTest {
+    val clusterRequest = testClusterRequest.copy(
+      machineConfig = Some(singleNodeDefaultMachineConfig),
+      stopAfterCreation = Some(true))
+
+    val clusterCreateResponse = leo.processClusterCreationRequest(userInfo, project, name1, clusterRequest).futureValue
+
+    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
+
+    val newDiskSize = 1000
+    leo.updateCluster(userInfo, project, name1, testClusterRequest.copy(machineConfig = Some(MachineConfig(masterDiskSize = Some(newDiskSize), numberOfPreemptibleWorkers = Some(0))))).futureValue
+
+
+    //check that status of cluster is still Running
+    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Running)
+
+    //check that the machine config has been updated
+    dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.machineConfig.masterDiskSize shouldBe Some(newDiskSize)
+  }
+
   type ClusterCreationInput = (UserInfo, GoogleProject, ClusterName, ClusterRequest)
   type ClusterCreation = ClusterCreationInput => Future[Cluster]
 

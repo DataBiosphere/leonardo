@@ -29,7 +29,7 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
     super.afterAll()
   }
 
-  "ZombieClusterMonitor" should "should detect zombie clusters when the project is inactive" in isolatedDbTest {
+  "ZombieClusterMonitor" should "detect zombie clusters when the project is inactive" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
     // create 2 running clusters in the same project
@@ -60,7 +60,7 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
     }
   }
 
-  it should "should detect zombie clusters when the project's billing is inactive" in isolatedDbTest {
+  it should "detect zombie clusters when the project's billing is inactive" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
     // create 2 running clusters in the same project
@@ -91,7 +91,7 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
     }
   }
 
-  it should "should detect zombie clusters when the cluster is inactive" in isolatedDbTest {
+  it should "detect zombie clusters when the cluster is inactive" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
     // create 2 running clusters in the same project
@@ -131,7 +131,7 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
     }
   }
 
-  it should "should not zombify Creating clusters" in isolatedDbTest {
+  it should "zombify creating cluster after hang period" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
     // create a Running and a Creating cluster in the same project
@@ -149,9 +149,10 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
       }
     }
 
+    val shouldHangAfter: Span = zombieClusterConfig.creationHangTolerance.plus(zombieClusterConfig.zombieCheckPeriod)
     // the Running cluster should be a zombie but the Creating one shouldn't
     withZombieActor(gdDAO = gdDAO) { _ =>
-      eventually(timeout(Span(10, Seconds))) {
+      eventually(timeout(shouldHangAfter)) {
         val c1 = dbFutureValue { _.clusterQuery.getClusterById(savedTestCluster1.id) }.get
         val c2 = dbFutureValue { _.clusterQuery.getClusterById(savedTestCluster2.id) }.get
 
@@ -160,13 +161,40 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
         c1.errors.head.errorCode shouldBe -1
         c1.errors.head.errorMessage should include ("An underlying resource was removed in Google")
 
-        c2.status shouldBe ClusterStatus.Creating
-        c2.errors shouldBe 'empty
+        c2.status shouldBe ClusterStatus.Error
+        c2.errors.size shouldBe 1
+        c2.errors.head.errorCode shouldBe -1
+        c2.errors.head.errorMessage should include ("An underlying resource was removed in Google")
       }
     }
   }
 
-  it should "should not zombify upon errors from Google" in isolatedDbTest {
+  it should "not zombify cluster before hang period" in isolatedDbTest {
+    import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
+
+    val creatingTestCluster = testCluster2.copy(status = ClusterStatus.Creating)
+    val savedTestCluster2 = creatingTestCluster.save()
+    savedTestCluster2 shouldEqual creatingTestCluster
+
+    val shouldNotHangBefore = zombieClusterConfig.creationHangTolerance.minus(zombieClusterConfig.zombieCheckPeriod)
+    // stub GoogleDataprocDAO to flag both clusters as deleted
+    val gdDAO = new MockGoogleDataprocDAO {
+      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] = {
+        Future.successful(ClusterStatus.Deleted)
+      }
+    }
+
+    // the Running cluster should be a zombie but the Creating one shouldn't
+    withZombieActor(gdDAO = gdDAO) { _ =>
+        Thread.sleep(shouldNotHangBefore.toSeconds)
+
+        val c1 = dbFutureValue { _.clusterQuery.getClusterById(savedTestCluster2.id) }.get
+        c1.status shouldBe ClusterStatus.Creating
+        c1.errors.size shouldBe 0
+      }
+  }
+
+  it should "not zombify upon errors from Google" in isolatedDbTest {
     import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.clusterEq
 
     // running cluster in "bad" project - should not get zombified

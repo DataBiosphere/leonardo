@@ -394,6 +394,20 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     }
   }
 
+  it should s"reject create a cluster if cluster name is invalid" in isolatedDbTest {
+    val invalidClusterName = "MyCluster"
+    val request = ClusterRequest(Map.empty, Some(jupyterExtensionUri), Some(jupyterUserScriptUri), stopAfterCreation = None, properties = Map.empty)
+
+    val pathPrefixes = List("/api/cluster/", "/api/cluster/v2/")
+    pathPrefixes.map{
+      prefix =>
+        Put(s"$prefix${googleProject.value}/$invalidClusterName", request.toJson) ~> timedLeoRoutes.route ~> check {
+          responseAs[String] shouldBe(s"invalid cluster name $invalidClusterName. Only lowercase alphanumeric characters, numbers and dashes are allowed in cluster name")
+          status shouldEqual StatusCodes.BadRequest
+        }
+    }
+  }
+
   private def serviceAccountLabels: Map[String, String] = {
     (
       clusterServiceAccount(googleProject).map { sa => Map("clusterServiceAccount" -> sa.value) } getOrElse Map.empty
