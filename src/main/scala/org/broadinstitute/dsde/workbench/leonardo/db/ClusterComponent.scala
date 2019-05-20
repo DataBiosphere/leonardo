@@ -35,6 +35,7 @@ case class ClusterRecord(id: Long,
                          stagingBucket: Option[String],
                          dateAccessed: Timestamp,
                          autopauseThreshold: Int,
+                         kernelFoundBusyDate: Option[Timestamp],
                          defaultClientId: Option[String],
                          stopAfterCreation: Boolean)
 
@@ -86,6 +87,7 @@ trait ClusterComponent extends LeoComponent {
     def stagingBucket = column[Option[String]]("stagingBucket", O.Length(254))
     def dateAccessed= column[Timestamp]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
     def autopauseThreshold = column[Int]("autopauseThreshold")
+    def kernelFoundBusyDate = column[Option[Timestamp]]("kernelFoundBusyDate", O.SqlType("TIMESTAMP(6)"))
     def defaultClientId = column[Option[String]]("defaultClientId", O.Length(1024))
     def stopAfterCreation = column[Boolean]("stopAfterCreation")
     def properties = column[Option[Json]]("properties")
@@ -100,25 +102,25 @@ trait ClusterComponent extends LeoComponent {
       id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
       createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
       (numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers),
-      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket, dateAccessed, autopauseThreshold, defaultClientId, stopAfterCreation, properties
+      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket, dateAccessed, autopauseThreshold, kernelFoundBusyDate, defaultClientId, stopAfterCreation, properties
     ).shaped <> ({
       case (id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
             createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket, machineConfig,
-            serviceAccountInfo, stagingBucket, dateAccessed, autopauseThreshold, defaultClientId, stopAfterCreation, properties) =>
+            serviceAccountInfo, stagingBucket, dateAccessed, autopauseThreshold, kernelFoundBusyDate, defaultClientId, stopAfterCreation, properties) =>
         ClusterRecord(
           id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
           createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
           MachineConfigRecord.tupled.apply(machineConfig),
           properties.map(x => x.as[Map[String, String]].fold(e => throw new RuntimeException(s"fail to read `properties` field due to ${e.getMessage}"), identity)).getOrElse(Map.empty), //in theory, throw should never happen
           ServiceAccountInfoRecord.tupled.apply(serviceAccountInfo),
-          stagingBucket, dateAccessed, autopauseThreshold, defaultClientId, stopAfterCreation)
+          stagingBucket, dateAccessed, autopauseThreshold, kernelFoundBusyDate, defaultClientId, stopAfterCreation)
     }, { c: ClusterRecord =>
       def mc(_mc: MachineConfigRecord) = MachineConfigRecord.unapply(_mc).get
       def sa(_sa: ServiceAccountInfoRecord) = ServiceAccountInfoRecord.unapply(_sa).get
       Some((
         c.id, c.clusterName, c.googleId, c.googleProject, c.operationName, c.status, c.hostIp, c.creator,
         c.createdDate, c.destroyedDate, c.jupyterExtensionUri, c.jupyterUserScriptUri, c.initBucket,
-        mc(c.machineConfig), sa(c.serviceAccountInfo), c.stagingBucket, c.dateAccessed, c.autopauseThreshold,
+        mc(c.machineConfig), sa(c.serviceAccountInfo), c.stagingBucket, c.dateAccessed, c.autopauseThreshold, c.kernelFoundBusyDate,
         c.defaultClientId, c.stopAfterCreation, if(c.properties.isEmpty) None else Some(c.properties.asJson)
       ))
     })
@@ -336,6 +338,21 @@ trait ClusterComponent extends LeoComponent {
       findByIdQuery(id).filter { _.dateAccessed < Timestamp.from(dateAccessed)}.map(_.dateAccessed).update(Timestamp.from(dateAccessed))
     }
 
+    def clearKernelFoundBusyDate(id: Long) = {
+      findByIdQuery(id).map(_.kernelFoundBusyDate).update(None)
+    }
+
+    def updateKernelFoundBusyDate(id: Long, kernelFoundBusyDate: Instant): DBIO[Int] = {
+      findByIdQuery(id).map(_.kernelFoundBusyDate).update(Option(Timestamp.from(kernelFoundBusyDate)))
+    }
+
+    def clearKernelFoundBusyDateByProjectAndName(googleProject: GoogleProject, clusterName: ClusterName): DBIO[Int] = {
+      clusterQuery.getActiveClusterByName(googleProject, clusterName) flatMap {
+        case Some(c) => clusterQuery.clearKernelFoundBusyDate(c.id)
+        case None => DBIO.successful(0)
+      }
+    }
+
     def updateDateAccessedByProjectAndName(googleProject: GoogleProject, clusterName: ClusterName, dateAccessed: Instant): DBIO[Int] = {
       clusterQuery.getActiveClusterByName(googleProject, clusterName) flatMap {
         case Some(c) => clusterQuery.updateDateAccessed(c.id, dateAccessed)
@@ -445,6 +462,7 @@ trait ClusterComponent extends LeoComponent {
         cluster.dataprocInfo.stagingBucket.map(_.value),
         Timestamp.from(cluster.auditInfo.dateAccessed),
         cluster.autopauseThreshold,
+        cluster.kernelFoundBusyDate.map(attemptedDate => Timestamp.from(attemptedDate)),
         cluster.defaultClientId,
         cluster.stopAfterCreation
       )
@@ -528,6 +546,7 @@ trait ClusterComponent extends LeoComponent {
         instanceRecords map ClusterComponent.this.instanceQuery.unmarshalInstance toSet,
         ClusterComponent.this.extensionQuery.unmarshallExtensions(userJupyterExtensionConfig),
         clusterRecord.autopauseThreshold,
+        clusterRecord.kernelFoundBusyDate.map(_.toInstant),
         clusterRecord.defaultClientId,
         clusterRecord.stopAfterCreation,
         clusterImageRecords map ClusterComponent.this.clusterImageQuery.unmarshalClusterImage toSet,

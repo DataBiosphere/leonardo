@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
+import java.time.{Duration, Instant}
+
 import cats.implicits._
 import akka.actor.SupervisorStrategy.Restart
 import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props, Timers}
@@ -176,9 +178,24 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
                   true
                 case Right(isIdle) =>
                   if (!isIdle) {
-                    logger.info(s"Not going to auto pause cluster ${cluster.googleProject}/${cluster.clusterName} due to active kernels")
-                  }
-                  isIdle
+                    val idleLimit = Duration.ofMinutes(3)
+                    val maxKernelActiveTimeExceeded = cluster.kernelFoundBusyDate match {
+                      case Some(attemptedDate) => Duration.between(attemptedDate, Instant.now()).compareTo(idleLimit) == 1
+                      case None => {
+                        dbRef.inTransaction { dataAccess =>
+                          dataAccess.clusterQuery.updateKernelFoundBusyDate(cluster.id, Instant.now())
+                        }
+                        false // max kernel active time has not been exceeded
+                      }
+                    }
+                    if (maxKernelActiveTimeExceeded){
+                      logger.info(s"Auto pausing ${cluster.googleProject}/${cluster.clusterName} due to exceeded max kernel active time")
+                    } else {
+                      logger.info(s"Not going to auto pause cluster ${cluster.googleProject}/${cluster.clusterName} due to active kernels")
+                    }
+                    maxKernelActiveTimeExceeded
+
+                  } else isIdle
               }
           }
       }
@@ -193,7 +210,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
 
   private def createClusterMonitors(): Unit = {
     val monitoredClusterIds = monitoredClusters.map(_.id)
-    
+
     dbRef
       .inTransaction { _.clusterQuery.listMonitoredClusterOnly() }
       .onComplete {

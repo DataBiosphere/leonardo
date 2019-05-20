@@ -96,6 +96,7 @@ final case class Cluster(id: Long = 0, // DB AutoInc
                    instances: Set[Instance],
                    userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
                    autopauseThreshold: Int,
+                   kernelFoundBusyDate: Option[Instant],
                    defaultClientId: Option[String],
                    stopAfterCreation: Boolean,
                    clusterImages: Set[ClusterImage],
@@ -135,12 +136,13 @@ object Cluster {
       instances = Set.empty,
       userJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig,
       autopauseThreshold = autopauseThreshold,
+      kernelFoundBusyDate = None,
       defaultClientId = clusterRequest.defaultClientId,
       stopAfterCreation = clusterRequest.stopAfterCreation.getOrElse(false),
       clusterImages = clusterImages,
       scopes = clusterScopes)
   }
-  
+
   // TODO it's hacky to re-parse the Leo config in the model object.
   // It would be better to pass the clusterUrlBase config value to the getClusterUrl method as a parameter.
   // The reason we can't always do that is getClusterUrl is called by ClusterComponent, which is not aware of leonardo.conf.
@@ -458,6 +460,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
             fields.getOrElse("instances", JsNull).convertTo[Set[Instance]],
             fields.getOrElse("userJupyterExtensionConfig", JsNull).convertTo[Option[UserJupyterExtensionConfig]],
             fields.getOrElse("autopauseThreshold", JsNull).convertTo[Int],
+            fields.getOrElse("kernelFoundBusyDate", JsNull).convertTo[Option[Instant]],
             fields.getOrElse("defaultClientId", JsNull).convertTo[Option[String]],
             fields.getOrElse("stopAfterCreation", JsNull).convertTo[Boolean],
             fields.getOrElse("clusterImages", JsNull).convertTo[Set[ClusterImage]],
@@ -490,6 +493,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
         "userJupyterExtensionConfig" -> obj.userJupyterExtensionConfig.toJson,
         "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
         "autopauseThreshold" -> obj.autopauseThreshold.toJson,
+        "kernelFoundBusyDate" -> obj.kernelFoundBusyDate.toJson,
         "defaultClientId" -> obj.defaultClientId.toJson,
         "stopAfterCreation" -> obj.stopAfterCreation.toJson,
         "clusterImages" -> obj.clusterImages.toJson,
