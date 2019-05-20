@@ -1,6 +1,11 @@
 // Adapted from the All of Us Researcher Workbench "Playground Mode"
 // https://github.com/all-of-us/workbench/blob/master/api/cluster-resources/playground-extension.js
 
+// to deploy on a Leonardo cluster:
+// 1. copy to a public GCS location
+// 2. issue a PUT request to <leonardo>/api/cluster/<billing project>/<cluster name>
+//  with a name:path key value pair set in userJupyterExtensionConfig.nbExtensions
+
 // In "Safe Mode", changes are not saved back to GCS. This extension makes
 // minor UI tweaks to differentiate this mode from normal Jupyter usage, and
 // also removes/hides controls relating to persistence. Technically
@@ -12,7 +17,7 @@ define([
     'base/js/namespace'
 ], (Jupyter) => {
   const load = () => {
-    // TODO always-on, for now
+    // TODO query welder for when to enable.  always-on, for now
     const enabled = true;
     if (!enabled) {
       return;
@@ -20,30 +25,30 @@ define([
 
     // Disable UI controls/notifications relating to saving.
 
-    // "notbook" is an intentional typo to match Jupyter UI HTML.
+    // "notbook" is an intentional typo to match the Jupyter UI HTML.
     $('#save-notbook').remove();
     $('#save_notebook_as').remove();
     $('#save_checkpoint').remove();
 
-    // TODO: not yet working as intended
-    $('#menubar-container')
+    $('#notification_area')
         .append(
             '<style>' +
-              '.autosave_status { display: none; }' +
+              '#notification_notebook { display: none; } ' +
               '#safe-mode { background-color: #FFFFB2; }' +
               '</style>');
 
     // Add our own persistent "Safe Mode" notification next to the other
     // notifications, e.g. kernel status.
 
-    // TODO: convert to tooltip
+    // TODO: convert to tooltip with this text:
+    // Safe Mode allows you to explore, change, and run the code,
+    // but your edits will not be saved.
+    // To save your work, choose Make a Copy from the File menu to
+    // make your own version.
 
     $('#notification_area').prepend(
         '<div id="safe-mode" class="notification_widget btn btn-xs navbar-btn">' +
-          '<span>Safe Mode allows you to explore, change, and run the code, ' +
-          'but your edits will not be saved.</span>' +
-          '<span>To save your work, choose Make a Copy from the File menu to ' +
-          'make your own version.</span>' +
+          '<span>Safe Mode - your edits will not be saved.</span>' +
           '</div>');
   };
 
