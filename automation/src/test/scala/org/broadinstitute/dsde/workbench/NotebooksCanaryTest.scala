@@ -3,16 +3,17 @@ package org.broadinstitute.dsde.workbench
 import java.time.Instant
 import java.util.UUID
 import java.net.URL
-
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.{Notebook, NotebookPage, NotebookTestUtils, Python2, Python3}
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.{Notebook, NotebookTestUtils, Python2, Python3}
 import org.scalatest.Matchers
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V2
-import org.broadinstitute.dsde.workbench.leonardo.{cluster, _}
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
 import org.scalatest.{FreeSpec, ParallelTestExecution}
+import org.broadinstitute.dsde.workbench.leonardo.{cluster, _}
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+
+//import sys.process._
 
 
 class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils with ParallelTestExecution with
@@ -36,70 +37,30 @@ class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils 
 
       val project = GoogleProject("automated-notebooks-canary")
 
-      val debug = true
-
-      if (debug) {
-        val cluster = Cluster(
-          ClusterName("cluster-notebook"),
-          UUID fromString ("6aca69be-cf15-40d1-ac76-6c4207f52da8"),
-          project,
-          ServiceAccountInfo.apply(None, None),
-          MachineConfig(None),
-          new URL("https://leonardo.dsde-alpha.broadinstitute.org/notebooks/automated-notebooks-canary/cluster-notebook"),
-          OperationName(""),
-          ClusterStatus(0),
-          None,
-          WorkbenchEmail(""),
-          Instant.ofEpochSecond(0),
-          None,
-          Map(),
-          None,
-          None,
-          None,
-          List(),
-          Instant.ofEpochSecond(0),
-          None,
-          false,
-          Set()
-        )
-
+      withNewCluster(project, monitorDelete = true, apiVersion = V2) { cluster =>
+//        val clusterStatus = cluster.status
         withWebDriver { implicit driver =>
-//          startCluster(project, cluster.clusterName, true)
           withNewNotebook(cluster, Python3) { notebook =>
-            notebook.executeCell("""print("hi")""") shouldBe (Some("hi"))
+            print(notebook.executeCell("""print("hi")""") shouldBe (Some("hi")))
+//            clusterStatus
           }
         }
-
         withWebDriver { implicit driver =>
           withLocalizeDelocalizeFiles(cluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
             Notebook.localize(project, cluster.clusterName, localizeRequest, async = false)
             verifyLocalizeDelocalize(cluster, localizeFileName, localizeFileContents, GcsPath(bucketName, GcsObjectName(delocalizeFileName)), delocalizeFileContents, localizeDataFileName, localizeDataContents)
           }
         }
-      }
-
-      // withNewCluster
-      // with new notebook
-      //notebook.execute("hi")
-      // verify execution
-      // withLocalizeDe
-      // run once an hour
-
-      else {
-        withNewCluster(project, monitorDelete = true, apiVersion = V2) { cluster =>
-          withWebDriver { implicit driver =>
-            withNewNotebook(cluster, Python3) { notebook =>
-              notebook.executeCell("""print("hi")""") shouldBe (Some("hi"))
-            }
-          }
-          withWebDriver { implicit driver =>
-            withLocalizeDelocalizeFiles(cluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
-              Notebook.localize(project, cluster.clusterName, localizeRequest, async = false)
-              verifyLocalizeDelocalize(cluster, localizeFileName, localizeFileContents, GcsPath(bucketName, GcsObjectName(delocalizeFileName)), delocalizeFileContents, localizeDataFileName, localizeDataContents)
-            }
-          }
-        }
+        println("end of test")
       }
     }
   }
 }
+
+//  val res = true
+//
+//    if (res) {
+//      (./notebooks-canary-test-script) !!
+//    }
+
+
