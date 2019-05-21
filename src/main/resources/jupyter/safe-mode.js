@@ -24,18 +24,63 @@ define([
       return;
     }
 
-    // Disable UI controls/notifications relating to saving.
 
-    // "notbook" is an intentional typo to match the Jupyter UI HTML.
+    //
+    // Disable UI controls
+    //
+
+
+    // Save Notebook button
+    //"notbook" is an intentional typo to match the Jupyter UI HTML.
     $('#save-notbook').remove();
+
+    // New Notebook menu tree
+    $('#new_notebook').remove();
+
+    // Open... menu item
+    $('#open_notebook').remove();
+
+    // Make a Copy... menu item
+    $('#copy_notebook').remove();
+
+    // Save as... menu item
     $('#save_notebook_as').remove();
+
+    // Save and Checkpoint menu item
     $('#save_checkpoint').remove();
+
+    // Revert to Checkpoint menu tree
+    $('#restore_checkpoint').remove();
+
+    // A little cleanup: remove the first two dividers in the file menu
+    // which are no longer dividing anything
+    $('#file_menu')
+        .append(
+            '<style>' +
+              // TODO this does not remove the first divider.
+              // instead it removes the whole menu.  Why?
+              //'li:nth-of-type(1) { display: none; } ' +
+              'li:nth-of-type(3) { display: none; } ' +
+              '</style>');
+
+    //
+    // Disable UI notifications
+    //
+
+    $('#save_widget')
+        .append(
+            '<style>' +
+              // e.g. Last Checkpoint: 3 minutes ago
+              '.checkpoint_status { display: none; } ' +
+              // e.g. (autosaved) or (unsaved changes)
+              '.autosave_status { display: none; }' +
+              '</style>');
 
     $('#notification_area')
         .append(
             '<style>' +
+              // e.g. Notebook Saved
               '#notification_notebook span { display: none; } ' +
-              '#safe-mode { background-color: #FFFFB2; }' +
               '</style>');
 
     // Add our own persistent "Safe Mode" notification next to the other
@@ -48,9 +93,10 @@ define([
     // make your own version.
 
     $('#notification_area').prepend(
-        '<div id="safe-mode" class="notification_widget btn btn-xs navbar-btn">' +
-          '<span>Safe Mode - your edits will not be saved.</span>' +
-          '</div>');
+        '<div id="safe-mode" style="background-color: #FFFFB2;" ' +
+          'class="notification_widget btn btn-xs navbar-btn">' +
+          '<span>Safe Mode - your edits will not be saved.' +
+            '</span></div>');
   };
 
   return {
