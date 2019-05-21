@@ -34,7 +34,7 @@ define([
     $('#notification_area')
         .append(
             '<style>' +
-              '#notification_notebook { display: none; } ' +
+              '#notification_notebook span { display: none; } ' +
               '#safe-mode { background-color: #FFFFB2; }' +
               '</style>');
 
