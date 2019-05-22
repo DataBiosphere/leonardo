@@ -203,7 +203,7 @@ class ClusterMonitorActor(val cluster: Cluster,
               case _ => false
             }
             _ <- if (userscriptFailed) {
-              saveErrorInDatabase(s"Userscript failed. See output in gs://${cluster.dataprocInfo.stagingBucket}/userscript_output.txt", errorDetails.code)
+              saveErrorInDatabase(s"Userscript failed. See output in gs://${stagingBucketName}/userscript_output.txt", errorDetails.code)
             } else {
               // save dataproc cluster errors to the DB
               saveErrorInDatabase(errorDetails.message.getOrElse("Error not available"), errorDetails.code)
