@@ -52,20 +52,16 @@ define([
     // Revert to Checkpoint menu tree
     $('#restore_checkpoint').remove();
 
-    // A little cleanup: remove the first two dividers in the file menu
+    // A little cleanup: remove two dividers in the file menu
     // which are no longer dividing anything
-    $('#file_menu')
-        .append(
-            '<style>' +
-              // TODO this does not remove the first divider.
-              // instead it removes the whole menu.  Why?
-              //'li:nth-of-type(1) { display: none; } ' +
-              'li:nth-of-type(3) { display: none; } ' +
-              '</style>');
+    $("#file_menu .divider")[0].remove();
+    $("#file_menu .divider")[0].remove();
+
 
     //
     // Disable UI notifications
     //
+
 
     $('#save_widget')
         .append(
