@@ -346,7 +346,8 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
               val query = """! bq query --disable_ssl_validation --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
 
               val result = notebookPage.executeCell(query, timeout = 5.minutes).get
-              result should include("Invalid credential")
+              result should include("BigQuery error in query operation")
+              result.replace(System.lineSeparator(), " ") should include("Invalid credential")
             }
           }
         }
