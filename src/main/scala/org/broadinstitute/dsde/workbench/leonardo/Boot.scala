@@ -44,7 +44,6 @@ object Boot extends IOApp with LazyLogging {
     val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leoExecutionMode")
     val clusterBucketConfig = config.as[ClusterBucketConfig]("clusterBucket")
 
-
     // we need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")
     implicit val materializer = ActorMaterializer()
