@@ -13,7 +13,7 @@ class ClusterMonitoringSpec extends FreeSpec with LeonardoTestUtils with Paralle
         logger.info(s"${project.value}: should save cluster error if the userscript fails")
 
         withNewErroredCluster(project) { cluster =>
-          cluster.errors.exists(_.errorMessage contains "Userscript failed.") should be true
+          cluster.errors.exists(_.errorMessage contains "Userscript failed.") shouldBe true
         }
       }
     }
