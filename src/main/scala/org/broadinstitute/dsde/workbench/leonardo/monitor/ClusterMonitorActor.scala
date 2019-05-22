@@ -368,7 +368,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     }.void
   }
 
-  private def persistClusterError(errorMessage: String, errorCode: Int) = {
+  private def persistClusterError(errorMessage: String, errorCode: Int): Future[Unit] = {
     dbRef.inTransaction { dataAccess =>
       val clusterId = dataAccess.clusterQuery.getIdByUniqueKey(cluster)
       Future(logger.info(s"${cluster.clusterName}: clusterId in else is ${clusterId}"))
