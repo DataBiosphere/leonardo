@@ -171,6 +171,20 @@ class ClusterMonitorActor(val cluster: Cluster,
     }
   }
 
+  private def saveErrorInDatabase(errorMessage: String, errorCode: Int) = {
+    dbRef.inTransaction { dataAccess =>
+      val clusterId = dataAccess.clusterQuery.getIdByUniqueKey(cluster)
+      Future(logger.info(s"${cluster.clusterName}: clusterId in else is ${clusterId}"))
+      clusterId flatMap {
+        case Some(a) => dataAccess.clusterErrorQuery.save(a, ClusterError(errorMessage, errorCode, Instant.now))
+        case None => {
+          logger.warn(s"Could not find Id for Cluster ${cluster.projectNameString}  with google cluster ID ${cluster.dataprocInfo.googleId}.")
+          DBIOAction.successful(0)
+        }
+      }
+    }
+  }
+
   /**
     * Handles a dataproc cluster which has failed. We delete the cluster in Google, and then:
     * - if this is a recoverable error, recreate the cluster
@@ -180,26 +194,28 @@ class ClusterMonitorActor(val cluster: Cluster,
     */
   private def handleFailedCluster(errorDetails: ClusterErrorDetails, instances: Set[Instance]): Future[ClusterMonitorMessage] = {
     for {
-      _ <- cluster.dataprocInfo.stagingBucket.traverse{ stagingBucketName =>
-        for {
-          metadata <- google2StorageDAO.getObjectMetadata(stagingBucketName, GcsBlobName("userscript_output.txt"), None).compile.last.unsafeToFuture()
-          userscriptFailed = metadata match {
-            case Some(GetMetadataResponse.Metadata(_, metadataMap)) => metadataMap.exists(_ == "passed"->"false")
-            case _ => false
-          }
-          _ <- if (userscriptFailed) {
-            dbRef.inTransaction { dataAccess =>
-              val clusterId = dataAccess.clusterQuery.getIdByUniqueKey(cluster)
-              clusterId flatMap {
-                case Some(a) => dataAccess.clusterErrorQuery.save(a, ClusterError("Userscript failed.", errorDetails.code, Instant.now))
-                case None => {
-                  logger.warn(s"Could not find ID for Cluster ${cluster.projectNameString}  with google cluster ID ${cluster.dataprocInfo.googleId}.")
-                  DBIOAction.successful(0)
-                }
-              }
-            }.void.handleError(e => logger.info("Error updating cluster to reflect that user script failed."))
-          } else Future.successful(())
-        } yield ()
+      _ <- cluster.dataprocInfo.stagingBucket match {
+        case Some(stagingBucketName) => {
+          for {
+            metadata <- google2StorageDAO.getObjectMetadata(stagingBucketName, GcsBlobName("userscript_output.txt"), None).compile.last.unsafeToFuture()
+            userscriptFailed = metadata match {
+              case Some(GetMetadataResponse.Metadata(_, metadataMap)) => metadataMap.exists(_ == "passed"->"false")
+              case _ => false
+            }
+            _ <- if (userscriptFailed) {
+              saveErrorInDatabase(s"Userscript failed. See output in gs://${cluster.dataprocInfo.stagingBucket}/userscript_output.txt", errorDetails.code)
+            } else {
+              // save dataproc cluster errors to the DB
+              saveErrorInDatabase(errorDetails.message.getOrElse("Error not available"), errorDetails.code)
+                .void.handleError(e => logger.info(s"Error persisting cluster error to database: ${e}"))
+            }
+          } yield ()
+        }
+        case None => {
+          // in the case of an internal error, the staging bucket field is usually None
+          saveErrorInDatabase(errorDetails.message.getOrElse("Error not available"), errorDetails.code)
+            .void.handleError(e => logger.info(s"Error persisting cluster error to database: ${e}"))
+        }
       }
 
       _ <- Future.sequence(Seq(
@@ -210,17 +226,6 @@ class ClusterMonitorActor(val cluster: Cluster,
         removeServiceAccountKey,
         // create or update instances in the DB
         persistInstances(instances),
-        // save cluster errors to the DB
-        dbRef.inTransaction { dataAccess =>
-          val clusterId = dataAccess.clusterQuery.getIdByUniqueKey(cluster)
-          clusterId flatMap {
-            case Some(a) => dataAccess.clusterErrorQuery.save(a, ClusterError(errorDetails.message.getOrElse("Error not available"), errorDetails.code, Instant.now))
-            case None => {
-              logger.warn(s"Could not find Id for Cluster ${cluster.projectNameString}  with google cluster ID ${cluster.dataprocInfo.googleId}.")
-              DBIOAction.successful(0)
-            }
-          }
-        }
       ))
 
       // Decide if we should try recreating the cluster
