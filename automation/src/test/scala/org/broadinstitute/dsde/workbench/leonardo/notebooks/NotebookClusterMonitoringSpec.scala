@@ -346,7 +346,7 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
               val query = """! bq query --disable_ssl_validation --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
 
               val result = notebookPage.executeCell(query, timeout = 5.minutes).get
-              result should include("BigQuery error in query operation: Invalid credential")
+              result should include("Invalid credential")
             }
           }
         }
@@ -357,8 +357,8 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
       withProject { project => implicit token =>
         withNewGoogleBucket(project) { bucketName =>
           val enablePdfDownloadScript = ResourceFile("bucket-tests/enable_download_as_pdf.sh")
-          withResourceFileInBucket(project, enablePdfDownloadScript, "text/plain") { bucketPath =>            val clusterName = ClusterName("user-script-cluster" + makeRandomId())
-
+          withResourceFileInBucket(project, enablePdfDownloadScript, "text/plain") { bucketPath =>
+            val clusterName = ClusterName("user-script-cluster" + makeRandomId())
             withNewCluster(project, clusterName, ClusterRequest(Map(), None, Option(bucketPath.toUri)), apiVersion = V2) { cluster =>
               val download = createDownloadDirectory()
               withWebDriver(download) { implicit driver =>

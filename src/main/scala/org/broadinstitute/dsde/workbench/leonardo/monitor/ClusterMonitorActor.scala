@@ -171,20 +171,6 @@ class ClusterMonitorActor(val cluster: Cluster,
     }
   }
 
-  private def saveErrorInDatabase(errorMessage: String, errorCode: Int) = {
-    dbRef.inTransaction { dataAccess =>
-      val clusterId = dataAccess.clusterQuery.getIdByUniqueKey(cluster)
-      Future(logger.info(s"${cluster.clusterName}: clusterId in else is ${clusterId}"))
-      clusterId flatMap {
-        case Some(a) => dataAccess.clusterErrorQuery.save(a, ClusterError(errorMessage, errorCode, Instant.now))
-        case None => {
-          logger.warn(s"Could not find Id for Cluster ${cluster.projectNameString}  with google cluster ID ${cluster.dataprocInfo.googleId}.")
-          DBIOAction.successful(0)
-        }
-      }
-    }
-  }
-
   /**
     * Handles a dataproc cluster which has failed. We delete the cluster in Google, and then:
     * - if this is a recoverable error, recreate the cluster
@@ -203,18 +189,16 @@ class ClusterMonitorActor(val cluster: Cluster,
               case _ => false
             }
             _ <- if (userscriptFailed) {
-              saveErrorInDatabase(s"Userscript failed. See output in gs://${stagingBucketName}/userscript_output.txt", errorDetails.code)
+              persistClusterError(s"Userscript failed. See output in gs://${stagingBucketName}/userscript_output.txt", errorDetails.code)
             } else {
               // save dataproc cluster errors to the DB
-              saveErrorInDatabase(errorDetails.message.getOrElse("Error not available"), errorDetails.code)
-                .void.handleError(e => logger.info(s"Error persisting cluster error to database: ${e}"))
+              persistClusterError(errorDetails.message.getOrElse("Error not available"), errorDetails.code)
             }
           } yield ()
         }
         case None => {
           // in the case of an internal error, the staging bucket field is usually None
-          saveErrorInDatabase(errorDetails.message.getOrElse("Error not available"), errorDetails.code)
-            .void.handleError(e => logger.info(s"Error persisting cluster error to database: ${e}"))
+          persistClusterError(errorDetails.message.getOrElse("Error not available"), errorDetails.code)
         }
       }
 
@@ -382,6 +366,20 @@ class ClusterMonitorActor(val cluster: Cluster,
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.mergeInstances(cluster.copy(instances = instances))
     }.void
+  }
+
+  private def persistClusterError(errorMessage: String, errorCode: Int) = {
+    dbRef.inTransaction { dataAccess =>
+      val clusterId = dataAccess.clusterQuery.getIdByUniqueKey(cluster)
+      Future(logger.info(s"${cluster.clusterName}: clusterId in else is ${clusterId}"))
+      clusterId flatMap {
+        case Some(a) => dataAccess.clusterErrorQuery.save(a, ClusterError(errorMessage, errorCode, Instant.now))
+        case None => {
+          logger.warn(s"Could not find Id for Cluster ${cluster.projectNameString}  with google cluster ID ${cluster.dataprocInfo.googleId}.")
+          DBIOAction.successful(0)
+        }
+      }
+    }.void.handleError(e => logger.info(s"Error persisting cluster error with message '${errorMessage}' to database: ${e}"))
   }
 
   private def getClusterInstances: Future[Set[Instance]] = {
