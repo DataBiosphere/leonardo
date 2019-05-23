@@ -232,6 +232,7 @@ case class ClusterInitValues(googleProject: String,
                              proxyServerName: String,
                              jupyterExtensionUri: String,
                              jupyterUserScriptUri: String,
+                             jupyterUserScriptOutputUri: String,
                              jupyterServiceAccountCredentials: String,
                              googleSignInJsUri: String,
                              jupyterGooglePluginUri: String,
@@ -253,7 +254,7 @@ object ClusterInitValues {
   def apply(googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, dataprocConfig: DataprocConfig,
             clusterFilesConfig: ClusterFilesConfig, clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig,
             serviceAccountKey: Option[ServiceAccountKey], userEmailLoginHint: WorkbenchEmail, contentSecurityPolicy: String,
-            clusterImages: Set[ClusterImage]): ClusterInitValues =
+            clusterImages: Set[ClusterImage], stagingBucket: GcsBucketName): ClusterInitValues =
     ClusterInitValues(
       googleProject.value,
       clusterName.value,
@@ -272,6 +273,7 @@ object ClusterInitValues {
       proxyConfig.proxyServerName,
       clusterRequest.jupyterExtensionUri.map(_.toUri).getOrElse(""),
       clusterRequest.jupyterUserScriptUri.map(_.toUri).getOrElse(""),
+      GcsPath(stagingBucket, GcsObjectName("userscript_output.txt")).toUri,
       serviceAccountKey.map(_ => GcsPath(initBucketName, GcsObjectName(serviceAccountCredentialsFilename)).toUri).getOrElse(""),
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.googleSignInJs.value)).toUri,
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterGooglePlugin.value)).toUri,

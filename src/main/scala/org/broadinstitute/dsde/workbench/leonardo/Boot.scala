@@ -4,11 +4,15 @@ import cats.implicits._
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
+import cats.effect.{ExitCode, IO, IOApp, Resource}
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.LazyLogging
+import io.chrisdavenport.log4cats.Logger
+import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Pem, Token}
 import org.broadinstitute.dsde.workbench.google.{GoogleStorageDAO, HttpGoogleIamDAO, HttpGoogleProjectDAO, HttpGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.api.{LeoRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.auth.{LeoAuthProviderHelper, ServiceAccountProviderHelper}
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, ClusterDefaultsConfig, ClusterDnsCacheConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, LeoExecutionModeConfig, MonitorConfig, ProxyConfig, SamConfig, SwaggerConfig, ZombieClusterConfig}
@@ -21,10 +25,8 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterDateAccessedAc
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 
-import scala.concurrent.Future
-
-object Boot extends App with LazyLogging {
-  private def startup(): Future[Unit] = {
+object Boot extends IOApp with LazyLogging {
+  private def startup(): IO[Unit] = {
     val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
     val whitelist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
     val dataprocConfig = config.as[DataprocConfig]("dataproc")
@@ -51,6 +53,8 @@ object Boot extends App with LazyLogging {
     val serviceAccountConfig = config.getConfig("serviceAccounts.providerConfig")
     val serviceAccountProvider = ServiceAccountProviderHelper.create(serviceAccountProviderClass, serviceAccountConfig)
 
+    val leoServiceAccountJsonFile = config.as[String]("google.leoServiceAccountJsonFile")
+
     val authProviderClass = config.as[String]("auth.providerClass")
     val authConfig = config.getConfig("auth.providerConfig")
     val authProvider = LeoAuthProviderHelper.create(authProviderClass, authConfig, serviceAccountProvider)
@@ -73,27 +77,35 @@ object Boot extends App with LazyLogging {
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, googleComputeDAO, googleStorageDAO, serviceAccountProvider)
     val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, petGoogleStorageDAO, dbRef, authProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
 
-    if(leoExecutionModeConfig.backLeo) {
-      val googleProjectDAO = new HttpGoogleProjectDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google")
-      val jupyterDAO = new HttpJupyterDAO(clusterDnsCache)
-      val rstudioDAO = new HttpRStudioDAO(clusterDnsCache)
-      val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, dbRef, authProvider, autoFreezeConfig, jupyterDAO, rstudioDAO, leonardoService))
-      val zombieClusterMonitor = system.actorOf(ZombieClusterMonitor.props(zombieClusterMonitorConfig, gdDAO, googleProjectDAO, dbRef))
-    }
-    
-    val samDAO = new HttpSamDAO(samConfig.server)
-    val clusterDateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, dbRef))
-    val proxyService = new ProxyService(proxyConfig, gdDAO, dbRef, clusterDnsCache, authProvider, clusterDateAccessedActor)
-    val statusService = new StatusService(gdDAO, samDAO, dbRef, dataprocConfig)
-    val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with StandardUserInfoDirectives
+    implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
 
-    Http().bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
-      .recover {
-        case t: Throwable =>
-          logger.error("FATAL - failure starting http server", t)
-          throw t
-      }.void
+    createDependencies(leoServiceAccountJsonFile).use {
+      appDependencies =>
+        if(leoExecutionModeConfig.backLeo) {
+          val googleProjectDAO = new HttpGoogleProjectDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google")
+          val jupyterDAO = new HttpJupyterDAO(clusterDnsCache)
+          val rstudioDAO = new HttpRStudioDAO(clusterDnsCache)
+          val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, appDependencies.google2StorageDao, dbRef, authProvider, autoFreezeConfig, jupyterDAO, rstudioDAO, leonardoService))
+          val zombieClusterMonitor = system.actorOf(ZombieClusterMonitor.props(zombieClusterMonitorConfig, gdDAO, googleProjectDAO, dbRef))
+        }
+
+        val samDAO = new HttpSamDAO(samConfig.server)
+        val clusterDateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, dbRef))
+        val proxyService = new ProxyService(proxyConfig, gdDAO, dbRef, clusterDnsCache, authProvider, clusterDateAccessedActor)
+        val statusService = new StatusService(gdDAO, samDAO, dbRef, dataprocConfig)
+        val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with StandardUserInfoDirectives
+        IO.fromFuture(IO(Http().bindAndHandle(leoRoutes.route, "0.0.0.0", 8080)
+          .recover {
+            case t: Throwable =>
+              logger.error("FATAL - failure starting http server", t)
+              throw t
+          }.void))
+    }
   }
 
-  startup()
+  def createDependencies(pathToCredentialJson: String)(implicit logger: Logger[IO]): Resource[IO, AppDependencies] = GoogleStorageService.resource[IO](pathToCredentialJson, scala.concurrent.ExecutionContext.global).map(storage => AppDependencies(storage))
+
+  override def run(args: List[String]): IO[ExitCode] = startup().as(ExitCode.Success)
 }
+
+final case class AppDependencies(google2StorageDao: GoogleStorageService[IO])
