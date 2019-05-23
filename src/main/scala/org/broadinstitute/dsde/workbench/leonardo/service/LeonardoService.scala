@@ -704,7 +704,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Create the bucket in leo's google project and populate with initialization files.
       // ACLs are granted so the cluster service account can access the bucket at initialization time.
       initBucket <- bucketHelper.createInitBucket(googleProject, initBucketName, serviceAccountInfo)
-      _ <- initializeBucketObjects(userEmail, googleProject, clusterName, initBucket, clusterRequest, serviceAccountKeyOpt, contentSecurityPolicy, clusterImages)
+      _ <- initializeBucketObjects(userEmail, googleProject, clusterName, initBucket, clusterRequest, serviceAccountKeyOpt, contentSecurityPolicy, clusterImages, stagingBucketName)
 
       // Create the cluster staging bucket. ACLs are granted so the user/pet can access it.
       stagingBucket <- bucketHelper.createStagingBucket(userEmail, googleProject, stagingBucketName, serviceAccountInfo)
@@ -913,11 +913,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                                clusterRequest: ClusterRequest,
                                                serviceAccountKey: Option[ServiceAccountKey],
                                                contentSecurityPolicy: String,
-                                               clusterImages: Set[ClusterImage]): Future[Unit] = {
+                                               clusterImages: Set[ClusterImage],
+                                               stagingBucket: GcsBucketName): Future[Unit] = {
 
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
     val clusterInit = ClusterInitValues(googleProject, clusterName, initBucketName, clusterRequest, dataprocConfig,
-      clusterFilesConfig, clusterResourcesConfig, proxyConfig, serviceAccountKey, userEmail, contentSecurityPolicy, clusterImages)
+      clusterFilesConfig, clusterResourcesConfig, proxyConfig, serviceAccountKey, userEmail, contentSecurityPolicy, clusterImages, stagingBucket)
     val replacements: Map[String, String] = clusterInit.toMap
 
     // Raw files to upload to the bucket, no additional processing needed.
