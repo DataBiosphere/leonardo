@@ -703,8 +703,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // If the Google Compute default service account is being used, this is not necessary.
       _ <- addDataprocWorkerRoleToServiceAccount(googleProject, serviceAccountInfo.clusterServiceAccount)
 
-      // Create the bucket in leo's google project and populate with initialization files.
-      // ACLs are granted so the cluster service account can access the bucket at initialization time.
+      // Create the bucket in the cluster's google project and populate with initialization files.
+      // ACLs are granted so the cluster service account can access the files at initialization time.
       initBucket <- bucketHelper.createInitBucket(googleProject, initBucketName, serviceAccountInfo)
       _ <- initializeBucketObjects(userEmail, googleProject, clusterName, initBucket, clusterRequest, serviceAccountKeyOpt, contentSecurityPolicy, clusterImages, stagingBucketName)
 

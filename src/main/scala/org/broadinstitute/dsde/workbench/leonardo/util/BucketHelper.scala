@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.{Group, User}
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.{GcsRole, Owner, Reader}
 import org.broadinstitute.dsde.workbench.model.google.ProjectTeamTypes.{Editors, Owners, Viewers}
-import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsBucketName, GcsEntity, GoogleProject, ProjectGcsEntity, ProjectNumber}
+import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsBucketName, GcsEntity, GcsRoles, GoogleProject, ProjectGcsEntity, ProjectNumber}
 import org.broadinstitute.dsde.workbench.util.Retry
 
 import scala.concurrent.duration._
@@ -39,10 +39,19 @@ class BucketHelper(dataprocConfig: DataprocConfig,
     * Creates the dataproc init bucket and sets the necessary ACLs.
     */
   def createInitBucket(googleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[GcsBucketName] = {
+    def flatMapList(entities: List[GcsEntity], role: GcsRole): Future[Unit] = {
+      entities match {
+        case Nil => Future.successful(())
+        case head :: tail =>
+          googleStorageDAO.setDefaultObjectAccessControl(bucketName, head, role).flatMap(_ => flatMapList(tail, role))
+      }
+    }
+
     for {
-      // The init bucket is created in Leo's project, not the cluster's project.
+      // The init bucket is created in the cluster's project.
       // Leo service account -> Owner
       // available service accounts ((cluster or default SA) and notebook SA, if they exist) -> Reader
+      // Default object ACLs for all of the above mentioned SAs will be Reader //todo: is reader the right thing?
       bucketSAs <- getBucketSAs(googleProject, serviceAccountInfo)
       leoEntity = userEntity(serviceAccountProvider.getLeoServiceAccountAndKey._1)
       // When we receive a large number (e.g. 200) of simultaneous cluster creation requests,
@@ -50,8 +59,9 @@ class BucketHelper(dataprocConfig: DataprocConfig,
       // Therefore, we are adding a second layer of retries on top of the one existing within
       // the googleStorageDAO.createBucket method
       _ <- retryUntilSuccessOrTimeout(failureLogMessage = s"Init bucket creation failed for Google project '$googleProject'")(30 seconds, 5 minutes) { () =>
-        googleStorageDAO.createBucket(dataprocConfig.leoGoogleProject, bucketName, bucketSAs, List(leoEntity))
+        googleStorageDAO.createBucket(googleProject, bucketName, bucketSAs, List(leoEntity))
       }
+      _ <- flatMapList(List(leoEntity) ++ bucketSAs, GcsRoles.Reader)
     } yield bucketName
   }
 
