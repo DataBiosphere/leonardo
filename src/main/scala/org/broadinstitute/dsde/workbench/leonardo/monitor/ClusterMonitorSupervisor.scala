@@ -178,7 +178,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
                   true
                 case Right(isIdle) =>
                   if (!isIdle) {
-                    val idleLimit = Duration.ofMinutes(3)
+                    val idleLimit = Duration.ofHours(1)
                     val maxKernelActiveTimeExceeded = cluster.kernelFoundBusyDate match {
                       case Some(attemptedDate) => Duration.between(attemptedDate, Instant.now()).compareTo(idleLimit) == 1
                       case None => {
