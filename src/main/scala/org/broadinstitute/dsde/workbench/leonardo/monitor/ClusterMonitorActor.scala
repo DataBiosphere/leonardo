@@ -180,28 +180,6 @@ class ClusterMonitorActor(val cluster: Cluster,
     */
   private def handleFailedCluster(errorDetails: ClusterErrorDetails, instances: Set[Instance]): Future[ClusterMonitorMessage] = {
     for {
-      _ <- cluster.dataprocInfo.stagingBucket match {
-        case Some(stagingBucketName) => {
-          for {
-            metadata <- google2StorageDAO.getObjectMetadata(stagingBucketName, GcsBlobName("userscript_output.txt"), None).compile.last.unsafeToFuture()
-            userscriptFailed = metadata match {
-              case Some(GetMetadataResponse.Metadata(_, metadataMap)) => metadataMap.exists(_ == "passed"->"false")
-              case _ => false
-            }
-            _ <- if (userscriptFailed) {
-              persistClusterError(s"Userscript failed. See output in gs://${stagingBucketName}/userscript_output.txt", errorDetails.code)
-            } else {
-              // save dataproc cluster errors to the DB
-              persistClusterError(errorDetails.message.getOrElse("Error not available"), errorDetails.code)
-            }
-          } yield ()
-        }
-        case None => {
-          // in the case of an internal error, the staging bucket field is usually None
-          persistClusterError(errorDetails.message.getOrElse("Error not available"), errorDetails.code)
-        }
-      }
-
       _ <- Future.sequence(Seq(
         // Delete the cluster in Google
         gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName),
@@ -210,6 +188,8 @@ class ClusterMonitorActor(val cluster: Cluster,
         removeServiceAccountKey,
         // create or update instances in the DB
         persistInstances(instances),
+        //save cluster error in the DB
+        persistClusterErrors(errorDetails)
       ))
 
       // Decide if we should try recreating the cluster
@@ -368,7 +348,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     }.void
   }
 
-  private def persistClusterError(errorMessage: String, errorCode: Int): Future[Unit] = {
+  private def saveClusterError(errorMessage: String, errorCode: Int): Future[Unit] = {
     dbRef.inTransaction { dataAccess =>
       val clusterId = dataAccess.clusterQuery.getIdByUniqueKey(cluster)
       Future(logger.info(s"${cluster.clusterName}: clusterId in else is ${clusterId}"))
@@ -380,6 +360,30 @@ class ClusterMonitorActor(val cluster: Cluster,
         }
       }
     }.void.handleError(e => logger.info(s"Error persisting cluster error with message '${errorMessage}' to database: ${e}"))
+  }
+
+  private def persistClusterErrors(errorDetails: ClusterErrorDetails): Future[Unit] = {
+    cluster.dataprocInfo.stagingBucket match {
+      case Some(stagingBucketName) => {
+        for {
+          metadata <- google2StorageDAO.getObjectMetadata(stagingBucketName, GcsBlobName("userscript_output.txt"), None).compile.last.unsafeToFuture()
+          userscriptFailed = metadata match {
+            case Some(GetMetadataResponse.Metadata(_, metadataMap)) => metadataMap.exists(_ == "passed"->"false")
+            case _ => false
+          }
+          _ <- if (userscriptFailed) {
+            saveClusterError(s"Userscript failed. See output in gs://${stagingBucketName}/userscript_output.txt", errorDetails.code)
+          } else {
+            // save dataproc cluster errors to the DB
+            saveClusterError(errorDetails.message.getOrElse("Error not available"), errorDetails.code)
+          }
+        } yield ()
+      }
+      case None => {
+        // in the case of an internal error, the staging bucket field is usually None
+        saveClusterError(errorDetails.message.getOrElse("Error not available"), errorDetails.code)
+      }
+    }
   }
 
   private def getClusterInstances: Future[Set[Instance]] = {
