@@ -180,7 +180,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     */
   private def handleFailedCluster(errorDetails: ClusterErrorDetails, instances: Set[Instance]): Future[ClusterMonitorMessage] = {
     for {
-      _ <- Future.sequence(Seq(
+      _ <- Future.sequence(List(
         // Delete the cluster in Google
         gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName),
         // Remove the service account key in Google, if present.
@@ -359,11 +359,14 @@ class ClusterMonitorActor(val cluster: Cluster,
           DBIOAction.successful(0)
         }
       }
-    }.void.handleError(e => logger.info(s"Error persisting cluster error with message '${errorMessage}' to database: ${e}"))
+    }.void.adaptError {
+      case e => new Exception(s"Error persisting cluster error with message '${errorMessage}' to database: ${e}", e)
+    }
+
   }
 
   private def persistClusterErrors(errorDetails: ClusterErrorDetails): Future[Unit] = {
-    cluster.dataprocInfo.stagingBucket match {
+    val result = cluster.dataprocInfo.stagingBucket match {
       case Some(stagingBucketName) => {
         for {
           metadata <- google2StorageDAO.getObjectMetadata(stagingBucketName, GcsBlobName("userscript_output.txt"), None).compile.last.unsafeToFuture()
@@ -383,6 +386,9 @@ class ClusterMonitorActor(val cluster: Cluster,
         // in the case of an internal error, the staging bucket field is usually None
         saveClusterError(errorDetails.message.getOrElse("Error not available"), errorDetails.code)
       }
+    }
+    result.handleError{
+      e => logger.error(s"Failed to persist cluster errors for cluster ${cluster}: ${e.getMessage}", e)
     }
   }
 

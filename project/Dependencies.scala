@@ -86,7 +86,7 @@ object Dependencies {
   val mysql: ModuleID =     "mysql"               % "mysql-connector-java"  % "8.0.11"
   val liquibase: ModuleID = "org.liquibase"       % "liquibase-core"        % "3.5.3"
   val sealerate: ModuleID = "ca.mrvisser" %% "sealerate" % "0.0.5"
-  val googleCloudNio: ModuleID = "com.google.cloud" % "google-cloud-nio" % "0.71.0-alpha" % "test"
+  val googleCloudNio: ModuleID = "com.google.cloud" % "google-cloud-nio" % "0.71.0-alpha" % "test" // brought in for FakeStorageInterpreter
 
   val rootDependencies = Seq(
     // proactively pull in latest versions of Jackson libs, instead of relying on the versions
