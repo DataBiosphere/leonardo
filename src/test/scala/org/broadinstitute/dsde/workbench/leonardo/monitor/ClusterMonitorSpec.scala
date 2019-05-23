@@ -40,7 +40,7 @@ import scala.util.{Random, Try}
 /**
   * Created by rtitle on 9/6/17.
   */
- class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll with TestComponent with CommonTestData with GcsPathUtils with Eventually { testKit =>
+class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll with TestComponent with CommonTestData with GcsPathUtils with Eventually { testKit =>
 
   val creatingCluster = makeCluster(1).copy(serviceAccountInfo = ServiceAccountInfo(clusterServiceAccount(project), notebookServiceAccount(project)),
                                             dataprocInfo = makeDataprocInfo(1).copy(hostIp = None),
