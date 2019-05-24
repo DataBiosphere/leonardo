@@ -1,6 +1,7 @@
 version: '2'
 services:
   welder:
+    #TODO WELDER_SERVER_NAME
     container_name: "welder"
     image: "${WELDER_DOCKER_IMAGE}"
     network_mode: host
