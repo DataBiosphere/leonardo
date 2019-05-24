@@ -17,6 +17,7 @@ case class DataprocConfig(
                            firewallRuleName: String,
                            networkTag: String,
                            defaultScopes: Set[String],
+                           welderDockerImage: String,
                            vpcNetwork: Option[String],
                            vpcSubnet: Option[String]
                          )

@@ -80,6 +80,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export JUPYTER_DOCKER_IMAGE=$(jupyterDockerImage)
     export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
     export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
+    export WELDER_DOCKER_IMAGE=$(welderDockerImage)
 
     SERVER_CRT=$(jupyterServerCrt)
     SERVER_KEY=$(jupyterServerKey)
@@ -87,6 +88,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_DOCKER_COMPOSE=$(jupyterDockerCompose)
     RSTUDIO_DOCKER_COMPOSE=$(rstudioDockerCompose)
     PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
+    WELDER_DOCKER_COMPOSE=$(welderDockerCompose)
     PROXY_SITE_CONF=$(proxySiteConf)
     JUPYTER_SERVER_EXTENSIONS=$(jupyterServerExtensions)
     JUPYTER_NB_EXTENSIONS=$(jupyterNbExtensions)
@@ -153,6 +155,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     gsutil cp ${JUPYTER_DOCKER_COMPOSE} /etc
     gsutil cp ${RSTUDIO_DOCKER_COMPOSE} /etc
     gsutil cp ${PROXY_DOCKER_COMPOSE} /etc
+    gsutil cp ${WELDER_DOCKER_COMPOSE} /etc
 
     # Needed because docker-compose can't handle symlinks
     touch /hadoop_gcs_connector_metadata_cache
@@ -197,6 +200,11 @@ if [[ "${ROLE}" == 'Master' ]]; then
       COMPOSE_FILES+=(-f /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
       cat /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`
     fi
+    if [ ! -z ${WELDER_DOCKER_IMAGE} ] ; then
+      COMPOSE_FILES+=(-f /etc/`basename ${WELDER_DOCKER_COMPOSE}`)
+      cat /etc/`basename ${WELDER_DOCKER_COMPOSE}`
+    fi
+
 
     retry 5 docker-compose "${COMPOSE_FILES[@]}" config
     retry 5 docker-compose "${COMPOSE_FILES[@]}" pull
