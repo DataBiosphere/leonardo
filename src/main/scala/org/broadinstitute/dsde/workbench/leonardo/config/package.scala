@@ -32,7 +32,10 @@ package object config {
       config.getString("firewallRuleName"),
       config.getString("networkTag"),
       config.getStringList("defaultScopes").asScala.toSet,
+
+      // is DataprocConfig the right place for this?
       config.getString("welderDockerImage"),
+
       config.getAs[String]("vpcNetwork"),
       config.getAs[String]("vpcSubnet")
     )
