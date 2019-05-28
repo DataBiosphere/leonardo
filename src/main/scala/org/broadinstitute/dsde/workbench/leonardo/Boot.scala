@@ -28,7 +28,6 @@ import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 object Boot extends IOApp with LazyLogging {
   private def startup(): IO[Unit] = {
     val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load())
-    val whitelist = config.as[Set[String]]("auth.whitelistProviderConfig.whitelist").map(_.toLowerCase)
     val dataprocConfig = config.as[DataprocConfig]("dataproc")
     val proxyConfig = config.as[ProxyConfig]("proxy")
     val swaggerConfig = config.as[SwaggerConfig]("swagger")
@@ -75,7 +74,7 @@ object Boot extends IOApp with LazyLogging {
     val googleStorageDAO = new HttpGoogleStorageDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google")
     val clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, clusterDnsCacheConfig)
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, googleComputeDAO, googleStorageDAO, serviceAccountProvider)
-    val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, petGoogleStorageDAO, dbRef, authProvider, serviceAccountProvider, whitelist, bucketHelper, contentSecurityPolicy)
+    val leonardoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, petGoogleStorageDAO, dbRef, authProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
 
     implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
 
