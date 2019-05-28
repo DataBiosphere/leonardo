@@ -29,6 +29,7 @@ package object config {
       toScalaDuration(config.getDuration("defaultExecutionTimeout")),
       config.getString("jupyterServerName"),
       config.getString("rstudioServerName"),
+      config.getString("welderServerName"),
       config.getString("firewallRuleName"),
       config.getString("networkTag"),
       config.getStringList("defaultScopes").asScala.toSet,

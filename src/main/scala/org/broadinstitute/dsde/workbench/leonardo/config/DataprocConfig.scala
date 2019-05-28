@@ -14,6 +14,7 @@ case class DataprocConfig(
                            defaultExecutionTimeout: FiniteDuration,
                            jupyterServerName: String,
                            rstudioServerName: String,
+                           welderServerName: String,
                            firewallRuleName: String,
                            networkTag: String,
                            defaultScopes: Set[String],

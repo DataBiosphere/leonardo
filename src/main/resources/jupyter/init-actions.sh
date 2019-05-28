@@ -77,6 +77,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export JUPYTER_SERVER_NAME=$(jupyterServerName)
     export RSTUDIO_SERVER_NAME=$(rstudioServerName)
     export PROXY_SERVER_NAME=$(proxyServerName)
+    export WELDER_SERVER_NAME=$(welderServerName)
     export JUPYTER_DOCKER_IMAGE=$(jupyterDockerImage)
     export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
     export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
@@ -178,6 +179,10 @@ if [[ "${ROLE}" == 'Master' ]]; then
       if [ ! -z ${RSTUDIO_DOCKER_IMAGE} ] ; then
         log 'Copying SA into RStudio Docker...'
         docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${RSTUDIO_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
+      fi
+      if [ ! -z ${WELDER_DOCKER_IMAGE} ] ; then
+        log 'Copying SA into Welder Docker...'
+        docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${WELDER_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
       fi
     else
       echo "" > /etc/google_application_credentials.env
