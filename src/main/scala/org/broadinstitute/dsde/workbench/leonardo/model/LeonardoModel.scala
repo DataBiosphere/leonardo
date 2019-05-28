@@ -289,8 +289,7 @@ object ClusterInitValues {
       clusterRequest.userJupyterExtensionConfig.map(x => x.combinedExtensions.values.mkString(" ")).getOrElse(""),
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value)).toUri,
       clusterRequest.userJupyterExtensionConfig.map(x => x.labExtensions.values.mkString(" ")).getOrElse(""),
-      clusterRequest.defaultClientId.getOrElse(""),
-
+      clusterRequest.defaultClientId.getOrElse("")
     )
 }
 
