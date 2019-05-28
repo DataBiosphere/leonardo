@@ -6,8 +6,7 @@ services:
     network_mode: host
     restart: always
     environment:
-      # needed to disable auth
-      USER: "welder"
+      # TODO what env vars are actually needed here?
       GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
       CLUSTER_NAME: "${CLUSTER_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
