@@ -105,7 +105,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val dbRef: DbReference,
                       protected val authProvider: LeoAuthProvider,
                       protected val serviceAccountProvider: ServiceAccountProvider,
-                      protected val whitelist: Set[String],
                       protected val bucketHelper: BucketHelper,
                       protected val contentSecurityPolicy: String)
                      (implicit val executionContext: ExecutionContext,
@@ -128,14 +127,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   // so we need to fall back running `jupyter notebook` directly. See https://github.com/DataBiosphere/leonardo/issues/481.
   private lazy val masterInstanceStartupScript: immutable.Map[String, String] = {
     immutable.Map("startup-script" -> s"docker exec -d ${dataprocConfig.jupyterServerName} /bin/bash -c '/etc/jupyter/scripts/run-jupyter.sh || /usr/local/bin/jupyter notebook'")
-  }
-
-  def isWhitelisted(userInfo: UserInfo): Future[Boolean] = {
-    if( whitelist contains userInfo.userEmail.value.toLowerCase ) {
-      Future.successful(true)
-    } else {
-      Future.failed(new AuthorizationError(Some(userInfo.userEmail)))
-    }
   }
 
   protected def checkProjectPermission(userInfo: UserInfo, action: ProjectAction, project: GoogleProject): Future[Unit] = {
