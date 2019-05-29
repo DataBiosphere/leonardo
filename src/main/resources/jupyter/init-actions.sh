@@ -148,11 +148,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
     mkdir /certs
     chmod a+wx /work
 
-    # shared jupyter/welder dir
-    # TODO parameterize appropriately
-    mkdir /shared
-    chmod a+rwx /shared
-
     # Add the certificates from the bucket to the VM. They are used by the docker-compose file
     gsutil cp ${SERVER_CRT} /certs
     gsutil cp ${SERVER_KEY} /certs

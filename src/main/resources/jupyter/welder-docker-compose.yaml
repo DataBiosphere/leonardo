@@ -11,8 +11,8 @@ services:
       CLUSTER_NAME: "${CLUSTER_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
     volumes:
-      # TODO parameterize appropriately
-      - /shared:/shared
+      # shared with jupyter
+      - /work:/work
     env_file:
       - /etc/google_application_credentials.env
 

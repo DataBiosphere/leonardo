@@ -9,8 +9,7 @@ services:
     entrypoint: "tail -f /dev/null"
     network_mode: host
     volumes:
-      # TODO parameterize appropriately
-      - /shared:/shared
+      # shared with welder
       - /work:/home/user/work
       - /usr/lib/bigtop-utils:/usr/lib/bigtop-utils
       - /usr/lib/hadoop:/usr/lib/hadoop
