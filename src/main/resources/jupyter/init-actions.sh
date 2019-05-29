@@ -162,6 +162,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
     touch /hadoop_gcs_connector_metadata_cache
     touch auth_openidc.conf
 
+    # do not enable welder yet.  Remove flag when welder is complete.
+    WELDER_ENABLED=false
+
     # If we have a service account JSON file, create an .env file to set GOOGLE_APPLICATION_CREDENTIALS
     # in the docker container. Otherwise, we should _not_ set this environment variable so it uses the
     # credentials on the metadata server.
@@ -175,7 +178,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
         log 'Copying SA into RStudio Docker...'
         docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${RSTUDIO_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
       fi
-      if [ ! -z ${WELDER_DOCKER_IMAGE} ] ; then
+      if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
         log 'Copying SA into Welder Docker...'
         docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${WELDER_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
       fi
@@ -205,7 +208,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
       COMPOSE_FILES+=(-f /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
       cat /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`
     fi
-    if [ ! -z ${WELDER_DOCKER_IMAGE} ] ; then
+    if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
       COMPOSE_FILES+=(-f /etc/`basename ${WELDER_DOCKER_COMPOSE}`)
       cat /etc/`basename ${WELDER_DOCKER_COMPOSE}`
     fi
