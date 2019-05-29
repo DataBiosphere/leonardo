@@ -63,7 +63,7 @@ if [ ! -z ${SERVICE_ACCOUNT_CREDENTIALS} ] ; then
   export GOOGLE_APPLICATION_CREDENTIALS=/etc/${SERVICE_ACCOUNT_CREDENTIALS}
 fi
 
-# Only initialize Jupyter docker containers on the master
+# Only initialize tool and proxy docker containers on the master
 if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_HOME=/etc/jupyter
     JUPYTER_SCRIPTS=${JUPYTER_HOME}/scripts
@@ -185,7 +185,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
     # If any image is hosted in a GCR registry (detected by regex) then
     # authorize docker to interact with gcr.io.
-    if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}" ; then
+    if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
       log 'Authorizing GCR...'
       gcloud docker --authorize-only
     fi
