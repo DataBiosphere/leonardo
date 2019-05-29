@@ -37,20 +37,6 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     }
   }
 
-  it should "200 if you're on the whitelist" in isolatedDbTest {
-    Get(s"/api/isWhitelisted") ~> timedLeoRoutes.route ~> check {
-      validateCookie { header[`Set-Cookie`] }
-
-      status shouldEqual StatusCodes.OK
-    }
-  }
-
-  it should "403 if you're not on the whitelist" in isolatedDbTest {
-    Get(s"/api/isWhitelisted") ~> invalidUserLeoRoutes.route ~> check {
-      status shouldEqual StatusCodes.Forbidden
-    }
-  }
-
   it should "200 when creating and getting cluster" in isolatedDbTest {
     val newCluster = ClusterRequest(Map.empty, Some(jupyterExtensionUri), Some(jupyterUserScriptUri), None, Map.empty, None, Some(UserJupyterExtensionConfig(Map("abc" ->"def"))))
 
@@ -81,20 +67,6 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
   it should "404 when getting a nonexistent cluster" in isolatedDbTest {
     Get(s"/api/cluster/nonexistent/cluster") ~> leoRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
-    }
-  }
-
-  it should "404 when getting a cluster as a non-white-listed user" in isolatedDbTest {
-    val newCluster = defaultClusterRequest
-
-    forallClusterCreationVersions(ClusterName("not-your-cluster")) { (version, clstrName, statusCode) =>
-      Put(s"/api/cluster$version/${googleProject.value}/$clstrName", newCluster.toJson) ~> leoRoutes.route ~> check {
-        status shouldEqual statusCode
-      }
-
-      Get(s"/api/cluster/${googleProject.value}/$clstrName") ~> invalidUserLeoRoutes.route ~> check {
-        status shouldEqual StatusCodes.NotFound
-      }
     }
   }
 

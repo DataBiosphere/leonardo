@@ -43,15 +43,6 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
   def leoRoutes: Route =
     requireUserInfo { userInfo =>
       setTokenCookie(userInfo, tokenCookieName) {
-        path("isWhitelisted") {
-          get {
-            complete {
-              leonardoService.isWhitelisted(userInfo).map { _ =>
-                StatusCodes.OK
-              }
-            }
-          }
-        } ~
         pathPrefix("cluster") {
           pathPrefix("v2" / Segment / Segment) { (googleProject, clusterNameString) =>
             validateClusterNameDirective(clusterNameString){
