@@ -290,6 +290,15 @@ if [[ "${ROLE}" == 'Master' ]]; then
         docker cp /etc/${JUPYTER_GOOGLE_PLUGIN} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/custom.js
       fi
 
+      # If safe-mode.js was specified, copy it into the jupyter docker container.
+      if [ ! -z ${JUPYTER_SAFE_MODE_PLUGIN_URI} ] ; then
+        log 'Installing safe-mode.js extension...'
+        gsutil cp ${JUPYTER_SAFE_MODE_PLUGIN_URI} /etc
+        JUPYTER_SAFE_MODE_PLUGIN=`basename ${JUPYTER_SAFE_MODE_PLUGIN_URI}`
+        retry 3 docker exec ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
+        docker cp /etc/${JUPYTER_SAFE_MODE_PLUGIN} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
+      fi
+
       if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG_URI} ] ; then
         log 'Copy Jupyter notebook config...'
         gsutil cp ${JUPYTER_NOTEBOOK_CONFIG_URI} /etc
