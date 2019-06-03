@@ -97,6 +97,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_LAB_GOOGLE_PLUGIN_URI=$(jupyterLabGooglePluginUri)
     JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
     JUPYTER_USER_SCRIPT_OUTPUT_URI=$(jupyterUserScriptOutputUri)
+    JUPYTER_SAFE_MODE_PLUGIN_URI=$(jupyterSafeModePluginUri)
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
 
     log 'Installing prerequisites...'

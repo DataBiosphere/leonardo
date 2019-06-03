@@ -10,6 +10,7 @@ case class ClusterResourcesConfig(initActionsScript: ClusterResource,
                                   googleSignInJs: ClusterResource,
                                   jupyterGooglePlugin: ClusterResource,
                                   jupyterLabGooglePlugin: ClusterResource,
+                                  jupyterSafeModePlugin: ClusterResource,
                                   jupyterNotebookConfigUri: ClusterResource
                                  )
 
