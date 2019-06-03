@@ -18,8 +18,9 @@ define([
     'base/js/namespace'
 ], (Jupyter) => {
   const load = () => {
-    // TODO: query welder for when to enable (IA-979).   always-on, for now
-    const enabled = true;
+    // TODO: query welder for when to enable (IA-979).
+    // let's disable this just in case someone accidentally merges the PR
+    const enabled = false;
     if (!enabled) {
       return;
     }
