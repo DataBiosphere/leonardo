@@ -95,9 +95,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
     GOOGLE_SIGN_IN_JS_URI=$(googleSignInJsUri)
     JUPYTER_GOOGLE_PLUGIN_URI=$(jupyterGooglePluginUri)
     JUPYTER_LAB_GOOGLE_PLUGIN_URI=$(jupyterLabGooglePluginUri)
+    JUPYTER_SAFE_MODE_PLUGIN_URI=$(jupyterSafeModePluginUri)
     JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
     JUPYTER_USER_SCRIPT_OUTPUT_URI=$(jupyterUserScriptOutputUri)
-    JUPYTER_SAFE_MODE_PLUGIN_URI=$(jupyterSafeModePluginUri)
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
 
     log 'Installing prerequisites...'
