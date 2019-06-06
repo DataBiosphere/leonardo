@@ -3,6 +3,11 @@ services:
   welder:
     container_name: "${WELDER_SERVER_NAME}"
     image: "${WELDER_DOCKER_IMAGE}"
+    # Override entrypoint with a placeholder to keep the container running indefinitely.
+    # The cluster init script will start welder via docker exec,
+    # when Application Default Credentials are available.
+    # See https://broadworkbench.atlassian.net/browse/IA-1026
+    entrypoint: "tail -f /dev/null"
     network_mode: host
     restart: always
     environment:

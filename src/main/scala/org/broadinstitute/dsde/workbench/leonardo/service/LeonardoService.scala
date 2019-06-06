@@ -120,12 +120,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     network = dataprocConfig.vpcNetwork.map(VPCNetworkName),
     targetTags = List(NetworkTag(dataprocConfig.networkTag)))
 
-  // Startup script to install on the cluster master node. This allows Jupyter to start back up after
-  // a cluster is resumed.
+  // Startup scripts to install on the cluster master node.
+  // This allows Jupyter and Welder to start back up after a cluster is resumed.
   //
   // The || clause is included because older clusters may not have the run-jupyter.sh script installed,
   // so we need to fall back running `jupyter notebook` directly. See https://github.com/DataBiosphere/leonardo/issues/481.
   private lazy val masterInstanceStartupScript: immutable.Map[String, String] = {
+ //TODO
     immutable.Map("startup-script" -> s"docker exec -d ${dataprocConfig.jupyterServerName} /bin/bash -c '/etc/jupyter/scripts/run-jupyter.sh || /usr/local/bin/jupyter notebook'")
   }
 
