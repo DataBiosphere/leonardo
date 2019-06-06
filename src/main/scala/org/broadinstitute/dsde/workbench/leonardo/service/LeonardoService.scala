@@ -130,7 +130,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val jupyterStart = s"docker exec -d ${dataprocConfig.jupyterServerName} /bin/bash -c '/etc/jupyter/scripts/run-jupyter.sh || /usr/local/bin/jupyter notebook'"
 
     // TODO make this flag configurable
-    val enableWelder = false
+    // ENABLED FOR TESTING
+    val enableWelder = true
     val servicesStart = if (enableWelder) {
       val welderStart = s"docker exec -u daemon -d ${dataprocConfig.welderServerName} /opt/docker/bin/server start"
       s"($jupyterStart) && $welderStart"
