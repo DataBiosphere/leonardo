@@ -46,7 +46,6 @@ trait CommonTestData{ this: ScalaFutures =>
   val defaultScopes = Set("https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/bigquery", "https://www.googleapis.com/auth/source.read_only")
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load())
-  val whitelistAuthConfig = config.getConfig("auth.whitelistProviderConfig")
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
   val clusterFilesConfig = config.as[ClusterFilesConfig]("clusterFiles")
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
