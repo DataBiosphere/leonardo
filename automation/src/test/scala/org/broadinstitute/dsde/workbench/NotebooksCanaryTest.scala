@@ -8,6 +8,9 @@ import java.util.Timer
 
 import akka.actor.FSM
 import akka.actor.FSM.Timer
+import com.newrelic.api.agent.NewRelic
+import com.sun.tools.classfile.Dependencies
+import org.apache.http.client.methods.HttpPost
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{Notebook, NotebookTestUtils, Python2, Python3}
 import org.scalatest.Matchers
@@ -17,6 +20,10 @@ import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, G
 import org.scalatest.{FreeSpec, ParallelTestExecution}
 import org.broadinstitute.dsde.workbench.leonardo.{cluster, _}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.newrelic
+import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
+import org.broadinstitute.dsde.workbench.service
+
 import scala.language.postfixOps
 import sys.process._
 
@@ -24,10 +31,13 @@ import sys.process._
 class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils with ParallelTestExecution with
   BillingFixtures {
 
-  implicit val authToken: AuthToken = ronAuthToken
-  "Test for creating a cluster and localizing a notebook" - {
+  enablePlugins(NewRelic)
 
-    "should launch a notebook" in {
+
+  implicit val authToken: AuthToken = ronAuthToken
+  "Leonardo notebooks canary test" - {
+
+    "Test for creating a cluster and localizing a notebook " in {
 
       val localizeFileName = "localize_sync.txt"
       val localizeFileContents = "Sync localize test"
@@ -43,7 +53,7 @@ class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils 
         withWebDriver { implicit driver =>
           withNewNotebook(cluster, Python3) { notebook =>
             print(notebook.executeCell("""print("hi")""") shouldBe (Some("hi")))
-            clusterStatus shouldBe(ClusterStatus.Running)
+            clusterStatus shouldBe (ClusterStatus.Running)
           }
         }
         withWebDriver { implicit driver =>
@@ -56,13 +66,32 @@ class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils 
       })
       logger.info(s"Time it took to complete test: " +
         s" ${clusterTimeRes.duration.toSeconds}")
+
+            val res = true
+
+            if (res) {
+              s"./notebooks-canary-test-script.sh ${clusterTimeRes.duration.toSeconds}" !!
+            }
     }
   }
 
-  val res = true
+//  object HttpPost {
+//    //    def main(args: Array[String]): Unit = {
+//    //      val url = "https://insights-collector.newrelic.com/v1/accounts/1862859/events"
+//    //
+//    //      val post = new HttpPost(url)
+//    //
+//    //    }
+//
+//    def createDashboard(dashBoardName: String)(implicit token: AuthToken): Unit = {
+//      logger.info(s"Creating dashboard: NotebooksCanaryTestProd")
+//      postRequest(apiUrl(s"/v2/dashboards"))
+//
+//      val newRelMetrics = NewRelicMetrics(NotebooksCanaryTestProd)
+//
+//      newRelMetrics.timeIO(nbCanaryTestProd)
+//    }
+//  }
 
-    if (res) {
-      (s"./notebooks-canary-test-script.sh $clusterTimeRes" !!)
-    }
-  }
+}
 
