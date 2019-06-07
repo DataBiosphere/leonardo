@@ -1,16 +1,5 @@
 package org.broadinstitute.dsde.workbench
 
-import java.time.Instant
-import java.util.UUID
-import java.net.URL
-import java.sql.Time
-import java.util.Timer
-
-import akka.actor.FSM
-import akka.actor.FSM.Timer
-import com.newrelic.api.agent.NewRelic
-import com.sun.tools.classfile.Dependencies
-import org.apache.http.client.methods.HttpPost
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{Notebook, NotebookTestUtils, Python2, Python3}
 import org.scalatest.Matchers
@@ -18,11 +7,8 @@ import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V2
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
 import org.scalatest.{FreeSpec, ParallelTestExecution}
-import org.broadinstitute.dsde.workbench.leonardo.{cluster, _}
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.newrelic
-import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
-import org.broadinstitute.dsde.workbench.service
+import org.broadinstitute.dsde.workbench.leonardo._
+
 
 import scala.language.postfixOps
 import sys.process._
@@ -30,9 +16,6 @@ import sys.process._
 
 class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils with ParallelTestExecution with
   BillingFixtures {
-
-  enablePlugins(NewRelic)
-
 
   implicit val authToken: AuthToken = ronAuthToken
   "Leonardo notebooks canary test" - {
