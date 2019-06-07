@@ -39,19 +39,10 @@ class BucketHelper(dataprocConfig: DataprocConfig,
     * Creates the dataproc init bucket and sets the necessary ACLs.
     */
   def createInitBucket(googleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[GcsBucketName] = {
-    def flatMapList(entities: List[GcsEntity], role: GcsRole): Future[Unit] = {
-      entities match {
-        case Nil => Future.successful(())
-        case head :: tail =>
-          googleStorageDAO.setDefaultObjectAccessControl(bucketName, head, role).flatMap(_ => flatMapList(tail, role))
-      }
-    }
-
     for {
       // The init bucket is created in the cluster's project.
       // Leo service account -> Owner
       // available service accounts ((cluster or default SA) and notebook SA, if they exist) -> Reader
-      // Default object ACLs for all of the above mentioned SAs will be Reader //todo: is reader the right thing?
       bucketSAs <- getBucketSAs(googleProject, serviceAccountInfo)
       leoEntity = userEntity(serviceAccountProvider.getLeoServiceAccountAndKey._1)
       // When we receive a large number (e.g. 200) of simultaneous cluster creation requests,
@@ -61,7 +52,6 @@ class BucketHelper(dataprocConfig: DataprocConfig,
       _ <- retryUntilSuccessOrTimeout(failureLogMessage = s"Init bucket creation failed for Google project '$googleProject'")(30 seconds, 5 minutes) { () =>
         googleStorageDAO.createBucket(googleProject, bucketName, bucketSAs, List(leoEntity))
       }
-      _ <- flatMapList(List(leoEntity) ++ bucketSAs, GcsRoles.Reader)
     } yield bucketName
   }
 
