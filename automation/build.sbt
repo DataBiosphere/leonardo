@@ -6,6 +6,7 @@ import scala.collection.JavaConverters._
 
 lazy val leonardoTests = project.in(file("."))
   .settings(rootSettings:_*)
+  .settings(Defaults.itSettings)
 
 version := "1.0"
 
