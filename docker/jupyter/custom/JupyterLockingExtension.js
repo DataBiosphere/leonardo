@@ -1,4 +1,3 @@
-const namespace = require('base/js/namespace')
 const dialog = require('base/js/dialog')
 const utils = require("base/js/utils")
 
@@ -38,17 +37,14 @@ define(() => {
     const syncIssueFatalBody = "This file was either deleted or never was stored with us."
 
     //TODO URL resolution
-    // const leoUrl = 'http://localhost:8080'
-    const leoUrl = 'http://localhost:8081'
-        // window.location.href.includes('localhost') ?
-        //     'http://localhost:8080' :
-        //     'https://' + window.location.href.split('/')[2]
+    const leoUrl = 'http://localhost:8080'
+        // const leoUrl = 'http://localhost:8081'
     const welderUrl = leoUrl
     const localizeUrl = welderUrl + '/localize'
-    const checkMetaUrl = welderUrl + '/checkMeta'
-        // const checkMetaUrl = welderUrl + '/objects/metadata'
+        // const checkMetaUrl = welderUrl + '/checkMeta'
+    const checkMetaUrl = welderUrl + '/objects/metadata'
     const lockUrl = welderUrl + '/lock'
-    const lastLockedTimer = 6000 // in ms, should be 60000 in final PR
+    const lastLockedTimer = 60000 // in ms, should be 60000 in final PR
 
     const headers = {
         'Content-Type': 'application/json',
@@ -153,14 +149,14 @@ define(() => {
                 return res.json()
             })
             .catch(err => {
-                console.log('in catch')
+                console.log('in catch for getLock')
                 console.error(err)
             })
     }
 
     async function toggleMetaFailureBanner(shouldShow) {
         const bannerId = "notification_metaFailure"
-        const bannerText = "Failed to check notebook status on Terra, changes may not be saved to workspace. Retrying..."
+        const bannerText = "Failed to check notebook status, changes may not be saved to workspace. Retrying..."
 
         if ($("#" + bannerId).length > 0) {
             $("#" + bannerId).remove() //always remove because if we show we always re-render
@@ -191,14 +187,14 @@ define(() => {
                     promptUserWithModal(lockConflictTitle, lockIssueButtons, message)
                 })
             }
-
+            //for the lock endpoint, we consider all non 'ok' statuses an error
             throw new Error(errorText)
         }
     }
 
     const getLockConflictBody = (lockHolder) => `<p>This file is currently being editted by ${lockHolder}.</p><br/><p>You can make a copy, or run it in Playground Mode to explore and execute its contents without saving any changes.`
 
-    function promptUserWithModal(title, buttons, htmlBody) {
+    async function promptUserWithModal(title, buttons, htmlBody) {
         if (modalOpen) return
 
         modalOpen = true
@@ -212,7 +208,7 @@ define(() => {
             })
             .on('hidden.bs.modal', () => modalOpen = false)
             .attr('id', 'leoUserModal')
-            .find(".close").click(() => window.history.back()) //TODO: test
+            .find(".close").click(() => window.history.back()) //TODO: test in docker image
     }
 
     async function openPlaygroundMode() {
@@ -223,7 +219,7 @@ define(() => {
 
         const payload = Object.assign(basePayload, {
             method: 'PATCH',
-            body: JSON.stringify({ path: newPath }) // body data type must match "Content-Type" header
+            body: JSON.stringify({ path: newPath })
         })
 
         console.log('url: ', url, newPath)
@@ -265,7 +261,7 @@ define(() => {
 
     //shows the user whether they are in playground mode or edit mode
     async function renderModeBanner(isEditMode) {
-        removeModeBanner()
+        removeModeBanner() //we always remove the banner because we re-render each loop
 
         var bannerText;
         var toolTipText;
