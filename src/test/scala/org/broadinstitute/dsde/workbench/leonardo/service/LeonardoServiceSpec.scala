@@ -89,7 +89,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterResourcesConfig.jupyterLabGooglePlugin.value,
     clusterResourcesConfig.jupyterSafeModePlugin.value,
     clusterResourcesConfig.jupyterNotebookConfigUri.value,
-    clusterResourcesConfig.welderDockerCompose.value)
+    clusterResourcesConfig.welderDockerCompose.value
+  )
 
   lazy val initFiles = (configFiles ++ serviceAccountCredentialFile).map(GcsObjectName(_))
 

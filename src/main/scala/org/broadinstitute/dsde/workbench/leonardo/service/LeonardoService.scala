@@ -929,7 +929,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       clusterResourcesConfig.jupyterGooglePlugin,
       clusterResourcesConfig.jupyterLabGooglePlugin,
       clusterResourcesConfig.jupyterSafeModePlugin,
-      clusterResourcesConfig.welderDockerCompose)
+      clusterResourcesConfig.welderDockerCompose
+    )
 
     // Uploads the service account private key to the init bucket, if defined.
     // This is a no-op if createClusterAsPetServiceAccount is true.
