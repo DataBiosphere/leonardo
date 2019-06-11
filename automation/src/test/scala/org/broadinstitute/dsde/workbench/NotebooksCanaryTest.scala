@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench
 
+import akka.http.scaladsl.model.TransferEncodings.gzip
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{Notebook, NotebookTestUtils, Python3}
 import org.scalatest.Matchers
@@ -9,8 +10,8 @@ import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, G
 import org.scalatest.FreeSpec
 import org.broadinstitute.dsde.workbench.leonardo._
 
-
 import scala.language.postfixOps
+import scala.util.parsing.json
 
 
 
@@ -54,7 +55,8 @@ class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils 
 
       if (res) {
         import sys.process._
-        s"./notebooks-canary-test-script.sh ${clusterTimeRes.duration.toSeconds}" !!
+        val testScript = s"./notebooks-canary-test-script.sh ${clusterTimeRes.duration.toSeconds}" !!
+        testScript
       }
     }
   }
