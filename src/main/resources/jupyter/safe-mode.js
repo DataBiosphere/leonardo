@@ -79,22 +79,6 @@ define([
               '#notification_notebook span { display: none; } ' +
               '</style>');
 
-    // Add our own persistent "Safe Mode" notification next to the other
-    // notifications, e.g. kernel status.
-
-    // TODO: convert to tooltip with this text:
-    // Safe Mode allows you to explore, change, and run the code,
-    // but your edits will not be saved.
-    // To save your work, choose Make a Copy from the File menu to
-    // make your own version.
-
-    $('#notification_area').prepend(
-        '<div id="safe-mode" style="background-color: #FFFFB2;" ' +
-          'class="notification_widget btn btn-xs navbar-btn">' +
-          '<span>Safe Mode - your edits will not be saved.' +
-            '</span></div>');
-  };
-
   return {
     'load_ipython_extension': load
   };
