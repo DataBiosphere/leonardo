@@ -14,72 +14,43 @@
 // the intended use of this plugin is in a separate space from normal operation
 // which does not support localization features.
 
-define([
-    'base/js/namespace'
-], (Jupyter) => {
-  const load = () => {
-    // TODO: query welder for when to enable (IA-979).   always-on, for now
-    const enabled = true;
-    if (!enabled) {
-      return;
+// const namespace = require('base/js/namespace')
+
+define(() => {
+    function load() {
+        checkMetaLoop()
     }
 
+    function checkMetaLoop() {
+        toggleUIControls(isSafeMode())
 
-    //
-    // Disable UI controls
-    //
+        const interval = setInterval(() => {
+            toggleUIControls(isSafeMode())
+        }, 6000)
 
+        window.onbeforeunload(() => {
+            clearInterval(interval)
+        })
+    }
 
-    // Save Notebook button
-    //"notbook" is an intentional typo to match the Jupyter UI HTML.
-    $('#save-notbook').remove();
+    function isSafeMode() {
+        return true //TODO figure out what the welder link will be relative to the jupyter image
+    }
 
-    // New Notebook menu tree
-    $('#new_notebook').remove();
+    function toggleUIControls(shouldHide) {
+        //these are the jquery selectors for the elements we will toggle
+        //"notbook" is an intentional typo to match the Jupyter UI HTML.
+        const selectorsToHide = ['#save-notbook', '#new_notebook', '#open_notebook', '#copy_notebook', '#save_notebook_as', '#save_checkpoint', '#restore_checkpoint', '.checkpoint_status', '.autosave_status', '#notification_notebook', '#file_menu > li.divider:eq(0)', '#file_menu > li.divider:eq(2)']
+        selectorsToHide.forEach((selector) => {
+            if (shouldHide) {
+                $(selector).hide()
+            } else {
+                $(selector).show()
+            }
+        })
+    }
 
-    // Open... menu item
-    $('#open_notebook').remove();
-
-    // Make a Copy... menu item
-    $('#copy_notebook').remove();
-
-    // Save as... menu item
-    $('#save_notebook_as').remove();
-
-    // Save and Checkpoint menu item
-    $('#save_checkpoint').remove();
-
-    // Revert to Checkpoint menu tree
-    $('#restore_checkpoint').remove();
-
-    // A little cleanup: remove two dividers in the file menu
-    // which are no longer dividing anything
-    $("#file_menu .divider")[0].remove();
-    $("#file_menu .divider")[0].remove();
-
-
-    //
-    // Disable UI notifications
-    //
-
-
-    $('#save_widget')
-        .append(
-            '<style>' +
-              // e.g. Last Checkpoint: 3 minutes ago
-              '.checkpoint_status { display: none; } ' +
-              // e.g. (autosaved) or (unsaved changes)
-              '.autosave_status { display: none; }' +
-              '</style>');
-
-    $('#notification_area')
-        .append(
-            '<style>' +
-              // e.g. Notebook Saved
-              '#notification_notebook span { display: none; } ' +
-              '</style>');
-
-  return {
-    'load_ipython_extension': load
-  };
+    return {
+        'load_ipython_extension': load
+    };
 });
