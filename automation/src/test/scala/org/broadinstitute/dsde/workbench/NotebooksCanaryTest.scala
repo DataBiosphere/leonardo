@@ -1,20 +1,20 @@
 package org.broadinstitute.dsde.workbench
 
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.{Notebook, NotebookTestUtils, Python2, Python3}
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.{Notebook, NotebookTestUtils, Python3}
 import org.scalatest.Matchers
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V2
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
-import org.scalatest.{FreeSpec, ParallelTestExecution}
+import org.scalatest.FreeSpec
 import org.broadinstitute.dsde.workbench.leonardo._
 
 
 import scala.language.postfixOps
-import sys.process._
 
 
-class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils with ParallelTestExecution with
+
+class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils with
   BillingFixtures {
 
   implicit val authToken: AuthToken = ronAuthToken
@@ -50,31 +50,32 @@ class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils 
       logger.info(s"Time it took to complete test: " +
         s" ${clusterTimeRes.duration.toSeconds}")
 
-            val res = true
+      val res = true
 
-            if (res) {
-              s"./notebooks-canary-test-script.sh ${clusterTimeRes.duration.toSeconds}" !!
-            }
+      if (res) {
+        import sys.process._
+        s"./notebooks-canary-test-script.sh ${clusterTimeRes.duration.toSeconds}" !!
+      }
     }
   }
 
-//  object HttpPost {
-//    //    def main(args: Array[String]): Unit = {
-//    //      val url = "https://insights-collector.newrelic.com/v1/accounts/1862859/events"
-//    //
-//    //      val post = new HttpPost(url)
-//    //
-//    //    }
-//
-//    def createDashboard(dashBoardName: String)(implicit token: AuthToken): Unit = {
-//      logger.info(s"Creating dashboard: NotebooksCanaryTestProd")
-//      postRequest(apiUrl(s"/v2/dashboards"))
-//
-//      val newRelMetrics = NewRelicMetrics(NotebooksCanaryTestProd)
-//
-//      newRelMetrics.timeIO(nbCanaryTestProd)
-//    }
-//  }
+  //  object HttpPost {
+  //    //    def main(args: Array[String]): Unit = {
+  //    //      val url = "https://insights-collector.newrelic.com/v1/accounts/1862859/events"
+  //    //
+  //    //      val post = new HttpPost(url)
+  //    //
+  //    //    }
+  //
+  //    def createDashboard(dashBoardName: String)(implicit token: AuthToken): Unit = {
+  //      logger.info(s"Creating dashboard: NotebooksCanaryTestProd")
+  //      postRequest(apiUrl(s"/v2/dashboards"))
+  //
+  //      val newRelMetrics = NewRelicMetrics(NotebooksCanaryTestProd)
+  //
+  //      newRelMetrics.timeIO(nbCanaryTestProd)
+  //    }
+  //  }
 
 }
 
