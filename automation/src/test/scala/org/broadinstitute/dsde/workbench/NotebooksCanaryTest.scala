@@ -55,8 +55,7 @@ class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils 
 
       if (res) {
         import sys.process._
-        val testScript = s"./notebooks-canary-test-script.sh ${clusterTimeRes.duration.toSeconds}" !!
-        testScript
+        s"./notebooks-canary-test-script.sh ${clusterTimeRes.duration.toSeconds}" !!
       }
     }
   }
