@@ -162,7 +162,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     touch /hadoop_gcs_connector_metadata_cache
     touch auth_openidc.conf
 
-    # TODO make this configurable. https://broadworkbench.atlassian.net/browse/IA-1037
+    # TODO make this configurable. https://broadworkbench.atlassian.net/browse/IA-1033
     # do not enable welder yet.  Remove flag when welder is complete.
     WELDER_ENABLED=false
 
