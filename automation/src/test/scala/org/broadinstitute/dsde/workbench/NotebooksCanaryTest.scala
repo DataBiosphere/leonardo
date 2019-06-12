@@ -55,7 +55,7 @@ class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils 
 
       if (res) {
         import sys.process._
-        s"./home/jenkins/workspace/notebooks-canary-test-script.sh ${clusterTimeRes.duration.toSeconds}" !!
+        s"./firecloud-automated-testing/notebooks-canary-test-script.sh ${clusterTimeRes.duration.toSeconds}" !!
       }
     }
   }
