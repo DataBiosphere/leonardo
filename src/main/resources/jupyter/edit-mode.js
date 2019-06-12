@@ -7,7 +7,8 @@ define(() => {
 
     const syncIssueButtons = {
         'Make a Copy': {
-            click: () => saveAs()
+            click: () => saveAs(),
+            'class': 'btn-primary'
         },
         'Reload the workspace version and discard your changes': {
             click: () => updateLocalCopyWithRemote()
