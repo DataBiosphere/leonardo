@@ -34,7 +34,7 @@ define(() => {
     }
 
     function isSafeMode() {
-        return true //TODO figure out what the welder link will be relative to the jupyter image
+        return false //TODO figure out what the welder link will be relative to the jupyter image
     }
 
     function toggleUIControls(shouldHide) {
