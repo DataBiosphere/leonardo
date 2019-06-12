@@ -392,4 +392,9 @@ USER $USER
 WORKDIR $HOME
 
 EXPOSE $JUPYTER_PORT
+
+# Note: this entrypoint is provided for running Jupyter independently of Leonardo.
+# When Leonardo deploys this image onto a cluster, the entrypoint is overwritten to enable
+# additional setup inside the container before execution.  Jupyter execution occurs when the
+# init-actions.sh script uses 'docker exec' to call run-jupyter.sh.
 ENTRYPOINT ["/usr/local/bin/jupyter", "notebook"]
