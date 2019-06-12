@@ -1,6 +1,11 @@
 const dialog = require('base/js/dialog')
 const utils = require("base/js/utils")
 
+// TEMPLATED CODE
+// Leonardo has logic to find/replace templated values in the format $(...).
+var googleProject = $(googleProject);
+var clusterName = $(clusterName);
+
 define(() => {
     var modalOpen = false
     var meta = {}
@@ -39,9 +44,9 @@ define(() => {
     const syncIssueFatalBody = "This file was either deleted or never was stored with us."
 
     //TODO URL resolution
-    const leoUrl = 'http://localhost:8080'
+    const leoUrl = ''
         // const leoUrl = 'http://localhost:8081'
-    const welderUrl = leoUrl
+    const welderUrl = leoUrl + `/proxy/${googleProject}/${clusterName}/welder`
     const localizeUrl = welderUrl + '/localize'
         // const checkMetaUrl = welderUrl + '/checkMeta'
     const checkMetaUrl = welderUrl + '/objects/metadata'
@@ -54,13 +59,13 @@ define(() => {
     }
 
     const basePayload = {
-        // mode: "no-cors",
+        mode: "no-cors",
         headers: headers
     }
 
     //TODO resolve these links
-    const jupyterBaseUrl = "http://localhost:8000/"
-    const jupyterContentsAPIUrl = jupyterBaseUrl + "api/contents/"
+    const jupyterBaseUrl = `/notebooks/${googleProject}/${clusterName}`
+    const jupyterContentsAPIUrl = jupyterBaseUrl + "/api/contents/"
 
     const getLocalPath = () => {
         return {
