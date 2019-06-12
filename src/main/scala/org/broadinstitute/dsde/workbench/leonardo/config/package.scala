@@ -60,6 +60,7 @@ package object config {
       ClusterResource(config.getString("jupyterGooglePlugin")),
       ClusterResource(config.getString("jupyterLabGooglePlugin")),
       ClusterResource(config.getString("jupyterSafeModePlugin")),
+      ClusterResource(config.getString("jupyterEditModePlugin")),
       ClusterResource(config.getString("jupyterNotebookConfigUri")),
       ClusterResource(config.getString("welderDockerCompose"))
     )

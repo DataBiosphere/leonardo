@@ -88,6 +88,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterResourcesConfig.jupyterGooglePlugin.value,
     clusterResourcesConfig.jupyterLabGooglePlugin.value,
     clusterResourcesConfig.jupyterSafeModePlugin.value,
+    clusterResourcesConfig.jupyterEditModePlugin.value,
     clusterResourcesConfig.jupyterNotebookConfigUri.value,
     clusterResourcesConfig.welderDockerCompose.value
   )

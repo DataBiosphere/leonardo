@@ -11,6 +11,7 @@ case class ClusterResourcesConfig(initActionsScript: ClusterResource,
                                   jupyterGooglePlugin: ClusterResource,
                                   jupyterLabGooglePlugin: ClusterResource,
                                   jupyterSafeModePlugin: ClusterResource,
+                                  jupyterEditModePlugin: ClusterResource,
                                   jupyterNotebookConfigUri: ClusterResource,
                                   welderDockerCompose: ClusterResource
                                  )
