@@ -193,7 +193,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     clusterInitMap("defaultClientId") shouldBe testClusterRequestWithExtensionAndScript.defaultClientId.getOrElse("")
     clusterInitMap("welderDockerImage") shouldBe dataprocConfig.welderDockerImage
 
-    clusterInitMap.size shouldBe 33
+    clusterInitMap.size shouldBe 34
   }
 
 }

@@ -59,6 +59,7 @@ package object config {
       ClusterResource(config.getString("googleSignInJs")),
       ClusterResource(config.getString("jupyterGooglePlugin")),
       ClusterResource(config.getString("jupyterLabGooglePlugin")),
+      ClusterResource(config.getString("jupyterSafeModePlugin")),
       ClusterResource(config.getString("jupyterNotebookConfigUri")),
       ClusterResource(config.getString("welderDockerCompose"))
     )
