@@ -46,17 +46,17 @@ define(() => {
     }
 
     async function triggerUIToggle() {
-        checkMeta()
-            .then(res => {
-                if (res.syncMode == "EDIT") {
-                    toggleUIControls(false)
-                } else {
-                    toggleUIControls(true)
-                }
-            })
-            .catch(err => {
-                toggleUIControls(false) //we always assume safe mode if the check meta call fails
-            })
+        // checkMeta()
+        //     .then(res => {
+        //         if (res.syncMode == "EDIT") {
+        //             toggleUIControls(false)
+        //         } else {
+        //             toggleUIControls(true)
+        //         }
+        //     })
+        //     .catch(err => {
+        //         toggleUIControls(false) //we always assume safe mode if the check meta call fails
+        //     })
     }
 
     function checkMeta() {
