@@ -163,6 +163,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     touch /hadoop_gcs_connector_metadata_cache
     touch auth_openidc.conf
 
+    # TODO make this configurable. https://broadworkbench.atlassian.net/browse/IA-1033
     # do not enable welder yet.  Remove flag when welder is complete.
     WELDER_ENABLED=false
 
@@ -218,6 +219,13 @@ if [[ "${ROLE}" == 'Master' ]]; then
     retry 5 docker-compose "${COMPOSE_FILES[@]}" config
     retry 5 docker-compose "${COMPOSE_FILES[@]}" pull
     retry 5 docker-compose "${COMPOSE_FILES[@]}" up -d
+
+    # if Welder is installed, start the service.
+    # See https://broadworkbench.atlassian.net/browse/IA-1026
+    if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
+      log 'Starting Welder file synchronization service...'
+      retry 3 docker exec -u daemon -d ${WELDER_SERVER_NAME} /opt/docker/bin/server start
+    fi
 
     # Jupyter-specific setup, only do if Jupyter is installed
     if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
