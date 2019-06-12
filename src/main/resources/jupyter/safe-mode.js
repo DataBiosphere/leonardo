@@ -16,16 +16,28 @@
 
 // const namespace = require('base/js/namespace')
 
+// TEMPLATED CODE
+// Leonardo has logic to find/replace templated values in the format $(...).
+var googleProject = $(googleProject);
+var clusterName = $(clusterName);
+
 define(() => {
+    const welderUrl = `/proxy/${googleProject}/${clusterName}/welder`
+    const checkMetaUrl = welderUrl + '/objects/metadata'
+    const basePayload = {
+        mode: "no-cors",
+        headers: headers
+    }
+
     function load() {
         checkMetaLoop()
     }
 
     function checkMetaLoop() {
-        toggleUIControls(isSafeMode())
+        triggerUIToggle()
 
         const interval = setInterval(() => {
-            toggleUIControls(isSafeMode())
+            triggerUIToggle()
         }, 6000)
 
         window.onbeforeunload(() => {
@@ -33,8 +45,37 @@ define(() => {
         })
     }
 
-    function isSafeMode() {
-        return false //TODO figure out what the welder link will be relative to the jupyter image
+    async function triggerUIToggle() {
+        checkMeta()
+            .then(res => {
+                if (res.syncMode == "EDIT") {
+                    toggleUIControls(false)
+                } else {
+                    toggleUIControls(true)
+                }
+            })
+            .catch(err => {
+                toggleUIControls(false) //we always assume safe mode if the check meta call fails
+            })
+    }
+
+    function checkMeta() {
+        const localPath = {
+            localObjectPath: Jupyter.notebook.notebook_path
+        }
+
+        const payload = Object.assign(basePayload, {
+            body: JSON.stringify(localPath),
+            method: 'POST'
+        })
+
+        return fetch(checkMetaUrl, payload)
+            .then(res => {
+                if (!res.ok) {
+                    throw Error("check metadata call failed due to status code")
+                }
+                return res.json()
+            })
     }
 
     function toggleUIControls(shouldHide) {
