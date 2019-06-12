@@ -26,7 +26,8 @@ define(() => {
 
     const noRemoteFileButtons = {
         'Continue working': {
-            click: () => {}
+            click: () => {},
+            'class': 'btn-primary'
         }
     }
 
@@ -107,7 +108,7 @@ define(() => {
             .catch(err => {
                 console.log('in checkMeta catch')
                 console.error(err)
-                removeModeBanner()
+                removeElementById(modeBannerId)
                 toggleMetaFailureBanner(true)
             })
     }
@@ -158,9 +159,7 @@ define(() => {
         const bannerId = "notification_metaFailure"
         const bannerText = "Failed to check notebook status, changes may not be saved to workspace. Retrying..."
 
-        if ($("#" + bannerId).length > 0) {
-            $("#" + bannerId).remove() //always remove because if we show we always re-render
-        }
+        removeElementById(bannerId)
 
         if (shouldShow) {
             const bannerStyling = "btn btn-xs navbar-btn btn-danger"
@@ -192,7 +191,10 @@ define(() => {
         }
     }
 
-    const getLockConflictBody = (lockHolder) => `<p>This file is currently being editted by ${lockHolder}.</p><br/><p>You can make a copy, or run it in Playground Mode to explore and execute its contents without saving any changes.`
+    const getLockConflictBody = (lockHolder) => {
+        return `<p>This file is currently being editted by ${lockHolder}.</p>` +
+            `<br/><p>You can make a copy, or run it in Playground Mode to explore and execute its contents without saving any changes.`;
+    }
 
     async function promptUserWithModal(title, buttons, htmlBody) {
         if (modalOpen) return
@@ -253,15 +255,15 @@ define(() => {
         })
     }
 
-    async function removeModeBanner() {
-        if (!$("#" + modeBannerId).length == 0) {
-            $("#" + modeBannerId).remove()
+    async function removeElementById(id) {
+        if (!$("#" + id).length == 0) {
+            $("#" + id).remove()
         }
     }
 
     //shows the user whether they are in playground mode or edit mode
     async function renderModeBanner(isEditMode) {
-        removeModeBanner() //we always remove the banner because we re-render each loop
+        removeElementById(modeBannerId) //we always remove the banner because we re-render each loop
 
         var bannerText;
         var toolTipText;
