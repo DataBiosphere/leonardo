@@ -3,12 +3,12 @@ const utils = require("base/js/utils")
 
 // TEMPLATED CODE
 // Leonardo has logic to find/replace templated values in the format $(...).
-var googleProject = $(googleProject);
-var clusterName = $(clusterName);
+let googleProject = $(googleProject);
+let clusterName = $(clusterName);
 
 define(() => {
-    var modalOpen = false
-    var meta = {}
+    let modalOpen = false
+    let meta = {}
 
     const syncIssueButtons = {
         'Make a Copy': {
@@ -79,7 +79,7 @@ define(() => {
     }
 
     async function initSyncMaintainer() {
-        var syncMaintainer = setInterval(() => {
+        let syncMaintainer = setInterval(() => {
             checkMeta()
         }, lastLockedTimer)
 
@@ -89,10 +89,11 @@ define(() => {
     }
 
     async function checkMeta() {
-        const payload = Object.assign(basePayload, {
+        const payload = {
+            ...basePayload,
             body: JSON.stringify(getLocalPath()),
             method: 'POST'
-        })
+        }
 
         return fetch(checkMetaUrl, payload)
             .then(res => {
@@ -100,7 +101,7 @@ define(() => {
                 if (!res.ok && res.status == 412) {
                     promptUserWithModal(syncIssueTitle, noRemoteFileButtons, syncIssueFatalBody)
                 } else if (!res.ok && res.status >= 400) {
-                    throw Error("check metadata call failed due to status code")
+                    throw Error(res.statusText)
                 }
                 return res.json()
             })
@@ -131,7 +132,7 @@ define(() => {
         } else if (fatalSyncStatuses.includes(res.syncStatus)) {
             promptUserWithModal(syncIssueTitle, noRemoteFileButtons, syncIssueFatalBody)
         } else {
-            console.log('healthy sync status detected')
+            console.info('healthy sync status detected')
         }
     }
 
@@ -145,10 +146,11 @@ define(() => {
     }
 
     async function getLock() {
-        const payload = Object.assign(basePayload, {
+        const payload = {
+            ...basePayload,
             method: 'POST',
             body: JSON.stringify(getLocalPath())
-        })
+        }
 
         fetch(lockUrl, payload)
             .then(res => {
@@ -156,7 +158,6 @@ define(() => {
                 return res.json()
             })
             .catch(err => {
-                console.log('in catch for getLock')
                 console.error(err)
             })
     }
@@ -225,10 +226,11 @@ define(() => {
 
         console.log('switching to playground path: ', newPath)
 
-        const payload = Object.assign(basePayload, {
+        const payload = {
+            ...basePayload,
             method: 'PATCH',
             body: JSON.stringify({ path: newPath })
-        })
+        }
 
         console.log('url: ', url, newPath)
 
@@ -246,10 +248,11 @@ define(() => {
         const newNotebookName = originalFileSplit[0] + "_COPY" + originalFileSplit[1]
         const newNotebookPath = originalPathSplit[0] + '/' + newNotebookName
 
-        const payload = Object.assign(basePayload, {
+        const payload = {
+            ...basePayload,
             method: 'PATCH',
             body: JSON.stringify({ path: newNotebookPath }) // body data type must match "Content-Type" header
-        })
+        }
 
         const currHrefSplit = utils.url_path_split(window.location.href)
         const newHref = currHrefSplit[0] + "/" + newNotebookName
@@ -271,9 +274,9 @@ define(() => {
     async function renderModeBanner(isEditMode) {
         removeElementById(modeBannerId) //we always remove the banner because we re-render each loop
 
-        var bannerText;
-        var toolTipText;
-        var bannerStyling;
+        let bannerText;
+        let toolTipText;
+        let bannerStyling;
 
         const baseStyling = "btn btn-xs navbar-btn"
 
@@ -314,14 +317,15 @@ define(() => {
             }
         }
 
-        const payload = Object.assign(basePayload, {
+        const payload = {
+            ...basePayload,
             method: 'POST',
             body: JSON.stringify(entries)
-        })
+        }
 
         fetch(localizeUrl, payload)
             .then(res => {
-                location.reload(true)
+                location.reload(true) //is this needed?
             }).catch(err => {
                 location.reload(true)
             })
