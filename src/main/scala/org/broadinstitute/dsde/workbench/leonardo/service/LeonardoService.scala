@@ -928,6 +928,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       clusterResourcesConfig.proxySiteConf,
       clusterResourcesConfig.jupyterGooglePlugin,
       clusterResourcesConfig.jupyterLabGooglePlugin,
+      clusterResourcesConfig.jupyterSafeModePlugin,
       clusterResourcesConfig.welderDockerCompose
     )
 
