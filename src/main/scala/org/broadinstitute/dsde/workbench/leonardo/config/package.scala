@@ -4,9 +4,10 @@ import java.io.File
 
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
-import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterResource
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
+
 import scala.collection.JavaConverters._
 
 package object config {
@@ -28,9 +29,11 @@ package object config {
       toScalaDuration(config.getDuration("defaultExecutionTimeout")),
       config.getString("jupyterServerName"),
       config.getString("rstudioServerName"),
+      config.getString("welderServerName"),
       config.getString("firewallRuleName"),
       config.getString("networkTag"),
       config.getStringList("defaultScopes").asScala.toSet,
+      config.getString("welderDockerImage"),
       config.getAs[String]("vpcNetwork"),
       config.getAs[String]("vpcSubnet")
     )
@@ -56,7 +59,9 @@ package object config {
       ClusterResource(config.getString("googleSignInJs")),
       ClusterResource(config.getString("jupyterGooglePlugin")),
       ClusterResource(config.getString("jupyterLabGooglePlugin")),
-      ClusterResource(config.getString("jupyterNotebookConfigUri"))
+      ClusterResource(config.getString("jupyterSafeModePlugin")),
+      ClusterResource(config.getString("jupyterNotebookConfigUri")),
+      ClusterResource(config.getString("welderDockerCompose"))
     )
   }
 

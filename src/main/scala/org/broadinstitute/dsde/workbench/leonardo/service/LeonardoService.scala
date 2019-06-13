@@ -105,7 +105,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val dbRef: DbReference,
                       protected val authProvider: LeoAuthProvider,
                       protected val serviceAccountProvider: ServiceAccountProvider,
-                      protected val whitelist: Set[String],
                       protected val bucketHelper: BucketHelper,
                       protected val contentSecurityPolicy: String)
                      (implicit val executionContext: ExecutionContext,
@@ -121,21 +120,24 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     network = dataprocConfig.vpcNetwork.map(VPCNetworkName),
     targetTags = List(NetworkTag(dataprocConfig.networkTag)))
 
-  // Startup script to install on the cluster master node. This allows Jupyter to start back up after
-  // a cluster is resumed.
-  //
-  // The || clause is included because older clusters may not have the run-jupyter.sh script installed,
-  // so we need to fall back running `jupyter notebook` directly. See https://github.com/DataBiosphere/leonardo/issues/481.
+  // Startup scripts to install on the cluster master node.
+  // This allows Jupyter and Welder to start back up after a cluster is resumed.
   private lazy val masterInstanceStartupScript: immutable.Map[String, String] = {
-    immutable.Map("startup-script" -> s"docker exec -d ${dataprocConfig.jupyterServerName} /bin/bash -c '/etc/jupyter/scripts/run-jupyter.sh || /usr/local/bin/jupyter notebook'")
-  }
+    val googleKey = "startup-script"  // required; see https://cloud.google.com/compute/docs/startupscript
 
-  def isWhitelisted(userInfo: UserInfo): Future[Boolean] = {
-    if( whitelist contains userInfo.userEmail.value.toLowerCase ) {
-      Future.successful(true)
-    } else {
-      Future.failed(new AuthorizationError(Some(userInfo.userEmail)))
+    // The || clause is included because older clusters may not have the run-jupyter.sh script installed,
+    // so we need to fall back running `jupyter notebook` directly. See https://github.com/DataBiosphere/leonardo/issues/481.
+    val jupyterStart = s"docker exec -d ${dataprocConfig.jupyterServerName} /bin/bash -c '/etc/jupyter/scripts/run-jupyter.sh || /usr/local/bin/jupyter notebook'"
+
+    // TODO make this flag configurable. https://broadworkbench.atlassian.net/browse/IA-1033
+    val enableWelder = false
+    val servicesStart = if (enableWelder) {
+      val welderStart = s"docker exec -u daemon -d ${dataprocConfig.welderServerName} /opt/docker/bin/server start"
+      s"($jupyterStart) && $welderStart"
     }
+    else jupyterStart
+
+    immutable.Map(googleKey -> servicesStart)
   }
 
   protected def checkProjectPermission(userInfo: UserInfo, action: ProjectAction, project: GoogleProject): Future[Unit] = {
@@ -936,7 +938,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       clusterResourcesConfig.proxyDockerCompose,
       clusterResourcesConfig.proxySiteConf,
       clusterResourcesConfig.jupyterGooglePlugin,
-      clusterResourcesConfig.jupyterLabGooglePlugin)
+      clusterResourcesConfig.jupyterLabGooglePlugin,
+      clusterResourcesConfig.jupyterSafeModePlugin,
+      clusterResourcesConfig.welderDockerCompose
+    )
 
     // Uploads the service account private key to the init bucket, if defined.
     // This is a no-op if createClusterAsPetServiceAccount is true.

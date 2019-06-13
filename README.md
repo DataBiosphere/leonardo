@@ -41,6 +41,9 @@ $ cd leonardo
 ```
 
 ### Run Leonardo unit tests
+
+Leonardo requires Java 8 due to a dependency on Java's DNS SPI functionality. This feature is removed in Java 9 and above.
+
 Ensure docker is running. Spin up MySQL locally:
 ```
 $ ./docker/run-mysql.sh start leonardo  
@@ -90,3 +93,4 @@ to repo `broadinstitute/leonardo-notebooks`
 ````
 bash ./jupyter-docker/build.sh push <TAG NAME>
 ````
+

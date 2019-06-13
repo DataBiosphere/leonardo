@@ -63,7 +63,7 @@ if [ ! -z ${SERVICE_ACCOUNT_CREDENTIALS} ] ; then
   export GOOGLE_APPLICATION_CREDENTIALS=/etc/${SERVICE_ACCOUNT_CREDENTIALS}
 fi
 
-# Only initialize Jupyter docker containers on the master
+# Only initialize tool and proxy docker containers on the master
 if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_HOME=/etc/jupyter
     JUPYTER_SCRIPTS=${JUPYTER_HOME}/scripts
@@ -77,9 +77,11 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export JUPYTER_SERVER_NAME=$(jupyterServerName)
     export RSTUDIO_SERVER_NAME=$(rstudioServerName)
     export PROXY_SERVER_NAME=$(proxyServerName)
+    export WELDER_SERVER_NAME=$(welderServerName)
     export JUPYTER_DOCKER_IMAGE=$(jupyterDockerImage)
     export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
     export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
+    export WELDER_DOCKER_IMAGE=$(welderDockerImage)
 
     SERVER_CRT=$(jupyterServerCrt)
     SERVER_KEY=$(jupyterServerKey)
@@ -87,6 +89,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_DOCKER_COMPOSE=$(jupyterDockerCompose)
     RSTUDIO_DOCKER_COMPOSE=$(rstudioDockerCompose)
     PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
+    WELDER_DOCKER_COMPOSE=$(welderDockerCompose)
     PROXY_SITE_CONF=$(proxySiteConf)
     JUPYTER_SERVER_EXTENSIONS=$(jupyterServerExtensions)
     JUPYTER_NB_EXTENSIONS=$(jupyterNbExtensions)
@@ -95,6 +98,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     GOOGLE_SIGN_IN_JS_URI=$(googleSignInJsUri)
     JUPYTER_GOOGLE_PLUGIN_URI=$(jupyterGooglePluginUri)
     JUPYTER_LAB_GOOGLE_PLUGIN_URI=$(jupyterLabGooglePluginUri)
+    JUPYTER_SAFE_MODE_PLUGIN_URI=$(jupyterSafeModePluginUri)
     JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
     JUPYTER_USER_SCRIPT_OUTPUT_URI=$(jupyterUserScriptOutputUri)
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
@@ -153,10 +157,15 @@ if [[ "${ROLE}" == 'Master' ]]; then
     gsutil cp ${JUPYTER_DOCKER_COMPOSE} /etc
     gsutil cp ${RSTUDIO_DOCKER_COMPOSE} /etc
     gsutil cp ${PROXY_DOCKER_COMPOSE} /etc
+    gsutil cp ${WELDER_DOCKER_COMPOSE} /etc
 
     # Needed because docker-compose can't handle symlinks
     touch /hadoop_gcs_connector_metadata_cache
     touch auth_openidc.conf
+
+    # TODO make this configurable. https://broadworkbench.atlassian.net/browse/IA-1033
+    # do not enable welder yet.  Remove flag when welder is complete.
+    WELDER_ENABLED=false
 
     # If we have a service account JSON file, create an .env file to set GOOGLE_APPLICATION_CREDENTIALS
     # in the docker container. Otherwise, we should _not_ set this environment variable so it uses the
@@ -171,13 +180,17 @@ if [[ "${ROLE}" == 'Master' ]]; then
         log 'Copying SA into RStudio Docker...'
         docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${RSTUDIO_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
       fi
+      if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
+        log 'Copying SA into Welder Docker...'
+        docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${WELDER_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
+      fi
     else
       echo "" > /etc/google_application_credentials.env
     fi
 
     # If any image is hosted in a GCR registry (detected by regex) then
     # authorize docker to interact with gcr.io.
-    if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}" ; then
+    if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
       log 'Authorizing GCR...'
       gcloud docker --authorize-only
     fi
@@ -197,10 +210,22 @@ if [[ "${ROLE}" == 'Master' ]]; then
       COMPOSE_FILES+=(-f /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
       cat /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`
     fi
+    if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
+      COMPOSE_FILES+=(-f /etc/`basename ${WELDER_DOCKER_COMPOSE}`)
+      cat /etc/`basename ${WELDER_DOCKER_COMPOSE}`
+    fi
+
 
     retry 5 docker-compose "${COMPOSE_FILES[@]}" config
     retry 5 docker-compose "${COMPOSE_FILES[@]}" pull
     retry 5 docker-compose "${COMPOSE_FILES[@]}" up -d
+
+    # if Welder is installed, start the service.
+    # See https://broadworkbench.atlassian.net/browse/IA-1026
+    if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
+      log 'Starting Welder file synchronization service...'
+      retry 3 docker exec -u daemon -d ${WELDER_SERVER_NAME} /opt/docker/bin/server start
+    fi
 
     # Jupyter-specific setup, only do if Jupyter is installed
     if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
@@ -289,6 +314,15 @@ if [[ "${ROLE}" == 'Master' ]]; then
         docker cp /etc/${JUPYTER_GOOGLE_PLUGIN} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/custom.js
       fi
 
+      # If safe-mode.js was specified, copy it into the jupyter docker container.
+      if [ ! -z ${JUPYTER_SAFE_MODE_PLUGIN_URI} ] ; then
+        log 'Installing safe-mode.js extension...'
+        gsutil cp ${JUPYTER_SAFE_MODE_PLUGIN_URI} /etc
+        JUPYTER_SAFE_MODE_PLUGIN=`basename ${JUPYTER_SAFE_MODE_PLUGIN_URI}`
+        retry 3 docker exec ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
+        docker cp /etc/${JUPYTER_SAFE_MODE_PLUGIN} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
+      fi
+
       if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG_URI} ] ; then
         log 'Copy Jupyter notebook config...'
         gsutil cp ${JUPYTER_NOTEBOOK_CONFIG_URI} /etc
@@ -303,7 +337,10 @@ if [[ "${ROLE}" == 'Master' ]]; then
         JUPYTER_USER_SCRIPT=`basename ${JUPYTER_USER_SCRIPT_URI}`
         docker cp /etc/${JUPYTER_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
         retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
-        docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT} &> us_output.txt || EXIT_CODE=$? && true ;
+        # Execute the user script as privileged to allow for deeper customization of VM behavior, e.g. installing
+        # network egress throttling. As docker is not a security layer, it is assumed that a determined attacker
+        # can gain full access to the VM already, so using this flag is not a significant escalation.  
+        docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT} &> us_output.txt || EXIT_CODE=$? && true ;
         if [ $EXIT_CODE -ne 0 ]; then
             log "User script failed with exit code $EXIT_CODE. Output is saved to $JUPYTER_USER_SCRIPT_OUTPUT_URI."
             retry 3 gsutil -h "x-goog-meta-passed":"false" cp us_output.txt ${JUPYTER_USER_SCRIPT_OUTPUT_URI}
