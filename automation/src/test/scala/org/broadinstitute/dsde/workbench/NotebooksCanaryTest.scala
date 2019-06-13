@@ -49,16 +49,19 @@ class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils 
       logger.info(s"Time it took to complete test: " +
         s" ${clusterTimeRes.duration.toSeconds}")
 
-      val res = true
-
-      import sys.process._
-
-      if (res) {
-        val pwd = "pwd".!
-        println(pwd)
-        val canary = s"./notebooks-canary-test-script.sh ${clusterTimeRes.duration.toSeconds}"
-        canary.!
-      }
+//      val res = true
+//
+//      import sys.process._
+//
+//      if (res) {
+//        val pwd = "pwd".!
+//        val ls = "ls".!
+//        println(ls)
+//        println(pwd)
+//        //cd into shell script from /app
+//        val canary = s"./notebooks-canary-test-script.sh ${clusterTimeRes.duration.toSeconds}"
+//        canary.!
+//      }
     }
   }
 
