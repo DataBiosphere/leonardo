@@ -126,7 +126,21 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   // The || clause is included because older clusters may not have the run-jupyter.sh script installed,
   // so we need to fall back running `jupyter notebook` directly. See https://github.com/DataBiosphere/leonardo/issues/481.
   private lazy val masterInstanceStartupScript: immutable.Map[String, String] = {
-    immutable.Map("startup-script" -> s"docker exec -d ${dataprocConfig.jupyterServerName} /bin/bash -c '/etc/jupyter/scripts/run-jupyter.sh || /usr/local/bin/jupyter notebook'")
+    val googleKey = "startup-script"  // required; see https://cloud.google.com/compute/docs/startupscript
+
+    // The || clause is included because older clusters may not have the run-jupyter.sh script installed,
+    // so we need to fall back running `jupyter notebook` directly. See https://github.com/DataBiosphere/leonardo/issues/481.
+    val jupyterStart = s"docker exec -d ${dataprocConfig.jupyterServerName} /bin/bash -c '/etc/jupyter/scripts/run-jupyter.sh || /usr/local/bin/jupyter notebook'"
+
+    // TODO make this flag configurable. https://broadworkbench.atlassian.net/browse/IA-1033
+    val enableWelder = false
+    val servicesStart = if (enableWelder) {
+      val welderStart = s"docker exec -u daemon -d ${dataprocConfig.welderServerName} /opt/docker/bin/server start"
+      s"($jupyterStart) && $welderStart"
+    }
+    else jupyterStart
+
+    immutable.Map(googleKey -> servicesStart)
   }
 
   protected def checkProjectPermission(userInfo: UserInfo, action: ProjectAction, project: GoogleProject): Future[Unit] = {

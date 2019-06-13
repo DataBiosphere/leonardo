@@ -3,6 +3,7 @@ const utils = require("base/js/utils")
 
 // TEMPLATED CODE
 // Leonardo has logic to find/replace templated values in the format $(...).
+
 let googleProject = $(googleProject);
 let clusterName = $(clusterName);
 
@@ -41,7 +42,7 @@ define(() => {
     const lockConflictTitle = "File is in use"
     const syncIssueTitle = "File versions out of sync"
     const syncIssueBody = "Your version of this file does not match the version in the workspace. What would you like to do?"
-    const syncIssueFatalBody = "This file was either deleted or never was stored with us."
+    const syncIssueNotFoundBody = "This file was either deleted or never was stored with us."
 
     //TODO URL resolution
     const leoUrl = ''
@@ -67,15 +68,9 @@ define(() => {
     const jupyterBaseUrl = `/notebooks/${googleProject}/${clusterName}`
     const jupyterContentsAPIUrl = jupyterBaseUrl + "/api/contents/"
 
-    const getLocalPath = () => {
-        return {
-            localObjectPath: Jupyter.notebook.notebook_path
-        }
-    }
-
     function init() {
         checkMeta()
-        initSyncMaintainer()
+            // initSyncMaintainer()
     }
 
     async function initSyncMaintainer() {
@@ -89,9 +84,13 @@ define(() => {
     }
 
     async function checkMeta() {
+        const localPath = {
+            localObjectPath: Jupyter.notebook.notebook_path
+        }
+
         const payload = {
             ...basePayload,
-            body: JSON.stringify(getLocalPath()),
+            body: JSON.stringify(localPath),
             method: 'POST'
         }
 
@@ -99,7 +98,7 @@ define(() => {
             .then(res => {
                 console.log('in first then of checkmeta', res)
                 if (!res.ok && res.status == 412) {
-                    promptUserWithModal(syncIssueTitle, noRemoteFileButtons, syncIssueFatalBody)
+                    //TODO: change this to a proper notification
                 } else if (!res.ok && res.status >= 400) {
                     throw Error(res.statusText)
                 }
@@ -109,7 +108,7 @@ define(() => {
                 console.log('res in check meta after .json()', res)
                 handleCheckMetaResp(res) //sets meta state
                 toggleMetaFailureBanner(false) //sets banner for meta status
-                maintainLock(res) //gets lock 
+                maintainLockState(res) //gets lock if in edit mode and 
                 return res
             })
             .catch(err => {
@@ -120,23 +119,24 @@ define(() => {
             })
     }
 
-    //this function assumes any status not included in these lists represents an in sync notebook to defend against future fields being added being auto-categorized as failures
+    //this function assumes any status not included in these lists represents an in out of sync notebook to defend against future fields being added being auto-categorized as failures
     function handleCheckMetaResp(res) {
         meta = res //set meta state
 
+        const healthySyncStatuses = ["LIVE"]
         const outOfSyncStatuses = ["DESYNCHRONIZED", "LOCAL_CHANGED", "REMOTE_CHANGED"]
-        const fatalSyncStatuses = ["REMOTE_NOT_FOUND"]
+        const notFoundStatus = ["REMOTE_NOT_FOUND"]
 
-        if (outOfSyncStatuses.includes(res.syncStatus)) {
-            promptUserWithModal(syncIssueTitle, syncIssueButtons, syncIssueBody)
-        } else if (fatalSyncStatuses.includes(res.syncStatus)) {
-            promptUserWithModal(syncIssueTitle, noRemoteFileButtons, syncIssueFatalBody)
-        } else {
+        if (healthySyncStatuses.includes(res.syncStatus)) {
             console.info('healthy sync status detected')
+        } else if (notFoundStatus.includes(res.syncStatus)) {
+            promptUserWithModal(syncIssueTitle, noRemoteFileButtons, syncIssueNotFoundBody)
+        } else {
+            promptUserWithModal(syncIssueTitle, syncIssueButtons, syncIssueBody)
         }
     }
 
-    function maintainLock(res) {
+    function maintainLockState(res) {
         const isEditMode = res.syncMode == "EDIT"
         if (isEditMode) {
             getLock()
@@ -146,10 +146,12 @@ define(() => {
     }
 
     async function getLock() {
+        const localPath = { localObjectPath: Jupyter.notebook.notebook_path }
+
         const payload = {
             ...basePayload,
             method: 'POST',
-            body: JSON.stringify(getLocalPath())
+            body: JSON.stringify(localPath)
         }
 
         fetch(lockUrl, payload)
@@ -198,8 +200,8 @@ define(() => {
         }
     }
 
-    const getLockConflictBody = (lockHolder) => {
-        return `<p>This file is currently being editted by ${lockHolder}.</p>` +
+    const getLockConflictBody = () => {
+        return `<p>This file is currently being edited by another user.</p>` +
             `<br/><p>You can make a copy, or run it in Playground Mode to explore and execute its contents without saving any changes.`;
     }
 
@@ -222,10 +224,15 @@ define(() => {
 
     async function openPlaygroundMode() {
         const url = jupyterContentsAPIUrl + Jupyter.notebook.notebook_path
+
+        //TODO fix path
         const newPath = meta.storageLink.localSafeModeBaseDirectory.replace('notebooks/', '') + '/' + Jupyter.notebook.notebook_name
 
         console.log('switching to playground path: ', newPath)
 
+        //here we are calling the jupyter server API to PATCH the file they are currently working 
+        //this call results in the notebook currently being worked on saved into the custom playground mode directory
+        //
         const payload = {
             ...basePayload,
             method: 'PATCH',
