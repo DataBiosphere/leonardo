@@ -54,7 +54,7 @@ class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils 
       if (res) {
         import sys.process._
         import scala.sys.process.ProcessLogger
-//        "pwd" !!
+        "pwd" !!
         s"./notebooks-canary-test-script.sh ${clusterTimeRes.duration.toSeconds}" !!
       }
     }
