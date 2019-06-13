@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench
 
-import akka.http.scaladsl.model.TransferEncodings.gzip
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{Notebook, NotebookTestUtils, Python3}
 import org.scalatest.Matchers
@@ -11,7 +10,6 @@ import org.scalatest.FreeSpec
 import org.broadinstitute.dsde.workbench.leonardo._
 
 import scala.language.postfixOps
-import scala.util.parsing.json
 
 
 
