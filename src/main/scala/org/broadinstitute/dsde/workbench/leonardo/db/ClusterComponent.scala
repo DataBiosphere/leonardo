@@ -195,16 +195,6 @@ trait ClusterComponent extends LeoComponent {
         }
     }
 
-    def listActiveClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
-      clusterLabelQuery
-        .filter { _._1.googleProject === project.value }
-        .filter { _._1.clusterName === name.value }
-        .filter { _._1.destroyedDate === Timestamp.from(dummyDate) }
-        .result map { recs =>
-        unmarshalMinimalCluster(recs).headOption
-      }
-    }
-
     def getDeletingClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
       fullClusterQuery
         .filter { _._1.googleProject === project.value }
@@ -215,7 +205,7 @@ trait ClusterComponent extends LeoComponent {
         }
     }
 
-    def getActiveClusterForDnsCache(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
+    def getActiveClusterByNameMinimal(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
       clusterQuery
         .filter { _.googleProject === project.value }
         .filter { _.clusterName === name.value }

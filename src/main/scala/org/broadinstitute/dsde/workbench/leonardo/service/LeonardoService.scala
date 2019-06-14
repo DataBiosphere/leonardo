@@ -246,7 +246,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                               clusterName: ClusterName,
                               clusterRequest: ClusterRequest): Future[Cluster] = {
     dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.listActiveClusterByName(googleProject, clusterName)
+      dataAccess.clusterQuery.getActiveClusterByNameMinimal(googleProject, clusterName)
     } flatMap {
       case Some(existingCluster) =>
         throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
