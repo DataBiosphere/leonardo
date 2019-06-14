@@ -4,8 +4,8 @@ const utils = require("base/js/utils")
 // TEMPLATED CODE
 // Leonardo has logic to find/replace templated values in the format $(...).
 
-let googleProject = $(googleProject);
-let clusterName = $(clusterName);
+// let googleProject = $(googleProject);
+// let clusterName = $(clusterName);
 
 define(() => {
     let modalOpen = false
@@ -45,9 +45,10 @@ define(() => {
     const syncIssueNotFoundBody = "This file was either deleted or never was stored with us."
 
     //TODO URL resolution
-    const leoUrl = ''
-        // const leoUrl = 'http://localhost:8081'
-    const welderUrl = leoUrl + `/proxy/${googleProject}/${clusterName}/welder`
+    // const leoUrl = ''
+    const leoUrl = 'http://localhost:8080'
+        // const welderUrl = leoUrl + `/proxy/${googleProject}/${clusterName}/welder`
+    const welderUrl = leoUrl
     const localizeUrl = welderUrl + '/localize'
         // const checkMetaUrl = welderUrl + '/checkMeta'
     const checkMetaUrl = welderUrl + '/objects/metadata'
@@ -69,8 +70,8 @@ define(() => {
     const jupyterContentsAPIUrl = jupyterBaseUrl + "/api/contents/"
 
     function init() {
-        checkMeta()
-            // initSyncMaintainer()
+        // checkMeta()
+        // initSyncMaintainer()
     }
 
     async function initSyncMaintainer() {
