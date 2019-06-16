@@ -20,6 +20,13 @@ c.NotebookApp.terminado_settings={'shell_command': ['bash']}
 fragment = os.environ['GOOGLE_PROJECT'] + '/' + os.environ['CLUSTER_NAME']
 c.NotebookApp.base_url = '/notebooks/' + fragment + '/'
 
+# Using an alternate notebooks_dir allows for mounting of a shared volume here.
+# The default notebook root dir is /home/jupyter, which is also the home
+# directory (which contains several other files on the image). We don't want
+# to mount there as it effectively deletes existing files.
+# See https://docs.google.com/document/d/1b8wIydzC4D7Sbb6h2zWe-jCvoNq-bbD02CT1cnKLbGk
+c.NotebookApp.notebook_dir = '/home/jupyter-user/notebooks'
+
 # This is also specified in run-jupyter.sh
 c.NotebookApp.nbserver_extensions = {
     'jupyter_localize_extension': True

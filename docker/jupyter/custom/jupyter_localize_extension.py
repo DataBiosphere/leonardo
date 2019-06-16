@@ -6,6 +6,7 @@ import tornado
 from tornado import gen
 from tornado.web import HTTPError
 from notebook.base.handlers import IPythonHandler
+
 from notebook.utils import url_path_join
 from datauri import DataURI
 
@@ -18,11 +19,13 @@ class LocalizeHandler(IPythonHandler):
     # expand user directories and make intermediate directories
     else:
       expanded = os.path.expanduser(pathstr)
+      # Treat relative URLs as relative to the notebooks directory root.
+      full = os.path.normpath(os.path.join(self.config.NotebookApp.notebook_dir, expanded))
       try:
-        os.makedirs(os.path.dirname(expanded))
+        os.makedirs(os.path.dirname(full))
       except OSError: #thrown if dirs already exist
         pass
-      return expanded
+      return full
 
   def _localize_gcs_uri(self, locout, source, dest):
     """Localizes an entry where either the source or destination is a gs: path.
