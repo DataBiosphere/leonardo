@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.{Group, User}
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.{GcsRole, Owner, Reader}
 import org.broadinstitute.dsde.workbench.model.google.ProjectTeamTypes.{Editors, Owners, Viewers}
-import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsBucketName, GcsEntity, GcsRoles, GoogleProject, ProjectGcsEntity, ProjectNumber}
+import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsBucketName, GcsEntity, GoogleProject, ProjectGcsEntity, ProjectNumber}
 import org.broadinstitute.dsde.workbench.util.Retry
 
 import scala.concurrent.duration._
@@ -45,7 +45,7 @@ class BucketHelper(dataprocConfig: DataprocConfig,
       // available service accounts ((cluster or default SA) and notebook SA, if they exist) -> Reader
       bucketSAs <- getBucketSAs(googleProject, serviceAccountInfo)
       leoEntity = userEntity(serviceAccountProvider.getLeoServiceAccountAndKey._1)
-      // When we receive a large number (e.g. 200) of simultaneous cluster creation requests,
+      // When we receive a lot of simultaneous cluster creation requests in the same project,
       // we hit Google bucket creation/deletion request quota of one per approx. two seconds.
       // Therefore, we are adding a second layer of retries on top of the one existing within
       // the googleStorageDAO.createBucket method
@@ -79,7 +79,13 @@ class BucketHelper(dataprocConfig: DataprocConfig,
       readers = providerReaders ++ providerGroups :+ projectViewers
       owners = List(leoEntity) ++ bucketSAs :+ projectEditors :+ projectOwners
 
-      _ <- googleStorageDAO.createBucket(googleProject, bucketName, readers, owners)
+      // When we receive a lot of simultaneous cluster creation requests in the same project,
+      // we hit Google bucket creation/deletion request quota of one per approx. two seconds.
+      // Therefore, we are adding a second layer of retries on top of the one existing within
+      // the googleStorageDAO.createBucket method
+      _ <- retryUntilSuccessOrTimeout(failureLogMessage = s"Staging bucket creation failed for Google project '$googleProject'")(30 seconds, 5 minutes) { () =>
+        googleStorageDAO.createBucket(googleProject, bucketName, readers, owners)
+      }
     } yield bucketName
   }
 
@@ -122,7 +128,7 @@ class BucketHelper(dataprocConfig: DataprocConfig,
 
     def flatMapList(entities: List[GcsEntity], role: GcsRole): Future[Unit] = {
       entities match {
-        case Nil => Future.successful(())
+        case Nil => Future.unit
         case head :: tail =>
           setBucketAndDefaultAcls(head, role).flatMap(_ => flatMapList(tail, role))
       }
