@@ -957,7 +957,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val initScriptContent = templateResource(clusterResourcesConfig.initActionsScript, replacements)
     val googleSignInJsContent = templateResource(clusterResourcesConfig.googleSignInJs, replacements)
     val jupyterNotebookConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookConfigUri, replacements)
-    val editModeJsContent = templateResource(clusterResourcesConfig.jupyterEditModePlugin., replacements)
+    val editModeJsContent = templateResource(clusterResourcesConfig.jupyterEditModePlugin, replacements)
     val safeModeJsContent = templateResource(clusterResourcesConfig.jupyterSafeModePlugin, replacements)
 
     for {
