@@ -1,0 +1,35 @@
+version: '2'
+services:
+  welder:
+    image: "us.gcr.io/broad-dsp-gcr-public/welder-server"
+    ports:
+      - 8080:8080
+    network_mode: host
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /usr/adc.json
+      GOOGLE_PROJECT: "test-project"
+      WORKSPACE_NAMESPACE: "test-project"
+      CLUSTER_NAME: "test-cluster"
+      OWNER_EMAIL: "foo@bar.com"
+    volumes:
+      - welder-data:/work
+      - ~/.config/gcloud/application_default_credentials.json:/usr/adc.json
+  jupyter:
+    image: "us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:prod"
+    network_mode: host
+    ports:
+      - 8000:8000
+    volumes:
+      # shared with welder
+      - welder-data:/home/jupyter-user/notebooks
+      - ./etc-jupyter:/etc/jupyter
+      - ~/.config/gcloud/application_default_credentials.json:/usr/adc.json
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /usr/adc.json
+      GOOGLE_PROJECT: "test-project"
+      WORKSPACE_NAMESPACE: "test-project"
+      CLUSTER_NAME: "test-cluster"
+      OWNER_EMAIL: "foo@bar.com"
+      WELDER_ENABLE: "true"
+volumes:
+  welder-data:

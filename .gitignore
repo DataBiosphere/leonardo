@@ -2,6 +2,7 @@
 .metals
 /project/boot/
 /project/plugins/project
+docker/local/etc-jupyter
 target/
 lib_managed/
 src_managed/

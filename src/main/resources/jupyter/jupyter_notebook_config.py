@@ -7,7 +7,9 @@ import errno
 import stat
 
 c = get_config()
-c.NotebookApp.ip = 'localhost'
+# Needed to access Jupyter from an alternate host. Untested in GCP - may need
+# to make this conditional.
+c.NotebookApp.ip = '0.0.0.0'
 c.NotebookApp.port = 8000
 c.NotebookApp.open_browser = False
 
