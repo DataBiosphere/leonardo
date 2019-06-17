@@ -49,6 +49,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   private var leo: LeonardoService = _
   private var authProvider: LeoAuthProvider = _
 
+  val mockPetGoogleDAO: String => GoogleStorageDAO = _ => {
+    new MockGoogleStorageDAO
+  }
+
   before {
     gdDAO = new MockGoogleDataprocDAO
     computeDAO = new MockGoogleComputeDAO
@@ -62,9 +66,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     authProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider)
 
     bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
-    val mockPetGoogleDAO: String => GoogleStorageDAO = _ => {
-      new MockGoogleStorageDAO
-    }
+
     leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
   }
 
@@ -352,6 +354,29 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
         gdDAO.clusters should contain key (clusterName)
       }
     }
+  }
+
+  it should "choose the correct VPC subnet and network settings" in isolatedDbTest {
+    //if config isn't set up to look at labels (which the default one isn't), the labels don't matter
+    //and we should fall back to the config
+    val decoySubnetMap = Map("subnet-label" -> "incorrectSubnet", "network-label" -> "incorrectNetwork")
+    leo.getClusterVPCSettings(decoySubnetMap) shouldBe Some(Right(VPCSubnetName("test-subnet")))
+
+    //label behaviour should be: project-subnet, project-network, config-subnet, config-network
+    val configWithProjectLabels = dataprocConfig.copy(projectVPCSubnetLabel = Some("subnet-label"), projectVPCNetworkLabel = Some("network-label"))
+    val projectLabelLeo = new LeonardoService(configWithProjectLabels, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
+
+    val subnetMap = Map("subnet-label" -> "correctSubnet", "network-label" -> "incorrectNetwork")
+    projectLabelLeo.getClusterVPCSettings(subnetMap) shouldBe Some(Right(VPCSubnetName("correctSubnet")))
+
+    val networkMap = Map("network-label" -> "correctNetwork")
+    projectLabelLeo.getClusterVPCSettings(networkMap) shouldBe Some(Left(VPCNetworkName("correctNetwork")))
+
+    projectLabelLeo.getClusterVPCSettings(Map()) shouldBe Some(Right(VPCSubnetName("test-subnet")))
+
+    val configWithNoSubnet = dataprocConfig.copy(vpcSubnet = None)
+    val leoWithNoSubnet = new LeonardoService(configWithNoSubnet, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
+    leoWithNoSubnet.getClusterVPCSettings(Map()) shouldBe Some(Left(VPCNetworkName("test-network")))
   }
 
   it should "delete a cluster" in isolatedDbTest {
