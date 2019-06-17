@@ -957,13 +957,18 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val initScriptContent = templateResource(clusterResourcesConfig.initActionsScript, replacements)
     val googleSignInJsContent = templateResource(clusterResourcesConfig.googleSignInJs, replacements)
     val jupyterNotebookConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookConfigUri, replacements)
+    val editModeJsContent = templateResource(clusterResourcesConfig.jupyterEditModePlugin., replacements)
+    val safeModeJsContent = templateResource(clusterResourcesConfig.jupyterSafeModePlugin, replacements)
 
     for {
       // Upload the init script to the bucket
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.initActionsScript.value), initScriptContent, "text/plain")
 
-      // Upload the googleSignInJs file to the bucket
+      // Upload the nb extensions to the bucket
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.googleSignInJs.value), googleSignInJsContent, "text/plain")
+      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterEditModePlugin.value), editModeJsContent, "text/plain")
+      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterSafeModePlugin.value), safeModeJsContent, "text/plain")
+
 
       // Update the jupytyer notebook config file
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value), jupyterNotebookConfigContent, "text/plain")
