@@ -8,8 +8,12 @@ const utils = require("base/js/utils")
 // let clusterName = $(clusterName);
 
 define(() => {
+    console.log('here in define')
     let modalOpen = false
     let meta = {}
+        //this needs to be available to the loop can be cancelled where needed
+    let syncMaintainer = 1
+    let shouldExit = false
 
     const syncIssueButtons = {
         'Make a Copy': {
@@ -70,12 +74,13 @@ define(() => {
     const jupyterContentsAPIUrl = jupyterBaseUrl + "/api/contents/"
 
     function init() {
-        // checkMeta()
-        // initSyncMaintainer()
+        console.log('here in edit mode init')
+            // checkMeta()
+            // initSyncMaintainer()
     }
 
     async function initSyncMaintainer() {
-        let syncMaintainer = setInterval(() => {
+        syncMaintainer = setInterval(() => {
             checkMeta()
         }, lastLockedTimer)
 
@@ -86,8 +91,10 @@ define(() => {
 
     async function checkMeta() {
         const localPath = {
-            localObjectPath: Jupyter.notebook.notebook_path
+            localPath: Jupyter.notebook.notebook_path
         }
+
+        console.log('sending payload: ', JSON.stringify(localPath))
 
         const payload = {
             ...basePayload,
@@ -97,27 +104,73 @@ define(() => {
 
         return fetch(checkMetaUrl, payload)
             .then(res => {
-                console.log('in first then of checkmeta', res)
-                if (!res.ok && res.status == 412) {
-                    //TODO: change this to a proper notification
-                } else if (!res.ok && res.status >= 400) {
-                    throw Error(res.statusText)
-                }
+                processInitialCheckMeta(res)
                 return res.json()
             })
             .then(res => {
-                console.log('res in check meta after .json()', res)
-                handleCheckMetaResp(res) //sets meta state
-                toggleMetaFailureBanner(false) //sets banner for meta status
-                maintainLockState(res) //gets lock if in edit mode and 
+                handleMetaSuccess(res)
                 return res
             })
             .catch(err => {
-                console.log('in checkMeta catch')
-                console.error(err)
-                removeElementById(modeBannerId)
-                toggleMetaFailureBanner(true)
+                console.log('here')
+                handleMetaFailure(err)
             })
+    }
+
+    function renderFileNotTrackedBanner() {
+        console.log('here2')
+        removeElementById(modeBannerId)
+
+        let toolTipText = "<p>Your changes are not being saved to the workspace.</p>"
+
+        $('#notification_area').append(
+            $('<div>').attr({
+                "id": "notification_not_saving",
+                "class": "btn-warning btn btn-xs navbar-btn",
+                "data-toggle": "tooltip",
+                "data-html": "true",
+                "title": toolTipText
+            })
+            .tooltip({
+                content: function() { return $(this).prop('title'); },
+                "placement": "bottom"
+            })
+            .append(
+                $('<span>').html("Remote Save Disabled")
+                .append(' <i class="fa fa-question-circle" aria-hidden="true"></i>')
+            )
+        );
+    }
+
+    function processInitialCheckMeta(res) {
+        if (!res.ok) {
+            if (res.status == 412) {
+                console.log('detected 412')
+                renderFileNotTrackedBanner()
+                shouldExit = true
+                clearInterval(syncMaintainer)
+            }
+
+            throw Error(res.statusText)
+        }
+    }
+
+    function handleMetaSuccess(res) {
+        console.log('res in check meta after .json()', res)
+        handleCheckMetaResp(res) //sets meta state
+        toggleMetaFailureBanner(false) //sets banner for meta status
+        maintainLockState(res) //gets lock if in edit mode
+        maintainModeBanner(res)
+    }
+
+    function handleMetaFailure(err) {
+        console.log('in checkMeta catch')
+        console.error(err)
+
+        if (!shouldExit) {
+            removeElementById(modeBannerId)
+            toggleMetaFailureBanner(true)
+        }
     }
 
     //this function assumes any status not included in these lists represents an in out of sync notebook to defend against future fields being added being auto-categorized as failures
@@ -142,12 +195,15 @@ define(() => {
         if (isEditMode) {
             getLock()
         }
+    }
 
+    function maintainModeBanner(res) {
+        const isEditMode = res.syncMode == "EDIT"
         renderModeBanner(isEditMode)
     }
 
     async function getLock() {
-        const localPath = { localObjectPath: Jupyter.notebook.notebook_path }
+        const localPath = { localPath: Jupyter.notebook.notebook_path }
 
         const payload = {
             ...basePayload,
@@ -166,6 +222,7 @@ define(() => {
     }
 
     async function toggleMetaFailureBanner(shouldShow) {
+
         const bannerId = "notification_metaFailure"
         const bannerText = "Failed to check notebook status, changes may not be saved to workspace. Retrying..."
 

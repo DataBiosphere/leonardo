@@ -30,7 +30,8 @@ define(() => {
     }
 
     function load() {
-        // checkMetaLoop()
+        console.log('here in safe init')
+            // checkMetaLoop()
     }
 
     function checkMetaLoop() {
