@@ -7,8 +7,7 @@ echo $time
 
 cp test-reports/*.xml
 
-grep "<testcase " /test-reports/TEST-org.broadinstitute.dsde.workbench.NotebooksCanaryTest.xml
-
+grep "<testcase" /test-reports/TEST-org.broadinstitute.dsde.workbench.NotebooksCanaryTest.xml | grep "time"
 
 
       echo "[{\"eventType\":\"NotebooksCanaryTestProd\",\"type\":\"Cluster\",\"timeToComplete (sec)\":\"$time\"}]" > canary_events.json
