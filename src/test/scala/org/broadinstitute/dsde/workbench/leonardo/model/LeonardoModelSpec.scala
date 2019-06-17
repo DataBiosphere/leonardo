@@ -120,7 +120,8 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |      "timestamp": "2018-08-07T10:12:35Z"
         |      }
         |    ],
-        |  "scopes":["https://www.googleapis.com/auth/userinfo.email","https://www.googleapis.com/auth/userinfo.profile","https://www.googleapis.com/auth/bigquery","https://www.googleapis.com/auth/source.read_only"]
+        |  "scopes":["https://www.googleapis.com/auth/userinfo.email","https://www.googleapis.com/auth/userinfo.profile","https://www.googleapis.com/auth/bigquery","https://www.googleapis.com/auth/source.read_only"],
+        |  "welderEnabled": false
         |}
       """.stripMargin.parseJson
 

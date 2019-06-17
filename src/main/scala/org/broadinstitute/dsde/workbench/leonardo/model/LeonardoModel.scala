@@ -37,7 +37,8 @@ final case class ClusterRequest(labels: LabelMap,
                           defaultClientId: Option[String] = None,
                           jupyterDockerImage: Option[String] = None,
                           rstudioDockerImage: Option[String] = None,
-                          scopes: Set[String] = Set.empty)
+                          scopes: Set[String] = Set.empty,
+                          enableWelder: Option[Boolean] = None)
 
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
@@ -99,7 +100,8 @@ final case class Cluster(id: Long = 0, // DB AutoInc
                    defaultClientId: Option[String],
                    stopAfterCreation: Boolean,
                    clusterImages: Set[ClusterImage],
-                   scopes: Set[String]) {
+                   scopes: Set[String],
+                   welderEnabled: Boolean) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.value}"
   def nonPreemptibleInstances: Set[Instance] = instances.filterNot(_.dataprocRole.contains(SecondaryWorker))
 }
@@ -138,9 +140,10 @@ object Cluster {
       defaultClientId = clusterRequest.defaultClientId,
       stopAfterCreation = clusterRequest.stopAfterCreation.getOrElse(false),
       clusterImages = clusterImages,
-      scopes = clusterScopes)
+      scopes = clusterScopes,
+      welderEnabled = clusterRequest.enableWelder.getOrElse(false))
   }
-  
+
   // TODO it's hacky to re-parse the Leo config in the model object.
   // It would be better to pass the clusterUrlBase config value to the getClusterUrl method as a parameter.
   // The reason we can't always do that is getClusterUrl is called by ClusterComponent, which is not aware of leonardo.conf.
@@ -423,7 +426,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
       fieldsWithoutNull.get("defaultClientId").map(_.convertTo[String]),
       fieldsWithoutNull.get("jupyterDockerImage").map(_.convertTo[String]),
       fieldsWithoutNull.get("rstudioDockerImage").map(_.convertTo[String]),
-      fieldsWithoutNull.get("scopes").map(_.convertTo[Set[String]]).getOrElse(Set.empty)
+      fieldsWithoutNull.get("scopes").map(_.convertTo[Set[String]]).getOrElse(Set.empty),
+      fieldsWithoutNull.get("enableWelder").map(_.convertTo[Boolean])
     )
   }
 
@@ -471,7 +475,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
             fields.getOrElse("defaultClientId", JsNull).convertTo[Option[String]],
             fields.getOrElse("stopAfterCreation", JsNull).convertTo[Boolean],
             fields.getOrElse("clusterImages", JsNull).convertTo[Set[ClusterImage]],
-            fields.getOrElse("scopes", JsNull).convertTo[Set[String]])
+            fields.getOrElse("scopes", JsNull).convertTo[Set[String]],
+            fields.getOrElse("welderEnabled", JsNull).convertTo[Boolean])
         case _ => deserializationError("Cluster expected as a JsObject")
       }
     }
@@ -503,7 +508,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
         "defaultClientId" -> obj.defaultClientId.toJson,
         "stopAfterCreation" -> obj.stopAfterCreation.toJson,
         "clusterImages" -> obj.clusterImages.toJson,
-        "scopes" -> obj.scopes.toJson
+        "scopes" -> obj.scopes.toJson,
+        "welderEnabled" -> obj.welderEnabled.toJson
       )
 
       val presentFields = allFields.filter(_._2 != JsNull)

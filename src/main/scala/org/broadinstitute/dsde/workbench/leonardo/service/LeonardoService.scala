@@ -51,6 +51,12 @@ case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: C
 case class ClusterAlreadyExistsException(googleProject: GoogleProject, clusterName: ClusterName, status: ClusterStatus)
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} already exists in ${status.toString} status", StatusCodes.Conflict)
 
+case class CannotDisableWelderException(googleProject: GoogleProject, clusterName: ClusterName)
+  extends LeoException(s"Cannot create cluster ${clusterName} with welder disabled due to other clusters in ${googleProject} with enabled welder.", StatusCodes.Conflict)
+
+case class CannotEnableWelderException(googleProject: GoogleProject, clusterName: ClusterName)
+  extends LeoException(s"Cannot create cluster ${clusterName} with welder enabled due to other clusters in ${googleProject} with disabled welder.", StatusCodes.Conflict)
+
 case class ClusterCannotBeStoppedException(googleProject: GoogleProject, clusterName: ClusterName, status: ClusterStatus)
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} cannot be stopped in ${status.toString} status", StatusCodes.Conflict)
 
@@ -190,6 +196,27 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } flatMap {
       case Some(existingCluster) => throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
       case None =>
+        if (clusterRequest.enableWelder == true) {
+          dbRef.inTransaction { dataAccess =>
+            dataAccess.clusterQuery.getClustersWithWelderDisabledByProject(googleProject)
+          } flatMap { clusterSeq =>
+            if (clusterSeq.isEmpty) {
+              Future.successful()
+            } else {
+              Future.failed(CannotEnableWelderException(googleProject, clusterName))
+            }
+          }
+        } else {
+          dbRef.inTransaction { dataAccess =>
+            dataAccess.clusterQuery.getClustersWithWelderEnabledByProject(googleProject)
+          } flatMap { clusterSeq =>
+            if (clusterSeq.isEmpty) {
+              Future.successful()
+            } else {
+              Future.failed(CannotDisableWelderException(googleProject, clusterName))
+            }
+          }
+        }
         val augmentedClusterRequest = addClusterLabels(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
         val clusterImages = processClusterImages(clusterRequest)
         val clusterFuture = for {

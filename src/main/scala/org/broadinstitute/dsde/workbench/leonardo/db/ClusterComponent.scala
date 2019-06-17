@@ -23,20 +23,18 @@ case class ClusterRecord(id: Long,
                          operationName: Option[String],
                          status: String,
                          hostIp: Option[String],
-                         creator: String,
-                         createdDate: Timestamp,
-                         destroyedDate: Timestamp,
                          jupyterExtensionUri: Option[String],
                          jupyterUserScriptUri: Option[String],
                          initBucket: Option[String],
+                         auditInfo: AuditInfoRecord,
                          machineConfig: MachineConfigRecord,
                          properties: Map[String, String],
                          serviceAccountInfo: ServiceAccountInfoRecord,
                          stagingBucket: Option[String],
-                         dateAccessed: Timestamp,
                          autopauseThreshold: Int,
                          defaultClientId: Option[String],
-                         stopAfterCreation: Boolean)
+                         stopAfterCreation: Boolean,
+                         welderEnabled: Boolean)
 
 case class MachineConfigRecord(numberOfWorkers: Int,
                                masterMachineType: String,
@@ -49,6 +47,12 @@ case class MachineConfigRecord(numberOfWorkers: Int,
 case class ServiceAccountInfoRecord(clusterServiceAccount: Option[String],
                                     notebookServiceAccount: Option[String],
                                     serviceAccountKeyId: Option[String])
+
+case class AuditInfoRecord(creator: String,
+                           createdDate: Timestamp,
+                           destroyedDate: Timestamp,
+                           dateAccessed: Timestamp)
+
 
 trait ClusterComponent extends LeoComponent {
   this: LabelComponent with ClusterErrorComponent with InstanceComponent with ExtensionComponent with ClusterImageComponent with ScopeComponent =>
@@ -88,6 +92,7 @@ trait ClusterComponent extends LeoComponent {
     def autopauseThreshold = column[Int]("autopauseThreshold")
     def defaultClientId = column[Option[String]]("defaultClientId", O.Length(1024))
     def stopAfterCreation = column[Boolean]("stopAfterCreation")
+    def welderEnabled = column[Boolean]("welderEnabled")
     def properties = column[Option[Json]]("properties")
 
     def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName, destroyedDate), unique = true)
@@ -97,29 +102,32 @@ trait ClusterComponent extends LeoComponent {
     // because CLUSTER has more than 22 columns.
     // So we split ClusterRecord into multiple case classes and bind them to slick in the following way.
     def * = (
-      id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
-      createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
+      id, clusterName, googleId, googleProject, operationName, status, hostIp,
+      jupyterExtensionUri, jupyterUserScriptUri, initBucket,
+      (creator, createdDate, destroyedDate, dateAccessed),
       (numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers),
-      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket, dateAccessed, autopauseThreshold, defaultClientId, stopAfterCreation, properties
+      (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket, autopauseThreshold, defaultClientId, stopAfterCreation, welderEnabled, properties
     ).shaped <> ({
-      case (id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
-            createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket, machineConfig,
-            serviceAccountInfo, stagingBucket, dateAccessed, autopauseThreshold, defaultClientId, stopAfterCreation, properties) =>
+      case (id, clusterName, googleId, googleProject, operationName, status, hostIp,
+            jupyterExtensionUri, jupyterUserScriptUri, initBucket, auditInfo, machineConfig,
+            serviceAccountInfo, stagingBucket, autopauseThreshold, defaultClientId, stopAfterCreation, welderEnabled, properties) =>
         ClusterRecord(
-          id, clusterName, googleId, googleProject, operationName, status, hostIp, creator,
-          createdDate, destroyedDate, jupyterExtensionUri, jupyterUserScriptUri, initBucket,
+          id, clusterName, googleId, googleProject, operationName, status, hostIp,
+          jupyterExtensionUri, jupyterUserScriptUri, initBucket,
+          AuditInfoRecord.tupled.apply(auditInfo),
           MachineConfigRecord.tupled.apply(machineConfig),
           properties.map(x => x.as[Map[String, String]].fold(e => throw new RuntimeException(s"fail to read `properties` field due to ${e.getMessage}"), identity)).getOrElse(Map.empty), //in theory, throw should never happen
           ServiceAccountInfoRecord.tupled.apply(serviceAccountInfo),
-          stagingBucket, dateAccessed, autopauseThreshold, defaultClientId, stopAfterCreation)
+          stagingBucket, autopauseThreshold, defaultClientId, stopAfterCreation, welderEnabled)
     }, { c: ClusterRecord =>
       def mc(_mc: MachineConfigRecord) = MachineConfigRecord.unapply(_mc).get
       def sa(_sa: ServiceAccountInfoRecord) = ServiceAccountInfoRecord.unapply(_sa).get
+      def ai(_ai: AuditInfoRecord) = AuditInfoRecord.unapply(_ai).get
       Some((
-        c.id, c.clusterName, c.googleId, c.googleProject, c.operationName, c.status, c.hostIp, c.creator,
-        c.createdDate, c.destroyedDate, c.jupyterExtensionUri, c.jupyterUserScriptUri, c.initBucket,
-        mc(c.machineConfig), sa(c.serviceAccountInfo), c.stagingBucket, c.dateAccessed, c.autopauseThreshold,
-        c.defaultClientId, c.stopAfterCreation, if(c.properties.isEmpty) None else Some(c.properties.asJson)
+        c.id, c.clusterName, c.googleId, c.googleProject, c.operationName, c.status, c.hostIp,
+        c.jupyterExtensionUri, c.jupyterUserScriptUri, c.initBucket, ai(c.auditInfo),
+        mc(c.machineConfig), sa(c.serviceAccountInfo), c.stagingBucket, c.autopauseThreshold,
+        c.defaultClientId, c.stopAfterCreation, c.welderEnabled, if(c.properties.isEmpty) None else Some(c.properties.asJson)
       ))
     })
   }
@@ -295,6 +303,21 @@ trait ClusterComponent extends LeoComponent {
         .result map { recs => unmarshalFullCluster(recs)}
     }
 
+    // TODO: find how to make these not full cluster queries
+    def getClustersWithWelderEnabledByProject(project: GoogleProject): DBIO[Seq[Cluster]] = {
+      fullClusterQuery
+        .filter { _._1.googleProject === project.value }
+        .filter { _._1.welderEnabled === true }
+        .result map { recs => unmarshalFullCluster(recs)}
+    }
+
+    def getClustersWithWelderDisabledByProject(project: GoogleProject): DBIO[Seq[Cluster]] = {
+      fullClusterQuery
+        .filter { _._1.googleProject === project.value }
+        .filter { _._1.welderEnabled === false }
+        .result map { recs => unmarshalFullCluster(recs)}
+    }
+
     def markPendingDeletion(id: Long): DBIO[Int] = {
       findByIdQuery(id)
         .map(c => (c.status, c.hostIp))
@@ -421,12 +444,15 @@ trait ClusterComponent extends LeoComponent {
         cluster.dataprocInfo.operationName.map(_.value),
         cluster.status.toString,
         cluster.dataprocInfo.hostIp map(_.value),
-        cluster.auditInfo.creator.value,
-        Timestamp.from(cluster.auditInfo.createdDate),
-        marshalDestroyedDate(cluster.auditInfo.destroyedDate),
         cluster.jupyterExtensionUri map(_.toUri),
         cluster.jupyterUserScriptUri map(_.toUri),
         initBucket,
+        AuditInfoRecord(
+          cluster.auditInfo.creator.value,
+          Timestamp.from(cluster.auditInfo.createdDate),
+          marshalDestroyedDate(cluster.auditInfo.destroyedDate),
+          Timestamp.from(cluster.auditInfo.dateAccessed)
+        ),
         MachineConfigRecord(
           cluster.machineConfig.numberOfWorkers.get,   //a cluster should always have numberOfWorkers defined
           cluster.machineConfig.masterMachineType.get, //a cluster should always have masterMachineType defined
@@ -443,10 +469,10 @@ trait ClusterComponent extends LeoComponent {
           serviceAccountKeyId.map(_.value)
         ),
         cluster.dataprocInfo.stagingBucket.map(_.value),
-        Timestamp.from(cluster.auditInfo.dateAccessed),
         cluster.autopauseThreshold,
         cluster.defaultClientId,
-        cluster.stopAfterCreation
+        cluster.stopAfterCreation,
+        cluster.welderEnabled
       )
     }
 
@@ -505,10 +531,10 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.stagingBucket map GcsBucketName,
         clusterRecord.hostIp map IP)
       val auditInfo = AuditInfo(
-        WorkbenchEmail(clusterRecord.creator),
-        clusterRecord.createdDate.toInstant,
-        unmarshalDestroyedDate(clusterRecord.destroyedDate),
-        clusterRecord.dateAccessed.toInstant)
+        WorkbenchEmail(clusterRecord.auditInfo.creator),
+        clusterRecord.auditInfo.createdDate.toInstant,
+        unmarshalDestroyedDate(clusterRecord.auditInfo.destroyedDate),
+        clusterRecord.auditInfo.dateAccessed.toInstant)
 
       Cluster(
         clusterRecord.id,
@@ -531,7 +557,8 @@ trait ClusterComponent extends LeoComponent {
         clusterRecord.defaultClientId,
         clusterRecord.stopAfterCreation,
         clusterImageRecords map ClusterComponent.this.clusterImageQuery.unmarshalClusterImage toSet,
-        ClusterComponent.this.scopeQuery.unmarshallScopes(scopes)
+        ClusterComponent.this.scopeQuery.unmarshallScopes(scopes),
+        clusterRecord.welderEnabled
       )
     }
   }
