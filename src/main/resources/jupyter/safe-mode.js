@@ -24,14 +24,20 @@ var clusterName = $(clusterName);
 define(() => {
     const welderUrl = `/proxy/${googleProject}/${clusterName}/welder`
     const checkMetaUrl = welderUrl + '/objects/metadata'
+
+    const headers = {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Headers': '*'
+    }
+
     const basePayload = {
         mode: "no-cors",
         headers: headers
     }
 
     function load() {
-        console.log('here in safe init')
-            // checkMetaLoop()
+        // console.log('here in safe init')
+        // checkMetaLoop()
     }
 
     function checkMetaLoop() {
@@ -62,13 +68,14 @@ define(() => {
 
     function checkMeta() {
         const localPath = {
-            localObjectPath: Jupyter.notebook.notebook_path
+            localPath: Jupyter.notebook.notebook_path
         }
 
-        const payload = Object.assign(basePayload, {
+        const payload = {
+            ...basePayload,
             body: JSON.stringify(localPath),
             method: 'POST'
-        })
+        }
 
         return fetch(checkMetaUrl, payload)
             .then(res => {
