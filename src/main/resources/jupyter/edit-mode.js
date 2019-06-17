@@ -1,14 +1,15 @@
 const dialog = require('base/js/dialog')
 const utils = require("base/js/utils")
 
-// TEMPLATED CODE
-// Leonardo has logic to find/replace templated values in the format $(...).
-
-// let googleProject = $(googleProject);
-// let clusterName = $(clusterName);
-
 define(() => {
     console.log('here in define')
+
+
+    // TEMPLATED CODE
+    // Leonardo has logic to find/replace templated values in the format $(...).
+    let googleProject = $(googleProject);
+    let clusterName = $(clusterName);
+
     let modalOpen = false
     let meta = {}
         //this needs to be available to the loop can be cancelled where needed
@@ -284,15 +285,15 @@ define(() => {
         const url = jupyterContentsAPIUrl + Jupyter.notebook.notebook_path
 
         //TODO fix path
-        const newPath = meta.storageLink.localSafeModeBaseDirectory.replace('notebooks/', '') + '/' + Jupyter.notebook.notebook_name
+        const newPath = meta.storageLink.localSafeModeBaseDirectory.replace('notebooks', '') + Jupyter.notebook.notebook_name
 
         console.log('switching to playground path: ', newPath)
 
         //here we are calling the jupyter server API to PATCH the file they are currently working 
         //this call results in the notebook currently being worked on saved into the custom playground mode directory
-        //
+        //PATCH cannot specify nocors
         const payload = {
-            ...basePayload,
+            headers: headers,
             method: 'PATCH',
             body: JSON.stringify({ path: newPath })
         }
@@ -307,14 +308,16 @@ define(() => {
     async function saveAs() {
         const url = jupyterContentsAPIUrl + Jupyter.notebook.notebook_path
 
-        const originalPathSplit = utils.url_path_split(Jupyter.notebook.notebook_path)
-        const originalFileSplit = utils.splitext(originalPathSplit[1])
+        //these util functions guarantee the file is split into an array with 2 items
+        const originalPathSplit = utils.url_path_split(Jupyter.notebook.notebook_path) //guarantees a path in [0] and file name in [1]. [0] is "" if just a file is passed
+        const originalFileSplit = utils.splitext(originalPathSplit[1]) //guarantees a file name in [0] and the extension in [1]
 
         const newNotebookName = originalFileSplit[0] + "_COPY" + originalFileSplit[1]
         const newNotebookPath = originalPathSplit[0] + '/' + newNotebookName
 
+        //PATCH cannot specify nocors
         const payload = {
-            ...basePayload,
+            headers: headers,
             method: 'PATCH',
             body: JSON.stringify({ path: newNotebookPath }) // body data type must match "Content-Type" header
         }

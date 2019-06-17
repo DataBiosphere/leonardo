@@ -16,12 +16,12 @@
 
 // const namespace = require('base/js/namespace')
 
-// TEMPLATED CODE
-// Leonardo has logic to find/replace templated values in the format $(...).
-var googleProject = $(googleProject);
-var clusterName = $(clusterName);
-
 define(() => {
+    // TEMPLATED CODE
+    // Leonardo has logic to find/replace templated values in the format $(...).
+    let googleProject = $(googleProject);
+    let clusterName = $(clusterName);
+
     const welderUrl = `/proxy/${googleProject}/${clusterName}/welder`
     const checkMetaUrl = welderUrl + '/objects/metadata'
 

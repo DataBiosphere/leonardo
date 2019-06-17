@@ -13,9 +13,6 @@
 // This will be replaced with the real email login hint before uploading to the notebook server.
 var loginHint = $(userEmailLoginHint);
 
-var googleProject = $(googleProject);
-var clusterName = $(clusterName);
-
 // This is refreshed via postMessage from the client app.
 var googleClientId = $(defaultClientId);
 
@@ -24,9 +21,7 @@ function receive(event) {
         if (event.source !== window.opener)
             return;
         googleClientId = event.data.body.googleClientId;
-    }
-
-    else if (event.data.type == 'bootstrap-auth.request') {
+    } else if (event.data.type == 'bootstrap-auth.request') {
         if (event.origin !== window.origin)
             return;
         if (!googleClientId)
@@ -41,7 +36,7 @@ function receive(event) {
 }
 
 function startTimer() {
-    loadGapi('auth2', function () {
+    loadGapi('auth2', function() {
         function doAuth() {
             if (googleClientId) {
                 gapi.auth2.authorize({
@@ -49,7 +44,7 @@ function startTimer() {
                     'scope': 'openid profile email',
                     'login_hint': loginHint,
                     'prompt': 'none'
-                }, function (result) {
+                }, function(result) {
                     if (result.error) {
                         console.error("Error occurred authorizing with Google: " + result.error);
                         return;
@@ -66,6 +61,9 @@ function startTimer() {
 
 
     function statusCheck() {
+        var googleProject = $(googleProject);
+        var clusterName = $(clusterName);
+
         var xhttp = new XMLHttpRequest();
         xhttp.open("GET", "/notebooks/" + googleProject + "/" + clusterName + "/api/status", true);
         xhttp.send();
@@ -76,7 +74,7 @@ function startTimer() {
 function set_cookie(token, expires_in) {
     var expiresDate = new Date();
     expiresDate.setSeconds(expiresDate.getSeconds() + expires_in);
-    document.cookie = "LeoToken="+token+";secure;expires="+expiresDate.toUTCString()+";path=/";
+    document.cookie = "LeoToken=" + token + ";secure;expires=" + expiresDate.toUTCString() + ";path=/";
 }
 
 function loadGapi(google_lib, continuation) {
@@ -88,11 +86,11 @@ function loadGapi(google_lib, continuation) {
     gapiScript.async = true;
 
     // Load requested API scripts onto the page.
-    gapiScript.onload = function () {
-        console.log("Loading Google library '"+google_lib+"'");
+    gapiScript.onload = function() {
+        console.log("Loading Google library '" + google_lib + "'");
         gapi.load(google_lib, continuation);
     }
-    gapiScript.onerror = function () {
+    gapiScript.onerror = function() {
         console.error('Unable to load Google APIs');
     }
     document.head.appendChild(gapiScript);
@@ -103,7 +101,7 @@ function init() {
     startTimer();
     window.addEventListener('message', receive);
     if (!googleClientId && window.opener) {
-        window.opener.postMessage({'type': 'bootstrap-auth.request'}, '*');
+        window.opener.postMessage({ 'type': 'bootstrap-auth.request' }, '*');
     }
 }
 
