@@ -30,5 +30,7 @@ services:
       WORKSPACE_NAMESPACE: "${GOOGLE_PROJECT}"
       CLUSTER_NAME: "${CLUSTER_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
+      # Value must be the string "true" to enable.
+      WELDER_ENABLE: "${WELDER_ENABLE}"
     env_file:
       - /etc/google_application_credentials.env
