@@ -62,7 +62,7 @@ function startTimer() {
 
     function statusCheck() {
         // Leonardo has logic to find/replace templated values in the format $(...).
-        // This will be replaced with the real email login hint before uploading to the notebook server.
+        // TEMPLATED CODE
         var googleProject = $(googleProject);
         var clusterName = $(clusterName);
 
