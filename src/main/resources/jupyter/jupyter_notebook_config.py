@@ -34,7 +34,10 @@ if os.environ['WELDER_ENABLE'] == 'true':
 c.NotebookApp.nbserver_extensions = {
     'jupyter_localize_extension': True
 }
-c.NotebookApp.contents_manager_class = 'jupyter_delocalize.DelocalizingContentsManager'
+mgr_class = 'DelocalizingContentsManager'
+if os.environ['WELDER_ENABLE'] == 'true':
+  mgr_class = 'WelderContentsManager'
+c.NotebookApp.contents_manager_class = 'jupyter_delocalize.' + mg_class
 
 # Unset Content-Security-Policy so Jupyter can be rendered in an iframe
 # See https://jupyter-notebook.readthedocs.io/en/latest/public_server.html?highlight=server#embedding-the-notebook-in-another-website
