@@ -4,11 +4,10 @@ const utils = require("base/js/utils")
 define(() => {
     console.log('here in define')
 
-
     // TEMPLATED CODE
     // Leonardo has logic to find/replace templated values in the format $(...).
-    let googleProject = $(googleProject);
-    let clusterName = $(clusterName);
+    var googleProject = $(googleProject);
+    var clusterName = $(clusterName);
 
     let modalOpen = false
     let meta = {}
