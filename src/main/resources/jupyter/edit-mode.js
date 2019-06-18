@@ -56,7 +56,7 @@ define(() => {
     const localizeUrl = welderUrl + '/localize'
         // const checkMetaUrl = welderUrl + '/checkMeta'
     const checkMetaUrl = welderUrl + '/objects/metadata'
-    const lockUrl = welderUrl + '/lock'
+    const lockUrl = welderUrl + 'objects/acquirelock'
     const lastLockedTimer = 60000 // in ms, should be 60000 in final PR
 
     const headers = {
@@ -118,7 +118,6 @@ define(() => {
     }
 
     function renderFileNotTrackedBanner() {
-        console.log('here2')
         removeElementById(modeBannerId)
 
         let toolTipText = "<p>Your changes are not being saved to the workspace.</p>"
