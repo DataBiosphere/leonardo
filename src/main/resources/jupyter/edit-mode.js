@@ -49,14 +49,14 @@ define(() => {
     const syncIssueNotFoundBody = "This file was either deleted or never was stored with us."
 
     //TODO URL resolution
-    // const leoUrl = ''
-    const leoUrl = 'http://localhost:8080'
-        // const welderUrl = leoUrl + `/proxy/${googleProject}/${clusterName}/welder`
-    const welderUrl = leoUrl
-    const localizeUrl = welderUrl + '/localize'
+    const leoUrl = '' //we are choosing to use a relative path here
+        // const leoUrl = 'http://localhost:8080'
+    const welderUrl = leoUrl + `/proxy/${googleProject}/${clusterName}/welder`
+        // const welderUrl = leoUrl
+    const localizeUrl = welderUrl + '/objects'
         // const checkMetaUrl = welderUrl + '/checkMeta'
     const checkMetaUrl = welderUrl + '/objects/metadata'
-    const lockUrl = welderUrl + 'objects/acquirelock'
+    const lockUrl = welderUrl + '/objects/acquirelock'
     const lastLockedTimer = 60000 // in ms, should be 60000 in final PR
 
     const headers = {
@@ -282,8 +282,9 @@ define(() => {
     async function openPlaygroundMode() {
         const url = jupyterContentsAPIUrl + Jupyter.notebook.notebook_path
 
-        //TODO fix path
-        const newPath = meta.storageLink.localSafeModeBaseDirectory.replace('notebooks', '') + Jupyter.notebook.notebook_name
+        //TODO test path
+        //the replace is only necessary for local testing and should be a no-op in leo
+        const newPath = meta.storageLink.localSafeModeBaseDirectory.replace('notebooks', '') + '/' + Jupyter.notebook.notebook_name
 
         console.log('switching to playground path: ', newPath)
 
@@ -377,10 +378,11 @@ define(() => {
 
     async function updateLocalCopyWithRemote(meta) {
         const entries = {
-            entries: {
-                sourceUri: meta.remoteUri + '/' + Jupyter.notebook.notebook_name,
+            action: "localize",
+            entries: [{
+                sourceUri: meta.storageLink.cloudStorageDirectory + '/' + Jupyter.notebook.notebook_name,
                 localDestinationPath: Jupyter.notebook.notebook_path
-            }
+            }]
         }
 
         const payload = {
