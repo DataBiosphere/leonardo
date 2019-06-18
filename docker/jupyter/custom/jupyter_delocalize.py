@@ -185,7 +185,7 @@ class WelderContentsManager(FileContentsManager):
       # not; strip for Welder.
       'localPath': path.lstrip('/')
     }))
-    if resp.status_code != requests.codes.ok:
+    if not resp.ok
       try:
         msg = json.dumps(resp.json())
       except:
