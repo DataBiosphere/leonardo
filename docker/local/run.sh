@@ -11,7 +11,13 @@ sed -i 's/$(contentSecurityPolicy)/""/' "${nb_config}"
 
 cp docker/jupyter/custom/*.py "${etc_dir}/custom/"
 
+# TODO: This doesn't actually activate the extension.
+readonly ext_dir=docker/local/jupyter-ext
+mkdir -p "${ext_dir}/custom"
+cp src/main/resources/jupyter/safe-mode.js "${ext_dir}/custom/"
+
 chmod -R a+rwx ${etc_dir}
+chmod -R a+rwx ${ext_dir}
 popd > /dev/null
 
 docker-compose up

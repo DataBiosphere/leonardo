@@ -3,6 +3,7 @@
 /project/boot/
 /project/plugins/project
 docker/local/etc-jupyter
+docker/local/jupyter-ext
 target/
 lib_managed/
 src_managed/
