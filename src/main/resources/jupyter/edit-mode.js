@@ -2,16 +2,14 @@ const dialog = require('base/js/dialog')
 const utils = require("base/js/utils")
 
 define(() => {
-    console.log('here in define')
-
     // TEMPLATED CODE
     // Leonardo has logic to find/replace templated values in the format $(...).
-    var googleProject = $(googleProject);
-    var clusterName = $(clusterName);
+    const googleProject = $(googleProject);
+    const clusterName = $(clusterName);
 
     let modalOpen = false
     let meta = {}
-        //this needs to be available to the loop can be cancelled where needed
+        //this needs to be available so the loop can be cancelled where needed
     let syncMaintainer = 1
     let shouldExit = false
 
@@ -50,14 +48,14 @@ define(() => {
 
     //TODO URL resolution
     const leoUrl = '' //we are choosing to use a relative path here
-        // const leoUrl = 'http://localhost:8080'
+        // const leoUrl = 'http://localhost:8080' //for testing against local server
     const welderUrl = leoUrl + `/proxy/${googleProject}/${clusterName}/welder`
         // const welderUrl = leoUrl
     const localizeUrl = welderUrl + '/objects'
         // const checkMetaUrl = welderUrl + '/checkMeta'
     const checkMetaUrl = welderUrl + '/objects/metadata'
-    const lockUrl = welderUrl + '/objects/acquirelock'
-    const lastLockedTimer = 60000 // in ms, should be 60000 in final PR
+    const lockUrl = welderUrl + '/objects/lock'
+    const lastLockedTimer = 60000
 
     const headers = {
         'Content-Type': 'application/json',
@@ -94,7 +92,7 @@ define(() => {
             localPath: Jupyter.notebook.notebook_path
         }
 
-        console.log('sending payload: ', JSON.stringify(localPath))
+        console.info('calling /objects/metadata/ with payload: ', JSON.stringify(localPath))
 
         const payload = {
             ...basePayload,
@@ -112,7 +110,6 @@ define(() => {
                 return res
             })
             .catch(err => {
-                console.log('here')
                 handleMetaFailure(err)
             })
     }
@@ -144,7 +141,7 @@ define(() => {
     function processInitialCheckMeta(res) {
         if (!res.ok) {
             if (res.status == 412) {
-                console.log('detected 412')
+                console.warn('detected 412 from /objects/metadata. stopping loop')
                 renderFileNotTrackedBanner()
                 shouldExit = true
                 clearInterval(syncMaintainer)
@@ -155,7 +152,6 @@ define(() => {
     }
 
     function handleMetaSuccess(res) {
-        console.log('res in check meta after .json()', res)
         handleCheckMetaResp(res) //sets meta state
         toggleMetaFailureBanner(false) //sets banner for meta status
         maintainLockState(res) //gets lock if in edit mode
@@ -163,7 +159,6 @@ define(() => {
     }
 
     function handleMetaFailure(err) {
-        console.log('in checkMeta catch')
         console.error(err)
 
         if (!shouldExit) {
@@ -181,7 +176,7 @@ define(() => {
         const notFoundStatus = ["REMOTE_NOT_FOUND"]
 
         if (healthySyncStatuses.includes(res.syncStatus)) {
-            console.info('healthy sync status detected')
+            console.info('healthy sync status detected: ', res.syncStatus)
         } else if (notFoundStatus.includes(res.syncStatus)) {
             promptUserWithModal(syncIssueTitle, noRemoteFileButtons, syncIssueNotFoundBody)
         } else {
@@ -283,10 +278,11 @@ define(() => {
         const url = jupyterContentsAPIUrl + Jupyter.notebook.notebook_path
 
         //TODO test path
-        //the replace is only necessary for local testing and should be a no-op in leo
-        const newPath = meta.storageLink.localSafeModeBaseDirectory.replace('notebooks', '') + '/' + Jupyter.notebook.notebook_name
+        const safeModeDir = meta.storageLink.localSafeModeBaseDirectory
+        const newDir = safeModeDir.charAt(safeModeDir.length - 1) === "/" ? safeModeDir : safeModeDir + "/"
+        const newPath = newDir + Jupyter.notebook.notebook_name
 
-        console.log('switching to playground path: ', newPath)
+        console.info('switching to playground path: ', newPath)
 
         //here we are calling the jupyter server API to PATCH the file they are currently working 
         //this call results in the notebook currently being worked on saved into the custom playground mode directory
@@ -297,10 +293,8 @@ define(() => {
             body: JSON.stringify({ path: newPath })
         }
 
-        console.log('url: ', url, newPath)
-
         fetch(url, payload).then(res => {
-            window.location.href = jupyterBaseUrl + "notebooks/" + newPath
+            window.location.href = jupyterBaseUrl + "/notebooks/" + newPath
         })
     }
 
