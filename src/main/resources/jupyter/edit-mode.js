@@ -46,7 +46,6 @@ define(() => {
     const syncIssueBody = "Your version of this file does not match the version in the workspace. What would you like to do?"
     const syncIssueNotFoundBody = "This file was either deleted or never was stored with us."
 
-    //TODO URL resolution
     const leoUrl = '' //we are choosing to use a relative path here
         // const leoUrl = 'http://localhost:8080' //for testing against local server
     const welderUrl = leoUrl + `/proxy/${googleProject}/${clusterName}/welder`
@@ -67,7 +66,6 @@ define(() => {
         headers: headers
     }
 
-    //TODO resolve these links
     const jupyterBaseUrl = `/notebooks/${googleProject}/${clusterName}`
     const jupyterContentsAPIUrl = jupyterBaseUrl + "/api/contents/"
 
@@ -77,7 +75,7 @@ define(() => {
             // initSyncMaintainer()
     }
 
-    async function initSyncMaintainer() {
+    function initSyncMaintainer() {
         syncMaintainer = setInterval(() => {
             checkMeta()
         }, lastLockedTimer)
@@ -87,7 +85,7 @@ define(() => {
         })
     }
 
-    async function checkMeta() {
+    function checkMeta() {
         const localPath = {
             localPath: Jupyter.notebook.notebook_path
         }
@@ -196,7 +194,7 @@ define(() => {
         renderModeBanner(isEditMode)
     }
 
-    async function getLock() {
+    function getLock() {
         const localPath = { localPath: Jupyter.notebook.notebook_path }
 
         const payload = {
@@ -215,7 +213,7 @@ define(() => {
             })
     }
 
-    async function toggleMetaFailureBanner(shouldShow) {
+    function toggleMetaFailureBanner(shouldShow) {
 
         const bannerId = "notification_metaFailure"
         const bannerText = "Failed to check notebook status, changes may not be saved to workspace. Retrying..."
@@ -236,7 +234,7 @@ define(() => {
 
     }
 
-    async function handleLockStatus(res) {
+    function handleLockStatus(res) {
         if (!res.ok) {
             const status = res.status
             const errorText = res.statusText
@@ -257,7 +255,7 @@ define(() => {
             `<br/><p>You can make a copy, or run it in Playground Mode to explore and execute its contents without saving any changes.`;
     }
 
-    async function promptUserWithModal(title, buttons, htmlBody) {
+    function promptUserWithModal(title, buttons, htmlBody) {
         if (modalOpen) return
 
         modalOpen = true
@@ -271,13 +269,13 @@ define(() => {
             })
             .on('hidden.bs.modal', () => modalOpen = false)
             .attr('id', 'leoUserModal')
-            .find(".close").click(() => window.history.back()) //TODO: test in docker image
+            .find(".close").remove() //TODO: test going back
     }
 
     async function openPlaygroundMode() {
         const url = jupyterContentsAPIUrl + Jupyter.notebook.notebook_path
 
-        //TODO test path
+        //TODO: test e2e
         const safeModeDir = meta.storageLink.localSafeModeBaseDirectory
         const newDir = safeModeDir.charAt(safeModeDir.length - 1) === "/" ? safeModeDir : safeModeDir + "/"
         const newPath = newDir + Jupyter.notebook.notebook_name
@@ -298,6 +296,7 @@ define(() => {
         })
     }
 
+    //TODO test e2e
     async function saveAs() {
         const url = jupyterContentsAPIUrl + Jupyter.notebook.notebook_path
 
@@ -318,21 +317,22 @@ define(() => {
         const currHrefSplit = utils.url_path_split(window.location.href)
         const newHref = currHrefSplit[0] + "/" + newNotebookName
 
-        console.log('url: ', url, newNotebookPath)
+        console.info('Jupyter server url being used for making a copy: ', url)
+        console.info('New notebook path being sent to jupyter server: ', newNotebookPath)
 
-        fetch(url, payload).then(res => {
-            window.location.href = newHref
-        })
+        await fetch(url, payload)
+
+        window.location.href = newHref
     }
 
-    async function removeElementById(id) {
+    function removeElementById(id) {
         if (!$("#" + id).length == 0) {
             $("#" + id).remove()
         }
     }
 
     //shows the user whether they are in playground mode or edit mode
-    async function renderModeBanner(isEditMode) {
+    function renderModeBanner(isEditMode) {
         removeElementById(modeBannerId) //we always remove the banner because we re-render each loop
 
         let bannerText;
@@ -385,12 +385,9 @@ define(() => {
             body: JSON.stringify(entries)
         }
 
-        fetch(localizeUrl, payload)
-            .then(res => {
-                location.reload(true) //is this needed?
-            }).catch(err => {
-                location.reload(true)
-            })
+        await fetch(localizeUrl, payload)
+
+        location.reload(true)
     }
 
     return {
