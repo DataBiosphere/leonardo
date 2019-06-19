@@ -940,7 +940,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       clusterResourcesConfig.rstudioDockerCompose,
       clusterResourcesConfig.proxyDockerCompose,
       clusterResourcesConfig.proxySiteConf,
-      clusterResourcesConfig.jupyterGooglePlugin,
+      clusterResourcesConfig.extensionEntry,
       clusterResourcesConfig.jupyterLabGooglePlugin,
       clusterResourcesConfig.welderDockerCompose
     )
@@ -954,8 +954,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     // Fill in templated resources with the given replacements
     val initScriptContent = templateResource(clusterResourcesConfig.initActionsScript, replacements)
     val googleSignInJsContent = templateResource(clusterResourcesConfig.googleSignInJs, replacements)
-    val editModeJsContent = templateResource(clusterResourcesConfig.jupyterEditModePlugin, replacements)
-    val safeModeJsContent = templateResource(clusterResourcesConfig.jupyterSafeModePlugin, replacements)
+    val editModeJsContent = templateResource(clusterResourcesConfig.editModeJs, replacements)
+    val safeModeJsContent = templateResource(clusterResourcesConfig.safeModeJs, replacements)
     val jupyterNotebookConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookConfigUri, replacements)
 
     for {
@@ -964,8 +964,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
       // Upload the nb extensions to the bucket
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.googleSignInJs.value), googleSignInJsContent, "text/plain")
-      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterEditModePlugin.value), editModeJsContent, "text/plain")
-      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterSafeModePlugin.value), safeModeJsContent, "text/plain")
+      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.editModeJs.value), editModeJsContent, "text/plain")
+      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.safeModeJs.value), safeModeJsContent, "text/plain")
 
 
       // Update the jupytyer notebook config file
