@@ -146,6 +146,22 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     immutable.Map(googleKey -> servicesStart)
   }
 
+  protected def getMasterInstanceStartupScript(welderEnabled: Boolean): immutable.Map[String, String] = {
+    val googleKey = "startup-script"  // required; see https://cloud.google.com/compute/docs/startupscript
+
+    // The || clause is included because older clusters may not have the run-jupyter.sh script installed,
+    // so we need to fall back running `jupyter notebook` directly. See https://github.com/DataBiosphere/leonardo/issues/481.
+    val jupyterStart = s"docker exec -d ${dataprocConfig.jupyterServerName} /bin/bash -c '/etc/jupyter/scripts/run-jupyter.sh || /usr/local/bin/jupyter notebook'"
+
+    val servicesStart = if (welderEnabled) {
+      val welderStart = s"docker exec -u daemon -d ${dataprocConfig.welderServerName} /opt/docker/bin/server start"
+      s"($jupyterStart) && $welderStart"
+    }
+    else jupyterStart
+
+    immutable.Map(googleKey -> servicesStart)
+  }
+
   protected def checkProjectPermission(userInfo: UserInfo, action: ProjectAction, project: GoogleProject): Future[Unit] = {
     authProvider.hasProjectPermission(userInfo, action, project) map {
       case false => throw AuthorizationError(Option(userInfo.userEmail))
@@ -624,7 +640,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           instance.dataprocRole match {
             case Some(Master) =>
               if (cluster.clusterImages.map(_.tool) contains (Jupyter)) {
-                googleComputeDAO.addInstanceMetadata(instance.key, masterInstanceStartupScript).flatMap { _ =>
+                googleComputeDAO.addInstanceMetadata(instance.key, getMasterInstanceStartupScript(cluster.welderEnabled)).flatMap { _ =>
                   googleComputeDAO.stopInstance(instance.key)
                 }
               }
