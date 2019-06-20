@@ -175,7 +175,7 @@ class WelderContentsManager(FileContentsManager):
     # lacking and its configuration can be complex. Having this in the server
     # logs is useful for confirming which ContentsManager is in use.
     self.log.info('initializing WelderContentsManager')
-    self.welder_base_url = 'http://localhost:8080'
+    self.welder_base_url = 'http://127.0.0.1:8080'
     super(WelderContentsManager, self).__init__(*args, **kwargs)
 
   def _welder_delocalize(self, path):
