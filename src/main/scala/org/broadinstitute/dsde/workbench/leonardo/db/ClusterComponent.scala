@@ -338,7 +338,7 @@ trait ClusterComponent extends LeoComponent {
       findByIdQuery(id).filter { _.dateAccessed < Timestamp.from(dateAccessed)}.map(_.dateAccessed).update(Timestamp.from(dateAccessed))
     }
 
-    def clearKernelFoundBusyDate(id: Long) = {
+    def clearKernelFoundBusyDate(id: Long): DBIO[Int] = {
       findByIdQuery(id).map(_.kernelFoundBusyDate).update(None)
     }
 
