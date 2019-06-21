@@ -1082,6 +1082,10 @@ definitions:
         description: >
           The scopes for the cluster. Defaults (userinfo.email, userinfo.profile, bigquery, source.read_only) will be used if left blank. Important: If you choose to specify custom scopes, the defaults will be overwritten. Thus, if you need the defaults, you will need to include the default scopes in your custom list of scopes.
         default: ["https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/bigquery", "https://www.googleapis.com/auth/source.read_only"]
+      enableWelder:
+        type: boolean
+        description: If true, enables welder on the cluster if all cluster in the google project have welder enabled. If false, disables welder on the cluster if all other cluster in google project have welder disabled.
+        default: false
 
 
   ClusterError:
