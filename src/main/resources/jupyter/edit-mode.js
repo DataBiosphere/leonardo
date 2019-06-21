@@ -8,7 +8,6 @@ define(() => {
     // const clusterName = $(clusterName);
 
     let modalOpen = false
-    let meta = {}
         //this needs to be available so the loop can be cancelled where needed
     let syncMaintainer = 1
     let shouldExit = false
