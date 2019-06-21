@@ -4,8 +4,8 @@ const utils = require("base/js/utils")
 define(() => {
     // TEMPLATED CODE
     // Leonardo has logic to find/replace templated values in the format $(...).
-    const googleProject = $(googleProject);
-    const clusterName = $(clusterName);
+    // const googleProject = $(googleProject);
+    // const clusterName = $(clusterName);
 
     let modalOpen = false
     let meta = {}
@@ -13,23 +13,27 @@ define(() => {
     let syncMaintainer = 1
     let shouldExit = false
 
-    const syncIssueButtons = {
-        'Make a Copy': {
-            click: () => saveAs(),
-            'class': 'btn-primary'
-        },
-        'Reload the workspace version and discard your changes': {
-            click: () => updateLocalCopyWithRemote()
+    const syncIssueButtons = (res) => {
+        return {
+            'Make a Copy': {
+                click: () => saveAs(),
+                'class': 'btn-primary'
+            },
+            'Reload the workspace version and discard your changes': {
+                click: () => updateLocalCopyWithRemote(res)
+            }
         }
     }
 
-    const lockIssueButtons = {
-        'Run in Playground Mode': {
-            click: () => openPlaygroundMode(),
-            'class': 'btn-primary'
-        },
-        'Make a Copy': {
-            click: () => saveAs()
+    const lockIssueButtons = (res) => {
+        return {
+            'Run in Playground Mode': {
+                click: () => openPlaygroundMode(res),
+                'class': 'btn-primary'
+            },
+            'Make a Copy': {
+                click: () => saveAs()
+            }
         }
     }
 
@@ -47,11 +51,13 @@ define(() => {
     const syncIssueNotFoundBody = "This file was either deleted or never was stored with us."
 
     const leoUrl = '' //we are choosing to use a relative path here
-        // const leoUrl = 'http://localhost:8080' //for testing against local server
     const welderUrl = leoUrl + `/proxy/${googleProject}/${clusterName}/welder`
-        // const welderUrl = leoUrl
+
+    //for local testing
+    // const leoUrl = 'http://localhost:8080' //for testing against local server
+    // const welderUrl = leoUrl
+
     const localizeUrl = welderUrl + '/objects'
-        // const checkMetaUrl = welderUrl + '/checkMeta'
     const checkMetaUrl = welderUrl + '/objects/metadata'
     const lockUrl = welderUrl + '/objects/lock'
     const lastLockedTimer = 60000
@@ -66,13 +72,22 @@ define(() => {
         headers: headers
     }
 
-    const jupyterBaseUrl = `/notebooks/${googleProject}/${clusterName}`
-    const jupyterContentsAPIUrl = jupyterBaseUrl + "/api/contents/"
+    const jupyterServerApi = `/notebooks/${googleProject}/${clusterName}` + '/api/contents/'
+    const jupyterFsHref = `/notebooks/${googleProject}/${clusterName}/`
+
+    //for local testing
+    // const jupyterServerApi = '/api/contents/'
+    // const jupyterFsHref = '/notebooks/'
+
+    //href to route to on local is /notebooks/ (jupyter_notebook_path)
+    //href to route to on leo is `/notebooks/${googleProject}/${clusterName}/` (jupyter_notebook_path)
+    // server api on local is /api/contents/
+    //server api on leo is `/notebooks/${googleProject}/${clusterName}` /api/contents/
 
     function init() {
-        console.log('here in edit mode init')
-            // checkMeta()
-            // initSyncMaintainer()
+        // console.info('edit mode plugin initialized')
+        // checkMeta()
+        // initSyncMaintainer()
     }
 
     function initSyncMaintainer() {
@@ -150,10 +165,10 @@ define(() => {
     }
 
     function handleMetaSuccess(res) {
-        handleCheckMetaResp(res) //sets meta state
+        handleCheckMetaResp(res) //displays modal if theres an issue in the payload
         toggleMetaFailureBanner(false) //sets banner for meta status
         maintainLockState(res) //gets lock if in edit mode
-        maintainModeBanner(res)
+        maintainModeBanner(res) //sets edit/safe mode banner
     }
 
     function handleMetaFailure(err) {
@@ -167,7 +182,6 @@ define(() => {
 
     //this function assumes any status not included in these lists represents an in out of sync notebook to defend against future fields being added being auto-categorized as failures
     function handleCheckMetaResp(res) {
-        meta = res //set meta state
 
         const healthySyncStatuses = ["LIVE"]
         const outOfSyncStatuses = ["DESYNCHRONIZED", "LOCAL_CHANGED", "REMOTE_CHANGED"]
@@ -178,7 +192,7 @@ define(() => {
         } else if (notFoundStatus.includes(res.syncStatus)) {
             promptUserWithModal(syncIssueTitle, noRemoteFileButtons, syncIssueNotFoundBody)
         } else {
-            promptUserWithModal(syncIssueTitle, syncIssueButtons, syncIssueBody)
+            promptUserWithModal(syncIssueTitle, syncIssueButtons(res), syncIssueBody)
         }
     }
 
@@ -234,15 +248,17 @@ define(() => {
 
     }
 
+    const lockConflictBody = `<p>This file is currently being edited by another user.</p>` +
+        `<br/><p>You can make a copy, or run it in Playground Mode to explore and execute its contents without saving any changes.`;
+
     function handleLockStatus(res) {
         if (!res.ok) {
             const status = res.status
             const errorText = res.statusText
 
             if (status == 409) {
-                res.json().then(body => {
-                    const message = getLockConflictBody(body.lockedBy)
-                    promptUserWithModal(lockConflictTitle, lockIssueButtons, message)
+                res.json().then(res => {
+                    promptUserWithModal(lockConflictTitle, lockIssueButtons(res), lockConflictBody)
                 })
             }
             //for the lock endpoint, we consider all non 'ok' statuses an error
@@ -250,10 +266,6 @@ define(() => {
         }
     }
 
-    const getLockConflictBody = () => {
-        return `<p>This file is currently being edited by another user.</p>` +
-            `<br/><p>You can make a copy, or run it in Playground Mode to explore and execute its contents without saving any changes.`;
-    }
 
     function promptUserWithModal(title, buttons, htmlBody) {
         if (modalOpen) return
@@ -272,57 +284,66 @@ define(() => {
             .find(".close").remove() //TODO: test going back
     }
 
-    async function openPlaygroundMode() {
-        const url = jupyterContentsAPIUrl + Jupyter.notebook.notebook_path
+    async function openPlaygroundMode(meta) {
+        const originalNotebookName = Jupyter.notebook.notebook_name
 
-        //TODO: test e2e
         const safeModeDir = meta.storageLink.localSafeModeBaseDirectory
-        const newDir = safeModeDir.charAt(safeModeDir.length - 1) === "/" ? safeModeDir : safeModeDir + "/"
-        const newPath = newDir + Jupyter.notebook.notebook_name
 
-        console.info('switching to playground path: ', newPath)
-
-        //here we are calling the jupyter server API to PATCH the file they are currently working 
-        //this call results in the notebook currently being worked on saved into the custom playground mode directory
-        //PATCH cannot specify nocors
-        const payload = {
-            headers: headers,
-            method: 'PATCH',
-            body: JSON.stringify({ path: newPath })
+        if (Jupyter.notebook.notebook_path.includes(safeModeDir)) {
+            console.warn('Attempted to navigate to enter safe mode while already in safe mode. Exitting.')
+            return; //we're here already
         }
 
-        fetch(url, payload).then(res => {
-            window.location.href = jupyterBaseUrl + "/notebooks/" + newPath
-        })
+        //create a new file with the contents
+        const postPayload = {
+            ...basePayload,
+            method: 'POST',
+            body: JSON.stringify({
+                copy_from: Jupyter.notebook.notebook_path
+            })
+        }
+
+        const patchPayload = {
+            headers: headers,
+            method: 'PATCH',
+            body: JSON.stringify({
+                path: safeModeDir + originalNotebookName
+            })
+        }
+
+        fetch(jupyterServerApi + safeModeDir, postPayload)
+            .then(res => res.json())
+            .then(res => {
+                //then we rename the file, as POST does not allow us to specify the file name
+                fetch(jupyterServerApi + res.path, patchPayload)
+                    .then(res => {
+                        //navigate to new file
+                        window.location.href = jupyterFsHref + safeModeDir + '/' + originalNotebookName
+                    })
+
+            })
     }
 
-    //TODO test e2e
-    async function saveAs() {
-        const url = jupyterContentsAPIUrl + Jupyter.notebook.notebook_path
-
-        //these util functions guarantee the file is split into an array with 2 items
+    function saveAs() {
         const originalPathSplit = utils.url_path_split(Jupyter.notebook.notebook_path) //guarantees a path in [0] and file name in [1]. [0] is "" if just a file is passed
-        const originalFileSplit = utils.splitext(originalPathSplit[1]) //guarantees a file name in [0] and the extension in [1]
+        const newNotebookPath = originalPathSplit[0]
 
-        const newNotebookName = originalFileSplit[0] + "_COPY" + originalFileSplit[1]
-        const newNotebookPath = originalPathSplit[0] + '/' + newNotebookName
-
-        //PATCH cannot specify nocors
+        //create a new file with the contents
         const payload = {
-            headers: headers,
-            method: 'PATCH',
-            body: JSON.stringify({ path: newNotebookPath }) // body data type must match "Content-Type" header
+            ...basePayload,
+            method: 'POST',
+            body: JSON.stringify({
+                copy_from: Jupyter.notebook.notebook_path
+            })
         }
 
-        const currHrefSplit = utils.url_path_split(window.location.href)
-        const newHref = currHrefSplit[0] + "/" + newNotebookName
-
-        console.info('Jupyter server url being used for making a copy: ', url)
-        console.info('New notebook path being sent to jupyter server: ', newNotebookPath)
-
-        await fetch(url, payload)
-
-        window.location.href = newHref
+        fetch(jupyterServerApi + newNotebookPath, payload)
+            .then(res => res.json())
+            .then(res => {
+                //navigate to new file. we rely on the jupyter post api to supply the name of the file we have created as it ensures it does not exist
+                //POST also does not allow for the specification of a file name 
+                window.location.href = jupyterFsHref + res.path
+            })
     }
 
     function removeElementById(id) {
