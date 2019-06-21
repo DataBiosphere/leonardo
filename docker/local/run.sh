@@ -11,14 +11,14 @@ sed -i 's/$(contentSecurityPolicy)/""/' "${nb_config}"
 
 cp docker/jupyter/custom/*.py "${etc_dir}/custom/"
 
-# TODO: This doesn't actually activate the extension.
-readonly ext_dir=docker/local/jupyter-ext
-mkdir -p "${ext_dir}/custom"
-cp src/main/resources/jupyter/safe-mode.js "${ext_dir}/custom/"
+mkdir -p "${etc_dir}/edit-mode"
+cp src/main/resources/jupyter/edit-mode.js "${etc_dir}/edit-mode/main.js"
+sed -i 's/\$(googleProject)/test-project/ ; s/\$(clusterName)/test-cluster/' "${etc_dir}/edit-mode/main.js"
 
 chmod -R a+rwx ${etc_dir}
-chmod -R a+rwx ${ext_dir}
 popd > /dev/null
+
+(sleep 10 && ./setup.sh)&
 
 docker-compose up
 
