@@ -4,8 +4,8 @@ const utils = require("base/js/utils")
 define(() => {
     // TEMPLATED CODE
     // Leonardo has logic to find/replace templated values in the format $(...).
-    // const googleProject = $(googleProject);
-    // const clusterName = $(clusterName);
+    const googleProject = $(googleProject);
+    const clusterName = $(clusterName);
 
     let modalOpen = false
         //this needs to be available so the loop can be cancelled where needed
