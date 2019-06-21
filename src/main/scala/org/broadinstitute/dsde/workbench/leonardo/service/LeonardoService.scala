@@ -212,24 +212,29 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } flatMap {
       case Some(existingCluster) => throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
       case None =>
-//        clusterRequest.enableWelder match {
-//          case Some(true) =>
-//            dbRef.inTransaction { dataAccess =>
-//              dataAccess.clusterQuery.getClustersWithWelderDisabledByProject(googleProject)
-//            } map { clusterSeq =>
-//              if (!clusterSeq.isEmpty) {
-//                throw CannotEnableWelderException(googleProject, clusterName)
-//              }
-//            }
-//          case _ =>
-//            dbRef.inTransaction { dataAccess =>
-//              dataAccess.clusterQuery.getClustersWithWelderEnabledByProject(googleProject)
-//            } map { clusterSeq =>
-//              if (!clusterSeq.isEmpty) {
-//                throw CannotDisableWelderException(googleProject, clusterName)
-//              }
-//            }
-//        }
+        clusterRequest.enableWelder match {
+          case Some(true) =>
+            dbRef.inTransaction { dataAccess =>
+              dataAccess.clusterQuery.getClustersWithWelderDisabledByProject(googleProject)
+            } flatMap { clusterSeq =>
+              if (clusterSeq.isEmpty) {
+                Future.successful(())
+              } else {
+                Future.failed(CannotEnableWelderException(googleProject, clusterName))
+              }
+            }
+          case _ =>
+            dbRef.inTransaction { dataAccess =>
+              dataAccess.clusterQuery.getClustersWithWelderEnabledByProject(googleProject)
+            } flatMap { clusterSeq =>
+              if (clusterSeq.isEmpty) {
+                Future.successful(())
+              } else {
+                Future.failed(CannotDisableWelderException(googleProject, clusterName))
+              }
+            }
+        }
+
         val augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
         val clusterImages = processClusterImages(clusterRequest)
         val clusterFuture = for {
