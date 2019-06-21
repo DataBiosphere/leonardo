@@ -230,7 +230,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
       .save(Some(serviceAccountKey.id))
 
     // Result should not include labels or instances
-    dbFutureValue { _.clusterQuery.getActiveClusterForDnsCache(savedCluster1.googleProject, savedCluster1.clusterName) } shouldEqual
+    dbFutureValue { _.clusterQuery.getActiveClusterByNameMinimal(savedCluster1.googleProject, savedCluster1.clusterName) } shouldEqual
       Some(savedCluster1).map(stripFieldsForListCluster andThen (_.copy(labels = Map.empty)))
   }
 

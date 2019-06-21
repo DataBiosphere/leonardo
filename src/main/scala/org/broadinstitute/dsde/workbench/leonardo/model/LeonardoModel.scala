@@ -43,7 +43,12 @@ final case class ClusterRequest(labels: LabelMap,
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
                                       serverExtensions: Map[String, String] = Map(),
                                       combinedExtensions: Map[String, String] = Map(),
-                                      labExtensions: Map[String, String] = Map())
+                                      labExtensions: Map[String, String] = Map()) {
+
+  def asLabels: LabelMap = {
+    nbExtensions ++ serverExtensions ++ combinedExtensions ++ labExtensions
+  }
+}
 
 
 // A resource that is required by a cluster

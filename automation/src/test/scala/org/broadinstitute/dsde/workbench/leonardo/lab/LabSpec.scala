@@ -14,7 +14,7 @@ class LabSpec extends ClusterFixtureSpec with LabTestUtils {
 
   "Leonardo lab" - {
 
-    "should execute cells" taggedAs Tags.SmokeTest in { clusterFixture =>
+    "should execute cells" taggedAs Tags.SmokeTest ignore { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewLabNotebook(clusterFixture.cluster) { labNotebookPage =>
           labNotebookPage.runCodeInEmptyCell("1+1") shouldBe Some("2")

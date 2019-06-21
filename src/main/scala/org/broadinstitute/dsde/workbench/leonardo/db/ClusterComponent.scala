@@ -207,7 +207,7 @@ trait ClusterComponent extends LeoComponent {
         }
     }
 
-    def getActiveClusterForDnsCache(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
+    def getActiveClusterByNameMinimal(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
       clusterQuery
         .filter { _.googleProject === project.value }
         .filter { _.clusterName === name.value }
