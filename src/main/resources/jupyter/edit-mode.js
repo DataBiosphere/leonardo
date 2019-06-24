@@ -49,10 +49,15 @@ define(() => {
     const syncIssueBody = "Your version of this file does not match the version in the workspace. What would you like to do?"
     const syncIssueNotFoundBody = "This file was either deleted or never was stored with us."
 
+    //URLS for leo deployment
     const leoUrl = '' //we are choosing to use a relative path here
     const welderUrl = leoUrl + `/proxy/${googleProject}/${clusterName}/welder`
+    const jupyterServerApi = `/notebooks/${googleProject}/${clusterName}` + '/api/contents/'
+    const jupyterFsHref = `/notebooks/${googleProject}/${clusterName}/notebooks/`
 
-    //for local testing
+    //URLS for local testing
+    // const jupyterServerApi = '/api/contents/'
+    // const jupyterFsHref = '/notebooks/'
     // const leoUrl = 'http://localhost:8080' //for testing against local server
     // const welderUrl = leoUrl
 
@@ -70,18 +75,6 @@ define(() => {
         mode: "no-cors",
         headers: headers
     }
-
-    const jupyterServerApi = `/notebooks/${googleProject}/${clusterName}` + '/api/contents/'
-    const jupyterFsHref = `/notebooks/${googleProject}/${clusterName}/notebooks/`
-
-    //for local testing
-    // const jupyterServerApi = '/api/contents/'
-    // const jupyterFsHref = '/notebooks/'
-
-    //href to route to on local is /notebooks/ (jupyter_notebook_path)
-    //href to route to on leo is `/notebooks/${googleProject}/${clusterName}/` (jupyter_notebook_path)
-    // server api on local is /api/contents/
-    //server api on leo is `/notebooks/${googleProject}/${clusterName}` /api/contents/
 
     function init() {
         // console.info('edit mode plugin initialized')
