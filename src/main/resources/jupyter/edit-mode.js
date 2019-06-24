@@ -4,12 +4,12 @@ const utils = require("base/js/utils")
 define(() => {
     // TEMPLATED CODE
     // Leonardo has logic to find/replace templated values in the format $(...).
-    const googleProject = $(googleProject);
-    const clusterName = $(clusterName);
+    const googleProject = $(googleProject)
+    const clusterName = $(clusterName)
 
     let modalOpen = false
         //this needs to be available so the loop can be cancelled where needed
-    let syncMaintainer = 1
+    let syncMaintainer;
     let shouldExit = false
 
     const syncIssueButtons = (res) => {
@@ -179,11 +179,11 @@ define(() => {
         }
     }
 
-    //this function assumes any status not included in these lists represents an in out of sync notebook to defend against future fields being added being auto-categorized as failures
+    //this function assumes any status not included in these lists represents a notebook out of sync to defend against future fields being added being auto-categorized as failures
     function handleCheckMetaResp(res) {
 
         const healthySyncStatuses = ["LIVE"]
-        const outOfSyncStatuses = ["DESYNCHRONIZED", "LOCAL_CHANGED", "REMOTE_CHANGED"]
+        const outOfSyncStatuses = ["DESYNCHRONIZED", "LOCAL_CHANGED", "REMOTE_CHANGED"] //not used but here for reference
         const notFoundStatus = ["REMOTE_NOT_FOUND"]
 
         if (healthySyncStatuses.includes(res.syncStatus)) {
@@ -208,12 +208,10 @@ define(() => {
     }
 
     function getLock() {
-        const localPath = { localPath: Jupyter.notebook.notebook_path }
-
         const payload = {
             ...basePayload,
             method: 'POST',
-            body: JSON.stringify(localPath)
+            body: JSON.stringify({ localPath: Jupyter.notebook.notebook_path })
         }
 
         fetch(lockUrl, payload)
