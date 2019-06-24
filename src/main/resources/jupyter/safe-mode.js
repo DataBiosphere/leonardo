@@ -45,7 +45,7 @@ define(() => {
 
         const interval = setInterval(() => {
             triggerUIToggle()
-        }, 6000)
+        }, 60000)
 
         window.onbeforeunload(() => {
             clearInterval(interval)
@@ -67,13 +67,9 @@ define(() => {
     }
 
     function checkMeta() {
-        const localPath = {
-            localPath: Jupyter.notebook.notebook_path
-        }
-
         const payload = {
             ...basePayload,
-            body: JSON.stringify(localPath),
+            body: JSON.stringify({ localPath: Jupyter.notebook.notebook_path }),
             method: 'POST'
         }
 
