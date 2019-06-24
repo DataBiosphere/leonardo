@@ -1,6 +1,8 @@
+import copy
 import datetime
 import json
 import os
+import requests_mock
 import shutil
 import tempfile
 import unittest
@@ -187,6 +189,76 @@ class TestDelocalizingContentsManager(AsyncTestCase):
     now += timedelta(minutes=20)
     self._save_new_notebook('foo.ipynb')
     self.assertEqual(os.listdir(self.out_dir), ['foo.ipynb'])
+
+class TestWelderContentsManager(AsyncTestCase):
+  """WelderContentsManager tests"""
+
+  def setUp(self):
+    super(TestWelderContentsManager, self).setUp()
+    self.manager = jupyter_delocalize.WelderContentsManager(
+        root_dir=tempfile.mkdtemp(),
+        delete_to_trash=False
+    )
+    self.manager.new(model={'type': 'directory'}, path='dir')
+
+  def tearDown(self):
+    shutil.rmtree(self.manager.root_dir)
+    super(TestWelderContentsManager, self).tearDown()
+
+  def _save_new_notebook(self, path):
+    content = new_notebook()
+    self.manager.save({
+        'type': 'notebook',
+        'content': content,
+        'format': 'text'
+    }, path=path)
+    return content.dict()
+
+  @requests_mock.mock()
+  def test_save(self, mock_request):
+    mock_request.post(self.manager.welder_base_url + '/objects')
+    want = self._save_new_notebook('dir/foo.ipynb')
+    with open(self.manager.root_dir + '/dir/foo.ipynb', 'r') as got:
+      self.assertEqual(json.load(got), want)
+
+  @requests_mock.mock()
+  def test_save_new_file_reverts_on_fail(self, mock_request):
+    mock_request.post(self.manager.welder_base_url + '/objects', status_code=412)
+    try:
+      self._save_new_notebook('dir/foo.ipynb')
+      fail('expected error on save')
+    except:
+      pass
+    self.assertFalse(os.path.isfile(self.manager.root_dir + '/dir/foo.ipynb'))
+
+  @requests_mock.mock()
+  def test_save_reverts_on_fail(self, mock_request):
+    mock_request.post(self.manager.welder_base_url + '/objects')
+    content = new_notebook()
+    self.manager.save({
+        'type': 'notebook',
+        'content': content,
+        'format': 'text'
+    }, path='dir/foo.ipynb')
+
+    mock_request.post(self.manager.welder_base_url + '/objects', status_code=412)
+    updated_content = copy.deepcopy(content)
+    updated_content['cells'] = [{
+        'cell_type': 'markdown',
+        'metadata': {},
+        'source': ['XD'],
+    }]
+    try:
+      self.manager.save({
+          'type': 'notebook',
+          'content': updated_content,
+          'format': 'text'
+      }, path='dir/foo.ipynb')
+      fail('expected error on save')
+    except:
+      pass
+    with open(self.manager.root_dir + '/dir/foo.ipynb', 'r') as got:
+      self.assertEqual(json.load(got)['cells'], content.dict()['cells'])
 
 if __name__ == '__main__':
     unittest.main()
