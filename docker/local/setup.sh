@@ -12,3 +12,14 @@ curl -X POST -H "Content-Type: application/json" http://localhost:8080/storageLi
 }
 EOF
 )"
+
+curl -X POST -H "Content-Type: application/json" http://localhost:8080/objects -d "$(cat << EOF
+{
+  "action": "localize",
+  "entries": [{
+    "sourceUri": "gs://fc-0bf6534f-a9cb-4d58-b311-c6a1c65a359f/welder-test/bar.ipynb",
+    "localDestinationPath": "foo/bar.ipynb"
+  }]
+}
+EOF
+)"

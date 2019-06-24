@@ -2,6 +2,9 @@
 
 (cd $(git rev-parse --show-toplevel)/docker/local && mkdir -p etc-jupyter/custom)
 
+mkdir /tmp/welder-data
+chmod -R a+rwx /tmp/welder-data
+
 # Substitute templated vars in the notebook config.
 pushd $(git rev-parse --show-toplevel) > /dev/null
 readonly etc_dir=docker/local/etc-jupyter
@@ -16,6 +19,7 @@ cp src/main/resources/jupyter/edit-mode.js "${etc_dir}/edit-mode/main.js"
 sed -i 's/\$(googleProject)/test-project/ ; s/\$(clusterName)/test-cluster/' "${etc_dir}/edit-mode/main.js"
 
 chmod -R a+rwx ${etc_dir}
+
 popd > /dev/null
 
 (sleep 10 && ./setup.sh)&

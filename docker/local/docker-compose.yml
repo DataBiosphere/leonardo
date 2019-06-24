@@ -11,7 +11,7 @@ services:
       CLUSTER_NAME: "test-cluster"
       OWNER_EMAIL: "foo@bar.com"
     volumes:
-      - welder-data:/work
+      - /tmp/welder-data:/work:z
       - ~/.config/gcloud/application_default_credentials.json:/usr/adc.json
   jupyter:
     container_name: "leo-dev-jupyter"
@@ -19,7 +19,7 @@ services:
     network_mode: host
     volumes:
       # shared with welder
-      - welder-data:/home/jupyter-user/notebooks
+      - /tmp/welder-data:/home/jupyter-user/notebooks:z
       - ./etc-jupyter:/etc/jupyter
       - ~/.config/gcloud/application_default_credentials.json:/usr/adc.json
     environment:
@@ -36,5 +36,3 @@ services:
     volumes:
       - ./cluster-site.conf:/etc/apache2/sites-enabled/site.conf
     restart: always
-volumes:
-  welder-data:
