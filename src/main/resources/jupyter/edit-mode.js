@@ -72,7 +72,7 @@ define(() => {
     }
 
     const jupyterServerApi = `/notebooks/${googleProject}/${clusterName}` + '/api/contents/'
-    const jupyterFsHref = `/notebooks/${googleProject}/${clusterName}/`
+    const jupyterFsHref = `/notebooks/${googleProject}/${clusterName}/notebooks/`
 
     //for local testing
     // const jupyterServerApi = '/api/contents/'
@@ -304,7 +304,7 @@ define(() => {
             headers: headers,
             method: 'PATCH',
             body: JSON.stringify({
-                path: safeModeDir + originalNotebookName
+                path: safeModeDir + '/' + originalNotebookName
             })
         }
 
