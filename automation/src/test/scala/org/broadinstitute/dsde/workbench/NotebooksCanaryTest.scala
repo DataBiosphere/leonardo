@@ -48,41 +48,7 @@ class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils 
       })
       logger.info(s"Time it took to complete test: " +
         s" ${clusterTimeRes.duration.toSeconds}")
-
-      val res = true
-
-      import sys.process._
-
-      if (res) {
-        val pwd = "pwd".!
-        val ls = "ls".!
-        println(ls)
-        println(pwd)
-        //cd into shell script from /app
-//        val canary = s"./notebooks-canary-test-script.sh ${clusterTimeRes.duration.toSeconds}"
-//        canary.!
-      }
     }
   }
-
-  //  object HttpPost {
-  //    //    def main(args: Array[String]): Unit = {
-  //    //      val url = "https://insights-collector.newrelic.com/v1/accounts/1862859/events"
-  //    //
-  //    //      val post = new HttpPost(url)
-  //    //
-  //    //    }
-  //
-  //    def createDashboard(dashBoardName: String)(implicit token: AuthToken): Unit = {
-  //      logger.info(s"Creating dashboard: NotebooksCanaryTestProd")
-  //      postRequest(apiUrl(s"/v2/dashboards"))
-
-  //
-  //      val newRelMetrics = NewRelicMetrics(NotebooksCanaryTestProd)
-  //
-  //      newRelMetrics.timeIO(nbCanaryTestProd)
-  //    }
-  //  }
-
 }
 
