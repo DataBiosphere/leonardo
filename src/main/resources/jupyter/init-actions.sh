@@ -166,7 +166,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
     # TODO make this configurable. https://broadworkbench.atlassian.net/browse/IA-1033
     # do not enable welder yet.  Remove flag when welder is complete.
-    WELDER_ENABLED=false
+    # ENABLED FOR TESTING
+    WELDER_ENABLED=true
 
     # If we have a service account JSON file, create an .env file to set GOOGLE_APPLICATION_CREDENTIALS
     # in the docker container. Otherwise, we should _not_ set this environment variable so it uses the
