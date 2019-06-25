@@ -96,9 +96,10 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_COMBINED_EXTENSIONS=$(jupyterCombinedExtensions)
     JUPYTER_LAB_EXTENSIONS=$(jupyterLabExtensions)
     GOOGLE_SIGN_IN_JS_URI=$(googleSignInJsUri)
-    JUPYTER_GOOGLE_PLUGIN_URI=$(jupyterGooglePluginUri)
+    EXTENSION_ENTRY_URI=$(extensionEntryUri)
     JUPYTER_LAB_GOOGLE_PLUGIN_URI=$(jupyterLabGooglePluginUri)
-    JUPYTER_SAFE_MODE_PLUGIN_URI=$(jupyterSafeModePluginUri)
+    SAFE_MODE_JS_URI=$(safeModeJsUri)
+    EDIT_MODE_JS_URI=$(editModeJsUri)
     JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
     JUPYTER_USER_SCRIPT_OUTPUT_URI=$(jupyterUserScriptOutputUri)
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
@@ -301,24 +302,33 @@ if [[ "${ROLE}" == 'Master' ]]; then
         docker cp /etc/${GOOGLE_SIGN_IN_JS} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
       fi
 
-      # If a jupyter_google_plugin.js was specified, copy it into the jupyter docker container.
-      if [ ! -z ${JUPYTER_GOOGLE_PLUGIN_URI} ] ; then
-        log 'Installing jupyter_google_plugin.js extension...'
-        gsutil cp ${JUPYTER_GOOGLE_PLUGIN_URI} /etc
-        JUPYTER_GOOGLE_PLUGIN=`basename ${JUPYTER_GOOGLE_PLUGIN_URI}`
+      # If extension_entry.js was specified, copy it into the jupyter docker container.
+      if [ ! -z ${EXTENSION_ENTRY_URI} ] ; then
+        log 'Installing extension_entry.js extension...'
+        gsutil cp ${EXTENSION_ENTRY_URI} /etc
+        EXTENSION_ENTRY=`basename ${EXTENSION_ENTRY_URI}`
         retry 3 docker exec ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
         # note this needs to be named custom.js in the container
-        docker cp /etc/${JUPYTER_GOOGLE_PLUGIN} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/custom.js
+        docker cp /etc/${EXTENSION_ENTRY} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/custom.js
       fi
 
       # If safe-mode.js was specified, copy it into the jupyter docker container.
-      if [ ! -z ${JUPYTER_SAFE_MODE_PLUGIN_URI} ] ; then
+      if [ ! -z ${SAFE_MODE_JS_URI} ] ; then
         log 'Installing safe-mode.js extension...'
-        gsutil cp ${JUPYTER_SAFE_MODE_PLUGIN_URI} /etc
-        JUPYTER_SAFE_MODE_PLUGIN=`basename ${JUPYTER_SAFE_MODE_PLUGIN_URI}`
+        gsutil cp ${SAFE_MODE_JS_URI} /etc
+        SAFE_MODE_JS=`basename ${SAFE_MODE_JS_URI}`
         retry 3 docker exec ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
-        docker cp /etc/${JUPYTER_SAFE_MODE_PLUGIN} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
+        docker cp /etc/${SAFE_MODE_JS} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
       fi
+
+      # If edit-mode.js was specified, copy it into the jupyter docker container.
+        if [ ! -z ${EDIT_MODE_JS_URI} ] ; then
+          log 'Installing edit-mode.js extension...'
+          gsutil cp ${EDIT_MODE_JS_URI} /etc
+          EDIT_MODE_JS=`basename ${EDIT_MODE_JS_URI}`
+          retry 3 docker exec ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
+          docker cp /etc/${EDIT_MODE_JS} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
+        fi
 
       if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG_URI} ] ; then
         log 'Copy Jupyter notebook config...'
