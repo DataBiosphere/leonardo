@@ -306,6 +306,7 @@ trait ClusterComponent extends LeoComponent {
     def existsClustersWithWelderEnabled(project: GoogleProject): DBIO[Boolean] = {
       clusterQuery
         .filter { _.googleProject === project.value }
+        .filter { _.status inSetBind ClusterStatus.activeStatuses.map(_.toString) }
         .map(_.welderEnabled)
         .result
         .map {recs => recs.contains(true)}
@@ -314,6 +315,7 @@ trait ClusterComponent extends LeoComponent {
     def existsClustersWithWelderDisabled(project: GoogleProject): DBIO[Boolean] = {
       clusterQuery
         .filter { _.googleProject === project.value }
+        .filter { _.status inSetBind ClusterStatus.activeStatuses.map(_.toString) }
         .map(_.welderEnabled)
         .result
         .map {recs => recs.contains(false)}

@@ -128,24 +128,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   // Startup script to install on the cluster master node. This allows Jupyter to start back up after
   // a cluster is resumed.
-  private lazy val masterInstanceStartupScript: immutable.Map[String, String] = {
-    val googleKey = "startup-script"  // required; see https://cloud.google.com/compute/docs/startupscript
-
-    // The || clause is included because older clusters may not have the run-jupyter.sh script installed,
-    // so we need to fall back running `jupyter notebook` directly. See https://github.com/DataBiosphere/leonardo/issues/481.
-    val jupyterStart = s"docker exec -d ${dataprocConfig.jupyterServerName} /bin/bash -c '/etc/jupyter/scripts/run-jupyter.sh || /usr/local/bin/jupyter notebook'"
-
-    // TODO make this flag configurable. https://broadworkbench.atlassian.net/browse/IA-1033
-    val enableWelder = false
-    val servicesStart = if (enableWelder) {
-      val welderStart = s"docker exec -u daemon -d ${dataprocConfig.welderServerName} /opt/docker/bin/server start"
-      s"($jupyterStart) && $welderStart"
-    }
-    else jupyterStart
-
-    immutable.Map(googleKey -> servicesStart)
-  }
-
   protected def getMasterInstanceStartupScript(welderEnabled: Boolean): immutable.Map[String, String] = {
     val googleKey = "startup-script"  // required; see https://cloud.google.com/compute/docs/startupscript
 
@@ -185,6 +167,29 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
+  //This checks to make sure that the user isn't trying to create a welder-enabled cluster in a google project of welder-disabled clusters, or vice versa.
+  //Should be temporary and can be removed once welder is successfully deployed to app teams
+  protected def checkWelderEligibility(googleProject: GoogleProject, clusterName: ClusterName, enableWelder: Option[Boolean]): Future[Unit] = {
+    enableWelder match {
+      case Some(true) =>
+        dbRef.inTransaction { dataAccess =>
+          dataAccess.clusterQuery.existsClustersWithWelderDisabled(googleProject)
+        } map { welderDisabledClustersExist =>
+          if (welderDisabledClustersExist) {
+            throw CannotEnableWelderException(googleProject, clusterName)
+          }
+        }
+      case _ =>
+        dbRef.inTransaction { dataAccess =>
+          dataAccess.clusterQuery.existsClustersWithWelderEnabled(googleProject)
+        } map { welderEnabledClustersExist =>
+          if (welderEnabledClustersExist) {
+            throw CannotDisableWelderException(googleProject, clusterName)
+          }
+        }
+    }
+  }
+
   def createCluster(userInfo: UserInfo,
                     googleProject: GoogleProject,
                     clusterName: ClusterName,
@@ -212,30 +217,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } flatMap {
       case Some(existingCluster) => throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
       case None =>
-        for {
-          _ <- clusterRequest.enableWelder match {
-            case Some(true) =>
-              dbRef.inTransaction { dataAccess =>
-                dataAccess.clusterQuery.existsClustersWithWelderDisabled(googleProject)
-              } map { welderDisabledClustersExist =>
-                if (welderDisabledClustersExist) {
-                  throw CannotEnableWelderException(googleProject, clusterName)
-                }
-              }
-            case _ =>
-              dbRef.inTransaction { dataAccess =>
-                dataAccess.clusterQuery.existsClustersWithWelderEnabled(googleProject)
-              } map { welderEnabledClustersExist =>
-                if (welderEnabledClustersExist) {
-                  throw CannotDisableWelderException(googleProject, clusterName)
-                }
-              }
-          }
-        } yield ()
-
         val augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
         val clusterImages = processClusterImages(clusterRequest)
         val clusterFuture = for {
+          // temporary: check that cluster request's enableWelder is valid
+          _ <- checkWelderEligibility(googleProject, clusterName, clusterRequest.enableWelder)
+
           // Notify the auth provider that the cluster has been created
           _ <- authProvider.notifyClusterCreated(userEmail, googleProject, clusterName)
 
@@ -253,9 +240,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         // If cluster creation failed on the Google side, createGoogleCluster removes resources in Google.
         // We also need to notify our auth provider that the cluster has been deleted.
-        clusterFuture.andThen { case Failure(_) =>
+        clusterFuture.andThen {
+          case Failure(e) if (e == CannotEnableWelderException || e == CannotDisableWelderException) => throw e
           // Don't wait for this future
-          authProvider.notifyClusterDeleted(userEmail, userEmail, googleProject, clusterName)
+          case Failure(_) => authProvider.notifyClusterDeleted(userEmail, userEmail, googleProject, clusterName)
         }
 
         clusterFuture
