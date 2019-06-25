@@ -212,28 +212,26 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } flatMap {
       case Some(existingCluster) => throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
       case None =>
-        clusterRequest.enableWelder match {
-          case Some(true) =>
-            dbRef.inTransaction { dataAccess =>
-              dataAccess.clusterQuery.getClustersWithWelderDisabledByProject(googleProject)
-            } flatMap { clusterSeq =>
-              if (clusterSeq.isEmpty) {
-                Future.successful(())
-              } else {
-                Future.failed(CannotEnableWelderException(googleProject, clusterName))
+        for {
+          _ <- clusterRequest.enableWelder match {
+            case Some(true) =>
+              dbRef.inTransaction { dataAccess =>
+                dataAccess.clusterQuery.existsClustersWithWelderDisabled(googleProject)
+              } map { welderDisabledClustersExist =>
+                if (welderDisabledClustersExist) {
+                  throw CannotEnableWelderException(googleProject, clusterName)
+                }
               }
-            }
-          case _ =>
-            dbRef.inTransaction { dataAccess =>
-              dataAccess.clusterQuery.getClustersWithWelderEnabledByProject(googleProject)
-            } flatMap { clusterSeq =>
-              if (clusterSeq.isEmpty) {
-                Future.successful(())
-              } else {
-                Future.failed(CannotDisableWelderException(googleProject, clusterName))
+            case _ =>
+              dbRef.inTransaction { dataAccess =>
+                dataAccess.clusterQuery.existsClustersWithWelderEnabled(googleProject)
+              } map { welderEnabledClustersExist =>
+                if (welderEnabledClustersExist) {
+                  throw CannotDisableWelderException(googleProject, clusterName)
+                }
               }
-            }
-        }
+          }
+        } yield ()
 
         val augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
         val clusterImages = processClusterImages(clusterRequest)

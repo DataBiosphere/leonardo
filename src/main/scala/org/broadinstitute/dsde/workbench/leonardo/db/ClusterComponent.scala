@@ -16,42 +16,42 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GcsPathSupport, GoogleProject, ServiceAccountKey, ServiceAccountKeyId, parseGcsPath}
 
-case class ClusterRecord(id: Long,
-                         clusterName: String,
-                         googleId: Option[UUID],
-                         googleProject: String,
-                         operationName: Option[String],
-                         status: String,
-                         hostIp: Option[String],
-                         jupyterExtensionUri: Option[String],
-                         jupyterUserScriptUri: Option[String],
-                         initBucket: Option[String],
-                         auditInfo: AuditInfoRecord,
-                         machineConfig: MachineConfigRecord,
-                         properties: Map[String, String],
-                         serviceAccountInfo: ServiceAccountInfoRecord,
-                         stagingBucket: Option[String],
-                         autopauseThreshold: Int,
-                         defaultClientId: Option[String],
-                         stopAfterCreation: Boolean,
-                         welderEnabled: Boolean)
+final case class ClusterRecord(id: Long,
+                               clusterName: String,
+                               googleId: Option[UUID],
+                               googleProject: String,
+                               operationName: Option[String],
+                               status: String,
+                               hostIp: Option[String],
+                               jupyterExtensionUri: Option[String],
+                               jupyterUserScriptUri: Option[String],
+                               initBucket: Option[String],
+                               auditInfo: AuditInfoRecord,
+                               machineConfig: MachineConfigRecord,
+                               properties: Map[String, String],
+                               serviceAccountInfo: ServiceAccountInfoRecord,
+                               stagingBucket: Option[String],
+                               autopauseThreshold: Int,
+                               defaultClientId: Option[String],
+                               stopAfterCreation: Boolean,
+                               welderEnabled: Boolean)
 
-case class MachineConfigRecord(numberOfWorkers: Int,
-                               masterMachineType: String,
-                               masterDiskSize: Int,
-                               workerMachineType: Option[String],
-                               workerDiskSize: Option[Int],
-                               numberOfWorkerLocalSsds: Option[Int],
-                               numberOfPreemptibleWorkers: Option[Int])
+final case class MachineConfigRecord(numberOfWorkers: Int,
+                                     masterMachineType: String,
+                                     masterDiskSize: Int,
+                                     workerMachineType: Option[String],
+                                     workerDiskSize: Option[Int],
+                                     numberOfWorkerLocalSsds: Option[Int],
+                                     numberOfPreemptibleWorkers: Option[Int])
 
-case class ServiceAccountInfoRecord(clusterServiceAccount: Option[String],
-                                    notebookServiceAccount: Option[String],
-                                    serviceAccountKeyId: Option[String])
+final case class ServiceAccountInfoRecord(clusterServiceAccount: Option[String],
+                                          notebookServiceAccount: Option[String],
+                                          serviceAccountKeyId: Option[String])
 
-case class AuditInfoRecord(creator: String,
-                           createdDate: Timestamp,
-                           destroyedDate: Timestamp,
-                           dateAccessed: Timestamp)
+final case class AuditInfoRecord(creator: String,
+                                 createdDate: Timestamp,
+                                 destroyedDate: Timestamp,
+                                 dateAccessed: Timestamp)
 
 
 trait ClusterComponent extends LeoComponent {
@@ -303,19 +303,20 @@ trait ClusterComponent extends LeoComponent {
         .result map { recs => unmarshalFullCluster(recs)}
     }
 
-    // TODO: find how to make these not full cluster queries
-    def getClustersWithWelderEnabledByProject(project: GoogleProject): DBIO[Seq[Cluster]] = {
-      fullClusterQuery
-        .filter { _._1.googleProject === project.value }
-        .filter { _._1.welderEnabled === true }
-        .result map { recs => unmarshalFullCluster(recs)}
+    def existsClustersWithWelderEnabled(project: GoogleProject): DBIO[Boolean] = {
+      clusterQuery
+        .filter { _.googleProject === project.value }
+        .map(_.welderEnabled)
+        .result
+        .map {recs => recs.contains(true)}
     }
 
-    def getClustersWithWelderDisabledByProject(project: GoogleProject): DBIO[Seq[Cluster]] = {
-      fullClusterQuery
-        .filter { _._1.googleProject === project.value }
-        .filter { _._1.welderEnabled === false }
-        .result map { recs => unmarshalFullCluster(recs)}
+    def existsClustersWithWelderDisabled(project: GoogleProject): DBIO[Boolean] = {
+      clusterQuery
+        .filter { _.googleProject === project.value }
+        .map(_.welderEnabled)
+        .result
+        .map {recs => recs.contains(false)}
     }
 
     def markPendingDeletion(id: Long): DBIO[Int] = {
