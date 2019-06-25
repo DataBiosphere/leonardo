@@ -9,7 +9,6 @@ object LeonardoConfig extends CommonConfig {
     val apiUrl: String = leonardo.getString("apiUrl")
     val notebooksServiceAccountEmail: String = leonardo.getString("notebooksServiceAccountEmail")
     val notebooksCanaryProject: String = leonardo.getString("notebooksCanaryProject")
-    //val notebooksCanaryProjectProd: String = leonardo.getString("notebooksCanaryProjectProd")
   }
 
   // for qaEmail and pathToQAPem
