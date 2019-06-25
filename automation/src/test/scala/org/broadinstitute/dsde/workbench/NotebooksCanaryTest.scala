@@ -50,5 +50,4 @@ class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils 
         s" ${clusterTimeRes.duration.toSeconds}")
     }
   }
-}
-
+}automation/src/test/scala/org/broadinstitute/dsde/workbench/NotebooksCanaryTest.scala
