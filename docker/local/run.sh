@@ -16,7 +16,7 @@ cp docker/jupyter/custom/*.py "${etc_dir}/custom/"
 
 mkdir -p "${etc_dir}/edit-mode"
 cp src/main/resources/jupyter/edit-mode.js "${etc_dir}/edit-mode/main.js"
-sed -i 's/\$(googleProject)/test-project/ ; s/\$(clusterName)/test-cluster/' "${etc_dir}/edit-mode/main.js"
+sed -i 's/\$(googleProject)/"test-project"/ ; s/\$(clusterName)/"test-cluster"/' "${etc_dir}/edit-mode/main.js"
 
 chmod -R a+rwx ${etc_dir}
 
