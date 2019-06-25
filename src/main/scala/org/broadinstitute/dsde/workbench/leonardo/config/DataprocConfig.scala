@@ -20,5 +20,7 @@ case class DataprocConfig(
                            defaultScopes: Set[String],
                            welderDockerImage: String,
                            vpcNetwork: Option[String],
-                           vpcSubnet: Option[String]
+                           vpcSubnet: Option[String],
+                           projectVPCNetworkLabel: Option[String],
+                           projectVPCSubnetLabel: Option[String]
                          )
