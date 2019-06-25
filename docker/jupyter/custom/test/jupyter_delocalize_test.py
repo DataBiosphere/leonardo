@@ -222,12 +222,23 @@ class TestWelderContentsManager(AsyncTestCase):
       self.assertEqual(json.load(got), want)
 
   @requests_mock.mock()
+  def test_save_scratch_file(self, mock_request):
+    mock_request.post(self.manager.welder_base_url + '/objects', status_code=412, json={
+      'errorCode': 1
+    })
+    want = self._save_new_notebook('dir/foo.ipynb')
+    with open(self.manager.root_dir + '/dir/foo.ipynb', 'r') as got:
+      self.assertEqual(json.load(got), want)
+
+  @requests_mock.mock()
   def test_save_new_file_reverts_on_fail(self, mock_request):
-    mock_request.post(self.manager.welder_base_url + '/objects', status_code=412)
+    mock_request.post(self.manager.welder_base_url + '/objects', status_code=412, json={
+      'errorCode': 3
+    })
     try:
       self._save_new_notebook('dir/foo.ipynb')
       fail('expected error on save')
-    except:
+    except IOError:
       pass
     self.assertFalse(os.path.isfile(self.manager.root_dir + '/dir/foo.ipynb'))
 
@@ -255,10 +266,43 @@ class TestWelderContentsManager(AsyncTestCase):
           'format': 'text'
       }, path='dir/foo.ipynb')
       fail('expected error on save')
-    except:
+    except IOError:
       pass
     with open(self.manager.root_dir + '/dir/foo.ipynb', 'r') as got:
       self.assertEqual(json.load(got)['cells'], content.dict()['cells'])
+
+  @requests_mock.mock()
+  def test_delete(self, mock_request):
+    mock_request.post(self.manager.welder_base_url + '/objects')
+    self._save_new_notebook('dir/foo.ipynb')
+
+    self.manager.delete_file('dir/foo.ipynb')
+    self.assertFalse(os.path.isfile(self.manager.root_dir + '/dir/foo.ipynb'))
+
+  @requests_mock.mock()
+  def test_delete_scratch_file(self, mock_request):
+    mock_request.post(self.manager.welder_base_url + '/objects', status_code=412, json={
+      'errorCode': 1
+    })
+    self._save_new_notebook('dir/foo.ipynb')
+
+    self.manager.delete_file('dir/foo.ipynb')
+    self.assertFalse(os.path.isfile(self.manager.root_dir + '/dir/foo.ipynb'))
+
+  @requests_mock.mock()
+  def test_delete_local_file_survives_welder_error(self, mock_request):
+    mock_request.post(self.manager.welder_base_url + '/objects')
+    self._save_new_notebook('dir/foo.ipynb')
+
+    mock_request.post(self.manager.welder_base_url + '/objects', status_code=412, json={
+      'errorCode': 3
+    })
+    try:
+      self.manager.delete_file('dir/foo.ipynb')
+      fail('expected error on delete')
+    except IOError:
+      pass
+    self.assertTrue(os.path.isfile(self.manager.root_dir + '/dir/foo.ipynb'))
 
 if __name__ == '__main__':
     unittest.main()
