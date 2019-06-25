@@ -7,7 +7,4 @@
             </column>
         </addColumn>
     </changeSet>
-    <changeSet id="set welderEnabled to default when welderEnabled is NULL" author="azmina">
-        <sql>UPDATE CLUSTER SET welderEnabled = false WHERE welderEnabled IS NULL</sql>
-    </changeSet>
 </databaseChangeLog>
