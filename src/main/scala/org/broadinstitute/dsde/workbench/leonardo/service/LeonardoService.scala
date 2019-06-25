@@ -120,8 +120,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     network = dataprocConfig.vpcNetwork.map(VPCNetworkName),
     targetTags = List(NetworkTag(dataprocConfig.networkTag)))
 
-  // Startup scripts to install on the cluster master node.
-  // This allows Jupyter and Welder to start back up after a cluster is resumed.
+  // Startup script to install on the cluster master node. This allows Jupyter to start back up after
+  // a cluster is resumed.
   private lazy val masterInstanceStartupScript: immutable.Map[String, String] = {
     val googleKey = "startup-script"  // required; see https://cloud.google.com/compute/docs/startupscript
 
@@ -191,7 +191,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } flatMap {
       case Some(existingCluster) => throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
       case None =>
-        val augmentedClusterRequest = addClusterLabels(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
+        val augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
         val clusterImages = processClusterImages(clusterRequest)
         val clusterFuture = for {
           // Notify the auth provider that the cluster has been created
@@ -247,7 +247,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                               clusterName: ClusterName,
                               clusterRequest: ClusterRequest): Future[Cluster] = {
     dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName)
+      dataAccess.clusterQuery.getActiveClusterByNameMinimal(googleProject, clusterName)
     } flatMap {
       case Some(existingCluster) =>
         throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
@@ -262,8 +262,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                    clusterName: ClusterName,
                                    clusterRequest: ClusterRequest): Future[Cluster] = {
 
-    val augmentedClusterRequest = addClusterLabels(
-      serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
+    val augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
     val clusterImages = processClusterImages(clusterRequest)
     val machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
     val autopauseThreshold = calculateAutopauseThreshold(
@@ -704,8 +703,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // If the Google Compute default service account is being used, this is not necessary.
       _ <- addDataprocWorkerRoleToServiceAccount(googleProject, serviceAccountInfo.clusterServiceAccount)
 
-      // Create the bucket in leo's google project and populate with initialization files.
-      // ACLs are granted so the cluster service account can access the bucket at initialization time.
+      // Create the bucket in the cluster's google project and populate with initialization files.
+      // ACLs are granted so the cluster service account can access the files at initialization time.
       initBucket <- bucketHelper.createInitBucket(googleProject, initBucketName, serviceAccountInfo)
       _ <- initializeBucketObjects(userEmail, googleProject, clusterName, initBucket, clusterRequest, serviceAccountKeyOpt, contentSecurityPolicy, clusterImages, stagingBucketName)
 
@@ -938,7 +937,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       clusterResourcesConfig.rstudioDockerCompose,
       clusterResourcesConfig.proxyDockerCompose,
       clusterResourcesConfig.proxySiteConf,
-      clusterResourcesConfig.jupyterGooglePlugin,
+      clusterResourcesConfig.extensionEntry,
       clusterResourcesConfig.jupyterLabGooglePlugin,
       clusterResourcesConfig.welderDockerCompose
     )
@@ -952,14 +951,19 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     // Fill in templated resources with the given replacements
     val initScriptContent = templateResource(clusterResourcesConfig.initActionsScript, replacements)
     val googleSignInJsContent = templateResource(clusterResourcesConfig.googleSignInJs, replacements)
+    val editModeJsContent = templateResource(clusterResourcesConfig.editModeJs, replacements)
+    val safeModeJsContent = templateResource(clusterResourcesConfig.safeModeJs, replacements)
     val jupyterNotebookConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookConfigUri, replacements)
 
     for {
       // Upload the init script to the bucket
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.initActionsScript.value), initScriptContent, "text/plain")
 
-      // Upload the googleSignInJs file to the bucket
+      // Upload the nb extensions to the bucket
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.googleSignInJs.value), googleSignInJsContent, "text/plain")
+      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.editModeJs.value), editModeJsContent, "text/plain")
+      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.safeModeJs.value), safeModeJsContent, "text/plain")
+
 
       // Update the jupytyer notebook config file
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value), jupyterNotebookConfigContent, "text/plain")
@@ -1030,6 +1034,28 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
+  private[service] def augmentClusterRequest(serviceAccountInfo: ServiceAccountInfo, googleProject: GoogleProject, clusterName: ClusterName, userEmail: WorkbenchEmail, clusterRequest: ClusterRequest) = {
+    val userJupyterExt = clusterRequest.jupyterExtensionUri match {
+      case Some(ext) => Map[String, String]("notebookExtension" -> ext.toUri)
+      case None => Map[String, String]()
+    }
+
+    // add the userJupyterExt to the nbExtensions
+    val updatedUserJupyterExtensionConfig = clusterRequest.userJupyterExtensionConfig match {
+      case Some(config) => config.copy(nbExtensions = config.nbExtensions ++ userJupyterExt)
+      case None => UserJupyterExtensionConfig(userJupyterExt, Map.empty, Map.empty, Map.empty)
+    }
+
+    // transform Some(empty, empty, empty, empty) to None
+    // TODO: is this really necessary?
+    val updatedClusterRequest = clusterRequest.copy(userJupyterExtensionConfig = if (updatedUserJupyterExtensionConfig.asLabels.isEmpty)
+      None
+    else
+      Some(updatedUserJupyterExtensionConfig))
+
+    addClusterLabels(serviceAccountInfo, googleProject, clusterName, userEmail, updatedClusterRequest)
+  }
+
   private[service] def addClusterLabels(serviceAccountInfo: ServiceAccountInfo,
                                         googleProject: GoogleProject,
                                         clusterName: ClusterName,
@@ -1040,31 +1066,15 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       serviceAccountInfo.clusterServiceAccount, serviceAccountInfo.notebookServiceAccount, clusterRequest.jupyterUserScriptUri)
       .toJson.asJsObject.fields.mapValues(labelValue => labelValue.convertTo[String])
 
-    //Add UserJupyterUri to NbExtension
-    val userJupyterExt = clusterRequest.jupyterExtensionUri match {
-      case Some(ext) => Map[String, String]("notebookExtension" -> ext.toUri)
-      case None => Map[String, String]()
-    }
-
-    val nbExtensions = userJupyterExt ++ clusterRequest.userJupyterExtensionConfig.map(_.nbExtensions).getOrElse(Map.empty)
-
-    val serverExtensions = clusterRequest.userJupyterExtensionConfig.map(_.serverExtensions).getOrElse(Map.empty)
-
-    val combinedExtension = clusterRequest.userJupyterExtensionConfig.map(_.combinedExtensions).getOrElse(Map.empty)
-
-    val labExtension = clusterRequest.userJupyterExtensionConfig.map(_.labExtensions).getOrElse(Map.empty)
-
     // combine default and given labels and add labels for extensions
-    val allLabels = clusterRequest.labels ++ defaultLabels ++ nbExtensions ++ serverExtensions ++ combinedExtension ++ labExtension
-
-    val updatedUserJupyterExtensionConfig = if(nbExtensions.isEmpty && serverExtensions.isEmpty && combinedExtension.isEmpty && labExtension.isEmpty) None else Some(UserJupyterExtensionConfig(nbExtensions, serverExtensions, combinedExtension, labExtension))
+    val allLabels = clusterRequest.labels ++ defaultLabels ++
+      clusterRequest.userJupyterExtensionConfig.map(_.asLabels).getOrElse(Map.empty)
 
     // check the labels do not contain forbidden keys
     if (allLabels.contains(includeDeletedKey))
       throw IllegalLabelKeyException(includeDeletedKey)
     else clusterRequest
       .copy(labels = allLabels)
-      .copy(userJupyterExtensionConfig = updatedUserJupyterExtensionConfig)
   }
 
   private[service] def processClusterImages(clusterRequest: ClusterRequest): Set[ClusterImage] = {
