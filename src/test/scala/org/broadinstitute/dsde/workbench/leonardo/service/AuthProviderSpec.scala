@@ -4,7 +4,7 @@ import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.{HttpRequest, StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleIamDAO, MockGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq, clusterSetEq, stripFieldsForListCluster}
 import org.broadinstitute.dsde.workbench.leonardo.auth.MockLeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
@@ -43,6 +43,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
 
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
+  val mockGoogleProjectDAO = new MockGoogleProjectDAO
   val bucketHelper = new BucketHelper(dataprocConfig, mockGoogleDataprocDAO, mockGoogleComputeDAO, mockGoogleStorageDAO, serviceAccountProvider)
   val clusterDnsCache =  new ClusterDnsCache(proxyConfig, DbSingleton.ref, dnsCacheConfig)
   override def beforeAll(): Unit = {
@@ -59,7 +60,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
       new MockGoogleStorageDAO
     }
-    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, mockGoogleDataprocDAO, mockGoogleComputeDAO , mockGoogleIamDAO, mockGoogleStorageDAO ,mockPetGoogleStorageDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
+    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, mockGoogleDataprocDAO, mockGoogleComputeDAO , mockGoogleIamDAO, mockGoogleProjectDAO, mockGoogleStorageDAO ,mockPetGoogleStorageDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
   }
 
   def proxyWithAuthProvider(authProvider: LeoAuthProvider): ProxyService = {
