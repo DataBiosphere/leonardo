@@ -174,18 +174,18 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       case Some(true) =>
         dbRef.inTransaction { dataAccess =>
           dataAccess.clusterQuery.existsClustersWithWelderDisabled(googleProject)
-        } map { welderDisabledClustersExist =>
+        } flatMap { welderDisabledClustersExist =>
           if (welderDisabledClustersExist) {
-            throw CannotEnableWelderException(googleProject, clusterName)
-          }
+            Future.failed(CannotEnableWelderException(googleProject, clusterName))
+          } else Future.unit
         }
       case _ =>
         dbRef.inTransaction { dataAccess =>
           dataAccess.clusterQuery.existsClustersWithWelderEnabled(googleProject)
-        } map { welderEnabledClustersExist =>
+        } flatMap { welderEnabledClustersExist =>
           if (welderEnabledClustersExist) {
-            throw CannotDisableWelderException(googleProject, clusterName)
-          }
+            Future.failed(CannotDisableWelderException(googleProject, clusterName))
+          } else Future.unit
         }
     }
   }
