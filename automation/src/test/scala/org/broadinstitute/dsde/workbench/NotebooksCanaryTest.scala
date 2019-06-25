@@ -2,11 +2,10 @@ package org.broadinstitute.dsde.workbench
 
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{Notebook, NotebookTestUtils, Python3}
-import org.scalatest.Matchers
+import org.scalatest.{FreeSpec, Matchers, Tag}
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V2
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
-import org.scalatest.FreeSpec
 import org.broadinstitute.dsde.workbench.leonardo._
 
 import scala.language.postfixOps
@@ -19,7 +18,7 @@ class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils 
   implicit val authToken: AuthToken = ronAuthToken
   "Leonardo notebooks canary test" - {
 
-    "Test for creating a cluster and localizing a notebook " in {
+    "Test for creating a cluster and localizing a notebook " taggedAs Tag("NotebooksCanaryTest") in {
 
       val localizeFileName = "localize_sync.txt"
       val localizeFileContents = "Sync localize test"
