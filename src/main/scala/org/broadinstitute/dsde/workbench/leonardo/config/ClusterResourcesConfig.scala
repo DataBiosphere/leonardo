@@ -8,9 +8,10 @@ case class ClusterResourcesConfig(initActionsScript: ClusterResource,
                                   proxyDockerCompose: ClusterResource,
                                   proxySiteConf: ClusterResource,
                                   googleSignInJs: ClusterResource,
-                                  jupyterGooglePlugin: ClusterResource,
+                                  extensionEntry: ClusterResource,
                                   jupyterLabGooglePlugin: ClusterResource,
-                                  jupyterSafeModePlugin: ClusterResource,
+                                  safeModeJs: ClusterResource,
+                                  editModeJs: ClusterResource,
                                   jupyterNotebookConfigUri: ClusterResource,
                                   welderDockerCompose: ClusterResource
                                  )

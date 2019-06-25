@@ -120,8 +120,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     network = dataprocConfig.vpcNetwork.map(VPCNetworkName),
     targetTags = List(NetworkTag(dataprocConfig.networkTag)))
 
-  // Startup scripts to install on the cluster master node.
-  // This allows Jupyter and Welder to start back up after a cluster is resumed.
+  // Startup script to install on the cluster master node. This allows Jupyter to start back up after
+  // a cluster is resumed.
   private lazy val masterInstanceStartupScript: immutable.Map[String, String] = {
     val googleKey = "startup-script"  // required; see https://cloud.google.com/compute/docs/startupscript
 
@@ -936,9 +936,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       clusterResourcesConfig.rstudioDockerCompose,
       clusterResourcesConfig.proxyDockerCompose,
       clusterResourcesConfig.proxySiteConf,
-      clusterResourcesConfig.jupyterGooglePlugin,
+      clusterResourcesConfig.extensionEntry,
       clusterResourcesConfig.jupyterLabGooglePlugin,
-      clusterResourcesConfig.jupyterSafeModePlugin,
       clusterResourcesConfig.welderDockerCompose
     )
 
@@ -951,14 +950,19 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     // Fill in templated resources with the given replacements
     val initScriptContent = templateResource(clusterResourcesConfig.initActionsScript, replacements)
     val googleSignInJsContent = templateResource(clusterResourcesConfig.googleSignInJs, replacements)
+    val editModeJsContent = templateResource(clusterResourcesConfig.editModeJs, replacements)
+    val safeModeJsContent = templateResource(clusterResourcesConfig.safeModeJs, replacements)
     val jupyterNotebookConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookConfigUri, replacements)
 
     for {
       // Upload the init script to the bucket
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.initActionsScript.value), initScriptContent, "text/plain")
 
-      // Upload the googleSignInJs file to the bucket
+      // Upload the nb extensions to the bucket
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.googleSignInJs.value), googleSignInJsContent, "text/plain")
+      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.editModeJs.value), editModeJsContent, "text/plain")
+      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.safeModeJs.value), safeModeJsContent, "text/plain")
+
 
       // Update the jupytyer notebook config file
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value), jupyterNotebookConfigContent, "text/plain")

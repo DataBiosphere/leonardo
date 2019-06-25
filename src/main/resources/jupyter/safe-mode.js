@@ -14,88 +14,88 @@
 // the intended use of this plugin is in a separate space from normal operation
 // which does not support localization features.
 
-define([
-    'base/js/namespace'
-], (Jupyter) => {
-  const load = () => {
-    // TODO: query welder for when to enable (IA-979). always-off, for now.
-    const enabled = false;
-    if (!enabled) {
-      return;
+// const namespace = require('base/js/namespace')
+
+define(() => {
+    // TEMPLATED CODE
+    // Leonardo has logic to find/replace templated values in the format $(...).
+    var googleProject = $(googleProject);
+    var clusterName = $(clusterName);
+
+    const welderUrl = `/proxy/${googleProject}/${clusterName}/welder`
+    const checkMetaUrl = welderUrl + '/objects/metadata'
+
+    const headers = {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Headers': '*'
     }
 
+    const basePayload = {
+        mode: "no-cors",
+        headers: headers
+    }
 
-    //
-    // Disable UI controls
-    //
+    function load() {
+        // console.log('here in safe init')
+        // checkMetaLoop()
+    }
 
+    function checkMetaLoop() {
+        triggerUIToggle()
 
-    // Save Notebook button
-    //"notbook" is an intentional typo to match the Jupyter UI HTML.
-    $('#save-notbook').remove();
+        const interval = setInterval(() => {
+            triggerUIToggle()
+        }, 60000)
 
-    // New Notebook menu tree
-    $('#new_notebook').remove();
+        window.onbeforeunload(() => {
+            clearInterval(interval)
+        })
+    }
 
-    // Open... menu item
-    $('#open_notebook').remove();
+    async function triggerUIToggle() {
+        checkMeta()
+            .then(res => {
+                if (res.syncMode == "EDIT") {
+                    toggleUIControls(false)
+                } else {
+                    toggleUIControls(true)
+                }
+            })
+            .catch(err => {
+                toggleUIControls(false) //we always assume safe mode if the check meta call fails
+            })
+    }
 
-    // Make a Copy... menu item
-    $('#copy_notebook').remove();
+    function checkMeta() {
+        const payload = {
+            ...basePayload,
+            body: JSON.stringify({ localPath: Jupyter.notebook.notebook_path }),
+            method: 'POST'
+        }
 
-    // Save as... menu item
-    $('#save_notebook_as').remove();
+        return fetch(checkMetaUrl, payload)
+            .then(res => {
+                if (!res.ok) {
+                    throw Error("check metadata call failed due to status code")
+                }
+                return res.json()
+            })
+    }
 
-    // Save and Checkpoint menu item
-    $('#save_checkpoint').remove();
+    function toggleUIControls(shouldHide) {
+        //these are the jquery selectors for the elements we will toggle
+        //"notbook" is an intentional typo to match the Jupyter UI HTML.
+        const selectorsToHide = ['#save-notbook', '#new_notebook', '#open_notebook', '#copy_notebook', '#save_notebook_as', '#save_checkpoint', '#restore_checkpoint', '.checkpoint_status', '.autosave_status', '#notification_notebook', '#file_menu > li.divider:eq(0)', '#file_menu > li.divider:eq(2)']
+        selectorsToHide.forEach((selector) => {
+            if (shouldHide) {
+                $(selector).hide()
+            } else {
+                $(selector).show()
+            }
+        })
+    }
 
-    // Revert to Checkpoint menu tree
-    $('#restore_checkpoint').remove();
-
-    // A little cleanup: remove two dividers in the file menu
-    // which are no longer dividing anything
-    $("#file_menu .divider")[0].remove();
-    $("#file_menu .divider")[0].remove();
-
-
-    //
-    // Disable UI notifications
-    //
-
-
-    $('#save_widget')
-        .append(
-            '<style>' +
-              // e.g. Last Checkpoint: 3 minutes ago
-              '.checkpoint_status { display: none; } ' +
-              // e.g. (autosaved) or (unsaved changes)
-              '.autosave_status { display: none; }' +
-              '</style>');
-
-    $('#notification_area')
-        .append(
-            '<style>' +
-              // e.g. Notebook Saved
-              '#notification_notebook span { display: none; } ' +
-              '</style>');
-
-    // Add our own persistent "Safe Mode" notification next to the other
-    // notifications, e.g. kernel status.
-
-    // TODO: convert to tooltip with this text:
-    // Safe Mode allows you to explore, change, and run the code,
-    // but your edits will not be saved.
-    // To save your work, choose Make a Copy from the File menu to
-    // make your own version.
-
-    $('#notification_area').prepend(
-        '<div id="safe-mode" style="background-color: #FFFFB2;" ' +
-          'class="notification_widget btn btn-xs navbar-btn">' +
-          '<span>Safe Mode - your edits will not be saved.' +
-            '</span></div>');
-  };
-
-  return {
-    'load_ipython_extension': load
-  };
+    return {
+        'load_ipython_extension': load
+    };
 });

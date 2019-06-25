@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import json
 import os
 import re
+import requests
 import subprocess
 import tornado
 from notebook.services.contents.filemanager import FileContentsManager
@@ -158,3 +159,77 @@ class DelocalizingContentsManager(FileContentsManager):
     self._log_and_call_file_cmd_async([
         'rm', self._remote_path(meta, os_path),
     ])
+
+
+class WelderContentsManager(FileContentsManager):
+  """
+  A contents manager which integrates with the Leo Welder service.
+
+  Blocking Welder API calls are made before files are persisted. After a
+  successful call to Welder, files are persisted to the local Jupyter file
+  system as usual.
+  """
+
+  def __init__(self, *args, **kwargs):
+    # This log line shouldn't be necessary, but Jupyter's built-in logging is
+    # lacking and its configuration can be complex. Having this in the server
+    # logs is useful for confirming which ContentsManager is in use.
+    self.log.info('initializing WelderContentsManager')
+    self.welder_base_url = 'http://127.0.0.1:8080'
+    super(WelderContentsManager, self).__init__(*args, **kwargs)
+
+  def _welder_delocalize(self, path):
+    # Ignore storage link failure, throw other errors.
+    resp = requests.post(self.welder_base_url + '/objects', data=json.dumps({
+      'action': 'safeDelocalize',
+      # Sometimes the Jupyter UI provided "path" contains a leading /, sometimes
+      # not; strip for Welder.
+      'localPath': path.lstrip('/')
+    }))
+    if not resp.ok:
+      msg = resp.reason or 'unknown Welder error'
+      try:
+        msg = json.dumps(resp.json())
+      except:
+        pass
+      raise IOError("safeDelocalize failed: " + msg)
+
+  def save(self, model, path=''):
+    # Capture the pre-save file so we can revert if Welder fails.
+    orig_model = None
+    try:
+      orig_model = self.get(path)
+    except tornado.web.HTTPError as err:
+      if err.status_code != 404:
+        self.log.warn('failed to get file "{}", cannot revert: {}'.format(path, err.log_message))
+
+    # Welder reads the file from local disk, so we need to write the updated file
+    # before calling Welder.
+    # TODO(calbach): Consider changing the safeDelocalize API to support either
+    # direct passing of contents, or passing a file via a temporary transfer file.
+    ret = super(WelderContentsManager, self).save(model, path)
+    if not path or model['type'] == 'directory':
+      return ret
+
+    try:
+      self._welder_delocalize(path)
+    except IOError as werr:
+      self.log.warn("welder save failed, attempting to revert local file: " + str(werr))
+      try:
+        self.log.warn('cells: ' + str(orig_model))
+        if orig_model:
+          super(WelderContentsManager, self).save(orig_model, path)
+        else:
+          super(WelderContentsManager, self).delete(path)
+      except Exception as rerr:
+        self.log.error("failed to revert after Welder error, local disk is in an inconsistent state: " + str(rerr))
+      raise werr
+    return ret
+
+  def rename_file(self, old_path, new_path):
+    # TODO(IA-1028): Integrate Welder renaming.
+    super(WelderContentsManager, self).rename_file(old_path, new_path)
+
+  def delete_file(self, path):
+    # TODO(IA-1049): Integrate Welder delete.
+    super(WelderContentsManager, self).delete_file(path)
