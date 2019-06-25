@@ -77,9 +77,9 @@ define(() => {
     }
 
     function init() {
-        // console.info('edit mode plugin initialized')
-        // checkMeta()
-        // initSyncMaintainer()
+        console.info('edit mode plugin initialized')
+        checkMeta()
+        initSyncMaintainer()
     }
 
     function initSyncMaintainer() {
