@@ -51,12 +51,6 @@ case class ClusterNotFoundException(googleProject: GoogleProject, clusterName: C
 case class ClusterAlreadyExistsException(googleProject: GoogleProject, clusterName: ClusterName, status: ClusterStatus)
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} already exists in ${status.toString} status", StatusCodes.Conflict)
 
-case class CannotDisableWelderException(googleProject: GoogleProject, clusterName: ClusterName)
-  extends LeoException(s"Cannot create cluster ${clusterName} with welder disabled due to other clusters in ${googleProject} with enabled welder.", StatusCodes.Conflict)
-
-case class CannotEnableWelderException(googleProject: GoogleProject, clusterName: ClusterName)
-  extends LeoException(s"Cannot create cluster ${clusterName} with welder enabled due to other clusters in ${googleProject} with disabled welder.", StatusCodes.Conflict)
-
 case class ClusterCannotBeStoppedException(googleProject: GoogleProject, clusterName: ClusterName, status: ClusterStatus)
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} cannot be stopped in ${status.toString} status", StatusCodes.Conflict)
 

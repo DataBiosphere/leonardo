@@ -303,24 +303,6 @@ trait ClusterComponent extends LeoComponent {
         .result map { recs => unmarshalFullCluster(recs)}
     }
 
-    def existsClustersWithWelderEnabled(project: GoogleProject): DBIO[Boolean] = {
-      clusterQuery
-        .filter { _.googleProject === project.value }
-        .filter { _.status inSetBind ClusterStatus.activeStatuses.map(_.toString) }
-        .map(_.welderEnabled)
-        .result
-        .map {recs => recs.contains(true)}
-    }
-
-    def existsClustersWithWelderDisabled(project: GoogleProject): DBIO[Boolean] = {
-      clusterQuery
-        .filter { _.googleProject === project.value }
-        .filter { _.status inSetBind ClusterStatus.activeStatuses.map(_.toString) }
-        .map(_.welderEnabled)
-        .result
-        .map {recs => recs.contains(false)}
-    }
-
     def markPendingDeletion(id: Long): DBIO[Int] = {
       findByIdQuery(id)
         .map(c => (c.status, c.hostIp))
