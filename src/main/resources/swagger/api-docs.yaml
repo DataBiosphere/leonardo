@@ -1084,7 +1084,7 @@ definitions:
         default: ["https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/bigquery", "https://www.googleapis.com/auth/source.read_only"]
       enableWelder:
         type: boolean
-        description: If set to true, sets up welder on the cluster. If unset, welder will not be put on the cluster. All clusters in a google project must have the same value for enableWelder.
+        description: If set to true, sets up welder on the cluster. If unset, welder will not be put on the cluster.
         default: false
 
 
