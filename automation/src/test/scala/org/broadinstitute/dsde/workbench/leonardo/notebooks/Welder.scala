@@ -6,7 +6,8 @@ import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.config.LeoAuthToken
+
+import akka.http.scaladsl.model.headers.{Authorization, Cookie, HttpCookiePair, OAuth2BearerToken}
 
 
 /**
@@ -14,21 +15,38 @@ import org.broadinstitute.dsde.workbench.config.LeoAuthToken
   */
 object Welder extends RestClient with LazyLogging {
 
+  val localSafeModeBaseDirectory = "safe"
+  val localBaseDirectory = "edit"
+
   private val url = LeonardoConfig.Leonardo.apiUrl
 
   def welderBasePath(googleProject: GoogleProject, clusterName: ClusterName): String = {
-//    s"${url}/proxy/${googleProject.value}/${clusterName.string}/welder"
-    s"http://10.1.3.12:8080"
+    s"${url}/proxy/${googleProject.value}/${clusterName.string}/welder"
+//    s"http://10.1.3.12:8080"
   }
 
   def getWelderStatus(cluster: Cluster)(implicit token: AuthToken): String = {
+    println("printing cluster in getWelderStatus")
+    println(cluster)
     val path = welderBasePath(cluster.googleProject, cluster.clusterName)
-    println("attempting to get status")
     logger.info(s"Get welder status: GET $path/status")
 
-    val resp = parseResponse(getRequest(path + "/status"))
-    println(resp)
-    resp
+    val rawResponse = getRequest(path + "/status")
+    println(rawResponse)
+    val response = parseResponse(rawResponse)
+    println(response)
+    response
+  }
+
+  def postStorageLink(cluster: Cluster, cloudStorageDirectory: GcsPath)(implicit token: AuthToken): String = {
+    val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/storageLinks"
+    val payload = s"{\"localBaseDirectory\": $localBaseDirectory, \"localSafeModeBaseDirectory\": $localSafeModeBaseDirectory, \"cloudStorageDirectory\": $cloudStorageDirectory, \"pattern\": \"*\" }"
+    val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
+
+    
+
+    logger.info(s"Welder status: POST on $path/storageLinks with payload $payload")
+    val rawResponse = postRequest(path, payload, httpHeaders = List(cookie))
   }
 
 }

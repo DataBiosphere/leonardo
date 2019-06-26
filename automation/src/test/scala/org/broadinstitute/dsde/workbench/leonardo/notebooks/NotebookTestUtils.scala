@@ -118,6 +118,26 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     testResult.get
   }
 
+  def withRemoteGcsFile[T](cluster: Cluster, fileToStoreInGcs: String, fileContentsToStoreInGcs: String)(testCode: (GcsBucketName, GcsObjectName) => T)
+                                    (implicit webDriver: WebDriver, token: AuthToken): T = {
+    implicit val patienceConfig: PatienceConfig = storagePatience
+
+    withNewGoogleBucket(cluster.googleProject) { bucketName =>
+      // give the user's pet owner access to the bucket
+      val petServiceAccount = Sam.user.petServiceAccountEmail(cluster.googleProject.value)
+      googleStorageDAO.setBucketAccessControl(bucketName, EmailGcsEntity(GcsEntityTypes.User, petServiceAccount), GcsRoles.Owner).futureValue
+
+      // create a bucket object to store in remote
+      val bucketObjectToStore = GcsObjectName(fileToStoreInGcs)
+      withNewBucketObject(bucketName, bucketObjectToStore, fileContentsToStoreInGcs, "text/plain") { objectName =>
+        // give the user's pet read access to the object
+        googleStorageDAO.setObjectAccessControl(bucketName, objectName, EmailGcsEntity(GcsEntityTypes.User, petServiceAccount), GcsRoles.Reader).futureValue
+
+        testCode(bucketName, objectName)
+      }
+    }
+  }
+
 
   def withLocalizeDelocalizeFiles[T](cluster: Cluster, fileToLocalize: String, fileToLocalizeContents: String,
                                      fileToDelocalize: String, fileToDelocalizeContents: String,

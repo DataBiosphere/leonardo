@@ -37,7 +37,7 @@ final case class ClusterRequest(labels: LabelMap,
                           defaultClientId: Option[String] = None,
                           jupyterDockerImage: Option[String] = None,
                           rstudioDockerImage: Option[String] = None,
-                          scopes: Set[String] = Set.empty)
+                          scopes: Set[String] = Set.empty, enableWelder: Boolean = false)
 
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
