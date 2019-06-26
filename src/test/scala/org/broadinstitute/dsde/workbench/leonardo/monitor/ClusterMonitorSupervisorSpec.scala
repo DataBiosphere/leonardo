@@ -6,7 +6,7 @@ import java.time.temporal.ChronoUnit
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleStorageInterpreter
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockJupyterDAO, MockRStudioDAO, ToolDAO}
@@ -45,6 +45,8 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
 
     val iamDAO = mock[GoogleIamDAO]
 
+    val projectDAO = mock[GoogleProjectDAO]
+
     val authProvider = mock[LeoAuthProvider]
 
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
@@ -54,7 +56,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
 
     val leoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig,
-      clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO,
+      clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, projectDAO,
       storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, whitelistAuthProvider, serviceAccountProvider,
       bucketHelper, contentSecurityPolicy)
 
@@ -81,6 +83,8 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
 
     val iamDAO = mock[GoogleIamDAO]
 
+    val projectDAO = mock[GoogleProjectDAO]
+
     val authProvider = mock[LeoAuthProvider]
 
     val jupyterProxyDAO = new ToolDAO{
@@ -95,7 +99,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
 
     val leoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig,
-      clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO,
+      clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, projectDAO,
       storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, whitelistAuthProvider, serviceAccountProvider,
       bucketHelper, contentSecurityPolicy)
 
@@ -117,6 +121,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
     val computeDAO = mock[GoogleComputeDAO]
     val storageDAO = mock[GoogleStorageDAO]
     val iamDAO = mock[GoogleIamDAO]
+    val projectDAO = mock[GoogleProjectDAO]
     val authProvider = mock[LeoAuthProvider]
 
     val jupyterProxyDAO = new ToolDAO{
@@ -131,7 +136,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
 
     val leoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig,
-      clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO,
+      clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, projectDAO,
       storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, whitelistAuthProvider, serviceAccountProvider,
       bucketHelper, contentSecurityPolicy)
 

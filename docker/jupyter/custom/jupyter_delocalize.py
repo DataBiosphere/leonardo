@@ -178,21 +178,30 @@ class WelderContentsManager(FileContentsManager):
     self.welder_base_url = 'http://127.0.0.1:8080'
     super(WelderContentsManager, self).__init__(*args, **kwargs)
 
-  def _welder_delocalize(self, path):
+  def _post_welder(self, action, path):
     # Ignore storage link failure, throw other errors.
     resp = requests.post(self.welder_base_url + '/objects', data=json.dumps({
-      'action': 'safeDelocalize',
+      'action': action,
       # Sometimes the Jupyter UI provided "path" contains a leading /, sometimes
       # not; strip for Welder.
       'localPath': path.lstrip('/')
     }))
     if not resp.ok:
-      msg = resp.reason or 'unknown Welder error'
+      error_json = {}
       try:
-        msg = json.dumps(resp.json())
+        error_json = resp.json()
       except:
         pass
-      raise IOError("safeDelocalize failed: " + msg)
+
+      if resp.status_code == 412 and error_json.get('errorCode', -1) == 1:
+        # 1: Storage Link not found; expected for unmanaged files.
+        return
+
+      msg = resp.reason or 'unknown Welder error'
+      if error_json != {}:
+        msg = json.dumps(error_json)
+
+      raise IOError("welder action '{}' failed: '{}'".format(action, msg))
 
   def save(self, model, path=''):
     # Capture the pre-save file so we can revert if Welder fails.
@@ -212,15 +221,14 @@ class WelderContentsManager(FileContentsManager):
       return ret
 
     try:
-      self._welder_delocalize(path)
+      self._post_welder('safeDelocalize', path)
     except IOError as werr:
       self.log.warn("welder save failed, attempting to revert local file: " + str(werr))
       try:
-        self.log.warn('cells: ' + str(orig_model))
         if orig_model:
           super(WelderContentsManager, self).save(orig_model, path)
         else:
-          super(WelderContentsManager, self).delete(path)
+          super(WelderContentsManager, self).delete_file(path)
       except Exception as rerr:
         self.log.error("failed to revert after Welder error, local disk is in an inconsistent state: " + str(rerr))
       raise werr
@@ -231,5 +239,5 @@ class WelderContentsManager(FileContentsManager):
     super(WelderContentsManager, self).rename_file(old_path, new_path)
 
   def delete_file(self, path):
-    # TODO(IA-1049): Integrate Welder delete.
+    self._post_welder('delete', path)
     super(WelderContentsManager, self).delete_file(path)

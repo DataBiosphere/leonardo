@@ -176,10 +176,9 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     returnedCluster.clusterName shouldBe cluster.clusterName
 
     // required and absent field should throw a DeserializationException
-    val caught = intercept[DeserializationException]{
+    assertThrows[DeserializationException] {
       missingJson.convertTo[Cluster]
     }
-    assert(caught.getMessage == "could not deserialize user object")
   }
 
   it should "create a map of ClusterInitValues object" in isolatedDbTest {
