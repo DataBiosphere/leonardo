@@ -95,7 +95,5 @@ define(() => {
         })
     }
 
-    return {
-        'load_ipython_extension': load
-    };
+    load()
 });

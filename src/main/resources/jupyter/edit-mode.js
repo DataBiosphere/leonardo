@@ -401,7 +401,5 @@ define(() => {
         location.reload(true)
     }
 
-    return {
-        load_ipython_extension: init
-    }
+    init()
 })
