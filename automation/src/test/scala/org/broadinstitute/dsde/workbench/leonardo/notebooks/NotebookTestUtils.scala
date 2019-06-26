@@ -118,24 +118,14 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     testResult.get
   }
 
-  def withRemoteGcsFile[T](cluster: Cluster, fileToStoreInGcs: String, fileContentsToStoreInGcs: String)(testCode: (GcsBucketName, GcsObjectName) => T)
-                                    (implicit webDriver: WebDriver, token: AuthToken): T = {
-    implicit val patienceConfig: PatienceConfig = storagePatience
+  //initializes storageLinks/ and localizes the file to the passed gcsPath
+  def withWelderInitialized[T](cluster: Cluster, gcsPath: GcsPath, shouldLocalizeFileInEditMode: Boolean)(testCode: File => T)(implicit token: AuthToken): T = {
+    Welder.postStorageLink(cluster, gcsPath)
+    Welder.localize(cluster, gcsPath, shouldLocalizeFileInEditMode)
 
-    withNewGoogleBucket(cluster.googleProject) { bucketName =>
-      // give the user's pet owner access to the bucket
-      val petServiceAccount = Sam.user.petServiceAccountEmail(cluster.googleProject.value)
-      googleStorageDAO.setBucketAccessControl(bucketName, EmailGcsEntity(GcsEntityTypes.User, petServiceAccount), GcsRoles.Owner).futureValue
-
-      // create a bucket object to store in remote
-      val bucketObjectToStore = GcsObjectName(fileToStoreInGcs)
-      withNewBucketObject(bucketName, bucketObjectToStore, fileContentsToStoreInGcs, "text/plain") { objectName =>
-        // give the user's pet read access to the object
-        googleStorageDAO.setObjectAccessControl(bucketName, objectName, EmailGcsEntity(GcsEntityTypes.User, petServiceAccount), GcsRoles.Reader).futureValue
-
-        testCode(bucketName, objectName)
-      }
-    }
+    val localPath: String = Welder.getLocalPath(gcsPath, shouldLocalizeFileInEditMode)
+    val localFile: File = new File(localPath)
+    testCode(localFile)
   }
 
 

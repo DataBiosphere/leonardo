@@ -1,12 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
+import akka.http.scaladsl.model.HttpResponse
 import org.broadinstitute.dsde.workbench.service.RestClient
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-
 import akka.http.scaladsl.model.headers.{Authorization, Cookie, HttpCookiePair, OAuth2BearerToken}
 
 
@@ -25,28 +25,59 @@ object Welder extends RestClient with LazyLogging {
 //    s"http://10.1.3.12:8080"
   }
 
-  def getWelderStatus(cluster: Cluster)(implicit token: AuthToken): String = {
+  def getWelderStatus(cluster: Cluster)(implicit token: AuthToken): HttpResponse = {
     println("printing cluster in getWelderStatus")
     println(cluster)
     val path = welderBasePath(cluster.googleProject, cluster.clusterName)
     logger.info(s"Get welder status: GET $path/status")
 
     val rawResponse = getRequest(path + "/status")
-    println(rawResponse)
-    val response = parseResponse(rawResponse)
-    println(response)
-    response
+    rawResponse
   }
 
-  def postStorageLink(cluster: Cluster, cloudStorageDirectory: GcsPath)(implicit token: AuthToken): String = {
+  def postStorageLink(cluster: Cluster, cloudStoragePath: GcsPath)(implicit token: AuthToken): String = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/storageLinks"
-    val payload = s"{\"localBaseDirectory\": $localBaseDirectory, \"localSafeModeBaseDirectory\": $localSafeModeBaseDirectory, \"cloudStorageDirectory\": $cloudStorageDirectory, \"pattern\": \"*\" }"
+
+    val payload = Map(
+      "localBaseDirectory" -> localBaseDirectory,
+      "localSafeModeBaseDirectory" -> localSafeModeBaseDirectory,
+      "cloudStorageDirectory" -> s"gs://${cloudStoragePath.bucketName.value}",
+      "pattern" -> "*"
+    )
+
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
 
-    
-
-    logger.info(s"Welder status: POST on $path/storageLinks with payload $payload")
+    logger.info(s"Welder status is making storage links entry: POST on $path with payload $payload")
     val rawResponse = postRequest(path, payload, httpHeaders = List(cookie))
+   rawResponse
   }
 
+  def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(implicit token: AuthToken): String = {
+    val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/objects"
+
+    val payload = Map(
+      "action" -> "localize",
+      "entries" -> Array(Map(
+        "sourceUri" -> cloudStoragePath.toUri,
+        "localDestinationPath" -> getLocalPath(cloudStoragePath, isEditMode)
+      ))
+    )
+    //    val payload = s"{\"localBaseDirectory\": $localBaseDirectory, \"localSafeModeBaseDirectory\": $localSafeModeBaseDirectory, \"cloudStorageDirectory\": ${cloudStorageDirectory.objectName.toString}, \"pattern\": \"*\" }"
+    val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
+
+
+    logger.info(s"Welder status is localizing: POST on $path with payload $payload")
+    val rawResponse = postRequest(path, payload, httpHeaders = List(cookie))
+    println("=======localize resp:")
+    println(rawResponse)
+    rawResponse
+  }
+
+  def getLocalPath(cloudStoragePath: GcsPath, isEditMode: Boolean): String = {
+    (if (isEditMode) {
+      localBaseDirectory
+    } else {
+      localSafeModeBaseDirectory
+    }) + "/" + cloudStoragePath.objectName.value
+  }
 }
