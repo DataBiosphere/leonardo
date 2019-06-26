@@ -33,8 +33,6 @@ class HttpGoogleDataprocDAO(appName: String,
                             googleCredentialMode: GoogleCredentialMode,
                             override val workbenchMetricBaseName: String,
                             networkTag: NetworkTag,
-                            vpcNetwork: Option[VPCNetworkName],
-                            vpcSubnet: Option[VPCSubnetName],
                             defaultRegion: String,
                             zoneOpt: Option[String],
                             defaultExecutionTimeout: FiniteDuration)
@@ -213,10 +211,10 @@ class HttpGoogleDataprocDAO(appName: String,
       val baseConfig = new GceClusterConfig()
         .setTags(List(networkTag.value).asJava)
 
-      (vpcNetwork, vpcSubnet) match {
-        case (_, Some(subnet)) =>
+      config.clusterVPCSettings match {
+        case Some(Right(subnet)) =>
           baseConfig.setSubnetworkUri(subnet.value)
-        case (Some(network), _) =>
+        case Some(Left(network)) =>
           baseConfig.setNetworkUri(network.value)
         case _ =>
           baseConfig

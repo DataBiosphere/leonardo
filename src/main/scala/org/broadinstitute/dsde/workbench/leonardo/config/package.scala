@@ -35,7 +35,9 @@ package object config {
       config.getStringList("defaultScopes").asScala.toSet,
       config.getString("welderDockerImage"),
       config.getAs[String]("vpcNetwork"),
-      config.getAs[String]("vpcSubnet")
+      config.getAs[String]("vpcSubnet"),
+      config.getAs[String]("projectVPCNetworkLabel"),
+      config.getAs[String]("projectVPCSubnetLabel")
     )
   }
 
