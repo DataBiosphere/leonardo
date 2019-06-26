@@ -167,29 +167,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
-  //This checks to make sure that the user isn't trying to create a welder-enabled cluster in a google project of welder-disabled clusters, or vice versa.
-  //Should be temporary and can be removed once welder is successfully deployed to app teams
-  protected def checkWelderEligibility(googleProject: GoogleProject, clusterName: ClusterName, enableWelder: Option[Boolean]): Future[Unit] = {
-    enableWelder match {
-      case Some(true) =>
-        dbRef.inTransaction { dataAccess =>
-          dataAccess.clusterQuery.existsClustersWithWelderDisabled(googleProject)
-        } flatMap { welderDisabledClustersExist =>
-          if (welderDisabledClustersExist) {
-            Future.failed(CannotEnableWelderException(googleProject, clusterName))
-          } else Future.unit
-        }
-      case _ =>
-        dbRef.inTransaction { dataAccess =>
-          dataAccess.clusterQuery.existsClustersWithWelderEnabled(googleProject)
-        } flatMap { welderEnabledClustersExist =>
-          if (welderEnabledClustersExist) {
-            Future.failed(CannotDisableWelderException(googleProject, clusterName))
-          } else Future.unit
-        }
-    }
-  }
-
   def createCluster(userInfo: UserInfo,
                     googleProject: GoogleProject,
                     clusterName: ClusterName,
@@ -220,9 +197,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         val augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
         val clusterImages = processClusterImages(clusterRequest)
         val clusterFuture = for {
-          // temporary: check that cluster request's enableWelder is valid
-          _ <- checkWelderEligibility(googleProject, clusterName, clusterRequest.enableWelder)
-
           // Notify the auth provider that the cluster has been created
           _ <- authProvider.notifyClusterCreated(userEmail, googleProject, clusterName)
 
@@ -241,7 +215,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         // If cluster creation failed on the Google side, createGoogleCluster removes resources in Google.
         // We also need to notify our auth provider that the cluster has been deleted.
         clusterFuture.andThen {
-          case Failure(e) if (e == CannotEnableWelderException || e == CannotDisableWelderException) => throw e
           // Don't wait for this future
           case Failure(_) => authProvider.notifyClusterDeleted(userEmail, userEmail, googleProject, clusterName)
         }
