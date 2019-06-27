@@ -25,7 +25,7 @@ c.NotebookApp.base_url = '/notebooks/' + fragment + '/'
 # directory (which contains several other files on the image). We don't want
 # to mount there as it effectively deletes existing files on the image.
 # See https://docs.google.com/document/d/1b8wIydzC4D7Sbb6h2zWe-jCvoNq-bbD02CT1cnKLbGk
-if os.environ['WELDER_ENABLE'] == 'true':
+if os.environ['WELDER_ENABLED'] == 'true':
   # Only enable this along with Welder, as this change is backwards incompatible
   # for older localization users.
   c.NotebookApp.notebook_dir = '/home/jupyter-user/notebooks'
@@ -35,7 +35,7 @@ c.NotebookApp.nbserver_extensions = {
     'jupyter_localize_extension': True
 }
 mgr_class = 'DelocalizingContentsManager'
-if os.environ['WELDER_ENABLE'] == 'true':
+if os.environ['WELDER_ENABLED'] == 'true':
   mgr_class = 'WelderContentsManager'
 c.NotebookApp.contents_manager_class = 'jupyter_delocalize.' + mgr_class
 

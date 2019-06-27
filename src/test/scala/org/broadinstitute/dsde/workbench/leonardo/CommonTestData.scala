@@ -110,7 +110,8 @@ trait CommonTestData{ this: ScalaFutures =>
       defaultClientId = Some("defaultClientId"),
       stopAfterCreation = false,
       clusterImages = Set(jupyterImage),
-      scopes = defaultScopes
+      scopes = defaultScopes,
+      welderEnabled = false
     )
   }
 
@@ -134,7 +135,8 @@ trait CommonTestData{ this: ScalaFutures =>
     defaultClientId = None,
     stopAfterCreation = false,
     clusterImages = Set(jupyterImage, rstudioImage),
-    scopes = defaultScopes
+    scopes = defaultScopes,
+    welderEnabled = false
   )
 
   // TODO look into parameterized tests so both provider impls can be tested
