@@ -51,3 +51,4 @@ class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils 
     }
   }
 }
+
