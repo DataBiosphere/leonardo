@@ -71,7 +71,8 @@ case class DataprocInfo(googleId: Option[UUID],
 case class AuditInfo(creator: WorkbenchEmail,
                      createdDate: Instant,
                      destroyedDate: Option[Instant],
-                     dateAccessed: Instant)
+                     dateAccessed: Instant,
+                     kernelFoundBusyDate: Option[Instant])
 
 sealed trait ClusterTool extends EnumEntry
 object ClusterTool extends Enum[ClusterTool] {
@@ -130,7 +131,7 @@ object Cluster {
       googleProject = googleProject,
       serviceAccountInfo = serviceAccountInfo,
       dataprocInfo = DataprocInfo(operation.map(_.uuid), operation.map(_.name), stagingBucket, None),
-      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
+      auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
       machineConfig = machineConfig,
       properties = clusterRequest.properties,
       clusterUrl = getClusterUrl(googleProject, clusterName, clusterUrlBase),
@@ -469,7 +470,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
             AuditInfo(fields.getOrElse("creator", JsNull).convertTo[WorkbenchEmail],
                       fields.getOrElse("createdDate", JsNull).convertTo[Instant],
                       fields.getOrElse("destroyedDate", JsNull).convertTo[Option[Instant]],
-                      fields.getOrElse("dateAccessed", JsNull).convertTo[Instant]),
+                      fields.getOrElse("dateAccessed", JsNull).convertTo[Instant],
+                      fields.getOrElse("kernelFoundBusyDate", JsNull).convertTo[Option[Instant]]),
             fields.getOrElse("machineConfig", JsNull).convertTo[MachineConfig],
             fields.getOrElse("properties", JsNull).convertTo[Option[Map[String, String]]].getOrElse(Map.empty),
             fields.getOrElse("clusterUrl", JsNull).convertTo[URL],
@@ -505,6 +507,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
         "creator" -> obj.auditInfo.creator.toJson,
         "createdDate" -> obj.auditInfo.createdDate.toJson,
         "destroyedDate" -> obj.auditInfo.destroyedDate.toJson,
+        "kernelFoundBusyDate" -> obj.auditInfo.kernelFoundBusyDate.toJson,
         "labels" -> obj.labels.toJson,
         "jupyterExtensionUri" -> obj.jupyterExtensionUri.toJson,
         "jupyterUserScriptUri" -> obj.jupyterUserScriptUri.toJson,

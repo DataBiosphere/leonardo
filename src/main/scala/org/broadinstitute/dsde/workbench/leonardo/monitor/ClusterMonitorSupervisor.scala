@@ -18,6 +18,8 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervis
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.model.WorkbenchException
 
+import java.time.{Duration, Instant}
+
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
@@ -165,33 +167,48 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
   }
 
   def autoFreezeClusters(): Future[Unit] = for {
-      clusters <- dbRef.inTransaction {
-        _.clusterQuery.getClustersReadyToAutoFreeze()
-      }
-      pauseableClusters <- clusters.toList.filterA {
-        cluster =>
-          jupyterProxyDAO.isAllKernalsIdle(cluster.googleProject, cluster.clusterName).attempt.map {
-            attempted =>
-              attempted match {
-                case Left(t) =>
-                  logger.error(s"Fail to get kernel status for ${cluster.googleProject}/${cluster.clusterName} due to $t")
-                  true
-                case Right(isIdle) =>
-                  if (!isIdle) {
+    clusters <- dbRef.inTransaction {
+      _.clusterQuery.getClustersReadyToAutoFreeze()
+    }
+    pauseableClusters <- clusters.toList.filterA {
+      cluster =>
+        jupyterProxyDAO.isAllKernalsIdle(cluster.googleProject, cluster.clusterName).attempt.map {
+          attempted =>
+            attempted match {
+              case Left(t) =>
+                logger.error(s"Fail to get kernel status for ${cluster.googleProject}/${cluster.clusterName} due to $t")
+                true
+              case Right(isIdle) =>
+                if (!isIdle) {
+                  val idleLimit = Duration.ofNanos(autoFreezeConfig.maxKernelBusyLimit.toNanos) // convert from FiniteDuration to java Duration
+                  val maxKernelActiveTimeExceeded = cluster.auditInfo.kernelFoundBusyDate match {
+                    case Some(attemptedDate) => Duration.between(attemptedDate, Instant.now()).compareTo(idleLimit) == 1
+                    case None => {
+                      dbRef.inTransaction { dataAccess =>
+                        dataAccess.clusterQuery.updateKernelFoundBusyDate(cluster.id, Instant.now())
+                      }
+                      false // max kernel active time has not been exceeded
+                    }
+                  }
+                  if (maxKernelActiveTimeExceeded){
+                    logger.info(s"Auto pausing ${cluster.googleProject}/${cluster.clusterName} due to exceeded max kernel active time")
+                  } else {
                     logger.info(s"Not going to auto pause cluster ${cluster.googleProject}/${cluster.clusterName} due to active kernels")
                   }
-                  isIdle
-              }
-          }
-      }
-      _ <- pauseableClusters.traverse{
-        cl =>
-          logger.info(s"Auto freezing cluster ${cl.clusterName} in project ${cl.googleProject}")
-          leonardoService.internalStopCluster(cl).attempt.map { e =>
-            e.fold(t => logger.warn(s"Error occurred auto freezing cluster ${cl.projectNameString}", e), identity)
-          }
-      }
-    } yield ()
+                  maxKernelActiveTimeExceeded
+
+                } else isIdle
+            }
+        }
+    }
+    _ <- pauseableClusters.traverse{
+      cl =>
+        logger.info(s"Auto freezing cluster ${cl.clusterName} in project ${cl.googleProject}")
+        leonardoService.internalStopCluster(cl).attempt.map { e =>
+          e.fold(t => logger.warn(s"Error occurred auto freezing cluster ${cl.projectNameString}", e), identity)
+        }
+    }
+  } yield ()
 
   private def createClusterMonitors(): Unit = {
     val monitoredClusterIds = monitoredClusters.map(_.id)

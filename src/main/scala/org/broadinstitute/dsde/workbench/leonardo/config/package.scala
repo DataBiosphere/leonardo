@@ -110,7 +110,8 @@ package object config {
       config.getBoolean("enableAutoFreeze"),
       toScalaDuration(config.getDuration("dateAccessedMonitorScheduler")),
       toScalaDuration(config.getDuration("autoFreezeAfter")),
-      toScalaDuration(config.getDuration("autoFreezeCheckScheduler"))
+      toScalaDuration(config.getDuration("autoFreezeCheckScheduler")),
+      toScalaDuration(config.getDuration("maxKernelBusyLimit"))
     )
   }
 
