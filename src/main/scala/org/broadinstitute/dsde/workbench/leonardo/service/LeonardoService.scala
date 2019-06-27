@@ -123,16 +123,14 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   // Startup script to install on the cluster master node. This allows Jupyter to start back up after
   // a cluster is resumed.
-  private lazy val masterInstanceStartupScript: immutable.Map[String, String] = {
+  protected def getMasterInstanceStartupScript(welderEnabled: Boolean): immutable.Map[String, String] = {
     val googleKey = "startup-script"  // required; see https://cloud.google.com/compute/docs/startupscript
 
     // The || clause is included because older clusters may not have the run-jupyter.sh script installed,
     // so we need to fall back running `jupyter notebook` directly. See https://github.com/DataBiosphere/leonardo/issues/481.
     val jupyterStart = s"docker exec -d ${dataprocConfig.jupyterServerName} /bin/bash -c '/etc/jupyter/scripts/run-jupyter.sh || /usr/local/bin/jupyter notebook'"
 
-    // TODO make this flag configurable. https://broadworkbench.atlassian.net/browse/IA-1033
-    val enableWelder = false
-    val servicesStart = if (enableWelder) {
+    val servicesStart = if (welderEnabled) {
       val welderStart = s"docker exec -u daemon -d ${dataprocConfig.welderServerName} /opt/docker/bin/server start"
       s"($jupyterStart) && $welderStart"
     }
@@ -211,9 +209,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         // If cluster creation failed on the Google side, createGoogleCluster removes resources in Google.
         // We also need to notify our auth provider that the cluster has been deleted.
-        clusterFuture.andThen { case Failure(_) =>
+        clusterFuture.andThen {
           // Don't wait for this future
-          authProvider.notifyClusterDeleted(userEmail, userEmail, googleProject, clusterName)
+          case Failure(_) => authProvider.notifyClusterDeleted(userEmail, userEmail, googleProject, clusterName)
         }
 
         clusterFuture
@@ -597,7 +595,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           instance.dataprocRole match {
             case Some(Master) =>
               if (cluster.clusterImages.map(_.tool) contains (Jupyter)) {
-                googleComputeDAO.addInstanceMetadata(instance.key, masterInstanceStartupScript).flatMap { _ =>
+                googleComputeDAO.addInstanceMetadata(instance.key, getMasterInstanceStartupScript(cluster.welderEnabled)).flatMap { _ =>
                   googleComputeDAO.stopInstance(instance.key)
                 }
               }

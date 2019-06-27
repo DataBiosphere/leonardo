@@ -31,6 +31,6 @@ services:
       CLUSTER_NAME: "${CLUSTER_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
       # Value must be the string "true" to enable.
-      WELDER_ENABLE: "${WELDER_ENABLE}"
+      WELDER_ENABLED: "${WELDER_ENABLED}"
     env_file:
       - /etc/google_application_credentials.env

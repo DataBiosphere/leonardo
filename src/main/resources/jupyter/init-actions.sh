@@ -103,6 +103,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
     JUPYTER_USER_SCRIPT_OUTPUT_URI=$(jupyterUserScriptOutputUri)
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
+    WELDER_ENABLED=$(welderEnabled)
 
     log 'Installing prerequisites...'
 
@@ -163,10 +164,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # Needed because docker-compose can't handle symlinks
     touch /hadoop_gcs_connector_metadata_cache
     touch auth_openidc.conf
-
-    # TODO make this configurable. https://broadworkbench.atlassian.net/browse/IA-1033
-    # do not enable welder yet.  Remove flag when welder is complete.
-    WELDER_ENABLED=false
 
     # If we have a service account JSON file, create an .env file to set GOOGLE_APPLICATION_CREDENTIALS
     # in the docker container. Otherwise, we should _not_ set this environment variable so it uses the
@@ -349,7 +346,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
         retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
         # Execute the user script as privileged to allow for deeper customization of VM behavior, e.g. installing
         # network egress throttling. As docker is not a security layer, it is assumed that a determined attacker
-        # can gain full access to the VM already, so using this flag is not a significant escalation.  
+        # can gain full access to the VM already, so using this flag is not a significant escalation.
         docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT} &> us_output.txt || EXIT_CODE=$? && true ;
         if [ $EXIT_CODE -ne 0 ]; then
             log "User script failed with exit code $EXIT_CODE. Output is saved to $JUPYTER_USER_SCRIPT_OUTPUT_URI."
