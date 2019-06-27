@@ -82,6 +82,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
     export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
     export WELDER_DOCKER_IMAGE=$(welderDockerImage)
+    export WELDER_ENABLED=$(welderEnabled)
 
     SERVER_CRT=$(jupyterServerCrt)
     SERVER_KEY=$(jupyterServerKey)
@@ -103,7 +104,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
     JUPYTER_USER_SCRIPT_OUTPUT_URI=$(jupyterUserScriptOutputUri)
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
-    WELDER_ENABLED=$(welderEnabled)
 
     log 'Installing prerequisites...'
 
