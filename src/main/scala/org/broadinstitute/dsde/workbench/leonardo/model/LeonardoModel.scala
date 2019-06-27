@@ -37,6 +37,7 @@ final case class ClusterRequest(labels: LabelMap,
                           defaultClientId: Option[String] = None,
                           jupyterDockerImage: Option[String] = None,
                           rstudioDockerImage: Option[String] = None,
+                          welderDockerImage: Option[String] = None, //todo: stop this from growing (maybe use Map(ClusterTool -> String))
                           scopes: Set[String] = Set.empty,
                           enableWelder: Option[Boolean] = None)
 
@@ -78,6 +79,7 @@ object ClusterTool extends Enum[ClusterTool] {
   val values = findValues
   case object Jupyter extends ClusterTool
   case object RStudio extends ClusterTool
+  case object Welder extends ClusterTool
 }
 case class ClusterImage(tool: ClusterTool,
                         dockerImage: String,
@@ -435,6 +437,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
       fieldsWithoutNull.get("defaultClientId").map(_.convertTo[String]),
       fieldsWithoutNull.get("jupyterDockerImage").map(_.convertTo[String]),
       fieldsWithoutNull.get("rstudioDockerImage").map(_.convertTo[String]),
+      fieldsWithoutNull.get("welderDockerImage").map(_.convertTo[String]),
       fieldsWithoutNull.get("scopes").map(_.convertTo[Set[String]]).getOrElse(Set.empty),
       fieldsWithoutNull.get("enableWelder").map(_.convertTo[Boolean])
     )

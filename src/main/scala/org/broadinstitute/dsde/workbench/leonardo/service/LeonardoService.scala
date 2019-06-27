@@ -17,7 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, Clus
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
@@ -1109,11 +1109,15 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     val images = Set(
       clusterRequest.jupyterDockerImage.map(i => ClusterImage(Jupyter, i, now)),
-      clusterRequest.rstudioDockerImage.map(i => ClusterImage(RStudio, i, now))
+      clusterRequest.rstudioDockerImage.map(i => ClusterImage(RStudio, i, now)),
+      clusterRequest.welderDockerImage.map(i => ClusterImage(Welder, i, now))
     ).flatten
 
     if (images.isEmpty) {
-      Set(ClusterImage(Jupyter, dataprocConfig.dataprocDockerImage, now))
+      Set(
+        ClusterImage(Jupyter, dataprocConfig.dataprocDockerImage, now),
+        ClusterImage(Welder, dataprocConfig.welderDockerImage, now) //defaults to welder hash specified in configuration
+      )
     } else {
       images
     }
