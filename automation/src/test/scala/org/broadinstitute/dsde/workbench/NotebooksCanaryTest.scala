@@ -19,6 +19,7 @@ class NotebooksCanaryTest extends FreeSpec with Matchers with NotebookTestUtils 
   "Leonardo notebooks canary test" - {
 
     "Test for creating a cluster and localizing a notebook " taggedAs Tag("NotebooksCanaryTest") in {
+//    "Test for creating a cluster and localizing a notebook " in {
 
       val localizeFileName = "localize_sync.txt"
       val localizeFileContents = "Sync localize test"
