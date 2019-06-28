@@ -313,7 +313,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
       fi
 
       # If safe-mode.js was specified, copy it into the jupyter docker container.
-      if [ ! -z ${SAFE_MODE_JS_URI} ] ; then
+      if [ ! -z ${SAFE_MODE_JS_URI} ] && [ "${WELDER_ENABLED}" == "true" ]; then
         log 'Installing safe-mode.js extension...'
         gsutil cp ${SAFE_MODE_JS_URI} /etc
         SAFE_MODE_JS=`basename ${SAFE_MODE_JS_URI}`
@@ -322,7 +322,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
       fi
 
       # If edit-mode.js was specified, copy it into the jupyter docker container.
-        if [ ! -z ${EDIT_MODE_JS_URI} ] ; then
+        if [ ! -z ${EDIT_MODE_JS_URI} ] && [ "${WELDER_ENABLED}" == "true" ]; then
           log 'Installing edit-mode.js extension...'
           gsutil cp ${EDIT_MODE_JS_URI} /etc
           EDIT_MODE_JS=`basename ${EDIT_MODE_JS_URI}`
