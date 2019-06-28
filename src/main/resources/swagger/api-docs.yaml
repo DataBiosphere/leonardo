@@ -505,7 +505,7 @@ paths:
           description: Cluster is stopped
           schema:
             $ref: '#/definitions/ErrorReport'
-        423':
+        '423':
           description: Cluster not ready for requests. It could be starting.
           schema:
             $ref: '#/definitions/ErrorReport'
@@ -1073,7 +1073,7 @@ definitions:
         type: string
         description: The default Google Client ID.
       jupyterDockerImage:
-        type: String
+        type: string
         description: The Jupyter docker image to install. May be Dockerhub or GCR. If not set, then a default Jupyter image will be installed.
       scopes:
         type: array
