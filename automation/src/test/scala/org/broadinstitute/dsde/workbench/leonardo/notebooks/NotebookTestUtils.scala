@@ -1,12 +1,16 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import java.io.{File, FileOutputStream}
+import java.net.URL
 import java.nio.charset.StandardCharsets
-import java.util.Base64
+import java.time.Instant
+import java.util.{Base64, UUID}
 
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
+import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
+import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -125,6 +129,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
 
     val localPath: String = Welder.getLocalPath(gcsPath, shouldLocalizeFileInEditMode)
     val localFile: File = new File(localPath)
+    logger.info(s"does file $localPath exist: " + localFile.exists().toString)
     testCode(localFile)
   }
 
@@ -178,6 +183,30 @@ trait NotebookTestUtils extends LeonardoTestUtils {
       }
     }
   }
+
+
+  def mockCluster(googleProject: String, clusterName: String): Cluster = {
+    Cluster(ClusterName(clusterName), UUID.randomUUID(), GoogleProject(googleProject),
+      ServiceAccountInfo(Map()),
+      MachineConfig(),
+      new URL("http://fake/path/THISSHOULDNOTAPPEARANYWHERE"),
+      OperationName(""),
+      ClusterStatus.Running,
+      None,
+      WorkbenchEmail(""),
+      Instant.now,
+      None,
+      Map(),
+      None,
+      None,
+      None,
+      List(),
+      Instant.now,
+      None,
+      false,
+      Set())
+  }
+
 
   def verifyLocalizeDelocalize(cluster: Cluster, localizedFileName: String, localizedFileContents: String,
                                delocalizedBucketPath: GcsPath, delocalizedBucketContents: String,

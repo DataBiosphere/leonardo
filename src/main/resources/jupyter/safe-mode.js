@@ -62,6 +62,7 @@ define(() => {
                 }
             })
             .catch(err => {
+                console.error(err)
                 toggleUIControls(false) //we always assume safe mode if the check meta call fails
             })
     }
@@ -95,7 +96,5 @@ define(() => {
         })
     }
 
-    return {
-        'load_ipython_extension': load
-    };
+    load()
 });
