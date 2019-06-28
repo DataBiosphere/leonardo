@@ -9,6 +9,9 @@ import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import akka.http.scaladsl.model.headers.{Authorization, Cookie, HttpCookiePair, OAuth2BearerToken}
 
+import scala.concurrent.Await
+import scala.concurrent.duration._
+
 
 /**
   * Leonardo API service client.
@@ -22,6 +25,7 @@ object Welder extends RestClient with LazyLogging {
 
   def welderBasePath(googleProject: GoogleProject, clusterName: ClusterName): String = {
     s"${url}/proxy/${googleProject.value}/${clusterName.string}/welder"
+//    s"${url}/proxy/gpalloc-dev-master-3qqssch/automation-test-a3gbuiq6z/welder"
 //    s"http://10.1.3.12:8080"
   }
 
@@ -52,7 +56,9 @@ object Welder extends RestClient with LazyLogging {
    rawResponse
   }
 
-  def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(implicit token: AuthToken): String = {
+//  def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(implicit token: AuthToken): String = {
+//    val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/objects"
+def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(implicit token: AuthToken): String = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/objects"
 
     val payload = Map(
@@ -68,6 +74,8 @@ object Welder extends RestClient with LazyLogging {
 
     logger.info(s"Welder status is localizing: POST on $path with payload $payload")
     val rawResponse = postRequest(path, payload, httpHeaders = List(cookie))
+  println("before sleep")
+   Thread.sleep(10000)
     println("=======localize resp:")
     println(rawResponse)
     rawResponse

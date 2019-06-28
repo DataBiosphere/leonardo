@@ -9,6 +9,7 @@ import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.duration._
 import scala.util.Try
 
+
 sealed trait NotebookKernel {
   def string: String
   def cssSelectorString: String = "ul#new-menu > li[id] > a"
@@ -55,10 +56,10 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
 
   def withOpenNotebook[T](file: File, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T): T = {
     await enabled (text(file.getName), timeout.toSeconds)
-    val notebookPage = new NotebookPage(url + "/notebooks/" + file.getName).open
+    val notebookPage = new NotebookPage(url + "/notebooks/" + file.getPath).open
     notebookPage.awaitReadyKernel(timeout)
     val result = Try { testCode(notebookPage) }
-    notebookPage.shutdownKernel()
+//    notebookPage.shutdownKernel()
     result.get
   }
 

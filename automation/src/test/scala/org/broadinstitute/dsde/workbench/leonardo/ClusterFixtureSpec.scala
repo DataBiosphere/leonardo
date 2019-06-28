@@ -18,11 +18,15 @@ import scala.util.{Failure, Success, Try}
   */
 abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils with BillingFixtures with RandomUtil with LazyLogging {
 
+
   implicit val ronToken: AuthToken = ronAuthToken
   var claimedBillingProject: ClaimedProject = _
   var billingProject : GoogleProject = _
   var ronCluster: Cluster = _
-  def enableWelder: Boolean = false
+  def enableWelder: Boolean = true
+
+  val debug: Boolean = false
+  var mockedCluster: Cluster = _
 
   /**
     * See
@@ -37,6 +41,10 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   type FixtureParam = ClusterFixture
 
   override def withFixture(test: OneArgTest): Outcome = {
+    if (debug) {
+      billingProject = mockedCluster.googleProject
+      ronCluster = mockedCluster
+    }
     withFixture(test.toNoArgTest(ClusterFixture(billingProject, ronCluster)))
   }
 
@@ -104,15 +112,21 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
 
   override def beforeAll(): Unit = {
     logger.info("beforeAll")
+
+    if (!debug) {
+      claimBillingProject()
+      createRonCluster()
+    }
+
     super.beforeAll()
-    claimBillingProject()
-    createRonCluster()
   }
 
   override def afterAll(): Unit = {
     logger.info("afterAll")
-    deleteRonCluster()
-    unclaimBillingProject()
+    if (!debug) {
+      deleteRonCluster()
+      unclaimBillingProject()
+    }
     super.afterAll()
   }
 

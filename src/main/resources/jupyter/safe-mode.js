@@ -56,6 +56,7 @@ define(() => {
                 }
             })
             .catch(err => {
+                console.error(err)
                 toggleUIControls(false) //we always assume safe mode if the check meta call fails
             })
     }
