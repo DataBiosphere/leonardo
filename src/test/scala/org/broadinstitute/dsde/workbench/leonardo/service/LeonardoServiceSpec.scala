@@ -193,6 +193,45 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
   }
 
+  it should "create a cluster with the default welder image" in isolatedDbTest {
+    implicit val patienceConfig = PatienceConfig(timeout = 1.second)
+
+    // create the cluster
+    val clusterRequest = testClusterRequest.copy(
+      machineConfig = Some(singleNodeDefaultMachineConfig),
+      stopAfterCreation = Some(true)
+    )
+
+    leo.processClusterCreationRequest(userInfo, project, name1, clusterRequest).futureValue
+
+    eventually {
+      val createdCluster = leo.getActiveClusterDetails(userInfo, project, name1).futureValue
+
+      createdCluster.clusterImages.map(_.dockerImage) should contain (dataprocConfig.welderDockerImage)
+    }
+  }
+
+  it should "create a cluster with a client-supplied welder image" in isolatedDbTest {
+    implicit val patienceConfig = PatienceConfig(timeout = 1.second)
+
+    val customWelderImage = Some("my-custom-welder-image-link")
+
+    // create the cluster
+    val clusterRequest = testClusterRequest.copy(
+      machineConfig = Some(singleNodeDefaultMachineConfig),
+      stopAfterCreation = Some(true),
+      welderDockerImage = customWelderImage
+    )
+
+    leo.processClusterCreationRequest(userInfo, project, name1, clusterRequest).futureValue
+
+    eventually {
+      val createdCluster = leo.getActiveClusterDetails(userInfo, project, name1).futureValue
+
+      createdCluster.clusterImages.map(_.dockerImage) should contain (customWelderImage.get)
+    }
+  }
+
   it should "create a single node cluster with an empty machine config" in isolatedDbTest {
     val clusterRequestWithMachineConfig = testClusterRequest.copy(machineConfig = Some(MachineConfig()))
 

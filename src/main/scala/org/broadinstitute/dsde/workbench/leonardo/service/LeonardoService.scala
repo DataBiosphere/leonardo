@@ -1113,7 +1113,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     //Eventually welder will be enabled for all clusters and this will be way cleaner.
     val welderImage = if(clusterRequest.enableWelder.getOrElse(false)) {
       val i = clusterRequest.welderDockerImage.getOrElse(dataprocConfig.welderDockerImage)
-      Option(ClusterImage(Welder, i, now))
+      Some(ClusterImage(Welder, i, now))
     } else None
 
     val images = Set(
@@ -1124,7 +1124,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     if (images.isEmpty) {
       Set(
-        Option(ClusterImage(Jupyter, dataprocConfig.dataprocDockerImage, now)),
+        Some(ClusterImage(Jupyter, dataprocConfig.dataprocDockerImage, now)),
         welderImage
       ).flatten
     } else {
