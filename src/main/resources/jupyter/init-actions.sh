@@ -82,6 +82,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
     export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
     export WELDER_DOCKER_IMAGE=$(welderDockerImage)
+    export WELDER_ENABLED=$(welderEnabled)
 
     SERVER_CRT=$(jupyterServerCrt)
     SERVER_KEY=$(jupyterServerKey)
@@ -163,11 +164,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # Needed because docker-compose can't handle symlinks
     touch /hadoop_gcs_connector_metadata_cache
     touch auth_openidc.conf
-
-    # TODO make this configurable. https://broadworkbench.atlassian.net/browse/IA-1033
-    # do not enable welder yet.  Remove flag when welder is complete.
-    # ENABLED FOR TESTING
-    WELDER_ENABLED=true
 
     # If we have a service account JSON file, create an .env file to set GOOGLE_APPLICATION_CREDENTIALS
     # in the docker container. Otherwise, we should _not_ set this environment variable so it uses the
@@ -317,7 +313,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
       fi
 
       # If safe-mode.js was specified, copy it into the jupyter docker container.
-      if [ ! -z ${SAFE_MODE_JS_URI} ] ; then
+      if [ ! -z ${SAFE_MODE_JS_URI} ] && [ "${WELDER_ENABLED}" == "true" ]; then
         log 'Installing safe-mode.js extension...'
         gsutil cp ${SAFE_MODE_JS_URI} /etc
         SAFE_MODE_JS=`basename ${SAFE_MODE_JS_URI}`
@@ -326,7 +322,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
       fi
 
       # If edit-mode.js was specified, copy it into the jupyter docker container.
-        if [ ! -z ${EDIT_MODE_JS_URI} ] ; then
+        if [ ! -z ${EDIT_MODE_JS_URI} ] && [ "${WELDER_ENABLED}" == "true" ]; then
           log 'Installing edit-mode.js extension...'
           gsutil cp ${EDIT_MODE_JS_URI} /etc
           EDIT_MODE_JS=`basename ${EDIT_MODE_JS_URI}`
@@ -350,7 +346,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
         retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT}
         # Execute the user script as privileged to allow for deeper customization of VM behavior, e.g. installing
         # network egress throttling. As docker is not a security layer, it is assumed that a determined attacker
-        # can gain full access to the VM already, so using this flag is not a significant escalation.  
+        # can gain full access to the VM already, so using this flag is not a significant escalation.
         docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_USER_SCRIPT} &> us_output.txt || EXIT_CODE=$? && true ;
         if [ $EXIT_CODE -ne 0 ]; then
             log "User script failed with exit code $EXIT_CODE. Output is saved to $JUPYTER_USER_SCRIPT_OUTPUT_URI."
