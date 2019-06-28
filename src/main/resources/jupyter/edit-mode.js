@@ -302,7 +302,7 @@ define(() => {
         }
 
         fetch(jupyterServerApi + safeModeDir, postPayload)
-            .then(res => res.json())
+            .then(res => handleJupyterServerResponse(res))
             .then(res => {
                 //then we rename the file, as POST does not allow us to specify the file name
                 fetch(jupyterServerApi + res.path, patchPayload)
@@ -328,12 +328,21 @@ define(() => {
         }
 
         fetch(jupyterServerApi + newNotebookPath, payload)
-            .then(res => res.json())
+            .then(res => handleJupyterServerResponse(res))
             .then(res => {
                 //navigate to new file. we rely on the jupyter post api to supply the name of the file we have created as it ensures it does not exist
                 //POST also does not allow for the specification of a file name 
                 window.location.href = jupyterFsHref + res.path
             })
+    }
+
+    function handleJupyterServerResponse(res) {
+        if (!res.ok) {
+            throw new Error("failed to perform requested action")
+
+            //TODO: what should we do here?
+        }
+        return res.json()
     }
 
     function removeElementById(id) {
