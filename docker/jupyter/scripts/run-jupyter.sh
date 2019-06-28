@@ -2,7 +2,7 @@
 
 set -e
 
-# Change the default umask to support R/W access to the shared volume
+# Change the default umask to support R/W access to the shared volume with welder
 umask 002
 
 # Forces python 3
