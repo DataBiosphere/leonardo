@@ -37,7 +37,7 @@ final case class ClusterRequest(labels: LabelMap,
                           defaultClientId: Option[String] = None,
                           jupyterDockerImage: Option[String] = None,
                           rstudioDockerImage: Option[String] = None,
-                          welderDockerImage: Option[String] = None, //todo: stop this from growing (maybe use Map(ClusterTool -> String))
+                          welderDockerImage: Option[String] = None,
                           scopes: Set[String] = Set.empty,
                           enableWelder: Option[Boolean] = None)
 
