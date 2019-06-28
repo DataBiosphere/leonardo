@@ -199,7 +199,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // create the cluster
     val clusterRequest = testClusterRequest.copy(
       machineConfig = Some(singleNodeDefaultMachineConfig),
-      stopAfterCreation = Some(true)
+      stopAfterCreation = Some(true),
+      enableWelder = Some(true)
     )
 
     leo.processClusterCreationRequest(userInfo, project, name1, clusterRequest).futureValue
@@ -220,7 +221,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterRequest = testClusterRequest.copy(
       machineConfig = Some(singleNodeDefaultMachineConfig),
       stopAfterCreation = Some(true),
-      welderDockerImage = customWelderImage
+      welderDockerImage = customWelderImage,
+      enableWelder = Some(true)
     )
 
     leo.processClusterCreationRequest(userInfo, project, name1, clusterRequest).futureValue
