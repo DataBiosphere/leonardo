@@ -182,8 +182,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
   }
 
   it should "create a map of ClusterInitValues object" in isolatedDbTest {
-
-    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy, Set(jupyterImage), stagingBucketName)
+    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy, Set(jupyterImage, welderImage), stagingBucketName)
     val clusterInitMap = clusterInit.toMap
 
     clusterInitMap("googleProject") shouldBe project.value
@@ -191,7 +190,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     clusterInitMap("jupyterDockerImage") shouldBe jupyterImage.dockerImage
     clusterInitMap("proxyDockerImage") shouldBe proxyConfig.jupyterProxyDockerImage
     clusterInitMap("defaultClientId") shouldBe testClusterRequestWithExtensionAndScript.defaultClientId.getOrElse("")
-    clusterInitMap("welderDockerImage") shouldBe dataprocConfig.welderDockerImage
+    clusterInitMap("welderDockerImage") shouldBe welderImage.dockerImage
 
     clusterInitMap.size shouldBe 36
   }
