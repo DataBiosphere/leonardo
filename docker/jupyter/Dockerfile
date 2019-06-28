@@ -123,6 +123,13 @@ ENV USER jupyter-user
 ENV UID 1000
 ENV HOME /home/$USER
 
+# The welder uid is consistent with the Welder docker definition here:
+#  https://github.com/DataBiosphere/welder/blob/master/project/Settings.scala
+# Adding welder-user to the Jupyter container isn't strictly required, but it makes welder-added
+# files display nicer when viewed in a terminal.
+ENV WELDER_USER welder-user
+ENV WELDER_UID 1001
+
 # ensure this matches c.NotebookApp.port in jupyter_notebook_config.py
 ENV JUPYTER_PORT 8000
 ENV JUPYTER_HOME /etc/jupyter
@@ -143,6 +150,7 @@ RUN apt-get update \
 
  # NOTE! not sure why, but this must run before pip installation
  && useradd -m -s /bin/bash -N -u $UID $USER \
+ && useradd -m -s /bin/bash -N -u $WELDER_UID $WELDER_USER \
  # jessie's default pip doesn't work well with jupyter
  && wget -nv https://bootstrap.pypa.io/get-pip.py \
  && python get-pip.py \
