@@ -222,7 +222,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # See https://broadworkbench.atlassian.net/browse/IA-1026
     if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
       log 'Starting Welder file synchronization service...'
-      retry 3 docker exec -u daemon -d ${WELDER_SERVER_NAME} /opt/docker/bin/server start
+      retry 3 docker exec -d ${WELDER_SERVER_NAME} /opt/docker/bin/entrypoint.sh
     fi
 
     # Jupyter-specific setup, only do if Jupyter is installed
