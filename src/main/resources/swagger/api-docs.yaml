@@ -1075,6 +1075,9 @@ definitions:
       jupyterDockerImage:
         type: string
         description: The Jupyter docker image to install. May be Dockerhub or GCR. If not set, then a default Jupyter image will be installed.
+      welderDockerImage:
+        type: string
+        description: The Welder docker image to install. May be Dockerhub or GCR. If not set, then a default Welder image will be installed.
       scopes:
         type: array
         items:

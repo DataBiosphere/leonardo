@@ -17,7 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, Clus
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
@@ -1107,13 +1107,26 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private[service] def processClusterImages(clusterRequest: ClusterRequest): Set[ClusterImage] = {
     val now = Instant.now
 
+    //If welder is enabled for this cluster, we need to ensure that an image is chosen.
+    //We will use the client-supplied image, if present, otherwise we will use a default.
+    //If welder is not enabled, we won't use any image.
+    //Eventually welder will be enabled for all clusters and this will be way cleaner.
+    val welderImage = if(clusterRequest.enableWelder.getOrElse(false)) {
+      val i = clusterRequest.welderDockerImage.getOrElse(dataprocConfig.welderDockerImage)
+      Some(ClusterImage(Welder, i, now))
+    } else None
+
     val images = Set(
       clusterRequest.jupyterDockerImage.map(i => ClusterImage(Jupyter, i, now)),
-      clusterRequest.rstudioDockerImage.map(i => ClusterImage(RStudio, i, now))
+      clusterRequest.rstudioDockerImage.map(i => ClusterImage(RStudio, i, now)),
+      welderImage
     ).flatten
 
     if (images.isEmpty) {
-      Set(ClusterImage(Jupyter, dataprocConfig.dataprocDockerImage, now))
+      Set(
+        Some(ClusterImage(Jupyter, dataprocConfig.dataprocDockerImage, now)),
+        welderImage
+      ).flatten
     } else {
       images
     }
