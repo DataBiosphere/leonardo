@@ -184,30 +184,6 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     }
   }
 
-
-  def mockCluster(googleProject: String, clusterName: String): Cluster = {
-    Cluster(ClusterName(clusterName), UUID.randomUUID(), GoogleProject(googleProject),
-      ServiceAccountInfo(Map()),
-      MachineConfig(),
-      new URL("http://fake/path/THISSHOULDNOTAPPEARANYWHERE"),
-      OperationName(""),
-      ClusterStatus.Running,
-      None,
-      WorkbenchEmail(""),
-      Instant.now,
-      None,
-      Map(),
-      None,
-      None,
-      None,
-      List(),
-      Instant.now,
-      None,
-      false,
-      Set())
-  }
-
-
   def verifyLocalizeDelocalize(cluster: Cluster, localizedFileName: String, localizedFileContents: String,
                                delocalizedBucketPath: GcsPath, delocalizedBucketContents: String,
                                dataFileName: String, dataFileContents: String)(implicit token: AuthToken): Unit = {
@@ -343,5 +319,10 @@ trait NotebookTestUtils extends LeonardoTestUtils {
       case Python3 => helloOutput shouldBe Some("b'Hello, TensorFlow!'")
       case other => fail(s"Unexpected kernel: $other")
     }
+  }
+
+  def mockCluster(googleProject: String, clusterName: String): Cluster = {
+    Cluster(ClusterName(clusterName), UUID.randomUUID(), GoogleProject(googleProject),
+      ServiceAccountInfo(Map()), MachineConfig(), new URL("https://FAKE/URL/IF_YOU_SEE_THIS_INVESTIGATE_YOUR_USAGE_OF_MOCKCLUSTER)_METHOD/"), OperationName(""), ClusterStatus.Running, None, WorkbenchEmail(""), Instant.now(), None, Map(), None, None, None, List(), Instant.now(), None, false, Set())
   }
 }

@@ -20,8 +20,9 @@ import scala.language.postfixOps
 
 class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
   override def enableWelder: Boolean = true
-  override val debug = true
-  mockedCluster = mockCluster("gpalloc-dev-master-3crdvwj", "automation-test-aap0v31gz")
+
+  debug = true
+  mockedCluster = mockCluster("gpalloc-dev-master-3crdvwj","automation-test-azhrcb7oz")
 
   "Leonardo welder and notebooks" - {
 
@@ -34,16 +35,15 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
     "storageLinks and localize should work" in { clusterFixture =>
         val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
-      //gpalloc-dev-master-3qqssch/automation-test-a3gbuiq6z
-//      val mockedCluster = mockCluster("gpalloc-dev-master-3crdvwj", "automation-test-a3ccevftz")
-        withResourceFileInBucket(clusterFixture.cluster.googleProject, sampleNotebook, "text/plain") { googleCloudDir =>
+        withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { googleCloudDir =>
+          println("====================================================")
 
-          withWelderInitialized(clusterFixture.cluster, googleCloudDir, true) { localizedPath =>
+          withWelderInitialized(clusterFixture.cluster, googleCloudDir, true) { localizedFile =>
             withWebDriver { implicit driver =>
             println("====================================================")
             println("in welder initialized callback")
-            println(localizedPath)
-            withOpenNotebook(clusterFixture.cluster, localizedPath, 10.minutes) { notebookPage =>
+            println(localizedFile)
+            withOpenNotebook(clusterFixture.cluster, localizedFile, 10.minutes) { notebookPage =>
               logger.info("notebook is open")
 //              notebookPage.executeCell("! jupyter nbextension list ")
               Thread.sleep(10000000)
