@@ -123,7 +123,10 @@ ENV USER jupyter-user
 ENV UID 1000
 ENV HOME /home/$USER
 
-# consistent with Welder docker definition here: https://github.com/DataBiosphere/welder/blob/master/project/Settings.scala
+# The welder uid is consistent with the Welder docker definition here:
+#  https://github.com/DataBiosphere/welder/blob/master/project/Settings.scala
+# Adding welder-user to the Jupyter container isn't strictly required, but it makes welder-added
+# files display nicer when viewed in a terminal.
 ENV WELDER_USER welder-user
 ENV WELDER_UID 1001
 
