@@ -1111,25 +1111,19 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     //We will use the client-supplied image, if present, otherwise we will use a default.
     //If welder is not enabled, we won't use any image.
     //Eventually welder will be enabled for all clusters and this will be way cleaner.
-    val welderImage = if(clusterRequest.enableWelder.getOrElse(false)) {
+    val welderImageOpt: Option[ClusterImage] = if(clusterRequest.enableWelder.getOrElse(false)) {
       val i = clusterRequest.welderDockerImage.getOrElse(dataprocConfig.welderDockerImage)
       Some(ClusterImage(Welder, i, now))
     } else None
 
-    val images = Set(
-      clusterRequest.jupyterDockerImage.map(i => ClusterImage(Jupyter, i, now)),
-      clusterRequest.rstudioDockerImage.map(i => ClusterImage(RStudio, i, now)),
-      welderImage
-    ).flatten
+    // Note: Jupyter image is not currently optional
+    val jupyterImage: ClusterImage = ClusterImage(Jupyter,
+      clusterRequest.jupyterDockerImage.getOrElse(dataprocConfig.dataprocDockerImage), now)
 
-    if (images.isEmpty) {
-      Set(
-        Some(ClusterImage(Jupyter, dataprocConfig.dataprocDockerImage, now)),
-        welderImage
-      ).flatten
-    } else {
-      images
-    }
+    // Optional RStudio image
+    val rstudioImageOpt: Option[ClusterImage] = clusterRequest.rstudioDockerImage.map(i => ClusterImage(RStudio, i, now))
+
+    Set(welderImageOpt, Some(jupyterImage), rstudioImageOpt).flatten
   }
 
 }
