@@ -11,7 +11,6 @@ import org.scalatest.time.{Seconds, Span}
 import org.scalatest.Matchers.convertToAnyShouldWrapper
 import scala.concurrent.duration._
 import scala.collection.JavaConverters._
-import scala.language.postfixOps
 import org.broadinstitute.dsde.workbench.leonardo.KernelNotReadyException
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 
