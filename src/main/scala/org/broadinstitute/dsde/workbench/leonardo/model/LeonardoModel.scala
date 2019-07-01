@@ -13,7 +13,7 @@ import enumeratum.{Enum, EnumEntry}
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster._
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.model.google.GoogleJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
@@ -37,6 +37,7 @@ final case class ClusterRequest(labels: LabelMap,
                           defaultClientId: Option[String] = None,
                           jupyterDockerImage: Option[String] = None,
                           rstudioDockerImage: Option[String] = None,
+                          welderDockerImage: Option[String] = None,
                           scopes: Set[String] = Set.empty,
                           enableWelder: Option[Boolean] = None)
 
@@ -79,6 +80,7 @@ object ClusterTool extends Enum[ClusterTool] {
   val values = findValues
   case object Jupyter extends ClusterTool
   case object RStudio extends ClusterTool
+  case object Welder extends ClusterTool
 }
 case class ClusterImage(tool: ClusterTool,
                         dockerImage: String,
@@ -276,7 +278,7 @@ object ClusterInitValues {
       clusterImages.find(_.tool == Jupyter).map(_.dockerImage).getOrElse(""),
       clusterImages.find(_.tool == RStudio).map(_.dockerImage).getOrElse(""),
       proxyConfig.jupyterProxyDockerImage,
-      dataprocConfig.welderDockerImage,
+      clusterImages.find(_.tool == Welder).map(_.dockerImage).getOrElse(""),
       GcsPath(initBucketName, GcsObjectName(clusterFilesConfig.jupyterServerCrt.getName)).toUri,
       GcsPath(initBucketName, GcsObjectName(clusterFilesConfig.jupyterServerKey.getName)).toUri,
       GcsPath(initBucketName, GcsObjectName(clusterFilesConfig.jupyterRootCaPem.getName)).toUri,
@@ -306,7 +308,7 @@ object ClusterInitValues {
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value)).toUri,
       clusterRequest.userJupyterExtensionConfig.map(x => x.labExtensions.values.mkString(" ")).getOrElse(""),
       clusterRequest.defaultClientId.getOrElse(""),
-      clusterRequest.enableWelder.getOrElse(false).toString
+      clusterRequest.enableWelder.getOrElse(false).toString  // TODO: remove this when welder is rolled out to all clusters
     )
 }
 
@@ -436,6 +438,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
       fieldsWithoutNull.get("defaultClientId").map(_.convertTo[String]),
       fieldsWithoutNull.get("jupyterDockerImage").map(_.convertTo[String]),
       fieldsWithoutNull.get("rstudioDockerImage").map(_.convertTo[String]),
+      fieldsWithoutNull.get("welderDockerImage").map(_.convertTo[String]),
       fieldsWithoutNull.get("scopes").map(_.convertTo[Set[String]]).getOrElse(Set.empty),
       fieldsWithoutNull.get("enableWelder").map(_.convertTo[Boolean])
     )

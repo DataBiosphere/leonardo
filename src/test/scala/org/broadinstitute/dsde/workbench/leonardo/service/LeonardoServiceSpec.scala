@@ -17,6 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{MockPetClusterServiceAccountProvider, MockSwaggerSamClient}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, LeoComponent, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model.MachineConfigOps.{NegativeIntegerArgumentInClusterRequestException, OneWorkerSpecifiedInClusterRequestException}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
@@ -190,6 +191,53 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       createdCluster.auditInfo.dateAccessed should be >= createdCluster.auditInfo.createdDate
       createdCluster.auditInfo.dateAccessed should be < Instant.now
       createdCluster.autopauseThreshold shouldBe 30
+    }
+  }
+
+  it should "create a cluster with the default welder image" in isolatedDbTest {
+    implicit val patienceConfig = PatienceConfig(timeout = 1.second)
+
+    // create the cluster
+    val clusterRequest = testClusterRequest.copy(
+      machineConfig = Some(singleNodeDefaultMachineConfig),
+      stopAfterCreation = Some(true),
+      enableWelder = Some(true)
+    )
+
+    leo.processClusterCreationRequest(userInfo, project, name1, clusterRequest).futureValue
+
+    eventually {
+      val createdCluster = leo.getActiveClusterDetails(userInfo, project, name1).futureValue
+
+      // cluster images should contain welder and Jupyter
+      createdCluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage) shouldBe Some(dataprocConfig.dataprocDockerImage)
+      createdCluster.clusterImages.find(_.tool == RStudio) shouldBe None
+      createdCluster.clusterImages.find(_.tool == Welder).map(_.dockerImage) shouldBe Some(dataprocConfig.welderDockerImage)
+    }
+  }
+
+  it should "create a cluster with a client-supplied welder image" in isolatedDbTest {
+    implicit val patienceConfig = PatienceConfig(timeout = 1.second)
+
+    val customWelderImage = Some("my-custom-welder-image-link")
+
+    // create the cluster
+    val clusterRequest = testClusterRequest.copy(
+      machineConfig = Some(singleNodeDefaultMachineConfig),
+      stopAfterCreation = Some(true),
+      welderDockerImage = customWelderImage,
+      enableWelder = Some(true)
+    )
+
+    leo.processClusterCreationRequest(userInfo, project, name1, clusterRequest).futureValue
+
+    eventually {
+      val createdCluster = leo.getActiveClusterDetails(userInfo, project, name1).futureValue
+
+      // cluster images should contain welder and Jupyter
+      createdCluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage) shouldBe Some(dataprocConfig.dataprocDockerImage)
+      createdCluster.clusterImages.find(_.tool == RStudio) shouldBe None
+      createdCluster.clusterImages.find(_.tool == Welder).map(_.dockerImage) shouldBe customWelderImage
     }
   }
 

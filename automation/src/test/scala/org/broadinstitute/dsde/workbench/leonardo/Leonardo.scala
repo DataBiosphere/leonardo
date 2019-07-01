@@ -112,14 +112,14 @@ object Leonardo extends RestClient with LazyLogging {
       s"api/cluster${version.toUrlSegment}/${googleProject.value}/${clusterName.string}"
     }
 
-    def list()(implicit token: AuthToken): Seq[Cluster] = {
-      logger.info(s"Listing all active clusters: GET /api/clusters")
+    def list(googleProject: GoogleProject)(implicit token: AuthToken): Seq[Cluster] = {
+      logger.info(s"Listing active clusters in project: GET /api/clusters/${googleProject.value}")
       handleClusterSeqResponse(parseResponse(getRequest(url + "api/clusters")))
     }
 
-    def listIncludingDeleted()(implicit token: AuthToken): Seq[Cluster] = {
-      val path = "api/clusters?includeDeleted=true"
-      logger.info(s"Listing all clusters including deleted: GET /$path")
+    def listIncludingDeleted(googleProject: GoogleProject)(implicit token: AuthToken): Seq[Cluster] = {
+      val path = s"api/clusters/${googleProject.value}?includeDeleted=true"
+      logger.info(s"Listing clusters including deleted in project: GET /$path")
       handleClusterSeqResponse(parseResponse(getRequest(s"$url/$path")))
     }
 

@@ -82,6 +82,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
     export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
     export WELDER_DOCKER_IMAGE=$(welderDockerImage)
+    export WELDER_ENABLED=$(welderEnabled)
 
     SERVER_CRT=$(jupyterServerCrt)
     SERVER_KEY=$(jupyterServerKey)
@@ -103,7 +104,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
     JUPYTER_USER_SCRIPT_OUTPUT_URI=$(jupyterUserScriptOutputUri)
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
-    WELDER_ENABLED=$(welderEnabled)
 
     log 'Installing prerequisites...'
 
@@ -222,7 +222,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # See https://broadworkbench.atlassian.net/browse/IA-1026
     if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
       log 'Starting Welder file synchronization service...'
-      retry 3 docker exec -u daemon -d ${WELDER_SERVER_NAME} /opt/docker/bin/server start
+      retry 3 docker exec -d ${WELDER_SERVER_NAME} /opt/docker/bin/entrypoint.sh
     fi
 
     # Jupyter-specific setup, only do if Jupyter is installed
