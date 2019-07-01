@@ -136,12 +136,6 @@ package object config {
     )
   }
 
-  implicit val leonardoConfig: ValueReader[LeonardoConfig] = ValueReader.relative { config =>
-    LeonardoConfig(
-      config.getString("appName")
-    )
-  }
-
   implicit val clusterBucketConfig: ValueReader[ClusterBucketConfig] = ValueReader.relative { config =>
     ClusterBucketConfig(
       toScalaDuration(config.getDuration("stagingBucketExpiration"))

@@ -204,7 +204,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
             }
         }
     }
-    _ <- Future(newRelic.gauge("autopausedClusters", pauseableClusters.length))
+    _ <- newRelic.gauge("autopausedClusters", pauseableClusters.length).unsafeToFuture()
     _ <- pauseableClusters.traverse{
       cl =>
         logger.info(s"Auto freezing cluster ${cl.clusterName} in project ${cl.googleProject}")

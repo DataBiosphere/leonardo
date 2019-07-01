@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.leonardo.api.{LeoRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.auth.{LeoAuthProviderHelper, ServiceAccountProviderHelper}
-import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, ClusterDefaultsConfig, ClusterDnsCacheConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, LeoExecutionModeConfig, LeonardoConfig, MonitorConfig, ProxyConfig, SamConfig, SwaggerConfig, ZombieClusterConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, ClusterDefaultsConfig, ClusterDnsCacheConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, LeoExecutionModeConfig, MonitorConfig, ProxyConfig, SamConfig, SwaggerConfig, ZombieClusterConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HttpJupyterDAO, HttpRStudioDAO, HttpSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{HttpGoogleComputeDAO, HttpGoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -42,9 +42,8 @@ object Boot extends IOApp with LazyLogging {
     val zombieClusterMonitorConfig = config.as[ZombieClusterConfig]("zombieClusterMonitor")
     val clusterDnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")
     val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leoExecutionMode")
-    val leonardoConfig = config.as[LeonardoConfig]("leonardo")
     val clusterBucketConfig = config.as[ClusterBucketConfig]("clusterBucket")
-    val newRelic = NewRelicMetrics.fromNewRelic(leonardoConfig.appName)
+    val newRelic = NewRelicMetrics.fromNewRelic("leonardo")
 
     // we need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")
