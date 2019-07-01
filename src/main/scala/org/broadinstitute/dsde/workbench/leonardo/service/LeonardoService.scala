@@ -28,6 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.Retry
 import slick.dbio.DBIO
 import spray.json._
@@ -107,7 +108,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val authProvider: LeoAuthProvider,
                       protected val serviceAccountProvider: ServiceAccountProvider,
                       protected val bucketHelper: BucketHelper,
-                      protected val contentSecurityPolicy: String)
+                      protected val contentSecurityPolicy: String,
+                      protected val newRelic: NewRelicMetrics)
                      (implicit val executionContext: ExecutionContext,
                       implicit override val system: ActorSystem) extends LazyLogging with Retry {
 
