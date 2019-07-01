@@ -22,7 +22,7 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
   override def enableWelder: Boolean = true
 
 //  debug = true
-  mockedCluster = mockCluster("billing-leo-env-dev-0","c1")
+//  mockedCluster = mockCluster("gpalloc-dev-master-2b9yymo","automation-test-ankqhyrmz")
 
   "Leonardo welder and notebooks" - {
 
@@ -44,7 +44,7 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
             println("in welder initialized callback")
             println(localizedFile)
               println("sleeping for a minute")
-              Thread.sleep(60000)
+//              Thread.sleep(60000)
             withOpenNotebook(clusterFixture.cluster, localizedFile, 10.minutes) { notebookPage =>
               logger.info("notebook is open")
 //              notebookPage.executeCell("! jupyter nbextension list ")

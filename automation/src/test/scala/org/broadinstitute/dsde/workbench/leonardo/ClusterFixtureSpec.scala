@@ -124,8 +124,8 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   override def afterAll(): Unit = {
     logger.info("afterAll")
     if (!debug) {
-      deleteRonCluster()
-      unclaimBillingProject()
+//      deleteRonCluster()
+//      unclaimBillingProject()
     }
     super.afterAll()
   }
