@@ -1,4 +1,4 @@
-version: '3'
+'version: '3'
 services:
   app:
     image: gcr.io/TEMPLATE_VAR_DOCKER_PROJECT/leonardo:TEMPLATE_VAR_DOCKER_TAG

@@ -25,11 +25,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   var ronCluster: Cluster = _
   def enableWelder: Boolean = true
 
-  val debug: Boolean = false
-  var mockedCluster: Cluster = _
-
   var debug: Boolean = false //if true, will not spin up and tear down a cluster on each test. Used in conjunction with mockedCluster
-
   //todo initialize this to a non-gpalloc project
   var mockedCluster: Cluster = _ //must specify a google project name and cluster name via the mockCluster utility method in NotebookTestUtils
   //example usage:
@@ -47,6 +43,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
 
   override def withFixture(test: OneArgTest): Outcome = {
     if (debug) {
+      logger.info("[Debug] Using mocked cluster for cluster fixture tests")
       billingProject = mockedCluster.googleProject
       ronCluster = mockedCluster
     }
@@ -117,31 +114,18 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
 
   override def beforeAll(): Unit = {
     logger.info("beforeAll")
-<<<<<<< Updated upstream
-
-=======
->>>>>>> Stashed changes
     if (!debug) {
       claimBillingProject()
       createRonCluster()
     }
-<<<<<<< Updated upstream
-
-=======
->>>>>>> Stashed changes
     super.beforeAll()
   }
 
   override def afterAll(): Unit = {
     logger.info("afterAll")
     if (!debug) {
-<<<<<<< Updated upstream
       deleteRonCluster()
       unclaimBillingProject()
-=======
-//      deleteRonCluster()
-//      unclaimBillingProject()
->>>>>>> Stashed changes
     }
     super.afterAll()
   }
