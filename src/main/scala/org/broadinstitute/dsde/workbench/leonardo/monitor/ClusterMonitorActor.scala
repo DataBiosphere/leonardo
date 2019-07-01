@@ -260,6 +260,8 @@ class ClusterMonitorActor(val cluster: Cluster,
       _ <- persistInstances(instances)
       // this sets the cluster status to stopped and clears the cluster IP
       _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Stopped) }
+      // reset the time at which the kernel was last found to be busy
+      _ <- dbRef.inTransaction {_.clusterQuery.clearKernelFoundBusyDate(cluster.id)}
     } yield ShutdownActor(RemoveFromList(cluster))
   }
 

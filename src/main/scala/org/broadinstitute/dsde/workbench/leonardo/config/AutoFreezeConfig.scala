@@ -6,5 +6,6 @@ case class AutoFreezeConfig (
                               enableAutoFreeze: Boolean,
                               dateAccessedMonitorScheduler: FiniteDuration,
                               autoFreezeAfter: FiniteDuration,
-                              autoFreezeCheckScheduler: FiniteDuration
+                              autoFreezeCheckScheduler: FiniteDuration,
+                              maxKernelBusyLimit: FiniteDuration
                             )
