@@ -80,7 +80,7 @@ trait CommonTestData{ this: ScalaFutures =>
   val notebookServiceAccount = Option(WorkbenchEmail("testNotebookServiceAccount@example.com"))
   val serviceAccountInfo = new ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount)
 
-  val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now())
+  val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None)
   val jupyterImage = ClusterImage(Jupyter, "jupyter/jupyter-base:latest", Instant.now)
   val rstudioImage = ClusterImage(RStudio, "rocker/tidyverse:latest", Instant.now)
   val welderImage = ClusterImage(Welder, "welder/welder:latest", Instant.now)
@@ -121,7 +121,7 @@ trait CommonTestData{ this: ScalaFutures =>
     googleProject = project,
     serviceAccountInfo = serviceAccountInfo,
     dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op")), Some(GcsBucketName("testStagingBucket1")), None),
-    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
+    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     properties = Map.empty,
     clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
