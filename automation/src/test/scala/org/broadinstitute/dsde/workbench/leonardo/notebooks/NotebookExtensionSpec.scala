@@ -22,7 +22,7 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
   override def enableWelder: Boolean = true
 
 //  debug = true
-//  mockedCluster = mockCluster("gpalloc-dev-master-2b9yymo","automation-test-ankqhyrmz")
+//  mockedCluster = mockCluster("gpalloc-dev-master-5oak3of","automation-test-av1dmxj5z")
 
   "Leonardo welder and notebooks" - {
 
