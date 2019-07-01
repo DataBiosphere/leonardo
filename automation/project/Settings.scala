@@ -21,7 +21,8 @@ object Settings {
     "-feature",
     "-encoding", "utf8",
     "-target:jvm-1.8",
-    "-Xmax-classfile-name", "100"
+    "-Xmax-classfile-name", "100",
+    "-language:postfixOps"
   )
 
   val testSettings = List(
