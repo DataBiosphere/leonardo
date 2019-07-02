@@ -196,19 +196,14 @@ trait ClusterComponent extends LeoComponent {
     // find* and get* methods do query the INSTANCE table
 
     def getActiveClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
-      fullClusterQuery
-        .filter { _._1.googleProject === project.value }
-        .filter { _._1.clusterName === name.value }
-        .filter { _._1.destroyedDate === Timestamp.from(dummyDate) }
+      fullClusterQueryByUniqueKey(project, name, Some(dummyDate))
         .result map { recs =>
           unmarshalFullCluster(recs).headOption
         }
     }
 
     def getDeletingClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
-      fullClusterQuery
-        .filter { _._1.googleProject === project.value }
-        .filter { _._1.clusterName === name.value }
+      fullClusterQueryByUniqueKey(project, name, Some(dummyDate))
         .filter { _._1.status === ClusterStatus.Deleting.toString }
         .result map { recs =>
           unmarshalFullCluster(recs).headOption
@@ -254,7 +249,9 @@ trait ClusterComponent extends LeoComponent {
                                                 clusterName: ClusterName,
                                                 destroyedDateOpt: Option[Instant]): DBIO[Option[Cluster]] = {
       fullClusterQueryByUniqueKey(googleProject, clusterName, destroyedDateOpt)
-        .map { recs => unmarshalFullCluster(recs).headOption }
+        .result map { recs =>
+          unmarshalFullCluster(recs).headOption
+        }
     }
 
     def getInitBucket(project: GoogleProject, name: ClusterName): DBIO[Option[GcsPath]] = {
@@ -596,16 +593,21 @@ trait ClusterComponent extends LeoComponent {
     } yield (cluster, instance, error, label, extension, image, scopes)
   }
 
-  private def fullClusterQueryByUniqueKey(googleProject: GoogleProject,
+  def fullClusterQueryByUniqueKey(googleProject: GoogleProject,
                                           clusterName: ClusterName,
-                                          destroyedDateOpt: Option[Instant]) = {
+                                          destroyedDateOpt: Option[Instant]): Query[(ClusterTable, Rep[Option[InstanceTable]], Rep[Option[ClusterErrorTable]], Rep[Option[LabelTable]], Rep[Option[ExtensionTable]], Rep[Option[ClusterImageTable]], Rep[Option[ScopeTable]]), (ClusterRecord, Option[InstanceRecord], Option[ClusterErrorRecord], Option[LabelRecord], Option[ExtensionRecord], Option[ClusterImageRecord], Option[ScopeRecord]), Seq] = {
     val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
 
-    fullClusterQuery
-      .filter { _._1.googleProject === googleProject.value }
-      .filter { _._1.clusterName === clusterName.value }
-      .filter { _._1.destroyedDate === Timestamp.from(destroyedDate) }
-      .result
+    for {
+      ((((((cluster, instance), error), label), extension), image), scopes) <-
+        clusterQuery filter (_.googleProject === googleProject.value) filter (_.clusterName === clusterName.value) filter (_.destroyedDate === Timestamp.from(destroyedDate)) joinLeft
+          instanceQuery on (_.id === _.clusterId) joinLeft
+          clusterErrorQuery on (_._1.id === _.clusterId) joinLeft
+          labelQuery on (_._1._1.id === _.clusterId) joinLeft
+          extensionQuery on (_._1._1._1.id === _.clusterId) joinLeft
+          clusterImageQuery on (_._1._1._1._1.id === _.clusterId) joinLeft
+          scopeQuery on (_._1._1._1._1._1.id === _.clusterId)
+    } yield (cluster, instance, error, label, extension, image, scopes)
   }
 
   private def findByIdQuery(id: Long): Query[ClusterTable, ClusterRecord, Seq] = {
