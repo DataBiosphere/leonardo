@@ -7,8 +7,6 @@ import java.util.UUID
 import akka.actor.{ActorRef, ActorSystem, Terminated}
 import akka.testkit.TestKit
 import cats.effect.IO
-import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
-import com.google.api.client.testing.json.MockJsonFactory
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
