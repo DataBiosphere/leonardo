@@ -6,7 +6,7 @@ import java.time.Instant
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import cats.Monoid
-import cats.data.{Ior, OptionT}
+import cats.data.{Ior, NonEmptyList, OptionT}
 import cats.implicits._
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
@@ -728,11 +728,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         gdDAO.createCluster(googleProject, clusterName, createClusterConfig)
       }
       operation <- retryResult match {
-        case Right((_, op)) => Future.successful(op)
+        case Right((List.empty, op)) => Future.successful(op)
+        case Right((errors, op)) =>
+          Metrics.newRelic.incrementCounterIO("zoneCapacityClusterCreationFailure", errors.length).unsafeRunAsync(_ => ())
+          Future.successful(op)
         case Left(errors) =>
-          Metrics.newRelic.incrementCounterIO("zoneCapacityClusterCreationFailure").unsafeRunAsync(_ => ())
-          val exceptionMessage = errors.toList.map(_.toString).mkString(", ")
-          Future.failed(new Exception(exceptionMessage))
+          Metrics.newRelic.incrementCounterIO("zoneCapacityClusterCreationFailure", errors.filter(whenGoogleZoneCapacityIssue).length).unsafeRunAsync(_ => ())
+          Future.failed(errors.head)
       }
       cluster = Cluster.create(clusterRequest, userEmail, clusterName, googleProject, serviceAccountInfo,
         machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, clusterScopes, Some(operation), Option(stagingBucket), clusterImages)
