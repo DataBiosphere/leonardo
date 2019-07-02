@@ -347,7 +347,7 @@ trait ClusterComponent extends LeoComponent {
     }
 
     def updateDateAccessedByProjectAndName(googleProject: GoogleProject, clusterName: ClusterName, dateAccessed: Instant): DBIO[Int] = {
-      clusterQuery.getActiveClusterByName(googleProject, clusterName) flatMap {
+      clusterQuery.getActiveClusterByNameMinimal(googleProject, clusterName) flatMap {
         case Some(c) => clusterQuery.updateDateAccessed(c.id, dateAccessed)
         case None => DBIO.successful(0)
       }
