@@ -74,8 +74,6 @@ def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(i
 
     logger.info(s"Welder status is localizing: POST on $path with payload $payload")
     val rawResponse = postRequest(path, payload, httpHeaders = List(cookie))
-  println("before sleep")
-   Thread.sleep(10000)
     println("=======localize resp:")
     println(rawResponse)
     rawResponse

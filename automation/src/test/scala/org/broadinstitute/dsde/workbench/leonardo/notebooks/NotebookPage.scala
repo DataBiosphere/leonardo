@@ -3,12 +3,13 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 import com.typesafe.scalalogging.LazyLogging
 import org.apache.commons.text.StringEscapeUtils
 import org.openqa.selenium.interactions.Actions
-import org.openqa.selenium.{By, WebDriver, WebElement}
+import org.openqa.selenium.{By, JavascriptExecutor, WebDriver, WebElement}
 import org.scalatest.concurrent.Eventually
 import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.scalatest.exceptions.TestFailedDueToTimeoutException
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.Matchers.convertToAnyShouldWrapper
+
 import scala.concurrent.duration._
 import scala.collection.JavaConverters._
 import org.broadinstitute.dsde.workbench.leonardo.KernelNotReadyException
@@ -83,6 +84,9 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   lazy val toMarkdownCell:Query = cssSelector("[title='Markdown']")
 
   lazy val translateCell: Query = cssSelector("[title='Translate current cell']")
+
+  // banner for edit or playground mode
+  lazy val modeBanner: Query = cssSelector("[id='notification_mode']")
 
   // is at least one cell currently executing?
   def cellsAreRunning: Boolean = {
@@ -237,4 +241,21 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   def kernelNotificationText: String = {
     find(id("notification_kernel")).map(_.underlying.getCssValue("display")).getOrElse("")
   }
-}
+
+  def hideModal(): Unit = {
+    executeScript("$('#leoUserModal').modal('hide')")
+  }
+
+  def modeExists(): Boolean = {
+    find(modeBanner).size > 0
+  }
+
+  def getModeText(): String = {
+    if (modeExists()) {
+      find(modeBanner).head.text
+    } else {
+      ""
+    }
+  }
+
+ }

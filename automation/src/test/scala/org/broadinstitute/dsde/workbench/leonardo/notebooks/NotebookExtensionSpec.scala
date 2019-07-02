@@ -21,8 +21,9 @@ import scala.language.postfixOps
 class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
   override def enableWelder: Boolean = true
 
-//  debug = true
-//  mockedCluster = mockCluster("gpalloc-dev-master-5oak3of","automation-test-av1dmxj5z")
+  debug = true
+  mockedCluster = mockCluster("gpalloc-dev-master-2b9yymo","automation-test-atcydjxkz")
+
 
   "Leonardo welder and notebooks" - {
 
@@ -39,16 +40,19 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
           println("====================================================")
 
           withWelderInitialized(clusterFixture.cluster, googleCloudDir, true) { localizedFile =>
+            println("sleeping for a minute")
+//            Thread.sleep(120000) //don't open browser until cluster is initialized properly
             withWebDriver { implicit driver =>
             println("====================================================")
             println("in welder initialized callback")
             println(localizedFile)
-              println("sleeping for a minute")
-//              Thread.sleep(60000)
-            withOpenNotebook(clusterFixture.cluster, localizedFile, 10.minutes) { notebookPage =>
+
+//
+            withOpenNotebook(clusterFixture.cluster, localizedFile, 2.minutes) { notebookPage =>
               logger.info("notebook is open")
-//              notebookPage.executeCell("! jupyter nbextension list ")
-              Thread.sleep(10000000)
+              notebookPage.hideModal()
+              notebookPage.modeExists() shouldBe true
+              notebookPage.getModeText() shouldBe "Edit Mode"
 //                notebookPage.close()
             }
           }
