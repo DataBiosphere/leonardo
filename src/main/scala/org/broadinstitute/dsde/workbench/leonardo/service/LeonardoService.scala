@@ -6,7 +6,7 @@ import java.time.Instant
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import cats.Monoid
-import cats.data.{Ior, NonEmptyList, OptionT}
+import cats.data.{Ior, OptionT}
 import cats.implicits._
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
@@ -728,7 +728,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         gdDAO.createCluster(googleProject, clusterName, createClusterConfig)
       }
       operation <- retryResult match {
-        case Right((List.empty, op)) => Future.successful(op)
+        case Right((errors, op)) if errors == List.empty => Future.successful(op)
         case Right((errors, op)) =>
           Metrics.newRelic.incrementCounterIO("zoneCapacityClusterCreationFailure", errors.length).unsafeRunAsync(_ => ())
           Future.successful(op)
