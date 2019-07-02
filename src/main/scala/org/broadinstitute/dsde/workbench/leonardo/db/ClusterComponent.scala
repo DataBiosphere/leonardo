@@ -245,7 +245,7 @@ trait ClusterComponent extends LeoComponent {
     private[leonardo] def getClusterByUniqueKey(googleProject: GoogleProject,
                                                 clusterName: ClusterName,
                                                 destroyedDateOpt: Option[Instant]): DBIO[Option[Cluster]] = {
-      fullClusterQueryByUniqueKey(googleProject, clusterName, destroyedDateOpt)
+      fullClusterQueryByUniqueKey(googleProject, clusterName, destroyedDateOpt).result
         .map { recs => unmarshalFullCluster(recs).headOption }
     }
 
@@ -586,7 +586,7 @@ trait ClusterComponent extends LeoComponent {
 
   def fullClusterQueryByUniqueKey(googleProject: GoogleProject,
                                           clusterName: ClusterName,
-                                          destroyedDateOpt: Option[Instant] = None) = {
+                                          destroyedDateOpt: Option[Instant] = None): Query[(ClusterTable, Rep[Option[InstanceTable]], Rep[Option[ClusterErrorTable]], Rep[Option[LabelTable]], Rep[Option[ExtensionTable]], Rep[Option[ClusterImageTable]], Rep[Option[ScopeTable]]), (ClusterRecord, Option[InstanceRecord], Option[ClusterErrorRecord], Option[LabelRecord], Option[ExtensionRecord], Option[ClusterImageRecord], Option[ScopeRecord]), Seq] = {
     val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
 
     for {
