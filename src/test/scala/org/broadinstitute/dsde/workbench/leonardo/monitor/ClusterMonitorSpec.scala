@@ -1011,5 +1011,4 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       verify(gdDAO, never()).getClusterStatus(any[GoogleProject], any[ClusterName])
     }
   }
-
 }
