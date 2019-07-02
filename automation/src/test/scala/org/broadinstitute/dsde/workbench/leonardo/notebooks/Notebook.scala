@@ -84,7 +84,7 @@ object Notebook extends RestClient with LazyLogging {
 
   def getModeFromString(message: String): NotebookMode = {
     message match {
-      case message if message.toLowerCase().contains("safe") => SafeMode
+      case message if message.toLowerCase().contains("playground") => SafeMode
       case message if message.toLowerCase().contains("edit") => EditMode
       case _ => NoMode
     }
