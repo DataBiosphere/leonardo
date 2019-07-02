@@ -12,7 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterService
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, ClusterDefaultsConfig, ClusterDnsCacheConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SwaggerConfig, ZombieClusterConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData, _}
@@ -80,9 +80,10 @@ trait CommonTestData{ this: ScalaFutures =>
   val notebookServiceAccount = Option(WorkbenchEmail("testNotebookServiceAccount@example.com"))
   val serviceAccountInfo = new ServiceAccountInfo(clusterServiceAccount, notebookServiceAccount)
 
-  val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now())
+  val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None)
   val jupyterImage = ClusterImage(Jupyter, "jupyter/jupyter-base:latest", Instant.now)
   val rstudioImage = ClusterImage(RStudio, "rocker/tidyverse:latest", Instant.now)
+  val welderImage = ClusterImage(Welder, "welder/welder:latest", Instant.now)
 
   def makeDataprocInfo(index: Int): DataprocInfo = {
     DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("operationName" + index.toString)), Option(GcsBucketName("stagingbucketname" + index.toString)), Some(IP("numbers.and.dots")))
@@ -120,7 +121,7 @@ trait CommonTestData{ this: ScalaFutures =>
     googleProject = project,
     serviceAccountInfo = serviceAccountInfo,
     dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op")), Some(GcsBucketName("testStagingBucket1")), None),
-    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
+    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
     machineConfig = MachineConfig(Some(0),Some(""), Some(500)),
     properties = Map.empty,
     clusterUrl = Cluster.getClusterUrl(project, name1, clusterUrlBase),
