@@ -1,12 +1,6 @@
 // Adapted from the All of Us Researcher Workbench "Playground Mode"
 // https://github.com/all-of-us/workbench/blob/master/api/cluster-resources/playground-extension.js
 
-// TODO: the following is required until IA-979 is implemented
-// To deploy on a Leonardo cluster:
-// 1. copy to a public GCS location
-// 2. issue a PUT request to <leonardo>/api/cluster/<billing project>/<cluster name>
-//  with a name:path key value pair set in userJupyterExtensionConfig.nbExtensions
-
 // In "Safe Mode", changes are not saved back to GCS. This extension makes
 // minor UI tweaks to differentiate this mode from normal Jupyter usage, and
 // also removes/hides controls relating to persistence. Technically
@@ -36,8 +30,8 @@ define(() => {
     }
 
     function load() {
-        // console.log('here in safe init')
-        // checkMetaLoop()
+        console.info('safe mode plugin initialized')
+        checkMetaLoop()
     }
 
     function checkMetaLoop() {
@@ -95,7 +89,5 @@ define(() => {
         })
     }
 
-    return {
-        'load_ipython_extension': load
-    };
+    load()
 });

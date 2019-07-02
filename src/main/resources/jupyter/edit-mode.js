@@ -77,9 +77,9 @@ define(() => {
     }
 
     function init() {
-        // console.info('edit mode plugin initialized')
-        // checkMeta()
-        // initSyncMaintainer()
+        console.info('edit mode plugin initialized')
+        checkMeta()
+        initSyncMaintainer()
     }
 
     function initSyncMaintainer() {
@@ -401,7 +401,5 @@ define(() => {
         location.reload(true)
     }
 
-    return {
-        load_ipython_extension: init
-    }
+    init()
 })
