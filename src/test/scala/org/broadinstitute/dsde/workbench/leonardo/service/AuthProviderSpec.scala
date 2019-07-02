@@ -15,7 +15,6 @@ import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
 import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest.concurrent.ScalaFutures
@@ -61,7 +60,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
       new MockGoogleStorageDAO
     }
-    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, mockGoogleDataprocDAO, mockGoogleComputeDAO , mockGoogleIamDAO, mockGoogleProjectDAO, mockGoogleStorageDAO ,mockPetGoogleStorageDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy, FakeNewRelicMetricsInterpreter)
+    new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, mockGoogleDataprocDAO, mockGoogleComputeDAO , mockGoogleIamDAO, mockGoogleProjectDAO, mockGoogleStorageDAO ,mockPetGoogleStorageDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
   }
 
   def proxyWithAuthProvider(authProvider: LeoAuthProvider): ProxyService = {

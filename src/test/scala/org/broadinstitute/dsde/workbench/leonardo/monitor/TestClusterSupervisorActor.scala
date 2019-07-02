@@ -11,7 +11,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, 
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, LeoAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
-import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 
 object TestClusterSupervisorActor {
   def props(monitorConfig: MonitorConfig,
@@ -28,11 +27,10 @@ object TestClusterSupervisorActor {
             autoFreezeConfig: AutoFreezeConfig,
             jupyterProxyDAO: ToolDAO,
             rstudioProxyDAO: ToolDAO,
-            leonardoService: LeonardoService,
-            newRelic: NewRelicMetrics): Props =
+            leonardoService: LeonardoService): Props =
     Props(new TestClusterSupervisorActor(
       monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO,
-      google2StorageDAO, dbRef, testKit, authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, leonardoService, newRelic))
+      google2StorageDAO, dbRef, testKit, authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, leonardoService))
 }
 
 object TearDown
@@ -54,12 +52,11 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  autoFreezeConfig: AutoFreezeConfig,
                                  jupyterProxyDAO: ToolDAO,
                                  rstudioProxyDAO: ToolDAO,
-                                 leonardoService: LeonardoService,
-                                 newRelic: NewRelicMetrics)
+                                 leonardoService: LeonardoService)
   extends ClusterMonitorSupervisor(
     monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO,
     googleIamDAO, googleStorageDAO, google2StorageDAO, dbRef,
-    authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, leonardoService, newRelic) {
+    authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, leonardoService) {
 
   // Keep track of spawned child actors so we can shut them down when this actor is stopped
   var childActors: Seq[ActorRef] = Seq.empty

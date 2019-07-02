@@ -7,6 +7,8 @@ import java.util.UUID
 import akka.actor.{ActorRef, ActorSystem, Terminated}
 import akka.testkit.TestKit
 import cats.effect.IO
+import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
+import com.google.api.client.testing.json.MockJsonFactory
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
@@ -26,7 +28,6 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GcsLifecycleTypes.GcsLifecycleType
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsObjectName, GoogleProject, ServiceAccountKeyId}
-import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.Mockito._
 import org.scalatest.concurrent.Eventually
@@ -114,8 +115,8 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   def createClusterSupervisor(gdDAO: GoogleDataprocDAO, computeDAO: GoogleComputeDAO, iamDAO: GoogleIamDAO, projectDAO: GoogleProjectDAO, storageDAO: GoogleStorageDAO, storage2DAO: GoogleStorageService[IO], authProvider: LeoAuthProvider, jupyterDAO: ToolDAO, rstudioDAO: ToolDAO): ActorRef = {
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => new MockGoogleStorageDAO
-    val leoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, whitelistAuthProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy, FakeNewRelicMetricsInterpreter)
-    val supervisorActor = system.actorOf(TestClusterSupervisorActor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, computeDAO, iamDAO, storageDAO, storage2DAO, DbSingleton.ref, testKit, authProvider, autoFreezeConfig, jupyterDAO, rstudioDAO, leoService, FakeNewRelicMetricsInterpreter))
+    val leoService = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, whitelistAuthProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
+    val supervisorActor = system.actorOf(TestClusterSupervisorActor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, computeDAO, iamDAO, storageDAO, storage2DAO, DbSingleton.ref, testKit, authProvider, autoFreezeConfig, jupyterDAO, rstudioDAO, leoService))
 
     supervisorActor
   }
@@ -1010,4 +1011,5 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       verify(gdDAO, never()).getClusterStatus(any[GoogleProject], any[ClusterName])
     }
   }
+
 }
