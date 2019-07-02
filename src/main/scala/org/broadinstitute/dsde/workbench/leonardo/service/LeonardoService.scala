@@ -728,7 +728,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         gdDAO.createCluster(googleProject, clusterName, createClusterConfig)
       }
       operation <- retryResult match {
-        case Right(value) => Future.successful(value._2)
+        case Right((_, op)) => Future.successful(op)
         case Left(errors) =>
           Metrics.newRelic.incrementCounterIO("zoneCapacityClusterCreationFailure").unsafeRunAsync(_ => ())
           val exceptionMessage = errors.toList.map(_.toString).mkString(", ")
@@ -747,7 +747,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   private def whenGoogleZoneCapacityIssue(throwable: Throwable): Boolean = {
     throwable match {
-      case t: GoogleJsonResponseException => t.getStatusCode == 429 && t.getDetails.getErrors.asScala.head.getDomain.equalsIgnoreCase("rateLimitExceeded")
+      case t: GoogleJsonResponseException => t.getStatusCode == 429 && t.getDetails.getErrors.asScala.head.getReason.equalsIgnoreCase("rateLimitExceeded")
       case _ => false
     }
   }
