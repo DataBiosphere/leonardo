@@ -31,6 +31,11 @@ define(() => {
 
     function load() {
         console.info('safe mode plugin initialized')
+
+        if (!Jupyter.notebook) {
+            return //exit, they are in list view
+        }
+
         checkMetaLoop()
     }
 

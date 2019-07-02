@@ -78,6 +78,11 @@ define(() => {
 
     function init() {
         console.info('edit mode plugin initialized')
+
+        if (!Jupyter.notebook) {
+            return //exit, they are in list view
+        }
+
         checkMeta()
         initSyncMaintainer()
     }
