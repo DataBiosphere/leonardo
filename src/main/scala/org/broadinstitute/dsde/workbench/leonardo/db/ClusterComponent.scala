@@ -202,6 +202,7 @@ trait ClusterComponent extends LeoComponent {
 
     def getDeletingClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
       fullClusterQueryByUniqueKey(project, name)
+        .filter { _._1.status === ClusterStatus.Deleting.toString }
         .result map { recs =>
           unmarshalFullCluster(recs).headOption
         }
@@ -245,8 +246,10 @@ trait ClusterComponent extends LeoComponent {
     private[leonardo] def getClusterByUniqueKey(googleProject: GoogleProject,
                                                 clusterName: ClusterName,
                                                 destroyedDateOpt: Option[Instant]): DBIO[Option[Cluster]] = {
-      fullClusterQueryByUniqueKey(googleProject, clusterName, destroyedDateOpt).result
-        .map { recs => unmarshalFullCluster(recs).headOption }
+      fullClusterQueryByUniqueKey(googleProject, clusterName, destroyedDateOpt)
+        .result map { recs =>
+          unmarshalFullCluster(recs).headOption
+        }
     }
 
     def getInitBucket(project: GoogleProject, name: ClusterName): DBIO[Option[GcsPath]] = {
@@ -570,19 +573,6 @@ trait ClusterComponent extends LeoComponent {
           scopeQuery on (_._1._1._1._1._1.id === _.clusterId)
     } yield (cluster, instance, error, label, extension, image, scopes)
   }
-//
-//  def fullClusterQueryDef(project: GoogleProject, name: ClusterName): Query[(ClusterTable, Rep[Option[InstanceTable]], Rep[Option[ClusterErrorTable]], Rep[Option[LabelTable]], Rep[Option[ExtensionTable]], Rep[Option[ClusterImageTable]], Rep[Option[ScopeTable]]), (ClusterRecord, Option[InstanceRecord], Option[ClusterErrorRecord], Option[LabelRecord], Option[ExtensionRecord], Option[ClusterImageRecord], Option[ScopeRecord]), Seq] = {
-//    for {
-//      ((((((cluster, instance), error), label), extension), image), scopes) <-
-//        clusterQuery filter (_.googleProject === project.value) filter (_.clusterName === name.value) joinLeft
-//          instanceQuery on (_.id === _.clusterId) joinLeft
-//          clusterErrorQuery on (_._1.id === _.clusterId) joinLeft
-//          labelQuery on (_._1._1.id === _.clusterId) joinLeft
-//          extensionQuery on (_._1._1._1.id === _.clusterId) joinLeft
-//          clusterImageQuery on (_._1._1._1._1.id === _.clusterId) joinLeft
-//          scopeQuery on (_._1._1._1._1._1.id === _.clusterId)
-//    } yield (cluster, instance, error, label, extension, image, scopes)
-//  }
 
   def fullClusterQueryByUniqueKey(googleProject: GoogleProject,
                                           clusterName: ClusterName,
