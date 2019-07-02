@@ -194,14 +194,14 @@ trait ClusterComponent extends LeoComponent {
     // find* and get* methods do query the INSTANCE table
 
     def getActiveClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
-      fullClusterQueryByUniqueKey(project, name)
+      fullClusterQueryByUniqueKey(project, name, Some(dummyDate))
         .result map { recs =>
           unmarshalFullCluster(recs).headOption
         }
     }
 
     def getDeletingClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
-      fullClusterQueryByUniqueKey(project, name)
+      fullClusterQueryByUniqueKey(project, name, Some(dummyDate))
         .filter { _._1.status === ClusterStatus.Deleting.toString }
         .result map { recs =>
           unmarshalFullCluster(recs).headOption
@@ -576,7 +576,7 @@ trait ClusterComponent extends LeoComponent {
 
   def fullClusterQueryByUniqueKey(googleProject: GoogleProject,
                                           clusterName: ClusterName,
-                                          destroyedDateOpt: Option[Instant] = None): Query[(ClusterTable, Rep[Option[InstanceTable]], Rep[Option[ClusterErrorTable]], Rep[Option[LabelTable]], Rep[Option[ExtensionTable]], Rep[Option[ClusterImageTable]], Rep[Option[ScopeTable]]), (ClusterRecord, Option[InstanceRecord], Option[ClusterErrorRecord], Option[LabelRecord], Option[ExtensionRecord], Option[ClusterImageRecord], Option[ScopeRecord]), Seq] = {
+                                          destroyedDateOpt: Option[Instant]): Query[(ClusterTable, Rep[Option[InstanceTable]], Rep[Option[ClusterErrorTable]], Rep[Option[LabelTable]], Rep[Option[ExtensionTable]], Rep[Option[ClusterImageTable]], Rep[Option[ScopeTable]]), (ClusterRecord, Option[InstanceRecord], Option[ClusterErrorRecord], Option[LabelRecord], Option[ExtensionRecord], Option[ClusterImageRecord], Option[ScopeRecord]), Seq] = {
     val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
 
     for {
