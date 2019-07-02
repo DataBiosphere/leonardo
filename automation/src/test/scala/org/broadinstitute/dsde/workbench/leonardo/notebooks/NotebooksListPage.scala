@@ -55,8 +55,12 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
   }
 
   def withOpenNotebook[T](file: File, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T): T = {
-    storeInBrowser(Map("fileExists" -> file.getPath))
-    await enabled (text(file.getPath), timeout.toSeconds)
+    storeInBrowser(Map("fileExists" -> file.getPath)) //browser equivalent implementation of logger.info
+
+    //corresponds to either the file name if just a name is specified, or the first directory if a path is specified
+    val leadingDirSelector: Query = text(file.getPath.split("/")(0))
+    await enabled (leadingDirSelector, timeout.toSeconds)
+
     val notebookPage = new NotebookPage(url + "/notebooks/" + file.getPath).open
     notebookPage.awaitReadyKernel(timeout)
     val result = Try { testCode(notebookPage) }

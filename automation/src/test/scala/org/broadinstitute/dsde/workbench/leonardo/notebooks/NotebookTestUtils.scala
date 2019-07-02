@@ -129,7 +129,8 @@ trait NotebookTestUtils extends LeonardoTestUtils {
 
     val localPath: String = Welder.getLocalPath(gcsPath, shouldLocalizeFileInEditMode)
     val localFile: File = new File(localPath)
-    logger.info(s"does file $localPath exist: " + localFile.exists().toString)
+
+    logger.info("Initialized welder via /storageLinks and /localize")
     testCode(localFile)
   }
 

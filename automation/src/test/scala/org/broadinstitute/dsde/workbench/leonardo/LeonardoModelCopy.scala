@@ -75,16 +75,23 @@ case class Cluster(clusterName: ClusterName,
   def projectNameString: String = s"${googleProject.value}/${clusterName.string}"
 }
 
+//{}
+//
+
 case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterExtensionUri: Option[String] = None,
                           jupyterUserScriptUri: Option[String] = None,
                           machineConfig: Option[MachineConfig] = None,
+                          properties: Map[String, String] = Map(),
                           stopAfterCreation: Option[Boolean] = None,
                           userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
+                          autopause: Option[Boolean] = None,
+                          autopauseThreshold: Option[Int] = None,
                           defaultClientId: Option[String] = None,
                           jupyterDockerImage: Option[String] = None,
                           rstudioDockerImage: Option[String] = None,
-                          scopes: Option[Set[String]] = None,
+                          welderDockerImage: Option[String] = None,
+                          scopes: Set[String] = Set.empty,
                           enableWelder: Option[Boolean] = None)
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),

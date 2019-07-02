@@ -89,12 +89,8 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     */
   def createRonCluster(): Unit = {
     Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
-    val highMemClusterRequest = ClusterRequest(machineConfig = Option(MachineConfig(
-      masterMachineType = Some("n1-standard-8"),
-      workerMachineType = Some("n1-standard-8")
-    )),
-      enableWelder = Some(enableWelder))
-    Try (createNewCluster(billingProject, request = highMemClusterRequest)(ronAuthToken)) match {
+
+    Try (createNewCluster(billingProject, request = getClusterRequest())(ronAuthToken)) match {
       case Success(outcome) =>
         ronCluster = outcome
         logger.info(s"Successfully created cluster $ronCluster")
@@ -103,6 +99,18 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
         unclaimBillingProject()
         throw  ex
     }
+  }
+
+  def getClusterRequest(): ClusterRequest = {
+    val machineConfig = Option(MachineConfig(
+      masterMachineType = Some("n1-standard-8"),
+      workerMachineType = Some("n1-standard-8")
+    ))
+
+    ClusterRequest(
+      machineConfig = machineConfig,
+      autopause = Some(false),
+      enableWelder = Some(enableWelder))
   }
 
   /**

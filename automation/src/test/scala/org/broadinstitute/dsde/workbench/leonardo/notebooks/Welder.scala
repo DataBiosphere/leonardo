@@ -51,13 +51,11 @@ object Welder extends RestClient with LazyLogging {
 
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
 
-    logger.info(s"Welder status is making storage links entry: POST on $path with payload $payload")
-    val rawResponse = postRequest(path, payload, httpHeaders = List(cookie))
-   rawResponse
+    logger.info(s"Making Welder storage links entry: POST on $path with payload $payload")
+
+    postRequest(path, payload, httpHeaders = List(cookie))
   }
 
-//  def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(implicit token: AuthToken): String = {
-//    val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/objects"
 def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(implicit token: AuthToken): String = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/objects"
 
@@ -68,15 +66,12 @@ def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(i
         "localDestinationPath" -> getLocalPath(cloudStoragePath, isEditMode)
       ))
     )
-    //    val payload = s"{\"localBaseDirectory\": $localBaseDirectory, \"localSafeModeBaseDirectory\": $localSafeModeBaseDirectory, \"cloudStorageDirectory\": ${cloudStorageDirectory.objectName.toString}, \"pattern\": \"*\" }"
+
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
 
 
-    logger.info(s"Welder status is localizing: POST on $path with payload $payload")
-    val rawResponse = postRequest(path, payload, httpHeaders = List(cookie))
-    println("=======localize resp:")
-    println(rawResponse)
-    rawResponse
+    logger.info(s"Making Welder localize: POST on $path with payload $payload")
+    postRequest(path, payload, httpHeaders = List(cookie))
   }
 
   def getLocalPath(cloudStoragePath: GcsPath, isEditMode: Boolean): String = {
@@ -86,4 +81,5 @@ def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(i
       localSafeModeBaseDirectory
     }) + "/" + cloudStoragePath.objectName.value
   }
+
 }

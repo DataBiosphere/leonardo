@@ -76,4 +76,17 @@ object Notebook extends RestClient with LazyLogging {
     logger.info(s"Set cookie: GET /$path")
     parseResponse(getRequest(url + path, httpHeaders = List(Authorization(OAuth2BearerToken(token.value)))))
   }
+
+  class NotebookMode()
+  final case object SafeMode extends NotebookMode
+  final case object EditMode extends NotebookMode
+  final case object NoMode extends NotebookMode
+
+  def getModeFromString(message: String): NotebookMode = {
+    message match {
+      case message if message.toLowerCase().contains("safe") => SafeMode
+      case message if message.toLowerCase().contains("edit") => EditMode
+      case _ => NoMode
+    }
+  }
 }

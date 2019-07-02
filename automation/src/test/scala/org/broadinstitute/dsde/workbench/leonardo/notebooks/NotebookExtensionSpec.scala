@@ -22,9 +22,8 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
   override def enableWelder: Boolean = true
 
   debug = true
-  mockedCluster = mockCluster("gpalloc-dev-master-2b9yymo","automation-test-atcydjxkz")
-
-
+  mockedCluster = mockCluster("gpalloc-dev-master-3qqssch","automation-test-aot6wmp9z")
+//
   "Leonardo welder and notebooks" - {
 
 //    "Welder should be up" in { clusterFixture =>
@@ -37,22 +36,17 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
     "storageLinks and localize should work" in { clusterFixture =>
         val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
         withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { googleCloudDir =>
-          println("====================================================")
+          logger.info("Initialized google storage bucket")
 
           withWelderInitialized(clusterFixture.cluster, googleCloudDir, true) { localizedFile =>
-            println("sleeping for a minute")
-//            Thread.sleep(120000) //don't open browser until cluster is initialized properly
             withWebDriver { implicit driver =>
-            println("====================================================")
-            println("in welder initialized callback")
-            println(localizedFile)
 
-//
             withOpenNotebook(clusterFixture.cluster, localizedFile, 2.minutes) { notebookPage =>
               logger.info("notebook is open")
               notebookPage.hideModal()
               notebookPage.modeExists() shouldBe true
-              notebookPage.getModeText() shouldBe "Edit Mode"
+              notebookPage.getMode() shouldBe Notebook.EditMode
+              Thread.sleep(100000000)
 //                notebookPage.close()
             }
           }

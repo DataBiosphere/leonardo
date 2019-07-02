@@ -14,6 +14,7 @@ import scala.concurrent.duration._
 import scala.collection.JavaConverters._
 import org.broadinstitute.dsde.workbench.leonardo.KernelNotReadyException
 import org.broadinstitute.dsde.workbench.auth.AuthToken
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook.NotebookMode
 
 class NotebookPage(override val url: String)(override implicit val authToken: AuthToken, override implicit val webDriver: WebDriver)
   extends JupyterPage with Eventually with LazyLogging {
@@ -250,11 +251,11 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     find(modeBanner).size > 0
   }
 
-  def getModeText(): String = {
+  def getMode(): NotebookMode = {
     if (modeExists()) {
-      find(modeBanner).head.text
+      Notebook.getModeFromString(find(modeBanner).head.text)
     } else {
-      ""
+      Notebook.NoMode
     }
   }
 
