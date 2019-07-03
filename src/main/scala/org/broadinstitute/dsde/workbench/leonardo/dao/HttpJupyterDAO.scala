@@ -1,22 +1,20 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
-import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
-import akka.util.Timeout
-import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo.dns.{ClusterDnsCache, DnsCacheKey}
-import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import akka.http.scaladsl.unmarshalling.Unmarshal
+import akka.stream.ActorMaterializer
+import com.typesafe.scalalogging.LazyLogging
 import io.circe.Decoder
 import io.circe.parser.parse
 import org.broadinstitute.dsde.workbench.leonardo.dao.ExecutionState.{Idle, OtherState}
-import HttpJupyterDAO._
-import akka.stream.ActorMaterializer
+import org.broadinstitute.dsde.workbench.leonardo.dao.HttpJupyterDAO._
+import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
+import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
 class HttpJupyterDAO(val clusterDnsCache: ClusterDnsCache)(implicit system: ActorSystem, executionContext: ExecutionContext, materializer: ActorMaterializer) extends ToolDAO with LazyLogging {
@@ -24,7 +22,7 @@ class HttpJupyterDAO(val clusterDnsCache: ClusterDnsCache)(implicit system: Acto
   val http = Http(system)
 
   override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = {
-    getTargetHost(googleProject, clusterName) flatMap {
+    Proxy.getTargetHost(clusterDnsCache, googleProject, clusterName) flatMap {
       case HostReady(targetHost) =>
         val statusUri = Uri(s"https://${targetHost.toString}/notebooks/$googleProject/$clusterName/api/status")
         http.singleRequest(HttpRequest(uri = statusUri)) map { response =>
@@ -34,14 +32,9 @@ class HttpJupyterDAO(val clusterDnsCache: ClusterDnsCache)(implicit system: Acto
     }
   }
 
-  protected def getTargetHost(googleProject: GoogleProject, clusterName: ClusterName): Future[HostStatus] = {
-    implicit val timeout: Timeout = Timeout(5 seconds)
-    clusterDnsCache.getHostStatus(DnsCacheKey(googleProject, clusterName)).mapTo[HostStatus]
-  }
-
   override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = {
     for {
-      hostStatus <- getTargetHost(googleProject, clusterName)
+      hostStatus <- Proxy.getTargetHost(clusterDnsCache, googleProject, clusterName)
       resp <- hostStatus match {
         case HostReady(host) =>
           val sessionUri = Uri(s"https://${host.toString}/notebooks/$googleProject/$clusterName/api/sessions")
