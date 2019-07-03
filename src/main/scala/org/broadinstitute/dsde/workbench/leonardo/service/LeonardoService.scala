@@ -35,6 +35,7 @@ import spray.json._
 import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
+import scala.collection.JavaConverters._
 import scala.io.Source
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success}
@@ -723,15 +724,33 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
       // Create the cluster
       createClusterConfig = CreateClusterConfig(machineConfig, initScript, serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket, clusterScopes, clusterVPCSettings, clusterRequest.properties)
-      operation <- gdDAO.createCluster(googleProject, clusterName, createClusterConfig)
+      retryResult <- retryExponentially(whenGoogleZoneCapacityIssue, "Cluster creation failed because zone with adequate resources was not found") { () =>
+        gdDAO.createCluster(googleProject, clusterName, createClusterConfig)
+      }
+      operation <- retryResult match {
+        case Right((errors, op)) if errors == List.empty => Future.successful(op)
+        case Right((errors, op)) =>
+          Metrics.newRelic.incrementCounterIO("zoneCapacityClusterCreationFailure", errors.length).unsafeRunAsync(_ => ())
+          Future.successful(op)
+        case Left(errors) =>
+          Metrics.newRelic.incrementCounterIO("zoneCapacityClusterCreationFailure", errors.filter(whenGoogleZoneCapacityIssue).length).unsafeRunAsync(_ => ())
+          Future.failed(errors.head)
+      }
       cluster = Cluster.create(clusterRequest, userEmail, clusterName, googleProject, serviceAccountInfo,
-        machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, clusterScopes, Option(operation), Option(stagingBucket), clusterImages)
+        machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, clusterScopes, Some(operation), Option(stagingBucket), clusterImages)
     } yield (cluster, initBucket, serviceAccountKeyOpt)
 
     // If anything fails, we need to clean up Google resources that might have been created
     googleFuture.andThen { case Failure(t) =>
       // Don't wait for this future
       cleanUpGoogleResourcesOnError(t, googleProject, clusterName, initBucketName, serviceAccountInfo)
+    }
+  }
+
+  private def whenGoogleZoneCapacityIssue(throwable: Throwable): Boolean = {
+    throwable match {
+      case t: GoogleJsonResponseException => t.getStatusCode == 429 && t.getDetails.getErrors.asScala.head.getReason.equalsIgnoreCase("rateLimitExceeded")
+      case _ => false
     }
   }
 
