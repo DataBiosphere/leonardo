@@ -80,7 +80,7 @@ define(() => {
         console.info('edit mode plugin initialized')
 
         if (!Jupyter.notebook) {
-            return //exit, they are in list view
+            return; //exit, they are in list view
         }
 
         checkMeta()
