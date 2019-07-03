@@ -24,7 +24,7 @@ object Welder extends RestClient with LazyLogging {
   private val url = LeonardoConfig.Leonardo.apiUrl
 
   def welderBasePath(googleProject: GoogleProject, clusterName: ClusterName): String = {
-    s"${url}/proxy/${googleProject.value}/${clusterName.string}/welder"
+    s"${url}proxy/${googleProject.value}/${clusterName.string}/welder"
 //    s"${url}/proxy/gpalloc-dev-master-3qqssch/automation-test-a3gbuiq6z/welder"
 //    s"http://10.1.3.12:8080"
   }

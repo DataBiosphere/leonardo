@@ -15,6 +15,7 @@ object Dependencies {
   val workbenchGoogleV  = "0.19-2aaa9b5"
   val workbenchGoogle2V = "0.2-2149dba"
   val workbenchMetricsV = "0.3-c5b80d2"
+  val workbenchNewRelicV = "0.2-24dabc8"
 
   val samV =  "1.0-5cdffb4"
 
@@ -78,6 +79,9 @@ object Dependencies {
   val workbenchGoogleTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-google"  % workbenchGoogleV % "test" classifier "tests" excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel)
   val workbenchGoogle2Test: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-google2" % workbenchGoogle2V % "test" classifier "tests" //for generators
   val workbenchMetrics: ModuleID    = "org.broadinstitute.dsde.workbench" %% "workbench-metrics" % workbenchMetricsV excludeAll(excludeWorkbenchUtil, excludeSlf4j)
+  val workbenchNewRelic: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-newrelic" % workbenchNewRelicV
+  val workbenchNewRelicTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-newrelic" % workbenchNewRelicV % "test" classifier "tests"
+
 
   val sam: ModuleID = "org.broadinstitute.dsde.sam-client" %% "sam" % samV
 
@@ -131,6 +135,8 @@ object Dependencies {
     workbenchGoogleTest,
     workbenchGoogle2Test,
     workbenchMetrics,
+    workbenchNewRelic,
+    workbenchNewRelicTest,
     sam,
 
     sealerate,

@@ -51,7 +51,8 @@ final case class ServiceAccountInfoRecord(clusterServiceAccount: Option[String],
 final case class AuditInfoRecord(creator: String,
                                  createdDate: Timestamp,
                                  destroyedDate: Timestamp,
-                                 dateAccessed: Timestamp)
+                                 dateAccessed: Timestamp,
+                                 kernelFoundBusyDate: Option[Timestamp])
 
 
 trait ClusterComponent extends LeoComponent {
@@ -90,6 +91,7 @@ trait ClusterComponent extends LeoComponent {
     def stagingBucket = column[Option[String]]("stagingBucket", O.Length(254))
     def dateAccessed= column[Timestamp]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
     def autopauseThreshold = column[Int]("autopauseThreshold")
+    def kernelFoundBusyDate = column[Option[Timestamp]]("kernelFoundBusyDate", O.SqlType("TIMESTAMP(6)"))
     def defaultClientId = column[Option[String]]("defaultClientId", O.Length(1024))
     def stopAfterCreation = column[Boolean]("stopAfterCreation")
     def welderEnabled = column[Boolean]("welderEnabled")
@@ -104,7 +106,7 @@ trait ClusterComponent extends LeoComponent {
     def * = (
       id, clusterName, googleId, googleProject, operationName, status, hostIp,
       jupyterExtensionUri, jupyterUserScriptUri, initBucket,
-      (creator, createdDate, destroyedDate, dateAccessed),
+      (creator, createdDate, destroyedDate, dateAccessed, kernelFoundBusyDate),
       (numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers),
       (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket, autopauseThreshold, defaultClientId, stopAfterCreation, welderEnabled, properties
     ).shaped <> ({
@@ -194,19 +196,14 @@ trait ClusterComponent extends LeoComponent {
     // find* and get* methods do query the INSTANCE table
 
     def getActiveClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
-      fullClusterQuery
-        .filter { _._1.googleProject === project.value }
-        .filter { _._1.clusterName === name.value }
-        .filter { _._1.destroyedDate === Timestamp.from(dummyDate) }
+      fullClusterQueryByUniqueKey(project, name, Some(dummyDate))
         .result map { recs =>
           unmarshalFullCluster(recs).headOption
         }
     }
 
     def getDeletingClusterByName(project: GoogleProject, name: ClusterName): DBIO[Option[Cluster]] = {
-      fullClusterQuery
-        .filter { _._1.googleProject === project.value }
-        .filter { _._1.clusterName === name.value }
+      fullClusterQueryByUniqueKey(project, name, Some(dummyDate))
         .filter { _._1.status === ClusterStatus.Deleting.toString }
         .result map { recs =>
           unmarshalFullCluster(recs).headOption
@@ -252,7 +249,9 @@ trait ClusterComponent extends LeoComponent {
                                                 clusterName: ClusterName,
                                                 destroyedDateOpt: Option[Instant]): DBIO[Option[Cluster]] = {
       fullClusterQueryByUniqueKey(googleProject, clusterName, destroyedDateOpt)
-        .map { recs => unmarshalFullCluster(recs).headOption }
+        .result map { recs =>
+          unmarshalFullCluster(recs).headOption
+        }
     }
 
     def getInitBucket(project: GoogleProject, name: ClusterName): DBIO[Option[GcsPath]] = {
@@ -345,8 +344,23 @@ trait ClusterComponent extends LeoComponent {
     }
 
     def updateDateAccessedByProjectAndName(googleProject: GoogleProject, clusterName: ClusterName, dateAccessed: Instant): DBIO[Int] = {
-      clusterQuery.getActiveClusterByName(googleProject, clusterName) flatMap {
+      clusterQuery.getActiveClusterByNameMinimal(googleProject, clusterName) flatMap {
         case Some(c) => clusterQuery.updateDateAccessed(c.id, dateAccessed)
+        case None => DBIO.successful(0)
+      }
+    }
+
+    def clearKernelFoundBusyDate(id: Long): DBIO[Int] = {
+      findByIdQuery(id).map(_.kernelFoundBusyDate).update(None)
+    }
+
+    def updateKernelFoundBusyDate(id: Long, kernelFoundBusyDate: Instant): DBIO[Int] = {
+      findByIdQuery(id).map(_.kernelFoundBusyDate).update(Option(Timestamp.from(kernelFoundBusyDate)))
+    }
+
+    def clearKernelFoundBusyDateByProjectAndName(googleProject: GoogleProject, clusterName: ClusterName): DBIO[Int] = {
+      clusterQuery.getActiveClusterByNameMinimal(googleProject, clusterName) flatMap {
+        case Some(c) => clusterQuery.clearKernelFoundBusyDate(c.id)
         case None => DBIO.successful(0)
       }
     }
@@ -436,7 +450,8 @@ trait ClusterComponent extends LeoComponent {
           cluster.auditInfo.creator.value,
           Timestamp.from(cluster.auditInfo.createdDate),
           marshalDestroyedDate(cluster.auditInfo.destroyedDate),
-          Timestamp.from(cluster.auditInfo.dateAccessed)
+          Timestamp.from(cluster.auditInfo.dateAccessed),
+          cluster.auditInfo.kernelFoundBusyDate.map(attemptedDate => Timestamp.from(attemptedDate))
         ),
         MachineConfigRecord(
           cluster.machineConfig.numberOfWorkers.get,   //a cluster should always have numberOfWorkers defined
@@ -519,7 +534,8 @@ trait ClusterComponent extends LeoComponent {
         WorkbenchEmail(clusterRecord.auditInfo.creator),
         clusterRecord.auditInfo.createdDate.toInstant,
         unmarshalDestroyedDate(clusterRecord.auditInfo.destroyedDate),
-        clusterRecord.auditInfo.dateAccessed.toInstant)
+        clusterRecord.auditInfo.dateAccessed.toInstant,
+        clusterRecord.auditInfo.kernelFoundBusyDate.map(_.toInstant))
 
       Cluster(
         clusterRecord.id,
@@ -577,16 +593,21 @@ trait ClusterComponent extends LeoComponent {
     } yield (cluster, instance, error, label, extension, image, scopes)
   }
 
-  private def fullClusterQueryByUniqueKey(googleProject: GoogleProject,
+  def fullClusterQueryByUniqueKey(googleProject: GoogleProject,
                                           clusterName: ClusterName,
-                                          destroyedDateOpt: Option[Instant]) = {
+                                          destroyedDateOpt: Option[Instant]): Query[(ClusterTable, Rep[Option[InstanceTable]], Rep[Option[ClusterErrorTable]], Rep[Option[LabelTable]], Rep[Option[ExtensionTable]], Rep[Option[ClusterImageTable]], Rep[Option[ScopeTable]]), (ClusterRecord, Option[InstanceRecord], Option[ClusterErrorRecord], Option[LabelRecord], Option[ExtensionRecord], Option[ClusterImageRecord], Option[ScopeRecord]), Seq] = {
     val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
 
-    fullClusterQuery
-      .filter { _._1.googleProject === googleProject.value }
-      .filter { _._1.clusterName === clusterName.value }
-      .filter { _._1.destroyedDate === Timestamp.from(destroyedDate) }
-      .result
+    for {
+      ((((((cluster, instance), error), label), extension), image), scopes) <-
+        clusterQuery filter (_.googleProject === googleProject.value) filter (_.clusterName === clusterName.value) filter (_.destroyedDate === Timestamp.from(destroyedDate)) joinLeft
+          instanceQuery on (_.id === _.clusterId) joinLeft
+          clusterErrorQuery on (_._1.id === _.clusterId) joinLeft
+          labelQuery on (_._1._1.id === _.clusterId) joinLeft
+          extensionQuery on (_._1._1._1.id === _.clusterId) joinLeft
+          clusterImageQuery on (_._1._1._1._1.id === _.clusterId) joinLeft
+          scopeQuery on (_._1._1._1._1._1.id === _.clusterId)
+    } yield (cluster, instance, error, label, extension, image, scopes)
   }
 
   private def findByIdQuery(id: Long): Query[ClusterTable, ClusterRecord, Seq] = {

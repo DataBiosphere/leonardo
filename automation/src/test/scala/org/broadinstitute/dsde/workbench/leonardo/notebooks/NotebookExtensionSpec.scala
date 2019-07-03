@@ -21,8 +21,8 @@ import scala.language.postfixOps
 class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
   override def enableWelder: Boolean = true
 
-  debug = true
-  mockedCluster = mockCluster("gpalloc-dev-master-3qqssch","automation-test-aot6wmp9z")
+//  debug = true
+  mockedCluster = mockCluster("gpalloc-dev-master-3qqssch","automation-test-aolb10qdz/")
 //
   "Leonardo welder and notebooks" - {
 
@@ -33,7 +33,7 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
 //      resp.status.isSuccess() shouldBe true
 //    }
 
-    "storageLinks and localize should work" in { clusterFixture =>
+    "open notebook in edit mode should work" in { clusterFixture =>
         val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
         withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { googleCloudDir =>
           logger.info("Initialized google storage bucket")
@@ -53,6 +53,27 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
         }
         }
       }
+
+//    "open notebook in playground mode should work" in { clusterFixture =>
+//      val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
+//      withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { googleCloudDir =>
+//        logger.info("Initialized google storage bucket")
+//
+//        withWelderInitialized(clusterFixture.cluster, googleCloudDir, true) { localizedFile =>
+//          withWebDriver { implicit driver =>
+//
+//            withOpenNotebook(clusterFixture.cluster, localizedFile, 2.minutes) { notebookPage =>
+//              logger.info("notebook is open")
+//              notebookPage.hideModal()
+//              notebookPage.modeExists() shouldBe true
+//              notebookPage.getMode() shouldBe Notebook.EditMode
+//              Thread.sleep(100000000)
+//              //                notebookPage.close()
+//            }
+//          }
+//        }
+//      }
+//    }
 
   }
 }
