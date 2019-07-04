@@ -17,11 +17,11 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.{ExecutionContext, Future}
 
-class HttpJupyterDAO(val clusterDnsCache: ClusterDnsCache)(implicit system: ActorSystem, executionContext: ExecutionContext, materializer: ActorMaterializer) extends ToolDAO with LazyLogging {
+class HttpJupyterDAO(val clusterDnsCache: ClusterDnsCache)(implicit system: ActorSystem, executionContext: ExecutionContext, materializer: ActorMaterializer) extends JupyterDAO with LazyLogging {
 
   val http = Http(system)
 
-  override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = {
+  def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = {
     Proxy.getTargetHost(clusterDnsCache, googleProject, clusterName) flatMap {
       case HostReady(targetHost) =>
         val statusUri = Uri(s"https://${targetHost.toString}/notebooks/$googleProject/$clusterName/api/status")
@@ -32,7 +32,7 @@ class HttpJupyterDAO(val clusterDnsCache: ClusterDnsCache)(implicit system: Acto
     }
   }
 
-  override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = {
+  def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = {
     for {
       hostStatus <- Proxy.getTargetHost(clusterDnsCache, googleProject, clusterName)
       resp <- hostStatus match {
@@ -55,6 +55,11 @@ object HttpJupyterDAO {
   implicit val executionStateDecoder: Decoder[ExecutionState] = Decoder.decodeString.map(s => if(s == Idle.toString) Idle else OtherState(s))
   implicit val kernalDecoder: Decoder[Kernel] = Decoder.forProduct1("execution_state")(Kernel)
   implicit val sessionDecoder: Decoder[Session] = Decoder.forProduct1("kernel")(Session)
+}
+
+trait JupyterDAO {
+  def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean]
+  def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean]
 }
 
 sealed abstract class ExecutionState

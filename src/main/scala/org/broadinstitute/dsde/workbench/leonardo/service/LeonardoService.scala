@@ -592,7 +592,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                gdDAO.resizeCluster(cluster.googleProject, cluster.clusterName, numPreemptibles = Some(0))
              else Future.unit
 
-        _ <- welderDao.flushCache(cluster.googleProject, cluster.clusterName).handleError(e => logger.error(s"fail to flush welder cache for ${cluster}"))
+        _ <- if(cluster.welderEnabled)
+          welderDao.flushCache(cluster.googleProject, cluster.clusterName).handleError(e => logger.error(s"fail to flush welder cache for ${cluster}"))
+        else Future.unit
         // Now stop each instance individually
         _ <- Future.traverse(cluster.nonPreemptibleInstances) { instance =>
           // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted

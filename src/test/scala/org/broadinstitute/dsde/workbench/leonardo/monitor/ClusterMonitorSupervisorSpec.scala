@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.google.mock.MockGoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleStorageInterpreter
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockJupyterDAO, MockRStudioDAO, MockWelderDAO, ToolDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, MockJupyterDAO, MockRStudioDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, ClusterStatus}
@@ -61,7 +61,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
       bucketHelper, contentSecurityPolicy)
 
     val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO,
-      computeDAO, iamDAO, storageDAO, FakeGoogleStorageInterpreter, DbSingleton.ref, authProvider, autoFreezeConfig, MockJupyterDAO, MockRStudioDAO, leoService))
+      computeDAO, iamDAO, storageDAO, FakeGoogleStorageInterpreter, DbSingleton.ref, authProvider, autoFreezeConfig, MockJupyterDAO, MockRStudioDAO, MockWelderDAO, leoService))
 
     eventually(timeout(Span(30, Seconds))) {
       val c1 = dbFutureValue { _.clusterQuery.getClusterById(runningCluster.id) }
@@ -87,7 +87,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
 
     val authProvider = mock[LeoAuthProvider]
 
-    val jupyterProxyDAO = new ToolDAO{
+    val jupyterProxyDAO = new JupyterDAO {
       override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = Future.successful(true)
       override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = Future.successful(false)
     }
@@ -104,7 +104,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
       bucketHelper, contentSecurityPolicy)
 
     val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO,
-      computeDAO, iamDAO, storageDAO, FakeGoogleStorageInterpreter, DbSingleton.ref, authProvider, autoFreezeConfig, jupyterProxyDAO, MockRStudioDAO, leoService))
+      computeDAO, iamDAO, storageDAO, FakeGoogleStorageInterpreter, DbSingleton.ref, authProvider, autoFreezeConfig, jupyterProxyDAO, MockRStudioDAO, MockWelderDAO, leoService))
 
     eventually(timeout(Span(30, Seconds))) {
       val c1 = dbFutureValue { _.clusterQuery.getClusterById(runningCluster.id) }
@@ -124,7 +124,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
     val projectDAO = mock[GoogleProjectDAO]
     val authProvider = mock[LeoAuthProvider]
 
-    val jupyterProxyDAO = new ToolDAO{
+    val jupyterProxyDAO = new JupyterDAO {
       override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = Future.successful(true)
       override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = Future.failed(new Exception)
     }
@@ -141,7 +141,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
       bucketHelper, contentSecurityPolicy)
 
     val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO,
-      computeDAO, iamDAO, storageDAO, FakeGoogleStorageInterpreter, DbSingleton.ref, authProvider, autoFreezeConfig, jupyterProxyDAO, MockRStudioDAO, leoService))
+      computeDAO, iamDAO, storageDAO, FakeGoogleStorageInterpreter, DbSingleton.ref, authProvider, autoFreezeConfig, jupyterProxyDAO, MockRStudioDAO, MockWelderDAO, leoService))
 
     eventually(timeout(Span(30, Seconds))) {
       val c1 = dbFutureValue { _.clusterQuery.getClusterById(runningCluster.id) }
@@ -160,7 +160,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
     val projectDAO = mock[GoogleProjectDAO]
     val authProvider = mock[LeoAuthProvider]
 
-    val jupyterProxyDAO = new ToolDAO{
+    val jupyterProxyDAO = new JupyterDAO {
       override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = Future.successful(true)
       override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = Future.successful(false)
     }
@@ -177,7 +177,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
       bucketHelper, contentSecurityPolicy)
 
     val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO,
-      computeDAO, iamDAO, storageDAO, FakeGoogleStorageInterpreter, DbSingleton.ref, authProvider, autoFreezeConfig, jupyterProxyDAO, MockRStudioDAO, leoService))
+      computeDAO, iamDAO, storageDAO, FakeGoogleStorageInterpreter, DbSingleton.ref, authProvider, autoFreezeConfig, jupyterProxyDAO, MockRStudioDAO, MockWelderDAO, leoService))
 
     eventually(timeout(Span(30, Seconds))) {
       val c1 = dbFutureValue { _.clusterQuery.getClusterById(runningCluster.id) }

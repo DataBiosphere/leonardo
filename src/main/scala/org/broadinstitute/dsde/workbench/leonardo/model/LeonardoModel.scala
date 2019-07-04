@@ -75,7 +75,7 @@ case class AuditInfo(creator: WorkbenchEmail,
                      dateAccessed: Instant,
                      kernelFoundBusyDate: Option[Instant])
 
-sealed trait ClusterTool extends EnumEntry
+sealed trait ClusterTool extends EnumEntry with Serializable with Product
 object ClusterTool extends Enum[ClusterTool] {
   val values = findValues
   case object Jupyter extends ClusterTool
