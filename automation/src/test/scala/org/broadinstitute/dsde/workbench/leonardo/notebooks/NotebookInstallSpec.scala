@@ -1,9 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import org.broadinstitute.dsde.workbench.google2.GcsBlobName
 import org.broadinstitute.dsde.workbench.leonardo.ClusterFixtureSpec
-import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
-
 import scala.language.postfixOps
 
 class NotebookInstallSpec extends ClusterFixtureSpec with NotebookTestUtils {
