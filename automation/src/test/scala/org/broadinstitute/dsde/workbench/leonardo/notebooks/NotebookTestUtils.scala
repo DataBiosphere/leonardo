@@ -323,10 +323,10 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     }
   }
 
-  def getObject(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[String] = {
+  def getObject(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[Option[String]] = {
     google2StorageResource.use {
       google2StorageDAO =>
-        google2StorageDAO.getObject(workspaceBucketName, notebookName, None).compile.last.map(_.getOrElse(Byte.MinValue).toString)
+        google2StorageDAO.unsafeGetObject(workspaceBucketName, notebookName, None)
     }
   }
 

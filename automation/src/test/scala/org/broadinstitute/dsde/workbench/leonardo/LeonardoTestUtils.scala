@@ -82,7 +82,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   implicit val cs = IO.contextShift(global)
   implicit val t = IO.timer(global)
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
-  val google2StorageResource = GoogleStorageService.resource[IO]("/automation/src/test/resources/firecloud-account.json", scala.concurrent.ExecutionContext.global)
+  val google2StorageResource = GoogleStorageService.resource[IO]("/Users/akarukap/Documents/firecloud/leonardo/automation/src/test/resources/firecloud-account.json", scala.concurrent.ExecutionContext.global)
 
   // TODO: move this to NotebookTestUtils and chance cluster-specific functions to only call if necessary after implementing RStudio
   def saveJupyterLogFile(clusterName: ClusterName, googleProject: GoogleProject, suffix: String)(implicit token: AuthToken): Try[File] = {
@@ -535,10 +535,10 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       stagingBucketObjects <- OptionT.liftF[Future, List[GcsObjectName]](googleStorageDAO.listObjectsWithPrefix(stagingBucketName, "google-cloud-dataproc-metainfo"))
       initLogFile <- OptionT.fromOption[Future](stagingBucketObjects.find(_.value.endsWith("dataproc-initialization-script-0_output")))
       initContent <- OptionT(googleStorageDAO.getObject(stagingBucketName, initLogFile))
-      initDownloadFile <- OptionT.pure[Future, File](downloadLogFile(initContent, new File(initLogFile.value).getName))
+      initDownloadFile <- OptionT.pure[Future](downloadLogFile(initContent, new File(initLogFile.value).getName))
       startupLogFile <- OptionT.fromOption[Future](stagingBucketObjects.find(_.value.endsWith("dataproc-startup-script_output")))
       startupContent <- OptionT(googleStorageDAO.getObject(stagingBucketName, startupLogFile))
-      startupDownloadFile <- OptionT.pure[Future, File](downloadLogFile(startupContent, new File(startupLogFile.value).getName))
+      startupDownloadFile <- OptionT.pure[Future](downloadLogFile(startupContent, new File(startupLogFile.value).getName))
     } yield (initDownloadFile, startupDownloadFile)
 
     transformed.value
