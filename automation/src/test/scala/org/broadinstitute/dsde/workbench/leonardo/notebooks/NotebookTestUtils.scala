@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets
 import java.util.Base64
 
 import cats.effect.IO
+import java.time.Instant
 import scala.concurrent.ExecutionContext.global
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
@@ -315,10 +316,20 @@ trait NotebookTestUtils extends LeonardoTestUtils {
       google2StorageDAO =>
         for {
           metadata <- google2StorageDAO.getObjectMetadata(workspaceBucketName, notebookName, None).compile.last
-          lastLockedBy = metadata match {
-            case Some(GetMetadataResponse.Metadata(_, metadataMap)) if metadataMap.contains("lastLockedBy") => Some(metadataMap("lastLockedBy"))
+          lockExpiresAt = metadata match {
+            case Some(GetMetadataResponse.Metadata(_, metadataMap)) if metadataMap.contains("lockExpiresAt") => Some(metadataMap("lockExpiresAt"))
             case _ => None
           }
+          currentlyLocked = lockExpiresAt match {
+            case Some(instantStr) => Instant.parse(instantStr).compareTo(Instant.now()) == 1
+            case None => false
+          }
+          lastLockedBy = if (currentlyLocked) {
+            metadata match {
+              case Some(GetMetadataResponse.Metadata(_, metadataMap)) if metadataMap.contains("lastLockedBy") => Some(metadataMap("lastLockedBy"))
+              case _ => None
+            }
+          } else None
         } yield lastLockedBy
     }
   }

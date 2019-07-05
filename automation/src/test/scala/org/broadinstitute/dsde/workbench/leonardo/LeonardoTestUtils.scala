@@ -82,7 +82,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   implicit val cs = IO.contextShift(global)
   implicit val t = IO.timer(global)
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
-  val google2StorageResource = GoogleStorageService.resource[IO]("/Users/akarukap/Documents/firecloud/leonardo/automation/src/test/resources/firecloud-account.json", scala.concurrent.ExecutionContext.global)
+  val google2StorageResource = GoogleStorageService.resource[IO](LeonardoConfig.GCS.pathToQAJson, scala.concurrent.ExecutionContext.global)
 
   // TODO: move this to NotebookTestUtils and chance cluster-specific functions to only call if necessary after implementing RStudio
   def saveJupyterLogFile(clusterName: ClusterName, googleProject: GoogleProject, suffix: String)(implicit token: AuthToken): Try[File] = {
