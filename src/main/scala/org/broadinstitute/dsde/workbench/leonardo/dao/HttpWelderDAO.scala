@@ -21,7 +21,7 @@ class HttpWelderDAO(val clusterDnsCache: ClusterDnsCache)
     Proxy.getTargetHost(clusterDnsCache, googleProject, clusterName) flatMap {
       case HostReady(targetHost) =>
         val statusUri = Uri(s"https://${targetHost.toString}/proxy/$googleProject/$clusterName/welder/cache/flush")
-        http.singleRequest(HttpRequest(uri = statusUri)) flatMap { response =>
+        http.singleRequest(HttpRequest(uri = statusUri, method = HttpMethods.POST)) flatMap { response =>
           if(response.status.isSuccess)
             Metrics.newRelic.incrementCounterFuture("flushWelderCacheSuccess")
           else
