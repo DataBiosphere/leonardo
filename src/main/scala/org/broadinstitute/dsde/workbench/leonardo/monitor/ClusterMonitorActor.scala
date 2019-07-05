@@ -25,7 +25,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterDeleted, ClusterSupervisorMessage, RemoveFromList}
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsLifecycleTypes, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GoogleProject}
 import org.broadinstitute.dsde.workbench.util.{Retry, addJitter}
 import slick.dbio.DBIOAction
 
