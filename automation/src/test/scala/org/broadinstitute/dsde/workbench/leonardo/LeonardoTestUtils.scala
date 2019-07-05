@@ -7,13 +7,16 @@ import java.util.Base64
 
 import akka.actor.ActorSystem
 import cats.data.OptionT
+import cats.effect.IO
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
+import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserAuthToken}
 import org.broadinstitute.dsde.workbench.config.Credentials
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
+import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.service.{Orchestration, RestException, Sam}
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
 import org.broadinstitute.dsde.workbench.leonardo.lab._
@@ -32,6 +35,7 @@ import org.scalatest.{Matchers, Suite}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Minutes, Seconds, Span}
 
+import scala.concurrent.ExecutionContext.global
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -74,6 +78,11 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   val jupyterLabExtensionClusterRequest = UserJupyterExtensionConfig(
     serverExtensions = Map("jupyterlab" -> "jupyterlab")
   )
+
+//  implicit val cs = IO.contextShift(global)
+//  implicit val t = IO.timer(global)
+//  implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
+  //val google2StorageResource = GoogleStorageService.resource[IO]("/automation/src/test/resources/firecloud-account.json", scala.concurrent.ExecutionContext.global)
 
   // TODO: move this to NotebookTestUtils and chance cluster-specific functions to only call if necessary after implementing RStudio
   def saveJupyterLogFile(clusterName: ClusterName, googleProject: GoogleProject, suffix: String)(implicit token: AuthToken): Try[File] = {
@@ -138,7 +147,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
     cluster.googleProject shouldBe expectedProject
     cluster.clusterName shouldBe expectedName
-    
+
     val expectedStopAfterCreation = clusterRequest.stopAfterCreation.getOrElse(false)
     cluster.stopAfterCreation shouldBe expectedStopAfterCreation
 

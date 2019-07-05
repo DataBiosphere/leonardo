@@ -4,6 +4,9 @@ import java.io.{File, FileOutputStream}
 import java.nio.charset.StandardCharsets
 import java.util.Base64
 
+import cats.effect.IO
+import scala.concurrent.ExecutionContext.global
+import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
@@ -11,6 +14,7 @@ import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
+import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleStorageService}
 import org.openqa.selenium.WebDriver
 import org.scalatest.Suite
 
@@ -305,4 +309,25 @@ trait NotebookTestUtils extends LeonardoTestUtils {
       case other => fail(s"Unexpected kernel: $other")
     }
   }
+
+  def getLockedBy(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[String] = {
+    google2StorageResource.use {
+      google2StorageDAO =>
+        for {
+          metadata <- google2StorageDAO.getObjectMetadata(workspaceBucketName, notebookName, None).compile.last
+          lastLockedBy = metadata match {
+            case Some(GetMetadataResponse.Metadata(_, metadataMap)) => metadataMap("lastLockedBy")
+            case _ => ""
+          }
+        } yield lastLockedBy
+    }
+  }
+
+  def getObject(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[String] = {
+    google2StorageResource.use {
+      google2StorageDAO =>
+        google2StorageDAO.getObject(workspaceBucketName, notebookName, None).compile.last.map(_.getOrElse(Byte.MinValue).toString)
+    }
+  }
+
 }
