@@ -6,8 +6,6 @@ import java.util.Base64
 
 import cats.effect.IO
 import java.time.Instant
-import scala.concurrent.ExecutionContext.global
-import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
@@ -15,7 +13,7 @@ import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleStorageService}
+import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse}
 import org.openqa.selenium.WebDriver
 import org.scalatest.Suite
 
