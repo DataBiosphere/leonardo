@@ -310,14 +310,14 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     }
   }
 
-  def getLockedBy(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[String] = {
+  def getLockedBy(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[Option[String]] = {
     google2StorageResource.use {
       google2StorageDAO =>
         for {
           metadata <- google2StorageDAO.getObjectMetadata(workspaceBucketName, notebookName, None).compile.last
           lastLockedBy = metadata match {
-            case Some(GetMetadataResponse.Metadata(_, metadataMap)) => metadataMap("lastLockedBy")
-            case _ => ""
+            case Some(GetMetadataResponse.Metadata(_, metadataMap)) if metadataMap.contains("lastLockedBy") => Some(metadataMap("lastLockedBy"))
+            case _ => None
           }
         } yield lastLockedBy
     }
