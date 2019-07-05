@@ -23,8 +23,6 @@ class NotebookInstallSpec extends ClusterFixtureSpec with NotebookTestUtils {
           notebookPage.executeCell("1+1") shouldBe Some("2")
           notebookPage.executeCell(getPythonVersion) shouldBe Some("3.6.8")
           notebookPage.executeCell(getBxPython).get should include("Copyright (c)")
-          val lockedtest = getLockedBy(GcsBucketName("leotest-juplab"), GcsBlobName("Untitled.ipynb"))
-          println(lockedtest)
         }
       }
     }
