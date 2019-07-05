@@ -1,4 +1,3 @@
-import Dependencies.{excludeFindbugsJsr, excludeHttpComponent, excludeIoGrpc, excludeWorkbenchMetrics, excludeWorkbenchUtil}
 import sbt._
 
 object Dependencies {
@@ -15,7 +14,6 @@ object Dependencies {
 
   val excludeWorkbenchModel  = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-model_" + scalaV)
   val excludeWorkbenchGoogle = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-google_" + scalaV)
-  val excludeWorkbenchUtil      = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-util_2.12")
   val excludeWorkbenchMetrics   = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-metrics_2.12")
   val excludeIoGrpc             = ExclusionRule(organization = "io.grpc", name = "grpc-core")
   val excludeFindbugsJsr        = ExclusionRule(organization = "com.google.code.findbugs", name = "jsr305")
