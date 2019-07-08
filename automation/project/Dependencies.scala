@@ -32,7 +32,7 @@ object Dependencies {
 
   val workbenchModel: ModuleID  =  "org.broadinstitute.dsde.workbench" %% "workbench-model"  % workbenchModelV excludeAll (excludeGoogleJsr305, excludeGoogleError)
   val workbenchGoogle: ModuleID = "org.broadinstitute.dsde.workbench"  %% "workbench-google" % workbenchGoogleV excludeAll (excludeWorkbenchModel, excludeGoogleOauth2, excludeGoogleJsr305, excludeGoogleApiClient, excludeGrpc, excludeGoogleError, excludeSlf4j)
-  val workbenchGoogle2: ModuleID     = "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V excludeAll(excludeWorkbenchModel, excludeWorkbenchMetrics, excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent)
+  val workbenchGoogle2: ModuleID     = "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V excludeAll(excludeWorkbenchModel, excludeGuava, excludeGuavaJdk5, excludeWorkbenchMetrics, excludeIoGrpc, excludeGoogleError, excludeFindbugsJsr, excludeGoogleApiClient, excludeHttpComponent)
 
 
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (
