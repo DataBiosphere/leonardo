@@ -9,10 +9,14 @@ object Dependencies {
 
   val workbenchModelV   = "0.12-a19203d"
   val workbenchGoogleV  = "0.16-f2a0020"
+  val workbenchGoogle2V = "0.2-2149dba"
   val serviceTestV = "0.16-f0e5d47"
 
   val excludeWorkbenchModel  = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-model_" + scalaV)
   val excludeWorkbenchGoogle = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-google_" + scalaV)
+  val excludeWorkbenchMetrics   = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-metrics_2.12")
+  val excludeIoGrpc             = ExclusionRule(organization = "io.grpc", name = "grpc-core")
+  val excludeFindbugsJsr        = ExclusionRule(organization = "com.google.code.findbugs", name = "jsr305")
   val excludeGoogleOauth2    = ExclusionRule(organization = "com.google.apis", name = "google-api-services-oauth2")
   val excludeGoogleApiClient = ExclusionRule(organization = "com.google.api-client", name = "google-api-client")
   val excludeGoogleJsr305    = ExclusionRule(organization = "com.google.code.findbugs", name = "jsr305")
@@ -22,11 +26,14 @@ object Dependencies {
   val excludeGrpc            = ExclusionRule(organization = "io.grpc", name = "grpc-core")
   val excludeGoogleError     = ExclusionRule(organization = "com.google.errorprone", name = "error_prone_annotations")
   val excludeSlf4j           = ExclusionRule(organization = "org.slf4j", name = "slf4j-api")
+  val excludeHttpComponent      = ExclusionRule(organization = "org.apache.httpcomponents", name = "httpclient")
   val excludeJacksonCore     = ExclusionRule(organization = "com.fasterxml.jackson.core", name =  "jackson-core")
   val excludeJacksonAnnotation  = ExclusionRule(organization = "com.fasterxml.jackson.core", name = "jackson-annotations")
 
   val workbenchModel: ModuleID  =  "org.broadinstitute.dsde.workbench" %% "workbench-model"  % workbenchModelV excludeAll (excludeGoogleJsr305, excludeGoogleError)
   val workbenchGoogle: ModuleID = "org.broadinstitute.dsde.workbench"  %% "workbench-google" % workbenchGoogleV excludeAll (excludeWorkbenchModel, excludeGoogleOauth2, excludeGoogleJsr305, excludeGoogleApiClient, excludeGrpc, excludeGoogleError, excludeSlf4j)
+  val workbenchGoogle2: ModuleID     = "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V excludeAll (excludeWorkbenchModel, excludeGuava, excludeGuavaJdk5, excludeWorkbenchMetrics, excludeIoGrpc, excludeGoogleError, excludeFindbugsJsr, excludeGoogleApiClient, excludeHttpComponent)
+
 
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (
     excludeWorkbenchModel,
@@ -65,6 +72,7 @@ object Dependencies {
 
     workbenchModel,
     workbenchGoogle,
+    workbenchGoogle2,
     workbenchServiceTest,
 
     // required by workbenchGoogle
