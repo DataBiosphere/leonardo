@@ -4,7 +4,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.Future
 
-object MockJupyterDAO extends ToolDAO{
+object MockJupyterDAO extends JupyterDAO {
 
   override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = Future.successful(true)
 
