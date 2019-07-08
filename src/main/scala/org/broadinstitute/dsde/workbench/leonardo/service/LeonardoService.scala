@@ -14,6 +14,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
+import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster.LabelMap
@@ -92,6 +93,7 @@ case class InvalidDataprocMachineConfigException(errorMsg: String)
   extends LeoException(s"${errorMsg}", StatusCodes.BadRequest)
 
 class LeonardoService(protected val dataprocConfig: DataprocConfig,
+                      protected val welderDao: WelderDAO,
                       protected val clusterFilesConfig: ClusterFilesConfig,
                       protected val clusterResourcesConfig: ClusterResourcesConfig,
                       protected val clusterDefaultsConfig: ClusterDefaultsConfig,
@@ -590,6 +592,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                gdDAO.resizeCluster(cluster.googleProject, cluster.clusterName, numPreemptibles = Some(0))
              else Future.unit
 
+        _ <- if(cluster.welderEnabled) {
+          welderDao.flushCache(cluster.googleProject, cluster.clusterName).handleError(e => logger.error(s"fail to flush welder cache for ${cluster}"))
+        }
+        else Future.unit
         // Now stop each instance individually
         _ <- Future.traverse(cluster.nonPreemptibleInstances) { instance =>
           // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
