@@ -15,6 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFields
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{MockPetClusterServiceAccountProvider, MockSwaggerSamClient}
+import org.broadinstitute.dsde.workbench.leonardo.dao.MockWelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, LeoComponent, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio, Welder}
@@ -68,7 +69,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
 
-    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
+    leo = new LeonardoService(dataprocConfig, MockWelderDAO, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
   }
 
   override def afterAll(): Unit = {
@@ -413,7 +414,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     //label behaviour should be: project-subnet, project-network, config-subnet, config-network
     val configWithProjectLabels = dataprocConfig.copy(projectVPCSubnetLabel = Some("subnet-label"), projectVPCNetworkLabel = Some("network-label"))
-    val projectLabelLeo = new LeonardoService(configWithProjectLabels, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
+    val projectLabelLeo = new LeonardoService(configWithProjectLabels, MockWelderDAO, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
 
     val subnetMap = Map("subnet-label" -> "correctSubnet", "network-label" -> "incorrectNetwork")
     projectLabelLeo.getClusterVPCSettings(subnetMap) shouldBe Some(Right(VPCSubnetName("correctSubnet")))
@@ -424,7 +425,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     projectLabelLeo.getClusterVPCSettings(Map()) shouldBe Some(Right(VPCSubnetName("test-subnet")))
 
     val configWithNoSubnet = dataprocConfig.copy(vpcSubnet = None)
-    val leoWithNoSubnet = new LeonardoService(configWithNoSubnet, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
+    val leoWithNoSubnet = new LeonardoService(configWithNoSubnet, MockWelderDAO, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
     leoWithNoSubnet.getClusterVPCSettings(Map()) shouldBe Some(Left(VPCNetworkName("test-network")))
   }
 
@@ -434,7 +435,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
       new MockGoogleStorageDAO
     }
-    val leoForTest = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, spyProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
+    val leoForTest = new LeonardoService(dataprocConfig, MockWelderDAO, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, spyProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
 
     forallClusterCreationMethods(Seq((leoForTest.createCluster _).tupled, (leoForTest.processClusterCreationRequest _).tupled))(Seq(name1, name2)) {
       (creationMethod, clusterName) =>
@@ -1024,7 +1025,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
 
     //we meed to use a special version of the MockGoogleDataprocDAO to simulate an error during the call to resizeCluster
-    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, new ErroredMockGoogleDataprocDAO, computeDAO, iamDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
+    leo = new LeonardoService(dataprocConfig, MockWelderDAO, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, new ErroredMockGoogleDataprocDAO, computeDAO, iamDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
 
     // create the cluster
     val clusterCreateResponse =
@@ -1051,7 +1052,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     //we meed to use a special version of the MockGoogleIamDAO to simulate an error when adding IAM roles
     val iamDAO = new ErroredMockGoogleIamDAO
-    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, mockGoogleDataprocDAO, computeDAO, iamDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
+    leo = new LeonardoService(dataprocConfig, MockWelderDAO, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, mockGoogleDataprocDAO, computeDAO, iamDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
 
     // create the cluster
     val clusterCreateResponse =
@@ -1072,7 +1073,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     //we meed to use a special version of the MockGoogleIamDAO to simulate a conflict when adding IAM roles
     val iamDAO = new ErroredMockGoogleIamDAO(409)
-    leo = new LeonardoService(dataprocConfig, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, mockGoogleDataprocDAO, computeDAO, iamDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
+    leo = new LeonardoService(dataprocConfig, MockWelderDAO, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, mockGoogleDataprocDAO, computeDAO, iamDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
 
     // create the cluster
     val clusterCreateResponse =
