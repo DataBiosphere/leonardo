@@ -16,7 +16,7 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sou
  && echo "deb $DEBIAN_REPO/debian-security stretch/updates main" >> /etc/apt/sources.list \
  && echo "deb $DEBIAN_REPO/debian stretch-backports main"        >> /etc/apt/sources.list \
  && echo "deb $DEBIAN_REPO/debian testing main"                  >> /etc/apt/sources.list \
- && echo 'APT::Default-Release "stable";' | tee -a /etc/apt/apt.conf.d/00local \
+ && echo 'APT::Default-Release "oldstable";' | tee -a /etc/apt/apt.conf.d/00local \
  && apt-get update \
  && apt-get -yq dist-upgrade \
  && apt-get install -yq --no-install-recommends \
