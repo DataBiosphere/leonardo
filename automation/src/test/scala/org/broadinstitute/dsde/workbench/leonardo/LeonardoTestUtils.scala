@@ -464,7 +464,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       testCode(bucketName)
     }
     // Clean up
-    googleStorageDAO.deleteBucket(bucketName, recurse = true).futureValue
+    //TODO: REVERT THIS
+//    googleStorageDAO.deleteBucket(bucketName, recurse = true).futureValue
 
     // Return the test result, or throw error
     testResult.get

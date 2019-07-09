@@ -22,7 +22,7 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
   override def enableWelder: Boolean = true
 
 //  debug = true
-  mockedCluster = mockCluster("gpalloc-dev-master-3qqssch","automation-test-aolb10qdz/")
+  mockedCluster = mockCluster("gpalloc-dev-master-3crdvwj","automation-test-apb9t9xsz")
 //
   "Leonardo welder and notebooks" - {
 
@@ -41,13 +41,21 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
           withWelderInitialized(clusterFixture.cluster, googleCloudDir, true) { localizedFile =>
             withWebDriver { implicit driver =>
 
-            withOpenNotebook(clusterFixture.cluster, localizedFile, 2.minutes) { notebookPage =>
+            withOpenNotebook(clusterFixture.cluster, localizedFile, 200.minutes) { notebookPage =>
               logger.info("notebook is open")
-              notebookPage.hideModal()
+
+              Thread.sleep(100000000)
               notebookPage.modeExists() shouldBe true
               notebookPage.getMode() shouldBe Notebook.EditMode
-              Thread.sleep(100000000)
-//                notebookPage.close()
+              //              notebookPage.executeCell("print('test')")
+              //              notebookPage.clickSave()
+
+              //              val content: ContentItem = Notebook.getContentItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, localizedFile.getPath)
+
+              //              logger.info("Printing content from notebook: " + content.content)
+              //TODO make this a real check
+              //              content shouldBe content
+              //                notebookPage.close()
             }
           }
         }
@@ -64,10 +72,11 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
 //
 //            withOpenNotebook(clusterFixture.cluster, localizedFile, 2.minutes) { notebookPage =>
 //              logger.info("notebook is open")
-//              notebookPage.hideModal()
 //              notebookPage.modeExists() shouldBe true
-//              notebookPage.getMode() shouldBe Notebook.EditMode
-//              Thread.sleep(100000000)
+//              notebookPage.getMode() shouldBe Notebook.SafeMode
+//              notebookPage.executeCell("print('test')")
+//              notebookPage.clickSave()
+////              Thread.sleep(100000000)
 //              //                notebookPage.close()
 //            }
 //          }

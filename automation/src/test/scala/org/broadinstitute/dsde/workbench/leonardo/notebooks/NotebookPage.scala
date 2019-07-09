@@ -89,6 +89,8 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   // banner for edit or playground mode
   lazy val modeBanner: Query = cssSelector("[id='notification_mode']")
 
+  lazy val saveButton: Query = cssSelector("[id='save-notbook']")
+
   // is at least one cell currently executing?
   def cellsAreRunning: Boolean = {
     findAll(prompts).exists { e => e.text == "In [*]:" }
@@ -243,12 +245,17 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     find(id("notification_kernel")).map(_.underlying.getCssValue("display")).getOrElse("")
   }
 
+  //TODO remove this testing function
   def hideModal(): Unit = {
     executeScript("$('#leoUserModal').modal('hide')")
   }
 
   def modeExists(): Boolean = {
     find(modeBanner).size > 0
+  }
+
+  def clickSave(): Unit = {
+    click on saveButton
   }
 
   def getMode(): NotebookMode = {

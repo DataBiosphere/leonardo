@@ -181,13 +181,18 @@ define(() => {
     function handleCheckMetaResp(res) {
 
         const healthySyncStatuses = ["LIVE"]
-        const outOfSyncStatuses = ["DESYNCHRONIZED", "LOCAL_CHANGED", "REMOTE_CHANGED"] //not used but here for reference
+        const outOfSyncStatuses = ["DESYNCHRONIZED", "REMOTE_CHANGED"] //not used but here for reference
         const notFoundStatus = ["REMOTE_NOT_FOUND"]
+        const saveNeededStatus = ["LOCAL_CHANGED"]
 
         if (healthySyncStatuses.includes(res.syncStatus)) {
             console.info('healthy sync status detected: ', res.syncStatus)
         } else if (notFoundStatus.includes(res.syncStatus)) {
             promptUserWithModal(syncIssueTitle, noRemoteFileButtons, syncIssueNotFoundBody)
+        } else if (saveNeededStatus.includes(res.syncStatus)) {
+            console.info("detected that we have changes that have not been delocalized.")
+                //It is possible saving is the right call here (aka $("#save-notbook > button").click()), but we already do that on a periodic tick
+                //adding it here could possibly cause confusion
         } else {
             promptUserWithModal(syncIssueTitle, syncIssueButtons(res), syncIssueBody)
         }
@@ -209,7 +214,7 @@ define(() => {
         const payload = {
             ...basePayload,
             method: 'POST',
-            body: JSON.stringify({ localPath: Jupyter.notebook.notebook_path })
+            body: JSON.stringify({ localObjectPath: Jupyter.notebook.notebook_path })
         }
 
         fetch(lockUrl, payload)

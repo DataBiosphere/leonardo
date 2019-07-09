@@ -46,7 +46,7 @@ object Welder extends RestClient with LazyLogging {
       "localBaseDirectory" -> localBaseDirectory,
       "localSafeModeBaseDirectory" -> localSafeModeBaseDirectory,
       "cloudStorageDirectory" -> s"gs://${cloudStoragePath.bucketName.value}",
-      "pattern" -> "*"
+      "pattern" -> ".*.ipynb"
     )
 
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
@@ -70,7 +70,7 @@ def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(i
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
 
 
-    logger.info(s"Making Welder localize: POST on $path with payload $payload")
+    logger.info(s"Making Welder localize: POST on $path with payload ${payload.toString()}")
     postRequest(path, payload, httpHeaders = List(cookie))
   }
 
