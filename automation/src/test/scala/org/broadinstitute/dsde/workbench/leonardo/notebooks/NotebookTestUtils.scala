@@ -1,20 +1,19 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import java.io.{File, FileOutputStream}
-import java.net.URL
 import java.nio.charset.StandardCharsets
-import java.time.Instant
-import java.util.{Base64, UUID}
+import java.util.Base64
 
+import cats.effect.IO
+import java.time.Instant
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
-import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
-import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
+import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse}
 import org.openqa.selenium.WebDriver
 import org.scalatest.Suite
 
@@ -120,18 +119,6 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     // stop the server
     DummyClient.stopServer(bindingFuture)
     testResult.get
-  }
-
-  //initializes storageLinks/ and localizes the file to the passed gcsPath
-  def withWelderInitialized[T](cluster: Cluster, gcsPath: GcsPath, shouldLocalizeFileInEditMode: Boolean)(testCode: File => T)(implicit token: AuthToken): T = {
-    Welder.postStorageLink(cluster, gcsPath)
-    Welder.localize(cluster, gcsPath, shouldLocalizeFileInEditMode)
-
-    val localPath: String = Welder.getLocalPath(gcsPath, shouldLocalizeFileInEditMode)
-    val localFile: File = new File(localPath)
-
-    logger.info("Initialized welder via /storageLinks and /localize")
-    testCode(localFile)
   }
 
 
@@ -326,4 +313,35 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     Cluster(ClusterName(clusterName), UUID.randomUUID(), GoogleProject(googleProject),
       ServiceAccountInfo(Map()), MachineConfig(), new URL("https://FAKE/URL/IF_YOU_SEE_THIS_INVESTIGATE_YOUR_USAGE_OF_MOCKCLUSTER)_METHOD/"), OperationName(""), ClusterStatus.Running, None, WorkbenchEmail(""), Instant.now(), None, Map(), None, None, None, List(), Instant.now(), None, false, Set())
   }
+
+  def getLockedBy(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[Option[String]] = {
+    google2StorageResource.use {
+      google2StorageDAO =>
+        for {
+          metadata <- google2StorageDAO.getObjectMetadata(workspaceBucketName, notebookName, None).compile.last
+          lockExpiresAt = metadata match {
+            case Some(GetMetadataResponse.Metadata(_, metadataMap)) if metadataMap.contains("lockExpiresAt") => Some(metadataMap("lockExpiresAt"))
+            case _ => None
+          }
+          currentlyLocked = lockExpiresAt match {
+            case Some(instantStr) => Instant.parse(instantStr).compareTo(Instant.now()) == 1
+            case None => false
+          }
+          lastLockedBy = if (currentlyLocked) {
+            metadata match {
+              case Some(GetMetadataResponse.Metadata(_, metadataMap)) if metadataMap.contains("lastLockedBy") => Some(metadataMap("lastLockedBy"))
+              case _ => None
+            }
+          } else None
+        } yield lastLockedBy
+    }
+  }
+
+  def getObject(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[Option[String]] = {
+    google2StorageResource.use {
+      google2StorageDAO =>
+        google2StorageDAO.unsafeGetObject(workspaceBucketName, notebookName, None)
+    }
+  }
+
 }

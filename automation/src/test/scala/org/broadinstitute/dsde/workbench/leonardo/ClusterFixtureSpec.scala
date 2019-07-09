@@ -114,7 +114,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
       autopause = Some(false),
       enableWelder = Some(enableWelder),
       //TODO: remove this
-      welderDockerImage = Some("us.gcr.io/broad-dsp-gcr-public/welder-server:119403a"))
+      welderDockerImage = Some("us.gcr.io/broad-dsp-gcr-public/welder-server:309cfec"))
   }
 
   /**
