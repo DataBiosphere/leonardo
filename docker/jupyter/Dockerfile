@@ -16,7 +16,7 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sou
  && echo "deb $DEBIAN_REPO/debian-security stretch/updates main" >> /etc/apt/sources.list \
  && echo "deb $DEBIAN_REPO/debian stretch-backports main"        >> /etc/apt/sources.list \
  && echo "deb $DEBIAN_REPO/debian testing main"                  >> /etc/apt/sources.list \
- && echo 'APT::Default-Release "oldstable";' | tee -a /etc/apt/apt.conf.d/00local \
+ && echo 'APT::Default-Release "stretch";' | tee -a /etc/apt/apt.conf.d/00local \
  && apt-get update \
  && apt-get -yq dist-upgrade \
  && apt-get install -yq --no-install-recommends \
@@ -360,7 +360,7 @@ RUN aptitude update && aptitude install -y apt-utils \
  && rm -rf /var/lib/apt/lists/* \
  # fixes broken gfortan dependency needed by some R libraries
  # see: https://github.com/DataBiosphere/leonardo/issues/710
- && ln -s /usr/lib/x86_64-linux-gnu/libgfortran.so.3 /usr/lib/x86_64-linux-gnu/libgfortran.so
+ && ln -s /usr/lib/x86_64-linux-gnu/libgfortran.so.5 /usr/lib/x86_64-linux-gnu/libgfortran.so
 
 RUN R -e 'install.packages(c( \
     "IRdisplay",  \
