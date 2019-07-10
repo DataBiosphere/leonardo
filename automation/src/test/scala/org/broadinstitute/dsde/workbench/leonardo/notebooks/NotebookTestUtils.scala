@@ -309,9 +309,21 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     }
   }
 
+  //initializes storageLinks/ and localizes the file to the passed gcsPath
+     def withWelderInitialized[T](cluster: Cluster, gcsPath: GcsPath, shouldLocalizeFileInEditMode: Boolean)(testCode: File => T)(implicit token: AuthToken): T = {
+        Welder.postStorageLink(cluster, gcsPath)
+        Welder.localize(cluster, gcsPath, shouldLocalizeFileInEditMode)
+
+          val localPath: String = Welder.getLocalPath(gcsPath, shouldLocalizeFileInEditMode)
+       val localFile: File = new File(localPath)
+
+          logger.info("Initialized welder via /storageLinks and /localize")
+        testCode(localFile)
+      }
+
   def mockCluster(googleProject: String, clusterName: String): Cluster = {
-    Cluster(ClusterName(clusterName), UUID.randomUUID(), GoogleProject(googleProject),
-      ServiceAccountInfo(Map()), MachineConfig(), new URL("https://FAKE/URL/IF_YOU_SEE_THIS_INVESTIGATE_YOUR_USAGE_OF_MOCKCLUSTER)_METHOD/"), OperationName(""), ClusterStatus.Running, None, WorkbenchEmail(""), Instant.now(), None, Map(), None, None, None, List(), Instant.now(), None, false, Set())
+    Cluster(ClusterName(clusterName), java.util.UUID.randomUUID(), GoogleProject(googleProject),
+      ServiceAccountInfo(Map()), MachineConfig(), new java.net.URL("https://FAKE/URL/IF_YOU_SEE_THIS_INVESTIGATE_YOUR_USAGE_OF_MOCKCLUSTER)_METHOD/"), OperationName(""), ClusterStatus.Running, None, WorkbenchEmail(""), Instant.now(), None, Map(), None, None, None, List(), Instant.now(), None, false, Set())
   }
 
   def getLockedBy(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[Option[String]] = {

@@ -7,6 +7,7 @@ import java.util.UUID
 
 import akka.http.scaladsl.model.HttpResponse
 import org.broadinstitute.dsde.workbench.ResourceFile
+import org.broadinstitute.dsde.workbench.google2.GcsBlobName
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo._
@@ -21,8 +22,8 @@ import scala.language.postfixOps
 class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
   override def enableWelder: Boolean = true
 
-//  debug = true
-  mockedCluster = mockCluster("gpalloc-dev-master-3crdvwj","automation-test-apb9t9xsz")
+  debug = true
+  mockedCluster = mockCluster("gpalloc-dev-master-2b9yymo","automation-test-aspqal7az")
 //
   "Leonardo welder and notebooks" - {
 
@@ -44,18 +45,27 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
             withOpenNotebook(clusterFixture.cluster, localizedFile, 200.minutes) { notebookPage =>
               logger.info("notebook is open")
 
-              Thread.sleep(100000000)
               notebookPage.modeExists() shouldBe true
               notebookPage.getMode() shouldBe Notebook.EditMode
-              //              notebookPage.executeCell("print('test')")
-              //              notebookPage.clickSave()
 
-              //              val content: ContentItem = Notebook.getContentItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, localizedFile.getPath)
 
-              //              logger.info("Printing content from notebook: " + content.content)
-              //TODO make this a real check
-              //              content shouldBe content
-              //                notebookPage.close()
+              notebookPage.executeCell("print('test')")
+              notebookPage.clickSave()
+
+              Thread.sleep(30000)
+
+              val localContent:  Option[String] = Notebook.getContentItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, localizedFile.getPath).content
+              val remoteContent: Option[String] = getObject(googleCloudDir.bucketName, GcsBlobName(googleCloudDir.objectName.value)).unsafeRunSync()
+
+
+              remoteContent shouldBe localContent
+              logger.info("Printing content from local notebook: " + localContent)
+              logger.info("Printing content from remote notebook: " + remoteContent)
+
+              val lockedBy: Option[String] = getLockedBy(googleCloudDir.bucketName, GcsBlobName(googleCloudDir.objectName.value)).unsafeRunSync()
+              logger.info("notebook is locked by: " + lockedBy)
+
+              Thread.sleep(100000000)
             }
           }
         }
@@ -67,7 +77,7 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
 //      withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { googleCloudDir =>
 //        logger.info("Initialized google storage bucket")
 //
-//        withWelderInitialized(clusterFixture.cluster, googleCloudDir, true) { localizedFile =>
+//        withWelderInitialized(clusterFixture.cluster, googleCloudDir, false) { localizedFile =>
 //          withWebDriver { implicit driver =>
 //
 //            withOpenNotebook(clusterFixture.cluster, localizedFile, 2.minutes) { notebookPage =>
