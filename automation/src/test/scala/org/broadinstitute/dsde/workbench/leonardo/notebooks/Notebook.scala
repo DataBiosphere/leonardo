@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
+
 import akka.http.scaladsl.model.HttpHeader
 import akka.http.scaladsl.model.headers.{Authorization, Cookie, HttpCookiePair, OAuth2BearerToken}
 import com.typesafe.scalalogging.LazyLogging
@@ -9,6 +10,7 @@ import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.RestClient
 import org.broadinstitute.dsde.workbench.leonardo.ContentItem
 import org.openqa.selenium.WebDriver
+
 
 /**
   * Leonardo API service client.
@@ -46,7 +48,7 @@ object Notebook extends RestClient with LazyLogging {
   }
 
   def getTree(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): String = {
-    val path = notebooksTreePath(googleProject, clusterName)
+    val path q= notebooksTreePath(googleProject, clusterName)
     logger.info(s"Get notebook tree: GET /$path")
     parseResponse(getRequest(url + path))
   }
@@ -88,5 +90,6 @@ object Notebook extends RestClient with LazyLogging {
       case message if message.toLowerCase().contains("edit") => EditMode
       case _ => NoMode
     }
+  }
   }
 }

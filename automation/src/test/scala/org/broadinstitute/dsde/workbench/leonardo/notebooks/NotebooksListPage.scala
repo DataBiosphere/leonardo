@@ -9,7 +9,6 @@ import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.duration._
 import scala.util.Try
 
-
 sealed trait NotebookKernel {
   def string: String
   def cssSelectorString: String = "ul#new-menu > li[id] > a"

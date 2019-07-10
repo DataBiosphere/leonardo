@@ -15,12 +15,9 @@ Look at the jupyter_notebook_config and ensure your local config emulates what t
 At the time of writing, there are 3 nbextensions, edit-mode.js, safe-mode.js, and google_sign_in.js
 
 extension_entry.js controls which plugins are loaded into the jupyter server image
-<<<<<<< HEAD
 
 POST storageLinks/:
 `curl -vX POST --header 'Content-Type: application/json' --header 'Accept: application/json' [welderUrl]/storageLinks -d '{"localBaseDirectory": "[local dir relative to dir in welder conf, ex 'edit']", "localSafeModeBaseDirectory": "[local dir relative to dir in welder conf, ex 'safe']", "cloudStorageDirectory": "gs://jc-sample-bucket", "pattern": "*" }'`
 
 POST localize/:
 `curl -vX POST --header 'Content-Type: application/json' --header 'Accept: application/json' localhost:8081/objects -d '{"action" : "localize",  "entries": [{ "sourceUri": "gs://jc-sample-bucket/Untitled.ipynb", "localDestinationPath": "edit/Untitled.ipynb" }] }'`
-=======
->>>>>>> 24eab526e5999f3205a0dc7268dd9f84cb6b96aa

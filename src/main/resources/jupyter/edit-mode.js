@@ -214,7 +214,7 @@ define(() => {
         const payload = {
             ...basePayload,
             method: 'POST',
-            body: JSON.stringify({ localObjectPath: Jupyter.notebook.notebook_path })
+            body: JSON.stringify({ localPath: Jupyter.notebook.notebook_path })
         }
 
         fetch(lockUrl, payload)

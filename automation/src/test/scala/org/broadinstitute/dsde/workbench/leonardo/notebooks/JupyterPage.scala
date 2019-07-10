@@ -30,5 +30,4 @@ trait JupyterPage extends CookieAuthedPage[JupyterPage] {
     val executor: JavascriptExecutor = webDriver.asInstanceOf[JavascriptExecutor]
     executor.executeScript(script)
   }
-
 }
