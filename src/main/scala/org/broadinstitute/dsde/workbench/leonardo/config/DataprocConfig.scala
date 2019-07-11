@@ -22,5 +22,6 @@ case class DataprocConfig(
                            vpcNetwork: Option[String],
                            vpcSubnet: Option[String],
                            projectVPCNetworkLabel: Option[String],
-                           projectVPCSubnetLabel: Option[String]
+                           projectVPCSubnetLabel: Option[String],
+                           notebooksDir: String
                          )

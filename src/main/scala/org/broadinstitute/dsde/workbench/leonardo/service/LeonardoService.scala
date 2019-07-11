@@ -985,7 +985,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     // Note: initActionsScript and jupyterGoogleSignInJs are not included
     // because they are post-processed by templating logic.
     val resourcesToUpload = List(
-      clusterResourcesConfig.jupyterDockerCompose,
       clusterResourcesConfig.rstudioDockerCompose,
       clusterResourcesConfig.proxyDockerCompose,
       clusterResourcesConfig.proxySiteConf,
@@ -1006,6 +1005,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val editModeJsContent = templateResource(clusterResourcesConfig.editModeJs, replacements)
     val safeModeJsContent = templateResource(clusterResourcesConfig.safeModeJs, replacements)
     val jupyterNotebookConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookConfigUri, replacements)
+    val jupyterDockerComposeContent = templateResource(clusterResourcesConfig.jupyterDockerCompose, replacements)
 
     for {
       // Upload the init script to the bucket
@@ -1015,6 +1015,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.googleSignInJs.value), googleSignInJsContent, "text/plain")
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.editModeJs.value), editModeJsContent, "text/plain")
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.safeModeJs.value), safeModeJsContent, "text/plain")
+
+      // Upload the jupyter docker compose to the bucket
+      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterDockerCompose.value), jupyterDockerComposeContent, "text/plain")
 
 
       // Update the jupytyer notebook config file
