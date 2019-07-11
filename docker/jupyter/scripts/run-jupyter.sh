@@ -5,10 +5,15 @@ set -e
 # Change the default umask to support R/W access to the shared volume with welder
 umask 002
 
-# Forces python 3
-JUPYTER_BASE="/usr/local/bin/python3 /usr/local/bin/jupyter-notebook"
-JUPYTER_CMD="$JUPYTER_BASE --NotebookApp.nbserver_extensions=\"{'jupyter_localize_extension':True}\" &> ${HOME}/jupyter.log"
+if [ -n "$1" ]; then
+  NOTEBOOKS_DIR=$1
 
-echo $JUPYTER_CMD
+  # Forces python 3
+  JUPYTER_BASE="/usr/local/bin/python3 /usr/local/bin/jupyter-notebook"
+  JUPYTER_CMD="$JUPYTER_BASE --NotebookApp.nbserver_extensions=\"{'jupyter_localize_extension':True}\" &> ${NOTEBOOKS_DIR}"
 
-eval $JUPYTER_CMD
+  echo $JUPYTER_CMD
+
+  eval $JUPYTER_CMD
+
+fi

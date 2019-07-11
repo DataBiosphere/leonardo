@@ -83,6 +83,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
     export WELDER_DOCKER_IMAGE=$(welderDockerImage)
     export WELDER_ENABLED=$(welderEnabled)
+    export NOTEBOOKS_DIR=$(notebooksDir)
 
     SERVER_CRT=$(jupyterServerCrt)
     SERVER_KEY=$(jupyterServerKey)
@@ -394,7 +395,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
       fi
 
       log 'Starting Jupyter Notebook...'
-      retry 3 docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/run-jupyter.sh
+      retry 3 docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}
       log 'All done!'
     fi
 fi
