@@ -308,8 +308,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
         Notebook.getTree(googleProject, clusterName)
       }
 
-      caught.message should contain """"statusCode":422"""
-      caught.message should contain s"""Cluster ${googleProject.value}/${clusterName.string} is stopped. Start your cluster before proceeding."""
+      caught.message should include("\"statusCode\":422")
+      caught.message should include(s"""Cluster ${googleProject.value}/${clusterName.string} is stopped. Start your cluster before proceeding.""")
     }
   }
 
