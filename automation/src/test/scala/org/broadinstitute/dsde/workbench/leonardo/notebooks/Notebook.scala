@@ -5,11 +5,11 @@ import akka.http.scaladsl.model.HttpHeader
 import akka.http.scaladsl.model.headers.{Authorization, Cookie, HttpCookiePair, OAuth2BearerToken}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.{ClusterName, LeonardoConfig}
+import org.broadinstitute.dsde.workbench.leonardo.{ClusterName, ContentItem, LeonardoConfig, NotebookContentItem, RawNotebookContents}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.RestClient
-import org.broadinstitute.dsde.workbench.leonardo.ContentItem
 import org.openqa.selenium.WebDriver
+import org.broadinstitute.dsde.workbench.ResourceFile
 
 
 /**
@@ -21,6 +21,12 @@ object Notebook extends RestClient with LazyLogging {
 
   def handleContentItemResponse(response: String): ContentItem = {
     mapper.readValue(response, classOf[ContentItem])
+  }
+
+  //impossible to do the handleContentResponse methods without duplication unless generics and reflection is used, which seems to complex for test code
+  def handleNotebookContentResponse(response: String): NotebookContentItem = {
+    logger.info("response from /api/content/ for notebook: " + response)
+   mapper.readValue(response, classOf[NotebookContentItem])
   }
 
   def notebooksBasePath(googleProject: GoogleProject, clusterName: ClusterName): String =
@@ -48,7 +54,7 @@ object Notebook extends RestClient with LazyLogging {
   }
 
   def getTree(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): String = {
-    val path q= notebooksTreePath(googleProject, clusterName)
+    val path = notebooksTreePath(googleProject, clusterName)
     logger.info(s"Get notebook tree: GET /$path")
     parseResponse(getRequest(url + path))
   }
@@ -70,7 +76,16 @@ object Notebook extends RestClient with LazyLogging {
     val path = contentsPath(googleProject, clusterName, contentPath) + (if(includeContent) "?content=1" else "")
     logger.info(s"Get notebook contents: GET /$path")
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
+
     handleContentItemResponse(parseResponse(getRequest(url + path, httpHeaders = List(cookie))))
+  }
+
+  def getNotebookItem(googleProject: GoogleProject, clusterName: ClusterName, contentPath: String, includeContent: Boolean = true)(implicit token: AuthToken): NotebookContentItem = {
+    val path = contentsPath(googleProject, clusterName, contentPath) + (if(includeContent) "?content=1" else "")
+    logger.info(s"Get notebook contents: GET /$path")
+    val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
+
+    handleNotebookContentResponse(parseResponse(getRequest(url + path, httpHeaders = List(cookie))))
   }
 
   def setCookie(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver): String = {
@@ -90,6 +105,5 @@ object Notebook extends RestClient with LazyLogging {
       case message if message.toLowerCase().contains("edit") => EditMode
       case _ => NoMode
     }
-  }
   }
 }

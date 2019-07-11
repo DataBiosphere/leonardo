@@ -2,10 +2,12 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import java.io.{File, FileOutputStream}
 import java.nio.charset.StandardCharsets
-import java.util.Base64
+import java.util.{Base64, UUID}
 
 import cats.effect.IO
 import java.time.Instant
+
+import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
@@ -349,11 +351,24 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     }
   }
 
-  def getObject(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[Option[String]] = {
+  def getObjectAsString(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[Option[String]] = {
     google2StorageResource.use {
       google2StorageDAO =>
         google2StorageDAO.unsafeGetObject(workspaceBucketName, notebookName, None)
     }
+  }
+
+  def getObjectAsFile(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): File = {
+    val rawContents: String = getObjectAsString(workspaceBucketName, notebookName)
+      .unsafeRunSync()
+      .getOrElse("")
+
+    val googleFile: File = new File(logDir, s"${workspaceBucketName.value}-${notebookName.value}-${java.util.UUID.randomUUID()}.ipynb")
+
+    val fos = new FileOutputStream(googleFile)
+    fos.write(rawContents.getBytes(StandardCharsets.UTF_8))
+    fos.close()
+    googleFile
   }
 
 }

@@ -63,7 +63,7 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
     val notebookPage = new NotebookPage(url + "/notebooks/" + file.getPath).open
     notebookPage.awaitReadyKernel(timeout)
     val result = Try { testCode(notebookPage) }
-//    notebookPage.shutdownKernel()
+    notebookPage.shutdownKernel()
     result.get
   }
 

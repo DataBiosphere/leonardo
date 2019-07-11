@@ -155,6 +155,8 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     outputs.asScala.headOption.map(_.getText)
   }
 
+  //TODO: This function is buggy because the cell numbers are kernel specific not notebook specific
+  //It is possible to have a notebook with two cells, numbered 1,1 or even 1, 9
   def executeCell(code: String, timeout: FiniteDuration = 1 minute): Option[String] = {
     await enabled cells
     val cell = lastCell
@@ -163,8 +165,18 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
     executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
     clickRunCell(timeout)
-    await condition (cellIsRendered(cellNumber), timeout.toSeconds)
+      await condition(cellIsRendered(cellNumber), timeout.toSeconds)
     cellOutput(cell)
+  }
+
+  //TODO: this function is duplicative of the above but does not have the bug
+  def addCodeAndExecute(code: String, timeout: FiniteDuration = 1 minute): Unit = {
+    await enabled cells
+    val cell = lastCell
+    click on cell
+    val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
+    executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
+    click on runCellButton
   }
 
   def translateMarkup(code: String, timeout: FiniteDuration = 1 minute): String = {
@@ -256,6 +268,12 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
 
   def clickSave(): Unit = {
     click on saveButton
+  }
+
+  def areElementsHidden(elementIds: List[String]): Boolean = {
+    elementIds
+      .map(elementId => find(id(elementId)).exists(_.underlying.getAttribute("style") == "display: none;"))
+      .fold(true)(_ && _)
   }
 
   def getMode(): NotebookMode = {

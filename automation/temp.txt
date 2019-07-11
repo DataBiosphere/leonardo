@@ -1,0 +1,726 @@
+diff --git a/.gitignore b/.gitignore
+index 5f5b14f0..02f9a4ab 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -29,4 +29,3 @@ automation/src/test/resources/application.conf
+ automation/src/test/resources/firecloud-account.pem
+ automation/src/test/resources/firecloud-account.json
+ automation/src/test/resources/trial-billing-account.pem
+-automation/src/test/resources/firecloud-account.json
+diff --git a/automation/output.txt b/automation/output.txt
+deleted file mode 100644
+index e69de29b..00000000
+diff --git a/automation/output2.txt b/automation/output2.txt
+deleted file mode 100644
+index 2f339f6a..00000000
+--- a/automation/output2.txt
++++ /dev/null
+@@ -1,2 +0,0 @@
+-[0m[[0m[0minfo[0m] [0m[0mLoading settings for project automation-build from plugins.sbt ...[0m
+-[0m[[0m[0minfo[0m] [0m[0mLoading project definition from /Users/jcanas/firecloud-repos/leonardo/automation/project[0m
+diff --git a/automation/src/test/resources/bucket-tests/gcsFile.ipynb b/automation/src/test/resources/bucket-tests/gcsFile.ipynb
+deleted file mode 100644
+index 071ffb14..00000000
+--- a/automation/src/test/resources/bucket-tests/gcsFile.ipynb
++++ /dev/null
+@@ -1,51 +0,0 @@
+-{
+-  "cells": [
+-    {
+-      "cell_type": "code",
+-      "execution_count": 1,
+-      "metadata": {
+-        "pycharm": {}
+-      },
+-      "outputs": [
+-        {
+-          "name": "stdout",
+-          "output_type": "stream",
+-          "text": [
+-            "test file\n"
+-          ]
+-        }
+-      ],
+-      "source": "print(\"test file\")"
+-    },
+-    {
+-      "cell_type": "code",
+-      "execution_count": null,
+-      "metadata": {
+-        "pycharm": {}
+-      },
+-      "outputs": [],
+-      "source": []
+-    }
+-  ],
+-  "metadata": {
+-    "kernelspec": {
+-      "display_name": "Python 3",
+-      "language": "python",
+-      "name": "python3"
+-    },
+-    "language_info": {
+-      "codemirror_mode": {
+-        "name": "ipython",
+-        "version": 3
+-      },
+-      "file_extension": ".py",
+-      "mimetype": "text/x-python",
+-      "name": "python",
+-      "nbconvert_exporter": "python",
+-      "pygments_lexer": "ipython3",
+-      "version": "3.7.3"
+-    }
+-  },
+-  "nbformat": 4,
+-  "nbformat_minor": 2
+-}
+\ No newline at end of file
+diff --git a/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/ClusterFixtureSpec.scala b/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/ClusterFixtureSpec.scala
+index 893bf656..659d5a54 100644
+--- a/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/ClusterFixtureSpec.scala
++++ b/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/ClusterFixtureSpec.scala
+@@ -18,17 +18,11 @@ import scala.util.{Failure, Success, Try}
+   */
+ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils with BillingFixtures with RandomUtil with LazyLogging {
+ 
+-
+   implicit val ronToken: AuthToken = ronAuthToken
+   var claimedBillingProject: ClaimedProject = _
+   var billingProject : GoogleProject = _
+   var ronCluster: Cluster = _
+-  def enableWelder: Boolean = true
+ 
+-  var debug: Boolean = false //if true, will not spin up and tear down a cluster on each test. Used in conjunction with mockedCluster
+-  //todo initialize this to a non-gpalloc project
+-  var mockedCluster: Cluster = _ //must specify a google project name and cluster name via the mockCluster utility method in NotebookTestUtils
+-  //example usage:
+   /**
+     * See
+     *  https://www.artima.com/docs-scalatest-2.0.M5/org/scalatest/FreeSpec.html
+@@ -42,11 +36,6 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
+   type FixtureParam = ClusterFixture
+ 
+   override def withFixture(test: OneArgTest): Outcome = {
+-    if (debug) {
+-      logger.info("[Debug] Using mocked cluster for cluster fixture tests")
+-      billingProject = mockedCluster.googleProject
+-      ronCluster = mockedCluster
+-    }
+     withFixture(test.toNoArgTest(ClusterFixture(billingProject, ronCluster)))
+   }
+ 
+@@ -89,8 +78,11 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
+     */
+   def createRonCluster(): Unit = {
+     Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+-
+-    Try (createNewCluster(billingProject, request = getClusterRequest())(ronAuthToken)) match {
++    val highMemClusterRequest = ClusterRequest(machineConfig = Option(MachineConfig(
++      masterMachineType = Option("n1-standard-8"),
++      workerMachineType = Option("n1-standard-8")
++    )))
++    Try (createNewCluster(billingProject, request = highMemClusterRequest)(ronAuthToken)) match {
+       case Success(outcome) =>
+         ronCluster = outcome
+         logger.info(s"Successfully created cluster $ronCluster")
+@@ -101,22 +93,6 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
+     }
+   }
+ 
+-  def getClusterRequest(): ClusterRequest = {
+-    val machineConfig = Option(MachineConfig(
+-      masterMachineType = Some("n1-standard-8"),
+-      workerMachineType = Some("n1-standard-8")
+-    ))
+-
+-
+-
+-    ClusterRequest(
+-      machineConfig = machineConfig,
+-      autopause = Some(false),
+-      enableWelder = Some(enableWelder),
+-      //TODO: remove this
+-      welderDockerImage = Some("us.gcr.io/broad-dsp-gcr-public/welder-server:309cfec"))
+-  }
+-
+   /**
+     * Delete cluster without monitoring that's owned by Ron
+     */
+@@ -126,19 +102,15 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
+ 
+   override def beforeAll(): Unit = {
+     logger.info("beforeAll")
+-    if (!debug) {
+-      claimBillingProject()
+-      createRonCluster()
+-    }
+     super.beforeAll()
++    claimBillingProject()
++    createRonCluster()
+   }
+ 
+   override def afterAll(): Unit = {
+     logger.info("afterAll")
+-    if (!debug) {
+-//      deleteRonCluster()
+-//      unclaimBillingProject()
+-    }
++    deleteRonCluster()
++    unclaimBillingProject()
+     super.afterAll()
+   }
+ 
+diff --git a/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/LeonardoModelCopy.scala b/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/LeonardoModelCopy.scala
+index 9ba3cb84..6b9886a1 100644
+--- a/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/LeonardoModelCopy.scala
++++ b/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/LeonardoModelCopy.scala
+@@ -75,24 +75,16 @@ case class Cluster(clusterName: ClusterName,
+   def projectNameString: String = s"${googleProject.value}/${clusterName.string}"
+ }
+ 
+-//{}
+-//
+-
+ case class ClusterRequest(labels: LabelMap = Map(),
+                           jupyterExtensionUri: Option[String] = None,
+                           jupyterUserScriptUri: Option[String] = None,
+                           machineConfig: Option[MachineConfig] = None,
+-                          properties: Map[String, String] = Map(),
+                           stopAfterCreation: Option[Boolean] = None,
+                           userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
+-                          autopause: Option[Boolean] = None,
+-                          autopauseThreshold: Option[Int] = None,
+                           defaultClientId: Option[String] = None,
+                           jupyterDockerImage: Option[String] = None,
+                           rstudioDockerImage: Option[String] = None,
+-                          welderDockerImage: Option[String] = None,
+-                          scopes: Set[String] = Set.empty,
+-                          enableWelder: Option[Boolean] = None)
++                          scopes: Option[Set[String]] = None)
+ 
+ case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
+                                       serverExtensions: Map[String, String] = Map(),
+diff --git a/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/LeonardoTestUtils.scala b/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/LeonardoTestUtils.scala
+index b4240148..1991e561 100644
+--- a/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/LeonardoTestUtils.scala
++++ b/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/LeonardoTestUtils.scala
+@@ -471,6 +471,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
+     }
+     // Clean up
+     googleStorageDAO.deleteBucket(bucketName, recurse = true).futureValue
++
+     // Return the test result, or throw error
+     testResult.get
+   }
+diff --git a/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/JupyterPage.scala b/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/JupyterPage.scala
+index 0e636887..f8082daa 100644
+--- a/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/JupyterPage.scala
++++ b/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/JupyterPage.scala
+@@ -1,7 +1,7 @@
+ package org.broadinstitute.dsde.workbench.leonardo.notebooks
+ 
+ import org.broadinstitute.dsde.workbench.page.CookieAuthedPage
+-import org.openqa.selenium.{JavascriptExecutor, WebDriver}
++import org.openqa.selenium.WebDriver
+ 
+ trait JupyterPage extends CookieAuthedPage[JupyterPage] {
+   implicit val webDriver: WebDriver
+@@ -12,22 +12,4 @@ trait JupyterPage extends CookieAuthedPage[JupyterPage] {
+     await enabled renderedApp
+     this
+   }
+-
+-  //Useful utility to print client-side information.
+-  //Will be located in the driver window's session storage.
+-  //To view messages stored in this fashion, enter `window.sessionStorage` into the browser console
+-  //Currently, the user is responsible for ensuring their strings are valid javascript strings
+-  def storeInBrowser(messages: Map[String, String]): Unit = {
+-    messages.foreach(pair => {
+-      val q = "\""
+-      val script = s"window.sessionStorage.setItem(${q + pair._1 + q},${q + pair._2 + q})"
+-      executeScript(script)
+-    })
+-  }
+-
+-  //executes arbitrary javascript client-side
+-  def executeScript(script: String): Unit = {
+-    val executor: JavascriptExecutor = webDriver.asInstanceOf[JavascriptExecutor]
+-    executor.executeScript(script)
+-  }
+ }
+diff --git a/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/Notebook.scala b/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/Notebook.scala
+index 3c6e4af2..78cf287a 100644
+--- a/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/Notebook.scala
++++ b/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/Notebook.scala
+@@ -1,16 +1,21 @@
+ package org.broadinstitute.dsde.workbench.leonardo.notebooks
+ 
+-
++import akka.Done
+ import akka.http.scaladsl.model.HttpHeader
+ import akka.http.scaladsl.model.headers.{Authorization, Cookie, HttpCookiePair, OAuth2BearerToken}
++import akka.http.scaladsl.server.Route
+ import com.typesafe.scalalogging.LazyLogging
++import org.broadinstitute.dsde.workbench.ResourceFile
+ import org.broadinstitute.dsde.workbench.auth.AuthToken
++import org.broadinstitute.dsde.workbench.config.LeoAuthToken
+ import org.broadinstitute.dsde.workbench.leonardo.{ClusterName, LeonardoConfig}
+ import org.broadinstitute.dsde.workbench.model.google._
+ import org.broadinstitute.dsde.workbench.service.RestClient
+ import org.broadinstitute.dsde.workbench.leonardo.ContentItem
+ import org.openqa.selenium.WebDriver
+ 
++import scala.concurrent.Future
++import scala.io.Source
+ 
+ /**
+   * Leonardo API service client.
+@@ -48,7 +53,7 @@ object Notebook extends RestClient with LazyLogging {
+   }
+ 
+   def getTree(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): String = {
+-    val path q= notebooksTreePath(googleProject, clusterName)
++    val path = notebooksTreePath(googleProject, clusterName)
+     logger.info(s"Get notebook tree: GET /$path")
+     parseResponse(getRequest(url + path))
+   }
+@@ -78,18 +83,4 @@ object Notebook extends RestClient with LazyLogging {
+     logger.info(s"Set cookie: GET /$path")
+     parseResponse(getRequest(url + path, httpHeaders = List(Authorization(OAuth2BearerToken(token.value)))))
+   }
+-
+-  class NotebookMode()
+-  final case object SafeMode extends NotebookMode
+-  final case object EditMode extends NotebookMode
+-  final case object NoMode extends NotebookMode
+-
+-  def getModeFromString(message: String): NotebookMode = {
+-    message match {
+-      case message if message.toLowerCase().contains("playground") => SafeMode
+-      case message if message.toLowerCase().contains("edit") => EditMode
+-      case _ => NoMode
+-    }
+-  }
+-  }
+ }
+diff --git a/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/NotebookExtensionSpec.scala b/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/NotebookExtensionSpec.scala
+deleted file mode 100644
+index 3413c68a..00000000
+--- a/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/NotebookExtensionSpec.scala
++++ /dev/null
+@@ -1,98 +0,0 @@
+-package org.broadinstitute.dsde.workbench.leonardo.notebooks
+-
+-
+-import java.net.URL
+-import java.time.Instant
+-import java.util.UUID
+-
+-import akka.http.scaladsl.model.HttpResponse
+-import org.broadinstitute.dsde.workbench.ResourceFile
+-import org.broadinstitute.dsde.workbench.google2.GcsBlobName
+-import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
+-import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
+-import org.broadinstitute.dsde.workbench.leonardo._
+-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject}
+-
+-import scala.concurrent._
+-import scala.concurrent.duration._
+-import scala.language.postfixOps
+-
+-
+-class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
+-  override def enableWelder: Boolean = true
+-
+-  debug = true
+-  mockedCluster = mockCluster("gpalloc-dev-master-2b9yymo","automation-test-aspqal7az")
+-//
+-  "Leonardo welder and notebooks" - {
+-
+-//    "Welder should be up" in { clusterFixture =>
+-//      println("printing cluster Fixture")
+-//      println(clusterFixture)
+-//      val resp: HttpResponse = Welder.getWelderStatus(clusterFixture.cluster)
+-//      resp.status.isSuccess() shouldBe true
+-//    }
+-
+-    "open notebook in edit mode should work" in { clusterFixture =>
+-        val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
+-        withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { googleCloudDir =>
+-          logger.info("Initialized google storage bucket")
+-
+-          withWelderInitialized(clusterFixture.cluster, googleCloudDir, true) { localizedFile =>
+-            withWebDriver { implicit driver =>
+-
+-            withOpenNotebook(clusterFixture.cluster, localizedFile, 200.minutes) { notebookPage =>
+-              logger.info("notebook is open")
+-
+-              notebookPage.modeExists() shouldBe true
+-              notebookPage.getMode() shouldBe Notebook.EditMode
+-
+-
+-              notebookPage.executeCell("print('test')")
+-              notebookPage.clickSave()
+-
+-              Thread.sleep(30000)
+-
+-              val localContent:  Option[String] = Notebook.getContentItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, localizedFile.getPath).content
+-              val remoteContent: Option[String] = getObject(googleCloudDir.bucketName, GcsBlobName(googleCloudDir.objectName.value)).unsafeRunSync()
+-
+-
+-              remoteContent shouldBe localContent
+-              logger.info("Printing content from local notebook: " + localContent)
+-              logger.info("Printing content from remote notebook: " + remoteContent)
+-
+-              val lockedBy: Option[String] = getLockedBy(googleCloudDir.bucketName, GcsBlobName(googleCloudDir.objectName.value)).unsafeRunSync()
+-              logger.info("notebook is locked by: " + lockedBy)
+-
+-              Thread.sleep(100000000)
+-            }
+-          }
+-        }
+-        }
+-      }
+-
+-//    "open notebook in playground mode should work" in { clusterFixture =>
+-//      val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
+-//      withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { googleCloudDir =>
+-//        logger.info("Initialized google storage bucket")
+-//
+-//        withWelderInitialized(clusterFixture.cluster, googleCloudDir, false) { localizedFile =>
+-//          withWebDriver { implicit driver =>
+-//
+-//            withOpenNotebook(clusterFixture.cluster, localizedFile, 2.minutes) { notebookPage =>
+-//              logger.info("notebook is open")
+-//              notebookPage.modeExists() shouldBe true
+-//              notebookPage.getMode() shouldBe Notebook.SafeMode
+-//              notebookPage.executeCell("print('test')")
+-//              notebookPage.clickSave()
+-////              Thread.sleep(100000000)
+-//              //                notebookPage.close()
+-//            }
+-//          }
+-//        }
+-//      }
+-//    }
+-
+-  }
+-}
+diff --git a/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/NotebookPage.scala b/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/NotebookPage.scala
+index 07801d11..69c12b72 100644
+--- a/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/NotebookPage.scala
++++ b/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/NotebookPage.scala
+@@ -3,18 +3,16 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
+ import com.typesafe.scalalogging.LazyLogging
+ import org.apache.commons.text.StringEscapeUtils
+ import org.openqa.selenium.interactions.Actions
+-import org.openqa.selenium.{By, JavascriptExecutor, WebDriver, WebElement}
++import org.openqa.selenium.{By, WebDriver, WebElement}
+ import org.scalatest.concurrent.Eventually
+ import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
+ import org.scalatest.exceptions.TestFailedDueToTimeoutException
+ import org.scalatest.time.{Seconds, Span}
+ import org.scalatest.Matchers.convertToAnyShouldWrapper
+-
+ import scala.concurrent.duration._
+ import scala.collection.JavaConverters._
+ import org.broadinstitute.dsde.workbench.leonardo.KernelNotReadyException
+ import org.broadinstitute.dsde.workbench.auth.AuthToken
+-import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook.NotebookMode
+ 
+ class NotebookPage(override val url: String)(override implicit val authToken: AuthToken, override implicit val webDriver: WebDriver)
+   extends JupyterPage with Eventually with LazyLogging {
+@@ -86,11 +84,6 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
+ 
+   lazy val translateCell: Query = cssSelector("[title='Translate current cell']")
+ 
+-  // banner for edit or playground mode
+-  lazy val modeBanner: Query = cssSelector("[id='notification_mode']")
+-
+-  lazy val saveButton: Query = cssSelector("[id='save-notbook']")
+-
+   // is at least one cell currently executing?
+   def cellsAreRunning: Boolean = {
+     findAll(prompts).exists { e => e.text == "In [*]:" }
+@@ -244,26 +237,4 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
+   def kernelNotificationText: String = {
+     find(id("notification_kernel")).map(_.underlying.getCssValue("display")).getOrElse("")
+   }
+-
+-  //TODO remove this testing function
+-  def hideModal(): Unit = {
+-    executeScript("$('#leoUserModal').modal('hide')")
+-  }
+-
+-  def modeExists(): Boolean = {
+-    find(modeBanner).size > 0
+-  }
+-
+-  def clickSave(): Unit = {
+-    click on saveButton
+-  }
+-
+-  def getMode(): NotebookMode = {
+-    if (modeExists()) {
+-      Notebook.getModeFromString(find(modeBanner).head.text)
+-    } else {
+-      Notebook.NoMode
+-    }
+-  }
+-
+- }
++}
+diff --git a/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/NotebookTestUtils.scala b/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/NotebookTestUtils.scala
+index 00076dd4..3973b052 100644
+--- a/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/NotebookTestUtils.scala
++++ b/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/NotebookTestUtils.scala
+@@ -309,23 +309,6 @@ trait NotebookTestUtils extends LeonardoTestUtils {
+     }
+   }
+ 
+-  //initializes storageLinks/ and localizes the file to the passed gcsPath
+-     def withWelderInitialized[T](cluster: Cluster, gcsPath: GcsPath, shouldLocalizeFileInEditMode: Boolean)(testCode: File => T)(implicit token: AuthToken): T = {
+-        Welder.postStorageLink(cluster, gcsPath)
+-        Welder.localize(cluster, gcsPath, shouldLocalizeFileInEditMode)
+-
+-          val localPath: String = Welder.getLocalPath(gcsPath, shouldLocalizeFileInEditMode)
+-       val localFile: File = new File(localPath)
+-
+-          logger.info("Initialized welder via /storageLinks and /localize")
+-        testCode(localFile)
+-      }
+-
+-  def mockCluster(googleProject: String, clusterName: String): Cluster = {
+-    Cluster(ClusterName(clusterName), java.util.UUID.randomUUID(), GoogleProject(googleProject),
+-      ServiceAccountInfo(Map()), MachineConfig(), new java.net.URL("https://FAKE/URL/IF_YOU_SEE_THIS_INVESTIGATE_YOUR_USAGE_OF_MOCKCLUSTER)_METHOD/"), OperationName(""), ClusterStatus.Running, None, WorkbenchEmail(""), Instant.now(), None, Map(), None, None, None, List(), Instant.now(), None, false, Set())
+-  }
+-
+   def getLockedBy(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[Option[String]] = {
+     google2StorageResource.use {
+       google2StorageDAO =>
+diff --git a/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/NotebooksListPage.scala b/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/NotebooksListPage.scala
+index 211b8029..0a68946d 100644
+--- a/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/NotebooksListPage.scala
++++ b/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/NotebooksListPage.scala
+@@ -54,16 +54,11 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
+   }
+ 
+   def withOpenNotebook[T](file: File, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T): T = {
+-    storeInBrowser(Map("fileExists" -> file.getPath)) //browser equivalent implementation of logger.info
+-
+-    //corresponds to either the file name if just a name is specified, or the first directory if a path is specified
+-    val leadingDirSelector: Query = text(file.getPath.split("/")(0))
+-    await enabled (leadingDirSelector, timeout.toSeconds)
+-
+-    val notebookPage = new NotebookPage(url + "/notebooks/" + file.getPath).open
++    await enabled (text(file.getName), timeout.toSeconds)
++    val notebookPage = new NotebookPage(url + "/notebooks/" + file.getName).open
+     notebookPage.awaitReadyKernel(timeout)
+     val result = Try { testCode(notebookPage) }
+-//    notebookPage.shutdownKernel()
++    notebookPage.shutdownKernel()
+     result.get
+   }
+ 
+diff --git a/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/Welder.scala b/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/Welder.scala
+deleted file mode 100644
+index ef8ff87b..00000000
+--- a/automation/src/test/scala/org/broadinstitute/dsde/workbench/leonardo/notebooks/Welder.scala
++++ /dev/null
+@@ -1,85 +0,0 @@
+-package org.broadinstitute.dsde.workbench.leonardo.notebooks
+-
+-import akka.http.scaladsl.model.HttpResponse
+-import org.broadinstitute.dsde.workbench.service.RestClient
+-import com.typesafe.scalalogging.LazyLogging
+-import org.broadinstitute.dsde.workbench.leonardo._
+-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+-import org.broadinstitute.dsde.workbench.model.google._
+-import org.broadinstitute.dsde.workbench.auth.AuthToken
+-import akka.http.scaladsl.model.headers.{Authorization, Cookie, HttpCookiePair, OAuth2BearerToken}
+-
+-import scala.concurrent.Await
+-import scala.concurrent.duration._
+-
+-
+-/**
+-  * Leonardo API service client.
+-  */
+-object Welder extends RestClient with LazyLogging {
+-
+-  val localSafeModeBaseDirectory = "safe"
+-  val localBaseDirectory = "edit"
+-
+-  private val url = LeonardoConfig.Leonardo.apiUrl
+-
+-  def welderBasePath(googleProject: GoogleProject, clusterName: ClusterName): String = {
+-    s"${url}proxy/${googleProject.value}/${clusterName.string}/welder"
+-//    s"${url}/proxy/gpalloc-dev-master-3qqssch/automation-test-a3gbuiq6z/welder"
+-//    s"http://10.1.3.12:8080"
+-  }
+-
+-  def getWelderStatus(cluster: Cluster)(implicit token: AuthToken): HttpResponse = {
+-    println("printing cluster in getWelderStatus")
+-    println(cluster)
+-    val path = welderBasePath(cluster.googleProject, cluster.clusterName)
+-    logger.info(s"Get welder status: GET $path/status")
+-
+-    val rawResponse = getRequest(path + "/status")
+-    rawResponse
+-  }
+-
+-  def postStorageLink(cluster: Cluster, cloudStoragePath: GcsPath)(implicit token: AuthToken): String = {
+-    val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/storageLinks"
+-
+-    val payload = Map(
+-      "localBaseDirectory" -> localBaseDirectory,
+-      "localSafeModeBaseDirectory" -> localSafeModeBaseDirectory,
+-      "cloudStorageDirectory" -> s"gs://${cloudStoragePath.bucketName.value}",
+-      "pattern" -> ".*.ipynb"
+-    )
+-
+-    val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
+-
+-    logger.info(s"Making Welder storage links entry: POST on $path with payload $payload")
+-
+-    postRequest(path, payload, httpHeaders = List(cookie))
+-  }
+-
+-def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(implicit token: AuthToken): String = {
+-    val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/objects"
+-
+-    val payload = Map(
+-      "action" -> "localize",
+-      "entries" -> Array(Map(
+-        "sourceUri" -> cloudStoragePath.toUri,
+-        "localDestinationPath" -> getLocalPath(cloudStoragePath, isEditMode)
+-      ))
+-    )
+-
+-    val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
+-
+-
+-    logger.info(s"Making Welder localize: POST on $path with payload ${payload.toString()}")
+-    postRequest(path, payload, httpHeaders = List(cookie))
+-  }
+-
+-  def getLocalPath(cloudStoragePath: GcsPath, isEditMode: Boolean): String = {
+-    (if (isEditMode) {
+-      localBaseDirectory
+-    } else {
+-      localSafeModeBaseDirectory
+-    }) + "/" + cloudStoragePath.objectName.value
+-  }
+-
+-}
+\ No newline at end of file
+diff --git a/src/main/resources/jupyter/README.md b/src/main/resources/jupyter/README.md
+index cc490613..1f69f7aa 100644
+--- a/src/main/resources/jupyter/README.md
++++ b/src/main/resources/jupyter/README.md
+@@ -15,9 +15,3 @@ Look at the jupyter_notebook_config and ensure your local config emulates what t
+ At the time of writing, there are 3 nbextensions, edit-mode.js, safe-mode.js, and google_sign_in.js
+ 
+ extension_entry.js controls which plugins are loaded into the jupyter server image
+-
+-POST storageLinks/:
+-`curl -vX POST --header 'Content-Type: application/json' --header 'Accept: application/json' [welderUrl]/storageLinks -d '{"localBaseDirectory": "[local dir relative to dir in welder conf, ex 'edit']", "localSafeModeBaseDirectory": "[local dir relative to dir in welder conf, ex 'safe']", "cloudStorageDirectory": "gs://jc-sample-bucket", "pattern": "*" }'`
+-
+-POST localize/:
+-`curl -vX POST --header 'Content-Type: application/json' --header 'Accept: application/json' localhost:8081/objects -d '{"action" : "localize",  "entries": [{ "sourceUri": "gs://jc-sample-bucket/Untitled.ipynb", "localDestinationPath": "edit/Untitled.ipynb" }] }'`
+diff --git a/src/main/resources/jupyter/edit-mode.js b/src/main/resources/jupyter/edit-mode.js
+index 3b860ed4..1a5d8a8e 100644
+--- a/src/main/resources/jupyter/edit-mode.js
++++ b/src/main/resources/jupyter/edit-mode.js
+@@ -78,11 +78,6 @@ define(() => {
+ 
+     function init() {
+         console.info('edit mode plugin initialized')
+-
+-        if (!Jupyter.notebook) {
+-            return; //exit, they are in list view
+-        }
+-
+         checkMeta()
+         initSyncMaintainer()
+     }
+@@ -181,18 +176,13 @@ define(() => {
+     function handleCheckMetaResp(res) {
+ 
+         const healthySyncStatuses = ["LIVE"]
+-        const outOfSyncStatuses = ["DESYNCHRONIZED", "REMOTE_CHANGED"] //not used but here for reference
++        const outOfSyncStatuses = ["DESYNCHRONIZED", "LOCAL_CHANGED", "REMOTE_CHANGED"] //not used but here for reference
+         const notFoundStatus = ["REMOTE_NOT_FOUND"]
+-        const saveNeededStatus = ["LOCAL_CHANGED"]
+ 
+         if (healthySyncStatuses.includes(res.syncStatus)) {
+             console.info('healthy sync status detected: ', res.syncStatus)
+         } else if (notFoundStatus.includes(res.syncStatus)) {
+             promptUserWithModal(syncIssueTitle, noRemoteFileButtons, syncIssueNotFoundBody)
+-        } else if (saveNeededStatus.includes(res.syncStatus)) {
+-            console.info("detected that we have changes that have not been delocalized.")
+-                //It is possible saving is the right call here (aka $("#save-notbook > button").click()), but we already do that on a periodic tick
+-                //adding it here could possibly cause confusion
+         } else {
+             promptUserWithModal(syncIssueTitle, syncIssueButtons(res), syncIssueBody)
+         }
+@@ -312,7 +302,7 @@ define(() => {
+         }
+ 
+         fetch(jupyterServerApi + safeModeDir, postPayload)
+-            .then(res => handleJupyterServerResponse(res))
++            .then(res => res.json())
+             .then(res => {
+                 //then we rename the file, as POST does not allow us to specify the file name
+                 fetch(jupyterServerApi + res.path, patchPayload)
+@@ -338,7 +328,7 @@ define(() => {
+         }
+ 
+         fetch(jupyterServerApi + newNotebookPath, payload)
+-            .then(res => handleJupyterServerResponse(res))
++            .then(res => res.json())
+             .then(res => {
+                 //navigate to new file. we rely on the jupyter post api to supply the name of the file we have created as it ensures it does not exist
+                 //POST also does not allow for the specification of a file name 
+@@ -346,15 +336,6 @@ define(() => {
+             })
+     }
+ 
+-    function handleJupyterServerResponse(res) {
+-        if (!res.ok) {
+-            throw new Error("failed to perform requested action")
+-
+-            //TODO: what should we do here?
+-        }
+-        return res.json()
+-    }
+-
+     function removeElementById(id) {
+         if (!$("#" + id).length == 0) {
+             $("#" + id).remove()
+diff --git a/src/main/resources/jupyter/safe-mode.js b/src/main/resources/jupyter/safe-mode.js
+index 27f35505..4439be36 100644
+--- a/src/main/resources/jupyter/safe-mode.js
++++ b/src/main/resources/jupyter/safe-mode.js
+@@ -31,11 +31,6 @@ define(() => {
+ 
+     function load() {
+         console.info('safe mode plugin initialized')
+-
+-        if (!Jupyter.notebook) {
+-            return; //exit, they are in list view
+-        }
+-
+         checkMetaLoop()
+     }
+ 
+@@ -61,7 +56,6 @@ define(() => {
+                 }
+             })
+             .catch(err => {
+-                console.error(err)
+                 toggleUIControls(false) //we always assume safe mode if the check meta call fails
+             })
+     }
