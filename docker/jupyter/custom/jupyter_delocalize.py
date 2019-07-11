@@ -193,8 +193,12 @@ class WelderContentsManager(FileContentsManager):
       except:
         pass
 
-      if resp.status_code == 412 and error_json.get('errorCode', -1) == 1:
-        # 1: Storage Link not found; expected for unmanaged files.
+      # See https://github.com/DataBiosphere/welder/blob/cd39caba30989e9f2b1c76986abccf22d8e8a1c5/server/src/main/resources/api-docs.yaml#L197
+      ignore_codes = set([
+          1, # Storage Link not found; expected for unmanaged files.
+          2, 3 # Delocalize/delete safe mode file; expected in safe mode directories.
+      ])
+      if resp.status_code == 412 and error_json.get('errorCode', -1) in ignore_codes:
         return
 
       msg = resp.reason or 'unknown Welder error'

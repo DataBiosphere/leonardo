@@ -338,7 +338,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
             case _ => None
           }
           currentlyLocked = lockExpiresAt match {
-            case Some(instantStr) => Instant.parse(instantStr).compareTo(Instant.now()) == 1
+            case Some(instantStr) => Instant.ofEpochMilli(instantStr.toLong).compareTo(Instant.now()) == 1
             case None => false
           }
           lastLockedBy = if (currentlyLocked) {

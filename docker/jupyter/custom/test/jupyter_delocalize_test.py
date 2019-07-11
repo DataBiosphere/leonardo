@@ -233,11 +233,11 @@ class TestWelderContentsManager(AsyncTestCase):
   @requests_mock.mock()
   def test_save_new_file_reverts_on_fail(self, mock_request):
     mock_request.post(self.manager.welder_base_url + '/objects', status_code=412, json={
-      'errorCode': 3
+      'errorCode': 4
     })
     try:
       self._save_new_notebook('dir/foo.ipynb')
-      fail('expected error on save')
+      self.fail('expected error on save')
     except IOError:
       pass
     self.assertFalse(os.path.isfile(self.manager.root_dir + '/dir/foo.ipynb'))
@@ -265,7 +265,7 @@ class TestWelderContentsManager(AsyncTestCase):
           'content': updated_content,
           'format': 'text'
       }, path='dir/foo.ipynb')
-      fail('expected error on save')
+      self.fail('expected error on save')
     except IOError:
       pass
     with open(self.manager.root_dir + '/dir/foo.ipynb', 'r') as got:
@@ -295,11 +295,11 @@ class TestWelderContentsManager(AsyncTestCase):
     self._save_new_notebook('dir/foo.ipynb')
 
     mock_request.post(self.manager.welder_base_url + '/objects', status_code=412, json={
-      'errorCode': 3
+      'errorCode': 4
     })
     try:
       self.manager.delete_file('dir/foo.ipynb')
-      fail('expected error on delete')
+      self.fail('expected error on delete')
     except IOError:
       pass
     self.assertTrue(os.path.isfile(self.manager.root_dir + '/dir/foo.ipynb'))
