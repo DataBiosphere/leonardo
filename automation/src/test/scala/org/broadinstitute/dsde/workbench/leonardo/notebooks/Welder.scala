@@ -23,10 +23,10 @@ object Welder extends RestClient with LazyLogging {
 
   private val url = LeonardoConfig.Leonardo.apiUrl
 
+  case class Metadata(syncMode: String, syncStatus: String, lastLockedBy: String, storageLink: Map[String,String])
+
   def welderBasePath(googleProject: GoogleProject, clusterName: ClusterName): String = {
     s"${url}proxy/${googleProject.value}/${clusterName.string}/welder"
-//    s"${url}/proxy/gpalloc-dev-master-3qqssch/automation-test-a3gbuiq6z/welder"
-//    s"http://10.1.3.12:8080"
   }
 
   def getWelderStatus(cluster: Cluster)(implicit token: AuthToken): HttpResponse = {
@@ -74,6 +74,23 @@ def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(i
     postRequest(path, payload, httpHeaders = List(cookie))
   }
 
+  def getMetadata(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(implicit token: AuthToken): Metadata = {
+    val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/objects/metadata"
+
+    val payload = Map(
+      "localPath" -> getLocalPath(cloudStoragePath, isEditMode)
+    )
+
+    val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
+
+    logger.info(s"Making Welder localize: POST on $path with payload ${payload.toString()}")
+    parseMetadataResponse(postRequest(path, payload, httpHeaders = List(cookie)))
+  }
+
+  def parseMetadataResponse(response: String): Metadata = {
+    mapper.readValue(response, classOf[Metadata])
+  }
+
   def getLocalPath(cloudStoragePath: GcsPath, isEditMode: Boolean): String = {
     (if (isEditMode) {
       localBaseDirectory
@@ -81,5 +98,4 @@ def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(i
       localSafeModeBaseDirectory
     }) + "/" + cloudStoragePath.objectName.value
   }
-
 }

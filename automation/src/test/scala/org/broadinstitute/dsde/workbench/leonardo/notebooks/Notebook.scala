@@ -23,9 +23,8 @@ object Notebook extends RestClient with LazyLogging {
     mapper.readValue(response, classOf[ContentItem])
   }
 
-  //impossible to do the handleContentResponse methods without duplication unless generics and reflection is used, which seems to complex for test code
+  //impossible to do the handleContentResponse methods without duplication unless generics and reflection is used, which seems too complex for test code
   def handleNotebookContentResponse(response: String): NotebookContentItem = {
-    logger.info("response from /api/content/ for notebook: " + response)
    mapper.readValue(response, classOf[NotebookContentItem])
   }
 
