@@ -162,15 +162,19 @@ define(() => {
     }
 
     function handleMetaSuccess(res) {
-        handleCheckMetaResp(res) //displays modal if theres an issue in the payload
         toggleMetaFailureBanner(false) //sets banner for meta status
-        maintainLockState(res) //gets lock if in edit mode
-        maintainModeBanner(res) //sets edit/safe mode banner
+
+        const isEditMode = res.syncMode == "EDIT"
+
+        if (isEditMode) {
+            handleCheckMetaResp(res) //displays modal if theres an issue in the payload
+            getLock() //gets lock if in edit mode
+        }
+        renderModeBanner(isEditMode) //sets edit/safe mode banner
     }
 
     function handleMetaFailure(err) {
         console.error(err)
-
         if (!shouldExit) {
             removeElementById(modeBannerId)
             toggleMetaFailureBanner(true)
@@ -179,7 +183,6 @@ define(() => {
 
     //this function assumes any status not included in these lists represents a notebook out of sync to defend against future fields being added being auto-categorized as failures
     function handleCheckMetaResp(res) {
-
         const healthySyncStatuses = ["LIVE"]
         const outOfSyncStatuses = ["DESYNCHRONIZED", "REMOTE_CHANGED"] //not used but here for reference
         const notFoundStatus = ["REMOTE_NOT_FOUND"]
@@ -196,18 +199,6 @@ define(() => {
         } else {
             promptUserWithModal(syncIssueTitle, syncIssueButtons(res), syncIssueBody)
         }
-    }
-
-    function maintainLockState(res) {
-        const isEditMode = res.syncMode == "EDIT"
-        if (isEditMode) {
-            getLock()
-        }
-    }
-
-    function maintainModeBanner(res) {
-        const isEditMode = res.syncMode == "EDIT"
-        renderModeBanner(isEditMode)
     }
 
     function getLock() {
