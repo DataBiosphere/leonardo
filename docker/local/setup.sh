@@ -10,7 +10,7 @@ curl -X POST -H "Content-Type: application/json" http://localhost:8080/storageLi
 {
   "localBaseDirectory": "foo",
   "localSafeModeBaseDirectory": "foo-safe",
-  "cloudStorageDirectory": "${GCS_BUCKET}",
+  "cloudStorageDirectory": "${GCS_BUCKET}/welder-test",
   "pattern": ""
 }
 EOF

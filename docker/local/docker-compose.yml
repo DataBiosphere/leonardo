@@ -28,7 +28,7 @@ services:
       WORKSPACE_NAMESPACE: "test-project"
       CLUSTER_NAME: "test-cluster"
       OWNER_EMAIL: "foo@bar.com"
-      WELDER_ENABLE: "true"
+      WELDER_ENABLED: "true"
   proxy:
     container_name: "leo-dev-proxy"
     image: "broadinstitute/openidc-proxy:2.3.1_2"
