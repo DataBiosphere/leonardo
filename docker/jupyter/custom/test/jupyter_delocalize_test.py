@@ -336,5 +336,31 @@ class TestWelderContentsManager(AsyncTestCase):
 
     self.assertEqual(post_mock.call_count - posts_before_rename, 0)
 
+  def _delete_req_matcher(self, path):
+    def m(req):
+      return req.json()['action'] == 'delete' and req.json()['localPath'] == path
+    return m
+
+  @requests_mock.mock()
+  def test_rename_cleanup_on_delete_fail(self, mock_request):
+    mock_request.post(self.manager.welder_base_url + '/objects')
+    mock_request.post(self.manager.welder_base_url + '/objects', additional_matcher=self._delete_req_matcher('dir/foo.ipynb'), status_code=500)
+    mock_request.post(self.manager.welder_base_url + '/objects', additional_matcher=self._delete_req_matcher('dir/bar.ipynb'))
+    mock_request.post(self.manager.welder_base_url + '/objects/metadata', json={
+      'syncMode': 'EDIT'
+    })
+    want = self._save_new_notebook('dir/foo.ipynb')
+
+    # Creating the initial notebook above results in a Welder post.
+    try:
+      self.manager.rename('dir/foo.ipynb', 'dir/bar.ipynb')
+      self.fail('expected rename exception')
+    except IOError:
+      pass
+
+    self.assertFalse(os.path.isfile(self.manager.root_dir + '/dir/bar.ipynb'))
+    with open(self.manager.root_dir + '/dir/foo.ipynb', 'r') as got:
+      self.assertEqual(json.load(got), want)
+
 if __name__ == '__main__':
     unittest.main()

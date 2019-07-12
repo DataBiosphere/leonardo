@@ -262,7 +262,18 @@ class WelderContentsManager(FileContentsManager):
 
     # These methods already properly handle edit mode semantics.
     self.save(self.get(old_path), new_path)
-    self.delete(old_path)
+    try:
+      self.delete(old_path)
+    except Exception as err:
+      self.log.error("failed to delete old file during two-phase rename, " +
+          "attempting to revert save from the first phase: " + str(err))
+      try:
+        self.delete(new_path)
+      except Exception as rerr:
+        self.log.error("failed to revert first phase of rename via delete, " +
+            "extra file will remain on disk and/or GCS: " + str(rerr))
+        raise rerr
+      raise err
 
   def delete_file(self, path):
     self._post_welder('delete', path)
