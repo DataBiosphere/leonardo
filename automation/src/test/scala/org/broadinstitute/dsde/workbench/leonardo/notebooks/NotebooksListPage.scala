@@ -53,7 +53,7 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
     click on (await enabled finishUploadButton)
   }
 
-  def withOpenNotebook[T](file: File, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T): T = {\
+  def withOpenNotebook[T](file: File, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T): T = {
     //corresponds to either the file name if just a name is specified, or the first directory if a path is specified
     val leadingDirSelector: Query = text(file.getPath.split("/")(0))
     await enabled (leadingDirSelector, timeout.toSeconds)
