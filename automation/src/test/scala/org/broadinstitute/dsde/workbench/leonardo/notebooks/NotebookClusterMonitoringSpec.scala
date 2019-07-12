@@ -340,7 +340,7 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
 
     "should give cluster user-specified scopes" taggedAs Tags.SmokeTest in {
       withProject { project => implicit token =>
-        withNewCluster(project, request = ClusterRequest(scopes = Some(Set("https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/source.read_only")))) { cluster =>
+        withNewCluster(project, request = ClusterRequest(scopes = Set("https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/source.read_only"))) { cluster =>
           withWebDriver { implicit driver =>
             withNewNotebook(cluster) { notebookPage =>
               val query = """! bq query --disable_ssl_validation --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """

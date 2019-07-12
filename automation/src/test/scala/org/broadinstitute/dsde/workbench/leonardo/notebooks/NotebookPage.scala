@@ -9,10 +9,12 @@ import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.scalatest.exceptions.TestFailedDueToTimeoutException
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.Matchers.convertToAnyShouldWrapper
+
 import scala.concurrent.duration._
 import scala.collection.JavaConverters._
 import org.broadinstitute.dsde.workbench.leonardo.KernelNotReadyException
 import org.broadinstitute.dsde.workbench.auth.AuthToken
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook.NotebookMode
 
 class NotebookPage(override val url: String)(override implicit val authToken: AuthToken, override implicit val webDriver: WebDriver)
   extends JupyterPage with Eventually with LazyLogging {
@@ -84,6 +86,14 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
 
   lazy val translateCell: Query = cssSelector("[title='Translate current cell']")
 
+  // banner for edit or playground mode
+  lazy val modeBanner: Query = cssSelector("[id='notification_mode']")
+  
+  //intentionally misspelled
+  val saveButtonId = "save-notbook"
+
+  lazy val saveButton: Query = cssSelector(s"[id='${saveButtonId}']")
+
   // is at least one cell currently executing?
   def cellsAreRunning: Boolean = {
     findAll(prompts).exists { e => e.text == "In [*]:" }
@@ -148,6 +158,8 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     outputs.asScala.headOption.map(_.getText)
   }
 
+  //TODO: This function is buggy because the cell numbers are kernel specific not notebook specific
+  //It is possible to have a notebook with two cells, numbered 1,1 or even 1, 9
   def executeCell(code: String, timeout: FiniteDuration = 1 minute): Option[String] = {
     await enabled cells
     val cell = lastCell
@@ -156,8 +168,18 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
     executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
     clickRunCell(timeout)
-    await condition (cellIsRendered(cellNumber), timeout.toSeconds)
+    await condition(cellIsRendered(cellNumber), timeout.toSeconds)
     cellOutput(cell)
+  }
+
+  //TODO: this function is duplicative of the above but does not have the bug
+  def addCodeAndExecute(code: String, timeout: FiniteDuration = 1 minute): Unit = {
+    await enabled cells
+    val cell = lastCell
+    click on cell
+    val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
+    executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
+    click on runCellButton
   }
 
   def translateMarkup(code: String, timeout: FiniteDuration = 1 minute): String = {
@@ -237,4 +259,37 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   def kernelNotificationText: String = {
     find(id("notification_kernel")).map(_.underlying.getCssValue("display")).getOrElse("")
   }
-}
+
+  def modeExists(): Boolean = {
+    find(modeBanner).size > 0
+  }
+
+  def getMode(): NotebookMode = {
+    if (modeExists()) {
+      Notebook.getModeFromString(find(modeBanner).head.text)
+    } else {
+      Notebook.NoMode
+    }
+  }
+
+  def saveNotebook(): Unit = {
+    val isSafeMode = find(saveButton).exists(_.underlying.getAttribute("style") == "display: none;")
+
+    if (isSafeMode) toggleSaveButtonHidden(false)
+    await visible saveButton
+    click on saveButton
+    if (isSafeMode) toggleSaveButtonHidden(true)
+  }
+
+  def toggleSaveButtonHidden(shouldHide: Boolean) = {
+    val functionToRun = if (shouldHide) "hide()" else "show()"
+    executeJavaScript(s"$$('#${saveButtonId}').${functionToRun}")
+  }
+
+  def areElementsHidden(elementIds: List[String]): Boolean = {
+    elementIds
+      .map(elementId => find(id(elementId)).exists(_.underlying.getAttribute("style") == "display: none;"))
+      .fold(true)(_ && _)
+  }
+
+ }

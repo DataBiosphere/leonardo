@@ -1,21 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import akka.Done
+
 import akka.http.scaladsl.model.HttpHeader
 import akka.http.scaladsl.model.headers.{Authorization, Cookie, HttpCookiePair, OAuth2BearerToken}
-import akka.http.scaladsl.server.Route
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.config.LeoAuthToken
-import org.broadinstitute.dsde.workbench.leonardo.{ClusterName, LeonardoConfig}
+import org.broadinstitute.dsde.workbench.leonardo.{ClusterName, ContentItem, LeonardoConfig, NotebookContentItem, RawNotebookContents}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.RestClient
-import org.broadinstitute.dsde.workbench.leonardo.ContentItem
 import org.openqa.selenium.WebDriver
 
-import scala.concurrent.Future
-import scala.io.Source
 
 /**
   * Leonardo API service client.
@@ -26,6 +20,11 @@ object Notebook extends RestClient with LazyLogging {
 
   def handleContentItemResponse(response: String): ContentItem = {
     mapper.readValue(response, classOf[ContentItem])
+  }
+
+  //impossible to do the handleContentResponse methods without duplication unless generics and reflection is used, which seems too complex for test code
+  def handleNotebookContentResponse(response: String): NotebookContentItem = {
+    mapper.readValue(response, classOf[NotebookContentItem])
   }
 
   def notebooksBasePath(googleProject: GoogleProject, clusterName: ClusterName): String =
@@ -75,12 +74,34 @@ object Notebook extends RestClient with LazyLogging {
     val path = contentsPath(googleProject, clusterName, contentPath) + (if(includeContent) "?content=1" else "")
     logger.info(s"Get notebook contents: GET /$path")
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
+
     handleContentItemResponse(parseResponse(getRequest(url + path, httpHeaders = List(cookie))))
+  }
+
+  def getNotebookItem(googleProject: GoogleProject, clusterName: ClusterName, contentPath: String, includeContent: Boolean = true)(implicit token: AuthToken): NotebookContentItem = {
+    val path = contentsPath(googleProject, clusterName, contentPath) + (if(includeContent) "?content=1" else "")
+    logger.info(s"Get notebook contents: GET /$path")
+    val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
+
+    handleNotebookContentResponse(parseResponse(getRequest(url + path, httpHeaders = List(cookie))))
   }
 
   def setCookie(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver): String = {
     val path = notebooksBasePath(googleProject, clusterName) + "/setCookie"
     logger.info(s"Set cookie: GET /$path")
     parseResponse(getRequest(url + path, httpHeaders = List(Authorization(OAuth2BearerToken(token.value)))))
+  }
+
+  class NotebookMode()
+  final case object SafeMode extends NotebookMode
+  final case object EditMode extends NotebookMode
+  final case object NoMode extends NotebookMode
+
+  def getModeFromString(message: String): NotebookMode = {
+    message match {
+      case message if message.toLowerCase().contains("playground") => SafeMode
+      case message if message.toLowerCase().contains("edit") => EditMode
+      case _ => NoMode
+    }
   }
 }
