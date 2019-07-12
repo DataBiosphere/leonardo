@@ -1005,7 +1005,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val editModeJsContent = templateResource(clusterResourcesConfig.editModeJs, replacements)
     val safeModeJsContent = templateResource(clusterResourcesConfig.safeModeJs, replacements)
     val jupyterNotebookConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookConfigUri, replacements)
-    val jupyterDockerComposeContent = templateResource(clusterResourcesConfig.jupyterDockerCompose, replacements)
+    val jupyterDockerComposeContent = templateResourceWithNoQuotes(clusterResourcesConfig.jupyterDockerCompose, replacements)
 
     for {
       // Upload the init script to the bucket
@@ -1050,6 +1050,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private[service] def templateResource(resource: ClusterResource, replacementMap: Map[String, String]): String = {
     val raw = Source.fromResource(s"${ClusterResourcesConfig.basePath}/${resource.value}").mkString
     template(raw, replacementMap)
+  }
+
+  private[service] def templateResourceWithNoQuotes(resource: ClusterResource, replacementMap: Map[String, String]): String = {
+    val raw = Source.fromResource(s"${ClusterResourcesConfig.basePath}/${resource.value}").mkString
+    replacementMap.foldLeft(raw)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", b._2))
   }
 
   private[service] def processListClustersParameters(params: LabelMap): Future[(LabelMap, Boolean)] = {
