@@ -18,15 +18,18 @@ import scala.util.{Failure, Success, Try}
   */
 abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils with BillingFixtures with RandomUtil with LazyLogging {
 
-
   implicit val ronToken: AuthToken = ronAuthToken
   var claimedBillingProject: ClaimedProject = _
   var billingProject : GoogleProject = _
   var ronCluster: Cluster = _
   def enableWelder: Boolean = true
 
+  //To use, comment out the lines in after all that clean-up and run the test once normally. Then, instantiate a mock cluster in your test file via the `mockCluster` method in NotebookTestUtils with the project/cluster created
+  //You must also set debug to true. Example usage (goes in the Spec you are creating):
+  //
+  //debug = true
+  //mockedCluster = mockCluster("gpalloc-dev-master-0h7pzni","automation-test-apm25lvlz")
   var debug: Boolean = false //if true, will not spin up and tear down a cluster on each test. Used in conjunction with mockedCluster
-  //todo initialize this to a non-gpalloc project
   var mockedCluster: Cluster = _ //must specify a google project name and cluster name via the mockCluster utility method in NotebookTestUtils
   //example usage:
   /**
@@ -107,8 +110,6 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
       workerMachineType = Some("n1-standard-8")
     ))
 
-
-
     ClusterRequest(
       machineConfig = machineConfig,
       autopause = Some(false),
@@ -136,8 +137,8 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   override def afterAll(): Unit = {
     logger.info("afterAll")
     if (!debug) {
-//      deleteRonCluster()
-//      unclaimBillingProject()
+      deleteRonCluster()
+      unclaimBillingProject()
     }
     super.afterAll()
   }

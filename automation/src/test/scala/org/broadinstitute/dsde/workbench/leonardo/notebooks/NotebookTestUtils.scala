@@ -1,13 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import java.io.{File, FileOutputStream}
-import java.nio.charset.StandardCharsets
-import java.util.{Base64, UUID}
+import java.util.Base64
 
 import cats.effect.IO
 import java.time.Instant
 
-import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
@@ -18,6 +15,9 @@ import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse}
 import org.openqa.selenium.WebDriver
 import org.scalatest.Suite
+import java.io.File
+import java.io.FileOutputStream
+import java.nio.charset.StandardCharsets
 
 import scala.concurrent._
 import scala.concurrent.duration._
@@ -361,13 +361,14 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   def getObjectAsFile(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): File = {
     val rawContents: String = getObjectAsString(workspaceBucketName, notebookName)
       .unsafeRunSync()
-      .getOrElse("")
+      .getOrElse(throw new RuntimeException("Unable to retrieve file"))
 
     val googleFile: File = new File(logDir, s"${workspaceBucketName.value}-${notebookName.value}-${java.util.UUID.randomUUID()}.ipynb")
 
     val fos = new FileOutputStream(googleFile)
     fos.write(rawContents.getBytes(StandardCharsets.UTF_8))
     fos.close()
+
     googleFile
   }
 

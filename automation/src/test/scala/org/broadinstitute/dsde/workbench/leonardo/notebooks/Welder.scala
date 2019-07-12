@@ -23,7 +23,7 @@ object Welder extends RestClient with LazyLogging {
 
   private val url = LeonardoConfig.Leonardo.apiUrl
 
-  case class Metadata(syncMode: String, syncStatus: String, lastLockedBy: String, storageLink: Map[String,String])
+  case class Metadata(syncMode: Option[String], syncStatus: Option[String], lastLockedBy: Option[String], storageLink: Map[String,String])
 
   def welderBasePath(googleProject: GoogleProject, clusterName: ClusterName): String = {
     s"${url}proxy/${googleProject.value}/${clusterName.string}/welder"

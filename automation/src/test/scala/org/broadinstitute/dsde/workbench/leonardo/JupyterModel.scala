@@ -37,15 +37,7 @@ case class NotebookContentItem (
 //what you get if you `cat` a notebook. The majority of the 'Any' typed fields are due to the fact that Jupyter uses inconsistent types for fields, for example sometimes strings and sometimes lists
 case class RawNotebookContents(cells: List[Cell], metadata: Any, nbformat: Int, nbformat_minor: Int)
 
-//we declare metadata as a var and clear it because Jupyter adds random junk to the api response that does not exist on the file on disk. If this field is needed, seek directly retrieving the file from the jupyter-server image on the cluster
-case class Cell(cell_type: String, execution_count: Int, var metadata: Map[String,Any], outputs: List[Output], source: Any) {
-  metadata = Map()
-
-  source match {
-    case x: String => List(x)
-    case x: Any => x
-  }
-}
+case class Cell(cell_type: String, execution_count: Int, var metadata: Map[String,Any], outputs: List[Output], source: Any)
 
 case class Output(name: Option[String], output_type: Option[String], text: Any, data: Option[Any], execution_count: Option[Int], metadata: Option[Any])
 

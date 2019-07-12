@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 import com.typesafe.scalalogging.LazyLogging
 import org.apache.commons.text.StringEscapeUtils
 import org.openqa.selenium.interactions.Actions
-import org.openqa.selenium.{By, JavascriptExecutor, WebDriver, WebElement}
+import org.openqa.selenium.{By, WebDriver, WebElement}
 import org.scalatest.concurrent.Eventually
 import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.scalatest.exceptions.TestFailedDueToTimeoutException
@@ -88,8 +88,11 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
 
   // banner for edit or playground mode
   lazy val modeBanner: Query = cssSelector("[id='notification_mode']")
+  
+  //intentionally misspelled
+  val saveButtonId = "save-notbook"
 
-  lazy val saveButton: Query = cssSelector("[id='save-notbook']")
+  lazy val saveButton: Query = cssSelector(s"[id='${saveButtonId}']")
 
   // is at least one cell currently executing?
   def cellsAreRunning: Boolean = {
@@ -257,17 +260,22 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     find(id("notification_kernel")).map(_.underlying.getCssValue("display")).getOrElse("")
   }
 
-  //TODO remove this testing function
-  def hideModal(): Unit = {
-    executeScript("$('#leoUserModal').modal('hide')")
-  }
-
   def modeExists(): Boolean = {
     find(modeBanner).size > 0
   }
 
-  def clickSave(): Unit = {
+  def saveNotebook(): Unit = {
+    val isSafeMode = find(saveButton).exists(_.underlying.getAttribute("style") == "display: none;")
+
+    if (isSafeMode) toggleSaveButtonHidden(false)
+    await visible saveButton
     click on saveButton
+    if (isSafeMode) toggleSaveButtonHidden(true)
+  }
+
+  def toggleSaveButtonHidden(shouldHide: Boolean) = {
+    val functionToRun = if (shouldHide) "hide()" else "show()"
+    executeJavaScript(s"$$('#${saveButtonId}').${functionToRun}")
   }
 
   def areElementsHidden(elementIds: List[String]): Boolean = {

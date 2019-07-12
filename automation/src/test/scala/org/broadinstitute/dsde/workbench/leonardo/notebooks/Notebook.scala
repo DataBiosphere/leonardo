@@ -9,7 +9,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{ClusterName, ContentItem, Leo
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.RestClient
 import org.openqa.selenium.WebDriver
-import org.broadinstitute.dsde.workbench.ResourceFile
 
 
 /**

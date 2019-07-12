@@ -21,12 +21,12 @@ trait JupyterPage extends CookieAuthedPage[JupyterPage] {
     messages.foreach(pair => {
       val q = "\""
       val script = s"window.sessionStorage.setItem(${q + pair._1 + q},${q + pair._2 + q})"
-      executeScript(script)
+      executeJavaScript(script)
     })
   }
 
   //executes arbitrary javascript client-side
-  def executeScript(script: String): Unit = {
+  def executeJavaScript(script: String): Unit = {
     val executor: JavascriptExecutor = webDriver.asInstanceOf[JavascriptExecutor]
     executor.executeScript(script)
   }
