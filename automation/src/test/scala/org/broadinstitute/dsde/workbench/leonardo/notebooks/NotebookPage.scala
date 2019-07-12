@@ -168,7 +168,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
     executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
     clickRunCell(timeout)
-      await condition(cellIsRendered(cellNumber), timeout.toSeconds)
+    await condition(cellIsRendered(cellNumber), timeout.toSeconds)
     cellOutput(cell)
   }
 
