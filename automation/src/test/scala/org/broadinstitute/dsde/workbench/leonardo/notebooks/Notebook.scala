@@ -92,7 +92,7 @@ object Notebook extends RestClient with LazyLogging {
     parseResponse(getRequest(url + path, httpHeaders = List(Authorization(OAuth2BearerToken(token.value)))))
   }
 
-  case class NotebookMode()
+  class NotebookMode()
   final case object SafeMode extends NotebookMode
   final case object EditMode extends NotebookMode
   final case object NoMode extends NotebookMode
