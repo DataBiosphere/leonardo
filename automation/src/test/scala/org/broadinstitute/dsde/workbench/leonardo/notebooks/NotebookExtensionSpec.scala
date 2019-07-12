@@ -22,7 +22,7 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
     "open notebook in edit mode should work" in { clusterFixture =>
         val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
-      val isEditMode = true
+        val isEditMode = true
         withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { googleCloudDir =>
           withWelderInitialized(clusterFixture.cluster, googleCloudDir, isEditMode) { localizedFile =>
             withWebDriver { implicit driver =>
@@ -58,7 +58,7 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
     "open notebook in playground mode should work" in { clusterFixture =>
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
-val isEditMode = false
+      val isEditMode = false
       withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { googleCloudDir =>
         logger.info("Initialized google storage bucket")
 
@@ -94,16 +94,16 @@ val isEditMode = false
 
               areElementsHidden shouldBe true
 
-                val gcsLockedBy: Option[String] = getLockedBy(googleCloudDir.bucketName, GcsBlobName(googleCloudDir.objectName.value)).unsafeRunSync()
-                val welderLockedBy: Option[String] = Welder.getMetadata(clusterFixture.cluster, googleCloudDir, isEditMode).lastLockedBy
+              val gcsLockedBy: Option[String] = getLockedBy(googleCloudDir.bucketName, GcsBlobName(googleCloudDir.objectName.value)).unsafeRunSync()
+              val welderLockedBy: Option[String] = Welder.getMetadata(clusterFixture.cluster, googleCloudDir, isEditMode).lastLockedBy
 
-                gcsLockedBy shouldBe None
-                welderLockedBy shouldBe None
-              }
+              gcsLockedBy shouldBe None
+              welderLockedBy shouldBe None
             }
           }
         }
       }
+    }
 
   }
 }

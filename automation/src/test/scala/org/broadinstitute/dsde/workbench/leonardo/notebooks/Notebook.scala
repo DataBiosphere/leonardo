@@ -24,7 +24,7 @@ object Notebook extends RestClient with LazyLogging {
 
   //impossible to do the handleContentResponse methods without duplication unless generics and reflection is used, which seems too complex for test code
   def handleNotebookContentResponse(response: String): NotebookContentItem = {
-   mapper.readValue(response, classOf[NotebookContentItem])
+    mapper.readValue(response, classOf[NotebookContentItem])
   }
 
   def notebooksBasePath(googleProject: GoogleProject, clusterName: ClusterName): String =
@@ -92,7 +92,7 @@ object Notebook extends RestClient with LazyLogging {
     parseResponse(getRequest(url + path, httpHeaders = List(Authorization(OAuth2BearerToken(token.value)))))
   }
 
-  class NotebookMode()
+  case class NotebookMode()
   final case object SafeMode extends NotebookMode
   final case object EditMode extends NotebookMode
   final case object NoMode extends NotebookMode
