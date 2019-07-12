@@ -51,7 +51,8 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
         val c2 = dbFutureValue { _.clusterQuery.getClusterById(savedTestCluster2.id) }.get
 
         List(c1, c2).foreach { c =>
-          c.status shouldBe ClusterStatus.Error
+          c.status shouldBe ClusterStatus.Deleted
+          c.auditInfo.destroyedDate shouldBe 'defined
           c.errors.size shouldBe 1
           c.errors.head.errorCode shouldBe -1
           c.errors.head.errorMessage should include ("An underlying resource was removed in Google")
@@ -82,7 +83,8 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
         val c2 = dbFutureValue { _.clusterQuery.getClusterById(savedTestCluster2.id) }.get
 
         List(c1, c2).foreach { c =>
-          c.status shouldBe ClusterStatus.Error
+          c.status shouldBe ClusterStatus.Deleted
+          c.auditInfo.destroyedDate shouldBe 'defined
           c.errors.size shouldBe 1
           c.errors.head.errorCode shouldBe -1
           c.errors.head.errorMessage should include ("An underlying resource was removed in Google")
@@ -120,7 +122,8 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
         val c1 = dbFutureValue { _.clusterQuery.getClusterById(savedTestCluster1.id) }.get
         val c2 = dbFutureValue { _.clusterQuery.getClusterById(savedTestCluster2.id) }.get
 
-        c2.status shouldBe ClusterStatus.Error
+        c2.status shouldBe ClusterStatus.Deleted
+        c2.auditInfo.destroyedDate shouldBe 'defined
         c2.errors.size shouldBe 1
         c2.errors.head.errorCode shouldBe -1
         c2.errors.head.errorMessage should include ("An underlying resource was removed in Google")
@@ -156,12 +159,14 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
         val c1 = dbFutureValue { _.clusterQuery.getClusterById(savedTestCluster1.id) }.get
         val c2 = dbFutureValue { _.clusterQuery.getClusterById(savedTestCluster2.id) }.get
 
-        c1.status shouldBe ClusterStatus.Error
+        c1.status shouldBe ClusterStatus.Deleted
+        c1.auditInfo.destroyedDate shouldBe 'defined
         c1.errors.size shouldBe 1
         c1.errors.head.errorCode shouldBe -1
         c1.errors.head.errorMessage should include ("An underlying resource was removed in Google")
 
-        c2.status shouldBe ClusterStatus.Error
+        c2.status shouldBe ClusterStatus.Deleted
+        c2.auditInfo.destroyedDate shouldBe 'defined
         c2.errors.size shouldBe 1
         c2.errors.head.errorCode shouldBe -1
         c2.errors.head.errorMessage should include ("An underlying resource was removed in Google")
@@ -247,7 +252,8 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
         c2.status shouldBe ClusterStatus.Running
         c2.errors shouldBe 'empty
 
-        c3.status shouldBe ClusterStatus.Error
+        c3.status shouldBe ClusterStatus.Deleted
+        c3.auditInfo.destroyedDate shouldBe 'defined
         c3.errors.size shouldBe 1
         c3.errors.head.errorCode shouldBe -1
         c3.errors.head.errorMessage should include ("An underlying resource was removed in Google")
