@@ -71,7 +71,7 @@ case class Cluster(clusterName: ClusterName,
                    dateAccessed: Instant,
                    defaultClientId: Option[String],
                    stopAfterCreation: Boolean,
-                   scopes: Option[Set[String]]) {
+                   scopes: Set[String]) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.string}"
 }
 
