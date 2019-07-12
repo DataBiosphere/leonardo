@@ -31,6 +31,11 @@ define(() => {
 
     function load() {
         console.info('safe mode plugin initialized')
+
+        if (!Jupyter.notebook) {
+            return; //exit, they are in list view
+        }
+
         checkMetaLoop()
     }
 
@@ -56,6 +61,7 @@ define(() => {
                 }
             })
             .catch(err => {
+                console.error(err)
                 toggleUIControls(false) //we always assume safe mode if the check meta call fails
             })
     }

@@ -1,11 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import java.io.{File, FileOutputStream}
-import java.nio.charset.StandardCharsets
 import java.util.Base64
 
 import cats.effect.IO
 import java.time.Instant
+
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
@@ -16,6 +15,9 @@ import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse}
 import org.openqa.selenium.WebDriver
 import org.scalatest.Suite
+import java.io.File
+import java.io.FileOutputStream
+import java.nio.charset.StandardCharsets
 
 import scala.concurrent._
 import scala.concurrent.duration._
@@ -309,6 +311,23 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     }
   }
 
+  //initializes storageLinks/ and localizes the file to the passed gcsPath
+     def withWelderInitialized[T](cluster: Cluster, gcsPath: GcsPath, shouldLocalizeFileInEditMode: Boolean)(testCode: File => T)(implicit token: AuthToken): T = {
+        Welder.postStorageLink(cluster, gcsPath)
+        Welder.localize(cluster, gcsPath, shouldLocalizeFileInEditMode)
+
+          val localPath: String = Welder.getLocalPath(gcsPath, shouldLocalizeFileInEditMode)
+       val localFile: File = new File(localPath)
+
+          logger.info("Initialized welder via /storageLinks and /localize")
+        testCode(localFile)
+      }
+
+  def mockCluster(googleProject: String, clusterName: String): Cluster = {
+    Cluster(ClusterName(clusterName), java.util.UUID.randomUUID(), GoogleProject(googleProject),
+      ServiceAccountInfo(Map()), MachineConfig(), new java.net.URL("https://FAKE/URL/IF_YOU_SEE_THIS_INVESTIGATE_YOUR_USAGE_OF_MOCKCLUSTER_METHOD/"), OperationName(""), ClusterStatus.Running, None, WorkbenchEmail(""), Instant.now(), None, Map(), None, None, None, List(), Instant.now(), None, false, Set())
+  }
+
   def getLockedBy(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[Option[String]] = {
     google2StorageResource.use {
       google2StorageDAO =>
@@ -332,11 +351,25 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     }
   }
 
-  def getObject(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[Option[String]] = {
+  def getObjectAsString(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[Option[String]] = {
     google2StorageResource.use {
       google2StorageDAO =>
         google2StorageDAO.unsafeGetObject(workspaceBucketName, notebookName, None)
     }
+  }
+
+  def getObjectAsFile(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): File = {
+    val rawContents: String = getObjectAsString(workspaceBucketName, notebookName)
+      .unsafeRunSync()
+      .getOrElse(throw new RuntimeException("Unable to retrieve file"))
+
+    val googleFile: File = new File(logDir, s"${workspaceBucketName.value}-${notebookName.value}-${java.util.UUID.randomUUID()}.ipynb")
+
+    val fos = new FileOutputStream(googleFile)
+    fos.write(rawContents.getBytes(StandardCharsets.UTF_8))
+    fos.close()
+
+    googleFile
   }
 
 }

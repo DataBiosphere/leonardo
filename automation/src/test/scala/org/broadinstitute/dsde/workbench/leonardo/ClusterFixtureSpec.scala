@@ -22,7 +22,16 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   var claimedBillingProject: ClaimedProject = _
   var billingProject : GoogleProject = _
   var ronCluster: Cluster = _
+  def enableWelder: Boolean = true
 
+  //To use, comment out the lines in after all that clean-up and run the test once normally. Then, instantiate a mock cluster in your test file via the `mockCluster` method in NotebookTestUtils with the project/cluster created
+  //You must also set debug to true. Example usage (goes in the Spec you are creating):
+  //
+  //debug = true
+  //mockedCluster = mockCluster("gpalloc-dev-master-0h7pzni","automation-test-apm25lvlz")
+  var debug: Boolean = false //if true, will not spin up and tear down a cluster on each test. Used in conjunction with mockedCluster
+  var mockedCluster: Cluster = _ //must specify a google project name and cluster name via the mockCluster utility method in NotebookTestUtils
+  //example usage:
   /**
     * See
     *  https://www.artima.com/docs-scalatest-2.0.M5/org/scalatest/FreeSpec.html
@@ -36,6 +45,11 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   type FixtureParam = ClusterFixture
 
   override def withFixture(test: OneArgTest): Outcome = {
+    if (debug) {
+      logger.info("[Debug] Using mocked cluster for cluster fixture tests")
+      billingProject = mockedCluster.googleProject
+      ronCluster = mockedCluster
+    }
     withFixture(test.toNoArgTest(ClusterFixture(billingProject, ronCluster)))
   }
 
@@ -78,11 +92,8 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     */
   def createRonCluster(): Unit = {
     Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
-    val highMemClusterRequest = ClusterRequest(machineConfig = Option(MachineConfig(
-      masterMachineType = Option("n1-standard-8"),
-      workerMachineType = Option("n1-standard-8")
-    )))
-    Try (createNewCluster(billingProject, request = highMemClusterRequest)(ronAuthToken)) match {
+
+    Try (createNewCluster(billingProject, request = getClusterRequest())(ronAuthToken)) match {
       case Success(outcome) =>
         ronCluster = outcome
         logger.info(s"Successfully created cluster $ronCluster")
@@ -91,6 +102,18 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
         unclaimBillingProject()
         throw  ex
     }
+  }
+
+  def getClusterRequest(): ClusterRequest = {
+    val machineConfig = Option(MachineConfig(
+      masterMachineType = Some("n1-standard-8"),
+      workerMachineType = Some("n1-standard-8")
+    ))
+
+    ClusterRequest(
+      machineConfig = machineConfig,
+      autopause = Some(false),
+      enableWelder = Some(enableWelder))
   }
 
   /**
@@ -102,15 +125,19 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
 
   override def beforeAll(): Unit = {
     logger.info("beforeAll")
+    if (!debug) {
+      claimBillingProject()
+      createRonCluster()
+    }
     super.beforeAll()
-    claimBillingProject()
-    createRonCluster()
   }
 
   override def afterAll(): Unit = {
     logger.info("afterAll")
-    deleteRonCluster()
-    unclaimBillingProject()
+    if (!debug) {
+      deleteRonCluster()
+      unclaimBillingProject()
+    }
     super.afterAll()
   }
 

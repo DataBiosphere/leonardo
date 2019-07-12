@@ -78,6 +78,11 @@ define(() => {
 
     function init() {
         console.info('edit mode plugin initialized')
+
+        if (!Jupyter.notebook) {
+            return; //exit, they are in list view
+        }
+
         checkMeta()
         initSyncMaintainer()
     }
@@ -157,15 +162,19 @@ define(() => {
     }
 
     function handleMetaSuccess(res) {
-        handleCheckMetaResp(res) //displays modal if theres an issue in the payload
         toggleMetaFailureBanner(false) //sets banner for meta status
-        maintainLockState(res) //gets lock if in edit mode
-        maintainModeBanner(res) //sets edit/safe mode banner
+
+        const isEditMode = res.syncMode == "EDIT"
+
+        if (isEditMode) {
+            handleCheckMetaResp(res) //displays modal if theres an issue in the payload
+            getLock() //gets lock if in edit mode
+        }
+        renderModeBanner(isEditMode) //sets edit/safe mode banner
     }
 
     function handleMetaFailure(err) {
         console.error(err)
-
         if (!shouldExit) {
             removeElementById(modeBannerId)
             toggleMetaFailureBanner(true)
@@ -174,30 +183,22 @@ define(() => {
 
     //this function assumes any status not included in these lists represents a notebook out of sync to defend against future fields being added being auto-categorized as failures
     function handleCheckMetaResp(res) {
-
         const healthySyncStatuses = ["LIVE"]
-        const outOfSyncStatuses = ["DESYNCHRONIZED", "LOCAL_CHANGED", "REMOTE_CHANGED"] //not used but here for reference
+        const outOfSyncStatuses = ["DESYNCHRONIZED", "REMOTE_CHANGED"] //not used but here for reference
         const notFoundStatus = ["REMOTE_NOT_FOUND"]
+        const saveNeededStatus = ["LOCAL_CHANGED"]
 
         if (healthySyncStatuses.includes(res.syncStatus)) {
             console.info('healthy sync status detected: ', res.syncStatus)
         } else if (notFoundStatus.includes(res.syncStatus)) {
             promptUserWithModal(syncIssueTitle, noRemoteFileButtons, syncIssueNotFoundBody)
+        } else if (saveNeededStatus.includes(res.syncStatus)) {
+            console.info("detected that we have changes that have not been delocalized.")
+                //It is possible saving is the right call here (aka $("#save-notbook > button").click()), but we already do that on a periodic tick
+                //adding it here could possibly cause confusion
         } else {
             promptUserWithModal(syncIssueTitle, syncIssueButtons(res), syncIssueBody)
         }
-    }
-
-    function maintainLockState(res) {
-        const isEditMode = res.syncMode == "EDIT"
-        if (isEditMode) {
-            getLock()
-        }
-    }
-
-    function maintainModeBanner(res) {
-        const isEditMode = res.syncMode == "EDIT"
-        renderModeBanner(isEditMode)
     }
 
     function getLock() {
@@ -302,7 +303,7 @@ define(() => {
         }
 
         fetch(jupyterServerApi + safeModeDir, postPayload)
-            .then(res => res.json())
+            .then(res => handleJupyterServerResponse(res))
             .then(res => {
                 //then we rename the file, as POST does not allow us to specify the file name
                 fetch(jupyterServerApi + res.path, patchPayload)
@@ -310,7 +311,6 @@ define(() => {
                         //navigate to new file
                         window.location.href = jupyterFsHref + safeModeDir + '/' + originalNotebookName
                     })
-
             })
     }
 
@@ -328,12 +328,19 @@ define(() => {
         }
 
         fetch(jupyterServerApi + newNotebookPath, payload)
-            .then(res => res.json())
+            .then(res => handleJupyterServerResponse(res))
             .then(res => {
                 //navigate to new file. we rely on the jupyter post api to supply the name of the file we have created as it ensures it does not exist
                 //POST also does not allow for the specification of a file name 
                 window.location.href = jupyterFsHref + res.path
             })
+    }
+
+    function handleJupyterServerResponse(res) {
+        if (!res.ok) {
+            throw new Error("failed to perform requested action, the jupyter server is unavailable")
+        }
+        return res.json()
     }
 
     function removeElementById(id) {
