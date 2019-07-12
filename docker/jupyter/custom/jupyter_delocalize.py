@@ -178,6 +178,27 @@ class WelderContentsManager(FileContentsManager):
     self.welder_base_url = 'http://127.0.0.1:8080'
     super(WelderContentsManager, self).__init__(*args, **kwargs)
 
+  def _extract_welder_error(self, resp):
+      try:
+        return json.dumps(resp.json())
+      except:
+        return resp.reason or 'unknown Welder error'
+
+  def _check_welder_edit_mode(self, path):
+    resp = requests.post(self.welder_base_url + '/objects/metadata', data=json.dumps({
+      # Sometimes the Jupyter UI provided "path" contains a leading /, sometimes
+      # not; strip for Welder.
+      'localPath': path.lstrip('/')
+    }))
+    if resp.status_code == 412:
+      return False
+
+    if not resp.ok:
+      raise IOError("checkMetadata failed: '{}'".format(self._extract_welder_error(resp)))
+
+    return resp.json().get("syncMode") == "EDIT"
+
+
   def _post_welder(self, action, path):
     # Ignore storage link failure, throw other errors.
     resp = requests.post(self.welder_base_url + '/objects', data=json.dumps({
@@ -201,11 +222,7 @@ class WelderContentsManager(FileContentsManager):
       if resp.status_code == 412 and error_json.get('errorCode', -1) in ignore_codes:
         return
 
-      msg = resp.reason or 'unknown Welder error'
-      if error_json != {}:
-        msg = json.dumps(error_json)
-
-      raise IOError("welder action '{}' failed: '{}'".format(action, msg))
+      raise IOError("welder action '{}' failed: '{}'".format(action, self._extract_welder_error(resp)))
 
   def save(self, model, path=''):
     # Capture the pre-save file so we can revert if Welder fails.
@@ -239,8 +256,13 @@ class WelderContentsManager(FileContentsManager):
     return ret
 
   def rename_file(self, old_path, new_path):
-    # TODO(IA-1028): Integrate Welder renaming.
-    super(WelderContentsManager, self).rename_file(old_path, new_path)
+    if not self._check_welder_edit_mode(old_path) and not self._check_welder_edit_mode(new_path):
+      # If we're not touching any edit mode files, just do a normal move.
+      return super(WelderContentsManager, self).rename_file(old_path, new_path)
+
+    # These methods already properly handle edit mode semantics.
+    self.save(self.get(old_path), new_path)
+    self.delete(old_path)
 
   def delete_file(self, path):
     self._post_welder('delete', path)

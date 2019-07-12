@@ -304,5 +304,37 @@ class TestWelderContentsManager(AsyncTestCase):
       pass
     self.assertTrue(os.path.isfile(self.manager.root_dir + '/dir/foo.ipynb'))
 
+  @requests_mock.mock()
+  def test_rename(self, mock_request):
+    post_mock = mock_request.post(self.manager.welder_base_url + '/objects')
+    mock_request.post(self.manager.welder_base_url + '/objects/metadata', json={
+      'syncMode': 'EDIT'
+    })
+    want = self._save_new_notebook('dir/foo.ipynb')
+
+    # Creating the initial notebook above results in a Welder post.
+    posts_before_rename = post_mock.call_count
+    self.manager.rename('dir/foo.ipynb', 'dir/bar.ipynb')
+    self.assertFalse(os.path.isfile(self.manager.root_dir + '/dir/foo.ipynb'))
+    with open(self.manager.root_dir + '/dir/bar.ipynb', 'r') as got:
+      self.assertEqual(json.load(got), want)
+
+    self.assertEqual(post_mock.call_count - posts_before_rename, 2)
+
+  @requests_mock.mock()
+  def test_rename_scratch_file(self, mock_request):
+    post_mock = mock_request.post(self.manager.welder_base_url + '/objects')
+    mock_request.post(self.manager.welder_base_url + '/objects/metadata', status_code=412)
+    want = self._save_new_notebook('dir/foo.ipynb')
+
+    # Creating the initial notebook above results in a Welder post.
+    posts_before_rename = post_mock.call_count
+    self.manager.rename('dir/foo.ipynb', 'dir/bar.ipynb')
+    self.assertFalse(os.path.isfile(self.manager.root_dir + '/dir/foo.ipynb'))
+    with open(self.manager.root_dir + '/dir/bar.ipynb', 'r') as got:
+      self.assertEqual(json.load(got), want)
+
+    self.assertEqual(post_mock.call_count - posts_before_rename, 0)
+
 if __name__ == '__main__':
     unittest.main()
