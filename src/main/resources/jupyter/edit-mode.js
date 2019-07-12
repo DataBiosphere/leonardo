@@ -311,7 +311,6 @@ define(() => {
                         //navigate to new file
                         window.location.href = jupyterFsHref + safeModeDir + '/' + originalNotebookName
                     })
-
             })
     }
 
@@ -339,9 +338,7 @@ define(() => {
 
     function handleJupyterServerResponse(res) {
         if (!res.ok) {
-            throw new Error("failed to perform requested action")
-
-            //TODO: what should we do here?
+            throw new Error("failed to perform requested action, the jupyter server is unavailable")
         }
         return res.json()
     }

@@ -264,6 +264,14 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     find(modeBanner).size > 0
   }
 
+  def getMode(): NotebookMode = {
+    if (modeExists()) {
+      Notebook.getModeFromString(find(modeBanner).head.text)
+    } else {
+      Notebook.NoMode
+    }
+  }
+
   def saveNotebook(): Unit = {
     val isSafeMode = find(saveButton).exists(_.underlying.getAttribute("style") == "display: none;")
 
@@ -282,14 +290,6 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     elementIds
       .map(elementId => find(id(elementId)).exists(_.underlying.getAttribute("style") == "display: none;"))
       .fold(true)(_ && _)
-  }
-
-  def getMode(): NotebookMode = {
-    if (modeExists()) {
-      Notebook.getModeFromString(find(modeBanner).head.text)
-    } else {
-      Notebook.NoMode
-    }
   }
 
  }

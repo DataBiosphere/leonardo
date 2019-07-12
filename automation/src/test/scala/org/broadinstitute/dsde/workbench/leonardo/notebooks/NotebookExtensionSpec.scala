@@ -16,8 +16,6 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
   "Leonardo welder and jupyter extensions" - {
 
     "Welder should be up" in { clusterFixture =>
-      println("printing cluster Fixture")
-      println(clusterFixture)
       val resp: HttpResponse = Welder.getWelderStatus(clusterFixture.cluster)
       resp.status.isSuccess() shouldBe true
     }

@@ -1,2 +1,0 @@
-[0m[[0m[0minfo[0m] [0m[0mLoading settings for project automation-build from plugins.sbt ...[0m
-[0m[[0m[0minfo[0m] [0m[0mLoading project definition from /Users/jcanas/firecloud-repos/leonardo/automation/project[0m

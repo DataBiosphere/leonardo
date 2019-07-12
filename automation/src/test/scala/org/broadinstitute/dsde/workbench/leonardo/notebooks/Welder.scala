@@ -23,7 +23,7 @@ object Welder extends RestClient with LazyLogging {
 
   private val url = LeonardoConfig.Leonardo.apiUrl
 
-  case class Metadata(syncMode: Option[String], syncStatus: Option[String], lastLockedBy: Option[String], storageLink: Map[String,String])
+  case class Metadata(syncMode: String, syncStatus: Option[String], lastLockedBy: Option[String], storageLink: Map[String,String])
 
   def welderBasePath(googleProject: GoogleProject, clusterName: ClusterName): String = {
     s"${url}proxy/${googleProject.value}/${clusterName.string}/welder"
@@ -68,7 +68,6 @@ def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(i
     )
 
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
-
 
     logger.info(s"Making Welder localize: POST on $path with payload ${payload.toString()}")
     postRequest(path, payload, httpHeaders = List(cookie))
