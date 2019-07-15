@@ -9,35 +9,35 @@ import cats.data.OptionT
 import cats.effect.IO
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
+import io.chrisdavenport.linebacker.Linebacker
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.ResourceFile
-import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserAuthToken}
 import org.broadinstitute.dsde.workbench.config.Credentials
+import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
-import org.broadinstitute.dsde.workbench.google2.{GoogleStorageService, GoogleStorageInterpreter}
-import org.broadinstitute.dsde.workbench.service.{Orchestration, RestException, Sam}
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
-import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
+import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{ClusterStatus, deletableStatuses}
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.{V1, V2}
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
+import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
+import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration, RestException, Sam}
 import org.broadinstitute.dsde.workbench.util._
 import org.scalactic.source.Position
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
-import org.scalatest.{Matchers, Suite}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Minutes, Seconds, Span}
+import org.scalatest.{Matchers, Suite}
 
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.{Failure, Random, Success, Try}
-import io.chrisdavenport.linebacker.Linebacker
 
 case class KernelNotReadyException(timeElapsed:Timeout)
   extends Exception(s"Jupyter kernel is NOT ready after waiting ${timeElapsed}")
@@ -398,7 +398,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     Thread sleep jitter.toMillis
     withCleanBillingProject(hermioneCreds) { projectName =>
       val project = GoogleProject(projectName)
-      Orchestration.billing.addUserToBillingProject(projectName, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+      Orchestration.billing.addUserToBillingProject(projectName, ronEmail, BillingProject.BillingProjectRole.User)(hermioneAuthToken)
       testCode(project)(ronAuthToken)
     }
   }

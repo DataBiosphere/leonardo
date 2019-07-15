@@ -14,9 +14,8 @@ import scala.language.postfixOps
 class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
   override def enableWelder: Boolean = true
 
-  debug = true
-  mockedCluster = mockCluster("gpalloc-dev-master-1ecxlpm","automation-test-a5ahwcihz")
-
+  debug = true //if true, will not spin up and tear down a cluster on each test. Used in conjunction with mockedCluster
+  mockedCluster = mockCluster("gpalloc-dev-master-1ecxlpm", "automation-test-auhyfvadz") //_ //must specify a google project name and cluster name via the mockCluster utility method in NotebookTestUtils
 
   "Leonardo welder and jupyter extensions" - {
 
@@ -34,7 +33,7 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
             withOpenNotebook(clusterFixture.cluster, localizedFile, 2.minutes) { notebookPage =>
 
-              Thread.sleep(100000000)
+//              Thread.sleep(100000000)
 
               notebookPage.modeExists() shouldBe true
               notebookPage.getMode() shouldBe NotebookMode.EditMode
