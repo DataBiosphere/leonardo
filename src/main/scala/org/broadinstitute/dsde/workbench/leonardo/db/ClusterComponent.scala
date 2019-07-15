@@ -17,6 +17,7 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GcsPathSupport, GoogleProject, ServiceAccountKey, ServiceAccountKeyId, parseGcsPath}
 
 final case class ClusterRecord(id: Long,
+                               internalId: String,
                                clusterName: String,
                                googleId: Option[UUID],
                                googleProject: String,
@@ -66,6 +67,7 @@ trait ClusterComponent extends LeoComponent {
 
   class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
     def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
+    def internalId = column[String]("internalId", O.Length(254))
     def clusterName = column[String]("clusterName", O.Length(254))
     def googleId = column[Option[UUID]]("googleId")
     def googleProject = column[String]("googleProject", O.Length(254))
@@ -104,17 +106,17 @@ trait ClusterComponent extends LeoComponent {
     // because CLUSTER has more than 22 columns.
     // So we split ClusterRecord into multiple case classes and bind them to slick in the following way.
     def * = (
-      id, clusterName, googleId, googleProject, operationName, status, hostIp,
+      id, internalId, clusterName, googleId, googleProject, operationName, status, hostIp,
       jupyterExtensionUri, jupyterUserScriptUri, initBucket,
       (creator, createdDate, destroyedDate, dateAccessed, kernelFoundBusyDate),
       (numberOfWorkers, masterMachineType, masterDiskSize, workerMachineType, workerDiskSize, numberOfWorkerLocalSSDs, numberOfPreemptibleWorkers),
       (clusterServiceAccount, notebookServiceAccount, serviceAccountKeyId), stagingBucket, autopauseThreshold, defaultClientId, stopAfterCreation, welderEnabled, properties
     ).shaped <> ({
-      case (id, clusterName, googleId, googleProject, operationName, status, hostIp,
+      case (id, internalId, clusterName, googleId, googleProject, operationName, status, hostIp,
             jupyterExtensionUri, jupyterUserScriptUri, initBucket, auditInfo, machineConfig,
             serviceAccountInfo, stagingBucket, autopauseThreshold, defaultClientId, stopAfterCreation, welderEnabled, properties) =>
         ClusterRecord(
-          id, clusterName, googleId, googleProject, operationName, status, hostIp,
+          id, internalId, clusterName, googleId, googleProject, operationName, status, hostIp,
           jupyterExtensionUri, jupyterUserScriptUri, initBucket,
           AuditInfoRecord.tupled.apply(auditInfo),
           MachineConfigRecord.tupled.apply(machineConfig),
@@ -126,7 +128,7 @@ trait ClusterComponent extends LeoComponent {
       def sa(_sa: ServiceAccountInfoRecord) = ServiceAccountInfoRecord.unapply(_sa).get
       def ai(_ai: AuditInfoRecord) = AuditInfoRecord.unapply(_ai).get
       Some((
-        c.id, c.clusterName, c.googleId, c.googleProject, c.operationName, c.status, c.hostIp,
+        c.id, c.internalId, c.clusterName, c.googleId, c.googleProject, c.operationName, c.status, c.hostIp,
         c.jupyterExtensionUri, c.jupyterUserScriptUri, c.initBucket, ai(c.auditInfo),
         mc(c.machineConfig), sa(c.serviceAccountInfo), c.stagingBucket, c.autopauseThreshold,
         c.defaultClientId, c.stopAfterCreation, c.welderEnabled, if(c.properties.isEmpty) None else Some(c.properties.asJson)
@@ -135,11 +137,12 @@ trait ClusterComponent extends LeoComponent {
   }
 
   object clusterQuery extends TableQuery(new ClusterTable(_)) {
-    def save(cluster: Cluster,
+    def save(internalId: String,
+             cluster: Cluster,
              initBucket: Option[GcsPath] = None,
              serviceAccountKeyId: Option[ServiceAccountKeyId] = None): DBIO[Cluster] = {
       for {
-        clusterId <- clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster, initBucket.map(_.toUri), serviceAccountKeyId)
+        clusterId <- clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster, internalId, initBucket.map(_.toUri), serviceAccountKeyId)
         _ <- labelQuery.saveAllForCluster(clusterId, cluster.labels)
         _ <- instanceQuery.saveAllForCluster(clusterId, cluster.instances.toSeq)
         _ <- extensionQuery.saveAllForCluster(clusterId, cluster.userJupyterExtensionConfig)
@@ -442,10 +445,12 @@ trait ClusterComponent extends LeoComponent {
      * This function should only be called at cluster creation time, when the init bucket doesn't exist.
      */
     private def marshalCluster(cluster: Cluster,
+                               internalId: String,
                                initBucket: Option[String],
                                serviceAccountKeyId: Option[ServiceAccountKeyId]): ClusterRecord = {
       ClusterRecord(
         id = 0,    // DB AutoInc
+        internalId,
         cluster.clusterName.value,
         cluster.dataprocInfo.googleId,
         cluster.googleProject.value,

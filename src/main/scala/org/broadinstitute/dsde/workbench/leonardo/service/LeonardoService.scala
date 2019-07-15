@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 
 import java.io.File
 import java.time.Instant
+import java.util.UUID
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
@@ -193,6 +194,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } flatMap {
       case Some(existingCluster) => throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
       case None =>
+        val internalId = UUID.randomUUID().toString
         val augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
         val clusterImages = processClusterImages(clusterRequest)
         val clusterFuture = for {
@@ -210,7 +212,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest, clusterImages)
 
           // Save the cluster in the database
-          savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, Option(GcsPath(initBucket, GcsObjectName(""))), serviceAccountKeyOpt.map(_.id)))
+          savedCluster <- dbRef.inTransaction(_.clusterQuery.save(internalId, cluster, Option(GcsPath(initBucket, GcsObjectName(""))), serviceAccountKeyOpt.map(_.id)))
         } yield {
           savedCluster
         }
@@ -268,6 +270,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                    clusterName: ClusterName,
                                    clusterRequest: ClusterRequest): Future[Cluster] = {
 
+    val internalId = UUID.randomUUID().toString
     val augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
     val clusterImages = processClusterImages(clusterRequest)
     val machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
@@ -275,7 +278,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       clusterRequest.autopause, clusterRequest.autopauseThreshold)
     val clusterScopes = if(clusterRequest.scopes.isEmpty) dataprocConfig.defaultScopes else clusterRequest.scopes
     val initialClusterToSave = Cluster.create(
-      augmentedClusterRequest, userEmail, clusterName, googleProject,
+      augmentedClusterRequest, internalId, userEmail, clusterName, googleProject,
       serviceAccountInfo, machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, clusterScopes,
       clusterImages = clusterImages)
 
@@ -285,12 +288,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       .flatMap { _ =>
         logger.info(s"Attempting to notify the AuthProvider for creation of cluster '$clusterName' " +
           s"on Google project '$googleProject'...")
-        authProvider.notifyClusterCreated(userEmail, googleProject, clusterName) }
+        authProvider.notifyClusterCreated(internalId, userEmail, googleProject, clusterName) }
       .flatMap { _ =>
         logger.info(s"Successfully notified the AuthProvider for creation of cluster '$clusterName' " +
           s"on Google project '$googleProject'.")
 
-        dbRef.inTransaction { _.clusterQuery.save(initialClusterToSave) }
+        dbRef.inTransaction { _.clusterQuery.save(internalId, initialClusterToSave) }
       }
 
     // For the success case, register the following callbacks...

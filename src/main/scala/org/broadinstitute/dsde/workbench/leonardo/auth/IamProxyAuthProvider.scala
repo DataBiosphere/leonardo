@@ -120,24 +120,26 @@ class IamProxyAuthProvider(config: Config, serviceAccountProvider: ServiceAccoun
     * The returned future should complete once the provider has finished doing any associated work.
     * Leo will wait, so be timely!
     *
+    * @param internalId     The internal ID for the cluster (i.e. used for Sam resources)
     * @param creatorEmail     The email address of the user in question
     * @param googleProject The Google project the cluster was created in
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterCreated(creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = Future.successful(())
+  def notifyClusterCreated(internalId: String, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = Future.successful(())
 
   /**
     * Leo calls this method to notify the auth provider that a notebook cluster has been destroyed.
     * The returned future should complete once the provider has finished doing any associated work.
     * Leo will wait, so be timely!
     *
+    * @param internalId     The internal ID for the cluster (i.e. used for Sam resources)
     * @param userEmail     The email address of the user in question
     * @param creatorEmail     The email address of the creator of the cluster
     * @param googleProject The Google project the cluster was created in
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterDeleted(userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = Future.successful(())
+  def notifyClusterDeleted(internalId: String, userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = Future.successful(())
 
 }
