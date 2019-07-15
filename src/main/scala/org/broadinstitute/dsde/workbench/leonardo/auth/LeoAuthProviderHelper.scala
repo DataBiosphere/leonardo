@@ -78,15 +78,15 @@ class LeoAuthProviderHelper(wrappedAuthProvider: LeoAuthProvider, authConfig: Co
     }
   }
 
-  override def notifyClusterCreated(creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  override def notifyClusterCreated(internalId: String, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
     safeCall {
-      wrappedAuthProvider.notifyClusterCreated(creatorEmail, googleProject, clusterName)
+      wrappedAuthProvider.notifyClusterCreated(internalId, creatorEmail, googleProject, clusterName)
     }
   }
 
-  override def notifyClusterDeleted(userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  override def notifyClusterDeleted(internalId: String, userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
     safeCall {
-      wrappedAuthProvider.notifyClusterDeleted(userEmail, creatorEmail, googleProject, clusterName)
+      wrappedAuthProvider.notifyClusterDeleted(internalId, userEmail, creatorEmail, googleProject, clusterName)
     }
   }
 }

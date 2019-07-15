@@ -156,15 +156,16 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     * Returning a failed Future will prevent the cluster from being created, and will call notifyClusterDeleted for the same cluster.
     * Leo will wait, so be timely!
     *
+    * @param internalId     The internal ID for the cluster (i.e. used for Sam resources)
     * @param creatorEmail     The email address of the user in question
     * @param googleProject The Google project the cluster was created in
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  override def notifyClusterCreated(creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  override def notifyClusterCreated(internalId: String, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
     retryUntilSuccessOrTimeout(shouldInvalidateSamCacheAndRetry, s"SamAuthProvider.notifyClusterCreated call failed for ${googleProject.value}/${clusterName.value}")(samRetryInterval, samRetryTimeout) {  () =>
       Future {
-        blocking(samClient.createNotebookClusterResource(creatorEmail, googleProject, clusterName))
+        blocking(samClient.createNotebookClusterResource(internalId, creatorEmail, googleProject, clusterName))
       }.recover {
         case e if shouldInvalidateSamCacheAndRetry(e) =>
           // invalidate the pet token cache between retries in case it contains stale entries
@@ -180,17 +181,18 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     * The returned future should complete once the provider has finished doing any associated work.
     * Leo will wait, so be timely!
     *
+    * @param internalId     The internal ID for the cluster (i.e. used for Sam resources)
     * @param userEmail        The email address of the user in question
     * @param creatorEmail     The email address of the creator of the cluster
     * @param googleProject    The Google project the cluster was created in
     * @param clusterName      The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  override def notifyClusterDeleted(userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)
+  override def notifyClusterDeleted(internalId: String, userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)
                                    (implicit executionContext: ExecutionContext): Future[Unit] = {
     retryUntilSuccessOrTimeout(shouldInvalidateSamCacheAndRetry, s"SamAuthProvider.notifyClusterDeleted call failed for ${googleProject.value}/${clusterName.value}")(samRetryInterval, samRetryTimeout) { () =>
       Future {
-        blocking(samClient.deleteNotebookClusterResource(creatorEmail, googleProject, clusterName))
+        blocking(samClient.deleteNotebookClusterResource(internalId, creatorEmail, googleProject, clusterName))
       }.recover {
         // treat 404s from Sam as the cluster already being deleted
         case e: ApiException if e.getCode == StatusCodes.NotFound.intValue => ()

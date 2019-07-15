@@ -203,13 +203,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           _ <- if (clusterRequest.enableWelder.getOrElse(false)) Metrics.newRelic.incrementCounterFuture("numberOfWelderEnabledCreateClusterRequests") else Future.unit
 
           // Notify the auth provider that the cluster has been created
-          _ <- authProvider.notifyClusterCreated(userEmail, googleProject, clusterName)
+          _ <- authProvider.notifyClusterCreated(internalId, userEmail, googleProject, clusterName)
 
           // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
           _ <- validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest)
 
           // Create the cluster in Google
-          (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest, clusterImages)
+          (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(internalId, userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest, clusterImages)
 
           // Save the cluster in the database
           savedCluster <- dbRef.inTransaction(_.clusterQuery.save(internalId, cluster, Option(GcsPath(initBucket, GcsObjectName(""))), serviceAccountKeyOpt.map(_.id)))
@@ -221,7 +221,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         // We also need to notify our auth provider that the cluster has been deleted.
         clusterFuture.andThen {
           // Don't wait for this future
-          case Failure(_) => authProvider.notifyClusterDeleted(userEmail, userEmail, googleProject, clusterName)
+          case Failure(_) => authProvider.notifyClusterDeleted(internalId, userEmail, userEmail, googleProject, clusterName)
         }
 
         clusterFuture
@@ -317,7 +317,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
             // Since we failed, createGoogleCluster removes resources in Google but
             // we also need to notify our auth provider that the cluster has been deleted.
             // We won't wait for that deletion, though.
-            authProvider.notifyClusterDeleted(userEmail, userEmail, googleProject, clusterName)
+            authProvider.notifyClusterDeleted(internalId, userEmail, userEmail, googleProject, clusterName)
 
             // We also want to record the error in database for future reference.
             persistErrorInDb(e, clusterName, savedInitialCluster.id, googleProject)
@@ -684,7 +684,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                            cluster: Cluster,
                                            clusterRequest: ClusterRequest)
                                           (implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
-    createGoogleCluster(userEmail, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest, cluster.clusterImages)
+    createGoogleCluster(cluster.internalId, userEmail, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest, cluster.clusterImages)
   }
 
   /* Creates a cluster in the given google project:
@@ -692,7 +692,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
      - Create the initialization bucket for the cluster in the leo google project
      - Upload all the necessary initialization files to the bucket
      - Create the cluster in the google project */
-  private[service] def createGoogleCluster(userEmail: WorkbenchEmail,
+  private[service] def createGoogleCluster(internalId: String,
+                                           userEmail: WorkbenchEmail,
                                            serviceAccountInfo: ServiceAccountInfo,
                                            googleProject: GoogleProject,
                                            clusterName: ClusterName,
@@ -750,7 +751,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           Metrics.newRelic.incrementCounterIO("zoneCapacityClusterCreationFailure", errors.filter(whenGoogleZoneCapacityIssue).length).unsafeRunAsync(_ => ())
           Future.failed(errors.head)
       }
-      cluster = Cluster.create(clusterRequest, userEmail, clusterName, googleProject, serviceAccountInfo,
+      cluster = Cluster.create(clusterRequest, internalId, userEmail, clusterName, googleProject, serviceAccountInfo,
         machineConfig, dataprocConfig.clusterUrlBase, autopauseThreshold, clusterScopes, Some(operation), Option(stagingBucket), clusterImages)
     } yield (cluster, initBucket, serviceAccountKeyOpt)
 

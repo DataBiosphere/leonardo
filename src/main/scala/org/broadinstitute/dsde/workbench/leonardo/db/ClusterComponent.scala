@@ -553,6 +553,7 @@ trait ClusterComponent extends LeoComponent {
 
       Cluster(
         clusterRecord.id,
+        clusterRecord.internalId,
         name,
         project,
         serviceAccountInfo,

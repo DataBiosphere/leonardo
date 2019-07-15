@@ -239,7 +239,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       _ <- dbRef.inTransaction { dataAccess =>
         dataAccess.clusterQuery.completeDeletion(cluster.id)
       }
-      _ <- authProvider.notifyClusterDeleted(cluster.auditInfo.creator, cluster.auditInfo.creator, cluster.googleProject, cluster.clusterName)
+      _ <- authProvider.notifyClusterDeleted(cluster.internalId, cluster.auditInfo.creator, cluster.auditInfo.creator, cluster.googleProject, cluster.clusterName)
     } yield ShutdownActor(RemoveFromList(cluster))
   }
 

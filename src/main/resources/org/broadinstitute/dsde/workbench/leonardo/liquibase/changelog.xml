@@ -32,4 +32,5 @@
     <include file="changesets/20190417_cluster_additional_dataproc_properties.xml" relativeToChangelogFile="true" />
     <include file="changesets/20190613_welder_enabled.xml" relativeToChangelogFile="true" />
     <include file="changesets/20190624_kernel_found_busy_date.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20190715_add_internal_resource_id.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>
