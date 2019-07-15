@@ -24,5 +24,5 @@ case class DataprocConfig(
                            projectVPCNetworkLabel: Option[String],
                            projectVPCSubnetLabel: Option[String],
                            welderEnabledNotebooksDir: String,
-                           welderDisabledNotebooksDir: String,
+                           welderDisabledNotebooksDir: String   // TODO: remove once welder is rolled out to all clusters
                          )
