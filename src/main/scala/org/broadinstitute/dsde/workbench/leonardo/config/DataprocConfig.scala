@@ -23,5 +23,6 @@ case class DataprocConfig(
                            vpcSubnet: Option[String],
                            projectVPCNetworkLabel: Option[String],
                            projectVPCSubnetLabel: Option[String],
-                           notebooksDir: String
+                           welderEnabledNotebooksDir: String,
+                           welderDisabledNotebooksDir: String,
                          )

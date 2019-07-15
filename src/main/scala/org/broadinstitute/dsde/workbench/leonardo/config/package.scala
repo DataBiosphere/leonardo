@@ -38,7 +38,8 @@ package object config {
       config.getAs[String]("vpcSubnet"),
       config.getAs[String]("projectVPCNetworkLabel"),
       config.getAs[String]("projectVPCSubnetLabel"),
-      config.getString("notebooksDir")
+      config.getString("welderEnabledNotebooksDir"),
+      config.getString("welderDisabledNotebooksDir")
     )
   }
 
