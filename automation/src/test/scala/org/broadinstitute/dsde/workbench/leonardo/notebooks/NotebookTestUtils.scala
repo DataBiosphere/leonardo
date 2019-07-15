@@ -18,6 +18,9 @@ import org.scalatest.Suite
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.charset.StandardCharsets
+import java.nio.file.{Path, Paths}
+
+import com.google.cloud.storage.BlobId
 
 import scala.concurrent._
 import scala.concurrent.duration._
@@ -316,10 +319,10 @@ trait NotebookTestUtils extends LeonardoTestUtils {
         Welder.postStorageLink(cluster, gcsPath)
         Welder.localize(cluster, gcsPath, shouldLocalizeFileInEditMode)
 
-          val localPath: String = Welder.getLocalPath(gcsPath, shouldLocalizeFileInEditMode)
-       val localFile: File = new File(localPath)
+        val localPath: String = Welder.getLocalPath(gcsPath, shouldLocalizeFileInEditMode)
+        val localFile: File = new File(localPath)
 
-          logger.info("Initialized welder via /storageLinks and /localize")
+        logger.info("Initialized welder via /storageLinks and /localize")
         testCode(localFile)
       }
 
@@ -334,7 +337,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
         for {
           metadata <- google2StorageDAO.getObjectMetadata(workspaceBucketName, notebookName, None).compile.last
           lockExpiresAt = metadata match {
-            case Some(GetMetadataResponse.Metadata(_, metadataMap)) if metadataMap.contains("lockExpiresAt") => Some(metadataMap("lockExpiresAt"))
+            case Some(GetMetadataResponse.Metadata(_, metadataMap, _)) if metadataMap.contains("lockExpiresAt") => Some(metadataMap("lockExpiresAt"))
             case _ => None
           }
           currentlyLocked = lockExpiresAt match {
@@ -343,7 +346,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
           }
           lastLockedBy = if (currentlyLocked) {
             metadata match {
-              case Some(GetMetadataResponse.Metadata(_, metadataMap)) if metadataMap.contains("lastLockedBy") => Some(metadataMap("lastLockedBy"))
+              case Some(GetMetadataResponse.Metadata(_, metadataMap, _)) if metadataMap.contains("lastLockedBy") => Some(metadataMap("lastLockedBy"))
               case _ => None
             }
           } else None
@@ -356,6 +359,15 @@ trait NotebookTestUtils extends LeonardoTestUtils {
       google2StorageDAO =>
         google2StorageDAO.unsafeGetObject(workspaceBucketName, notebookName, None)
     }
+  }
+
+  def getObjectAsFile(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName, fakeParam: Unit): Unit = {
+    val blobId: BlobId = BlobId.of(workspaceBucketName.value, notebookName.value)
+    val outputPath: Path =  Paths.get(s"${logDir}/${workspaceBucketName.value}-${notebookName.value}-${java.util.UUID.randomUUID()}.ipynb")
+
+//    google2StorageResource.use {
+//      g => g.downloadObject(notebookName.value, logDir)
+//    }
   }
 
   def getObjectAsFile(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): File = {

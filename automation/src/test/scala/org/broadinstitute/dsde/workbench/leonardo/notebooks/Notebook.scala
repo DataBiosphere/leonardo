@@ -92,16 +92,30 @@ object Notebook extends RestClient with LazyLogging {
     parseResponse(getRequest(url + path, httpHeaders = List(Authorization(OAuth2BearerToken(token.value)))))
   }
 
-  class NotebookMode()
-  final case object SafeMode extends NotebookMode
-  final case object EditMode extends NotebookMode
-  final case object NoMode extends NotebookMode
+  sealed trait NotebookMode extends Product with Serializable {
+    def asString: String
+  }
 
-  def getModeFromString(message: String): NotebookMode = {
-    message match {
-      case message if message.toLowerCase().contains("playground") => SafeMode
-      case message if message.toLowerCase().contains("edit") => EditMode
-      case _ => NoMode
+  object NotebookMode {
+    final case object SafeMode extends NotebookMode {
+      def asString: String = "playground"
     }
+
+    final case object EditMode extends NotebookMode {
+      def asString: String = "edit"
+    }
+
+    final case object NoMode extends NotebookMode {
+      def asString: String = ""
+    }
+
+    def getModeFromString(message: String): NotebookMode = {
+      message match {
+        case message if message.toLowerCase().contains(SafeMode.asString) => SafeMode
+        case message if message.toLowerCase().contains(EditMode.asString) => EditMode
+        case _ => NoMode
+      }
+    }
+
   }
 }

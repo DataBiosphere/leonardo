@@ -30,8 +30,6 @@ object Welder extends RestClient with LazyLogging {
   }
 
   def getWelderStatus(cluster: Cluster)(implicit token: AuthToken): HttpResponse = {
-    println("printing cluster in getWelderStatus")
-    println(cluster)
     val path = welderBasePath(cluster.googleProject, cluster.clusterName)
     logger.info(s"Get welder status: GET $path/status")
 

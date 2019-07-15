@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorage
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserAuthToken}
 import org.broadinstitute.dsde.workbench.config.Credentials
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
-import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
+import org.broadinstitute.dsde.workbench.google2.{GoogleStorageService, GoogleStorageInterpreter}
 import org.broadinstitute.dsde.workbench.service.{Orchestration, RestException, Sam}
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
 import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
@@ -37,6 +37,7 @@ import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.{Failure, Random, Success, Try}
+import io.chrisdavenport.linebacker.Linebacker
 
 case class KernelNotReadyException(timeElapsed:Timeout)
   extends Exception(s"Jupyter kernel is NOT ready after waiting ${timeElapsed}")
@@ -79,7 +80,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   implicit val cs = IO.contextShift(global)
   implicit val t = IO.timer(global)
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
-  val google2StorageResource = GoogleStorageService.resource[IO](LeonardoConfig.GCS.pathToQAJson, scala.concurrent.ExecutionContext.global)
+  implicit val lineBacker = Linebacker.fromExecutionContext[IO](global)
+  val google2StorageResource = GoogleStorageService.resource[IO](LeonardoConfig.GCS.pathToQAJson)
 
   // TODO: move this to NotebookTestUtils and chance cluster-specific functions to only call if necessary after implementing RStudio
   def saveJupyterLogFile(clusterName: ClusterName, googleProject: GoogleProject, suffix: String)(implicit token: AuthToken): Try[File] = {
@@ -515,7 +517,6 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       }
     }
   }
-
 
   def saveDataprocLogFiles(cluster: Cluster)(implicit executionContext: ExecutionContext): Future[Option[(File, File)]] = {
     def downloadLogFile(contentStream: ByteArrayOutputStream, fileName: String): File = {
