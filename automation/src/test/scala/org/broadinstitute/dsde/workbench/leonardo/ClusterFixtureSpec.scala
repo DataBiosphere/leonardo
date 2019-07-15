@@ -4,8 +4,8 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.fixture._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.broadinstitute.dsde.workbench.service.test.RandomUtil
+import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration}
 import org.broadinstitute.dsde.workbench.util.addJitter
 import org.scalatest.{BeforeAndAfterAll, Outcome, fixture}
 
@@ -31,7 +31,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   //debug = true
   //mockedCluster = mockCluster("gpalloc-dev-master-0h7pzni","automation-test-apm25lvlz")
   var debug: Boolean = false //if true, will not spin up and tear down a cluster on each test. Used in conjunction with mockedCluster
-  var mockedCluster: Cluster = _ //must specify a google project name and cluster name via the mockCluster utility method in NotebookTestUtils
+  var mockedCluster: Cluster = _ //mockCluster("gpalloc-dev-master-1ecxlpm", "automation-test-auhyfvadz") //_ //must specify a google project name and cluster name via the mockCluster utility method in NotebookTestUtils
   //example usage:
   /**
     * See
@@ -92,7 +92,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     * Create new cluster by Ron with all default settings
     */
   def createRonCluster(): Unit = {
-    Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+    Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, BillingProject.BillingProjectRole.User)(hermioneAuthToken)
 
     Try (createNewCluster(billingProject, request = getClusterRequest())(ronAuthToken)) match {
       case Success(outcome) =>
