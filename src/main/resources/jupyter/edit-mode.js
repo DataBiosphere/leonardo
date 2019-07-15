@@ -211,7 +211,6 @@ define(() => {
         fetch(lockUrl, payload)
             .then(res => {
                 handleLockStatus(res)
-                return res.json()
             })
             .catch(err => {
                 console.error(err)

@@ -266,9 +266,9 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
 
   def getMode(): NotebookMode = {
     if (modeExists()) {
-      Notebook.getModeFromString(find(modeBanner).head.text)
+      NotebookMode.getModeFromString(find(modeBanner).head.text)
     } else {
-      Notebook.NoMode
+      NotebookMode.NoMode
     }
   }
 
@@ -289,7 +289,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   def areElementsHidden(elementIds: List[String]): Boolean = {
     elementIds
       .map(elementId => find(id(elementId)).exists(_.underlying.getAttribute("style") == "display: none;"))
-      .fold(true)(_ && _)
+      .forall(identity)
   }
 
  }

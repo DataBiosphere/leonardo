@@ -106,14 +106,15 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   }
 
   def getClusterRequest(): ClusterRequest = {
-    val machineConfig = Option(MachineConfig(
+    val machineConfig = Some(MachineConfig(
       masterMachineType = Some("n1-standard-8"),
       workerMachineType = Some("n1-standard-8")
     ))
 
     ClusterRequest(
       machineConfig = machineConfig,
-      enableWelder = Some(enableWelder))
+      enableWelder = Some(enableWelder),
+      autopause = Some(false))
   }
 
   /**
@@ -135,8 +136,8 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   override def afterAll(): Unit = {
     logger.info("afterAll")
     if (!debug) {
-      deleteRonCluster()
-      unclaimBillingProject()
+//      deleteRonCluster()
+//      unclaimBillingProject()
     }
     super.afterAll()
   }
