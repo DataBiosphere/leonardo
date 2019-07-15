@@ -28,7 +28,7 @@ c.NotebookApp.base_url = '/notebooks/' + fragment + '/'
 if os.environ['WELDER_ENABLED'] == 'true':
   # Only enable this along with Welder, as this change is backwards incompatible
   # for older localization users.
-  c.NotebookApp.notebook_dir = ${NOTEBOOKS_DIR}
+  c.NotebookApp.notebook_dir = os.environ['NOTEBOOKS_DIR']
 
 # This is also specified in run-jupyter.sh
 c.NotebookApp.nbserver_extensions = {

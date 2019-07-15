@@ -32,5 +32,6 @@ services:
       OWNER_EMAIL: "${OWNER_EMAIL}"
       # Value must be the string "true" to enable.
       WELDER_ENABLED: "${WELDER_ENABLED}"
+      NOTEBOOKS_DIR: "${NOTEBOOKS_DIR}"
     env_file:
       - /etc/google_application_credentials.env
