@@ -131,7 +131,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     // The || clause is included because older clusters may not have the run-jupyter.sh script installed,
     // so we need to fall back running `jupyter notebook` directly. See https://github.com/DataBiosphere/leonardo/issues/481.
-    val jupyterStart = s"docker exec -d ${dataprocConfig.jupyterServerName} /bin/bash -c '/etc/jupyter/scripts/run-jupyter.sh || /usr/local/bin/jupyter notebook'"
+    val jupyterStart = s"docker exec -d ${dataprocConfig.jupyterServerName} /bin/bash -c '/etc/jupyter/scripts/run-jupyter.sh ${dataprocConfig.notebooksDir} || /usr/local/bin/jupyter notebook'"
 
     val servicesStart = if (welderEnabled) {
       val welderStart = s"docker exec -d ${dataprocConfig.welderServerName} /opt/docker/bin/entrypoint.sh"
@@ -985,6 +985,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     // Note: initActionsScript and jupyterGoogleSignInJs are not included
     // because they are post-processed by templating logic.
     val resourcesToUpload = List(
+      clusterResourcesConfig.jupyterDockerCompose,
       clusterResourcesConfig.rstudioDockerCompose,
       clusterResourcesConfig.proxyDockerCompose,
       clusterResourcesConfig.proxySiteConf,
@@ -1005,7 +1006,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val editModeJsContent = templateResource(clusterResourcesConfig.editModeJs, replacements)
     val safeModeJsContent = templateResource(clusterResourcesConfig.safeModeJs, replacements)
     val jupyterNotebookConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookConfigUri, replacements)
-    val jupyterDockerComposeContent = templateResourceWithNoQuotes(clusterResourcesConfig.jupyterDockerCompose, replacements)
 
     for {
       // Upload the init script to the bucket
@@ -1015,9 +1015,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.googleSignInJs.value), googleSignInJsContent, "text/plain")
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.editModeJs.value), editModeJsContent, "text/plain")
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.safeModeJs.value), safeModeJsContent, "text/plain")
-
-      // Upload the jupyter docker compose to the bucket
-      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterDockerCompose.value), jupyterDockerComposeContent, "text/plain")
 
 
       // Update the jupytyer notebook config file
@@ -1050,11 +1047,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private[service] def templateResource(resource: ClusterResource, replacementMap: Map[String, String]): String = {
     val raw = Source.fromResource(s"${ClusterResourcesConfig.basePath}/${resource.value}").mkString
     template(raw, replacementMap)
-  }
-
-  private[service] def templateResourceWithNoQuotes(resource: ClusterResource, replacementMap: Map[String, String]): String = {
-    val raw = Source.fromResource(s"${ClusterResourcesConfig.basePath}/${resource.value}").mkString
-    replacementMap.foldLeft(raw)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", b._2))
   }
 
   private[service] def processListClustersParameters(params: LabelMap): Future[(LabelMap, Boolean)] = {

@@ -10,7 +10,7 @@ services:
     network_mode: host
     volumes:
       # shared with welder
-      - /work:$(notebooksDir)
+      - /work:${NOTEBOOKS_DIR}
       - /usr/lib/bigtop-utils:/usr/lib/bigtop-utils
       - /usr/lib/hadoop:/usr/lib/hadoop
       - /usr/lib/hadoop-hdfs:/usr/lib/hadoop-hdfs

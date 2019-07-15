@@ -5,7 +5,7 @@ set -e
 # Change the default umask to support R/W access to the shared volume with welder
 umask 002
 
-NOTEBOOKS_DIR=$1
+NOTEBOOKS_DIR=${1:-${HOME}/notebooks}
 
 # Forces python 3
 JUPYTER_BASE="/usr/local/bin/python3 /usr/local/bin/jupyter-notebook"
