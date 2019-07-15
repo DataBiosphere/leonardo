@@ -360,11 +360,11 @@ define(() => {
 
         if (isEditMode) {
             bannerText = "Edit Mode"
-            toolTipText = "Your changes are being saved to the workspace."
+            toolTipText = "<p>You have locked this file for editing and your changes are being automatically saved to the workspace.</p>"
             bannerStyling = "notification_widget " + baseStyling;
         } else {
             bannerText = "PLAYGROUND MODE (Edits not saved)"
-            toolTipText = "<p>Playground mode allows you to explore, change, and run the code, but your edits will not be saved. </p><br/><p>To save your work, choose Make a Copy from the File menu to make your own version.</p>"
+            toolTipText = "<p>Playground mode allows you to explore, change, and run the code, but your changes will not be saved to the workspace.</p>"
             bannerStyling = "btn-warning " + baseStyling
         }
 
