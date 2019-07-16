@@ -44,7 +44,7 @@ final class NotebookCustomizationSpec extends FreeSpec
               EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
               GcsRoles.Owner)
 
-            val clusterRequestWithUserScript = ClusterRequest(Map(), None, Option(userScriptUri))
+            val clusterRequestWithUserScript = defaultClusterRequest.copy(Map(), None, Option(userScriptUri))
             withNewCluster(project, request = clusterRequestWithUserScript, apiVersion = V2) { cluster =>
               Thread.sleep(10000)
               withWebDriver { implicit driver =>
@@ -67,7 +67,7 @@ final class NotebookCustomizationSpec extends FreeSpec
       withProject { project => implicit token =>
         val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
         withResourceFileInBucket(project, translateExtensionFile, "application/x-gzip") { translateExtensionBucketPath =>
-          val clusterRequestWithExtension = ClusterRequest(Map(), Option(translateExtensionBucketPath.toUri), None)
+          val clusterRequestWithExtension = defaultClusterRequest.copy(Map(), Option(translateExtensionBucketPath.toUri), None)
           withNewCluster(project, request = clusterRequestWithExtension) { cluster =>
             withWebDriver { implicit driver =>
               withNewNotebook(cluster) { notebookPage =>
@@ -83,7 +83,7 @@ final class NotebookCustomizationSpec extends FreeSpec
 
     "should install user specified lab extensions" in {
       withProject { project => implicit token =>
-        withNewCluster(project, request = ClusterRequest(userJupyterExtensionConfig = Some(UserJupyterExtensionConfig(labExtensions = Map("jupyterlab-toc" -> "@jupyterlab/toc"))))) { cluster =>
+        withNewCluster(project, request = defaultClusterRequest.copy(userJupyterExtensionConfig = Some(UserJupyterExtensionConfig(labExtensions = Map("jupyterlab-toc" -> "@jupyterlab/toc"))))) { cluster =>
           withWebDriver { implicit driver =>
             withNewNotebook(cluster) { notebookPage =>
               val query = """!jupyter labextension list"""
@@ -113,7 +113,7 @@ final class NotebookCustomizationSpec extends FreeSpec
       withProject { project => implicit token =>
         val exampleLabExtensionFile = ResourceFile("bucket-tests/example_lab_extension.js")
         withResourceFileInBucket(project, exampleLabExtensionFile, "text/plain") { exampleLabExtensionBucketPath =>
-          val clusterRequestWithLabExtension = ClusterRequest(userJupyterExtensionConfig = Some(UserJupyterExtensionConfig(labExtensions = Map("example_lab_extension" -> exampleLabExtensionBucketPath.toUri))))
+          val clusterRequestWithLabExtension = defaultClusterRequest.copy(userJupyterExtensionConfig = Some(UserJupyterExtensionConfig(labExtensions = Map("example_lab_extension" -> exampleLabExtensionBucketPath.toUri))))
           withNewCluster(project, request = clusterRequestWithLabExtension) { cluster =>
             withWebDriver { implicit driver =>
               withNewNotebook(cluster) { notebookPage =>

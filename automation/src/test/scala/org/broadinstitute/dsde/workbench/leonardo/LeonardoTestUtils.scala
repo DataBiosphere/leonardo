@@ -51,6 +51,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   val logDir = new File("output")
   logDir.mkdirs
 
+  def enableWelder: Boolean = true
+
   // Ron and Hermione are on the dev Leo whitelist, and Hermione is a Project Owner
   lazy val ronCreds: Credentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential("ron")
   lazy val hermioneCreds: Credentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential("hermione")
@@ -354,7 +356,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   def randomClusterName: ClusterName = ClusterName(s"automation-test-a${makeRandomId().toLowerCase}z")
 
-  def defaultClusterRequest: ClusterRequest = ClusterRequest(Map("foo" -> makeRandomId()))
+  def defaultClusterRequest: ClusterRequest = ClusterRequest(Map("foo" -> makeRandomId()), enableWelder = Some(enableWelder))
 
   def createNewCluster(googleProject: GoogleProject,
                        name: ClusterName = randomClusterName,

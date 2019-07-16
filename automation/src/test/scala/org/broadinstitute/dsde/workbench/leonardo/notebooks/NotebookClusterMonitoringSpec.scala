@@ -95,7 +95,7 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
           val ronPetEntity = EmailGcsEntity(Group, ronProxyGroup)
           googleStorageDAO.setObjectAccessControl(destPath.bucketName, destPath.objectName, ronPetEntity, Reader).futureValue
 
-          val request = ClusterRequest(machineConfig = Option(MachineConfig(
+          val request = defaultClusterRequest.copy(machineConfig = Option(MachineConfig(
             // need at least 2 regular workers to enable preemptibles
             numberOfWorkers = Option(2),
             numberOfPreemptibleWorkers = Option(10)
@@ -227,7 +227,7 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
           val ronPetEntity = EmailGcsEntity(Group, ronProxyGroup)
           googleStorageDAO.setObjectAccessControl(destPath.bucketName, destPath.objectName, ronPetEntity, Reader).futureValue
 
-          val request = ClusterRequest(machineConfig = Option(MachineConfig(
+          val request = defaultClusterRequest.copy(machineConfig = Option(MachineConfig(
             // need at least 2 regular workers to enable preemptibles
             numberOfWorkers = Option(2),
             numberOfPreemptibleWorkers = Option(10)
@@ -275,7 +275,7 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
         val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
         withResourceFileInBucket(project, translateExtensionFile, "application/x-gzip") { translateExtensionBucketPath =>
           val clusterName = ClusterName("user-jupyter-ext" + makeRandomId())
-          withNewCluster(project, clusterName, ClusterRequest(Map(), Option(translateExtensionBucketPath.toUri), None)) { cluster =>
+          withNewCluster(project, clusterName, defaultClusterRequest.copy(labels = Map(), jupyterExtensionUri = Option(translateExtensionBucketPath.toUri), jupyterUserScriptUri = None)) { cluster =>
             withWebDriver { implicit driver =>
               withNewNotebook(cluster) { notebookPage =>
                 notebookPage.executeCell("1 + 1") shouldBe Some("2")
@@ -294,7 +294,7 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
         withResourceFileInBucket(project, translateExtensionFile, "application/x-gzip") { translateExtensionBucketPath =>
           val clusterName = ClusterName("user-jupyter-ext" + makeRandomId())
           val extensionConfig = multiExtensionClusterRequest.copy(nbExtensions = multiExtensionClusterRequest.nbExtensions + ("translate" -> translateExtensionBucketPath.toUri))
-          withNewCluster(project, clusterName, ClusterRequest(userJupyterExtensionConfig = Some(extensionConfig)), apiVersion = V2) { cluster =>
+          withNewCluster(project, clusterName, defaultClusterRequest.copy(userJupyterExtensionConfig = Some(extensionConfig)), apiVersion = V2) { cluster =>
             withWebDriver { implicit driver =>
               withNewNotebook(cluster, Python3) { notebookPage =>
                 //Check if the mark up was translated correctly
@@ -314,7 +314,7 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
 
     "should localize/delocalize" taggedAs Tags.SmokeTest in {
       withProject { project => implicit token =>
-        withNewCluster(project, request = ClusterRequest()) { cluster =>
+        withNewCluster(project, request = defaultClusterRequest.copy()) { cluster =>
           withWebDriver { implicit driver =>
             // Check that localization works
             // See https://github.com/DataBiosphere/leonardo/issues/417, where installing JupyterLab
@@ -340,7 +340,7 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
 
     "should give cluster user-specified scopes" taggedAs Tags.SmokeTest in {
       withProject { project => implicit token =>
-        withNewCluster(project, request = ClusterRequest(scopes = Set("https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/source.read_only"))) { cluster =>
+        withNewCluster(project, request = defaultClusterRequest.copy(scopes = Set("https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/source.read_only"))) { cluster =>
           withWebDriver { implicit driver =>
             withNewNotebook(cluster) { notebookPage =>
               val query = """! bq query --disable_ssl_validation --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
@@ -360,7 +360,7 @@ class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with
           val enablePdfDownloadScript = ResourceFile("bucket-tests/enable_download_as_pdf.sh")
           withResourceFileInBucket(project, enablePdfDownloadScript, "text/plain") { bucketPath =>
             val clusterName = ClusterName("user-script-cluster" + makeRandomId())
-            withNewCluster(project, clusterName, ClusterRequest(Map(), None, Option(bucketPath.toUri)), apiVersion = V2) { cluster =>
+            withNewCluster(project, clusterName, defaultClusterRequest.copy(Map(), None, Option(bucketPath.toUri)), apiVersion = V2) { cluster =>
               val download = createDownloadDirectory()
               withWebDriver(download) { implicit driver =>
                 withNewNotebook(cluster) { notebookPage =>
