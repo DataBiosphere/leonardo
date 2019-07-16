@@ -24,8 +24,11 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
     "open notebook in edit mode should work" in { clusterFixture =>
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
       val isEditMode = true
+
       withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { googleCloudDir =>
+
         withWelderInitialized(clusterFixture.cluster, googleCloudDir, isEditMode) { localizedFile =>
+
           withWebDriver { implicit driver =>
 
             withOpenNotebook(clusterFixture.cluster, localizedFile, 2.minutes) { notebookPage =>
@@ -35,12 +38,12 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
               notebookPage.addCodeAndExecute("1+1")
               notebookPage.saveNotebook()
 
-              val localContentSize: Long = Notebook.getNotebookItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(googleCloudDir, isEditMode)).size.toLong
+              val localContentSize: Int = Notebook.getNotebookItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(googleCloudDir, isEditMode)).size
 
               eventually(timeout(Span(5, Seconds))) {
-                val remoteContentSize: Long = getObjectSize(googleCloudDir.bucketName, GcsBlobName(googleCloudDir.objectName.value))
+                val remoteContentSize: Int = getObjectSize(googleCloudDir.bucketName, GcsBlobName(googleCloudDir.objectName.value))
                   .unsafeRunSync()
-                  .toLong
+
                 remoteContentSize shouldBe localContentSize
               }
 
@@ -62,17 +65,20 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
     "open notebook in playground mode should work" in { clusterFixture =>
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
       val isEditMode = false
+
       withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { googleCloudDir =>
         logger.info("Initialized google storage bucket")
 
         withWelderInitialized(clusterFixture.cluster, googleCloudDir, isEditMode) { localizedFile =>
+
           withWebDriver { implicit driver =>
 
             withOpenNotebook(clusterFixture.cluster, localizedFile, 2.minutes) { notebookPage =>
-              val originalRemoteContentSize: Long = getObjectSize(googleCloudDir.bucketName, GcsBlobName(googleCloudDir.objectName.value))
+
+              val originalRemoteContentSize: Int = getObjectSize(googleCloudDir.bucketName, GcsBlobName(googleCloudDir.objectName.value))
                 .unsafeRunSync()
-                .toLong
-              val originalLocalContentSize: Long = Notebook.getNotebookItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(googleCloudDir, isEditMode)).size.toLong
+
+              val originalLocalContentSize: Int = Notebook.getNotebookItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(googleCloudDir, isEditMode)).size
 
               originalRemoteContentSize shouldBe originalLocalContentSize
 
@@ -85,13 +91,13 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
               logger.info("Waiting 4 minutes as lock takes time to be reflected in metadata")
               Thread.sleep(240000)
 
-              val newLocalContentSize = Notebook.getNotebookItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(googleCloudDir, isEditMode)).size.toLong
+              val newLocalContentSize = Notebook.getNotebookItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(googleCloudDir, isEditMode)).size
 
               eventually(timeout(Span(5, Seconds))) {
                 val newRemoteContentSize = getObjectSize(googleCloudDir.bucketName, GcsBlobName(googleCloudDir.objectName.value))
                   .unsafeRunSync()
-                  .toLong
-                newLocalContentSize should be > newRemoteContentSize
+
+                newLocalContentSize shouldBe > newRemoteContentSize
                 originalRemoteContentSize shouldBe newRemoteContentSize
               }
 

@@ -37,7 +37,7 @@ class NotebookLocalizeFileSpec extends ClusterFixtureSpec with NotebookTestUtils
 
           // call localize again with bad data. This should still return 200 since we're in async mode.
           val badLocalize = Map("file.out" -> "gs://nobuckethere")
-          Notebook.localize(cluster.googleProject, cluster.clusterName, badLocalize, async = false)
+          Notebook.localize(cluster.googleProject, cluster.clusterName, badLocalize, async = true)
 
           // it should not have localized this file
           val thrown = the[RestException] thrownBy {
