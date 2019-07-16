@@ -29,6 +29,7 @@ trait CommonTestData{ this: ScalaFutures =>
   val name1 = ClusterName("clustername1")
   val name2 = ClusterName("clustername2")
   val name3 = ClusterName("clustername3")
+  val internalId = UUID.randomUUID().toString
   val project = GoogleProject("dsp-leo-test")
   val project2 = GoogleProject("dsp-leo-test-2")
   val userEmail = WorkbenchEmail("user1@example.com")
@@ -91,8 +92,10 @@ trait CommonTestData{ this: ScalaFutures =>
 
   def makeCluster(index: Int): Cluster = {
     val clusterName = ClusterName("clustername" + index.toString)
+    val internalId = UUID.randomUUID().toString
     Cluster(
       clusterName = clusterName,
+      internalId = internalId,
       googleProject = project,
       serviceAccountInfo = serviceAccountInfo,
       dataprocInfo = makeDataprocInfo(index),
@@ -118,6 +121,7 @@ trait CommonTestData{ this: ScalaFutures =>
 
   val testCluster = new Cluster(
     clusterName = name1,
+    internalId = internalId,
     googleProject = project,
     serviceAccountInfo = serviceAccountInfo,
     dataprocInfo = DataprocInfo(Option(UUID.randomUUID()), Option(OperationName("op")), Some(GcsBucketName("testStagingBucket1")), None),

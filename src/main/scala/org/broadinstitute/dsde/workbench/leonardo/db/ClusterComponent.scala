@@ -137,12 +137,11 @@ trait ClusterComponent extends LeoComponent {
   }
 
   object clusterQuery extends TableQuery(new ClusterTable(_)) {
-    def save(internalId: String,
-             cluster: Cluster,
+    def save(cluster: Cluster,
              initBucket: Option[GcsPath] = None,
              serviceAccountKeyId: Option[ServiceAccountKeyId] = None): DBIO[Cluster] = {
       for {
-        clusterId <- clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster, internalId, initBucket.map(_.toUri), serviceAccountKeyId)
+        clusterId <- clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster, initBucket.map(_.toUri), serviceAccountKeyId)
         _ <- labelQuery.saveAllForCluster(clusterId, cluster.labels)
         _ <- instanceQuery.saveAllForCluster(clusterId, cluster.instances.toSeq)
         _ <- extensionQuery.saveAllForCluster(clusterId, cluster.userJupyterExtensionConfig)
@@ -445,12 +444,11 @@ trait ClusterComponent extends LeoComponent {
      * This function should only be called at cluster creation time, when the init bucket doesn't exist.
      */
     private def marshalCluster(cluster: Cluster,
-                               internalId: String,
                                initBucket: Option[String],
                                serviceAccountKeyId: Option[ServiceAccountKeyId]): ClusterRecord = {
       ClusterRecord(
         id = 0,    // DB AutoInc
-        internalId,
+        cluster.internalId,
         cluster.clusterName.value,
         cluster.dataprocInfo.googleId,
         cluster.googleProject.value,

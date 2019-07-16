@@ -21,12 +21,12 @@ class MockSwaggerSamClient extends SwaggerSamClient("fake/path", true, new Finit
   val serviceAccount = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
 
   @throws[ApiException]
-  override def createNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
+  override def createNotebookClusterResource(internalId: String, userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
     notebookClusters += (googleProject, clusterName, userEmail) -> Set("status", "connect", "sync", "delete", "read_policies")
   }
 
   @throws[ApiException]
-  override def deleteNotebookClusterResource(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
+  override def deleteNotebookClusterResource(internalId: String, userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
     notebookClusters.remove((googleProject, clusterName, userEmail))
   }
 

@@ -212,7 +212,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           (cluster, initBucket, serviceAccountKeyOpt) <- createGoogleCluster(internalId, userEmail, serviceAccountInfo, googleProject, clusterName, augmentedClusterRequest, clusterImages)
 
           // Save the cluster in the database
-          savedCluster <- dbRef.inTransaction(_.clusterQuery.save(internalId, cluster, Option(GcsPath(initBucket, GcsObjectName(""))), serviceAccountKeyOpt.map(_.id)))
+          savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, Option(GcsPath(initBucket, GcsObjectName(""))), serviceAccountKeyOpt.map(_.id)))
         } yield {
           savedCluster
         }
@@ -293,7 +293,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         logger.info(s"Successfully notified the AuthProvider for creation of cluster '$clusterName' " +
           s"on Google project '$googleProject'.")
 
-        dbRef.inTransaction { _.clusterQuery.save(internalId, initialClusterToSave) }
+        dbRef.inTransaction { _.clusterQuery.save(initialClusterToSave) }
       }
 
     // For the success case, register the following callbacks...
