@@ -27,11 +27,12 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   //You must also set debug to true. Example usage (goes in the Spec you are creating):
   //Consider adding autopause = Some(false) to the cluster request if you encounter issues with autopause 
   //
-  //debug = true
-  //mockedCluster = mockCluster("gpalloc-dev-master-0h7pzni","automation-test-apm25lvlz")
+  //example usage:
+  //  debug = true
+  //  mockedCluster = mockCluster("gpalloc-dev-master-0h7pzni","automation-test-apm25lvlz")
   var debug: Boolean = false //if true, will not spin up and tear down a cluster on each test. Used in conjunction with mockedCluster
   var mockedCluster: Cluster = _ //mockCluster("gpalloc-dev-master-1ecxlpm", "automation-test-auhyfvadz") //_ //must specify a google project name and cluster name via the mockCluster utility method in NotebookTestUtils
-  //example usage:
+
   /**
     * See
     *  https://www.artima.com/docs-scalatest-2.0.M5/org/scalatest/FreeSpec.html
