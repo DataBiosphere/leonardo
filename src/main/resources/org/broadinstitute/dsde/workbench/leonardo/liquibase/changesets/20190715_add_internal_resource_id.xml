@@ -3,8 +3,16 @@
     <changeSet logicalFilePath="leonardo" author="mbemis" id="add-cluster-internal-resource-id">
         <addColumn tableName="CLUSTER">
             <column name="internalId" type="VARCHAR(254)">
-                <constraints nullable="false"/>
+                <constraints nullable="true"/>
             </column>
         </addColumn>
+    </changeSet>
+    <changeSet logicalFilePath="leonardo" author="mbemis" id="backpopulate-internal-resource-id">
+        <sql stripComments="true">
+            update CLUSTER c set internalId = CONCAT(c.googleProject, '_', c.clusterName);
+        </sql>
+    </changeSet>
+    <changeSet logicalFilePath="leonardo" author="mbemis" id="internal-id-non-nullable">
+        <addNotNullConstraint columnDataType="VARCHAR(254)" columnName="internalId" tableName="CLUSTER"/>
     </changeSet>
 </databaseChangeLog>
