@@ -14,9 +14,6 @@ import scala.language.postfixOps
 class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
   override def enableWelder: Boolean = true
 
-//  debug = true //if true, will not spin up and tear down a cluster on each test. Used in conjunction with mockedCluster
-  mockedCluster = mockCluster("gpalloc-dev-master-6cnldnh","automation-test-aeo5ox6hz") //_ //must specify a google project name and cluster name via the mockCluster utility method in NotebookTestUtils
-
   "Leonardo welder and jupyter extensions" - {
 
     "Welder should be up" in { clusterFixture =>
@@ -41,7 +38,9 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
               val localContentSize: Long = Notebook.getNotebookItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(googleCloudDir, isEditMode)).size.toLong
 
               eventually(timeout(Span(5, Seconds))) {
-                val remoteContentSize: Long = getObjectAsFile(googleCloudDir.bucketName, GcsBlobName(googleCloudDir.objectName.value)).length()
+                val remoteContentSize: Long = getObjectSize(googleCloudDir.bucketName, GcsBlobName(googleCloudDir.objectName.value))
+                  .unsafeRunSync()
+                  .toLong
                 remoteContentSize shouldBe localContentSize
               }
 
@@ -70,7 +69,9 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
           withWebDriver { implicit driver =>
 
             withOpenNotebook(clusterFixture.cluster, localizedFile, 2.minutes) { notebookPage =>
-              val originalRemoteContentSize: Long = getObjectAsFile(googleCloudDir.bucketName, GcsBlobName(googleCloudDir.objectName.value)).length()
+              val originalRemoteContentSize: Long = getObjectSize(googleCloudDir.bucketName, GcsBlobName(googleCloudDir.objectName.value))
+                .unsafeRunSync()
+                .toLong
               val originalLocalContentSize: Long = Notebook.getNotebookItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(googleCloudDir, isEditMode)).size.toLong
 
               originalRemoteContentSize shouldBe originalLocalContentSize
@@ -87,7 +88,9 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
               val newLocalContentSize = Notebook.getNotebookItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(googleCloudDir, isEditMode)).size.toLong
 
               eventually(timeout(Span(5, Seconds))) {
-                val newRemoteContentSize = getObjectAsFile(googleCloudDir.bucketName, GcsBlobName(googleCloudDir.objectName.value)).length()
+                val newRemoteContentSize = getObjectSize(googleCloudDir.bucketName, GcsBlobName(googleCloudDir.objectName.value))
+                  .unsafeRunSync()
+                  .toLong
                 newLocalContentSize should be > newRemoteContentSize
                 originalRemoteContentSize shouldBe newRemoteContentSize
               }
