@@ -10,7 +10,7 @@ services:
     network_mode: host
     volumes:
       # shared with welder
-      - /work:${NOTEBOOKS_DIR}
+      - /work:/home/jupyter-user/notebooks # TODO: make this ${NOTEBOOKS_DIR} once welder is rolled out to all clusters
       - /usr/lib/bigtop-utils:/usr/lib/bigtop-utils
       - /usr/lib/hadoop:/usr/lib/hadoop
       - /usr/lib/hadoop-hdfs:/usr/lib/hadoop-hdfs
