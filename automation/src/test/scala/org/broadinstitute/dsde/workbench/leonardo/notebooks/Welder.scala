@@ -49,7 +49,7 @@ object Welder extends RestClient with LazyLogging {
 
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
 
-    logger.info(s"Making Welder storage links entry: POST on $path with payload $payload")
+    logger.info(s"Calling Welder storage links: POST on $path with payload $payload")
 
     postRequest(path, payload, httpHeaders = List(cookie))
   }
@@ -67,7 +67,7 @@ def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(i
 
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
 
-    logger.info(s"Making Welder localize: POST on $path with payload ${payload.toString()}")
+    logger.info(s"Calling Welder localize: POST on $path with payload ${payload.toString()}")
     postRequest(path, payload, httpHeaders = List(cookie))
   }
 
@@ -80,7 +80,7 @@ def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(i
 
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
 
-    logger.info(s"Making Welder localize: POST on $path with payload ${payload.toString()}")
+    logger.info(s"Calling check metadata on a file: POST on $path with payload ${payload.toString()}")
     parseMetadataResponse(postRequest(path, payload, httpHeaders = List(cookie)))
   }
 

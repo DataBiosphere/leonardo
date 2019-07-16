@@ -22,7 +22,6 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   var claimedBillingProject: ClaimedProject = _
   var billingProject : GoogleProject = _
   var ronCluster: Cluster = _
-  def enableWelder: Boolean = true
 
   //To use, comment out the lines in after all that clean-up and run the test once normally. Then, instantiate a mock cluster in your test file via the `mockCluster` method in NotebookTestUtils with the project/cluster created
   //You must also set debug to true. Example usage (goes in the Spec you are creating):
@@ -136,8 +135,8 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   override def afterAll(): Unit = {
     logger.info("afterAll")
     if (!debug) {
-//      deleteRonCluster()
-//      unclaimBillingProject()
+      deleteRonCluster()
+      unclaimBillingProject()
     }
     super.afterAll()
   }
