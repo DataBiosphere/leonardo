@@ -361,32 +361,11 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     }
   }
 
-//  def getObjectAsFile(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): File = {
-//    val blobId: BlobId = BlobId.of(workspaceBucketName.value, notebookName.value)
-//    val fileName = s"${logDir}/${workspaceBucketName.value}-${notebookName.value}-${java.util.UUID.randomUUID()}.ipynb"
-//    val outputPath: Path =  Paths.get(fileName)
-//
-//    google2StorageResource.use {
-//      google2StorageDAO =>
-////        for {
-//        val downloadedFile = google2StorageDAO.downloadObject(blobId, outputPath).compile.drain
-////        } yield ()
-//        Stream.eval(downloadedFile)
-//    }
-//  }
-
-  def getObjectAsFile(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): File = {
-    val rawContents: String = getObjectAsString(workspaceBucketName, notebookName)
-      .unsafeRunSync()
-      .getOrElse(throw new RuntimeException("Unable to retrieve file"))
-
-    val googleFile: File = new File(logDir, s"${workspaceBucketName.value}-${notebookName.value}-${java.util.UUID.randomUUID()}.ipynb")
-
-    val fos = new FileOutputStream(googleFile)
-    fos.write(rawContents.getBytes(StandardCharsets.UTF_8))
-    fos.close()
-
-    googleFile
+  def getObjectSize(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[Int] = {
+    google2StorageResource.use {
+      google2StorageDAO =>
+        google2StorageDAO.getBlobBody(workspaceBucketName, notebookName).compile.toList.map(_.size)
+    }
   }
 
 }
