@@ -25,9 +25,9 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
       val isEditMode = true
 
-      withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { googleCloudDir =>
+      withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { gcsPath =>
 
-        withWelderInitialized(clusterFixture.cluster, googleCloudDir, isEditMode) { localizedFile =>
+        withWelderInitialized(clusterFixture.cluster, gcsPath, isEditMode) { localizedFile =>
 
           withWebDriver { implicit driver =>
 
@@ -38,10 +38,10 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
               notebookPage.addCodeAndExecute("1+1")
               notebookPage.saveNotebook()
 
-              val localContentSize: Int = Notebook.getNotebookItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(googleCloudDir, isEditMode)).size
+              val localContentSize: Int = Notebook.getNotebookItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode)).size
 
               eventually(timeout(Span(5, Seconds))) {
-                val remoteContentSize: Int = getObjectSize(googleCloudDir.bucketName, GcsBlobName(googleCloudDir.objectName.value))
+                val remoteContentSize: Int = getObjectSize(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value))
                   .unsafeRunSync()
 
                 remoteContentSize shouldBe localContentSize
@@ -49,8 +49,8 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
               logger.info("Waiting 4 minutes as lock takes time to be reflected in metadata")
               eventually(timeout(Span(4, Minutes)), interval(Span(30, Seconds))) {
-                val gcsLockedBy: Option[String] = getLockedBy(googleCloudDir.bucketName, GcsBlobName(googleCloudDir.objectName.value)).unsafeRunSync()
-                val welderLockedBy: Option[String] = Welder.getMetadata(clusterFixture.cluster, googleCloudDir, isEditMode).lastLockedBy
+                val gcsLockedBy: Option[String] = getLockedBy(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value)).unsafeRunSync()
+                val welderLockedBy: Option[String] = Welder.getMetadata(clusterFixture.cluster, gcsPath, isEditMode).lastLockedBy
 
                 gcsLockedBy should not be None
                 welderLockedBy should not be None
@@ -66,19 +66,19 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
       val isEditMode = false
 
-      withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { googleCloudDir =>
+      withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { gcsPath =>
         logger.info("Initialized google storage bucket")
 
-        withWelderInitialized(clusterFixture.cluster, googleCloudDir, isEditMode) { localizedFile =>
+        withWelderInitialized(clusterFixture.cluster, gcsPath, isEditMode) { localizedFile =>
 
           withWebDriver { implicit driver =>
 
             withOpenNotebook(clusterFixture.cluster, localizedFile, 2.minutes) { notebookPage =>
 
-              val originalRemoteContentSize: Int = getObjectSize(googleCloudDir.bucketName, GcsBlobName(googleCloudDir.objectName.value))
+              val originalRemoteContentSize: Int = getObjectSize(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value))
                 .unsafeRunSync()
 
-              val originalLocalContentSize: Int = Notebook.getNotebookItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(googleCloudDir, isEditMode)).size
+              val originalLocalContentSize: Int = Notebook.getNotebookItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode)).size
 
               originalRemoteContentSize shouldBe originalLocalContentSize
 
@@ -91,13 +91,13 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
               logger.info("Waiting 4 minutes as lock takes time to be reflected in metadata")
               Thread.sleep(240000)
 
-              val newLocalContentSize = Notebook.getNotebookItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(googleCloudDir, isEditMode)).size
+              val newLocalContentSize = Notebook.getNotebookItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode)).size
 
               eventually(timeout(Span(5, Seconds))) {
-                val newRemoteContentSize = getObjectSize(googleCloudDir.bucketName, GcsBlobName(googleCloudDir.objectName.value))
+                val newRemoteContentSize = getObjectSize(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value))
                   .unsafeRunSync()
 
-                newLocalContentSize shouldBe > newRemoteContentSize
+                newLocalContentSize should be > newRemoteContentSize
                 originalRemoteContentSize shouldBe newRemoteContentSize
               }
 
@@ -107,8 +107,8 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
               areElementsHidden shouldBe true
 
-              val gcsLockedBy: Option[String] = getLockedBy(googleCloudDir.bucketName, GcsBlobName(googleCloudDir.objectName.value)).unsafeRunSync()
-              val welderLockedBy: Option[String] = Welder.getMetadata(clusterFixture.cluster, googleCloudDir, isEditMode).lastLockedBy
+              val gcsLockedBy: Option[String] = getLockedBy(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value)).unsafeRunSync()
+              val welderLockedBy: Option[String] = Welder.getMetadata(clusterFixture.cluster, gcsPath, isEditMode).lastLockedBy
 
               gcsLockedBy shouldBe None
               welderLockedBy shouldBe None
