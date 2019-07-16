@@ -7,6 +7,7 @@ import akka.actor.{Actor, Props, Timers}
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
+import org.broadinstitute.dsde.workbench.leonardo.Metrics
 import org.broadinstitute.dsde.workbench.leonardo.config.ZombieClusterConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -110,11 +111,12 @@ class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO
   }
 
   private def handleZombieCluster(cluster: Cluster): Future[Unit] = {
-    logger.info(s"Erroring zombie cluster: ${cluster.projectNameString}")
+    logger.info(s"Deleting zombie cluster: ${cluster.projectNameString}")
+    Metrics.newRelic.incrementCounterIO("zombieClusters").unsafeRunAsync(_ => ())
     dbRef.inTransaction { dataAccess =>
       for {
-        _ <- dataAccess.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Error)
-        error = ClusterError("An underlying resource was removed in Google. Please delete and recreate your cluster.", -1, Instant.now)
+        _ <- dataAccess.clusterQuery.completeDeletion(cluster.id)
+        error = ClusterError("An underlying resource was removed in Google. Cluster has been marked deleted in Leo.", -1, Instant.now)
         _ <- dataAccess.clusterErrorQuery.save(cluster.id, error)
       } yield ()
     }.void
