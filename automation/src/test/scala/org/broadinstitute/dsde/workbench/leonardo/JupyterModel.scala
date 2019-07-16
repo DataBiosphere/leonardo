@@ -1,7 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-case class Content() {}
-
 case class ContentItem (
                        `type`: String,
                        mimetype: Option[String],
@@ -16,9 +14,9 @@ case class ContentItem (
 )
 
 //TODO: the below objects are a representation of the notebook
-//The attempt failed, as the /api/contents endpoint which is used to retrieve a notebook from the jupyter-server image on the cluster changes a lot of the contents
+//The attempt to serialize all data fail failed, as the /api/contents endpoint which is used to retrieve a notebook from the jupyter-server image on the cluster changes a lot of the contents
 //If the attempt is to succeed, we should directly retrieve the file from the disk of the image on the cluster via gcloud utility functions.
-//This was not done originally, as it was deemded a size comparison was sufficient for notebook equality
+//This was not done originally, as it was deemed a size comparison was sufficient for notebook equality
 
 //response from jupyter API for an .ipynb file
 case class NotebookContentItem (
