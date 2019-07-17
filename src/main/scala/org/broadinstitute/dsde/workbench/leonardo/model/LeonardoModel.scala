@@ -261,7 +261,8 @@ case class ClusterInitValues(googleProject: String,
                              jupyterNotebookConfigUri: String,
                              jupyterLabExtensions: String,
                              defaultClientId: String,
-                             welderEnabled: String
+                             welderEnabled: String,
+                             notebooksDir: String
                             ){
   def toMap: Map[String, String] = this.getClass.getDeclaredFields.map(_.getName).zip(this.productIterator.to).toMap.mapValues(_.toString)}
 
@@ -308,7 +309,8 @@ object ClusterInitValues {
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value)).toUri,
       clusterRequest.userJupyterExtensionConfig.map(x => x.labExtensions.values.mkString(" ")).getOrElse(""),
       clusterRequest.defaultClientId.getOrElse(""),
-      clusterRequest.enableWelder.getOrElse(false).toString  // TODO: remove this when welder is rolled out to all clusters
+      clusterRequest.enableWelder.getOrElse(false).toString,  // TODO: remove this and conditional below when welder is rolled out to all clusters
+      if (clusterRequest.enableWelder.getOrElse(false)) dataprocConfig.welderEnabledNotebooksDir else dataprocConfig.welderDisabledNotebooksDir
     )
 }
 

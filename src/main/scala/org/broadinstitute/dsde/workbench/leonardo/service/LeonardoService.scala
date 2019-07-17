@@ -126,18 +126,19 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   // Startup script to install on the cluster master node. This allows Jupyter to start back up after
   // a cluster is resumed.
+  // TODO: remove conditionals on welderEnabled once welder is rolled out to all clusters
   protected def getMasterInstanceStartupScript(welderEnabled: Boolean): immutable.Map[String, String] = {
     val googleKey = "startup-script"  // required; see https://cloud.google.com/compute/docs/startupscript
 
-    // The || clause is included because older clusters may not have the run-jupyter.sh script installed,
-    // so we need to fall back running `jupyter notebook` directly. See https://github.com/DataBiosphere/leonardo/issues/481.
-    val jupyterStart = s"docker exec -d ${dataprocConfig.jupyterServerName} /bin/bash -c '/etc/jupyter/scripts/run-jupyter.sh || /usr/local/bin/jupyter notebook'"
-
     val servicesStart = if (welderEnabled) {
+      // The || clause is included because older clusters may not have the run-jupyter.sh script installed,
+      // so we need to fall back running `jupyter notebook` directly. See https://github.com/DataBiosphere/leonardo/issues/481.
+      val jupyterStart = s"docker exec -d ${dataprocConfig.jupyterServerName} /bin/bash -c '/etc/jupyter/scripts/run-jupyter.sh ${dataprocConfig.welderEnabledNotebooksDir} || /usr/local/bin/jupyter notebook'"
+
       val welderStart = s"docker exec -d ${dataprocConfig.welderServerName} /opt/docker/bin/entrypoint.sh"
       s"($jupyterStart) && $welderStart"
     }
-    else jupyterStart
+    else s"docker exec -d ${dataprocConfig.jupyterServerName} /bin/bash -c '/etc/jupyter/scripts/run-jupyter.sh ${dataprocConfig.welderDisabledNotebooksDir} || /usr/local/bin/jupyter notebook'"
 
     immutable.Map(googleKey -> servicesStart)
   }
