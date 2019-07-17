@@ -196,6 +196,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         val augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
         val clusterImages = processClusterImages(clusterRequest)
         val clusterFuture = for {
+          // Metrics
+          _ <- Metrics.newRelic.incrementCounterFuture("numberOfCreateClusterRequests")
+          _ <- if (clusterRequest.enableWelder.getOrElse(false)) Metrics.newRelic.incrementCounterFuture("numberOfWelderEnabledCreateClusterRequests") else Future.unit
+
           // Notify the auth provider that the cluster has been created
           _ <- authProvider.notifyClusterCreated(userEmail, googleProject, clusterName)
 
