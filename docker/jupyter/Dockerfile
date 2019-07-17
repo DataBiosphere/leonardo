@@ -360,7 +360,7 @@ RUN aptitude update && aptitude install -y apt-utils \
  && rm -rf /var/lib/apt/lists/* \
  # fixes broken gfortan dependency needed by some R libraries
  # see: https://github.com/DataBiosphere/leonardo/issues/710
- && ln -s /usr/lib/x86_64-linux-gnu/libgfortran.so.3 /usr/lib/x86_64-linux-gnu/libgfortran.so
+ && ln -s /usr/lib/x86_64-linux-gnu/libgfortran.so.5 /usr/lib/x86_64-linux-gnu/libgfortran.so
 
 RUN R -e 'install.packages(c( \
     "IRdisplay",  \
