@@ -11,6 +11,7 @@ import scala.language.postfixOps
 
 class NotebookLocalizeFileSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
+  override def enableWelder: Boolean = false
 
   "Leonardo notebooks" - {
 

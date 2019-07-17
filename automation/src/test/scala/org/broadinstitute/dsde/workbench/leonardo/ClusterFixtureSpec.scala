@@ -4,8 +4,8 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.fixture._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.broadinstitute.dsde.workbench.service.test.RandomUtil
+import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration}
 import org.broadinstitute.dsde.workbench.util.addJitter
 import org.scalatest.{BeforeAndAfterAll, Outcome, fixture}
 
@@ -23,6 +23,16 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   var billingProject : GoogleProject = _
   var ronCluster: Cluster = _
 
+  //To use, comment out the lines in after all that clean-up and run the test once normally. Then, instantiate a mock cluster in your test file via the `mockCluster` method in NotebookTestUtils with the project/cluster created
+  //You must also set debug to true. Example usage (goes in the Spec you are creating):
+  //Consider adding autopause = Some(false) to the cluster request if you encounter issues with autopause 
+  //
+  //example usage:
+  //  debug = true
+  //  mockedCluster = mockCluster("gpalloc-dev-master-0h7pzni","automation-test-apm25lvlz")
+  var debug: Boolean = false //if true, will not spin up and tear down a cluster on each test. Used in conjunction with mockedCluster
+  var mockedCluster: Cluster = _ //mockCluster("gpalloc-dev-master-1ecxlpm", "automation-test-auhyfvadz") //_ //must specify a google project name and cluster name via the mockCluster utility method in NotebookTestUtils
+
   /**
     * See
     *  https://www.artima.com/docs-scalatest-2.0.M5/org/scalatest/FreeSpec.html
@@ -36,6 +46,11 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   type FixtureParam = ClusterFixture
 
   override def withFixture(test: OneArgTest): Outcome = {
+    if (debug) {
+      logger.info("[Debug] Using mocked cluster for cluster fixture tests")
+      billingProject = mockedCluster.googleProject
+      ronCluster = mockedCluster
+    }
     withFixture(test.toNoArgTest(ClusterFixture(billingProject, ronCluster)))
   }
 
@@ -77,12 +92,9 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     * Create new cluster by Ron with all default settings
     */
   def createRonCluster(): Unit = {
-    Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
-    val highMemClusterRequest = ClusterRequest(machineConfig = Option(MachineConfig(
-      masterMachineType = Option("n1-standard-8"),
-      workerMachineType = Option("n1-standard-8")
-    )))
-    Try (createNewCluster(billingProject, request = highMemClusterRequest)(ronAuthToken)) match {
+    Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, BillingProject.BillingProjectRole.User)(hermioneAuthToken)
+
+    Try (createNewCluster(billingProject, request = getClusterRequest())(ronAuthToken)) match {
       case Success(outcome) =>
         ronCluster = outcome
         logger.info(s"Successfully created cluster $ronCluster")
@@ -91,6 +103,18 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
         unclaimBillingProject()
         throw  ex
     }
+  }
+
+  def getClusterRequest(): ClusterRequest = {
+    val machineConfig = Some(MachineConfig(
+      masterMachineType = Some("n1-standard-8"),
+      workerMachineType = Some("n1-standard-8")
+    ))
+
+    ClusterRequest(
+      machineConfig = machineConfig,
+      enableWelder = Some(enableWelder),
+      autopause = Some(false))
   }
 
   /**
@@ -102,15 +126,19 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
 
   override def beforeAll(): Unit = {
     logger.info("beforeAll")
+    if (!debug) {
+      claimBillingProject()
+      createRonCluster()
+    }
     super.beforeAll()
-    claimBillingProject()
-    createRonCluster()
   }
 
   override def afterAll(): Unit = {
     logger.info("afterAll")
-    deleteRonCluster()
-    unclaimBillingProject()
+    if (!debug) {
+      deleteRonCluster()
+      unclaimBillingProject()
+    }
     super.afterAll()
   }
 

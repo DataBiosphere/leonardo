@@ -9,28 +9,29 @@ import cats.data.OptionT
 import cats.effect.IO
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
+import io.chrisdavenport.linebacker.Linebacker
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.ResourceFile
-import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserAuthToken}
 import org.broadinstitute.dsde.workbench.config.Credentials
+import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
-import org.broadinstitute.dsde.workbench.service.{Orchestration, RestException, Sam}
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
-import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{ClusterStatus, deletableStatuses}
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion
 import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.{V1, V2}
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
+import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
+import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration, RestException, Sam}
 import org.broadinstitute.dsde.workbench.util._
 import org.scalactic.source.Position
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
-import org.scalatest.{Matchers, Suite}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Minutes, Seconds, Span}
+import org.scalatest.{Matchers, Suite}
 
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent._
@@ -49,6 +50,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   val system: ActorSystem = ActorSystem("leotests")
   val logDir = new File("output")
   logDir.mkdirs
+
+  def enableWelder: Boolean = true
 
   // Ron and Hermione are on the dev Leo whitelist, and Hermione is a Project Owner
   lazy val ronCreds: Credentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential("ron")
@@ -79,7 +82,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   implicit val cs = IO.contextShift(global)
   implicit val t = IO.timer(global)
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
-  val google2StorageResource = GoogleStorageService.resource[IO](LeonardoConfig.GCS.pathToQAJson, scala.concurrent.ExecutionContext.global)
+  implicit val lineBacker = Linebacker.fromExecutionContext[IO](global)
+  val google2StorageResource = GoogleStorageService.resource[IO](LeonardoConfig.GCS.pathToQAJson)
 
   // TODO: move this to NotebookTestUtils and chance cluster-specific functions to only call if necessary after implementing RStudio
   def saveJupyterLogFile(clusterName: ClusterName, googleProject: GoogleProject, suffix: String)(implicit token: AuthToken): Try[File] = {
@@ -352,7 +356,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   def randomClusterName: ClusterName = ClusterName(s"automation-test-a${makeRandomId().toLowerCase}z")
 
-  def defaultClusterRequest: ClusterRequest = ClusterRequest(Map("foo" -> makeRandomId()))
+  def defaultClusterRequest: ClusterRequest = ClusterRequest(Map("foo" -> makeRandomId()), enableWelder = Some(enableWelder))
 
   def createNewCluster(googleProject: GoogleProject,
                        name: ClusterName = randomClusterName,
@@ -396,7 +400,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     Thread sleep jitter.toMillis
     withCleanBillingProject(hermioneCreds) { projectName =>
       val project = GoogleProject(projectName)
-      Orchestration.billing.addUserToBillingProject(projectName, ronEmail, Orchestration.billing.BillingProjectRole.User)(hermioneAuthToken)
+      Orchestration.billing.addUserToBillingProject(projectName, ronEmail, BillingProject.BillingProjectRole.User)(hermioneAuthToken)
       testCode(project)(ronAuthToken)
     }
   }
@@ -515,7 +519,6 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       }
     }
   }
-
 
   def saveDataprocLogFiles(cluster: Cluster)(implicit executionContext: ExecutionContext): Future[Option[(File, File)]] = {
     def downloadLogFile(contentStream: ByteArrayOutputStream, fileName: String): File = {

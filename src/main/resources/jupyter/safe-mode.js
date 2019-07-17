@@ -31,6 +31,11 @@ define(() => {
 
     function load() {
         console.info('safe mode plugin initialized')
+
+        if (!Jupyter.notebook) {
+            return; //exit, they are in list view
+        }
+
         checkMetaLoop()
     }
 
@@ -52,10 +57,14 @@ define(() => {
                 if (res.syncMode == "EDIT") {
                     toggleUIControls(false)
                 } else {
+                    //there is an icon in the jupyter UI that has a tool tip that says 'edit mode'.
+                    //this shows up whenever a user types, so we change the tool-tip to avoid confusion
+                    $("#modal_indicator").tooltip({ "content": "Adding code" });
                     toggleUIControls(true)
                 }
             })
             .catch(err => {
+                console.error(err)
                 toggleUIControls(false) //we always assume safe mode if the check meta call fails
             })
     }

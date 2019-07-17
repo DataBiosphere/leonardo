@@ -12,7 +12,7 @@ class RStudioSpec extends FreeSpec with LeonardoTestUtils with ParallelTestExecu
 
     "should install RStudio" taggedAs Tags.SmokeTest in {
       withProject { project => implicit token =>
-        withNewCluster(project, request = ClusterRequest(rstudioDockerImage = Some("us.gcr.io/broad-dsp-gcr-public/leonardo-rstudio:860d5862f3f5"))) { cluster =>
+        withNewCluster(project, request = defaultClusterRequest.copy(rstudioDockerImage = Some("us.gcr.io/broad-dsp-gcr-public/leonardo-rstudio:860d5862f3f5"))) { cluster =>
           withWebDriver {implicit driver =>
             val getResult = Try(RStudio.getApi(project, cluster.clusterName))
             getResult.isSuccess shouldBe true

@@ -48,3 +48,15 @@ IntelliJ
 - set Working dir to local dir
 - use classpath and SDK of the leonardoTests module
 - should be able to right-click-run
+
+### Developing locally
+
+If you are developing a test that uses ClusterFixture to re-use the same cluster between tests, you can speed up development significantly by reusing the same cluster between runs:
+- running the tests once with the lines `deleteRonCluster() 
+    unclaimBillingProject()` commented out in the function `afterAll()` within the file `ClusterFixtureSpec.scala`
+- adding these lines to the Spec you are working in, where the project and cluster name are the project and cluster generated in the previous test 
+
+```
+debug = true
+mockedCluster = mockCluster("[GOOGLE_PROJECT]","[CLUSTER_NAME]")
+```
