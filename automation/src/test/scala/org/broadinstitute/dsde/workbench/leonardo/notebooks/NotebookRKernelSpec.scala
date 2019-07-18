@@ -6,9 +6,12 @@ import org.broadinstitute.dsde.workbench.service.util.Tags
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
+/**
+  * This spec verifies notebook functionality specifically around the R kernel.
+  */
 class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
-  "Leonardo notebooks" - {
+  "NotebookRKernelSpec" - {
 
     // See https://github.com/DataBiosphere/leonardo/issues/398
     "should use UTF-8 encoding" in { clusterFixture =>

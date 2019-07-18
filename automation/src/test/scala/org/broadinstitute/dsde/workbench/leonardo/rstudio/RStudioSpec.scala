@@ -10,7 +10,8 @@ class RStudioSpec extends FreeSpec with LeonardoTestUtils with ParallelTestExecu
 
   "Leonardo clusters" - {
 
-    "should install RStudio" taggedAs Tags.SmokeTest in {
+    // TODO re-enable when RStudio is supported
+    "should install RStudio" taggedAs Tags.SmokeTest ignore {
       withProject { project => implicit token =>
         withNewCluster(project, request = defaultClusterRequest.copy(rstudioDockerImage = Some("us.gcr.io/broad-dsp-gcr-public/leonardo-rstudio:860d5862f3f5"))) { cluster =>
           withWebDriver {implicit driver =>

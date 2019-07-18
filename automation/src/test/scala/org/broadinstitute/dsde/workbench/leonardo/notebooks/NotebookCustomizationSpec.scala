@@ -3,8 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
-import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V2
-import org.broadinstitute.dsde.workbench.leonardo.{ClusterRequest, UserJupyterExtensionConfig}
+import org.broadinstitute.dsde.workbench.leonardo.UserJupyterExtensionConfig
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.service.util.Tags
@@ -13,19 +12,17 @@ import org.scalatest.{FreeSpec, ParallelTestExecution}
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
+/**
+  * This spec verfies different cluster creation options, such as user scripts, extensions, etc.
+  */
 final class NotebookCustomizationSpec extends FreeSpec
   with NotebookTestUtils with ParallelTestExecution with BillingFixtures {
 
-  "Leonardo" - {
-    // Note: There is a complementary test in NotebookInstallSpec that verifies that
-    // the 'arrow' import does not work without the user script used below.
+  "NotebookCustomizationSpec" - {
 
-    // Create a new bucket
-    // Add the user script to the bucket
-    // Create a new cluster using the URI of the user script
-    // Create a notebook that will check if the user script ran
-    "should allow importing a package that requires a user script that IS installed" taggedAs Tags.SmokeTest in {
+    "should run a user script" taggedAs Tags.SmokeTest in {
       withProject { project => implicit token =>
+        // Create a new bucket
         withNewGoogleBucket(project) { bucketName =>
           val ronPetServiceAccount = Sam.user.petServiceAccountEmail(project.value)(ronAuthToken)
           googleStorageDAO.setBucketAccessControl(
@@ -33,6 +30,7 @@ final class NotebookCustomizationSpec extends FreeSpec
             EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
             GcsRoles.Owner)
 
+          // Add the user script to the bucket
           val userScriptString = "#!/usr/bin/env bash\n\npip2 install arrow"
           val userScriptObjectName = GcsObjectName("user-script.sh")
           val userScriptUri = s"gs://${bucketName.value}/${userScriptObjectName.value}"
@@ -44,10 +42,12 @@ final class NotebookCustomizationSpec extends FreeSpec
               EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
               GcsRoles.Owner)
 
+            // Create a new cluster using the URI of the user script
             val clusterRequestWithUserScript = defaultClusterRequest.copy(Map(), None, Option(userScriptUri))
-            withNewCluster(project, request = clusterRequestWithUserScript, apiVersion = V2) { cluster =>
+            withNewCluster(project, request = clusterRequestWithUserScript) { cluster =>
               Thread.sleep(10000)
               withWebDriver { implicit driver =>
+                // Create a notebook that will check if the user script ran
                 withNewNotebook(cluster) { notebookPage =>
                   notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
                   notebookPage.executeCell("""import arrow""")
@@ -60,19 +60,31 @@ final class NotebookCustomizationSpec extends FreeSpec
       }
     }
 
-    //Test to check if extensions are installed correctly
-    //Using nbtranslate extension from here:
-    //https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
+    // Using nbtranslate extension from here:
+    // https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
     "should install user specified notebook extensions" in {
       withProject { project => implicit token =>
         val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
         withResourceFileInBucket(project, translateExtensionFile, "application/x-gzip") { translateExtensionBucketPath =>
-          val clusterRequestWithExtension = defaultClusterRequest.copy(Map(), Option(translateExtensionBucketPath.toUri), None)
-          withNewCluster(project, request = clusterRequestWithExtension) { cluster =>
+          val extensionConfig = multiExtensionClusterRequest.copy(nbExtensions = multiExtensionClusterRequest.nbExtensions + ("translate" -> translateExtensionBucketPath.toUri))
+          withNewCluster(project, request = defaultClusterRequest.copy(userJupyterExtensionConfig = Some(extensionConfig))) { cluster =>
             withWebDriver { implicit driver =>
-              withNewNotebook(cluster) { notebookPage =>
-                notebookPage.executeCell("1 + 1") shouldBe Some("2")
-                //Check if the mark up was translated correctly
+              withNewNotebook(cluster, Python3) { notebookPage =>
+                // Check the extensions were installed
+                val nbExt = notebookPage.executeCell("! jupyter nbextension list")
+                nbExt.get should include("jupyter-gmaps/extension  enabled")
+                nbExt.get should include("pizzabutton/index  enabled")
+                nbExt.get should include("translate_nbextension/main  enabled")
+                // should be installed by default
+                nbExt.get should include("toc2/main  enabled")
+
+                val serverExt = notebookPage.executeCell("! jupyter serverextension list")
+                serverExt.get should include("pizzabutton  enabled")
+                serverExt.get should include("jupyterlab  enabled")
+                // should be installed by default
+                serverExt.get should include("jupyter_nbextensions_configurator  enabled")
+
+                // Exercise the translate extension
                 notebookPage.translateMarkup("Hello") should include("Bonjour")
               }
             }
@@ -81,44 +93,16 @@ final class NotebookCustomizationSpec extends FreeSpec
       }
     }
 
-    "should install user specified lab extensions" in {
+    "should give cluster user-specified scopes" in {
       withProject { project => implicit token =>
-        withNewCluster(project, request = defaultClusterRequest.copy(userJupyterExtensionConfig = Some(UserJupyterExtensionConfig(labExtensions = Map("jupyterlab-toc" -> "@jupyterlab/toc"))))) { cluster =>
+        withNewCluster(project, request = defaultClusterRequest.copy(scopes = Set("https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/source.read_only"))) { cluster =>
           withWebDriver { implicit driver =>
             withNewNotebook(cluster) { notebookPage =>
-              val query = """!jupyter labextension list"""
-              val result = notebookPage.executeCell(query).get
-              result should include("@jupyterlab/toc")
-            }
-          }
-        }
-      }
-    }
+              val query = """! bq query --disable_ssl_validation --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
 
-    "should allow users to install extensions after cluster creation" in {
-      withProject { project => implicit token =>
-        withNewCluster(project) { cluster =>
-          withWebDriver { implicit driver =>
-            withNewNotebook(cluster) { notebookPage =>
-              val query = """!jupyter labextension install @jupyterlab/toc"""
               val result = notebookPage.executeCell(query, timeout = 5.minutes).get
-              result should not include("Permission denied")
-            }
-          }
-        }
-      }
-    }
-
-    "should install user specified lab extensions from a js file" in {
-      withProject { project => implicit token =>
-        val exampleLabExtensionFile = ResourceFile("bucket-tests/example_lab_extension.js")
-        withResourceFileInBucket(project, exampleLabExtensionFile, "text/plain") { exampleLabExtensionBucketPath =>
-          val clusterRequestWithLabExtension = defaultClusterRequest.copy(userJupyterExtensionConfig = Some(UserJupyterExtensionConfig(labExtensions = Map("example_lab_extension" -> exampleLabExtensionBucketPath.toUri))))
-          withNewCluster(project, request = clusterRequestWithLabExtension) { cluster =>
-            withWebDriver { implicit driver =>
-              withNewNotebook(cluster) { notebookPage =>
-                notebookPage.executeCell("!jupyter labextension list").get should include("example_lab_extension")
-              }
+              result should include("BigQuery error in query operation")
+              result.replace(System.lineSeparator(), " ") should include("Invalid credential")
             }
           }
         }

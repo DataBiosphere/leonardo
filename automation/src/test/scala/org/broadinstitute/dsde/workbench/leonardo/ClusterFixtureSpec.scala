@@ -6,10 +6,8 @@ import org.broadinstitute.dsde.workbench.fixture._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.test.RandomUtil
 import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration}
-import org.broadinstitute.dsde.workbench.util.addJitter
 import org.scalatest.{BeforeAndAfterAll, Outcome, fixture}
 
-import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 
 
@@ -20,7 +18,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
 
   implicit val ronToken: AuthToken = ronAuthToken
   var claimedBillingProject: ClaimedProject = _
-  var billingProject : GoogleProject = _
+  var billingProject : GoogleProject = LeonardoConfig.BillingProject.project
   var ronCluster: Cluster = _
 
   //To use, comment out the lines in after all that clean-up and run the test once normally. Then, instantiate a mock cluster in your test file via the `mockCluster` method in NotebookTestUtils with the project/cluster created
@@ -30,7 +28,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   //example usage:
   //  debug = true
   //  mockedCluster = mockCluster("gpalloc-dev-master-0h7pzni","automation-test-apm25lvlz")
-  var debug: Boolean = false //if true, will not spin up and tear down a cluster on each test. Used in conjunction with mockedCluster
+  val debug: Boolean = false //if true, will not spin up and tear down a cluster on each test. Used in conjunction with mockedCluster
   var mockedCluster: Cluster = _ //mockCluster("gpalloc-dev-master-1ecxlpm", "automation-test-auhyfvadz") //_ //must specify a google project name and cluster name via the mockCluster utility method in NotebookTestUtils
 
   /**
@@ -57,36 +55,36 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   /**
     * Claim new billing project by Hermione
     */
-  def claimBillingProject(): Unit = {
-    Try {
-      val jitter = addJitter(5 seconds, 1 minute)
-      logger.info(s"Sleeping ${jitter.toSeconds} seconds before claiming a billing project")
-      Thread sleep jitter.toMillis
-
-      claimedBillingProject = claimGPAllocProject(hermioneCreds)
-      billingProject = GoogleProject(claimedBillingProject.projectName)
-      logger.info(s"Billing project claimed: ${claimedBillingProject.projectName}")
-    }.recover {
-      case ex: Exception =>
-        logger.error(s"ERROR: when owner $hermioneCreds is claiming a billing project", ex)
-        throw ex
-    }
-  }
+//  def claimBillingProject(): Unit = {
+//    Try {
+//      val jitter = addJitter(5 seconds, 1 minute)
+//      logger.info(s"Sleeping ${jitter.toSeconds} seconds before claiming a billing project")
+//      Thread sleep jitter.toMillis
+//
+//      claimedBillingProject = claimGPAllocProject(hermioneCreds)
+//      billingProject = GoogleProject(claimedBillingProject.projectName)
+//      logger.info(s"Billing project claimed: ${claimedBillingProject.projectName}")
+//    }.recover {
+//      case ex: Exception =>
+//        logger.error(s"ERROR: when owner $hermioneCreds is claiming a billing project", ex)
+//        throw ex
+//    }
+//  }
 
   /**
     * Unclaiming billing project claim by Hermione
     */
-  def unclaimBillingProject(): Unit = {
-    val projectName = claimedBillingProject.projectName
-    Try {
-      claimedBillingProject.cleanup(hermioneCreds)
-      logger.info(s"Billing project unclaimed: $projectName")
-    }.recover{
-      case ex: Exception =>
-        logger.error(s"ERROR: when owner $hermioneCreds is unclaiming billing project $projectName", ex)
-        throw ex
-    }
-  }
+//  def unclaimBillingProject(): Unit = {
+//    val projectName = claimedBillingProject.projectName
+//    Try {
+//      claimedBillingProject.cleanup(hermioneCreds)
+//      logger.info(s"Billing project unclaimed: $projectName")
+//    }.recover{
+//      case ex: Exception =>
+//        logger.error(s"ERROR: when owner $hermioneCreds is unclaiming billing project $projectName", ex)
+//        throw ex
+//    }
+//  }
 
   /**
     * Create new cluster by Ron with all default settings
@@ -100,7 +98,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
         logger.info(s"Successfully created cluster $ronCluster")
       case Failure(ex) =>
         logger.error(s"ERROR: when creating new cluster in billing project $billingProject", ex)
-        unclaimBillingProject()
+//        unclaimBillingProject()
         throw  ex
     }
   }
@@ -127,7 +125,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   override def beforeAll(): Unit = {
     logger.info("beforeAll")
     if (!debug) {
-      claimBillingProject()
+      //claimBillingProject()
       createRonCluster()
     }
     super.beforeAll()
@@ -137,7 +135,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     logger.info("afterAll")
     if (!debug) {
       deleteRonCluster()
-      unclaimBillingProject()
+      //unclaimBillingProject()
     }
     super.afterAll()
   }

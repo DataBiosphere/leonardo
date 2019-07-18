@@ -8,14 +8,17 @@ import org.broadinstitute.dsde.workbench.service.util.Tags
 
 import scala.language.postfixOps
 
-
+/**
+  * This spec verifies legacy notebook localization/delocalization, pre-welder.
+  * Remove this once welder is fully rolled out.
+  */
 class NotebookLocalizeFileSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
   override def enableWelder: Boolean = false
 
-  "Leonardo notebooks" - {
+  "NotebookLocalizeFileSpec" - {
 
-    "should localize files in async mode" taggedAs Tags.SmokeTest in { clusterFixture =>
+    "should localize files in async mode" in { clusterFixture =>
       val localizeFileName = "localize_async.txt"
       val localizeFileContents = "Async localize test"
       val delocalizeFileName = "delocalize_async.txt"
@@ -49,7 +52,7 @@ class NotebookLocalizeFileSpec extends ClusterFixtureSpec with NotebookTestUtils
       }
     }
 
-    "should localize files in sync mode" in { clusterFixture =>
+    "should localize files in sync mode" taggedAs Tags.SmokeTest in { clusterFixture =>
       val localizeFileName = "localize_sync.txt"
       val localizeFileContents = "Sync localize test"
       val delocalizeFileName = "delocalize_sync.txt"

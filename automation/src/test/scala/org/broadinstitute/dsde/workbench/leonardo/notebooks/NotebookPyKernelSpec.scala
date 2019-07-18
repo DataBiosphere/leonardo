@@ -7,39 +7,76 @@ import org.broadinstitute.dsde.workbench.service.util.Tags
 import scala.concurrent.duration.DurationLong
 import scala.language.postfixOps
 
+/**
+  * This spec verifies notebook functionality specifically around the Python 2 and 3 kernels.
+  */
 class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
-  "Leonardo notebooks" - {
+  "NotebookPyKernelSpec" - {
 
-    "should open the notebooks list page" in { clusterFixture =>
+    "should create a notebook with a working Python 3 kernel and import installed packages" in { clusterFixture =>
       withWebDriver { implicit driver =>
-        withNotebooksListPage(clusterFixture.cluster) { notebooksListPage =>
-          // noop just verify that it opens
+        withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
+          val getPythonVersion =
+            """import platform
+              |print(platform.python_version())""".stripMargin
+          val getBxPython =
+            """import bx.bitset
+              |bx.bitset.sys.copyright""".stripMargin
+
+          notebookPage.executeCell("1+1") shouldBe Some("2")
+          notebookPage.executeCell(getPythonVersion) shouldBe Some("3.6.8")
+          notebookPage.executeCell(getBxPython).get should include("Copyright (c)")
         }
       }
     }
 
-    "should do cross domain cookie auth" ignore { clusterFixture =>
+    // This is the negative counterpart of the NotebookUserScriptSpec test named
+    // "should allow importing a package that requires a user script that IS installed"
+    // to verify that we can only import 'arrow' with the user script specified in that test
+    "should error importing a package that isn't installed" in { clusterFixture =>
       withWebDriver { implicit driver =>
-        withDummyClientPage(clusterFixture.cluster) { dummyClientPage =>
-          // opens the notebook list page without setting a cookie
-          val notebooksListPage = dummyClientPage.openNotebook
-          notebooksListPage.withNewNotebook() { notebookPage =>
-            // execute some cells to make sure it works
-            notebookPage.executeCell("1+1") shouldBe Some("2")
-            notebookPage.executeCell("2*3") shouldBe Some("6")
-            notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
+        //a cluster without the user script should not be able to import the arrow library
+        withNewNotebook(clusterFixture.cluster) { notebookPage =>
+          notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
+          notebookPage.executeCell("""import arrow""").get should include("ImportError: No module named arrow")
+        }
+      }
+    }
+
+    Seq(Python2, Python3).foreach { kernel =>
+      s"should be able to pip install packages using ${kernel.string}" in { clusterFixture =>
+        withWebDriver { implicit driver =>
+          withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
+            // install a package that is not installed by default
+            notebookPage.executeCell("import fuzzywuzzy").getOrElse("") should include ("ModuleNotFoundError")
+            pipInstall(notebookPage, kernel, "fuzzywuzzy")
+            notebookPage.saveAndCheckpoint()
+
+            // need to restart the kernel for the install to take effect
+            notebookPage.restartKernel()
+
+            notebookPage.executeCell("import fuzzywuzzy").getOrElse("") should not include ("ModuleNotFoundError")
           }
         }
       }
     }
 
-    "should execute cells" taggedAs Tags.SmokeTest in { clusterFixture =>
+    "should NOT be able to run Spark" in { clusterFixture =>
+      val sparkCommandToFail =
+        """try:
+          |    name = sc.appName
+          |
+          |except NameError as err:
+          |    print(err)""".stripMargin
+
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster) { notebookPage =>
-          notebookPage.executeCell("1+1") shouldBe Some("2")
-          notebookPage.executeCell("2*3") shouldBe Some("6")
-          notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
+          // As proof of not having Spark installed:
+          // We should get an error upon attempting to access the SparkContext object 'sc'
+          // since Python kernels do not include Spark installation.
+          val sparkErrorMessage = "name 'sc' is not defined"
+          notebookPage.executeCell(sparkCommandToFail).get shouldBe sparkErrorMessage
         }
       }
     }
@@ -51,14 +88,13 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
       contentSecurityHeader.get.value should include ("https://bvdp-saturn-prod.appspot.com")
     }
 
-    // we have to disable SSL validation for BigQuery to work on the command line. this is not ideal, so should be resolved as soon as possible
-    "should allow BigQuerying in a new billing project" in { clusterFixture =>
+    "should allow BigQuerying via the command line" in { clusterFixture =>
       // project owners have the bigquery role automatically, so this also tests granting it to users
       val ownerToken = hermioneAuthToken
       Orchestration.billing.addGoogleRoleToBillingProjectUser(clusterFixture.billingProject.value, ronEmail, "bigquery.jobUser")(ownerToken)
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster) { notebookPage =>
-          val query = """! bq query --disable_ssl_validation --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
+          val query = """! bq query --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
           val expectedResult = """[{"scullion_count":"2"}]""".stripMargin
 
           val result = notebookPage.executeCell(query, timeout = 5.minutes).get
@@ -154,6 +190,21 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
         withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
           notebookPage.executeCell("! pip install Cython").get should include ("Successfully installed Cython")
           notebookPage.executeCell("! pip install POT").get should include ("Successfully installed POT")
+        }
+      }
+    }
+
+    "should use pet credentials" in { clusterFixture =>
+      val petEmail = getAndVerifyPet(clusterFixture.billingProject)
+
+      // cluster should have been created with the pet service account
+      clusterFixture.cluster.serviceAccountInfo.clusterServiceAccount shouldBe Some(petEmail)
+      clusterFixture.cluster.serviceAccountInfo.notebookServiceAccount shouldBe None
+
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster, Python2) { notebookPage =>
+          // should not have notebook credentials because Leo is not configured to use a notebook service account
+          verifyNoNotebookCredentials(notebookPage)
         }
       }
     }

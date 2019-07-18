@@ -8,23 +8,27 @@ import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook.NotebookMode
+import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.time.{Minutes, Seconds, Span}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-
-class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
+/**
+  * This spec verifies data syncing functionality, including notebook edit mode, playground mode,
+  * and welder localization/delocalization.
+  */
+class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils {
   override def enableWelder: Boolean = true
 
-  "Leonardo welder and jupyter extensions" - {
+  "NotebookDataSyncingSpec" - {
 
     "Welder should be up" in { clusterFixture =>
       val resp: HttpResponse = Welder.getWelderStatus(clusterFixture.cluster)
       resp.status.isSuccess() shouldBe true
     }
 
-    "open notebook in edit mode should work" in { clusterFixture =>
+    "open notebook in edit mode should work" taggedAs Tags.SmokeTest in { clusterFixture =>
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
       val isEditMode = true
 
