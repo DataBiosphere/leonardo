@@ -16,10 +16,12 @@ define(() => {
         return {
             'Make a Copy': {
                 click: () => saveAs(),
-                'class': 'btn-primary'
+                'class': 'btn-primary',
+                'id': 'modal-copy-1'
             },
             'Reload the workspace version and discard your changes': {
-                click: () => updateLocalCopyWithRemote(res)
+                click: () => updateLocalCopyWithRemote(res),
+                'id': 'modal-reload'
             }
         }
     }
@@ -28,10 +30,12 @@ define(() => {
         return {
             'Run in Playground Mode': {
                 click: () => openPlaygroundMode(res),
-                'class': 'btn-primary'
+                'class': 'btn-primary',
+                'id': 'modal-playground'
             },
             'Make a Copy': {
-                click: () => saveAs()
+                click: () => saveAs(),
+                'id': 'modal-copy-2'
             }
         }
     }

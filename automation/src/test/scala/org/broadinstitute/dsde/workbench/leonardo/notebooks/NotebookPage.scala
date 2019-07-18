@@ -92,7 +92,17 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   //intentionally misspelled
   val saveButtonId = "save-notbook"
 
+  val modalId = "leoUserModal"
+  val syncCopyButton = "modal-copy-1"
+  val syncReloadButton = "modal-reload"
+  val lockPlaygroundButton = "modal-playground"
+  val lockCopyButton = "modal-copy-2"
+
   lazy val saveButton: Query = cssSelector(s"[id='${saveButtonId}']")
+
+  def getSelectorFrom(id: String): Query = {
+    cssSelector(s"[id='${id}']")
+  }
 
   // is at least one cell currently executing?
   def cellsAreRunning: Boolean = {
@@ -242,6 +252,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
       val t1 = System.nanoTime()
       val timediff = FiniteDuration(t1 - t0, NANOSECONDS)
 
+
       logger.info(s"kernel was ready after ${timediff.toSeconds} seconds. Timeout was ${timeout.toSeconds}")
     } catch {
       case e: TestFailedDueToTimeoutException => throw KernelNotReadyException(time)
@@ -286,10 +297,33 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     executeJavaScript(s"$$('#${saveButtonId}').${functionToRun}")
   }
 
+  //checks if elements have the style "display: none;"
   def areElementsHidden(elementIds: List[String]): Boolean = {
     elementIds
       .map(elementId => find(id(elementId)).exists(_.underlying.getAttribute("style") == "display: none;"))
       .forall(identity)
+  }
+
+  //checks if IDs are present in DOM and displayed. Not the opposite of the above, because javascript has many ways to hide elements
+  def areElementsPresent(elementIds: List[String]): Boolean = {
+    val t = elementIds
+      .map(elementId => find(id(elementId)) match {
+        case Some(el) => el.underlying.isDisplayed
+        case None => false
+      })
+
+      storeInBrowser(Map("elements present: " -> t.toString))
+      t.forall(identity)
+  }
+
+  //will cause an exception if no modal exists
+  def makeACopyFromSyncIssue(): Unit = {
+    click on getSelectorFrom(syncCopyButton)
+    logger.info("clicked button")
+  }
+
+  def goToPlaygroundModeFromLockIssue(): Unit = {
+    click on (await enabled getSelectorFrom(lockPlaygroundButton))
   }
 
  }

@@ -5,7 +5,7 @@ import akka.http.scaladsl.model.HttpHeader
 import akka.http.scaladsl.model.headers.{Authorization, Cookie, HttpCookiePair, OAuth2BearerToken}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.{ClusterName, ContentItem, LeonardoConfig, NotebookContentItem, RawNotebookContents}
+import org.broadinstitute.dsde.workbench.leonardo.{ClusterName, ContentItem, LeonardoConfig, NotebookContentItem}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.RestClient
 import org.openqa.selenium.WebDriver
