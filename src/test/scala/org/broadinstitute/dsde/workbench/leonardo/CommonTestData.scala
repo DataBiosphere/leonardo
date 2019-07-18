@@ -29,7 +29,7 @@ trait CommonTestData{ this: ScalaFutures =>
   val name1 = ClusterName("clustername1")
   val name2 = ClusterName("clustername2")
   val name3 = ClusterName("clustername3")
-  val internalId = UUID.randomUUID().toString
+  val internalId = "067e2867-5d4a-47f3-a53c-fd711529b287"
   val project = GoogleProject("dsp-leo-test")
   val project2 = GoogleProject("dsp-leo-test-2")
   val userEmail = WorkbenchEmail("user1@example.com")
@@ -92,7 +92,6 @@ trait CommonTestData{ this: ScalaFutures =>
 
   def makeCluster(index: Int): Cluster = {
     val clusterName = ClusterName("clustername" + index.toString)
-    val internalId = UUID.randomUUID().toString
     Cluster(
       clusterName = clusterName,
       internalId = internalId,
