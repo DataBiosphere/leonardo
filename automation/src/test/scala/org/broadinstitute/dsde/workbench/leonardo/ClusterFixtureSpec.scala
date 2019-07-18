@@ -6,8 +6,10 @@ import org.broadinstitute.dsde.workbench.fixture._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.test.RandomUtil
 import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration}
+import org.broadinstitute.dsde.workbench.util.addJitter
 import org.scalatest.{BeforeAndAfterAll, Outcome, fixture}
 
+import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 
 
@@ -18,7 +20,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
 
   implicit val ronToken: AuthToken = ronAuthToken
   var claimedBillingProject: ClaimedProject = _
-  var billingProject : GoogleProject = LeonardoConfig.BillingProject.project
+  var billingProject : GoogleProject = _  //LeonardoConfig.BillingProject.project
   var ronCluster: Cluster = _
 
   //To use, comment out the lines in after all that clean-up and run the test once normally. Then, instantiate a mock cluster in your test file via the `mockCluster` method in NotebookTestUtils with the project/cluster created
@@ -55,36 +57,36 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   /**
     * Claim new billing project by Hermione
     */
-//  def claimBillingProject(): Unit = {
-//    Try {
-//      val jitter = addJitter(5 seconds, 1 minute)
-//      logger.info(s"Sleeping ${jitter.toSeconds} seconds before claiming a billing project")
-//      Thread sleep jitter.toMillis
-//
-//      claimedBillingProject = claimGPAllocProject(hermioneCreds)
-//      billingProject = GoogleProject(claimedBillingProject.projectName)
-//      logger.info(s"Billing project claimed: ${claimedBillingProject.projectName}")
-//    }.recover {
-//      case ex: Exception =>
-//        logger.error(s"ERROR: when owner $hermioneCreds is claiming a billing project", ex)
-//        throw ex
-//    }
-//  }
+  def claimBillingProject(): Unit = {
+    Try {
+      val jitter = addJitter(5 seconds, 1 minute)
+      logger.info(s"Sleeping ${jitter.toSeconds} seconds before claiming a billing project")
+      Thread sleep jitter.toMillis
+
+      claimedBillingProject = claimGPAllocProject(hermioneCreds)
+      billingProject = GoogleProject(claimedBillingProject.projectName)
+      logger.info(s"Billing project claimed: ${claimedBillingProject.projectName}")
+    }.recover {
+      case ex: Exception =>
+        logger.error(s"ERROR: when owner $hermioneCreds is claiming a billing project", ex)
+        throw ex
+    }
+  }
 
   /**
     * Unclaiming billing project claim by Hermione
     */
-//  def unclaimBillingProject(): Unit = {
-//    val projectName = claimedBillingProject.projectName
-//    Try {
-//      claimedBillingProject.cleanup(hermioneCreds)
-//      logger.info(s"Billing project unclaimed: $projectName")
-//    }.recover{
-//      case ex: Exception =>
-//        logger.error(s"ERROR: when owner $hermioneCreds is unclaiming billing project $projectName", ex)
-//        throw ex
-//    }
-//  }
+  def unclaimBillingProject(): Unit = {
+    val projectName = claimedBillingProject.projectName
+    Try {
+      claimedBillingProject.cleanup(hermioneCreds)
+      logger.info(s"Billing project unclaimed: $projectName")
+    }.recover{
+      case ex: Exception =>
+        logger.error(s"ERROR: when owner $hermioneCreds is unclaiming billing project $projectName", ex)
+        throw ex
+    }
+  }
 
   /**
     * Create new cluster by Ron with all default settings
@@ -125,7 +127,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   override def beforeAll(): Unit = {
     logger.info("beforeAll")
     if (!debug) {
-      //claimBillingProject()
+      claimBillingProject()
       createRonCluster()
     }
     super.beforeAll()
@@ -135,7 +137,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     logger.info("afterAll")
     if (!debug) {
       deleteRonCluster()
-      //unclaimBillingProject()
+      unclaimBillingProject()
     }
     super.afterAll()
   }
