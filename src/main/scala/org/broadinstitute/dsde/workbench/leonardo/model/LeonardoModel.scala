@@ -504,6 +504,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     override def write(obj: Cluster): JsValue = {
       val allFields = List(
         "id" -> obj.id.toJson,
+        "internalId" -> obj.internalId.toJson,
         "clusterName" -> obj.clusterName.toJson,
         "googleId" -> obj.dataprocInfo.googleId.toJson,
         "googleProject" -> obj.googleProject.toJson,
