@@ -95,9 +95,13 @@ object Leonardo extends RestClient with LazyLogging {
       }
     }
 
+    def createClusterPath(googleProject: GoogleProject, clusterName: ClusterName): String = {
+      s"api/cluster/v2/${googleProject.value}/${clusterName.string}"
+    }
+
     def clusterPath(googleProject: GoogleProject,
                     clusterName: ClusterName): String = {
-      s"api/cluster/v2/${googleProject.value}/${clusterName.string}"
+      s"api/cluster/${googleProject.value}/${clusterName.string}"
     }
 
     def list(googleProject: GoogleProject)(implicit token: AuthToken): Seq[Cluster] = {
@@ -115,7 +119,7 @@ object Leonardo extends RestClient with LazyLogging {
                clusterName: ClusterName,
                clusterRequest: ClusterRequest)
               (implicit token: AuthToken): Cluster = {
-      val path = clusterPath(googleProject, clusterName)
+      val path = createClusterPath(googleProject, clusterName)
       logger.info(s"Create cluster: PUT /$path")
       handleClusterResponse(putRequest(url + path, clusterRequest))
     }
