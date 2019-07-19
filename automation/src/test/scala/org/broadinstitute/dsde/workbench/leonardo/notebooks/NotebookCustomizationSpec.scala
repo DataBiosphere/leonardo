@@ -4,10 +4,10 @@ import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.UserJupyterExtensionConfig
-import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
+import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles, GoogleProject}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.service.util.Tags
-import org.scalatest.{FreeSpec, ParallelTestExecution}
+import org.scalatest.{DoNotDiscover, FreeSpec, ParallelTestExecution}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -15,7 +15,8 @@ import scala.language.postfixOps
 /**
   * This spec verfies different cluster creation options, such as user scripts, extensions, etc.
   */
-final class NotebookCustomizationSpec extends FreeSpec
+@DoNotDiscover
+final class NotebookCustomizationSpec(val billingProject: GoogleProject) extends FreeSpec
   with NotebookTestUtils with ParallelTestExecution with BillingFixtures {
 
   "NotebookCustomizationSpec" - {
@@ -49,7 +50,7 @@ final class NotebookCustomizationSpec extends FreeSpec
               withWebDriver { implicit driver =>
                 // Create a notebook that will check if the user script ran
                 withNewNotebook(cluster) { notebookPage =>
-                  notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
+                  notebookPage.executeCell("""print('Hello Notebook!)'""") shouldBe Some("Hello Notebook!")
                   notebookPage.executeCell("""import arrow""")
                   notebookPage.executeCell("""arrow.get(727070400)""") shouldBe Some("<Arrow [1993-01-15T04:00:00+00:00]>")
                 }

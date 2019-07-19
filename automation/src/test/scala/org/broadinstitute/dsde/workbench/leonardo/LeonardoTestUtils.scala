@@ -42,7 +42,7 @@ case class KernelNotReadyException(timeElapsed:Timeout)
 
 case class TimeResult[R](result:R, duration:FiniteDuration)
 
-trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures with Retry with GoogleProjectProvider {
+trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures with Retry {
   this: Suite with BillingFixtures =>
 
   val system: ActorSystem = ActorSystem("leotests")
@@ -51,8 +51,15 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   def enableWelder: Boolean = true
 
+  // Ron and Hermione are on the dev Leo whitelist, and Hermione is a Project Owner
+  lazy val ronCreds: Credentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential("ron")
+  lazy val hermioneCreds: Credentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential("hermione")
   lazy val voldyCreds: Credentials = LeonardoConfig.Users.CampaignManager.getUserCredential("voldemort")
+
+  lazy val ronAuthToken = UserAuthToken(ronCreds, AuthTokenScopes.userLoginScopes)
+  lazy val hermioneAuthToken = UserAuthToken(hermioneCreds, AuthTokenScopes.userLoginScopes)
   lazy val voldyAuthToken = UserAuthToken(voldyCreds, AuthTokenScopes.userLoginScopes)
+  lazy val ronEmail = ronCreds.email
 
   val clusterPatience = PatienceConfig(timeout = scaled(Span(30, Minutes)), interval = scaled(Span(20, Seconds)))
   val localizePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
@@ -74,6 +81,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
   implicit val lineBacker = Linebacker.fromExecutionContext[IO](global)
   val google2StorageResource = GoogleStorageService.resource[IO](LeonardoConfig.GCS.pathToQAJson)
+
+  def billingProject: GoogleProject
 
   // TODO: move this to NotebookTestUtils and chance cluster-specific functions to only call if necessary after implementing RStudio
   def saveJupyterLogFile(clusterName: ClusterName, googleProject: GoogleProject, suffix: String)(implicit token: AuthToken): Try[File] = {

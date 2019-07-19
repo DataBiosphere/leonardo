@@ -7,11 +7,11 @@ import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
-import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsObjectName, GcsPath, parseGcsPath}
+import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsObjectName, GcsPath, GoogleProject, parseGcsPath}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.time.{Seconds, Span}
-import org.scalatest.{FreeSpec, ParallelTestExecution}
+import org.scalatest.{DoNotDiscover, FreeSpec, ParallelTestExecution}
 
 import scala.concurrent.duration._
 
@@ -20,7 +20,8 @@ import scala.concurrent.duration._
   * It is similar in intent to ClusterStatusTransitionsSpec but uses notebooks for validation,
   * so lives in the notebooks sub-package.
   */
-class NotebookClusterMonitoringSpec extends FreeSpec with NotebookTestUtils with ParallelTestExecution with BillingFixtures {
+@DoNotDiscover
+class NotebookClusterMonitoringSpec(val billingProject: GoogleProject) extends FreeSpec with NotebookTestUtils with ParallelTestExecution with BillingFixtures {
 
   "NotebookClusterMonitoringSpec" - {
 

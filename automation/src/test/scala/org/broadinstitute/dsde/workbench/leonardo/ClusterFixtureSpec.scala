@@ -41,7 +41,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
 
   override def withFixture(test: OneArgTest): Outcome = {
     if (debug) {
-      logger.info("[Debug] Using mocked cluster for cluster fixture tests")
+      logger.info(s"[Debug] Using mocked cluster for cluster fixture tests")
       ronCluster = mockedCluster
     }
     withFixture(test.toNoArgTest(ClusterFixture(billingProject, ronCluster)))
@@ -51,6 +51,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     * Create new cluster by Ron with all default settings
     */
   def createRonCluster(): Unit = {
+    logger.info(s"Creating cluster for cluster fixture tests: ${getClass.getSimpleName}")
     createNewCluster(billingProject, request = getClusterRequest())(ronAuthToken)
   }
 
@@ -70,6 +71,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     * Delete cluster without monitoring that's owned by Ron
     */
   def deleteRonCluster(monitoringDelete: Boolean = false): Unit = {
+    logger.info(s"Deleting cluster for cluster fixture tests: ${getClass.getSimpleName}")
     deleteCluster(billingProject, ronCluster.clusterName, monitoringDelete)(ronAuthToken)
   }
 

@@ -1,7 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import org.broadinstitute.dsde.workbench.leonardo.ClusterFixtureSpec
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.util.Tags
+import org.scalatest.DoNotDiscover
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -9,7 +11,8 @@ import scala.language.postfixOps
 /**
   * This spec verifies notebook functionality specifically around the R kernel.
   */
-class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
+@DoNotDiscover
+class NotebookRKernelSpec(val billingProject: GoogleProject) extends ClusterFixtureSpec with NotebookTestUtils {
 
   "NotebookRKernelSpec" - {
 

@@ -318,16 +318,16 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   }
 
   //initializes storageLinks/ and localizes the file to the passed gcsPath
-     def withWelderInitialized[T](cluster: Cluster, gcsPath: GcsPath, shouldLocalizeFileInEditMode: Boolean)(testCode: File => T)(implicit token: AuthToken): T = {
-        Welder.postStorageLink(cluster, gcsPath)
-        Welder.localize(cluster, gcsPath, shouldLocalizeFileInEditMode)
+  def withWelderInitialized[T](cluster: Cluster, gcsPath: GcsPath, shouldLocalizeFileInEditMode: Boolean)(testCode: File => T)(implicit token: AuthToken): T = {
+    Welder.postStorageLink(cluster, gcsPath)
+    Welder.localize(cluster, gcsPath, shouldLocalizeFileInEditMode)
 
-        val localPath: String = Welder.getLocalPath(gcsPath, shouldLocalizeFileInEditMode)
-        val localFile: File = new File(localPath)
+    val localPath: String = Welder.getLocalPath(gcsPath, shouldLocalizeFileInEditMode)
+    val localFile: File = new File(localPath)
 
-        logger.info("Initialized welder via /storageLinks and /localize")
-        testCode(localFile)
-      }
+    logger.info("Initialized welder via /storageLinks and /localize")
+    testCode(localFile)
+  }
 
   def mockCluster(googleProject: String, clusterName: String): Cluster = {
     Cluster(ClusterName(clusterName), java.util.UUID.randomUUID(), GoogleProject(googleProject),

@@ -4,7 +4,9 @@ import java.nio.file.Files
 
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.leonardo.ClusterFixtureSpec
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.util.Tags
+import org.scalatest.DoNotDiscover
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.DurationInt
@@ -13,7 +15,8 @@ import scala.language.postfixOps
 /**
   * This spec verifies Hail and Spark functionality.
   */
-class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
+@DoNotDiscover
+class NotebookHailSpec(val billingProject: GoogleProject) extends ClusterFixtureSpec with NotebookTestUtils {
 
   // Should match the HAILHASH env var in the Jupyter Dockerfile
   val expectedHailVersion = "0.2.11-daed180b84d8"

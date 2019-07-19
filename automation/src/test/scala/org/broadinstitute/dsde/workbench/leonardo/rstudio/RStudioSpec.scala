@@ -2,11 +2,14 @@ package org.broadinstitute.dsde.workbench.leonardo.rstudio
 
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo._
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.util.Tags
-import org.scalatest.{FreeSpec, ParallelTestExecution}
+import org.scalatest.{DoNotDiscover, FreeSpec, ParallelTestExecution}
+
 import scala.util.Try
 
-class RStudioSpec extends FreeSpec with LeonardoTestUtils with ParallelTestExecution with BillingFixtures {
+@DoNotDiscover
+class RStudioSpec(val billingProject: GoogleProject) extends FreeSpec with LeonardoTestUtils with ParallelTestExecution with BillingFixtures {
 
   "Leonardo clusters" - {
 

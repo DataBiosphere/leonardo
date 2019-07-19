@@ -8,7 +8,9 @@ import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook.NotebookMode
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.util.Tags
+import org.scalatest.DoNotDiscover
 import org.scalatest.time.{Minutes, Seconds, Span}
 
 import scala.concurrent.duration._
@@ -18,7 +20,8 @@ import scala.language.postfixOps
   * This spec verifies data syncing functionality, including notebook edit mode, playground mode,
   * and welder localization/delocalization.
   */
-class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils {
+@DoNotDiscover
+class NotebookDataSyncingSpec(val billingProject: GoogleProject) extends ClusterFixtureSpec with NotebookTestUtils {
   override def enableWelder: Boolean = true
 
   "NotebookDataSyncingSpec" - {
