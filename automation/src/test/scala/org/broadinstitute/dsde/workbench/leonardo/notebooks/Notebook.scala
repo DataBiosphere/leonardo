@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 
+import java.io.File
 import java.nio.file.Path
 
 import akka.http.scaladsl.model.HttpHeader
@@ -45,6 +46,16 @@ object Notebook extends RestClient with LazyLogging {
     val path = notebooksBasePath(googleProject, clusterName)
     logger.info(s"Get notebook: GET /$path")
     new NotebooksListPage(url + path)
+  }
+
+  def createFileAtRootDir(googleProject: GoogleProject, clusterName: ClusterName, fileName: String)(implicit token: AuthToken): File = {
+    val path = contentsPath(googleProject, clusterName, fileName)
+    val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
+    val payload: Map[String,String] = Map("path" -> fileName)
+
+    putRequest(url + path, payload, httpHeaders = List(cookie))
+
+    new File(fileName)
   }
 
   def getApi(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): String = {
