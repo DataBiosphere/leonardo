@@ -128,7 +128,7 @@ object Leonardo extends RestClient with LazyLogging {
       val path = clusterPath(googleProject, clusterName)
 
       val cluster = handleClusterResponse(parseResponse(getRequest(url + path)))
-      logger.info(s"Get cluster: GET /$path. Response: $cluster")
+      logger.info(s"Get cluster: GET /$path. Status = ${cluster.status}")
 
       cluster
     }

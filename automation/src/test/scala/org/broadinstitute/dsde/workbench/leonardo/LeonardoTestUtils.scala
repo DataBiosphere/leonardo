@@ -42,7 +42,7 @@ case class KernelNotReadyException(timeElapsed:Timeout)
 
 case class TimeResult[R](result:R, duration:FiniteDuration)
 
-trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures with Retry {
+trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures with Retry with GoogleProjectProvider {
   this: Suite with BillingFixtures =>
 
   val system: ActorSystem = ActorSystem("leotests")
@@ -51,15 +51,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   def enableWelder: Boolean = true
 
-  // Ron and Hermione are on the dev Leo whitelist, and Hermione is a Project Owner
-  lazy val ronCreds: Credentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential("ron")
-  lazy val hermioneCreds: Credentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential("hermione")
   lazy val voldyCreds: Credentials = LeonardoConfig.Users.CampaignManager.getUserCredential("voldemort")
-
-  lazy val ronAuthToken = UserAuthToken(ronCreds, AuthTokenScopes.userLoginScopes)
-  lazy val hermioneAuthToken = UserAuthToken(hermioneCreds, AuthTokenScopes.userLoginScopes)
   lazy val voldyAuthToken = UserAuthToken(voldyCreds, AuthTokenScopes.userLoginScopes)
-  lazy val ronEmail = ronCreds.email
 
   val clusterPatience = PatienceConfig(timeout = scaled(Span(30, Minutes)), interval = scaled(Span(20, Seconds)))
   val localizePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
@@ -391,20 +384,20 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   // Wrapper for BillingFixtures.withCleanBillingProject which sets up a project with Hermione as owner, and Ron as a user
   // testCode is curried so the token can be made implicit:
   // https://stackoverflow.com/questions/14072061/function-literal-with-multiple-implicit-arguments
-  def withProject(testCode: GoogleProject => UserAuthToken => Any): Unit = {
-    val jitter = addJitter(5 seconds, 1 minute)
-    logger.info(s"Sleeping ${jitter.toSeconds} seconds before claiming a billing project")
-    Thread sleep jitter.toMillis
-    withCleanBillingProject(hermioneCreds) { projectName =>
-      val project = GoogleProject(projectName)
-      Orchestration.billing.addUserToBillingProject(projectName, ronEmail, BillingProject.BillingProjectRole.User)(hermioneAuthToken)
-      testCode(project)(ronAuthToken)
-    }
-  }
-
 //  def withProject(testCode: GoogleProject => UserAuthToken => Any): Unit = {
-//    testCode(LeonardoConfig.BillingProject.project)(ronAuthToken)
+//    val jitter = addJitter(5 seconds, 1 minute)
+//    logger.info(s"Sleeping ${jitter.toSeconds} seconds before claiming a billing project")
+//    Thread sleep jitter.toMillis
+//    withCleanBillingProject(hermioneCreds) { projectName =>
+//      val project = GoogleProject(projectName)
+//      Orchestration.billing.addUserToBillingProject(projectName, ronEmail, BillingProject.BillingProjectRole.User)(hermioneAuthToken)
+//      testCode(project)(ronAuthToken)
+//    }
 //  }
+
+  def withProject(testCode: GoogleProject => UserAuthToken => Any): Unit = {
+    testCode(billingProject)(ronAuthToken)
+  }
 
   def withNewCluster[T](googleProject: GoogleProject,
                         name: ClusterName = randomClusterName,
