@@ -1,11 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
+import java.io.File
 import java.time.Instant
 
 import akka.http.scaladsl.model.HttpResponse
 import org.broadinstitute.dsde.workbench.ResourceFile
-import org.broadinstitute.dsde.workbench.google2.RemoveObjectResult.Removed
-import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, RemoveObjectResult}
+import org.broadinstitute.dsde.workbench.google2.{GcsBlobName}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook.NotebookMode
 import org.scalatest.time.{Minutes, Seconds, Span}
@@ -17,7 +17,7 @@ import scala.language.postfixOps
 class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
   override def enableWelder: Boolean = true
   debug = true
-  mockedCluster = mockCluster("gpalloc-dev-master-0h7pzni","automation-test-a5tpb4abz")
+  mockedCluster = mockCluster("gpalloc-dev-master-0h7pzni","automation-test-akzunemez")
 
   "Leonardo welder and jupyter extensions" - {
 
@@ -26,7 +26,7 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
       resp.status.isSuccess() shouldBe true
     }
 
-    "open notebook in edit mode should work" in { clusterFixture =>
+    "open notebook in edit mode should work" ignore { clusterFixture =>
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
       val isEditMode = true
 
@@ -52,7 +52,6 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
                 remoteContentSize shouldBe localContentSize
               }
 
-              logger.info("Waiting 4 minutes as lock takes time to be reflected in metadata")
               eventually(timeout(Span(4, Minutes)), interval(Span(30, Seconds))) {
                 val gcsLockedBy: Option[String] = getLockedBy(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value)).unsafeRunSync()
                 val welderLockedBy: Option[String] = Welder.getMetadata(clusterFixture.cluster, gcsPath, isEditMode).lastLockedBy
@@ -67,12 +66,11 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
       }
     }
 
-    "open notebook in playground mode should work" in { clusterFixture =>
+    "open notebook in playground mode should work" ignore { clusterFixture =>
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
       val isEditMode = false
 
       withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { gcsPath =>
-        logger.info("Initialized google storage bucket")
 
         withWelderInitialized(clusterFixture.cluster, gcsPath, isEditMode) { localizedFile =>
 
@@ -92,7 +90,9 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
               notebookPage.addCodeAndExecute("1+1")
 
               notebookPage.saveNotebook()
-              //sleep 4 minutes. We do this to ensure the assertions are true after a certain about of time
+
+              //sleep 4 minutes. We do this to ensure the assertions are true after a certain about of time.
+              //eventually is not applicable as we want to ensure its true after the time period, not at some point until timeout
               logger.info("Waiting 4 minutes as lock takes time to be reflected in metadata")
               Thread.sleep(240000)
 
@@ -122,13 +122,12 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
       }
     }
 
-    "Sync issues and make a copy handled correctly" in { clusterFixture =>
+    "Sync issues and make a copy handled transition correctly" ignore { clusterFixture =>
       val fileName = "gcsFile2" //we store this portion separately as the name of the copy is computed off it
       val sampleNotebook = ResourceFile(s"bucket-tests/${fileName}.ipynb")
       val isEditMode = true
 
       withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { gcsPath =>
-        logger.info("Initialized google storage bucket")
 
         withWelderInitialized(clusterFixture.cluster, gcsPath, isEditMode) { localizedFile =>
 
@@ -137,49 +136,36 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
             withOpenNotebook(clusterFixture.cluster, localizedFile, 10.minutes) { notebookPage =>
               val contents = "{\n      'cells': [],\n      'metadata': {\n        'kernelspec': {\n        'display_name': 'Python 3',\n        'language': 'python',\n        'name': 'python3'\n      },\n        'language_info': {\n        'codemirror_mode': {\n        'name': 'ipython',\n        'version': 3\n      },\n        'file_extension': '.py',\n        'mimetype': 'text/x-python',\n        'name': 'python',\n        'nbconvert_exporter': 'python',\n        'pygments_lexer': 'ipython3',\n        'version': '3.7.3'\n      }\n      },\n      'nbformat': 4,\n      'nbformat_minor': 2\n    }"
               setObjectContents(clusterFixture.billingProject, gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value), contents)
-                .unsafeRunSync()
-
+                .unsafeRunSync
 
               val syncIssueElements = List(notebookPage.syncCopyButton, notebookPage.syncReloadButton, notebookPage.modalId)
+
               eventually(timeout(Span(2, Minutes)), interval(Span(30, Seconds))) { //wait for checkMeta tick
-                logger.info("before tick")
-                notebookPage.areElementsPresent(syncIssueElements) shouldBe true
-                logger.info("past tick")
+                notebookPage areElementsPresent(syncIssueElements) shouldBe true
 
-
-                notebookPage.executeJavaScript("window.onbeforeunload = null;") //disables pesky chrome modal to confirm navigation
-                notebookPage.makeACopyFromSyncIssue()
+                notebookPage executeJavaScript("window.onbeforeunload = null;") //disables pesky chrome modal to confirm navigation. we are not testing chrome's implementation and confirming the modal proves problematic
+                notebookPage makeACopyFromSyncIssue
               }
-
-//              Thread.sleep(1.minutes.toMillis)
-
-              logger.info("past eventually")
-              //
-//              driver.switchTo().alert().accept()
-
-//              logger.info("switching to alert")
-//              driver.quit()
-
-//              logger.info("dealt with alert")
 
               eventually(timeout(Span(30, Seconds))) { //wait for the page to reload
-//                driver switch
-                  driver.getCurrentUrl should include(fileName + "-Copy")
+                driver.getCurrentUrl should include(fileName + "-Copy")
               }
-
-              Thread.sleep(1000000000)
             }
           }
         }
       }
     }
 
-    "Locked by another user and playground mode transition handled properly" in { clusterFixture =>
-      val sampleNotebook = ResourceFile("bucket-tests/gcsFile3.ipynb")
+    "Locked by another user and playground mode transition handled correctly" in { clusterFixture =>
+      val sampleNotebook = ResourceFile("bucket-tests/gcsFile1.ipynb")
       val isEditMode = true
 
       withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { gcsPath =>
-        logger.info("Initialized google storage bucket")
+
+        //we set the lock before the notebook is open to cause a conflict
+        val newMeta = Map("lockExpiresAt" -> Instant.now().plusMillis(20.minutes.toMillis).toEpochMilli.toString, "lastLockedBy" -> "NotMe")
+        setObjectMetadata(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value), newMeta)
+          .unsafeRunSync
 
         withWelderInitialized(clusterFixture.cluster, gcsPath, isEditMode) { localizedFile =>
 
@@ -187,24 +173,38 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
             withOpenNotebook(clusterFixture.cluster, localizedFile, 10.minutes) { notebookPage =>
 
-              val newMeta = Map("lockExpiresAt" -> Instant.now().plusMillis(20.minutes.toMillis).toString, "lastLockedBy" -> "NotMe")
-              setObjectMetadata(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value), newMeta)
-                  .unsafeRunSync()
-
               eventually(timeout(Span(2, Minutes))) { //wait for checkMeta tick
-
                 val lockIssueElements = List(notebookPage.lockPlaygroundButton, notebookPage.lockCopyButton, notebookPage.modalId)
 
                 notebookPage.areElementsPresent(lockIssueElements) shouldBe true
 
-                notebookPage.goToPlaygroundModeFromLockIssue()
+                notebookPage.executeJavaScript("window.onbeforeunload = null;") //disables pesky chrome modal to confirm navigation. we are not testing chrome's implementation and confirming the modal proves problematic
+                notebookPage.goToPlaygroundModeFromLockIssue
+              }
 
-                eventually(timeout(Span(30, Seconds))) { //wait for the page to reload
-                  driver.getCurrentUrl should contain(Welder.localSafeModeBaseDirectory)
-                }
+              eventually(timeout(Span(30, Seconds))) { //wait for the page to reload
+                driver.getCurrentUrl should include(Welder.localSafeModeBaseDirectory)
+                notebookPage.getMode shouldBe NotebookMode.SafeMode
               }
             }
           }
+        }
+      }
+    }
+
+   //this test is important to make sure all components exit gracefully when their functionality is not needed
+    "User should be able to create files outside of playground and safe mode" ignore { clusterFixture =>
+      val fileName = "mockUserFile.ipynb"
+      val mockUserFile: File = new File(fileName)
+      mockUserFile.createNewFile()
+
+      withWebDriver { implicit driver =>
+
+        withOpenNotebook(clusterFixture.cluster, mockUserFile, 10.minutes) { notebookPage =>
+
+          notebookPage.modeExists() shouldBe false
+          notebookPage.areElementsPresent(List(notebookPage.noModeBannerId)) shouldBe true
+          notebookPage.getMode() shouldBe NotebookMode.NoMode
         }
       }
     }

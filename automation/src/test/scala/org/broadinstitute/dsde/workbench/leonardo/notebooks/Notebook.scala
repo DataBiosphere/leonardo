@@ -1,6 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 
+import java.nio.file.Path
+
 import akka.http.scaladsl.model.HttpHeader
 import akka.http.scaladsl.model.headers.{Authorization, Cookie, HttpCookiePair, OAuth2BearerToken}
 import com.typesafe.scalalogging.LazyLogging

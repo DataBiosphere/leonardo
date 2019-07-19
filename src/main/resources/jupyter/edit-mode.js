@@ -172,7 +172,7 @@ define(() => {
 
         if (isEditMode) {
             handleCheckMetaResp(res) //displays modal if theres an issue in the payload
-            getLock() //gets lock if in edit mode
+            getLock(res) //gets lock if in edit mode
         }
         renderModeBanner(isEditMode) //sets edit/safe mode banner
     }
@@ -205,7 +205,7 @@ define(() => {
         }
     }
 
-    function getLock() {
+    function getLock(metaRes) {
         const payload = {
             ...basePayload,
             method: 'POST',
@@ -214,7 +214,7 @@ define(() => {
 
         fetch(lockUrl, payload)
             .then(res => {
-                handleLockStatus(res)
+                handleLockStatus(res, metaRes)
             })
             .catch(err => {
                 console.error(err)
@@ -245,14 +245,14 @@ define(() => {
     const lockConflictBody = `<p>This file is currently being edited by another user.</p>` +
         `<br/><p>You can make a copy, or run it in Playground Mode to explore and execute its contents without saving any changes.`;
 
-    function handleLockStatus(res) {
+    function handleLockStatus(res, metaRes) {
         if (!res.ok) {
             const status = res.status
             const errorText = res.statusText
 
             if (status == 409) {
                 res.json().then(res => {
-                    promptUserWithModal(lockConflictTitle, lockIssueButtons(res), lockConflictBody)
+                    promptUserWithModal(lockConflictTitle, lockIssueButtons(metaRes), lockConflictBody)
                 })
             }
             //for the lock endpoint, we consider all non 'ok' statuses an error
@@ -278,10 +278,10 @@ define(() => {
             .find(".close").remove() //TODO: test going back
     }
 
-    async function openPlaygroundMode(meta) {
+    async function openPlaygroundMode(metaRes) {
         const originalNotebookName = Jupyter.notebook.notebook_name
 
-        const safeModeDir = meta.storageLink.localSafeModeBaseDirectory
+        const safeModeDir = metaRes.storageLink.localSafeModeBaseDirectory
 
         if (Jupyter.notebook.notebook_path.includes(safeModeDir)) {
             console.warn('Attempted to navigate to enter safe mode while already in safe mode. Exitting.')
