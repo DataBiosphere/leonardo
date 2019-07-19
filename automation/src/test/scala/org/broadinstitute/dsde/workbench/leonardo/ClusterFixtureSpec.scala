@@ -52,7 +52,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     */
   def createRonCluster(): Unit = {
     logger.info(s"Creating cluster for cluster fixture tests: ${getClass.getSimpleName}")
-    createNewCluster(billingProject, request = getClusterRequest())(ronAuthToken)
+    ronCluster = createNewCluster(billingProject, request = getClusterRequest())(ronAuthToken)
   }
 
   def getClusterRequest(): ClusterRequest = {
