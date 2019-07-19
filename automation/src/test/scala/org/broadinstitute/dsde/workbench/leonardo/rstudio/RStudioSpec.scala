@@ -10,7 +10,7 @@ import org.scalatest.{DoNotDiscover, FreeSpec, ParallelTestExecution}
 import scala.util.Try
 
 @DoNotDiscover
-class RStudioSpec(val billingProject: GoogleProject) extends FreeSpec with LeonardoTestUtils with ParallelTestExecution with BillingFixtures {
+class RStudioSpec(val billingProject: GoogleProject) extends FreeSpec with LeonardoTestUtils with BillingFixtures {
 
   implicit val ronToken: AuthToken = ronAuthToken
 

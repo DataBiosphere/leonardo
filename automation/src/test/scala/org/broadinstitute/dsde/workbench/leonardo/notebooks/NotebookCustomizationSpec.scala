@@ -17,13 +17,13 @@ import scala.language.postfixOps
   */
 @DoNotDiscover
 final class NotebookCustomizationSpec(val billingProject: GoogleProject) extends FreeSpec
-  with NotebookTestUtils with ParallelTestExecution with BillingFixtures {
-
-  implicit val ronToken: AuthToken = ronAuthToken
+  with NotebookTestUtils with BillingFixtures {
 
   "NotebookCustomizationSpec" - {
 
     "should run a user script" taggedAs Tags.SmokeTest in {
+      implicit val ronToken: AuthToken = ronAuthToken
+
       // Create a new bucket
       withNewGoogleBucket(billingProject) { bucketName =>
         val ronPetServiceAccount = Sam.user.petServiceAccountEmail(billingProject.value)(ronAuthToken)
@@ -64,6 +64,8 @@ final class NotebookCustomizationSpec(val billingProject: GoogleProject) extends
     // Using nbtranslate extension from here:
     // https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
     "should install user specified notebook extensions" in {
+      implicit val ronToken: AuthToken = ronAuthToken
+
       val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
       withResourceFileInBucket(billingProject, translateExtensionFile, "application/x-gzip") { translateExtensionBucketPath =>
         val extensionConfig = multiExtensionClusterRequest.copy(nbExtensions = multiExtensionClusterRequest.nbExtensions + ("translate" -> translateExtensionBucketPath.toUri))
@@ -93,6 +95,8 @@ final class NotebookCustomizationSpec(val billingProject: GoogleProject) extends
     }
 
     "should give cluster user-specified scopes" in {
+      implicit val ronToken: AuthToken = ronAuthToken
+
       withNewCluster(billingProject, request = defaultClusterRequest.copy(scopes = Set("https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/source.read_only"))) { cluster =>
         withWebDriver { implicit driver =>
           withNewNotebook(cluster) { notebookPage =>

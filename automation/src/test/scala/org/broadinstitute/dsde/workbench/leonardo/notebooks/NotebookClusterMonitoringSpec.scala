@@ -22,13 +22,13 @@ import scala.concurrent.duration._
   * so lives in the notebooks sub-package.
   */
 @DoNotDiscover
-class NotebookClusterMonitoringSpec(val billingProject: GoogleProject) extends FreeSpec with NotebookTestUtils with ParallelTestExecution with BillingFixtures {
-
-  implicit val ronToken: AuthToken = ronAuthToken
+class NotebookClusterMonitoringSpec(val billingProject: GoogleProject) extends FreeSpec with NotebookTestUtils with BillingFixtures {
 
   "NotebookClusterMonitoringSpec" - {
 
     "should pause and resume a cluster" taggedAs Tags.SmokeTest in {
+      implicit val ronToken: AuthToken = ronAuthToken
+
       // Create a cluster
       withNewCluster(billingProject) { cluster =>
         val printStr = "Pause/resume test"
@@ -63,6 +63,8 @@ class NotebookClusterMonitoringSpec(val billingProject: GoogleProject) extends F
 
     // make sure adding a worker and changing the master machine type/disk works
     "should update the cluster to add/remove worker nodes and change master machine type/disk" in {
+      implicit val ronToken: AuthToken = ronAuthToken
+
       val initialMachineConfig = MachineConfig(numberOfWorkers = Some(2), masterMachineType = Some("n1-standard-2"), masterDiskSize = Some(50))
 
       withNewCluster(billingProject, request = defaultClusterRequest.copy(machineConfig = Option(initialMachineConfig))) { cluster =>
@@ -127,6 +129,8 @@ class NotebookClusterMonitoringSpec(val billingProject: GoogleProject) extends F
     }
 
     "should pause and resume a cluster with preemptible instances" in {
+      implicit val ronToken: AuthToken = ronAuthToken
+
       withNewGoogleBucket(billingProject) { bucket =>
         implicit val patienceConfig: PatienceConfig = storagePatience
 
