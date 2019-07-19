@@ -62,7 +62,7 @@ final class LeonardoSuite extends TestSuite with GPAllocBeforeAndAfterAll with P
       new NotebookLocalizeFileSpec(billingProject),
       new NotebookPyKernelSpec(billingProject),
       new NotebookRKernelSpec(billingProject),
-      new RStudioSpec(billingProject))
+      new RStudioSpec(billingProject)
     )
   }
 
