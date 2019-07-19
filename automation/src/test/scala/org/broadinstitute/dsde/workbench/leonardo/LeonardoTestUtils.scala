@@ -390,24 +390,6 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     samPetEmail
   }
 
-  // Wrapper for BillingFixtures.withCleanBillingProject which sets up a project with Hermione as owner, and Ron as a user
-  // testCode is curried so the token can be made implicit:
-  // https://stackoverflow.com/questions/14072061/function-literal-with-multiple-implicit-arguments
-//  def withProject(testCode: GoogleProject => UserAuthToken => Any): Unit = {
-//    val jitter = addJitter(5 seconds, 1 minute)
-//    logger.info(s"Sleeping ${jitter.toSeconds} seconds before claiming a billing project")
-//    Thread sleep jitter.toMillis
-//    withCleanBillingProject(hermioneCreds) { projectName =>
-//      val project = GoogleProject(projectName)
-//      Orchestration.billing.addUserToBillingProject(projectName, ronEmail, BillingProject.BillingProjectRole.User)(hermioneAuthToken)
-//      testCode(project)(ronAuthToken)
-//    }
-//  }
-
-  def withProject(testCode: GoogleProject => UserAuthToken => Any): Unit = {
-    testCode(billingProject)(ronAuthToken)
-  }
-
   def withNewCluster[T](googleProject: GoogleProject,
                         name: ClusterName = randomClusterName,
                         request: ClusterRequest = defaultClusterRequest,

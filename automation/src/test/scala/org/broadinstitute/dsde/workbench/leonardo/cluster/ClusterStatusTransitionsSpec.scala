@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.cluster
 
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.{ClusterStatus, Leonardo, LeonardoTestUtils}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -15,85 +16,80 @@ import org.scalatest.{DoNotDiscover, FreeSpec, ParallelTestExecution}
 @DoNotDiscover
 class ClusterStatusTransitionsSpec(val billingProject: GoogleProject) extends FreeSpec with LeonardoTestUtils with ParallelTestExecution with BillingFixtures {
 
+  implicit val ronToken: AuthToken = ronAuthToken
+
   // these tests just hit the Leo APIs; they don't interact with notebooks via selenium
   "ClusterStatusTransitionsSpec" - {
 
     "create, monitor, delete should transition correctly" in {
-      withProject { project => implicit token =>
+      val clusterName = randomClusterName
+      val clusterRequest = defaultClusterRequest
 
-        val clusterName = randomClusterName
-        val clusterRequest = defaultClusterRequest
+      // create a cluster, but don't wait
+      createNewCluster(billingProject, clusterName, clusterRequest, monitor = false)
 
-        // create a cluster, but don't wait
-        createNewCluster(project, clusterName, clusterRequest, monitor = false)
+      // cluster status should be Creating
+      val creatingCluster = Leonardo.cluster.get(billingProject, clusterName)
+      creatingCluster.status shouldBe ClusterStatus.Creating
 
-        // cluster status should be Creating
-        val creatingCluster = Leonardo.cluster.get(project, clusterName)
-        creatingCluster.status shouldBe ClusterStatus.Creating
+      // can't create another cluster with the same name
+      val caught = the[RestException] thrownBy createNewCluster(billingProject, clusterName, monitor = false)
+      caught.message should include(""""statusCode":409""")
 
-        // can't create another cluster with the same name
-        val caught = the[RestException] thrownBy createNewCluster(project, clusterName, monitor = false)
-        caught.message should include(""""statusCode":409""")
+      // can't stop a Creating cluster
+      val caught2 = the[RestException] thrownBy stopCluster(billingProject, clusterName, monitor = false)
+      caught2.message should include(""""statusCode":409""")
 
-        // can't stop a Creating cluster
-        val caught2 = the[RestException] thrownBy stopCluster(project, clusterName, monitor = false)
-        caught2.message should include(""""statusCode":409""")
+      // wait for cluster to be running
+      monitorCreate(billingProject, clusterName, clusterRequest, creatingCluster)
+      Leonardo.cluster.get(billingProject, clusterName).status shouldBe ClusterStatus.Running
 
-        // wait for cluster to be running
-        monitorCreate(project, clusterName, clusterRequest, creatingCluster)
-        Leonardo.cluster.get(project, clusterName).status shouldBe ClusterStatus.Running
+      // delete the cluster, but don't wait
+      deleteCluster(billingProject, clusterName, monitor = false)
 
-        // delete the cluster, but don't wait
-        deleteCluster(project, clusterName, monitor = false)
+      // cluster status should be Deleting
+      Leonardo.cluster.get(billingProject, clusterName).status shouldBe ClusterStatus.Deleting
 
-        // cluster status should be Deleting
-        Leonardo.cluster.get(project, clusterName).status shouldBe ClusterStatus.Deleting
+      // Call delete again. This should succeed, and not change the status.
+      deleteCluster(billingProject, clusterName, monitor = false)
+      Leonardo.cluster.get(billingProject, clusterName).status shouldBe ClusterStatus.Deleting
 
-        // Call delete again. This should succeed, and not change the status.
-        deleteCluster(project, clusterName, monitor = false)
-        Leonardo.cluster.get(project, clusterName).status shouldBe ClusterStatus.Deleting
+      // Can't recreate while cluster is deleting
+      val caught3 = the[RestException] thrownBy createNewCluster(billingProject, clusterName, clusterRequest, monitor = false)
+      caught3.message should include(""""statusCode":409""")
 
-        // Can't recreate while cluster is deleting
-        val caught3 = the[RestException] thrownBy createNewCluster(project, clusterName, clusterRequest, monitor = false)
-        caught3.message should include(""""statusCode":409""")
+      // Wait for the cluster to be deleted
+      monitorDelete(billingProject, clusterName)
 
-        // Wait for the cluster to be deleted
-        monitorDelete(project, clusterName)
-
-        // New cluster can now be recreated with the same name
-        // We monitor creation to make sure it gets successfully created in Google.
-        withNewCluster(project, clusterName, clusterRequest, monitorCreate = true, monitorDelete = false)(noop)
-      }
+      // New cluster can now be recreated with the same name
+      // We monitor creation to make sure it gets successfully created in Google.
+      withNewCluster(billingProject, clusterName, clusterRequest, monitorCreate = true, monitorDelete = false)(noop)
     }
 
     "error'd clusters should transition correctly" in {
-      withProject { project => implicit token =>
-        // make an Error'd cluster
-        withNewErroredCluster(project) { cluster =>
-          // cluster should be in Error status
-          cluster.status shouldBe ClusterStatus.Error
+      // make an Error'd cluster
+      withNewErroredCluster(billingProject) { cluster =>
+        // cluster should be in Error status
+        cluster.status shouldBe ClusterStatus.Error
 
-          // can't stop an Error'd cluster
-          val caught = the[RestException] thrownBy stopCluster(cluster.googleProject, cluster.clusterName, monitor = false)
-          caught.message should include(""""statusCode":409""")
+        // can't stop an Error'd cluster
+        val caught = the[RestException] thrownBy stopCluster(cluster.googleProject, cluster.clusterName, monitor = false)
+        caught.message should include(""""statusCode":409""")
 
-          // can't recreate an Error'd cluster
-          val caught2 = the[RestException] thrownBy createNewCluster(cluster.googleProject, cluster.clusterName, monitor = false)
-          caught2.message should include(""""statusCode":409""")
+        // can't recreate an Error'd cluster
+        val caught2 = the[RestException] thrownBy createNewCluster(cluster.googleProject, cluster.clusterName, monitor = false)
+        caught2.message should include(""""statusCode":409""")
 
-          // can delete an Error'd cluster
-        }
+        // can delete an Error'd cluster
       }
     }
 
     // set the "stop after creation" flag
     "should stop a cluster after creation" in {
-      withProject { project => implicit token =>
-        val request = defaultClusterRequest.copy(stopAfterCreation = Some(true))
-        withNewCluster(project, request = request) { cluster =>
-          cluster.stopAfterCreation shouldBe true
-          Leonardo.cluster.get(project, cluster.clusterName).status shouldBe ClusterStatus.Stopped
-        }
+      val request = defaultClusterRequest.copy(stopAfterCreation = Some(true))
+      withNewCluster(billingProject, request = request) { cluster =>
+        cluster.stopAfterCreation shouldBe true
+        Leonardo.cluster.get(billingProject, cluster.clusterName).status shouldBe ClusterStatus.Stopped
       }
     }
 
