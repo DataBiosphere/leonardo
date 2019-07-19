@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
-import org.broadinstitute.dsde.workbench.leonardo.ClusterFixtureSpec
+import org.broadinstitute.dsde.workbench.leonardo.ClusterFixture
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.service.RestException
 import org.broadinstitute.dsde.workbench.service.util.Tags
@@ -14,7 +14,7 @@ import scala.language.postfixOps
   * Remove this once welder is fully rolled out.
   */
 @DoNotDiscover
-class NotebookLocalizeFileSpec(val billingProject: GoogleProject) extends ClusterFixtureSpec with NotebookTestUtils {
+class NotebookLocalizeFileSpec(val billingProject: GoogleProject) extends ClusterFixture with NotebookTestUtils {
 
   override def enableWelder: Boolean = false
 

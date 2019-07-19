@@ -21,7 +21,7 @@ import scala.language.postfixOps
   * and welder localization/delocalization.
   */
 @DoNotDiscover
-class NotebookDataSyncingSpec(val billingProject: GoogleProject) extends ClusterFixtureSpec with NotebookTestUtils {
+class NotebookDataSyncingSpec(val billingProject: GoogleProject) extends ClusterFixture with NotebookTestUtils {
   override def enableWelder: Boolean = true
 
   "NotebookDataSyncingSpec" - {

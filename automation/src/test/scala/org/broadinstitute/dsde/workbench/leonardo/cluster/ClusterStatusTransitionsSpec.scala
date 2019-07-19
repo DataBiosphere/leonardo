@@ -22,6 +22,8 @@ class ClusterStatusTransitionsSpec(val billingProject: GoogleProject) extends Fr
   "ClusterStatusTransitionsSpec" - {
 
     "create, monitor, delete should transition correctly" in {
+      logger.info("Starting ClusterStatusTransitionsSpec: create, monitor, delete should transition correctly")
+
       val clusterName = randomClusterName
       val clusterRequest = defaultClusterRequest
 
@@ -67,6 +69,8 @@ class ClusterStatusTransitionsSpec(val billingProject: GoogleProject) extends Fr
     }
 
     "error'd clusters should transition correctly" in {
+      logger.info("Starting ClusterStatusTransitionsSpec: error'd clusters should transition correctly")
+
       // make an Error'd cluster
       withNewErroredCluster(billingProject) { cluster =>
         // cluster should be in Error status
@@ -86,6 +90,8 @@ class ClusterStatusTransitionsSpec(val billingProject: GoogleProject) extends Fr
 
     // set the "stop after creation" flag
     "should stop a cluster after creation" in {
+      logger.info("Starting ClusterStatusTransitionsSpec: should stop a cluster after creation")
+
       val request = defaultClusterRequest.copy(stopAfterCreation = Some(true))
       withNewCluster(billingProject, request = request) { cluster =>
         cluster.stopAfterCreation shouldBe true

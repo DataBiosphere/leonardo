@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, Leonardo}
+import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixture, Leonardo}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.broadinstitute.dsde.workbench.service.util.Tags
@@ -13,7 +13,7 @@ import scala.language.postfixOps
   * This spec verifies notebook functionality specifically around the Python 2 and 3 kernels.
   */
 @DoNotDiscover
-class NotebookPyKernelSpec(val billingProject: GoogleProject) extends ClusterFixtureSpec with NotebookTestUtils {
+class NotebookPyKernelSpec(val billingProject: GoogleProject) extends ClusterFixture with NotebookTestUtils {
 
   "NotebookPyKernelSpec" - {
 

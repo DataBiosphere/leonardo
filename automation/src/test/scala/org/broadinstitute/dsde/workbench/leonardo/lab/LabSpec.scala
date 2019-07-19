@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.lab
 
-import org.broadinstitute.dsde.workbench.leonardo.ClusterFixtureSpec
+import org.broadinstitute.dsde.workbench.leonardo.ClusterFixture
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.DoNotDiscover
@@ -10,7 +10,7 @@ import org.scalatest.DoNotDiscover
   * This spec verifies JupyterLab functionality.
   */
 @DoNotDiscover
-class LabSpec(val billingProject: GoogleProject) extends ClusterFixtureSpec with LabTestUtils {
+class LabSpec(val billingProject: GoogleProject) extends ClusterFixture with LabTestUtils {
 
   "Leonardo lab" - {
 

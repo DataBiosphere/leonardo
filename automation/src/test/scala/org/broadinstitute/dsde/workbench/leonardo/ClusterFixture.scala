@@ -11,7 +11,7 @@ import org.scalatest.{BeforeAndAfterAll, Outcome, fixture}
 /**
   * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
   */
-abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils with BillingFixtures with RandomUtil with LazyLogging {
+abstract class ClusterFixture extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils with BillingFixtures with RandomUtil with LazyLogging {
 
   implicit val ronToken: AuthToken = ronAuthToken
 
