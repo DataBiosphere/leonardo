@@ -22,24 +22,24 @@ version := "1.0"
   * Specify that all tests will be executed in a single external JVM.
   * By default, tests executed in a forked JVM are executed sequentially.
   */
-Test / fork := true
+//Test / fork := true
 
 /**
   * forked tests can optionally be run in parallel.
   */
-Test / testForkedParallel := true
+//Test / testForkedParallel := true
 
 /**
   * When forking, use the base directory as the working directory
   */
-Test / baseDirectory := (baseDirectory in ThisBuild).value
+//Test / baseDirectory := (baseDirectory in ThisBuild).value
 
 /*
  * Enables (true) or disables (false) parallel execution of tasks (test classes).
  * In not-forked mode: test classes are run in parallel in different threads, in same sbt jvm.
  * In forked mode: each test class runs tests in sequential order, in a separated jvm.
  */
-Test / parallelExecution := true
+//Test / parallelExecution := true
 
 /**
   * disable sbt's log buffering
@@ -51,20 +51,20 @@ Test / logBuffered := false
   *  setting the limit on Tags.ForkedTestGroup tag, 1 is default.
   *  Warning: can't set too high (set at 10 would crashes OS)
   */
-Global / concurrentRestrictions := Seq(Tags.limit(Tags.ForkedTestGroup, 4))
+//Global / concurrentRestrictions := Seq(Tags.limit(Tags.ForkedTestGroup, 4))
 
 /**
   * Forked JVM options
   */
-Test / javaOptions ++= Seq("-Xmx6G")
+//Test / javaOptions ++= Seq("-Xmx6G")
 
 /**
   * copy system properties to forked JVM
   */
-Test / javaOptions ++= Seq({
-  val props = System.getProperties
-  props.stringPropertyNames().asScala.toList.map { key => s"-D$key=${props.getProperty(key)}"}.mkString(" ")
-})
+//Test / javaOptions ++= Seq({
+//  val props = System.getProperties
+//  props.stringPropertyNames().asScala.toList.map { key => s"-D$key=${props.getProperty(key)}"}.mkString(" ")
+//})
 
 //testGrouping in Test := {
 //  (definedTests in Test).value.map { test =>
