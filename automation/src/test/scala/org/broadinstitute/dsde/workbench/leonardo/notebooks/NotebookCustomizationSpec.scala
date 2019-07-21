@@ -16,8 +16,7 @@ import scala.language.postfixOps
   * This spec verfies different cluster creation options, such as user scripts, extensions, etc.
   */
 @DoNotDiscover
-final class NotebookCustomizationSpec(val billingProject: GoogleProject) extends FreeSpec
-  with NotebookTestUtils with BillingFixtures {
+final class NotebookCustomizationSpec(val billingProject: GoogleProject) extends FreeSpec with ParallelTestExecution with NotebookTestUtils with BillingFixtures {
 
   "NotebookCustomizationSpec" - {
 

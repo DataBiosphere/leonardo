@@ -22,7 +22,7 @@ import scala.concurrent.duration._
   * so lives in the notebooks sub-package.
   */
 @DoNotDiscover
-class NotebookClusterMonitoringSpec(val billingProject: GoogleProject) extends FreeSpec with NotebookTestUtils with BillingFixtures {
+class NotebookClusterMonitoringSpec(val billingProject: GoogleProject) extends FreeSpec with ParallelTestExecution with NotebookTestUtils with BillingFixtures {
 
   "NotebookClusterMonitoringSpec" - {
 

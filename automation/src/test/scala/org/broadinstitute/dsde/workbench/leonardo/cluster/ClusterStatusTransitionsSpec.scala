@@ -5,7 +5,7 @@ import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.{ClusterStatus, Leonardo, LeonardoTestUtils}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.RestException
-import org.scalatest.{DoNotDiscover, FreeSpec}
+import org.scalatest.{DoNotDiscover, FreeSpec, ParallelTestExecution}
 
 /**
   * This spec is for validating how Leonardo/Google handles cluster status transitions.
@@ -14,7 +14,7 @@ import org.scalatest.{DoNotDiscover, FreeSpec}
   * should exercise the most commonly used paths through the system.
   */
 @DoNotDiscover
-class ClusterStatusTransitionsSpec(val billingProject: GoogleProject) extends FreeSpec with LeonardoTestUtils with BillingFixtures {
+class ClusterStatusTransitionsSpec(val billingProject: GoogleProject) extends FreeSpec with ParallelTestExecution with LeonardoTestUtils with BillingFixtures {
 
   // these tests just hit the Leo APIs; they don't interact with notebooks via selenium
   "ClusterStatusTransitionsSpec" - {
