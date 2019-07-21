@@ -66,38 +66,38 @@ Test / javaOptions ++= Seq({
   props.stringPropertyNames().asScala.toList.map { key => s"-D$key=${props.getProperty(key)}"}.mkString(" ")
 })
 
-testGrouping in Test := {
-  (definedTests in Test).value.map { test =>
-    /**
-      * debugging print out:
-      *
-      * println("test.name: " + test.name)
-      * println("(Test/baseDirectory).value: " + (Test / baseDirectory).value)
-      * println("(baseDirectory in ThisBuild).value: " + (baseDirectory in ThisBuild).value)
-      *
-      * val envirn = System.getenv()
-      *   envirn.keySet.forEach {
-      * key => s"-D$key=${envirn.get(key)}"
-      * println(s"-D$key=${envirn.get(key)}")
-      * }
-      */
-
-    val options = ForkOptions()
-      .withConnectInput(true)
-      .withWorkingDirectory(Some((Test / baseDirectory).value))
-      .withOutputStrategy(Some(sbt.StdoutOutput))
-      .withRunJVMOptions(
-        Vector(
-          s"-Dlogback.configurationFile=${(Test / baseDirectory).value.getAbsolutePath}/src/test/resources/logback-test.xml",
-          s"-Djava.util.logging.config.file=${(Test / baseDirectory).value.getAbsolutePath}/src/test/resources/logback-test.xml",
-          s"-Dtest.name=${test.name}",
-          s"-Ddir.name=${(Test / baseDirectory).value}",
-          s"-Dheadless=${Option(System.getProperty("headless")).getOrElse("false")}",
-          s"-Djsse.enableSNIExtension=${Option(System.getProperty("jsse.enableSNIExtension")).getOrElse("false")}"))
-    Tests.Group(
-      name = test.name,
-      tests = Seq(test),
-      runPolicy = Tests.SubProcess(options)
-    )
-  }
-}
+//testGrouping in Test := {
+//  (definedTests in Test).value.map { test =>
+//    /**
+//      * debugging print out:
+//      *
+//      * println("test.name: " + test.name)
+//      * println("(Test/baseDirectory).value: " + (Test / baseDirectory).value)
+//      * println("(baseDirectory in ThisBuild).value: " + (baseDirectory in ThisBuild).value)
+//      *
+//      * val envirn = System.getenv()
+//      *   envirn.keySet.forEach {
+//      * key => s"-D$key=${envirn.get(key)}"
+//      * println(s"-D$key=${envirn.get(key)}")
+//      * }
+//      */
+//
+//    val options = ForkOptions()
+//      .withConnectInput(true)
+//      .withWorkingDirectory(Some((Test / baseDirectory).value))
+//      .withOutputStrategy(Some(sbt.StdoutOutput))
+//      .withRunJVMOptions(
+//        Vector(
+//          s"-Dlogback.configurationFile=${(Test / baseDirectory).value.getAbsolutePath}/src/test/resources/logback-test.xml",
+//          s"-Djava.util.logging.config.file=${(Test / baseDirectory).value.getAbsolutePath}/src/test/resources/logback-test.xml",
+//          s"-Dtest.name=${test.name}",
+//          s"-Ddir.name=${(Test / baseDirectory).value}",
+//          s"-Dheadless=${Option(System.getProperty("headless")).getOrElse("false")}",
+//          s"-Djsse.enableSNIExtension=${Option(System.getProperty("jsse.enableSNIExtension")).getOrElse("false")}"))
+//    Tests.Group(
+//      name = test.name,
+//      tests = Seq(test),
+//      runPolicy = Tests.SubProcess(options)
+//    )
+//  }
+//}

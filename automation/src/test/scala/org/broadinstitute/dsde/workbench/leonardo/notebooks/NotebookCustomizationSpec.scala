@@ -51,7 +51,7 @@ final class NotebookCustomizationSpec(val billingProject: GoogleProject) extends
             withWebDriver { implicit driver =>
               // Create a notebook that will check if the user script ran
               withNewNotebook(cluster) { notebookPage =>
-                notebookPage.executeCell("""print('Hello Notebook!)'""") shouldBe Some("Hello Notebook!")
+                notebookPage.executeCell("""print('Hello Notebook!')""") shouldBe Some("Hello Notebook!")
                 notebookPage.executeCell("""import arrow""")
                 notebookPage.executeCell("""arrow.get(727070400)""") shouldBe Some("<Arrow [1993-01-15T04:00:00+00:00]>")
               }
