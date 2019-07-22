@@ -5,7 +5,7 @@ import java.time.Instant
 
 import akka.http.scaladsl.model.HttpResponse
 import org.broadinstitute.dsde.workbench.ResourceFile
-import org.broadinstitute.dsde.workbench.google2.{GcsBlobName}
+import org.broadinstitute.dsde.workbench.google2.GcsBlobName
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook.NotebookMode
 import org.broadinstitute.dsde.workbench.service.util.Tags
@@ -30,7 +30,7 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
       resp.status.isSuccess() shouldBe true
     }
 
-    "open notebook in edit mode should work" taggedAs Tags.SmokeTest in { clusterFixture =>
+    "open notebook in edit mode should work" in { clusterFixture =>
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
       val isEditMode = true
 
@@ -102,7 +102,7 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
               Thread.sleep(240000)
 
               eventually(timeout(Span(5, Seconds))) {
-                val newLocalContentSize = Notebook.getNotebookItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode)).size
+                val newLocalContentSize = Notebook.getNotebookItem(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode)).size
                 val newRemoteContentSize = getObjectSize(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value))
                   .unsafeRunSync()
 
@@ -132,7 +132,7 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
       val sampleNotebook = ResourceFile(s"bucket-tests/${fileName}.ipynb")
       val isEditMode = true
 
-      withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { gcsPath =>
+      withResourceFileInBucket(clusterFixture.cluster.googleProject, sampleNotebook, "text/plain") { gcsPath =>
 
         withWelderInitialized(clusterFixture.cluster, gcsPath, isEditMode) { localizedFile =>
 
@@ -140,7 +140,7 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
 
             withOpenNotebook(clusterFixture.cluster, localizedFile, 5.minutes) { notebookPage =>
               val contents = "{\n      'cells': [],\n      'metadata': {\n        'kernelspec': {\n        'display_name': 'Python 3',\n        'language': 'python',\n        'name': 'python3'\n      },\n        'language_info': {\n        'codemirror_mode': {\n        'name': 'ipython',\n        'version': 3\n      },\n        'file_extension': '.py',\n        'mimetype': 'text/x-python',\n        'name': 'python',\n        'nbconvert_exporter': 'python',\n        'pygments_lexer': 'ipython3',\n        'version': '3.7.3'\n      }\n      },\n      'nbformat': 4,\n      'nbformat_minor': 2\n    }"
-              setObjectContents(clusterFixture.billingProject, gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value), contents)
+              setObjectContents(clusterFixture.cluster.googleProject, gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value), contents)
                 .unsafeRunSync
 
               val syncIssueElements = List(notebookPage.syncCopyButton, notebookPage.syncReloadButton, notebookPage.modalId)
@@ -165,7 +165,7 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile3.ipynb")
       val isEditMode = true
 
-      withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { gcsPath =>
+      withResourceFileInBucket(clusterFixture.cluster.googleProject, sampleNotebook, "text/plain") { gcsPath =>
 
         //we set the lock before the notebook is open to cause a conflict
         val newMeta = Map("lockExpiresAt" -> Instant.now().plusMillis(20.minutes.toMillis).toEpochMilli.toString, "lastLockedBy" -> "NotMe")
@@ -197,11 +197,11 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
       }
     }
 
-   //this test is important to make sure all components exit gracefully when their functionality is not needed
+    //this test is important to make sure all components exit gracefully when their functionality is not needed
     "User should be able to create files outside of playground and safe mode" in { clusterFixture =>
       val fileName = "mockUserFile.ipynb"
 
-      val mockUserFile: File = Notebook.createFileAtJupyterRoot(clusterFixture.billingProject, clusterFixture.cluster.clusterName, fileName)
+      val mockUserFile: File = Notebook.createFileAtJupyterRoot(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName, fileName)
 
       withWebDriver { implicit driver =>
 
