@@ -26,7 +26,8 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
     // See https://hail.is/docs/stable/tutorials-landing.html
     // Note this is for the stable Hail version (0.1). The tutorial script has changed in Hail 0.2.
-    "should run the Hail tutorial" in { clusterFixture =>
+    // TODO: ignored until this can be made to work with Hail 0.2s
+    "should run the Hail tutorial" ignore { clusterFixture =>
       val downloadDir = createDownloadDirectory()
       withWebDriver(downloadDir) { implicit driver =>
         uploadDownloadTest(clusterFixture.cluster, hailTutorialUploadFile, 15.minutes, downloadDir) { (uploadFile, downloadFile) =>

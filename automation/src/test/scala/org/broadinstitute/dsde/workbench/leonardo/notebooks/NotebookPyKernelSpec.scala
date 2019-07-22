@@ -40,7 +40,7 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
       withWebDriver { implicit driver =>
         //a cluster without the user script should not be able to import the arrow library
         withNewNotebook(clusterFixture.cluster) { notebookPage =>
-          notebookPage.executeCell("""print('Hello Notebook!)'""") shouldBe Some("Hello Notebook!")
+          notebookPage.executeCell("""print('Hello Notebook!')""") shouldBe Some("Hello Notebook!")
           notebookPage.executeCell("""import arrow""").get should include("ImportError: No module named arrow")
         }
       }
@@ -58,7 +58,7 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
             // need to restart the kernel for the install to take effect
             notebookPage.restartKernel()
 
-            notebookPage.executeCell("import fuzzywuzzy", cellNumberOpt = Some(1)) shouldBe Some("")
+            notebookPage.executeCell("import fuzzywuzzy", cellNumberOpt = Some(1)) shouldBe None
           }
         }
       }
