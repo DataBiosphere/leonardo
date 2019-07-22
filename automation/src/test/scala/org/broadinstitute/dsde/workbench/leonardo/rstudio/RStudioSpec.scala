@@ -12,7 +12,7 @@ class RStudioSpec extends GPAllocFixtureSpec with ParallelTestExecution with Leo
 
   implicit val ronToken: AuthToken = ronAuthToken
 
-  "Leonardo clusters" - {
+  "RStudioSpec" - {
 
     // TODO re-enable when RStudio is supported
     "should install RStudio" taggedAs Tags.SmokeTest ignore { billingProject =>

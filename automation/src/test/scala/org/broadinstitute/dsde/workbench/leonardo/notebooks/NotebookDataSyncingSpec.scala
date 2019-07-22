@@ -74,7 +74,7 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
       val isEditMode = false
 
-      withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { gcsPath =>
+      withResourceFileInBucket(clusterFixture.cluster.googleProject, sampleNotebook, "text/plain") { gcsPath =>
         logger.info("Initialized google storage bucket")
 
         withWelderInitialized(clusterFixture.cluster, gcsPath, isEditMode) { localizedFile =>
