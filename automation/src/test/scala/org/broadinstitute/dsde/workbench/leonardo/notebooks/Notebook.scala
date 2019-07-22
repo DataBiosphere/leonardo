@@ -48,7 +48,7 @@ object Notebook extends RestClient with LazyLogging {
     new NotebooksListPage(url + path)
   }
 
-  def createFileAtRootDir(googleProject: GoogleProject, clusterName: ClusterName, fileName: String)(implicit token: AuthToken): File = {
+  def createFileAtJupyterRoot(googleProject: GoogleProject, clusterName: ClusterName, fileName: String)(implicit token: AuthToken): File = {
     val path = contentsPath(googleProject, clusterName, fileName)
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
     val payload: Map[String,String] = Map("path" -> fileName)

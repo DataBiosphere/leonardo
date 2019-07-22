@@ -194,7 +194,7 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
     "User should be able to create files outside of playground and safe mode" in { clusterFixture =>
       val fileName = "mockUserFile.ipynb"
 
-      val mockUserFile: File = Notebook.createFileAtRootDir(clusterFixture.billingProject, clusterFixture.cluster.clusterName, fileName)
+      val mockUserFile: File = Notebook.createFileAtJupyterRoot(clusterFixture.billingProject, clusterFixture.cluster.clusterName, fileName)
 
       withWebDriver { implicit driver =>
 
