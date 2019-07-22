@@ -12,7 +12,7 @@ import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse}
+import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, RemoveObjectResult, StorageRole}
 import org.openqa.selenium.WebDriver
 import org.scalatest.Suite
 import java.io.File
@@ -20,7 +20,10 @@ import java.io.FileOutputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Path, Paths}
 
+import cats.data.NonEmptyList
+import com.google.cloud.Identity
 import com.google.cloud.storage.BlobId
+import org.broadinstitute.dsde.workbench.google2.StorageRole.ObjectAdmin
 
 import scala.concurrent._
 import scala.concurrent.duration._
@@ -365,6 +368,34 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     google2StorageResource.use {
       google2StorageDAO =>
         google2StorageDAO.getBlobBody(workspaceBucketName, notebookName).compile.toList.map(_.size)
+    }
+  }
+
+  def deleteObject(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[RemoveObjectResult] = {
+    google2StorageResource.use {
+      google2StorageDAO =>
+        google2StorageDAO.removeObject(workspaceBucketName, notebookName).compile.lastOrError
+    }
+  }
+
+  def setObjectMetadata(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName, metadata: Map[String,String]): IO[Unit] = {
+    //lockExpiresAt, lastLockedBy
+    google2StorageResource.use {
+      google2StorageDAO =>
+        google2StorageDAO.setObjectMetadata(workspaceBucketName, notebookName, metadata, None).compile.drain
+    }
+  }
+
+  def setObjectContents(googleProject: GoogleProject, workspaceBucketName: GcsBucketName, notebookName: GcsBlobName, contents: String)(implicit token: AuthToken): IO[Unit] = {
+    val petServiceAccount = Sam.user.petServiceAccountEmail(googleProject.value)
+    val userID = Identity.serviceAccount(petServiceAccount.value)
+
+    google2StorageResource.use {
+      google2StorageDAO =>
+        for {
+          _ <- google2StorageDAO.createBlob(workspaceBucketName, notebookName, contents.toCharArray.map(_.toByte)).compile.drain
+          _ <- google2StorageDAO.setIamPolicy(workspaceBucketName, Map(ObjectAdmin.asInstanceOf[StorageRole] -> NonEmptyList[Identity](userID, List()))).compile.drain
+        } yield ()
     }
   }
 

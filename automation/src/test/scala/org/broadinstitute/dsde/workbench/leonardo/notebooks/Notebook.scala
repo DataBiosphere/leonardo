@@ -1,11 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 
+import java.io.File
+import java.nio.file.Path
+
 import akka.http.scaladsl.model.HttpHeader
 import akka.http.scaladsl.model.headers.{Authorization, Cookie, HttpCookiePair, OAuth2BearerToken}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.{ClusterName, ContentItem, LeonardoConfig, NotebookContentItem, RawNotebookContents}
+import org.broadinstitute.dsde.workbench.leonardo.{ClusterName, ContentItem, LeonardoConfig, NotebookContentItem}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.RestClient
 import org.openqa.selenium.WebDriver
@@ -43,6 +46,16 @@ object Notebook extends RestClient with LazyLogging {
     val path = notebooksBasePath(googleProject, clusterName)
     logger.info(s"Get notebook: GET /$path")
     new NotebooksListPage(url + path)
+  }
+
+  def createFileAtJupyterRoot(googleProject: GoogleProject, clusterName: ClusterName, fileName: String)(implicit token: AuthToken): File = {
+    val path = contentsPath(googleProject, clusterName, fileName)
+    val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
+    val payload: Map[String,String] = Map("path" -> fileName)
+
+    putRequest(url + path, payload, httpHeaders = List(cookie))
+
+    new File(fileName)
   }
 
   def getApi(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken): String = {

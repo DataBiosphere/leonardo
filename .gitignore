@@ -29,4 +29,5 @@ automation/src/test/resources/application.conf
 automation/src/test/resources/firecloud-account.pem
 automation/src/test/resources/firecloud-account.json
 automation/src/test/resources/trial-billing-account.pem
-automation/output/leo-auto-*.ipynb
+automation/output/
+automation/*.ipynb

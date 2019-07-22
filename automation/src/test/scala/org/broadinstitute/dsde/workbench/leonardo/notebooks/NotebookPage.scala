@@ -92,7 +92,18 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   //intentionally misspelled
   val saveButtonId = "save-notbook"
 
+  val modalId = "leoUserModal"
+  val syncCopyButton = "modal-copy-1"
+  val syncReloadButton = "modal-reload"
+  val lockPlaygroundButton = "modal-playground"
+  val lockCopyButton = "modal-copy-2"
+  val noModeBannerId = "notification_not_saving"
+
   lazy val saveButton: Query = cssSelector(s"[id='${saveButtonId}']")
+
+  def getSelectorFrom(id: String): Query = {
+    cssSelector(s"[id='${id}']")
+  }
 
   // is at least one cell currently executing?
   def cellsAreRunning: Boolean = {
@@ -203,6 +214,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   }
 
   def shutdownKernel(): Unit = {
+    awaitReadyKernel(1.minutes) //can cause failures with fast tests as it is called in clean-up, and it will timeout if it is called before the kernel is active
     click on kernelMenu
     click on (await enabled shutdownKernelSelection)
     click on (await enabled shutdownKernelConfirmationSelection)
@@ -241,6 +253,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
 
       val t1 = System.nanoTime()
       val timediff = FiniteDuration(t1 - t0, NANOSECONDS)
+
 
       logger.info(s"kernel was ready after ${timediff.toSeconds} seconds. Timeout was ${timeout.toSeconds}")
     } catch {
@@ -286,10 +299,31 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     executeJavaScript(s"$$('#${saveButtonId}').${functionToRun}")
   }
 
+  //checks if elements have the style "display: none;"
   def areElementsHidden(elementIds: List[String]): Boolean = {
     elementIds
       .map(elementId => find(id(elementId)).exists(_.underlying.getAttribute("style") == "display: none;"))
       .forall(identity)
+  }
+
+  //checks if IDs are present in DOM and the elements with those IDs are displayed. Not the negation of the above, because javascript has many ways to hide elements
+  def areElementsPresent(elementIds: List[String]): Boolean = {
+    elementIds
+      .map(elementId => find(id(elementId)) match {
+        case Some(el) => el.underlying.isDisplayed
+        case None => false
+      })
+      .forall(identity)
+  }
+
+  //will cause an exception if no modal exists - check existence of below ID before calling
+  def makeACopyFromSyncIssue(): Unit = {
+    click on getSelectorFrom(syncCopyButton)
+  }
+
+  //will cause an exception if expected modal does not exist - check existence of below ID before calling
+  def goToPlaygroundModeFromLockIssue(): Unit = {
+    click on getSelectorFrom(lockPlaygroundButton)
   }
 
  }
