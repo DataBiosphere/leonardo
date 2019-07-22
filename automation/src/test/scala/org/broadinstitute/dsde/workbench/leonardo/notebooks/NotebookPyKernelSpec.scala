@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixture, Leonardo}
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, Leonardo}
 import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.DoNotDiscover
@@ -13,7 +12,7 @@ import scala.language.postfixOps
   * This spec verifies notebook functionality specifically around the Python 2 and 3 kernels.
   */
 @DoNotDiscover
-class NotebookPyKernelSpec(val billingProject: GoogleProject) extends ClusterFixture with NotebookTestUtils {
+class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
   "NotebookPyKernelSpec" - {
 
@@ -85,7 +84,7 @@ class NotebookPyKernelSpec(val billingProject: GoogleProject) extends ClusterFix
     }
 
     "should include Content-Security-Policy in headers" in { clusterFixture =>
-      val headers = Notebook.getApiHeaders(clusterFixture.billingProject, clusterFixture.cluster.clusterName)
+      val headers = Notebook.getApiHeaders(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
       val contentSecurityHeader = headers.find(_.name == "Content-Security-Policy")
       contentSecurityHeader shouldBe 'defined
       contentSecurityHeader.get.value should include ("https://bvdp-saturn-prod.appspot.com")
@@ -94,7 +93,7 @@ class NotebookPyKernelSpec(val billingProject: GoogleProject) extends ClusterFix
     "should allow BigQuerying via the command line" in { clusterFixture =>
       // project owners have the bigquery role automatically, so this also tests granting it to users
       val ownerToken = hermioneAuthToken
-      Orchestration.billing.addGoogleRoleToBillingProjectUser(clusterFixture.billingProject.value, ronEmail, "bigquery.jobUser")(ownerToken)
+      Orchestration.billing.addGoogleRoleToBillingProjectUser(clusterFixture.cluster.googleProject.value, ronEmail, "bigquery.jobUser")(ownerToken)
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster) { notebookPage =>
           val query = """! bq query --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
@@ -136,11 +135,11 @@ class NotebookPyKernelSpec(val billingProject: GoogleProject) extends ClusterFix
     "should update dateAccessed if the notebook is open" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster) { notebookPage =>
-          val firstApiCall = Leonardo.cluster.get(clusterFixture.billingProject, clusterFixture.cluster.clusterName)
+          val firstApiCall = Leonardo.cluster.get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
           //Sleeping for 90s to simulate idle notebook
           logger.info("Sleeping for 90s to simulate idle notebook")
           Thread.sleep(90000)
-          val secondApiCall = Leonardo.cluster.get(clusterFixture.billingProject, clusterFixture.cluster.clusterName)
+          val secondApiCall = Leonardo.cluster.get(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName)
           firstApiCall.dateAccessed should be < secondApiCall.dateAccessed
         }
       }
@@ -177,8 +176,8 @@ class NotebookPyKernelSpec(val billingProject: GoogleProject) extends ClusterFix
       s"should have the workspace-related environment variables set in ${kernel.toString} kernel" in { clusterFixture =>
         withWebDriver { implicit driver =>
           withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
-            notebookPage.executeCell("! echo $GOOGLE_PROJECT").get shouldBe clusterFixture.billingProject.value
-            notebookPage.executeCell("! echo $WORKSPACE_NAMESPACE").get shouldBe clusterFixture.billingProject.value
+            notebookPage.executeCell("! echo $GOOGLE_PROJECT").get shouldBe clusterFixture.cluster.googleProject.value
+            notebookPage.executeCell("! echo $WORKSPACE_NAMESPACE").get shouldBe clusterFixture.cluster.googleProject.value
             notebookPage.executeCell("! echo $WORKSPACE_NAME").get shouldBe "notebooks"
             // workspace bucket is not wired up in tests
             notebookPage.executeCell("! echo $WORKSPACE_BUCKET").get shouldBe ""
@@ -198,7 +197,7 @@ class NotebookPyKernelSpec(val billingProject: GoogleProject) extends ClusterFix
     }
 
     "should use pet credentials" in { clusterFixture =>
-      val petEmail = getAndVerifyPet(clusterFixture.billingProject)
+      val petEmail = getAndVerifyPet(clusterFixture.cluster.googleProject)
 
       // cluster should have been created with the pet service account
       clusterFixture.cluster.serviceAccountInfo.clusterServiceAccount shouldBe Some(petEmail)

@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import org.broadinstitute.dsde.workbench.leonardo.ClusterFixture
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.leonardo.ClusterFixtureSpec
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.DoNotDiscover
 
@@ -12,7 +11,7 @@ import scala.language.postfixOps
   * This spec verifies notebook functionality specifically around the R kernel.
   */
 @DoNotDiscover
-class NotebookRKernelSpec(val billingProject: GoogleProject) extends ClusterFixture with NotebookTestUtils {
+class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
   "NotebookRKernelSpec" - {
 
@@ -149,8 +148,8 @@ class NotebookRKernelSpec(val billingProject: GoogleProject) extends ClusterFixt
     s"should have the workspace-related environment variables set" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
-          notebookPage.executeCell("Sys.getenv('GOOGLE_PROJECT')").get shouldBe s"'${clusterFixture.billingProject.value}'"
-          notebookPage.executeCell("Sys.getenv('WORKSPACE_NAMESPACE')").get shouldBe s"'${clusterFixture.billingProject.value}'"
+          notebookPage.executeCell("Sys.getenv('GOOGLE_PROJECT')").get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
+          notebookPage.executeCell("Sys.getenv('WORKSPACE_NAMESPACE')").get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
           notebookPage.executeCell("Sys.getenv('WORKSPACE_NAME')").get shouldBe "'notebooks'"
           // workspace bucket is not wired up in tests
           notebookPage.executeCell("Sys.getenv('WORKSPACE_BUCKET')").get shouldBe "''"

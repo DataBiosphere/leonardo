@@ -4,15 +4,14 @@ import java.io.File
 
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
-import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.Group
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.Reader
-import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsObjectName, GcsPath, GoogleProject, parseGcsPath}
+import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsObjectName, GcsPath, parseGcsPath}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.time.{Seconds, Span}
-import org.scalatest.{DoNotDiscover, FreeSpec, ParallelTestExecution}
+import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
 
@@ -22,11 +21,11 @@ import scala.concurrent.duration._
   * so lives in the notebooks sub-package.
   */
 @DoNotDiscover
-class NotebookClusterMonitoringSpec(val billingProject: GoogleProject) extends FreeSpec with ParallelTestExecution with NotebookTestUtils with BillingFixtures {
+class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils {
 
   "NotebookClusterMonitoringSpec" - {
 
-    "should pause and resume a cluster" taggedAs Tags.SmokeTest in {
+    "should pause and resume a cluster" taggedAs Tags.SmokeTest in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
 
       // Create a cluster
@@ -62,7 +61,7 @@ class NotebookClusterMonitoringSpec(val billingProject: GoogleProject) extends F
     }
 
     // make sure adding a worker and changing the master machine type/disk works
-    "should update the cluster to add/remove worker nodes and change master machine type/disk" in {
+    "should update the cluster to add/remove worker nodes and change master machine type/disk" in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
 
       val initialMachineConfig = MachineConfig(numberOfWorkers = Some(2), masterMachineType = Some("n1-standard-2"), masterDiskSize = Some(50))
@@ -128,7 +127,7 @@ class NotebookClusterMonitoringSpec(val billingProject: GoogleProject) extends F
       }
     }
 
-    "should pause and resume a cluster with preemptible instances" in {
+    "should pause and resume a cluster with preemptible instances" in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
 
       withNewGoogleBucket(billingProject) { bucket =>

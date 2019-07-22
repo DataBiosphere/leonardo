@@ -8,7 +8,6 @@ import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook.NotebookMode
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.DoNotDiscover
 import org.scalatest.time.{Minutes, Seconds, Span}
@@ -21,7 +20,7 @@ import scala.language.postfixOps
   * and welder localization/delocalization.
   */
 @DoNotDiscover
-class NotebookDataSyncingSpec(val billingProject: GoogleProject) extends ClusterFixture with NotebookTestUtils {
+class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils {
   override def enableWelder: Boolean = true
 
   "NotebookDataSyncingSpec" - {
@@ -35,7 +34,7 @@ class NotebookDataSyncingSpec(val billingProject: GoogleProject) extends Cluster
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
       val isEditMode = true
 
-      withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { gcsPath =>
+      withResourceFileInBucket(clusterFixture.cluster.googleProject, sampleNotebook, "text/plain") { gcsPath =>
 
         withWelderInitialized(clusterFixture.cluster, gcsPath, isEditMode) { localizedFile =>
 
@@ -48,7 +47,7 @@ class NotebookDataSyncingSpec(val billingProject: GoogleProject) extends Cluster
               notebookPage.addCodeAndExecute("1+1")
               notebookPage.saveNotebook()
 
-              val localContentSize: Int = Notebook.getNotebookItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode)).size
+              val localContentSize: Int = Notebook.getNotebookItem(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode)).size
 
               eventually(timeout(Span(5, Seconds))) {
                 val remoteContentSize: Int = getObjectSize(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value))
@@ -76,6 +75,7 @@ class NotebookDataSyncingSpec(val billingProject: GoogleProject) extends Cluster
       val isEditMode = false
 
       withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { gcsPath =>
+        logger.info("Initialized google storage bucket")
 
         withWelderInitialized(clusterFixture.cluster, gcsPath, isEditMode) { localizedFile =>
 
@@ -86,7 +86,7 @@ class NotebookDataSyncingSpec(val billingProject: GoogleProject) extends Cluster
               val originalRemoteContentSize: Int = getObjectSize(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value))
                 .unsafeRunSync()
 
-              val originalLocalContentSize: Int = Notebook.getNotebookItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode)).size
+              val originalLocalContentSize: Int = Notebook.getNotebookItem(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode)).size
 
               originalRemoteContentSize shouldBe originalLocalContentSize
 

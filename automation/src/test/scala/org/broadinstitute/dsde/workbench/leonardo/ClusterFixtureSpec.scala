@@ -1,17 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.fixture._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.service.test.RandomUtil
 import org.scalatest.{BeforeAndAfterAll, Outcome, fixture}
 
 
 /**
   * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
   */
-abstract class ClusterFixture extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils with BillingFixtures with RandomUtil with LazyLogging {
+abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils {
 
   implicit val ronToken: AuthToken = ronAuthToken
 
@@ -35,22 +32,22 @@ abstract class ClusterFixture extends fixture.FreeSpec with BeforeAndAfterAll wi
     * Claim a billing project for project owner
     * @param billingProject
     */
-  case class ClusterFixture(billingProject: GoogleProject, cluster: Cluster)
+  case class ClusterFixture(cluster: Cluster)
 
-  type FixtureParam = ClusterFixture
+  override type FixtureParam = ClusterFixture
 
   override def withFixture(test: OneArgTest): Outcome = {
     if (debug) {
       logger.info(s"[Debug] Using mocked cluster for cluster fixture tests")
       ronCluster = mockedCluster
     }
-    withFixture(test.toNoArgTest(ClusterFixture(billingProject, ronCluster)))
+    withFixture(test.toNoArgTest(ClusterFixture(ronCluster)))
   }
 
   /**
     * Create new cluster by Ron with all default settings
     */
-  def createRonCluster(): Unit = {
+  def createRonCluster(billingProject: GoogleProject): Unit = {
     logger.info(s"Creating cluster for cluster fixture tests: ${getClass.getSimpleName}")
     ronCluster = createNewCluster(billingProject, request = getClusterRequest())(ronAuthToken)
   }
@@ -70,7 +67,7 @@ abstract class ClusterFixture extends fixture.FreeSpec with BeforeAndAfterAll wi
   /**
     * Delete cluster without monitoring that's owned by Ron
     */
-  def deleteRonCluster(monitoringDelete: Boolean = false): Unit = {
+  def deleteRonCluster(billingProject: GoogleProject, monitoringDelete: Boolean = false): Unit = {
     logger.info(s"Deleting cluster for cluster fixture tests: ${getClass.getSimpleName}")
     deleteCluster(billingProject, ronCluster.clusterName, monitoringDelete)(ronAuthToken)
   }
@@ -79,7 +76,8 @@ abstract class ClusterFixture extends fixture.FreeSpec with BeforeAndAfterAll wi
     super.beforeAll()
     logger.info("beforeAll")
     if (!debug) {
-      createRonCluster()
+      val billingProject = System.getProperty("leonardo.billingProject")
+      createRonCluster(GoogleProject(billingProject))
     }
 
   }
@@ -87,7 +85,8 @@ abstract class ClusterFixture extends fixture.FreeSpec with BeforeAndAfterAll wi
   override def afterAll(): Unit = {
     logger.info("afterAll")
     if (!debug) {
-      deleteRonCluster()
+      val billingProject = System.getProperty("leonardo.billingProject")
+      deleteRonCluster(GoogleProject(billingProject))
     }
     super.afterAll()
   }

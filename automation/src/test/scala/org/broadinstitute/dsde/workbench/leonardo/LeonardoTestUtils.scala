@@ -15,15 +15,14 @@ import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserAuthToken}
 import org.broadinstitute.dsde.workbench.config.Credentials
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
-import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{ClusterStatus, deletableStatuses}
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
-import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration, RestException, Sam}
+import org.broadinstitute.dsde.workbench.service.test.{RandomUtil, WebBrowserSpec}
+import org.broadinstitute.dsde.workbench.service.{RestException, Sam}
 import org.broadinstitute.dsde.workbench.util._
 import org.scalactic.source.Position
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
@@ -42,8 +41,8 @@ case class KernelNotReadyException(timeElapsed:Timeout)
 
 case class TimeResult[R](result:R, duration:FiniteDuration)
 
-trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures with Retry {
-  this: Suite with BillingFixtures =>
+trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures with Retry with RandomUtil {
+  this: Suite =>
 
   val system: ActorSystem = ActorSystem("leotests")
   val logDir = new File("output")
@@ -81,8 +80,6 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
   implicit val lineBacker = Linebacker.fromExecutionContext[IO](global)
   val google2StorageResource = GoogleStorageService.resource[IO](LeonardoConfig.GCS.pathToQAJson)
-
-  def billingProject: GoogleProject
 
   // TODO: move this to NotebookTestUtils and chance cluster-specific functions to only call if necessary after implementing RStudio
   def saveJupyterLogFile(clusterName: ClusterName, googleProject: GoogleProject, suffix: String)(implicit token: AuthToken): Try[File] = {

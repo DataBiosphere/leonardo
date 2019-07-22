@@ -1,11 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.cluster
 
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
-import org.broadinstitute.dsde.workbench.leonardo.{ClusterStatus, Leonardo, LeonardoTestUtils}
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.leonardo.{ClusterStatus, GPAllocFixtureSpec, Leonardo, LeonardoTestUtils}
 import org.broadinstitute.dsde.workbench.service.RestException
-import org.scalatest.{DoNotDiscover, FreeSpec, ParallelTestExecution}
+import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 /**
   * This spec is for validating how Leonardo/Google handles cluster status transitions.
@@ -14,14 +12,14 @@ import org.scalatest.{DoNotDiscover, FreeSpec, ParallelTestExecution}
   * should exercise the most commonly used paths through the system.
   */
 @DoNotDiscover
-class ClusterStatusTransitionsSpec(val billingProject: GoogleProject) extends FreeSpec with ParallelTestExecution with LeonardoTestUtils with BillingFixtures {
+class ClusterStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
 
   // these tests just hit the Leo APIs; they don't interact with notebooks via selenium
   "ClusterStatusTransitionsSpec" - {
 
     implicit val ronToken: AuthToken = ronAuthToken
 
-    "create, monitor, delete should transition correctly" in {
+    "create, monitor, delete should transition correctly" in { billingProject =>
       logger.info("Starting ClusterStatusTransitionsSpec: create, monitor, delete should transition correctly")
 
       val clusterName = randomClusterName
@@ -68,7 +66,7 @@ class ClusterStatusTransitionsSpec(val billingProject: GoogleProject) extends Fr
       withNewCluster(billingProject, clusterName, clusterRequest, monitorCreate = true, monitorDelete = false)(noop)
     }
 
-    "error'd clusters should transition correctly" in {
+    "error'd clusters should transition correctly" in { billingProject =>
       logger.info("Starting ClusterStatusTransitionsSpec: error'd clusters should transition correctly")
 
       // make an Error'd cluster
@@ -89,7 +87,7 @@ class ClusterStatusTransitionsSpec(val billingProject: GoogleProject) extends Fr
     }
 
     // set the "stop after creation" flag
-    "should stop a cluster after creation" in {
+    "should stop a cluster after creation" in { billingProject =>
       logger.info("Starting ClusterStatusTransitionsSpec: should stop a cluster after creation")
 
       val request = defaultClusterRequest.copy(stopAfterCreation = Some(true))

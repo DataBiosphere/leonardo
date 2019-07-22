@@ -3,11 +3,11 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
-import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
-import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles, GoogleProject}
+import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec
+import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.service.util.Tags
-import org.scalatest.{DoNotDiscover, FreeSpec, ParallelTestExecution}
+import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -16,11 +16,11 @@ import scala.language.postfixOps
   * This spec verfies different cluster creation options, such as user scripts, extensions, etc.
   */
 @DoNotDiscover
-final class NotebookCustomizationSpec(val billingProject: GoogleProject) extends FreeSpec with ParallelTestExecution with NotebookTestUtils with BillingFixtures {
+final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils {
 
   "NotebookCustomizationSpec" - {
 
-    "should run a user script" taggedAs Tags.SmokeTest in {
+    "should run a user script" taggedAs Tags.SmokeTest in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
 
       // Create a new bucket
@@ -62,7 +62,7 @@ final class NotebookCustomizationSpec(val billingProject: GoogleProject) extends
 
     // Using nbtranslate extension from here:
     // https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
-    "should install user specified notebook extensions" in {
+    "should install user specified notebook extensions" in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
 
       val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
@@ -93,7 +93,7 @@ final class NotebookCustomizationSpec(val billingProject: GoogleProject) extends
       }
     }
 
-    "should give cluster user-specified scopes" in {
+    "should give cluster user-specified scopes" in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
 
       withNewCluster(billingProject, request = defaultClusterRequest.copy(scopes = Set("https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/source.read_only"))) { cluster =>

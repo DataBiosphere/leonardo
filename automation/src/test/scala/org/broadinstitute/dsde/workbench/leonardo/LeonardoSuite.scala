@@ -11,18 +11,28 @@ import org.scalatest._
 
 import scala.collection.immutable
 
-trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures with LeonardoTestUtils { this: TestSuite =>
+trait GPAllocFixtureSpec extends fixture.FreeSpecLike {
+  val gpallocProjectKey = "leonardo.billingProject"
 
-  var billingProject: GoogleProject = _
+  override type FixtureParam = GoogleProject
+  override def withFixture(test: OneArgTest): Outcome = {
+    val billingProject = System.getProperty(gpallocProjectKey)
+    withFixture(test.toNoArgTest(GoogleProject(billingProject)))
+  }
+}
+
+trait GPAllocBeforeAndAfterAll extends GPAllocFixtureSpec with BeforeAndAfterAll with BillingFixtures with LeonardoTestUtils {
 
   override def beforeAll(): Unit = {
     super.beforeAll()
-    billingProject = claimProject()
+    val billingProject = claimProject()
+    System.setProperty(gpallocProjectKey, billingProject.value)
   }
 
   override def afterAll(): Unit = {
-    unclaimProject(billingProject)
-    billingProject = null
+    val billingProject = System.getProperty(gpallocProjectKey)
+    unclaimProject(GoogleProject(billingProject))
+    System.clearProperty(gpallocProjectKey)
     super.afterAll()
   }
 
@@ -47,23 +57,16 @@ trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures wi
 
 }
 
-
-final class LeonardoSuite extends TestSuite with GPAllocBeforeAndAfterAll with ParallelTestExecution {
-
-  override def nestedSuites: immutable.IndexedSeq[Suite] = {
-    Vector(
-      new PingSpec(billingProject),
-      new ClusterStatusTransitionsSpec(billingProject),
-      new LabSpec(billingProject),
-      new NotebookClusterMonitoringSpec(billingProject),
-      new NotebookCustomizationSpec(billingProject),
-      new NotebookDataSyncingSpec(billingProject),
-      new NotebookHailSpec(billingProject),
-      new NotebookLocalizeFileSpec(billingProject),
-      new NotebookPyKernelSpec(billingProject),
-      new NotebookRKernelSpec(billingProject),
-      new RStudioSpec(billingProject)
-    )
-  }
-
-}
+final class LeonardoSuite extends Suites(
+  new PingSpec,
+  new ClusterStatusTransitionsSpec,
+  new LabSpec,
+  new NotebookClusterMonitoringSpec,
+  new NotebookCustomizationSpec,
+  new NotebookDataSyncingSpec,
+  new NotebookHailSpec,
+  new NotebookLocalizeFileSpec,
+  new NotebookPyKernelSpec,
+  new NotebookRKernelSpec,
+  new RStudioSpec
+) with GPAllocBeforeAndAfterAll
