@@ -33,19 +33,6 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
       }
     }
 
-    // This is the negative counterpart of the NotebookUserScriptSpec test named
-    // "should allow importing a package that requires a user script that IS installed"
-    // to verify that we can only import 'arrow' with the user script specified in that test
-    "should error importing a package that isn't installed" in { clusterFixture =>
-      withWebDriver { implicit driver =>
-        //a cluster without the user script should not be able to import the arrow library
-        withNewNotebook(clusterFixture.cluster) { notebookPage =>
-          notebookPage.executeCell("""print('Hello Notebook!')""") shouldBe Some("Hello Notebook!")
-          notebookPage.executeCell("""import arrow""").get should include("ImportError: No module named arrow")
-        }
-      }
-    }
-
     Seq(Python2, Python3).foreach { kernel =>
       s"should be able to pip install packages using ${kernel.string}" in { clusterFixture =>
         withWebDriver { implicit driver =>

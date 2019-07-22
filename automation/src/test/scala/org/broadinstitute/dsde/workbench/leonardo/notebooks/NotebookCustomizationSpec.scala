@@ -32,7 +32,7 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
           GcsRoles.Owner)
 
         // Add the user script to the bucket
-        val userScriptString = "#!/usr/bin/env bash\n\npip2 install arrow"
+        val userScriptString = "#!/usr/bin/env bash\n\npip2 install dummy"
         val userScriptObjectName = GcsObjectName("user-script.sh")
         val userScriptUri = s"gs://${bucketName.value}/${userScriptObjectName.value}"
 
@@ -49,10 +49,9 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
             Thread.sleep(10000)
             withWebDriver { implicit driver =>
               // Create a notebook that will check if the user script ran
-              withNewNotebook(cluster) { notebookPage =>
+              withNewNotebook(cluster, Python2) { notebookPage =>
                 notebookPage.executeCell("""print('Hello Notebook!')""") shouldBe Some("Hello Notebook!")
-                notebookPage.executeCell("""import arrow""")
-                notebookPage.executeCell("""arrow.get(727070400)""") shouldBe Some("<Arrow [1993-01-15T04:00:00+00:00]>")
+                notebookPage.executeCell("""import dummy""") shouldBe None
               }
             }
           }(ronAuthToken)
