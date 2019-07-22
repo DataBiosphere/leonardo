@@ -70,4 +70,4 @@ final class LeonardoSuite extends Suites(
   new NotebookPyKernelSpec,
   new NotebookRKernelSpec,
   new RStudioSpec
-) with GPAllocBeforeAndAfterAll
+) with GPAllocBeforeAndAfterAll with ParallelTestExecution
