@@ -41,7 +41,7 @@ class NotebookPyKernelSpec(val billingProject: GoogleProject) extends ClusterFix
       withWebDriver { implicit driver =>
         //a cluster without the user script should not be able to import the arrow library
         withNewNotebook(clusterFixture.cluster) { notebookPage =>
-          notebookPage.executeCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")
+          notebookPage.executeCell("""print('Hello Notebook!)'""") shouldBe Some("Hello Notebook!")
           notebookPage.executeCell("""import arrow""").get should include("ImportError: No module named arrow")
         }
       }
@@ -52,14 +52,14 @@ class NotebookPyKernelSpec(val billingProject: GoogleProject) extends ClusterFix
         withWebDriver { implicit driver =>
           withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
             // install a package that is not installed by default
-            notebookPage.executeCell("import fuzzywuzzy").getOrElse("") should include ("ModuleNotFoundError")
+            notebookPage.executeCell("import fuzzywuzzy").getOrElse("") should include (if (kernel == Python2) "ImportError" else "ModuleNotFoundError")
             pipInstall(notebookPage, kernel, "fuzzywuzzy")
             notebookPage.saveAndCheckpoint()
 
             // need to restart the kernel for the install to take effect
             notebookPage.restartKernel()
 
-            notebookPage.executeCell("import fuzzywuzzy").getOrElse("") should not include ("ModuleNotFoundError")
+            notebookPage.executeCell("import fuzzywuzzy", cellNumberOpt = Some(1)) shouldBe Some("")
           }
         }
       }
@@ -179,7 +179,7 @@ class NotebookPyKernelSpec(val billingProject: GoogleProject) extends ClusterFix
           withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
             notebookPage.executeCell("! echo $GOOGLE_PROJECT").get shouldBe clusterFixture.billingProject.value
             notebookPage.executeCell("! echo $WORKSPACE_NAMESPACE").get shouldBe clusterFixture.billingProject.value
-            notebookPage.executeCell("! echo $WORKSPACE_NAME").get shouldBe "jupyter-user"
+            notebookPage.executeCell("! echo $WORKSPACE_NAME").get shouldBe "notebooks"
             // workspace bucket is not wired up in tests
             notebookPage.executeCell("! echo $WORKSPACE_BUCKET").get shouldBe ""
           }
@@ -205,7 +205,7 @@ class NotebookPyKernelSpec(val billingProject: GoogleProject) extends ClusterFix
       clusterFixture.cluster.serviceAccountInfo.notebookServiceAccount shouldBe None
 
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, Python2) { notebookPage =>
+        withNewNotebook(clusterFixture.cluster, PySpark2) { notebookPage =>
           // should not have notebook credentials because Leo is not configured to use a notebook service account
           verifyNoNotebookCredentials(notebookPage)
         }

@@ -171,10 +171,10 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
 
   //TODO: This function is buggy because the cell numbers are kernel specific not notebook specific
   //It is possible to have a notebook with two cells, numbered 1,1 or even 1, 9
-  def executeCell(code: String, timeout: FiniteDuration = 1 minute): Option[String] = {
+  def executeCell(code: String, timeout: FiniteDuration = 1 minute, cellNumberOpt: Option[Int] = None): Option[String] = {
     await enabled cells
     val cell = lastCell
-    val cellNumber = numCellsOnPage
+    val cellNumber = cellNumberOpt.getOrElse(numCellsOnPage)
     click on cell
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
     executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
