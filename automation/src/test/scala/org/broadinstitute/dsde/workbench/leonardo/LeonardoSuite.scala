@@ -9,15 +9,15 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration}
 import org.scalatest._
 
-import scala.collection.immutable
-
 trait GPAllocFixtureSpec extends fixture.FreeSpecLike {
   val gpallocProjectKey = "leonardo.billingProject"
 
   override type FixtureParam = GoogleProject
   override def withFixture(test: OneArgTest): Outcome = {
-    val billingProject = System.getProperty(gpallocProjectKey)
-    withFixture(test.toNoArgTest(GoogleProject(billingProject)))
+    sys.props.get(gpallocProjectKey) match {
+      case None => throw new RuntimeException("leonardo.billingProject system property is not set")
+      case Some(billingProject) => withFixture(test.toNoArgTest(GoogleProject(billingProject)))
+    }
   }
 }
 
@@ -26,13 +26,14 @@ trait GPAllocBeforeAndAfterAll extends GPAllocFixtureSpec with BeforeAndAfterAll
   override def beforeAll(): Unit = {
     super.beforeAll()
     val billingProject = claimProject()
-    System.setProperty(gpallocProjectKey, billingProject.value)
+    sys.props.put(gpallocProjectKey, billingProject.value)
   }
 
   override def afterAll(): Unit = {
-    val billingProject = System.getProperty(gpallocProjectKey)
-    unclaimProject(GoogleProject(billingProject))
-    System.clearProperty(gpallocProjectKey)
+    sys.props.get(gpallocProjectKey).foreach { billingProject =>
+      unclaimProject(GoogleProject(billingProject))
+      sys.props.remove(gpallocProjectKey)
+    }
     super.afterAll()
   }
 

@@ -76,8 +76,10 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     super.beforeAll()
     logger.info("beforeAll")
     if (!debug) {
-      val billingProject = System.getProperty("leonardo.billingProject")
-      createRonCluster(GoogleProject(billingProject))
+      sys.props.get("leonardo.billingProject") match {
+        case Some(billingProject) => createRonCluster(GoogleProject(billingProject))
+        case None => throw new RuntimeException("leonardo.billingProject system property is not set")
+      }
     }
 
   }
@@ -85,8 +87,10 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   override def afterAll(): Unit = {
     logger.info("afterAll")
     if (!debug) {
-      val billingProject = System.getProperty("leonardo.billingProject")
-      deleteRonCluster(GoogleProject(billingProject))
+      sys.props.get("leonardo.billingProject") match {
+        case Some(billingProject) => deleteRonCluster(GoogleProject(billingProject))
+        case None => throw new RuntimeException("leonardo.billingProject system property is not set")
+      }
     }
     super.afterAll()
   }
