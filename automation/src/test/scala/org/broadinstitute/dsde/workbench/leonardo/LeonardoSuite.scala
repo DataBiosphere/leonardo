@@ -5,13 +5,12 @@ import org.broadinstitute.dsde.workbench.leonardo.cluster.ClusterStatusTransitio
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
+import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration}
 import org.scalatest._
 
 trait GPAllocFixtureSpec extends fixture.FreeSpecLike {
-  val gpallocProjectKey = "leonardo.billingProject"
-
   override type FixtureParam = GoogleProject
   override def withFixture(test: OneArgTest): Outcome = {
     sys.props.get(gpallocProjectKey) match {
@@ -20,8 +19,11 @@ trait GPAllocFixtureSpec extends fixture.FreeSpecLike {
     }
   }
 }
+object GPAllocFixtureSpec {
+  val gpallocProjectKey = "leonardo.billingProject"
+}
 
-trait GPAllocBeforeAndAfterAll extends GPAllocFixtureSpec with BeforeAndAfterAll with BillingFixtures with LeonardoTestUtils {
+trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures with LeonardoTestUtils { this: TestSuite =>
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -70,4 +72,4 @@ final class LeonardoSuite extends Suites(
   new NotebookPyKernelSpec,
   new NotebookRKernelSpec,
   new RStudioSpec
-) with GPAllocBeforeAndAfterAll with ParallelTestExecution
+) with TestSuite with GPAllocBeforeAndAfterAll with ParallelTestExecution

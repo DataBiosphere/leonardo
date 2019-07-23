@@ -88,6 +88,12 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
 
   // banner for edit or playground mode
   lazy val modeBanner: Query = cssSelector("[id='notification_mode']")
+
+  lazy val kernelNotification: Query = cssSelector("[id='notification_kernel']")
+
+  lazy val notebookNotification: Query = cssSelector("[id='notification_notebook']")
+
+  lazy val saveButton: Query = cssSelector(s"[id='${saveButtonId}']")
   
   //intentionally misspelled
   val saveButtonId = "save-notbook"
@@ -98,8 +104,6 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   val lockPlaygroundButton = "modal-playground"
   val lockCopyButton = "modal-copy-2"
   val noModeBannerId = "notification_not_saving"
-
-  lazy val saveButton: Query = cssSelector(s"[id='${saveButtonId}']")
 
   def getSelectorFrom(id: String): Query = {
     cssSelector(s"[id='${id}']")
@@ -116,11 +120,14 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     findAll(prompts).exists { e => e.text == s"In [$cellNumber]:" }
   }
 
-  lazy val kernelNotification: Query = cssSelector("[id='notification_kernel']")
-
   // can we see that the kernel connection has terminated?
   def isKernelShutdown: Boolean = {
     find(kernelNotification).exists { e => e.text == "No kernel" }
+  }
+
+  // TODO: doesn't work
+  def isNotebookSaved: Boolean = {
+    find(kernelNotification).exists { e => e.text == "Notebook saved" }
   }
 
   def runAllCells(timeout: FiniteDuration = 60 seconds): Unit = {
@@ -286,13 +293,16 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     }
   }
 
-  def saveNotebook(): Unit = {
+  def saveNotebook(timeout: FiniteDuration = 1 minute): Unit = {
     val isSafeMode = find(saveButton).exists(_.underlying.getAttribute("style") == "display: none;")
 
     if (isSafeMode) toggleSaveButtonHidden(false)
     await visible saveButton
     click on saveButton
     if (isSafeMode) toggleSaveButtonHidden(true)
+    // TODO: add selenium condition for saved notebook instead of sleep
+    Thread.sleep(5000)
+    //await condition (isNotebookSaved, timeout.toSeconds)
   }
 
   def toggleSaveButtonHidden(shouldHide: Boolean) = {

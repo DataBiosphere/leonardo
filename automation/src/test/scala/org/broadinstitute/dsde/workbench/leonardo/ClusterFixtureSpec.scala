@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec._
 import org.scalatest.{BeforeAndAfterAll, Outcome, fixture}
 
 
@@ -76,7 +77,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     super.beforeAll()
     logger.info("beforeAll")
     if (!debug) {
-      sys.props.get("leonardo.billingProject") match {
+      sys.props.get(gpallocProjectKey) match {
         case Some(billingProject) => createRonCluster(GoogleProject(billingProject))
         case None => throw new RuntimeException("leonardo.billingProject system property is not set")
       }
@@ -87,7 +88,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   override def afterAll(): Unit = {
     logger.info("afterAll")
     if (!debug) {
-      sys.props.get("leonardo.billingProject") match {
+      sys.props.get(gpallocProjectKey) match {
         case Some(billingProject) => deleteRonCluster(GoogleProject(billingProject))
         case None => throw new RuntimeException("leonardo.billingProject system property is not set")
       }
