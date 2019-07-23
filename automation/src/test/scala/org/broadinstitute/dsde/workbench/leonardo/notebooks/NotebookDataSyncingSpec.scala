@@ -47,11 +47,15 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
               notebookPage.addCodeAndExecute("1+1")
               notebookPage.saveNotebook()
 
-              val localContentSize: Int = Notebook.getNotebookItem(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode)).size
+              val localContent: NotebookContentItem = Notebook.getNotebookItem(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode))
+              logger.info(s"[edit mode] local content is ${localContent}")
+              val localContentSize: Int = localContent.size
 
               eventually(timeout(Span(5, Seconds))) {
                 val remoteContentSize: Int = getObjectSize(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value))
                   .unsafeRunSync()
+
+                logger.info(s"[edit mode] remote content size is ${remoteContentSize}")
 
                 remoteContentSize shouldBe localContentSize
               }
@@ -84,15 +88,17 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
 
               val originalRemoteContentSize: Int = getObjectSize(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value))
                 .unsafeRunSync()
+              logger.info(s"[edit mode] original remote content size is ${originalRemoteContentSize}")
 
-              val originalLocalContentSize: Int = Notebook.getNotebookItem(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode)).size
+              val originalLocalContent: NotebookContentItem = Notebook.getNotebookItem(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode))
+              logger.info(s"[edit mode] original local content is ${originalLocalContent}")
+              val originalLocalContentSize: Int = originalLocalContent.size
 
               originalRemoteContentSize shouldBe originalLocalContentSize
 
               notebookPage.modeExists() shouldBe true
               notebookPage.getMode() shouldBe NotebookMode.SafeMode
               notebookPage.addCodeAndExecute("1+1")
-
               notebookPage.saveNotebook()
 
               //sleep 4 minutes. We do this to ensure the assertions are true after a certain about of time.
@@ -101,9 +107,12 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
               Thread.sleep(240000)
 
               eventually(timeout(Span(5, Seconds))) {
-                val newLocalContentSize = Notebook.getNotebookItem(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode)).size
+                val newLocalContent: NotebookContentItem = Notebook.getNotebookItem(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode))
+                val newLocalContentSize: Int = newLocalContent.size
+                logger.info(s"[edit mode] new local content is ${newLocalContent}")
                 val newRemoteContentSize = getObjectSize(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value))
                   .unsafeRunSync()
+                logger.info(s"[edit mode] new remote content size is ${newRemoteContentSize}")
 
                 newLocalContentSize should be > newRemoteContentSize
                 originalRemoteContentSize shouldBe newRemoteContentSize
