@@ -431,7 +431,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       }
 
       // delete before checking testCode status, which may throw
-      deleteAndMonitor(googleProject, name)
+      deleteCluster(googleProject, name, false)
       testResult.get
     }
   }

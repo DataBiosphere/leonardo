@@ -190,7 +190,8 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     click on cell
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
     executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
-    click on runCellButton
+    clickRunCell(timeout)
+    await condition(!cellsAreRunning, timeout.toSeconds)
   }
 
   def translateMarkup(code: String, timeout: FiniteDuration = 1 minute): String = {

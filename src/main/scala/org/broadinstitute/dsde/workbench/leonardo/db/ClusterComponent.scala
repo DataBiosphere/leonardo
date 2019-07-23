@@ -168,21 +168,30 @@ trait ClusterComponent extends LeoComponent {
     }
 
     def listMonitoredClusterOnly(): DBIO[Seq[Cluster]] = {
-      clusterQuery.filter{_.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }.result map { recs =>
-        recs.map(rec => unmarshalCluster(rec, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty))
-      }
+      clusterQuery
+        .filter { _.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }
+        .filter { _.googleId.isDefined }
+        .result map { recs =>
+          recs.map(rec => unmarshalCluster(rec, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty))
+        }
     }
 
     def listMonitored(): DBIO[Seq[Cluster]] = {
-      clusterLabelQuery.filter { _._1.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }.result map { recs =>
-        unmarshalMinimalCluster(recs)
-      }
+      clusterLabelQuery
+        .filter { _._1.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }
+        .filter { _.googleId.isDefined }
+        .result map { recs =>
+          unmarshalMinimalCluster(recs)
+        }
     }
 
     def listMonitoredFullCluster(): DBIO[Seq[Cluster]] = {
-      fullClusterQuery.filter { _._1.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }.result map { recs =>
-        unmarshalFullCluster(recs)
-      }
+      fullClusterQuery
+        .filter { _._1.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }
+        .filter { _._1.googleId.isDefined }
+        .result map { recs =>
+          unmarshalFullCluster(recs)
+        }
     }
 
     def countByClusterServiceAccountAndStatuses(clusterServiceAccount: WorkbenchEmail, statuses: Set[ClusterStatus]) = {
