@@ -44,7 +44,7 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
 
               notebookPage.modeExists() shouldBe true
               notebookPage.getMode() shouldBe NotebookMode.EditMode
-              notebookPage.addCodeAndExecute("1+1")
+              notebookPage.executeCell("1+1") shouldBe Some("2")
               notebookPage.saveNotebook()
 
               val localContentSize: Int = Notebook.getNotebookItem(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode)).size
@@ -91,7 +91,7 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
 
               notebookPage.modeExists() shouldBe true
               notebookPage.getMode() shouldBe NotebookMode.SafeMode
-              notebookPage.addCodeAndExecute("1+1")
+              notebookPage.executeCell("1+1") shouldBe Some("2")
 
               notebookPage.saveNotebook()
 
