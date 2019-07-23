@@ -256,25 +256,39 @@ class WelderContentsManager(FileContentsManager):
     return ret
 
   def rename_file(self, old_path, new_path):
-    if not self._check_welder_edit_mode(old_path) and not self._check_welder_edit_mode(new_path):
+    from_edit_mode = self._check_welder_edit_mode(old_path)
+    to_edit_mode = self._check_welder_edit_mode(new_path)
+    if not from_edit_mode and not to_edit_mode:
       # If we're not touching any edit mode files, just do a normal move.
       return super(WelderContentsManager, self).rename_file(old_path, new_path)
+
+    old_os_path = self._get_os_path(old_path)
+    if os.path.isdir(old_os_path) and len(os.listdir(old_os_path)) > 0:
+      raise NotImplementedError("renaming of non-empty edit mode directories is not supported")
 
     # These methods already properly handle edit mode semantics.
     self.save(self.get(old_path), new_path)
     try:
-      self.delete(old_path)
+      self.delete_file(old_path, from_edit_mode)
     except Exception as err:
       self.log.error("failed to delete old file during two-phase rename, " +
           "attempting to revert save from the first phase: " + str(err))
       try:
-        self.delete(new_path)
+        self.delete_file(new_path, to_edit_mode)
       except Exception as rerr:
         self.log.error("failed to revert first phase of rename via delete, " +
             "extra file will remain on disk and/or GCS: " + str(rerr))
         raise rerr
       raise err
 
-  def delete_file(self, path):
-    self._post_welder('delete', path)
+  def delete_file(self, path, edit_mode=None):
+    if edit_mode is None:
+      edit_mode = self._check_welder_edit_mode(path)
+
+    if edit_mode:
+      os_path = self._get_os_path(path)
+      if os.path.isdir(os_path) and len(os.listdir(os_path)) > 0:
+        raise NotImplementedError("deletion of non-empty edit mode directories is not supported")
+      self._post_welder('delete', path)
+
     super(WelderContentsManager, self).delete_file(path)

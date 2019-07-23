@@ -214,12 +214,24 @@ class TestWelderContentsManager(AsyncTestCase):
     }, path=path)
     return content.dict()
 
+  def _save_new_dir(self, path):
+    self.manager.save({
+        'type': 'directory',
+        'content': '[]',
+        'format': 'json'
+    }, path=path)
+
   @requests_mock.mock()
   def test_save(self, mock_request):
     mock_request.post(self.manager.welder_base_url + '/objects')
     want = self._save_new_notebook('dir/foo.ipynb')
     with open(self.manager.root_dir + '/dir/foo.ipynb', 'r') as got:
       self.assertEqual(json.load(got), want)
+
+  @requests_mock.mock()
+  def test_save_dir(self, mock_request):
+    self._save_new_dir('dir/foo')
+    self.assertTrue(os.path.isdir(self.manager.root_dir + '/dir/foo'))
 
   @requests_mock.mock()
   def test_save_scratch_file(self, mock_request):
@@ -271,8 +283,17 @@ class TestWelderContentsManager(AsyncTestCase):
     with open(self.manager.root_dir + '/dir/foo.ipynb', 'r') as got:
       self.assertEqual(json.load(got)['cells'], content.dict()['cells'])
 
+  def mock_edit_mode_meta(self, mock_request, edit_mode=True):
+    if not edit_mode:
+      mock_request.post(self.manager.welder_base_url + '/objects/metadata', status_code=412)
+    else:
+      mock_request.post(self.manager.welder_base_url + '/objects/metadata', json={
+        'syncMode': 'EDIT'
+      })
+
   @requests_mock.mock()
   def test_delete(self, mock_request):
+    self.mock_edit_mode_meta(mock_request)
     mock_request.post(self.manager.welder_base_url + '/objects')
     self._save_new_notebook('dir/foo.ipynb')
 
@@ -280,17 +301,48 @@ class TestWelderContentsManager(AsyncTestCase):
     self.assertFalse(os.path.isfile(self.manager.root_dir + '/dir/foo.ipynb'))
 
   @requests_mock.mock()
+  def test_delete_empty_dir(self, mock_request):
+    self.mock_edit_mode_meta(mock_request)
+    mock_request.post(self.manager.welder_base_url + '/objects')
+    self._save_new_dir('dir/foo')
+
+    self.manager.delete_file('dir/foo')
+    self.assertFalse(os.path.isdir(self.manager.root_dir + '/dir/foo'))
+
+  @requests_mock.mock()
+  def test_delete_dir_with_notebook(self, mock_request):
+    self.mock_edit_mode_meta(mock_request)
+    mock_request.post(self.manager.welder_base_url + '/objects')
+    self._save_new_dir('dir/foo')
+    self._save_new_notebook('dir/foo/nb.ipynb')
+
+    try:
+      self.manager.delete_file('dir/foo')
+      self.fail('expected error on non-empty edit mode directory deletion')
+    except NotImplementedError:
+      pass
+    self.assertTrue(os.path.isdir(self.manager.root_dir + '/dir/foo'))
+
+  @requests_mock.mock()
   def test_delete_scratch_file(self, mock_request):
-    mock_request.post(self.manager.welder_base_url + '/objects', status_code=412, json={
-      'errorCode': 1
-    })
+    self.mock_edit_mode_meta(mock_request, edit_mode=False)
+    mock_request.post(self.manager.welder_base_url + '/objects')
     self._save_new_notebook('dir/foo.ipynb')
 
     self.manager.delete_file('dir/foo.ipynb')
     self.assertFalse(os.path.isfile(self.manager.root_dir + '/dir/foo.ipynb'))
 
   @requests_mock.mock()
+  def test_delete_scratch_dir(self, mock_request):
+    self.mock_edit_mode_meta(mock_request, edit_mode=False)
+    self._save_new_dir('dir/foo')
+
+    self.manager.delete_file('dir/foo')
+    self.assertFalse(os.path.isdir(self.manager.root_dir + '/dir/foo'))
+
+  @requests_mock.mock()
   def test_delete_local_file_survives_welder_error(self, mock_request):
+    self.mock_edit_mode_meta(mock_request)
     mock_request.post(self.manager.welder_base_url + '/objects')
     self._save_new_notebook('dir/foo.ipynb')
 
@@ -307,9 +359,7 @@ class TestWelderContentsManager(AsyncTestCase):
   @requests_mock.mock()
   def test_rename(self, mock_request):
     post_mock = mock_request.post(self.manager.welder_base_url + '/objects')
-    mock_request.post(self.manager.welder_base_url + '/objects/metadata', json={
-      'syncMode': 'EDIT'
-    })
+    self.mock_edit_mode_meta(mock_request)
     want = self._save_new_notebook('dir/foo.ipynb')
 
     # Creating the initial notebook above results in a Welder post.
@@ -322,9 +372,34 @@ class TestWelderContentsManager(AsyncTestCase):
     self.assertEqual(post_mock.call_count - posts_before_rename, 2)
 
   @requests_mock.mock()
+  def test_rename_empty_dir(self, mock_request):
+    self.mock_edit_mode_meta(mock_request)
+    mock_request.post(self.manager.welder_base_url + '/objects')
+    self._save_new_dir('dir/foo')
+
+    self.manager.rename('dir/foo', 'dir/bar')
+    self.assertFalse(os.path.isdir(self.manager.root_dir + '/dir/foo'))
+    self.assertTrue(os.path.isdir(self.manager.root_dir + '/dir/bar'))
+
+  @requests_mock.mock()
+  def test_rename_dir_with_notebook(self, mock_request):
+    post_mock = mock_request.post(self.manager.welder_base_url + '/objects')
+    self.mock_edit_mode_meta(mock_request)
+    self._save_new_dir('dir/foo')
+    self._save_new_notebook('dir/foo/nb.ipynb')
+
+    try:
+      self.manager.rename('dir/foo', 'dir/bar')
+      self.fail('expected error on non-empty edit mode rename')
+    except:
+      pass
+    self.assertTrue(os.path.isdir(self.manager.root_dir + '/dir/foo'))
+    self.assertFalse(os.path.isdir(self.manager.root_dir + '/dir/bar'))
+
+  @requests_mock.mock()
   def test_rename_scratch_file(self, mock_request):
     post_mock = mock_request.post(self.manager.welder_base_url + '/objects')
-    mock_request.post(self.manager.welder_base_url + '/objects/metadata', status_code=412)
+    self.mock_edit_mode_meta(mock_request, edit_mode=False)
     want = self._save_new_notebook('dir/foo.ipynb')
 
     # Creating the initial notebook above results in a Welder post.
@@ -336,6 +411,15 @@ class TestWelderContentsManager(AsyncTestCase):
 
     self.assertEqual(post_mock.call_count - posts_before_rename, 0)
 
+  @requests_mock.mock()
+  def test_rename_scratch_dir(self, mock_request):
+    self.mock_edit_mode_meta(mock_request, edit_mode=False)
+    self._save_new_dir('dir/foo')
+
+    self.manager.rename('dir/foo', 'dir/bar')
+    self.assertFalse(os.path.isdir(self.manager.root_dir + '/dir/foo'))
+    self.assertTrue(os.path.isdir(self.manager.root_dir + '/dir/bar'))
+
   def _delete_req_matcher(self, path):
     def m(req):
       return req.json()['action'] == 'delete' and req.json()['localPath'] == path
@@ -346,9 +430,7 @@ class TestWelderContentsManager(AsyncTestCase):
     mock_request.post(self.manager.welder_base_url + '/objects')
     mock_request.post(self.manager.welder_base_url + '/objects', additional_matcher=self._delete_req_matcher('dir/foo.ipynb'), status_code=500)
     mock_request.post(self.manager.welder_base_url + '/objects', additional_matcher=self._delete_req_matcher('dir/bar.ipynb'))
-    mock_request.post(self.manager.welder_base_url + '/objects/metadata', json={
-      'syncMode': 'EDIT'
-    })
+    self.mock_edit_mode_meta(mock_request)
     want = self._save_new_notebook('dir/foo.ipynb')
 
     # Creating the initial notebook above results in a Welder post.
