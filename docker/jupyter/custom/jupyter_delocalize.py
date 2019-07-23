@@ -179,10 +179,15 @@ class WelderContentsManager(FileContentsManager):
     super(WelderContentsManager, self).__init__(*args, **kwargs)
 
   def _extract_welder_error(self, resp):
-      try:
-        return json.dumps(resp.json())
-      except:
-        return resp.reason or 'unknown Welder error'
+    try:
+      return json.dumps(resp.json())
+    except:
+      return resp.reason or 'unknown Welder error'
+
+  def _is_nonempty_dir(self, path):
+    os_path = self._get_os_path(path)
+    return os.path.isdir(os_path) and len(os.listdir(os_path)) > 0
+
 
   def _check_welder_edit_mode(self, path):
     resp = requests.post(self.welder_base_url + '/objects/metadata', data=json.dumps({
@@ -262,8 +267,7 @@ class WelderContentsManager(FileContentsManager):
       # If we're not touching any edit mode files, just do a normal move.
       return super(WelderContentsManager, self).rename_file(old_path, new_path)
 
-    old_os_path = self._get_os_path(old_path)
-    if os.path.isdir(old_os_path) and len(os.listdir(old_os_path)) > 0:
+    if self._is_nonempty_dir(old_path):
       raise NotImplementedError("renaming of non-empty edit mode directories is not supported")
 
     # These methods already properly handle edit mode semantics.
@@ -286,8 +290,7 @@ class WelderContentsManager(FileContentsManager):
       edit_mode = self._check_welder_edit_mode(path)
 
     if edit_mode:
-      os_path = self._get_os_path(path)
-      if os.path.isdir(os_path) and len(os.listdir(os_path)) > 0:
+      if self._is_nonempty_dir(path):
         raise NotImplementedError("deletion of non-empty edit mode directories is not supported")
       self._post_welder('delete', path)
 
