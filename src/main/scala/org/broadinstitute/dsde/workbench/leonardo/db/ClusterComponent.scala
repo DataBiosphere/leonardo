@@ -179,7 +179,7 @@ trait ClusterComponent extends LeoComponent {
     def listMonitored(): DBIO[Seq[Cluster]] = {
       clusterLabelQuery
         .filter { _._1.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }
-        .filter { _.googleId.isDefined }
+        .filter { _._1.googleId.isDefined }
         .result map { recs =>
           unmarshalMinimalCluster(recs)
         }
