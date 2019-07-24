@@ -75,7 +75,7 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
     }
 
     "open notebook in playground mode should work" in { clusterFixture =>
-      val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
+      val sampleNotebook = ResourceFile("bucket-tests/gcsFile2.ipynb")
       val isEditMode = false
 
       withResourceFileInBucket(clusterFixture.cluster.googleProject, sampleNotebook, "text/plain") { gcsPath =>
@@ -136,7 +136,7 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
     }
 
     "Sync issues and make a copy handled transition correctly" in { clusterFixture =>
-      val fileName = "gcsFile2" //we store this portion separately as the name of the copy is computed off it
+      val fileName = "gcsFile3" //we store this portion separately as the name of the copy is computed off it
       val sampleNotebook = ResourceFile(s"bucket-tests/${fileName}.ipynb")
       val isEditMode = true
 
@@ -170,7 +170,7 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
     }
 
     "Locked by another user and playground mode transition handled correctly" in { clusterFixture =>
-      val sampleNotebook = ResourceFile("bucket-tests/gcsFile3.ipynb")
+      val sampleNotebook = ResourceFile("bucket-tests/gcsFile4.ipynb")
       val isEditMode = true
 
       withResourceFileInBucket(clusterFixture.cluster.googleProject, sampleNotebook, "text/plain") { gcsPath =>
