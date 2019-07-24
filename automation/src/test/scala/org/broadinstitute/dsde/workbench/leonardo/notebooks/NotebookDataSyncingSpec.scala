@@ -88,10 +88,10 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
 
               val originalRemoteContentSize: Int = getObjectSize(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value))
                 .unsafeRunSync()
-              logger.info(s"[edit mode] original remote content size is ${originalRemoteContentSize}")
+              logger.info(s"[playground mode] original remote content size is ${originalRemoteContentSize}")
 
               val originalLocalContent: NotebookContentItem = Notebook.getNotebookItem(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode))
-              logger.info(s"[edit mode] original local content is ${originalLocalContent}")
+              logger.info(s"[playground mode] original local content is ${originalLocalContent}")
               val originalLocalContentSize: Int = originalLocalContent.size
 
               originalRemoteContentSize shouldBe originalLocalContentSize
@@ -109,10 +109,10 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
               eventually(timeout(Span(5, Seconds))) {
                 val newLocalContent: NotebookContentItem = Notebook.getNotebookItem(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode))
                 val newLocalContentSize: Int = newLocalContent.size
-                logger.info(s"[edit mode] new local content is ${newLocalContent}")
+                logger.info(s"[playground mode] new local content is ${newLocalContent}")
                 val newRemoteContentSize = getObjectSize(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value))
                   .unsafeRunSync()
-                logger.info(s"[edit mode] new remote content size is ${newRemoteContentSize}")
+                logger.info(s"[playground mode] new remote content size is ${newRemoteContentSize}")
 
                 newLocalContentSize should be > newRemoteContentSize
                 originalRemoteContentSize shouldBe newRemoteContentSize
