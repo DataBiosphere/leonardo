@@ -15,13 +15,13 @@ import org.broadinstitute.dsde.workbench.google.{GoogleStorageDAO, HttpGoogleIam
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.api.{LeoRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.auth.{LeoAuthProviderHelper, ServiceAccountProviderHelper}
-import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, ClusterDefaultsConfig, ClusterDnsCacheConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, LeoExecutionModeConfig, MonitorConfig, ProxyConfig, SamConfig, SwaggerConfig, ZombieClusterConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, ClusterDefaultsConfig, ClusterDnsCacheConfig, ClusterFilesConfig, ClusterResourcesConfig, ClusterWorkerMonitorConfig, DataprocConfig, LeoExecutionModeConfig, MonitorConfig, ProxyConfig, SamConfig, SwaggerConfig, ZombieClusterConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{HttpGoogleComputeDAO, HttpGoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HttpJupyterDAO, HttpRStudioDAO, HttpSamDAO, HttpWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model.google.NetworkTag
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterDateAccessedActor, ClusterMonitorSupervisor, ZombieClusterMonitor}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterDateAccessedActor, ClusterMonitorSupervisor, ClusterWorkerMonitor, ZombieClusterMonitor}
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 
@@ -39,6 +39,7 @@ object Boot extends IOApp with LazyLogging {
     val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
     val contentSecurityPolicy = config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
     val zombieClusterMonitorConfig = config.as[ZombieClusterConfig]("zombieClusterMonitor")
+    val clusterWorkerMonitorConfig = config.as[ClusterWorkerMonitorConfig](path = "clusterWorkerMonitor")
     val clusterDnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")
     val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leoExecutionMode")
     val clusterBucketConfig = config.as[ClusterBucketConfig]("clusterBucket")
@@ -86,6 +87,7 @@ object Boot extends IOApp with LazyLogging {
           val rstudioDAO = new HttpRStudioDAO(clusterDnsCache)
           val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, appDependencies.google2StorageDao, dbRef, authProvider, autoFreezeConfig, jupyterDAO, rstudioDAO, welderDao, leonardoService))
           val zombieClusterMonitor = system.actorOf(ZombieClusterMonitor.props(zombieClusterMonitorConfig, gdDAO, googleProjectDAO, dbRef))
+          val clusterWorkerMonitor = system.actorOf(ClusterWorkerMonitor.props(clusterWorkerMonitorConfig, gdDAO, googleProjectDAO, dbRef, welderDao, jupyterDAO))
         }
         val samDAO = new HttpSamDAO(samConfig.server)
         val clusterDateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, dbRef))
