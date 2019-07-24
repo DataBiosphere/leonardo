@@ -80,7 +80,7 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
     val notebookPage = new NotebookPage(currentUrl)
     notebookPage.awaitReadyKernel(timeout)
     val result = Try { testCode(notebookPage) }
-    Try(notebookPage.shutdownKernel()) { case e =>
+    Try(notebookPage.shutdownKernel()).recover { case e =>
       logger.error(s"Error occured shutting down ${kernel} kernel", e)
       ()
     }
