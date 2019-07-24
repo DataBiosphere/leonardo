@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import java.io.File
 
+import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.openqa.selenium.WebDriver
 
@@ -40,7 +41,7 @@ case object RKernel extends NotebookKernel {
 }
 
 class NotebooksListPage(override val url: String)(override implicit val authToken: AuthToken, override implicit val webDriver: WebDriver)
-  extends JupyterPage {
+  extends JupyterPage with LazyLogging {
 
   override def open(implicit webDriver: WebDriver): NotebooksListPage = super.open.asInstanceOf[NotebooksListPage]
 
@@ -61,7 +62,10 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
     val notebookPage = new NotebookPage(url + "/notebooks/" + file.getPath).open
     notebookPage.awaitReadyKernel(timeout)
     val result = Try { testCode(notebookPage) }
-    notebookPage.shutdownKernel()
+    Try(notebookPage.shutdownKernel()).recover { case e =>
+      logger.error(s"Error occured shutting down kernel for notebook ${file.getAbsolutePath}", e)
+      ()
+    }
     result.get
   }
 
@@ -76,7 +80,10 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
     val notebookPage = new NotebookPage(currentUrl)
     notebookPage.awaitReadyKernel(timeout)
     val result = Try { testCode(notebookPage) }
-    notebookPage.shutdownKernel()
+    Try(notebookPage.shutdownKernel()) { case e =>
+      logger.error(s"Error occured shutting down ${kernel} kernel", e)
+      ()
+    }
     result.get
   }
 
