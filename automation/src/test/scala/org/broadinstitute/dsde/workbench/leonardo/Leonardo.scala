@@ -95,13 +95,11 @@ object Leonardo extends RestClient with LazyLogging {
       }
     }
 
-    def createClusterPath(googleProject: GoogleProject, clusterName: ClusterName): String = {
-      s"api/cluster/v2/${googleProject.value}/${clusterName.string}"
-    }
-
     def clusterPath(googleProject: GoogleProject,
-                    clusterName: ClusterName): String = {
-      s"api/cluster/${googleProject.value}/${clusterName.string}"
+                          clusterName: ClusterName,
+                          version: Option[ApiVersion] = None): String = {
+      val versionPath = version.map(_.toUrlSegment).getOrElse("")
+      s"api/cluster${versionPath}/${googleProject.value}/${clusterName.string}"
     }
 
     def list(googleProject: GoogleProject)(implicit token: AuthToken): Seq[Cluster] = {
@@ -119,7 +117,7 @@ object Leonardo extends RestClient with LazyLogging {
                clusterName: ClusterName,
                clusterRequest: ClusterRequest)
               (implicit token: AuthToken): Cluster = {
-      val path = createClusterPath(googleProject, clusterName)
+      val path = clusterPath(googleProject, clusterName, Some(ApiVersion.V2))
       logger.info(s"Create cluster: PUT /$path")
       handleClusterResponse(putRequest(url + path, clusterRequest))
     }
@@ -157,6 +155,28 @@ object Leonardo extends RestClient with LazyLogging {
       val path = clusterPath(googleProject, clusterName)
       logger.info(s"Update cluster: PATCH /$path")
       handleClusterResponse(patchRequest(url + path, clusterRequest))
+    }
+  }
+
+  sealed trait ApiVersion {
+    def toUrlSegment: String
+  }
+
+  object ApiVersion {
+    case object V1 extends ApiVersion {
+      override def toString: String = "v1"
+      override def toUrlSegment: String = "/v1"
+    }
+
+    case object V2 extends ApiVersion {
+      override def toString: String = "v2"
+      override def toUrlSegment: String = "/v2"
+    }
+
+    def fromString(s: String): Option[ApiVersion] = s match {
+      case "v1" => Some(V1)
+      case "v2" => Some(V2)
+      case _ => None
     }
   }
 }

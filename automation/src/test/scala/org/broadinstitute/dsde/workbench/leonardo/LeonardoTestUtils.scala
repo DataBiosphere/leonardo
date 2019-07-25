@@ -30,7 +30,7 @@ import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Minutes, Seconds, Span}
 import org.scalatest.{Matchers, Suite}
 
-import scala.concurrent.ExecutionContext.global
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -173,12 +173,12 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
     // We will verify the create cluster response.
     verifyCluster(clusterTimeResult.result, googleProject, clusterName,
-      Seq(ClusterStatus.Creating), clusterRequest, false)
+      List(ClusterStatus.Creating), clusterRequest, false)
 
     // verify with get()
     val creatingCluster = eventually {
       verifyCluster(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName,
-        Seq(ClusterStatus.Creating), clusterRequest)
+        List(ClusterStatus.Creating), clusterRequest)
     }(getAfterCreatePatience, implicitly[Position])
 
     if (monitor) {
@@ -194,9 +194,9 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
     val expectedStatuses =
       if (clusterRequest.stopAfterCreation.getOrElse(false)) {
-        Seq(ClusterStatus.Stopped, ClusterStatus.Error)
+        List(ClusterStatus.Stopped, ClusterStatus.Error)
       } else {
-        Seq(ClusterStatus.Running, ClusterStatus.Error)
+        List(ClusterStatus.Running, ClusterStatus.Error)
       }
 
     val runningOrErroredCluster = Try {
@@ -207,7 +207,6 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
 
     // Save the cluster init log file whether or not the cluster created successfully
-    implicit val ec: ExecutionContextExecutor = ExecutionContext.global
     saveDataprocLogFiles(creatingCluster).recover { case e =>
       logger.error(s"Error occurred saving Dataproc log files for cluster ${creatingCluster.projectNameString}", e)
       throw e
@@ -502,7 +501,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
   }
 
-  def saveDataprocLogFiles(cluster: Cluster)(implicit executionContext: ExecutionContext): Future[Option[(File, File)]] = {
+  def saveDataprocLogFiles(cluster: Cluster): Future[Option[(File, File)]] = {
     def downloadLogFile(contentStream: ByteArrayOutputStream, fileName: String): File = {
       // .log suffix is needed so it shows up as a Jenkins build artifact
       val downloadFile = new File(logDir, s"${cluster.googleProject.value}-${cluster.clusterName.string}-$fileName.log")

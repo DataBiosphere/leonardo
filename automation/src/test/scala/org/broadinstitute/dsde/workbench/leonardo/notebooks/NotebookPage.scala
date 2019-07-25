@@ -125,11 +125,6 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     find(kernelNotification).exists { e => e.text == "No kernel" }
   }
 
-  // TODO: doesn't work
-  def isNotebookSaved: Boolean = {
-    find(kernelNotification).exists { e => e.text == "Notebook saved" }
-  }
-
   def runAllCells(timeout: FiniteDuration = 60 seconds): Unit = {
     click on cellMenu
     click on (await enabled runAllCellsSelection)

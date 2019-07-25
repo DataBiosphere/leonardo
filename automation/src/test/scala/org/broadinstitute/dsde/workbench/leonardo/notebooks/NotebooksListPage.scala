@@ -64,7 +64,6 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
     val result = Try { testCode(notebookPage) }
     Try(notebookPage.shutdownKernel()).recover { case e =>
       logger.error(s"Error occured shutting down kernel for notebook ${file.getAbsolutePath}", e)
-      ()
     }
     result.get
   }
@@ -82,7 +81,6 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
     val result = Try { testCode(notebookPage) }
     Try(notebookPage.shutdownKernel()).recover { case e =>
       logger.error(s"Error occured shutting down ${kernel} kernel", e)
-      ()
     }
     result.get
   }
