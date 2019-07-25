@@ -154,7 +154,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   //Throws 404 and pretends we don't even know there's a cluster there, by default.
   //If the cluster really exists and you're OK with the user knowing that, set throw401 = true.
   protected def checkClusterPermission(userInfo: UserInfo, action: NotebookClusterAction, cluster: Cluster, throw403: Boolean = false): Future[Unit] = {
-    authProvider.hasNotebookClusterPermission(userInfo, action, cluster.googleProject, cluster.clusterName) map {
+    authProvider.hasNotebookClusterPermission(cluster.internalId, userInfo, action, cluster.googleProject, cluster.clusterName) map {
       case false =>
         logger.warn(s"User ${userInfo.userEmail} does not have the notebook permission for " +
           s"${cluster.googleProject}/${cluster.clusterName}")

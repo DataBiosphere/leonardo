@@ -134,9 +134,9 @@ class SwaggerSamClient(samBasePath: String, cacheEnabled: Boolean, cacheExpiryTi
     hasActionOnResource(userInfo, billingProjectResourceTypeName, googleProject.value, action)
   }
 
-  def hasActionOnNotebookClusterResource(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, action: String): Boolean = {
+  def hasActionOnNotebookClusterResource(internalId: String, userInfo: UserInfo, action: String): Boolean = {
     // this is called with the user's token
-    hasActionOnResource(userInfo, notebookClusterResourceTypeName, getClusterResourceId(googleProject, clusterName), action)
+    hasActionOnResource(userInfo, notebookClusterResourceTypeName, internalId, action)
   }
 
   def getUserProxyFromSam(userEmail: WorkbenchEmail): WorkbenchEmail = {
@@ -176,10 +176,6 @@ class SwaggerSamClient(samBasePath: String, cacheEnabled: Boolean, cacheExpiryTi
     // this is called with the user's token
     val samAPI = samResourcesApi(userInfo.accessToken.token)
     samAPI.resourceAction(resourceType, resourceName, action)
-  }
-
-  private def getClusterResourceId(googleProject: GoogleProject, clusterName: ClusterName): String = {
-    googleProject.value + "_" + clusterName.value
   }
 
   private def parseClusterResourceId(id: String): Option[(GoogleProject, ClusterName)] = {

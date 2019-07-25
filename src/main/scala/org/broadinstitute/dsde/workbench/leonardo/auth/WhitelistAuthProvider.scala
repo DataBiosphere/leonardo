@@ -31,12 +31,13 @@ class WhitelistAuthProvider(config: Config, serviceAccountProvider: ServiceAccou
   }
 
   /**
+    * @param internalId     The internal ID for the cluster (i.e. used for Sam resources)
     * @param userInfo The user in question
     * @param action   The cluster-level action (above) the user is requesting
     * @param clusterName The user-provided name of the Dataproc cluster
     * @return If the userEmail has permission on this individual notebook cluster to perform this action
     */
-  override def hasNotebookClusterPermission(userInfo: UserInfo, action: NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean]  = {
+  override def hasNotebookClusterPermission(internalId: String, userInfo: UserInfo, action: NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean]  = {
     checkWhitelist(userInfo)
   }
 

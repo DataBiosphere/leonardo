@@ -30,7 +30,7 @@ class LeoAuthProviderHelperSpec extends TestKit(ActorSystem("leonardotest")) wit
     val helper = LeoAuthProviderHelper(mockProvider, config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider)
 
     helper.hasProjectPermission(userInfo, ProjectActions.CreateClusters, project).futureValue shouldBe true
-    helper.hasNotebookClusterPermission(userInfo, NotebookClusterActions.ConnectToCluster, project, name1).futureValue shouldBe true
+    helper.hasNotebookClusterPermission(internalId, userInfo, NotebookClusterActions.ConnectToCluster, project, name1).futureValue shouldBe true
   }
 
   // The next 3 tests verify that an exception thrown in LeoAuthProvider gets translated to LeoException in LeoAuthProviderHelper

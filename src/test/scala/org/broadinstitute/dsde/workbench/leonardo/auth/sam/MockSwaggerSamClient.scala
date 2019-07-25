@@ -14,7 +14,7 @@ import scala.collection.mutable
 class MockSwaggerSamClient extends SwaggerSamClient("fake/path", true, new FiniteDuration(1, SECONDS), 0, WorkbenchEmail("fake-user@example.com"), new File("fake-pem")) {
 
   val billingProjects: mutable.Map[(GoogleProject, WorkbenchEmail), Set[String]] =  new TrieMap()
-  val notebookClusters: mutable.Map[(GoogleProject, ClusterName, WorkbenchEmail), Set[String]] = new TrieMap()
+  val notebookClusters: mutable.Map[String, Set[String]] = new TrieMap()
   val projectOwners: mutable.Map[WorkbenchEmail, Set[GoogleProject]] = new TrieMap()
   val clusterCreators: mutable.Map[WorkbenchEmail, Set[(GoogleProject, ClusterName)]] = new TrieMap()
   val userProxy = "PROXY_1234567890@dev.test.firecloud.org"
@@ -22,12 +22,12 @@ class MockSwaggerSamClient extends SwaggerSamClient("fake/path", true, new Finit
 
   @throws[ApiException]
   override def createNotebookClusterResource(internalId: String, userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
-    notebookClusters += (googleProject, clusterName, userEmail) -> Set("status", "connect", "sync", "delete", "read_policies")
+    notebookClusters += internalId -> Set("status", "connect", "sync", "delete", "read_policies")
   }
 
   @throws[ApiException]
   override def deleteNotebookClusterResource(internalId: String, userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
-    notebookClusters.remove((googleProject, clusterName, userEmail))
+    notebookClusters.remove(internalId)
   }
 
   override def hasActionOnBillingProjectResource(userInfo: UserInfo, googleProject: GoogleProject, action: String): Boolean = {
@@ -36,8 +36,8 @@ class MockSwaggerSamClient extends SwaggerSamClient("fake/path", true, new Finit
       .getOrElse(false) //unpack the resulting option and handle the project never having existed
   }
 
-  override def hasActionOnNotebookClusterResource(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, action: String): Boolean = {
-    notebookClusters.get((googleProject, clusterName, userInfo.userEmail))
+  override def hasActionOnNotebookClusterResource(internalId: String, userInfo: UserInfo, action: String): Boolean = {
+    notebookClusters.get(internalId)
       .map( _.contains(action) )
       .getOrElse(false)
   }

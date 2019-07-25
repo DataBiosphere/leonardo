@@ -45,28 +45,28 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     samAuthProvider.samClient.billingProjects += (project, userInfo.userEmail) -> Set("launch_notebook_cluster")
     // check the sam auth provider has no notebook-cluster resource
     samAuthProvider.samClient.notebookClusters shouldBe empty
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo, project, name1, "status") shouldBe false
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo, project, name1, "connect") shouldBe false
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo, project, name1, "sync") shouldBe false
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo, project, name1, "delete") shouldBe false
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "status") shouldBe false
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "connect") shouldBe false
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "sync") shouldBe false
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "delete") shouldBe false
 
     // creating a cluster would call notify
     samAuthProvider.notifyClusterCreated(internalId, userInfo.userEmail, project, name1).futureValue
 
     // check the resource exists for the user and actions
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo, project, name1, "status") shouldBe true
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo, project, name1, "connect") shouldBe true
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo, project, name1, "sync") shouldBe true
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo, project, name1, "delete") shouldBe true
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "status") shouldBe true
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "connect") shouldBe true
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "sync") shouldBe true
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "delete") shouldBe true
 
     // deleting a cluster would call notify
     samAuthProvider.notifyClusterDeleted(internalId, userInfo.userEmail, userInfo.userEmail, project, name1).futureValue
 
     samAuthProvider.samClient.notebookClusters shouldBe empty
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo, project, name1, "status") shouldBe false
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo, project, name1, "connect") shouldBe false
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo, project, name1, "sync") shouldBe false
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(userInfo, project, name1, "delete") shouldBe false
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "status") shouldBe false
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "connect") shouldBe false
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "sync") shouldBe false
+    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "delete") shouldBe false
 
     samAuthProvider.samClient.billingProjects.remove((project, userInfo.userEmail))
 
@@ -87,27 +87,27 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
   "hasNotebookClusterPermission should return true if user has notebook cluster permissions and false if they do not" in isolatedDbTest {
     val samAuthProvider = getSamAuthProvider
 
-    samAuthProvider.samClient.notebookClusters += (project, name1, userInfo.userEmail) -> Set("sync")
-    samAuthProvider.hasNotebookClusterPermission(userInfo, SyncDataToCluster, project, name1).futureValue shouldBe true
+    samAuthProvider.samClient.notebookClusters += internalId -> Set("sync")
+    samAuthProvider.hasNotebookClusterPermission(internalId, userInfo, SyncDataToCluster, project, name1).futureValue shouldBe true
 
-    samAuthProvider.hasNotebookClusterPermission(unauthorizedUserInfo, SyncDataToCluster, project, name1).futureValue shouldBe false
-    samAuthProvider.hasNotebookClusterPermission(userInfo, DeleteCluster, project, name1).futureValue shouldBe false
-    samAuthProvider.hasNotebookClusterPermission(userInfo, SyncDataToCluster, GoogleProject("leo-fake-project"), name1).futureValue shouldBe false
-    samAuthProvider.hasNotebookClusterPermission(userInfo, SyncDataToCluster, project, ClusterName("fake-cluster")).futureValue shouldBe false
+    samAuthProvider.hasNotebookClusterPermission(internalId, unauthorizedUserInfo, SyncDataToCluster, project, name1).futureValue shouldBe false
+    samAuthProvider.hasNotebookClusterPermission(internalId, userInfo, DeleteCluster, project, name1).futureValue shouldBe false
+    samAuthProvider.hasNotebookClusterPermission(internalId, userInfo, SyncDataToCluster, GoogleProject("leo-fake-project"), name1).futureValue shouldBe false
+    samAuthProvider.hasNotebookClusterPermission(internalId, userInfo, SyncDataToCluster, project, ClusterName("fake-cluster")).futureValue shouldBe false
 
-    samAuthProvider.samClient.notebookClusters.remove((project, name1, userInfo.userEmail))
+    samAuthProvider.samClient.notebookClusters.remove(internalId)
   }
 
   "hasNotebookClusterPermission should return true if user does not have notebook cluster permissions but does have project permissions" in isolatedDbTest {
     val samAuthProvider = getSamAuthProvider
 
     samAuthProvider.samClient.billingProjects += (project, userInfo.userEmail) -> Set("sync_notebook_cluster")
-    samAuthProvider.samClient.notebookClusters += (project, name1, userInfo.userEmail) -> Set()
+    samAuthProvider.samClient.notebookClusters += internalId -> Set()
 
-    samAuthProvider.hasNotebookClusterPermission(userInfo, SyncDataToCluster, project, name1).futureValue shouldBe true
+    samAuthProvider.hasNotebookClusterPermission(internalId, userInfo, SyncDataToCluster, project, name1).futureValue shouldBe true
 
     samAuthProvider.samClient.billingProjects.remove((project, userInfo.userEmail))
-    samAuthProvider.samClient.notebookClusters.remove((project, name1, userInfo.userEmail))
+    samAuthProvider.samClient.notebookClusters.remove(internalId)
   }
 
   "notifyClusterCreated should create a new cluster resource" in isolatedDbTest {
@@ -116,12 +116,12 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     samAuthProvider.samClient.notebookClusters shouldBe empty
     samAuthProvider.notifyClusterCreated(internalId, userInfo.userEmail, project, name1).futureValue
     samAuthProvider.samClient.notebookClusters.toList should contain ((project, name1, userInfo.userEmail) -> Set("connect", "read_policies", "status", "delete", "sync"))
-    samAuthProvider.samClient.notebookClusters.remove((project, name1, userInfo.userEmail))
+    samAuthProvider.samClient.notebookClusters.remove(internalId)
   }
 
   "notifyClusterDeleted should delete a cluster resource" in isolatedDbTest {
     val samAuthProvider = getSamAuthProvider
-    samAuthProvider.samClient.notebookClusters += (project, name1, userInfo.userEmail) -> Set()
+    samAuthProvider.samClient.notebookClusters += internalId -> Set()
 
     samAuthProvider.notifyClusterDeleted(internalId, userInfo.userEmail, userInfo.userEmail, project, name1).futureValue
     samAuthProvider.samClient.notebookClusters.toList should not contain ((project, name1, userInfo.userEmail) -> Set("connect", "read_policies", "status", "delete", "sync"))
@@ -134,22 +134,22 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     samAuthProvider.notebookAuthCache.size shouldBe 0
 
     // populate backing samClient
-    samAuthProvider.samClient.notebookClusters += (project, name1, userInfo.userEmail) -> Set("sync")
+    samAuthProvider.samClient.notebookClusters += internalId -> Set("sync")
 
     // call provider method
-    samAuthProvider.hasNotebookClusterPermission(userInfo, SyncDataToCluster, project, name1).futureValue shouldBe true
+    samAuthProvider.hasNotebookClusterPermission(internalId, userInfo, SyncDataToCluster, project, name1).futureValue shouldBe true
 
     // cache should contain 1 entry
     samAuthProvider.notebookAuthCache.size shouldBe 1
-    val key = NotebookAuthCacheKey(userInfo, SyncDataToCluster, project, name1, implicitly[ExecutionContext])
+    val key = NotebookAuthCacheKey(internalId, userInfo, SyncDataToCluster, project, name1, implicitly[ExecutionContext])
     samAuthProvider.notebookAuthCache.asMap.containsKey(key) shouldBe true
     samAuthProvider.notebookAuthCache.asMap.get(key).futureValue shouldBe true
 
     // remove info from samClient
-    samAuthProvider.samClient.notebookClusters.remove((project, name1, userInfo.userEmail))
+    samAuthProvider.samClient.notebookClusters.remove(internalId)
 
     // provider should still return true because the info is cached
-    samAuthProvider.hasNotebookClusterPermission(userInfo, SyncDataToCluster, project, name1).futureValue shouldBe true
+    samAuthProvider.hasNotebookClusterPermission(internalId, userInfo, SyncDataToCluster, project, name1).futureValue shouldBe true
   }
 
   "should consider userInfo objects with different tokenExpiresIn values as the same" in isolatedDbTest {
@@ -159,12 +159,12 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     samAuthProvider.notebookAuthCache.size shouldBe 0
 
     // populate backing samClient
-    samAuthProvider.samClient.notebookClusters += (project, name1, userInfo.userEmail) -> Set("sync")
+    samAuthProvider.samClient.notebookClusters += internalId -> Set("sync")
 
     // call provider method
-    samAuthProvider.hasNotebookClusterPermission(userInfo, SyncDataToCluster, project, name1).futureValue shouldBe true
+    samAuthProvider.hasNotebookClusterPermission(internalId, userInfo, SyncDataToCluster, project, name1).futureValue shouldBe true
 
-    samAuthProvider.hasNotebookClusterPermission(userInfo.copy(tokenExpiresIn = userInfo.tokenExpiresIn + 10), SyncDataToCluster, project, name1).futureValue shouldBe true
+    samAuthProvider.hasNotebookClusterPermission(internalId, userInfo.copy(tokenExpiresIn = userInfo.tokenExpiresIn + 10), SyncDataToCluster, project, name1).futureValue shouldBe true
 
     samAuthProvider.notebookAuthCache.size shouldBe 1
 

@@ -23,7 +23,7 @@ class MockLeoAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAcc
     Future.successful(projectPermissions(action))
   }
 
-  override def hasNotebookClusterPermission(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  override def hasNotebookClusterPermission(internalId: String, userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     Future.successful(clusterPermissions(action))
   }
 

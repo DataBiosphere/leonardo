@@ -240,6 +240,19 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
+    def getActiveClusterInternalIdByName(project: GoogleProject, name: ClusterName): DBIO[Option[String]] = {
+      clusterQuery
+        .filter { _.googleProject === project.value }
+        .filter { _.clusterName === name.value }
+        .filter { _.destroyedDate === Timestamp.from(dummyDate) }
+        .result
+        .map { recs =>
+          recs.headOption.map { clusterRec =>
+            clusterRec.internalId
+          }
+        }
+    }
+
     private[leonardo] def getIdByUniqueKey(cluster: Cluster): DBIO[Option[Long]] = {
       getIdByUniqueKey(cluster.googleProject, cluster.clusterName, cluster.auditInfo.destroyedDate)
     }

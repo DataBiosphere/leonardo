@@ -24,7 +24,7 @@ case class UnknownLeoAuthAction(action: LeoAuthAction)
 
 object SamAuthProvider {
   private[sam] sealed trait SamCacheKey
-  private[sam] case class NotebookAuthCacheKey(userInfo: UserInfo, action: NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName, executionContext: ExecutionContext) extends SamCacheKey
+  private[sam] case class NotebookAuthCacheKey(internalId: String, userInfo: UserInfo, action: NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName, executionContext: ExecutionContext) extends SamCacheKey
 }
 
 class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(config, serviceAccountProvider) with SamProvider {
@@ -46,9 +46,9 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
       new CacheLoader[SamCacheKey, Future[Boolean]] {
         def load(key: SamCacheKey) = {
           key match {
-            case NotebookAuthCacheKey(userInfo, action, googleProject, clusterName, executionContext) =>
+            case NotebookAuthCacheKey(internalId, userInfo, action, googleProject, clusterName, executionContext) =>
               // tokenExpiresIn should not taken into account when comparing cache keys
-              hasNotebookClusterPermissionInternal(userInfo.copy(tokenExpiresIn = 0), action, googleProject, clusterName)(executionContext)
+              hasNotebookClusterPermissionInternal(internalId, userInfo.copy(tokenExpiresIn = 0), action, googleProject, clusterName)(executionContext)
           }
         }
       }
@@ -101,21 +101,21 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return If the userEmail has permission on this individual notebook cluster to perform this action
     */
-  override def hasNotebookClusterPermission(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  override def hasNotebookClusterPermission(internalId: String, userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     // Consult the notebook auth cache if enabled
     if (notebookAuthCacheEnabled) {
       // tokenExpiresIn should not taken into account when comparing cache keys
-      notebookAuthCache.get(NotebookAuthCacheKey(userInfo.copy(tokenExpiresIn = 0), action, googleProject, clusterName, executionContext))
+      notebookAuthCache.get(NotebookAuthCacheKey(internalId, userInfo.copy(tokenExpiresIn = 0), action, googleProject, clusterName, executionContext))
     } else {
-      hasNotebookClusterPermissionInternal(userInfo, action, googleProject, clusterName)
+      hasNotebookClusterPermissionInternal(internalId, userInfo, action, googleProject, clusterName)
     }
   }
 
-  private def hasNotebookClusterPermissionInternal(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  private def hasNotebookClusterPermissionInternal(internalId: String, userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     // if action is connect, check only cluster resource. If action is anything else, either cluster or project must be true
     retryUntilSuccessOrTimeout(shouldInvalidateSamCacheAndRetry, s"SamAuthProvider.hasNotebookClusterPermissionInternal call failed for ${googleProject.value}/${clusterName.value}")(samRetryInterval, samRetryTimeout) { () =>
       Future {
-        val hasNotebookAction = blocking(samClient.hasActionOnNotebookClusterResource(userInfo, googleProject, clusterName, getNotebookActionString(action)))
+        val hasNotebookAction = blocking(samClient.hasActionOnNotebookClusterResource(internalId, userInfo, getNotebookActionString(action)))
         if (action == ConnectToCluster) {
           hasNotebookAction
         } else {

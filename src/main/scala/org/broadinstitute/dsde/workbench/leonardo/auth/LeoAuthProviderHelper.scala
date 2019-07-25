@@ -66,9 +66,9 @@ class LeoAuthProviderHelper(wrappedAuthProvider: LeoAuthProvider, authConfig: Co
     }
   }
 
-  override def hasNotebookClusterPermission(userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  override def hasNotebookClusterPermission(internalId: String, userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     safeCall {
-      wrappedAuthProvider.hasNotebookClusterPermission(userInfo, action, googleProject, clusterName)
+      wrappedAuthProvider.hasNotebookClusterPermission(internalId, userInfo, action, googleProject, clusterName)
     }
   }
 
