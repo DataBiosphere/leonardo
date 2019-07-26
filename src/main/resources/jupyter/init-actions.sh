@@ -17,6 +17,15 @@ set -e -x
 # Retry 4/5 exited 1, retrying in 16 seconds...
 # Retry 5/5 exited 1, no more retries left.
 #
+# Array for new relic instrumentation
+# UPDATE THIS IF YOU ADD MORE STEPS:
+# currently the steps are:
+# (START) init, after env setup, after installs, after copying files from google
+# after docker_compose, after welder docker start, after jupyter docker start, after nbextension install
+# after server extension install, after combined extension install, after static files copied to docker, after jupyter user script
+# after lab extension install, after jupyter notebook start, after jupyter docker start, after python install (END)
+STEP_TIMINGS=($(date +%s))
+
 function retry {
   local retries=$1
   shift
@@ -97,10 +106,16 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_NB_EXTENSIONS=$(jupyterNbExtensions)
     JUPYTER_COMBINED_EXTENSIONS=$(jupyterCombinedExtensions)
     JUPYTER_LAB_EXTENSIONS=$(jupyterLabExtensions)
+    GOOGLE_SIGN_IN_JS_URI=$(googleSignInJsUri)
+    EXTENSION_ENTRY_URI=$(extensionEntryUri)
+    JUPYTER_LAB_GOOGLE_PLUGIN_URI=$(jupyterLabGooglePluginUri)
+    SAFE_MODE_JS_URI=$(safeModeJsUri)
+    EDIT_MODE_JS_URI=$(editModeJsUri)
     JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
     JUPYTER_USER_SCRIPT_OUTPUT_URI=$(jupyterUserScriptOutputUri)
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
-    JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
+
+    STEP_TIMINGS+=($(date +%s))
 
     log 'Installing prerequisites...'
 
@@ -141,6 +156,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # https://docs.docker.com/compose/install/#install-compose
     retry 5 curl -L "https://github.com/docker/compose/releases/download/1.22.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
+
+    STEP_TIMINGS+=($(date +%s))
 
     log 'Copying secrets from GCS...'
 
@@ -190,6 +207,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
       gcloud docker --authorize-only
     fi
 
+    STEP_TIMINGS+=($(date +%s))
+
     log 'Starting up the Jupydocker...'
 
     # Run docker-compose for each specified compose file.
@@ -215,12 +234,16 @@ if [[ "${ROLE}" == 'Master' ]]; then
     retry 5 docker-compose "${COMPOSE_FILES[@]}" pull
     retry 5 docker-compose "${COMPOSE_FILES[@]}" up -d
 
+    STEP_TIMINGS+=($(date +%s))
+
     # if Welder is installed, start the service.
     # See https://broadworkbench.atlassian.net/browse/IA-1026
     if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
       log 'Starting Welder file synchronization service...'
       retry 3 docker exec -d ${WELDER_SERVER_NAME} /opt/docker/bin/entrypoint.sh
     fi
+
+    STEP_TIMINGS+=($(date +%s))
 
     # Jupyter-specific setup, only do if Jupyter is installed
     if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
@@ -234,22 +257,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
       # Install the Hail additions to Spark conf.
       retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/hail/spark_install_hail.sh
 
-      # Install jupyter_notebook_config.py
-      if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG_URI} ] ; then
-        log 'Copy Jupyter notebook config...'
-        gsutil cp ${JUPYTER_NOTEBOOK_CONFIG_URI} /etc
-        JUPYTER_NOTEBOOK_CONFIG=`basename ${JUPYTER_NOTEBOOK_CONFIG_URI}`
-        docker cp /etc/${JUPYTER_NOTEBOOK_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/
-      fi
-
-      # Install notebook.json
-      if [ ! -z ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} ] ; then
-        log 'Copy Jupyter frontend notebook config...'
-        gsutil cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /etc
-        JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
-        docker cp /etc/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
-      fi
-
+      STEP_TIMINGS+=($(date +%s))
 
       #Install NbExtensions
       if [ ! -z "${JUPYTER_NB_EXTENSIONS}" ] ; then
@@ -272,6 +280,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
         done
       fi
 
+      STEP_TIMINGS+=($(date +%s))
+
       #Install serverExtensions
       if [ ! -z "${JUPYTER_SERVER_EXTENSIONS}" ] ; then
         for ext in ${JUPYTER_SERVER_EXTENSIONS}
@@ -287,6 +297,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
           fi
         done
       fi
+
+      STEP_TIMINGS+=($(date +%s))
 
       #Install combined extensions
       if [ ! -z "${JUPYTER_COMBINED_EXTENSIONS}"  ] ; then
@@ -304,6 +316,54 @@ if [[ "${ROLE}" == 'Master' ]]; then
           fi
         done
       fi
+
+      STEP_TIMINGS+=($(date +%s))
+
+      retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/install_jupyter_contrib_nbextensions.sh
+
+      # If a google_sign_in.js was specified, copy it into the jupyter docker container.
+      if [ ! -z ${GOOGLE_SIGN_IN_JS_URI} ] ; then
+        log 'Installing Google sign in extension...'
+        gsutil cp ${GOOGLE_SIGN_IN_JS_URI} /etc
+        GOOGLE_SIGN_IN_JS=`basename ${GOOGLE_SIGN_IN_JS_URI}`
+        retry 3 docker exec ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
+        docker cp /etc/${GOOGLE_SIGN_IN_JS} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
+      fi
+
+      # If extension_entry.js was specified, copy it into the jupyter docker container.
+      if [ ! -z ${EXTENSION_ENTRY_URI} ] ; then
+        log 'Installing extension_entry.js extension...'
+        gsutil cp ${EXTENSION_ENTRY_URI} /etc
+        EXTENSION_ENTRY=`basename ${EXTENSION_ENTRY_URI}`
+        retry 3 docker exec ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
+        # note this needs to be named custom.js in the container
+        docker cp /etc/${EXTENSION_ENTRY} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/custom.js
+      fi
+
+      # If safe-mode.js was specified, copy it into the jupyter docker container.
+      if [ ! -z ${SAFE_MODE_JS_URI} ] && [ "${WELDER_ENABLED}" == "true" ]; then
+        log 'Installing safe-mode.js extension...'
+        gsutil cp ${SAFE_MODE_JS_URI} /etc
+        SAFE_MODE_JS=`basename ${SAFE_MODE_JS_URI}`\
+        docker cp /etc/${SAFE_MODE_JS} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
+      fi
+
+      # If edit-mode.js was specified, copy it into the jupyter docker container.
+        if [ ! -z ${EDIT_MODE_JS_URI} ] && [ "${WELDER_ENABLED}" == "true" ]; then
+          log 'Installing edit-mode.js extension...'
+          gsutil cp ${EDIT_MODE_JS_URI} /etc
+          EDIT_MODE_JS=`basename ${EDIT_MODE_JS_URI}`
+          docker cp /etc/${EDIT_MODE_JS} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
+        fi
+
+      if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG_URI} ] ; then
+        log 'Copy Jupyter notebook config...'
+        gsutil cp ${JUPYTER_NOTEBOOK_CONFIG_URI} /etc
+        JUPYTER_NOTEBOOK_CONFIG=`basename ${JUPYTER_NOTEBOOK_CONFIG_URI}`
+        docker cp /etc/${JUPYTER_NOTEBOOK_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/
+      fi
+
+       STEP_TIMINGS+=($(date +%s))
 
       # If a Jupyter user script was specified, copy it into the jupyter docker container.
       if [ ! -z ${JUPYTER_USER_SCRIPT_URI} ] ; then
@@ -325,6 +385,11 @@ if [[ "${ROLE}" == 'Master' ]]; then
         fi
 
       fi
+
+       STEP_TIMINGS+=($(date +%s))
+
+       retry 5 docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter-user:users ${JUPYTER_HOME}
+       retry 5 docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter-user:users /usr/local/share/jupyter/lab
 
       #Install lab extensions
       #Note: lab extensions need to installed as jupyter user, not root
@@ -349,9 +414,22 @@ if [[ "${ROLE}" == 'Master' ]]; then
         done
       fi
 
+      # If a jupyterlab_google_plugin.js was specified, install it as a Lab extension
+      if [ ! -z ${JUPYTER_LAB_GOOGLE_PLUGIN_URI} ] ; then
+        log 'Installing jupyterlab_google_plugin.js extension...'
+        gsutil cp ${JUPYTER_LAB_GOOGLE_PLUGIN_URI} /etc
+        JUPYTER_LAB_GOOGLE_PLUGIN=`basename ${JUPYTER_LAB_GOOGLE_PLUGIN_URI}`
+        docker cp /etc/${JUPYTER_LAB_GOOGLE_PLUGIN} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_LAB_GOOGLE_PLUGIN}
+        retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_LAB_GOOGLE_PLUGIN}
+      fi
+
+       STEP_TIMINGS+=($(date +%s))
+
       log 'Starting Jupyter Notebook...'
       retry 3 docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}
       log 'All done!'
+
+       STEP_TIMINGS+=($(date +%s))
     fi
 fi
 
@@ -377,3 +455,7 @@ ldconfig
 python3 --version
 
 log "Finished installing Python $PYTHON_VERSION"
+
+STEP_TIMINGS+=($(date +%s))
+
+log "Timings: $STEP_TIMINGS"

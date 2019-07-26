@@ -51,6 +51,7 @@ class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocD
 
   override def preStart(): Unit = {
     super.preStart()
+    logger.info("service monitor started")
     timers.startPeriodicTimer(TimerKey, DetectClusterStatus, config.pollPeriod)
   }
 
@@ -75,19 +76,26 @@ class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocD
   }
 
   private def getActiveClustersFromDatabase: Future[Map[GoogleProject, Seq[Cluster]]] = {
-    dbRef.inTransaction {
+    val a = dbRef.inTransaction {
       _.clusterQuery.listActive
     } map { clusters =>
       clusters.groupBy(_.googleProject)
     }
+
+    logger.info("active cluster from db call: " + a.toString)
+    a
   }
 
   private def checkClusterStatus(cluster: Cluster): Future[Status] = {
-    logger.info(s"Deleting zombie cluster: ${cluster.projectNameString}")
+    logger.info(s"check cluster status for: ${cluster.projectNameString}")
     for {
-      welderStatus <- welderDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName)
-      jupyterStatus <- jupyterDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName)
-      status = Status(welderStatus.asInstanceOf[WelderStatus], jupyterStatus.asInstanceOf[JupyterStatus])
+      isWelderUp <- welderDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName)
+      isJupyterUp <- jupyterDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName)
+
+      //if welder isn't enabled, the status is fine
+      welderStatus: WelderStatus = if (!isWelderUp && cluster.welderEnabled) WelderStatus.WelderDown else WelderStatus.WelderOK
+      jupyterStatus: JupyterStatus = if (isJupyterUp) JupyterStatus.JupyterOK else JupyterStatus.JupyterDown
+      status = Status(welderStatus, jupyterStatus)
     } yield status
   }
 }
