@@ -344,7 +344,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
       if [ ! -z ${SAFE_MODE_JS_URI} ] && [ "${WELDER_ENABLED}" == "true" ]; then
         log 'Installing safe-mode.js extension...'
         gsutil cp ${SAFE_MODE_JS_URI} /etc
-        SAFE_MODE_JS=`basename ${SAFE_MODE_JS_URI}`\
+        SAFE_MODE_JS=`basename ${SAFE_MODE_JS_URI}`
         docker cp /etc/${SAFE_MODE_JS} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
       fi
 
@@ -433,7 +433,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
        STEP_TIMINGS+=($(date +%s))
     fi
-fiSTE
+fi
 
 # Install Python 3.6 on the master and worker VMs
 export PYTHON_VERSION=3.6.8
