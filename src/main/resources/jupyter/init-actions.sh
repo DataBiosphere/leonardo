@@ -458,4 +458,4 @@ log "Finished installing Python $PYTHON_VERSION"
 
 STEP_TIMINGS+=($(date +%s))
 
-log "Timings: $STEP_TIMINGS"
+log "Timings: ${STEP_TIMINGS[@]}"
