@@ -29,14 +29,14 @@ object ClusterServiceMonitor {
   sealed trait ServiceStatus extends Product with Serializable
   sealed trait JupyterStatus extends ServiceStatus with Product with Serializable
   object JupyterStatus {
-    final case object JupyterOK extends ServiceStatus
-    final case object JupyterDown extends ServiceStatus
+    final case object JupyterOK extends JupyterStatus
+    final case object JupyterDown extends JupyterStatus
   }
 
   sealed trait WelderStatus extends ServiceStatus with Product with Serializable
   object WelderStatus {
-    final case object WelderOK extends ServiceStatus
-    final case object WelderDown extends ServiceStatus
+    final case object WelderOK extends WelderStatus
+    final case object WelderDown extends WelderStatus
   }
 
   case class Status(val welderStatus: WelderStatus, val jupyterStatus: JupyterStatus)
@@ -95,7 +95,6 @@ class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocD
       //if welder isn't enabled, the status is fine
       welderStatus: WelderStatus = if (!isWelderUp && cluster.welderEnabled) WelderStatus.WelderDown else WelderStatus.WelderOK
       jupyterStatus: JupyterStatus = if (isJupyterUp) JupyterStatus.JupyterOK else JupyterStatus.JupyterDown
-      status = Status(welderStatus, jupyterStatus)
-    } yield status
+    } yield Status(welderStatus, jupyterStatus)
   }
 }
