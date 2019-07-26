@@ -391,6 +391,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
        retry 5 docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter-user:users ${JUPYTER_HOME}
        retry 5 docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter-user:users /usr/local/share/jupyter/lab
 
+       STEP_TIMINGS+=($(date +%s))
+
       #Install lab extensions
       #Note: lab extensions need to installed as jupyter user, not root
       if [ ! -z "${JUPYTER_LAB_EXTENSIONS}" ] ; then
@@ -431,7 +433,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
        STEP_TIMINGS+=($(date +%s))
     fi
-fi
+fiSTE
 
 # Install Python 3.6 on the master and worker VMs
 export PYTHON_VERSION=3.6.8
