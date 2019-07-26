@@ -344,7 +344,6 @@ class ClusterMonitorActor(val cluster: Cluster,
   private def saveClusterError(errorMessage: String, errorCode: Int): Future[Unit] = {
     dbRef.inTransaction { dataAccess =>
       val clusterId = dataAccess.clusterQuery.getIdByUniqueKey(cluster)
-      Future(logger.info(s"${cluster.clusterName}: clusterId in else is ${clusterId}"))
       clusterId flatMap {
         case Some(a) => dataAccess.clusterErrorQuery.save(a, ClusterError(errorMessage, errorCode, Instant.now))
         case None => {

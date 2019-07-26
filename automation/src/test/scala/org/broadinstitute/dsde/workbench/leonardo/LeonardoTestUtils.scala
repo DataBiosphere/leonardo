@@ -15,17 +15,14 @@ import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserAuthToken}
 import org.broadinstitute.dsde.workbench.config.Credentials
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
-import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{ClusterStatus, deletableStatuses}
-import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion
-import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.{V1, V2}
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.service.test.WebBrowserSpec
-import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration, RestException, Sam}
+import org.broadinstitute.dsde.workbench.service.test.{RandomUtil, WebBrowserSpec}
+import org.broadinstitute.dsde.workbench.service.{RestException, Sam}
 import org.broadinstitute.dsde.workbench.util._
 import org.scalactic.source.Position
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
@@ -33,7 +30,7 @@ import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Minutes, Seconds, Span}
 import org.scalatest.{Matchers, Suite}
 
-import scala.concurrent.ExecutionContext.global
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -44,8 +41,8 @@ case class KernelNotReadyException(timeElapsed:Timeout)
 
 case class TimeResult[R](result:R, duration:FiniteDuration)
 
-trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures with Retry {
-  this: Suite with BillingFixtures =>
+trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually with LocalFileUtil with LazyLogging with ScalaFutures with Retry with RandomUtil {
+  this: Suite =>
 
   val system: ActorSystem = ActorSystem("leotests")
   val logDir = new File("output")
@@ -57,7 +54,6 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   lazy val ronCreds: Credentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential("ron")
   lazy val hermioneCreds: Credentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential("hermione")
   lazy val voldyCreds: Credentials = LeonardoConfig.Users.CampaignManager.getUserCredential("voldemort")
-
 
   lazy val ronAuthToken = UserAuthToken(ronCreds, AuthTokenScopes.userLoginScopes)
   lazy val hermioneAuthToken = UserAuthToken(hermioneCreds, AuthTokenScopes.userLoginScopes)
@@ -167,76 +163,74 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   def createCluster(googleProject: GoogleProject,
                     clusterName: ClusterName,
                     clusterRequest: ClusterRequest,
-                    monitor: Boolean,
-                    apiVersion: ApiVersion = V1)
+                    monitor: Boolean)
                    (implicit token: AuthToken): Cluster = {
     // Google doesn't seem to like simultaneous cluster creates.  Add 0-30 sec jitter
     Thread sleep Random.nextInt(30000)
 
-    val clusterTimeResult = time(Leonardo.cluster.create(googleProject, clusterName, clusterRequest, apiVersion))
-    logger.info(s"Time it took to get cluster create response with " +
-      s"API version $apiVersion: ${clusterTimeResult.duration}")
+    val clusterTimeResult = time(Leonardo.cluster.create(googleProject, clusterName, clusterRequest))
+    logger.info(s"Time it took to get cluster create response with: ${clusterTimeResult.duration}")
 
     // We will verify the create cluster response.
-    // We don't want to check bucket for v2 (async) cluster creation API
-    // since that info won't be known at v2 API request completion time
-    val bucketCheck = if (apiVersion == V2) false else true
     verifyCluster(clusterTimeResult.result, googleProject, clusterName,
-      Seq(ClusterStatus.Creating), clusterRequest, bucketCheck)
+      List(ClusterStatus.Creating), clusterRequest, false)
 
     // verify with get()
     val creatingCluster = eventually {
       verifyCluster(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName,
-        Seq(ClusterStatus.Creating), clusterRequest)
+        List(ClusterStatus.Creating), clusterRequest)
     }(getAfterCreatePatience, implicitly[Position])
 
     if (monitor) {
-      // wait for "Running", "Stopped", or error (fail fast)
-      implicit val patienceConfig: PatienceConfig = clusterPatience
-
-      val expectedStatuses =
-        if (clusterRequest.stopAfterCreation.getOrElse(false)) {
-          Seq(ClusterStatus.Stopped, ClusterStatus.Error)
-        } else {
-          Seq(ClusterStatus.Running, ClusterStatus.Error)
-        }
-
-      val runningOrErroredCluster = Try {
-        eventually {
-          verifyCluster(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName,
-            expectedStatuses, clusterRequest)
-        }
-      }
-
-      // Save the cluster init log file whether or not the cluster created successfully
-      implicit val ec: ExecutionContextExecutor = ExecutionContext.global
-      saveDataprocLogFiles(creatingCluster).recover { case e =>
-        logger.error(s"Error occurred saving Dataproc log files for cluster ${creatingCluster.projectNameString}", e)
-        throw e
-      }.futureValue match {
-        case Some((initLog, startupLog)) =>
-          logger.info(s"Saved Dataproc init log file for cluster ${creatingCluster.projectNameString} to ${initLog.getAbsolutePath}")
-          logger.info(s"Saved Dataproc startup log file for cluster ${creatingCluster.projectNameString} to ${startupLog.getAbsolutePath}")
-        case None =>
-          logger.warn(s"Could not obtain Dataproc log files for cluster ${creatingCluster.projectNameString}")
-      }
-
-      // If the cluster is running, grab the jupyter.log file for debugging.
-      runningOrErroredCluster.foreach { cluster =>
-        if (cluster.status == ClusterStatus.Running) {
-          saveJupyterLogFile(cluster.clusterName, cluster.googleProject, "create") match {
-            case Success(file) =>
-              logger.info(s"Saved jupyter.log file for cluster ${cluster.projectNameString} to ${file.getAbsolutePath}")
-            case Failure(e) =>
-              logger.warn(s"Could not save jupyter.log file for cluster ${cluster.projectNameString} . Not failing test.", e)
-          }
-        }
-      }
-
-      runningOrErroredCluster.get
+      monitorCreate(googleProject, clusterName, clusterRequest, creatingCluster)
     } else {
       creatingCluster
     }
+  }
+
+  def monitorCreate(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, creatingCluster: Cluster)(implicit token: AuthToken): Cluster = {
+    // wait for "Running", "Stopped", or error (fail fast)
+    implicit val patienceConfig: PatienceConfig = clusterPatience
+
+    val expectedStatuses =
+      if (clusterRequest.stopAfterCreation.getOrElse(false)) {
+        List(ClusterStatus.Stopped, ClusterStatus.Error)
+      } else {
+        List(ClusterStatus.Running, ClusterStatus.Error)
+      }
+
+    val runningOrErroredCluster = Try {
+      eventually {
+        verifyCluster(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName,
+          expectedStatuses, clusterRequest, true)
+      }
+    }
+
+    // Save the cluster init log file whether or not the cluster created successfully
+    saveDataprocLogFiles(creatingCluster).recover { case e =>
+      logger.error(s"Error occurred saving Dataproc log files for cluster ${creatingCluster.projectNameString}", e)
+      throw e
+    }.futureValue match {
+      case Some((initLog, startupLog)) =>
+        logger.info(s"Saved Dataproc init log file for cluster ${creatingCluster.projectNameString} to ${initLog.getAbsolutePath}")
+        logger.info(s"Saved Dataproc startup log file for cluster ${creatingCluster.projectNameString} to ${startupLog.getAbsolutePath}")
+      case None =>
+        logger.warn(s"Could not obtain Dataproc log files for cluster ${creatingCluster.projectNameString}")
+    }
+
+    // If the cluster is running, grab the jupyter.log file for debugging.
+    runningOrErroredCluster.foreach { cluster =>
+      if (cluster.status == ClusterStatus.Running) {
+        saveJupyterLogFile(cluster.clusterName, cluster.googleProject, "create") match {
+          case Success(file) =>
+            logger.info(s"Saved jupyter.log file for cluster ${cluster.projectNameString} to ${file.getAbsolutePath}")
+          case Failure(e) =>
+            logger.warn(s"Could not save jupyter.log file for cluster ${cluster.projectNameString} . Not failing test.", e)
+        }
+      }
+    }
+
+    runningOrErroredCluster.get
   }
 
   // creates a cluster and checks to see that it reaches the Running state
@@ -363,11 +357,10 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   def createNewCluster(googleProject: GoogleProject,
                        name: ClusterName = randomClusterName,
                        request: ClusterRequest = defaultClusterRequest,
-                       monitor: Boolean = true,
-                       apiVersion: ApiVersion = V1)
+                       monitor: Boolean = true)
                       (implicit token: AuthToken): Cluster = {
 
-    val cluster = createCluster(googleProject, name, request, monitor, apiVersion)
+    val cluster = createCluster(googleProject, name, request, monitor)
 
     if (monitor) {
       withClue(s"Monitoring Cluster status: $name") {
@@ -393,29 +386,14 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     samPetEmail
   }
 
-  // Wrapper for BillingFixtures.withCleanBillingProject which sets up a project with Hermione as owner, and Ron as a user
-  // testCode is curried so the token can be made implicit:
-  // https://stackoverflow.com/questions/14072061/function-literal-with-multiple-implicit-arguments
-  def withProject(testCode: GoogleProject => UserAuthToken => Any): Unit = {
-    val jitter = addJitter(5 seconds, 1 minute)
-    logger.info(s"Sleeping ${jitter.toSeconds} seconds before claiming a billing project")
-    Thread sleep jitter.toMillis
-    withCleanBillingProject(hermioneCreds) { projectName =>
-      val project = GoogleProject(projectName)
-      Orchestration.billing.addUserToBillingProject(projectName, ronEmail, BillingProject.BillingProjectRole.User)(hermioneAuthToken)
-      testCode(project)(ronAuthToken)
-    }
-  }
-
   def withNewCluster[T](googleProject: GoogleProject,
                         name: ClusterName = randomClusterName,
                         request: ClusterRequest = defaultClusterRequest,
                         monitorCreate: Boolean = true,
-                        monitorDelete: Boolean = false,
-                        apiVersion: ApiVersion = V1)
+                        monitorDelete: Boolean = false)
                        (testCode: Cluster => T)
                        (implicit token: AuthToken): T = {
-    val cluster = createNewCluster(googleProject, name, request, monitorCreate, apiVersion)
+    val cluster = createNewCluster(googleProject, name, request, monitorCreate)
     val testResult: Try[T] = Try {
       testCode(cluster)
     }
@@ -446,12 +424,13 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
         cluster.status shouldBe ClusterStatus.Error
         cluster.errors should have size 1
         cluster.errors.head.errorMessage should include ("gs://")
+        cluster.errors.head.errorMessage should include ("Userscript failed.")
         cluster.errors.head.errorCode should be (3)
         testCode(cluster)
       }
 
       // delete before checking testCode status, which may throw
-      deleteAndMonitor(googleProject, name)
+      deleteCluster(googleProject, name, false)
       testResult.get
     }
   }
@@ -522,7 +501,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
     }
   }
 
-  def saveDataprocLogFiles(cluster: Cluster)(implicit executionContext: ExecutionContext): Future[Option[(File, File)]] = {
+  def saveDataprocLogFiles(cluster: Cluster): Future[Option[(File, File)]] = {
     def downloadLogFile(contentStream: ByteArrayOutputStream, fileName: String): File = {
       // .log suffix is needed so it shows up as a Jenkins build artifact
       val downloadFile = new File(logDir, s"${cluster.googleProject.value}-${cluster.clusterName.string}-$fileName.log")

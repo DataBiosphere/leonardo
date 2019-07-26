@@ -259,4 +259,14 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFutureValue { _.clusterQuery.getClusterById(savedCluster1.id) }.flatMap(_.machineConfig.masterDiskSize) shouldBe
       Option(newDiskSize)
   }
+
+  it should "list monitored clusters" in isolatedDbTest {
+    val savedCluster1 = makeCluster(1).save()
+    val savedCluster2 = makeCluster(2).copy(dataprocInfo = DataprocInfo(None, None, None, None)).save()
+
+    // listMonitored should only return clusters that have google info defined
+    dbFutureValue { _.clusterQuery.listMonitoredClusterOnly() } shouldBe Seq(savedCluster1).map(stripFieldsForListCluster).map(_.copy(labels = Map.empty))
+    dbFutureValue { _.clusterQuery.listMonitored() } shouldBe Seq(savedCluster1).map(stripFieldsForListCluster)
+    dbFutureValue { _.clusterQuery.listMonitoredFullCluster() } shouldBe Seq(savedCluster1)
+  }
 }

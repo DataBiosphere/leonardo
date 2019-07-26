@@ -1,29 +1,23 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
+import java.io.{File, FileOutputStream}
+import java.nio.charset.StandardCharsets
+import java.time.Instant
 import java.util.Base64
 
+import cats.data.NonEmptyList
 import cats.effect.IO
-import java.time.Instant
-
-import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
+import com.google.cloud.Identity
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
-import org.broadinstitute.dsde.workbench.service.Sam
+import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
+import org.broadinstitute.dsde.workbench.google2.StorageRole.ObjectAdmin
+import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, RemoveObjectResult, StorageRole}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, RemoveObjectResult, StorageRole}
+import org.broadinstitute.dsde.workbench.service.Sam
 import org.openqa.selenium.WebDriver
 import org.scalatest.Suite
-import java.io.File
-import java.io.FileOutputStream
-import java.nio.charset.StandardCharsets
-import java.nio.file.{Path, Paths}
-
-import cats.data.NonEmptyList
-import com.google.cloud.Identity
-import com.google.cloud.storage.BlobId
-import org.broadinstitute.dsde.workbench.google2.StorageRole.ObjectAdmin
 
 import scala.concurrent._
 import scala.concurrent.duration._
@@ -31,7 +25,7 @@ import scala.language.postfixOps
 import scala.util.{Failure, Success, Try}
 
 trait NotebookTestUtils extends LeonardoTestUtils {
-  this: Suite with BillingFixtures =>
+  this: Suite =>
 
   private def whenKernelNotReady(t: Throwable): Boolean = t match {
     case e: KernelNotReadyException => true
@@ -98,7 +92,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   }
 
   implicit val ec: ExecutionContextExecutor = ExecutionContext.global
-  def withNewNotebook[T](cluster: Cluster, kernel: NotebookKernel = Python2, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+  def withNewNotebook[T](cluster: Cluster, kernel: NotebookKernel = Python3, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
       val result: Future[T] = retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds, 2 minutes) {() =>
         Future(notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
@@ -318,16 +312,16 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   }
 
   //initializes storageLinks/ and localizes the file to the passed gcsPath
-     def withWelderInitialized[T](cluster: Cluster, gcsPath: GcsPath, shouldLocalizeFileInEditMode: Boolean)(testCode: File => T)(implicit token: AuthToken): T = {
-        Welder.postStorageLink(cluster, gcsPath)
-        Welder.localize(cluster, gcsPath, shouldLocalizeFileInEditMode)
+  def withWelderInitialized[T](cluster: Cluster, gcsPath: GcsPath, shouldLocalizeFileInEditMode: Boolean)(testCode: File => T)(implicit token: AuthToken): T = {
+    Welder.postStorageLink(cluster, gcsPath)
+    Welder.localize(cluster, gcsPath, shouldLocalizeFileInEditMode)
 
-        val localPath: String = Welder.getLocalPath(gcsPath, shouldLocalizeFileInEditMode)
-        val localFile: File = new File(localPath)
+    val localPath: String = Welder.getLocalPath(gcsPath, shouldLocalizeFileInEditMode)
+    val localFile: File = new File(localPath)
 
-        logger.info("Initialized welder via /storageLinks and /localize")
-        testCode(localFile)
-      }
+    logger.info("Initialized welder via /storageLinks and /localize")
+    testCode(localFile)
+  }
 
   def mockCluster(googleProject: String, clusterName: String): Cluster = {
     Cluster(ClusterName(clusterName), java.util.UUID.randomUUID(), GoogleProject(googleProject),

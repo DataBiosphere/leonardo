@@ -1,26 +1,18 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.fixture._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.service.test.RandomUtil
-import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration}
-import org.broadinstitute.dsde.workbench.util.addJitter
+import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec._
 import org.scalatest.{BeforeAndAfterAll, Outcome, fixture}
-
-import scala.concurrent.duration._
-import scala.util.{Failure, Success, Try}
 
 
 /**
-  * trait BeforeAndAfterAll - One cluster, billing project per Scalatest Spec.
+  * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
   */
-abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils with BillingFixtures with RandomUtil with LazyLogging {
+abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils {
 
   implicit val ronToken: AuthToken = ronAuthToken
-  var claimedBillingProject: ClaimedProject = _
-  var billingProject : GoogleProject = _
+
   var ronCluster: Cluster = _
 
   //To use, comment out the lines in after all that clean-up and run the test once normally. Then, instantiate a mock cluster in your test file via the `mockCluster` method in NotebookTestUtils with the project/cluster created
@@ -30,7 +22,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   //example usage:
   //  debug = true
   //  mockedCluster = mockCluster("gpalloc-dev-master-0h7pzni","automation-test-apm25lvlz")
-  var debug: Boolean = false //if true, will not spin up and tear down a cluster on each test. Used in conjunction with mockedCluster
+  val debug: Boolean = false //if true, will not spin up and tear down a cluster on each test. Used in conjunction with mockedCluster
   var mockedCluster: Cluster = _ //mockCluster("gpalloc-dev-master-1ecxlpm", "automation-test-auhyfvadz") //_ //must specify a google project name and cluster name via the mockCluster utility method in NotebookTestUtils
 
   /**
@@ -41,68 +33,24 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
     * Claim a billing project for project owner
     * @param billingProject
     */
-  case class ClusterFixture(billingProject: GoogleProject, cluster: Cluster)
+  case class ClusterFixture(cluster: Cluster)
 
-  type FixtureParam = ClusterFixture
+  override type FixtureParam = ClusterFixture
 
   override def withFixture(test: OneArgTest): Outcome = {
     if (debug) {
-      logger.info("[Debug] Using mocked cluster for cluster fixture tests")
-      billingProject = mockedCluster.googleProject
+      logger.info(s"[Debug] Using mocked cluster for cluster fixture tests")
       ronCluster = mockedCluster
     }
-    withFixture(test.toNoArgTest(ClusterFixture(billingProject, ronCluster)))
-  }
-
-  /**
-    * Claim new billing project by Hermione
-    */
-  def claimBillingProject(): Unit = {
-    Try {
-      val jitter = addJitter(5 seconds, 1 minute)
-      logger.info(s"Sleeping ${jitter.toSeconds} seconds before claiming a billing project")
-      Thread sleep jitter.toMillis
-
-      claimedBillingProject = claimGPAllocProject(hermioneCreds)
-      billingProject = GoogleProject(claimedBillingProject.projectName)
-      logger.info(s"Billing project claimed: ${claimedBillingProject.projectName}")
-    }.recover {
-      case ex: Exception =>
-        logger.error(s"ERROR: when owner $hermioneCreds is claiming a billing project", ex)
-        throw ex
-    }
-  }
-
-  /**
-    * Unclaiming billing project claim by Hermione
-    */
-  def unclaimBillingProject(): Unit = {
-    val projectName = claimedBillingProject.projectName
-    Try {
-      claimedBillingProject.cleanup(hermioneCreds)
-      logger.info(s"Billing project unclaimed: $projectName")
-    }.recover{
-      case ex: Exception =>
-        logger.error(s"ERROR: when owner $hermioneCreds is unclaiming billing project $projectName", ex)
-        throw ex
-    }
+    withFixture(test.toNoArgTest(ClusterFixture(ronCluster)))
   }
 
   /**
     * Create new cluster by Ron with all default settings
     */
-  def createRonCluster(): Unit = {
-    Orchestration.billing.addUserToBillingProject(billingProject.value, ronEmail, BillingProject.BillingProjectRole.User)(hermioneAuthToken)
-
-    Try (createNewCluster(billingProject, request = getClusterRequest())(ronAuthToken)) match {
-      case Success(outcome) =>
-        ronCluster = outcome
-        logger.info(s"Successfully created cluster $ronCluster")
-      case Failure(ex) =>
-        logger.error(s"ERROR: when creating new cluster in billing project $billingProject", ex)
-        unclaimBillingProject()
-        throw  ex
-    }
+  def createRonCluster(billingProject: GoogleProject): Unit = {
+    logger.info(s"Creating cluster for cluster fixture tests: ${getClass.getSimpleName}")
+    ronCluster = createNewCluster(billingProject, request = getClusterRequest())(ronAuthToken)
   }
 
   def getClusterRequest(): ClusterRequest = {
@@ -120,24 +68,30 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   /**
     * Delete cluster without monitoring that's owned by Ron
     */
-  def deleteRonCluster(monitoringDelete: Boolean = false): Unit = {
+  def deleteRonCluster(billingProject: GoogleProject, monitoringDelete: Boolean = false): Unit = {
+    logger.info(s"Deleting cluster for cluster fixture tests: ${getClass.getSimpleName}")
     deleteCluster(billingProject, ronCluster.clusterName, monitoringDelete)(ronAuthToken)
   }
 
   override def beforeAll(): Unit = {
+    super.beforeAll()
     logger.info("beforeAll")
     if (!debug) {
-      claimBillingProject()
-      createRonCluster()
+      sys.props.get(gpallocProjectKey) match {
+        case Some(billingProject) => createRonCluster(GoogleProject(billingProject))
+        case None => throw new RuntimeException("leonardo.billingProject system property is not set")
+      }
     }
-    super.beforeAll()
+
   }
 
   override def afterAll(): Unit = {
     logger.info("afterAll")
     if (!debug) {
-      deleteRonCluster()
-      unclaimBillingProject()
+      sys.props.get(gpallocProjectKey) match {
+        case Some(billingProject) => deleteRonCluster(GoogleProject(billingProject))
+        case None => throw new RuntimeException("leonardo.billingProject system property is not set")
+      }
     }
     super.afterAll()
   }

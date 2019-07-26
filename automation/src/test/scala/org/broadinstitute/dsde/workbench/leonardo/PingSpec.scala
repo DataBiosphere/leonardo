@@ -1,10 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.auth.UserAuthToken
-import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
-import org.scalatest.{FreeSpec, Matchers}
+import org.scalatest.{DoNotDiscover, FreeSpec, Matchers}
 
-class PingSpec extends FreeSpec with Matchers with LeonardoTestUtils with BillingFixtures {
+@DoNotDiscover
+class PingSpec extends FreeSpec with Matchers with LeonardoTestUtils {
   "Leonardo" - {
     "should ping" in {
       implicit val token: UserAuthToken = ronAuthToken

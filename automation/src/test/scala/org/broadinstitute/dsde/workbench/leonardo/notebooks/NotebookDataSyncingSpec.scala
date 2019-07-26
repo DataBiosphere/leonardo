@@ -5,19 +5,25 @@ import java.time.Instant
 
 import akka.http.scaladsl.model.HttpResponse
 import org.broadinstitute.dsde.workbench.ResourceFile
-import org.broadinstitute.dsde.workbench.google2.{GcsBlobName}
+import org.broadinstitute.dsde.workbench.google2.GcsBlobName
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook.NotebookMode
+import org.broadinstitute.dsde.workbench.service.util.Tags
+import org.scalatest.DoNotDiscover
 import org.scalatest.time.{Minutes, Seconds, Span}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-
-class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
+/**
+  * This spec verifies data syncing functionality, including notebook edit mode, playground mode,
+  * and welder localization/delocalization.
+  */
+@DoNotDiscover
+class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils {
   override def enableWelder: Boolean = true
 
-  "Leonardo welder and jupyter extensions" - {
+  "NotebookDataSyncingSpec" - {
 
     "Welder should be up" in { clusterFixture =>
       val resp: HttpResponse = Welder.getWelderStatus(clusterFixture.cluster)
@@ -28,7 +34,7 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
       val isEditMode = true
 
-      withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { gcsPath =>
+      withResourceFileInBucket(clusterFixture.cluster.googleProject, sampleNotebook, "text/plain") { gcsPath =>
 
         withWelderInitialized(clusterFixture.cluster, gcsPath, isEditMode) { localizedFile =>
 
@@ -41,11 +47,15 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
               notebookPage.addCodeAndExecute("1+1")
               notebookPage.saveNotebook()
 
-              val localContentSize: Int = Notebook.getNotebookItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode)).size
+              val localContent: NotebookContentItem = Notebook.getNotebookItem(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode))
+              logger.info(s"[edit mode] local content is ${localContent}")
+              val localContentSize: Int = localContent.size
 
               eventually(timeout(Span(5, Seconds))) {
                 val remoteContentSize: Int = getObjectSize(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value))
                   .unsafeRunSync()
+
+                logger.info(s"[edit mode] remote content size is ${remoteContentSize}")
 
                 remoteContentSize shouldBe localContentSize
               }
@@ -65,10 +75,10 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
     }
 
     "open notebook in playground mode should work" in { clusterFixture =>
-      val sampleNotebook = ResourceFile("bucket-tests/gcsFile.ipynb")
+      val sampleNotebook = ResourceFile("bucket-tests/gcsFile2.ipynb")
       val isEditMode = false
 
-      withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { gcsPath =>
+      withResourceFileInBucket(clusterFixture.cluster.googleProject, sampleNotebook, "text/plain") { gcsPath =>
 
         withWelderInitialized(clusterFixture.cluster, gcsPath, isEditMode) { localizedFile =>
 
@@ -78,15 +88,17 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
               val originalRemoteContentSize: Int = getObjectSize(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value))
                 .unsafeRunSync()
+              logger.info(s"[playground mode] original remote content size is ${originalRemoteContentSize}")
 
-              val originalLocalContentSize: Int = Notebook.getNotebookItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode)).size
+              val originalLocalContent: NotebookContentItem = Notebook.getNotebookItem(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode))
+              logger.info(s"[playground mode] original local content is ${originalLocalContent}")
+              val originalLocalContentSize: Int = originalLocalContent.size
 
               originalRemoteContentSize shouldBe originalLocalContentSize
 
               notebookPage.modeExists() shouldBe true
               notebookPage.getMode() shouldBe NotebookMode.SafeMode
               notebookPage.addCodeAndExecute("1+1")
-
               notebookPage.saveNotebook()
 
               //sleep 4 minutes. We do this to ensure the assertions are true after a certain about of time.
@@ -95,9 +107,12 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
               Thread.sleep(240000)
 
               eventually(timeout(Span(5, Seconds))) {
-                val newLocalContentSize = Notebook.getNotebookItem(clusterFixture.billingProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode)).size
+                val newLocalContent: NotebookContentItem = Notebook.getNotebookItem(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName, Welder.getLocalPath(gcsPath, isEditMode))
+                val newLocalContentSize: Int = newLocalContent.size
+                logger.info(s"[playground mode] new local content is ${newLocalContent}")
                 val newRemoteContentSize = getObjectSize(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value))
                   .unsafeRunSync()
+                logger.info(s"[playground mode] new remote content size is ${newRemoteContentSize}")
 
                 newLocalContentSize should be > newRemoteContentSize
                 originalRemoteContentSize shouldBe newRemoteContentSize
@@ -121,11 +136,11 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
     }
 
     "Sync issues and make a copy handled transition correctly" in { clusterFixture =>
-      val fileName = "gcsFile2" //we store this portion separately as the name of the copy is computed off it
+      val fileName = "gcsFile3" //we store this portion separately as the name of the copy is computed off it
       val sampleNotebook = ResourceFile(s"bucket-tests/${fileName}.ipynb")
       val isEditMode = true
 
-      withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { gcsPath =>
+      withResourceFileInBucket(clusterFixture.cluster.googleProject, sampleNotebook, "text/plain") { gcsPath =>
 
         withWelderInitialized(clusterFixture.cluster, gcsPath, isEditMode) { localizedFile =>
 
@@ -133,7 +148,7 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
             withOpenNotebook(clusterFixture.cluster, localizedFile, 5.minutes) { notebookPage =>
               val contents = "{\n      'cells': [],\n      'metadata': {\n        'kernelspec': {\n        'display_name': 'Python 3',\n        'language': 'python',\n        'name': 'python3'\n      },\n        'language_info': {\n        'codemirror_mode': {\n        'name': 'ipython',\n        'version': 3\n      },\n        'file_extension': '.py',\n        'mimetype': 'text/x-python',\n        'name': 'python',\n        'nbconvert_exporter': 'python',\n        'pygments_lexer': 'ipython3',\n        'version': '3.7.3'\n      }\n      },\n      'nbformat': 4,\n      'nbformat_minor': 2\n    }"
-              setObjectContents(clusterFixture.billingProject, gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value), contents)
+              setObjectContents(clusterFixture.cluster.googleProject, gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value), contents)
                 .unsafeRunSync
 
               val syncIssueElements = List(notebookPage.syncCopyButton, notebookPage.syncReloadButton, notebookPage.modalId)
@@ -155,10 +170,10 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
     }
 
     "Locked by another user and playground mode transition handled correctly" in { clusterFixture =>
-      val sampleNotebook = ResourceFile("bucket-tests/gcsFile3.ipynb")
+      val sampleNotebook = ResourceFile("bucket-tests/gcsFile4.ipynb")
       val isEditMode = true
 
-      withResourceFileInBucket(clusterFixture.billingProject, sampleNotebook, "text/plain") { gcsPath =>
+      withResourceFileInBucket(clusterFixture.cluster.googleProject, sampleNotebook, "text/plain") { gcsPath =>
 
         //we set the lock before the notebook is open to cause a conflict
         val newMeta = Map("lockExpiresAt" -> Instant.now().plusMillis(20.minutes.toMillis).toEpochMilli.toString, "lastLockedBy" -> "NotMe")
@@ -190,11 +205,11 @@ class NotebookExtensionSpec extends ClusterFixtureSpec with NotebookTestUtils {
       }
     }
 
-   //this test is important to make sure all components exit gracefully when their functionality is not needed
+    //this test is important to make sure all components exit gracefully when their functionality is not needed
     "User should be able to create files outside of playground and safe mode" in { clusterFixture =>
       val fileName = "mockUserFile.ipynb"
 
-      val mockUserFile: File = Notebook.createFileAtJupyterRoot(clusterFixture.billingProject, clusterFixture.cluster.clusterName, fileName)
+      val mockUserFile: File = Notebook.createFileAtJupyterRoot(clusterFixture.cluster.googleProject, clusterFixture.cluster.clusterName, fileName)
 
       withWebDriver { implicit driver =>
 

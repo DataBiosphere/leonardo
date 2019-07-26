@@ -2,13 +2,18 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import org.broadinstitute.dsde.workbench.leonardo.ClusterFixtureSpec
 import org.broadinstitute.dsde.workbench.service.util.Tags
+import org.scalatest.DoNotDiscover
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
+/**
+  * This spec verifies notebook functionality specifically around the R kernel.
+  */
+@DoNotDiscover
 class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
-  "Leonardo notebooks" - {
+  "NotebookRKernelSpec" - {
 
     // See https://github.com/DataBiosphere/leonardo/issues/398
     "should use UTF-8 encoding" in { clusterFixture =>
@@ -143,9 +148,9 @@ class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
     s"should have the workspace-related environment variables set" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
-          notebookPage.executeCell("Sys.getenv('GOOGLE_PROJECT')").get shouldBe s"'${clusterFixture.billingProject.value}'"
-          notebookPage.executeCell("Sys.getenv('WORKSPACE_NAMESPACE')").get shouldBe s"'${clusterFixture.billingProject.value}'"
-          notebookPage.executeCell("Sys.getenv('WORKSPACE_NAME')").get shouldBe "'jupyter-user'"
+          notebookPage.executeCell("Sys.getenv('GOOGLE_PROJECT')").get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
+          notebookPage.executeCell("Sys.getenv('WORKSPACE_NAMESPACE')").get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
+          notebookPage.executeCell("Sys.getenv('WORKSPACE_NAME')").get shouldBe "'notebooks'"
           // workspace bucket is not wired up in tests
           notebookPage.executeCell("Sys.getenv('WORKSPACE_BUCKET')").get shouldBe "''"
         }

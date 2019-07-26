@@ -88,6 +88,12 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
 
   // banner for edit or playground mode
   lazy val modeBanner: Query = cssSelector("[id='notification_mode']")
+
+  lazy val kernelNotification: Query = cssSelector("[id='notification_kernel']")
+
+  lazy val notebookNotification: Query = cssSelector("[id='notification_notebook']")
+
+  lazy val saveButton: Query = cssSelector(s"[id='${saveButtonId}']")
   
   //intentionally misspelled
   val saveButtonId = "save-notbook"
@@ -98,8 +104,6 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   val lockPlaygroundButton = "modal-playground"
   val lockCopyButton = "modal-copy-2"
   val noModeBannerId = "notification_not_saving"
-
-  lazy val saveButton: Query = cssSelector(s"[id='${saveButtonId}']")
 
   def getSelectorFrom(id: String): Query = {
     cssSelector(s"[id='${id}']")
@@ -115,8 +119,6 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   def cellIsRendered(cellNumber: Int): Boolean = {
     findAll(prompts).exists { e => e.text == s"In [$cellNumber]:" }
   }
-
-  lazy val kernelNotification: Query = cssSelector("[id='notification_kernel']")
 
   // can we see that the kernel connection has terminated?
   def isKernelShutdown: Boolean = {
@@ -171,10 +173,10 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
 
   //TODO: This function is buggy because the cell numbers are kernel specific not notebook specific
   //It is possible to have a notebook with two cells, numbered 1,1 or even 1, 9
-  def executeCell(code: String, timeout: FiniteDuration = 1 minute): Option[String] = {
+  def executeCell(code: String, timeout: FiniteDuration = 1 minute, cellNumberOpt: Option[Int] = None): Option[String] = {
     await enabled cells
     val cell = lastCell
-    val cellNumber = numCellsOnPage
+    val cellNumber = cellNumberOpt.getOrElse(numCellsOnPage)
     click on cell
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
     executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
@@ -190,7 +192,8 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     click on cell
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
     executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
-    click on runCellButton
+    clickRunCell(timeout)
+    await condition(!cellsAreRunning, timeout.toSeconds)
   }
 
   def translateMarkup(code: String, timeout: FiniteDuration = 1 minute): String = {
@@ -285,13 +288,16 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     }
   }
 
-  def saveNotebook(): Unit = {
+  def saveNotebook(timeout: FiniteDuration = 1 minute): Unit = {
     val isSafeMode = find(saveButton).exists(_.underlying.getAttribute("style") == "display: none;")
 
     if (isSafeMode) toggleSaveButtonHidden(false)
     await visible saveButton
     click on saveButton
     if (isSafeMode) toggleSaveButtonHidden(true)
+    // TODO: add selenium condition for saved notebook instead of sleep
+    Thread.sleep(5000)
+    //await condition (isNotebookSaved, timeout.toSeconds)
   }
 
   def toggleSaveButtonHidden(shouldHide: Boolean) = {

@@ -4,25 +4,14 @@ import java.net.URL
 import java.time.Instant
 import java.util.UUID
 
-import akka.http.scaladsl.model.headers.{Authorization, Cookie, HttpCookiePair, OAuth2BearerToken}
-import akka.Done
-import akka.http.scaladsl.model.{HttpHeader, StatusCodes}
-import akka.http.scaladsl.server.Route
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.ResourceFile
-import org.broadinstitute.dsde.workbench.service.RestClient
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.config.LeoAuthToken
-import org.broadinstitute.dsde.workbench.leonardo.Leonardo.ApiVersion.V1
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
-import org.openqa.selenium.WebDriver
-
-import scala.concurrent.Future
-import scala.io.Source
+import org.broadinstitute.dsde.workbench.service.RestClient
 
 /**
   * Leonardo API service client.
@@ -107,9 +96,10 @@ object Leonardo extends RestClient with LazyLogging {
     }
 
     def clusterPath(googleProject: GoogleProject,
-                    clusterName: ClusterName,
-                    version: ApiVersion = V1): String = {
-      s"api/cluster${version.toUrlSegment}/${googleProject.value}/${clusterName.string}"
+                          clusterName: ClusterName,
+                          version: Option[ApiVersion] = None): String = {
+      val versionPath = version.map(_.toUrlSegment).getOrElse("")
+      s"api/cluster${versionPath}/${googleProject.value}/${clusterName.string}"
     }
 
     def list(googleProject: GoogleProject)(implicit token: AuthToken): Seq[Cluster] = {
@@ -125,10 +115,9 @@ object Leonardo extends RestClient with LazyLogging {
 
     def create(googleProject: GoogleProject,
                clusterName: ClusterName,
-               clusterRequest: ClusterRequest,
-               version: ApiVersion = ApiVersion.V1)
+               clusterRequest: ClusterRequest)
               (implicit token: AuthToken): Cluster = {
-      val path = clusterPath(googleProject, clusterName, version)
+      val path = clusterPath(googleProject, clusterName, Some(ApiVersion.V2))
       logger.info(s"Create cluster: PUT /$path")
       handleClusterResponse(putRequest(url + path, clusterRequest))
     }
@@ -137,7 +126,7 @@ object Leonardo extends RestClient with LazyLogging {
       val path = clusterPath(googleProject, clusterName)
 
       val cluster = handleClusterResponse(parseResponse(getRequest(url + path)))
-      logger.info(s"Get cluster: GET /$path. Response: $cluster")
+      logger.info(s"Get cluster: GET /$path. Status = ${cluster.status}")
 
       cluster
     }
@@ -169,21 +158,19 @@ object Leonardo extends RestClient with LazyLogging {
     }
   }
 
-
   sealed trait ApiVersion {
-    override def toString: String
     def toUrlSegment: String
   }
 
   object ApiVersion {
     case object V1 extends ApiVersion {
       override def toString: String = "v1"
-      def toUrlSegment: String = ""
+      override def toUrlSegment: String = "/v1"
     }
 
     case object V2 extends ApiVersion {
       override def toString: String = "v2"
-      def toUrlSegment: String = "/v2"
+      override def toUrlSegment: String = "/v2"
     }
 
     def fromString(s: String): Option[ApiVersion] = s match {
