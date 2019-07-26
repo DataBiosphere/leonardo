@@ -51,7 +51,7 @@ class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocD
 
   override def preStart(): Unit = {
     super.preStart()
-    logger.info("service monitor started")
+    logger.info("service monitor started123")
     timers.startPeriodicTimer(TimerKey, DetectClusterStatus, config.pollPeriod)
   }
 
@@ -68,9 +68,18 @@ class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocD
         cs.traverse { cluster =>
           checkClusterStatus(cluster).map(status =>
             for {
-              _ <- if (status.jupyterStatus.equals(JupyterStatus.JupyterDown)) Metrics.newRelic.incrementCounterIO("jupyterDown") else IO.unit
+              _ <- if (status.jupyterStatus.equals(JupyterStatus.JupyterDown)) {
+                logger.info("jupyter down")
+                Metrics.newRelic.incrementCounterIO("jupyterDown")
+              }
+              else
+                {
+                  logger.info("jupyter Up")
+                  IO.unit
+                }
               _ <- if (status.welderStatus.equals(WelderStatus.WelderDown)) Metrics.newRelic.incrementCounterIO("welderDown") else IO.unit
-            } yield (logger.info("status for cluster: " + status.toString)))
+              x = logger.info("status for cluster: " + status.toString)
+            } yield ())
         }
       }
   }
