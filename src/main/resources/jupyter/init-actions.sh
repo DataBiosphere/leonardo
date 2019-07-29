@@ -20,10 +20,21 @@ set -e -x
 # Array for new relic instrumentation
 # UPDATE THIS IF YOU ADD MORE STEPS:
 # currently the steps are:
-# (START) init, after env setup, after installs, after copying files from google
-# after docker_compose, after welder docker start, after jupyter docker start, after nbextension install
-# after server extension install, after combined extension install, after static files copied to docker, after jupyter user script
-# after lab extension install, after jupyter notebook start, after jupyter docker start, after python install (END)
+# START init,
+# .. after env setup
+# .. after installs
+# .. after copying files from google and into docker
+# .. after docker compose
+# .. after welder start
+# .. after hail and spark
+# .. after nbextension install
+# .. after server extension install
+# .. after combined extension install
+# .. after static files copied to docker
+# .. after jupyter user script
+# .. after lab extension install
+# .. after jupyter notebook start
+# after python install (END)
 STEP_TIMINGS=($(date +%s))
 
 function retry {
@@ -389,9 +400,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
        STEP_TIMINGS+=($(date +%s))
 
        retry 5 docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter-user:users ${JUPYTER_HOME}
-       retry 5 docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter-user:users /usr/local/share/jupyter/lab
-
-       STEP_TIMINGS+=($(date +%s))
+       retry 5 docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter-user:users /usr/local/share/jupyter/la
 
       #Install lab extensions
       #Note: lab extensions need to installed as jupyter user, not root
