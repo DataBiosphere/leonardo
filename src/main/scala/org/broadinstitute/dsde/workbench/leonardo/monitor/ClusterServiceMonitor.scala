@@ -1,8 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import akka.actor.{Actor, Props, Timers}
-import cats.effect.IO
-import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.Metrics
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
@@ -51,7 +49,6 @@ class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocD
 
   override def preStart(): Unit = {
     super.preStart()
-    logger.info("service monitor started123")
     timers.startPeriodicTimer(TimerKey, DetectClusterStatus, config.pollPeriod)
   }
 
@@ -59,7 +56,6 @@ class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocD
     case DetectClusterStatus =>
       // Get active clusters from the Leo DB, grouped by project
       val activeClusters: Future[List[Cluster]] = getActiveClustersFromDatabase.flatMap(clusterMap => {
-        logger.info("active clusters: " + clusterMap.values.flatten.toString())
         Future.successful(clusterMap.values.flatten.toList)
       })
 
