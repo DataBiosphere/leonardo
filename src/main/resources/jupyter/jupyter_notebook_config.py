@@ -21,8 +21,6 @@ c.NotebookApp.terminado_settings={'shell_command': ['bash']}
 
 fragment = os.environ['GOOGLE_PROJECT'] + '/' + os.environ['CLUSTER_NAME']
 c.NotebookApp.base_url = '/notebooks/' + fragment + '/'
-# c.NotebookApp.base_url = '/notebooks/'
-
 
 # Using an alternate notebooks_dir allows for mounting of a shared volume here.
 # The default notebook root dir is /home/jupyter-user, which is also the home
@@ -38,6 +36,7 @@ if os.environ['WELDER_ENABLED'] == 'true':
 c.NotebookApp.nbserver_extensions = {
     'jupyter_localize_extension': True
 }
+
 mgr_class = 'DelocalizingContentsManager'
 if os.environ['WELDER_ENABLED'] == 'true':
   mgr_class = 'WelderContentsManager'
@@ -46,8 +45,8 @@ c.NotebookApp.contents_manager_class = 'jupyter_delocalize.' + mgr_class
 # Unset Content-Security-Policy so Jupyter can be rendered in an iframe
 # See https://jupyter-notebook.readthedocs.io/en/latest/public_server.html?highlight=server#embedding-the-notebook-in-another-website
 c.NotebookApp.tornado_settings = {
-    'static_url_prefix':'/notebooks/' + fragment + '/static/',
     # 'static_url_prefix':'/notebooks/static/',
+    'static_url_prefix':'/notebooks/' + fragment + '/static/',
     'headers': {
         'Content-Security-Policy': $(contentSecurityPolicy)
     }

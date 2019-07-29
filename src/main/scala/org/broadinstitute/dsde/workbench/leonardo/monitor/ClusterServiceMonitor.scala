@@ -64,35 +64,33 @@ class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocD
       })
 
       //check the status of the workers in each active cluster and log instances of a down worker to new relic
-      activeClusters.flatMap { cs =>
-        cs.traverse { cluster =>
-          checkClusterStatus(cluster).map(status =>
-            for {
-              _ <- if (status.jupyterStatus.equals(JupyterStatus.JupyterDown)) {
-                logger.info("jupyter down")
-                Metrics.newRelic.incrementCounterIO("jupyterDown")
-              }
-              else
-                {
+      activeClusters.foreach { cs =>
+        cs.foreach { cluster =>
+          checkClusterStatus(cluster).foreach { status =>
+            if (status.jupyterStatus.equals(JupyterStatus.JupyterDown)) {
+                  logger.info("jupyter down")
+                  Metrics.newRelic.incrementCounterIO("jupyterDown").unsafeRunAsync(_ => ())
+              } else {
                   logger.info("jupyter Up")
-                  IO.unit
-                }
-              _ <- if (status.welderStatus.equals(WelderStatus.WelderDown)) Metrics.newRelic.incrementCounterIO("welderDown") else IO.unit
-              x = logger.info("status for cluster: " + status.toString)
-            } yield ())
+              }
+            if (status.welderStatus.equals(WelderStatus.WelderDown)) {
+              logger.info("welder enabled and down")
+              Metrics.newRelic.incrementCounterIO("welderDown").unsafeRunAsync(_ => ())
+            } else {
+              logger.info("welder Up or not enabled")
+            }
+          ()
+          }
         }
       }
   }
 
   private def getActiveClustersFromDatabase: Future[Map[GoogleProject, Seq[Cluster]]] = {
-    val a = dbRef.inTransaction {
+    dbRef.inTransaction {
       _.clusterQuery.listActive
     } map { clusters =>
       clusters.groupBy(_.googleProject)
     }
-
-    logger.info("active cluster from db call: " + a.toString)
-    a
   }
 
   private def checkClusterStatus(cluster: Cluster): Future[Status] = {
@@ -101,7 +99,7 @@ class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocD
       isWelderUp <- welderDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName)
       isJupyterUp <- jupyterDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName)
 
-      //if welder isn't enabled, the status is fine
+      //if welder isn't enabled, the status is will be OK
       welderStatus: WelderStatus = if (!isWelderUp && cluster.welderEnabled) WelderStatus.WelderDown else WelderStatus.WelderOK
       jupyterStatus: JupyterStatus = if (isJupyterUp) JupyterStatus.JupyterOK else JupyterStatus.JupyterDown
     } yield Status(welderStatus, jupyterStatus)
