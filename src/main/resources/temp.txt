@@ -1,1 +1,0 @@
-  welderDockerImage = "us.gcr.io/broad-dsp-gcr-public/welder-server:${GIT_SHA:0:6}"

@@ -7,8 +7,10 @@ import errno
 import stat
 
 c = get_config()
-c.NotebookApp.ip = '*'
-c.NotebookApp.port = 8003
+# c.NotebookApp.ip = '*'
+# c.NotebookApp.port = 8003
+c.NotebookApp.ip = 'localhost'
+c.NotebookApp.port = 8000
 c.NotebookApp.open_browser = False
 
 c.NotebookApp.token = ''
@@ -17,9 +19,9 @@ c.NotebookApp.allow_origin = '*'
 
 c.NotebookApp.terminado_settings={'shell_command': ['bash']}
 
-# fragment = os.environ['GOOGLE_PROJECT'] + '/' + os.environ['CLUSTER_NAME']
-# c.NotebookApp.base_url = '/notebooks/' + fragment + '/'
-c.NotebookApp.base_url = '/notebooks/'
+fragment = os.environ['GOOGLE_PROJECT'] + '/' + os.environ['CLUSTER_NAME']
+c.NotebookApp.base_url = '/notebooks/' + fragment + '/'
+# c.NotebookApp.base_url = '/notebooks/'
 
 
 # Using an alternate notebooks_dir allows for mounting of a shared volume here.
@@ -44,8 +46,8 @@ c.NotebookApp.contents_manager_class = 'jupyter_delocalize.' + mgr_class
 # Unset Content-Security-Policy so Jupyter can be rendered in an iframe
 # See https://jupyter-notebook.readthedocs.io/en/latest/public_server.html?highlight=server#embedding-the-notebook-in-another-website
 c.NotebookApp.tornado_settings = {
-    # 'static_url_prefix':'/notebooks/' + fragment + '/static/',
-    'static_url_prefix':'/notebooks/static/',
+    'static_url_prefix':'/notebooks/' + fragment + '/static/',
+    # 'static_url_prefix':'/notebooks/static/',
     'headers': {
         'Content-Security-Policy': $(contentSecurityPolicy)
     }
