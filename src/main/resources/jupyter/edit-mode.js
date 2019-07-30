@@ -51,7 +51,7 @@ define(() => {
     const lockConflictTitle = "File is in use"
     const syncIssueTitle = "File versions out of sync"
     const syncIssueBody = "Your version of this file does not match the version in the workspace. What would you like to do?"
-    const syncIssueNotFoundBody = "This file was either deleted or never was stored with us."
+    const syncIssueNotFoundBody = "This file was either deleted from or was never saved to the workspace."
 
     //URLS for leo deployment
     const leoUrl = '' //we are choosing to use a relative path here
