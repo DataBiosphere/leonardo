@@ -85,9 +85,9 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   def saveClusterLogFiles(googleProject: GoogleProject, clusterName: ClusterName, paths: List[String], suffix: String)(implicit token: AuthToken): Unit = {
     val fileResult = paths.traverse[Try, File] { path =>
       Try {
-        val jupyterLogOpt = Notebook.getContentItem(googleProject, clusterName, path, includeContent = true)
-        val content = jupyterLogOpt.content.getOrElse(throw new RuntimeException(s"Could not download ${path} for cluster ${googleProject.value}/${clusterName.string}"))
-        val downloadFile = new File(logDir, s"${googleProject.value}-${clusterName.string}-$suffix-jupyter.log")
+        val contentItem = Notebook.getContentItem(googleProject, clusterName, path, includeContent = true)
+        val content = contentItem.content.getOrElse(throw new RuntimeException(s"Could not download ${path} for cluster ${googleProject.value}/${clusterName.string}"))
+        val downloadFile = new File(logDir, s"${googleProject.value}-${clusterName.string}-$suffix-${path}.log")
         val fos = new FileOutputStream(downloadFile)
         fos.write(content.getBytes(StandardCharsets.UTF_8))
         fos.close()
