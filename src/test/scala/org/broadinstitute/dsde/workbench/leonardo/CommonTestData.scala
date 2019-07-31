@@ -9,7 +9,7 @@ import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
-import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, ClusterDefaultsConfig, ClusterDnsCacheConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, MonitorConfig, ProxyConfig, SwaggerConfig, ZombieClusterConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, ClusterDefaultsConfig, ClusterDnsCacheConfig, ClusterFilesConfig, ClusterResourcesConfig, ClusterServiceConfig, DataprocConfig, MonitorConfig, ProxyConfig, SwaggerConfig, ZombieClusterConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio, Welder}
@@ -57,6 +57,7 @@ trait CommonTestData{ this: ScalaFutures =>
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
   val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
   val zombieClusterConfig = config.as[ZombieClusterConfig]("zombieClusterMonitor")
+  val clusterServiceConfig = config.as[ClusterServiceConfig](path = "clusterServiceMonitor")
   val dnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")
   val clusterUrlBase = dataprocConfig.clusterUrlBase
   val serviceAccountsConfig = config.getConfig("serviceAccounts.config")

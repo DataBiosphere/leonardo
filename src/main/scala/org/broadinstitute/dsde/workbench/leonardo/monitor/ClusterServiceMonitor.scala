@@ -5,19 +5,23 @@ import org.broadinstitute.dsde.workbench.leonardo.Metrics
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.ClusterServiceConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.{HttpJupyterDAO, HttpWelderDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterServiceMonitor.{DetectClusterStatus, JupyterStatus, Status, TimerKey, WelderStatus}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 
 import scala.concurrent.Future
 
 object ClusterServiceMonitor {
 
-  def props(config: ClusterServiceConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference, welderDAO: HttpWelderDAO, jupyterDAO: HttpJupyterDAO): Props = {
-    Props(new ClusterServiceMonitor(config, gdDAO, googleProjectDAO, dbRef, welderDAO, jupyterDAO))
+
+  val newRelic: NewRelicMetrics = Metrics.newRelic
+
+  def props(config: ClusterServiceConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference, welderDAO: WelderDAO, jupyterDAO: JupyterDAO, newRelic: NewRelicMetrics): Props = {
+    Props(new ClusterServiceMonitor(config, gdDAO, googleProjectDAO, dbRef, welderDAO, jupyterDAO, newRelic: NewRelicMetrics))
   }
 
   sealed trait ClusterServiceMonitorMessage
@@ -43,7 +47,7 @@ object ClusterServiceMonitor {
 /**
   * This monitor periodically sweeps the Leo database and checks for clusters which no longer exist in Google.
   */
-class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference, welderDAO: HttpWelderDAO, jupyterDAO: HttpJupyterDAO) extends Actor with Timers with LazyLogging {
+class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference, welderDAO: WelderDAO, jupyterDAO: JupyterDAO, newRelic: NewRelicMetrics) extends Actor with Timers with LazyLogging {
 
   import context._
 
@@ -63,15 +67,17 @@ class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocD
       activeClusters.foreach { cs =>
         cs.foreach { cluster =>
           checkClusterStatus(cluster).foreach { status =>
+
             if (status.jupyterStatus.equals(JupyterStatus.JupyterDown)) {
-                  logger.info("jupyter down")
-                  Metrics.newRelic.incrementCounterIO("jupyterDown").unsafeRunAsync(_ => ())
-              } else {
-                  logger.info("jupyter Up")
-              }
+              logger.info("jupyter down")
+              newRelic.incrementCounterIO("jupyterDown").unsafeRunAsync(_ => ())
+            } else {
+              logger.info("jupyter Up")
+            }
+
             if (status.welderStatus.equals(WelderStatus.WelderDown)) {
               logger.info("welder enabled and down")
-              Metrics.newRelic.incrementCounterIO("welderDown").unsafeRunAsync(_ => ())
+              newRelic.incrementCounterIO("welderDown").unsafeRunAsync(_ => ())
             } else {
               logger.info("welder Up or not enabled")
             }
@@ -89,7 +95,7 @@ class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocD
     }
   }
 
-  private def checkClusterStatus(cluster: Cluster): Future[Status] = {
+  def checkClusterStatus(cluster: Cluster): Future[Status] = {
     logger.info(s"check cluster status for: ${cluster.projectNameString}")
     for {
       isWelderUp <- welderDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName)

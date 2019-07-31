@@ -42,7 +42,7 @@ class StatusRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest wi
     }
   }
 
-  it should "give 500 for not ok" in {
+  it should "give 500 fornot ok" in {
     val badSam = new MockSamDAO(false)
     val badDataproc = new MockGoogleDataprocDAO(false)
     val statusService = new StatusService(badDataproc, badSam, DbSingleton.ref, dataprocConfig, pollInterval = 1.second)

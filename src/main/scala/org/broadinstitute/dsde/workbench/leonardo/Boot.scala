@@ -87,7 +87,7 @@ object Boot extends IOApp with LazyLogging {
           val rstudioDAO = new HttpRStudioDAO(clusterDnsCache)
           val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, appDependencies.google2StorageDao, dbRef, authProvider, autoFreezeConfig, jupyterDAO, rstudioDAO, welderDao, leonardoService))
           val zombieClusterMonitor = system.actorOf(ZombieClusterMonitor.props(zombieClusterMonitorConfig, gdDAO, googleProjectDAO, dbRef))
-          val clusterServiceMonitor = system.actorOf(ClusterServiceMonitor.props(clusterServiceMonitorConfig, gdDAO, googleProjectDAO, dbRef, welderDao, jupyterDAO))
+          val clusterServiceMonitor = system.actorOf(ClusterServiceMonitor.props(clusterServiceMonitorConfig, gdDAO, googleProjectDAO, dbRef, welderDao, jupyterDAO, Metrics.newRelic))
         }
         val samDAO = new HttpSamDAO(samConfig.server)
         val clusterDateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, dbRef))
