@@ -367,7 +367,7 @@ define(() => {
             toolTipText = "<p>You have locked this file for editing and your changes are being automatically saved to the workspace.</p>"
             bannerStyling = "notification_widget " + baseStyling;
         } else {
-            bannerText = "PLAYGROUND MODE (Edits not saved)"
+            bannerText = "Playground Mode (Edits not saved)"
             toolTipText = "<p>Playground mode allows you to explore, change, and run the notebook, but changes are not saved to the workspace.</p>"
             bannerStyling = "btn-warning " + baseStyling
         }
