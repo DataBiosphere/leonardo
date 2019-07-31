@@ -3,5 +3,5 @@ module.exports = [{
     autoStart: true,
     activate: function(app) {
         require('/home/jupyter-user/.jupyter/custom/google_sign_in');
-    },
+    }
 }];

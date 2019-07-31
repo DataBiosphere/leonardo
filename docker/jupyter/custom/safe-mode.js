@@ -21,12 +21,12 @@ define(() => {
 
     const headers = {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Headers': '*',
+        'Access-Control-Allow-Headers': '*'
     };
 
     const basePayload = {
         mode: 'no-cors',
-        headers: headers,
+        headers: headers
     };
 
     function load() {
@@ -73,7 +73,7 @@ define(() => {
         const payload = {
             ...basePayload,
             body: JSON.stringify({localPath: Jupyter.notebook.notebook_path}),
-            method: 'POST',
+            method: 'POST'
         };
 
         return fetch(checkMetaUrl, payload)

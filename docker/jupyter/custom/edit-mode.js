@@ -17,12 +17,12 @@ define(() => {
             'Make a Copy': {
                 'click': () => saveAs(),
                 'class': 'btn-primary',
-                'id': 'modal-copy-1',
+                'id': 'modal-copy-1'
             },
             'Reload the workspace version and discard your changes': {
                 'click': () => updateLocalCopyWithRemote(res),
-                'id': 'modal-reload',
-            },
+                'id': 'modal-reload'
+            }
         };
     };
 
@@ -31,20 +31,20 @@ define(() => {
             'Run in Playground Mode': {
                 'click': () => openPlaygroundMode(res),
                 'class': 'btn-primary',
-                'id': 'modal-playground',
+                'id': 'modal-playground'
             },
             'Make a Copy': {
                 'click': () => saveAs(),
-                'id': 'modal-copy-2',
-            },
+                'id': 'modal-copy-2'
+            }
         };
     };
 
     const noRemoteFileButtons = {
         'Continue working': {
             'click': () => {},
-            'class': 'btn-primary',
-        },
+            'class': 'btn-primary'
+        }
     };
 
     const modeBannerId = 'notification_mode';
@@ -72,12 +72,12 @@ define(() => {
 
     const headers = {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Headers': '*',
+        'Access-Control-Allow-Headers': '*'
     };
 
     const basePayload = {
         mode: 'no-cors',
-        headers: headers,
+        headers: headers
     };
 
     function init() {
@@ -103,7 +103,7 @@ define(() => {
 
     function checkMeta() {
         const localPath = {
-            localPath: Jupyter.notebook.notebook_path,
+            localPath: Jupyter.notebook.notebook_path
         };
 
         console.info('calling /objects/metadata/ with payload: ', JSON.stringify(localPath));
@@ -111,7 +111,7 @@ define(() => {
         const payload = {
             ...basePayload,
             body: JSON.stringify(localPath),
-            method: 'POST',
+            method: 'POST'
         };
 
         return fetch(checkMetaUrl, payload)
@@ -139,13 +139,13 @@ define(() => {
                 'class': 'btn-warning btn btn-xs navbar-btn',
                 'data-toggle': 'tooltip',
                 'data-html': 'true',
-                'title': toolTipText,
+                'title': toolTipText
             })
                 .tooltip({
                     'content': function() {
                         return $(this).prop('title');
                     },
-                    'placement': 'bottom',
+                    'placement': 'bottom'
                 })
                 .append(
                     $('<span>').html('Remote Save Disabled')
@@ -211,7 +211,7 @@ define(() => {
         const payload = {
             ...basePayload,
             method: 'POST',
-            body: JSON.stringify({localPath: Jupyter.notebook.notebook_path}),
+            body: JSON.stringify({localPath: Jupyter.notebook.notebook_path})
         };
 
         fetch(lockUrl, payload)
@@ -235,7 +235,7 @@ define(() => {
             $('#notification_area').append(
                 $('<div>').attr({
                     'id': bannerId,
-                    'class': bannerStyling,
+                    'class': bannerStyling
                 })
                     .append($('<span>').html('<i class="fa fa-exclamation-triangle"></i> ' + bannerText))
             );
@@ -271,7 +271,7 @@ define(() => {
             title: title,
             buttons: buttons,
             notebook: Jupyter.notebook,
-            keyboard_manager: Jupyter.notebook.keyboard_manager,
+            keyboard_manager: Jupyter.notebook.keyboard_manager
         })
             .on('hidden.bs.modal', () => modalOpen = false)
             .attr('id', 'leoUserModal')
@@ -293,16 +293,16 @@ define(() => {
             ...basePayload,
             method: 'POST',
             body: JSON.stringify({
-                copy_from: Jupyter.notebook.notebook_path,
-            }),
+                copy_from: Jupyter.notebook.notebook_path
+            })
         };
 
         const patchPayload = {
             headers: headers,
             method: 'PATCH',
             body: JSON.stringify({
-                path: safeModeDir + '/' + originalNotebookName,
-            }),
+                path: safeModeDir + '/' + originalNotebookName
+            })
         };
 
         fetch(jupyterServerApi + safeModeDir, postPayload)
@@ -326,8 +326,8 @@ define(() => {
             ...basePayload,
             method: 'POST',
             body: JSON.stringify({
-                copy_from: Jupyter.notebook.notebook_path,
-            }),
+                copy_from: Jupyter.notebook.notebook_path
+            })
         };
 
         fetch(jupyterServerApi + newNotebookPath, payload)
@@ -378,13 +378,13 @@ define(() => {
                 'class': bannerStyling,
                 'data-toggle': 'tooltip',
                 'data-html': 'true',
-                'title': toolTipText,
+                'title': toolTipText
             })
                 .tooltip({
                     'content': function() {
                         return $(this).prop('title');
                     },
-                    'placement': 'bottom',
+                    'placement': 'bottom'
                 })
                 .append(
                     $('<span>').html(bannerText)
@@ -398,14 +398,14 @@ define(() => {
             action: 'localize',
             entries: [{
                 sourceUri: meta.storageLink.cloudStorageDirectory + '/' + Jupyter.notebook.notebook_name,
-                localDestinationPath: Jupyter.notebook.notebook_path,
-            }],
+                localDestinationPath: Jupyter.notebook.notebook_path
+            }]
         };
 
         const payload = {
             ...basePayload,
             method: 'POST',
-            body: JSON.stringify(entries),
+            body: JSON.stringify(entries)
         };
 
         await fetch(localizeUrl, payload);

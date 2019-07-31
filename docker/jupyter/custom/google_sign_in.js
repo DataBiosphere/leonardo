@@ -32,8 +32,8 @@ function receive(event) {
         event.source.postMessage({
             'type': 'bootstrap-auth.response',
             'body': {
-                'googleClientId': googleClientId,
-            },
+                'googleClientId': googleClientId
+            }
         }, event.origin);
     }
 }
@@ -46,7 +46,7 @@ function startTimer() {
                     'client_id': googleClientId,
                     'scope': 'openid profile email',
                     'login_hint': loginHint,
-                    'prompt': 'none',
+                    'prompt': 'none'
                 }, function(result) {
                     if (result.error) {
                         console.error('Error occurred authorizing with Google: ' + result.error);
