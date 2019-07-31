@@ -242,7 +242,7 @@ define(() => {
 
     }
 
-    const lockConflictBody = `<p>This file is currently being edited by another user.</p>` +
+    const lockConflictBody = `<p>This file is currently being edited by another user. Please allow 2-3 minutes after this user has closed the file for it to become available for editing.</p>` +
         `<br/><p>You can make a copy, or run it in Playground Mode to explore and execute its contents without saving any changes.`;
 
     function handleLockStatus(res, metaRes) {
@@ -367,8 +367,8 @@ define(() => {
             toolTipText = "<p>You have locked this file for editing and your changes are being automatically saved to the workspace.</p>"
             bannerStyling = "notification_widget " + baseStyling;
         } else {
-            bannerText = "Playground Mode (Edits not saved)"
-            toolTipText = "<p>Playground mode allows you to explore, change, and run the code, but your changes will not be saved to the workspace.</p>"
+            bannerText = "PLAYGROUND MODE (Edits not saved)"
+            toolTipText = "<p>Playground mode allows you to explore, change, and run the notebook, but changes are not saved to the workspace.</p>"
             bannerStyling = "btn-warning " + baseStyling
         }
 
