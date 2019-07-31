@@ -12,8 +12,7 @@ object MockWelderDAO extends WelderDAO {
 }
 
 class MockWelderDAO(isUp: Boolean) extends WelderDAO {
-  val mockReturn = Future.successful(isUp)
-  override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = mockReturn
+  override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] =  Future.successful(isUp)
 
   override def flushCache(googleProject: GoogleProject, clusterName: ClusterName): Future[Unit] = Future.unit
 }

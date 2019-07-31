@@ -96,7 +96,7 @@ class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocD
   }
 
   def checkClusterStatus(cluster: Cluster): Future[Status] = {
-    logger.info(s"check cluster status for: ${cluster.projectNameString}")
+    logger.info(s"check cluster status for: ${cluster.projectNameString}. Welder DAO null status: ${welderDAO}. Jupyter DAO: ${jupyterDAO}. Cluster name: ${cluster.clusterName}. Google project: ${cluster.googleProject}")
     for {
       isWelderUp <- welderDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName)
       isJupyterUp <- jupyterDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName)

@@ -12,7 +12,9 @@ import com.typesafe.scalalogging.LazyLogging
 import org.mockito.Mockito._
 import org.scalatest.mockito.MockitoSugar
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
+import org.mockito.ArgumentMatchers
 import org.scalatest.concurrent.Eventually.eventually
+import cats.effect.IO
 
 import scala.concurrent.duration._
 import scala.util.Try
@@ -25,38 +27,54 @@ class ClusterServiceMonitorSpec  extends TestKit(ActorSystem("leonardotest")) wi
     super.afterAll()
   }
 
-  val testCluster1 = makeCluster(1).copy(status = ClusterStatus.Running)
-  val mockNewRelic = mock[NewRelicMetrics]
-
+  val welderEnabledCluster = makeCluster(1).copy(status = ClusterStatus.Running, welderEnabled = true)
+  val welderDisabledCluster = makeCluster(2).copy(welderEnabled = false)
 
   it should "report both services are up normally" in isolatedDbTest {
-    withServiceActor() { _ =>
+    welderEnabledCluster.save()
+
+    withServiceActor() { (_, mockNewRelic) =>
 
       Thread.sleep(clusterServiceConfig.pollPeriod.toMillis * 3)
       verify(mockNewRelic, never()).incrementCounterIO("jupyterDown")
       verify(mockNewRelic, never()).incrementCounterIO("welderDown")
-
     }
   }
 
   it should "report both services are down" in isolatedDbTest {
-    withServiceActor(mockNewRelic, welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) { _ =>
+    welderEnabledCluster.save()
 
-//      eventually(timeout(clusterServiceConfig.pollPeriod * 4)) {
-      eventually(timeout(5 minutes)) {
-        //the second parameter is needed because of something scala does under the covers to handle the fact we omit the predefined param count from our incrementCounterIO call.
-        //interestingly, explicitly specifying the count in the incrementCounterIO does not fix this
+    withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) { (_, mockNewRelic) =>
+
+      eventually(timeout(clusterServiceConfig.pollPeriod * 4)) {
+        //the second parameter is needed because of something scala does under the covers that mockito does not like to handle the fact we omit the predefined param count from our incrementCounterIO call.
+        //explicitly specifying the count in the incrementCounterIO in the monitor itself does not fix this
         verify(mockNewRelic, times(3)).incrementCounterIO("jupyterDown", 0)
         verify(mockNewRelic, times(3)).incrementCounterIO("welderDown", 0)
       }
-
     }
   }
 
-  private def withServiceActor[T](newRelic: NewRelicMetrics = mockNewRelic, welderDAO: WelderDAO = MockWelderDAO, jupyterDAO: JupyterDAO = MockJupyterDAO)
-                                (testCode: ActorRef => T): T = {
+  it should "report welder as OK when it is disabled" in isolatedDbTest {
+    welderDisabledCluster.save()
+
+    withServiceActor(welderDAO = new MockWelderDAO(false)) { (_, mockNewRelic) =>
+
+      Thread.sleep(clusterServiceConfig.pollPeriod.toMillis * 3)
+      verify(mockNewRelic, never()).incrementCounterIO("welderDown")
+    }
+  }
+
+  private def makeNewRelicMock(): NewRelicMetrics = {
+    val mockNewRelic = mock[NewRelicMetrics]
+    when(mockNewRelic.incrementCounterIO(ArgumentMatchers.anyString(), ArgumentMatchers.anyInt())).thenReturn(IO.unit)
+    mockNewRelic
+  }
+
+  private def withServiceActor[T](newRelic: NewRelicMetrics = makeNewRelicMock(), welderDAO: WelderDAO = MockWelderDAO, jupyterDAO: JupyterDAO = MockJupyterDAO)
+                                (testCode: (ActorRef, NewRelicMetrics) => T): T = {
     val actor = system.actorOf(ClusterServiceMonitor.props(clusterServiceConfig, gdDAO = new MockGoogleDataprocDAO, googleProjectDAO = new MockGoogleProjectDAO, DbSingleton.ref, welderDAO, jupyterDAO, newRelic))
-    val testResult = Try(testCode(actor))
+    val testResult = Try(testCode(actor, newRelic))
 
     // shut down the actor and wait for it to terminate
     testKit watch actor
@@ -64,8 +82,4 @@ class ClusterServiceMonitorSpec  extends TestKit(ActorSystem("leonardotest")) wi
     expectMsgClass(5 seconds, classOf[Terminated])
     testResult.get
   }
-
-
-
-
 }

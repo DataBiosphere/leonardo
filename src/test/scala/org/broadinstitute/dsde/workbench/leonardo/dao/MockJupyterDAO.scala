@@ -11,8 +11,7 @@ object MockJupyterDAO extends JupyterDAO {
 }
 
 class MockJupyterDAO(isUp: Boolean) extends JupyterDAO {
-  val mockReturn = Future.successful(isUp)
-  override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = mockReturn
+  override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = Future.successful(isUp)
 
-  override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = mockReturn
+  override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = Future.successful(isUp)
 }
