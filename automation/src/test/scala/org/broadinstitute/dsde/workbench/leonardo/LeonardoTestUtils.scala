@@ -82,15 +82,23 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   val google2StorageResource = GoogleStorageService.resource[IO](LeonardoConfig.GCS.pathToQAJson)
 
   // TODO: move this to NotebookTestUtils and chance cluster-specific functions to only call if necessary after implementing RStudio
-  def saveJupyterLogFile(clusterName: ClusterName, googleProject: GoogleProject, suffix: String)(implicit token: AuthToken): Try[File] = {
-    Try {
-      val jupyterLogOpt = Notebook.getContentItem(googleProject, clusterName, "jupyter.log", includeContent = true)
-      val content = jupyterLogOpt.content.getOrElse(throw new RuntimeException(s"Could not download jupyter.log for cluster ${googleProject.value}/${clusterName.string}"))
-      val downloadFile = new File(logDir, s"${googleProject.value}-${clusterName.string}-$suffix-jupyter.log")
-      val fos = new FileOutputStream(downloadFile)
-      fos.write(content.getBytes(StandardCharsets.UTF_8))
-      fos.close()
-      downloadFile
+  def saveClusterLogFiles(googleProject: GoogleProject, clusterName: ClusterName, paths: List[String], suffix: String)(implicit token: AuthToken): Unit = {
+    val fileResult = paths.traverse[Try, File] { path =>
+      Try {
+        val contentItem = Notebook.getContentItem(googleProject, clusterName, path, includeContent = true)
+        val content = contentItem.content.getOrElse(throw new RuntimeException(s"Could not download ${path} for cluster ${googleProject.value}/${clusterName.string}"))
+        val downloadFile = new File(logDir, s"${googleProject.value}-${clusterName.string}-$suffix-${path}")
+        val fos = new FileOutputStream(downloadFile)
+        fos.write(content.getBytes(StandardCharsets.UTF_8))
+        fos.close()
+        downloadFile
+      }
+    }
+    fileResult match {
+      case Success(files) =>
+        logger.info(s"Saved files [${files.map(_.getName).mkString(", ")}] for cluster ${googleProject.value}/${clusterName.string}")
+      case Failure(e) =>
+        logger.warn(s"Could not save files for cluster ${googleProject.value}/${clusterName.string} . Not failing test.", e)
     }
   }
 
@@ -218,15 +226,10 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
         logger.warn(s"Could not obtain Dataproc log files for cluster ${creatingCluster.projectNameString}")
     }
 
-    // If the cluster is running, grab the jupyter.log file for debugging.
+    // If the cluster is running, grab the jupyter.log and welder.log files for debugging.
     runningOrErroredCluster.foreach { cluster =>
       if (cluster.status == ClusterStatus.Running) {
-        saveJupyterLogFile(cluster.clusterName, cluster.googleProject, "create") match {
-          case Success(file) =>
-            logger.info(s"Saved jupyter.log file for cluster ${cluster.projectNameString} to ${file.getAbsolutePath}")
-          case Failure(e) =>
-            logger.warn(s"Could not save jupyter.log file for cluster ${cluster.projectNameString} . Not failing test.", e)
-        }
+        saveClusterLogFiles(cluster.googleProject, cluster.clusterName, List("jupyter.log", "welder.log"), "create")
       }
     }
 
@@ -239,12 +242,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   }
 
   def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName, monitor: Boolean)(implicit token: AuthToken): Unit = {
-    saveJupyterLogFile(clusterName, googleProject, "delete") match {
-      case Success(file) =>
-        logger.info(s"Saved jupyter.log file for cluster ${googleProject.value}/${clusterName.string} to ${file.getAbsolutePath}")
-      case Failure(e) =>
-        logger.warn(s"Could not save jupyter.log file for cluster ${googleProject.value}/${clusterName.string} . Not failing test.", e)
-    }
+    saveClusterLogFiles(googleProject, clusterName, List("jupyter.log", "welder.log"), "delete")
     try {
       Leonardo.cluster.delete(googleProject, clusterName) shouldBe
         "The request has been accepted for processing, but the processing has not been completed."
@@ -336,13 +334,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
       getResult.isSuccess shouldBe true
       getResult.get should not include "ProxyException"
 
-      // Grab the jupyter.log file for debugging.
-      saveJupyterLogFile(startingCluster.clusterName, startingCluster.googleProject, "start") match {
-        case Success(file) =>
-          logger.info(s"Saved jupyter.log file for cluster ${startingCluster.projectNameString} to ${file.getAbsolutePath}")
-        case Failure(e) =>
-          logger.warn(s"Could not save jupyter.log file for cluster ${startingCluster.projectNameString} . Not failing test.", e)
-      }
+      // Grab the jupyter.log and welder.log files for debugging.
+      saveClusterLogFiles(googleProject, clusterName, List("jupyter.log", "welder.log"), "start")
     }
   }
 
