@@ -19,6 +19,8 @@ import org.broadinstitute.dsde.workbench.service.Sam
 import org.openqa.selenium.WebDriver
 import org.scalatest.Suite
 
+import scala.concurrent.{Await, Future}
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.{Failure, Success, Try}
@@ -94,9 +96,14 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   def withNewNotebook[T](cluster: Cluster, kernel: NotebookKernel = Python3, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
       logger.info(s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}...")
-      notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
-        testCode(notebookPage)
+      val result: Future[T] = retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds, 2 minutes) { () =>
+        Future(
+          notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
+            testCode(notebookPage)
+          }
+        )
       }
+      Await.result(result, 10 minutes)
     }
   }
 
