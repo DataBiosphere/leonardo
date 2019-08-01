@@ -341,6 +341,16 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     click on getSelectorFrom(lockPlaygroundButton)
   }
 
+  /**
+    * In some situations Jupyter UI will display a "Notebook changed" modal if it detects
+    * the Jupyter last save date is out of sync with the filesystem last_modified timestamp.
+    *
+    * It's unclear why it sporadically happens in tests. It's not reproducible manually. This
+    * is a big hammer approach to dismiss the modal when it comes up. It resolves the issue,
+    * but we risk hiding a potentially legitimate bug.
+    *
+    * See https://broadworkbench.atlassian.net/browse/IA-1228
+    */
   def dismissNotebookChanged(): Unit = {
     if (find(modalNotebookChanged).exists(_.text == "Notebook changed")) {
       click on confirmNotebookSaveButton
