@@ -71,16 +71,13 @@ class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocD
             if (status.jupyterStatus.equals(JupyterStatus.JupyterDown)) {
               logger.info("jupyter down")
               newRelic.incrementCounterIO("jupyterDown").unsafeRunAsync(_ => ())
-            } else {
-              logger.info("jupyter Up")
             }
 
             if (status.welderStatus.equals(WelderStatus.WelderDown)) {
               logger.info("welder enabled and down")
               newRelic.incrementCounterIO("welderDown").unsafeRunAsync(_ => ())
-            } else {
-              logger.info("welder Up or not enabled")
             }
+
           ()
           }
         }
@@ -96,7 +93,6 @@ class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocD
   }
 
   def checkClusterStatus(cluster: Cluster): Future[Status] = {
-    logger.info(s"check cluster status for: ${cluster.projectNameString}. Welder DAO null status: ${welderDAO}. Jupyter DAO: ${jupyterDAO}. Cluster name: ${cluster.clusterName}. Google project: ${cluster.googleProject}")
     for {
       isWelderUp <- welderDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName)
       isJupyterUp <- jupyterDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName)
