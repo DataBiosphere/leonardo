@@ -94,6 +94,10 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   lazy val notebookNotification: Query = cssSelector("[id='notification_notebook']")
 
   lazy val saveButton: Query = cssSelector(s"[id='${saveButtonId}']")
+
+  lazy val modalNotebookChanged: Query = cssSelector("[class='modal-title']")
+
+  lazy val confirmNotebookSaveButton: Query = cssSelector("[class='btn btn-default btn-sm btn-danger save-confirm-btn']")
   
   //intentionally misspelled
   val saveButtonId = "save-notbook"
@@ -126,6 +130,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   }
 
   def runAllCells(timeout: FiniteDuration = 60 seconds): Unit = {
+    dismissNotebookChanged()
     click on cellMenu
     click on (await enabled runAllCellsSelection)
     awaitReadyKernel(timeout)
@@ -174,6 +179,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   //TODO: This function is buggy because the cell numbers are kernel specific not notebook specific
   //It is possible to have a notebook with two cells, numbered 1,1 or even 1, 9
   def executeCell(code: String, timeout: FiniteDuration = 1 minute, cellNumberOpt: Option[Int] = None): Option[String] = {
+    dismissNotebookChanged()
     await enabled cells
     val cell = lastCell
     val cellNumber = cellNumberOpt.getOrElse(numCellsOnPage)
@@ -187,6 +193,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
 
   //TODO: this function is duplicative of the above but does not have the bug
   def addCodeAndExecute(code: String, timeout: FiniteDuration = 1 minute): Unit = {
+    dismissNotebookChanged()
     await enabled cells
     val cell = lastCell
     click on cell
@@ -217,6 +224,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   }
 
   def shutdownKernel(): Unit = {
+    dismissNotebookChanged()
     awaitReadyKernel(1.minutes) //can cause failures with fast tests as it is called in clean-up, and it will timeout if it is called before the kernel is active
     click on kernelMenu
     click on (await enabled shutdownKernelSelection)
@@ -231,6 +239,7 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     */
   def restartKernel(timeout: FiniteDuration = 1 minute): Unit = {
     logger.info("restarting kernel ...")
+    dismissNotebookChanged()
     click on kernelMenu
     click on (await enabled restartKernelSelection)
     click on (await enabled restartKernelConfirmationSelection)
@@ -332,4 +341,11 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     click on getSelectorFrom(lockPlaygroundButton)
   }
 
- }
+  def dismissNotebookChanged(): Unit = {
+    if (find(modalNotebookChanged).exists(_.text == "Notebook changed")) {
+      click on confirmNotebookSaveButton
+      await notVisible modalNotebookChanged
+    }
+  }
+
+}
