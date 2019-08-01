@@ -84,6 +84,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
 
   def withNotebookUpload[T](cluster: Cluster, file: File, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withFileUpload(cluster, file) { notebooksListPage =>
+      logger.info(s"Opening notebook ${file.getAbsolutePath} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}...")
       notebooksListPage.withOpenNotebook(file, timeout) { notebookPage =>
         testCode(notebookPage)
       }
@@ -92,6 +93,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
 
   def withNewNotebook[T](cluster: Cluster, kernel: NotebookKernel = Python3, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
+      logger.info(s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}...")
       notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
         testCode(notebookPage)
       }
@@ -100,6 +102,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
 
   def withOpenNotebook[T](cluster: Cluster, notebookPath: File, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
+      logger.info(s"Opening notebook ${notebookPath.getAbsolutePath} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}...")
       notebooksListPage.withOpenNotebook(notebookPath, timeout) { notebookPage =>
         testCode(notebookPage)
       }
