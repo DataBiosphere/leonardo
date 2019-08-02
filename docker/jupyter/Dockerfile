@@ -271,6 +271,7 @@ RUN apt-get update \
  && python3 -mpip install matplotlib==3.0.0 \
  && pip3 install pandas==0.23.4 \
  && pip3 install seaborn==0.9.0 \
+ && pip3 install notebook==5.7.8 \
  && pip3 install jupyter==1.0.0 \
  && pip3 install jupyterlab==0.35.4 \
  && pip3 install python-lzo==1.12 \
