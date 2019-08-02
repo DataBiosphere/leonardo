@@ -1,6 +1,4 @@
-FROM hseeberger/scala-sbt:8u212_1.2.8_2.12.8
-
-RUN mkdir /app
+FROM bigtruedata/sbt
 
 COPY src /app/src
 COPY test.sh /app
