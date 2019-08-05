@@ -22,7 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.{InstanceStatus, 
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, WorkbenchProjectLocation}
 import org.broadinstitute.dsde.workbench.model.google.GcsLifecycleTypes.GcsLifecycleType
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsObjectName, GoogleProject, ServiceAccountKeyId}
@@ -143,19 +143,19 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val gdDAO = mock[GoogleDataprocDAO]
     when {
-      gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(ClusterStatus.Running)
 
     when {
-      gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(clusterInstances)
 
     when {
-      gdDAO.getClusterMasterInstance(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.getClusterMasterInstance(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(Some(masterInstance.key))
 
     when {
-      gdDAO.getClusterStagingBucket(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.getClusterStagingBucket(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(Some(GcsBucketName("staging-bucket")))
 
     val computeDAO = stubComputeDAO(InstanceStatus.Running)
@@ -203,6 +203,16 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     }
   }
 
+  private def getClusterComputeRegion(cluster: Cluster): Option[String] = {
+    cluster.labels.get("project_location") match {
+      case Some(location) =>
+        WorkbenchProjectLocation.fromName(location).map(_.computeRegionAndZones.head._1)
+      case None =>
+        None
+    }
+  }
+
+
   // Pre:
   // - cluster exists in the DB with status Creating
   // - dataproc DAO returns status CREATING, UNKNOWN, or UPDATING
@@ -218,11 +228,11 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
       val gdDAO = mock[GoogleDataprocDAO]
       when {
-        gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+        gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
       } thenReturn Future.successful(status)
 
       when {
-        gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+        gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
       } thenReturn Future.successful(clusterInstances)
 
       val computeDAO = stubComputeDAO(InstanceStatus.Running)
@@ -261,15 +271,15 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val dao = mock[GoogleDataprocDAO]
     when {
-      dao.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      dao.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(ClusterStatus.Running)
 
     when {
-      dao.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      dao.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(clusterInstances)
 
     when {
-      dao.getClusterMasterInstance(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      dao.getClusterMasterInstance(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(None)
 
     val computeDAO = stubComputeDAO(InstanceStatus.Running)
@@ -307,7 +317,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val gdDAO = mock[GoogleDataprocDAO]
     when {
-      gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(ClusterStatus.Error)
 
     when {
@@ -315,11 +325,11 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(Some(ClusterErrorDetails(Code.CANCELLED.value, Some("test message"))))
 
     when {
-      gdDAO.deleteCluster(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.deleteCluster(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(())
 
     when {
-      gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(clusterInstances)
 
     val iamDAO = mock[GoogleIamDAO]
@@ -368,7 +378,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val gdDAO = mock[GoogleDataprocDAO]
     when {
-      gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(ClusterStatus.Error)
 
     when {
@@ -376,11 +386,11 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(None)
 
     when {
-      gdDAO.deleteCluster(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.deleteCluster(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(())
 
     when {
-      gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(clusterInstances)
 
     val iamDAO = mock[GoogleIamDAO]
@@ -429,11 +439,11 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val dao = mock[GoogleDataprocDAO]
     when {
-      dao.getClusterStatus(mockitoEq(deletingCluster.googleProject), mockitoEq(deletingCluster.clusterName))
+      dao.getClusterStatus(mockitoEq(deletingCluster.googleProject), mockitoEq(deletingCluster.clusterName), mockitoEq(getClusterComputeRegion(deletingCluster)))
     } thenReturn Future.successful(ClusterStatus.Deleted)
 
     when {
-      dao.getClusterInstances(mockitoEq(deletingCluster.googleProject), mockitoEq(deletingCluster.clusterName))
+      dao.getClusterInstances(mockitoEq(deletingCluster.googleProject), mockitoEq(deletingCluster.clusterName), mockitoEq(getClusterComputeRegion(deletingCluster)))
     } thenReturn Future.successful(Map.empty[DataprocRole, Set[InstanceKey]])
 
     val computeDAO = mock[GoogleComputeDAO]
@@ -491,7 +501,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val storageDAO = mock[GoogleStorageDAO]
     val computeDAO = stubComputeDAO(InstanceStatus.Running)
     when {
-      gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn {
       Future.successful(ClusterStatus.Error)
     } thenReturn {
@@ -503,7 +513,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     }
 
     when {
-      gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn {
       Future.successful(clusterInstances)
     } thenReturn {
@@ -515,12 +525,12 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(Some(ClusterErrorDetails(Code.UNKNOWN.value, Some("Test message"))))
 
     when {
-      gdDAO.deleteCluster(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.deleteCluster(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(())
 
     val newClusterId = UUID.randomUUID()
     when {
-      gdDAO.createCluster(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), any[CreateClusterConfig])
+      gdDAO.createCluster(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(creatingCluster.labels.get("project_location")), any[CreateClusterConfig])
     } thenReturn Future.successful {
       Operation(creatingCluster.dataprocInfo.operationName.get, newClusterId)
     }
@@ -554,11 +564,11 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(())
 
     when {
-      gdDAO.getClusterMasterInstance(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.getClusterMasterInstance(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(Some(InstanceKey(creatingCluster.googleProject, ZoneUri("my-zone"), InstanceName("master-instance"))))
 
     when {
-      gdDAO.getClusterStagingBucket(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.getClusterStagingBucket(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(Some(GcsBucketName("staging-bucket")))
 
     when {
@@ -650,11 +660,11 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val gdDAO = mock[GoogleDataprocDAO]
     when {
-      gdDAO.getClusterStatus(mockitoEq(deletingCluster.googleProject), mockitoEq(deletingCluster.clusterName))
+      gdDAO.getClusterStatus(mockitoEq(deletingCluster.googleProject), mockitoEq(deletingCluster.clusterName), mockitoEq(getClusterComputeRegion(deletingCluster)))
     } thenReturn Future.successful(ClusterStatus.Running)
 
     when {
-      gdDAO.getClusterInstances(mockitoEq(deletingCluster.googleProject), mockitoEq(deletingCluster.clusterName))
+      gdDAO.getClusterInstances(mockitoEq(deletingCluster.googleProject), mockitoEq(deletingCluster.clusterName), mockitoEq(getClusterComputeRegion(deletingCluster)))
     } thenReturn Future.successful(clusterInstances)
 
     val computeDAO = stubComputeDAO(InstanceStatus.Running)
@@ -695,31 +705,31 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val projectDAO = mock[GoogleProjectDAO]
     val computeDAO = stubComputeDAO(InstanceStatus.Running)
     when {
-      gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(ClusterStatus.Running)
     when {
-      gdDAO.getClusterStatus(mockitoEq(creatingCluster2.googleProject), mockitoEq(creatingCluster2.clusterName))
+      gdDAO.getClusterStatus(mockitoEq(creatingCluster2.googleProject), mockitoEq(creatingCluster2.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster2)))
     } thenReturn Future.successful(ClusterStatus.Running)
 
     when {
-      gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(clusterInstances)
     when {
-      gdDAO.getClusterInstances(mockitoEq(creatingCluster2.googleProject), mockitoEq(creatingCluster2.clusterName))
+      gdDAO.getClusterInstances(mockitoEq(creatingCluster2.googleProject), mockitoEq(creatingCluster2.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster2)))
     } thenReturn Future.successful(clusterInstances2)
 
     when {
-      gdDAO.getClusterMasterInstance(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.getClusterMasterInstance(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(Some(InstanceKey(creatingCluster.googleProject, ZoneUri("my-zone"), InstanceName("master-instance"))))
     when {
-      gdDAO.getClusterMasterInstance(mockitoEq(creatingCluster2.googleProject), mockitoEq(creatingCluster2.clusterName))
+      gdDAO.getClusterMasterInstance(mockitoEq(creatingCluster2.googleProject), mockitoEq(creatingCluster2.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster2)))
     } thenReturn Future.successful(Some(InstanceKey(creatingCluster.googleProject, ZoneUri("my-zone"), InstanceName("master-instance"))))
 
     when {
-      gdDAO.getClusterStagingBucket(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.getClusterStagingBucket(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(Some(GcsBucketName("staging-bucket")))
     when {
-      gdDAO.getClusterStagingBucket(mockitoEq(creatingCluster2.googleProject), mockitoEq(creatingCluster2.clusterName))
+      gdDAO.getClusterStagingBucket(mockitoEq(creatingCluster2.googleProject), mockitoEq(creatingCluster2.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(Some(GcsBucketName("staging-bucket2")))
 
     val storageDAO = mock[GoogleStorageDAO]
@@ -789,10 +799,10 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val gdDAO = mock[GoogleDataprocDAO]
     when {
-      gdDAO.getClusterStatus(mockitoEq(stoppingCluster.googleProject), mockitoEq(stoppingCluster.clusterName))
+      gdDAO.getClusterStatus(mockitoEq(stoppingCluster.googleProject), mockitoEq(stoppingCluster.clusterName), mockitoEq(getClusterComputeRegion(stoppingCluster)))
     } thenReturn Future.successful(ClusterStatus.Running)
     when {
-      gdDAO.getClusterInstances(mockitoEq(stoppingCluster.googleProject), mockitoEq(stoppingCluster.clusterName))
+      gdDAO.getClusterInstances(mockitoEq(stoppingCluster.googleProject), mockitoEq(stoppingCluster.clusterName), mockitoEq(getClusterComputeRegion(stoppingCluster)))
     } thenReturn Future.successful(clusterInstances)
 
     val computeDAO = stubComputeDAO(InstanceStatus.Stopped)
@@ -832,16 +842,16 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val gdDAO = mock[GoogleDataprocDAO]
     when {
-      gdDAO.getClusterStatus(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
+      gdDAO.getClusterStatus(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName), mockitoEq(getClusterComputeRegion(startingCluster)))
     } thenReturn Future.successful(ClusterStatus.Running)
     when {
-      gdDAO.getClusterInstances(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
+      gdDAO.getClusterInstances(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName), mockitoEq(getClusterComputeRegion(startingCluster)))
     } thenReturn Future.successful(clusterInstances)
     when {
-      gdDAO.getClusterMasterInstance(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
+      gdDAO.getClusterMasterInstance(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName), mockitoEq(getClusterComputeRegion(startingCluster)))
     } thenReturn Future.successful(Some(masterInstance.key))
     when {
-      gdDAO.getClusterStagingBucket(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName))
+      gdDAO.getClusterStagingBucket(mockitoEq(startingCluster.googleProject), mockitoEq(startingCluster.clusterName), mockitoEq(getClusterComputeRegion(startingCluster)))
     } thenReturn Future.successful(Some(GcsBucketName("staging-bucket")))
 
     val computeDAO = stubComputeDAO(InstanceStatus.Running)
@@ -911,19 +921,19 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val projectDAO = mock[GoogleProjectDAO]
     val gdDAO = mock[GoogleDataprocDAO]
     when {
-      gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(ClusterStatus.Running)
 
     when {
-      gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(Map((Master: DataprocRole) -> Set(masterInstance.key)))
 
     when {
-      gdDAO.getClusterMasterInstance(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.getClusterMasterInstance(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(Some(masterInstance.key))
 
     when {
-      gdDAO.getClusterStagingBucket(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      gdDAO.getClusterStagingBucket(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName), mockitoEq(getClusterComputeRegion(creatingCluster)))
     } thenReturn Future.successful(Some(GcsBucketName("staging-bucket")))
 
     val computeDAO = mock[GoogleComputeDAO]
@@ -1006,7 +1016,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
         dbCluster shouldBe 'defined
         dbCluster.get shouldEqual errorCluster
       }
-      verify(gdDAO, never()).getClusterStatus(any[GoogleProject], any[ClusterName])
+      verify(gdDAO, never()).getClusterStatus(any[GoogleProject], any[ClusterName], None)
     }
   }
 }

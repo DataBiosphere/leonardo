@@ -27,7 +27,7 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
 
   private def googleID = UUID.randomUUID()
 
-  override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, config: CreateClusterConfig): Future[Operation] = {
+  override def createCluster(googleProject: GoogleProject, clusterName: ClusterName, region: Option[String], config: CreateClusterConfig): Future[Operation] = {
     if (clusterName == badClusterName) {
       Future.failed(new Exception("bad cluster!"))
     } else {
@@ -42,12 +42,12 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
     }
   }
 
-  override def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName): Future[Unit] = {
+  override def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName, region: Option[String]): Future[Unit] = {
     clusters.remove(clusterName)
     Future.successful(())
   }
 
-  override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] = {
+  override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName, region: Option[String]): Future[ClusterStatus] = {
     Future.successful {
       if (clusters.contains(clusterName) && errorClusters.contains(clusterName)) ClusterStatus.Error
       else if(clusters.contains(clusterName)) ClusterStatus.Running
@@ -60,14 +60,14 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
     else Future.successful(Stream.continually(UUID.randomUUID).take(5).toList)
   }
 
-  override def getClusterMasterInstance(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[InstanceKey]] = {
+  override def getClusterMasterInstance(googleProject: GoogleProject, clusterName: ClusterName, region: Option[String]): Future[Option[InstanceKey]] = {
     Future.successful {
       if (clusters.contains(clusterName)) Some(InstanceKey(googleProject, ZoneUri("my-zone"), InstanceName("master-instance")))
       else None
     }
   }
 
-  override def getClusterInstances(googleProject: GoogleProject, clusterName: ClusterName): Future[Map[DataprocRole, Set[InstanceKey]]] = {
+  override def getClusterInstances(googleProject: GoogleProject, clusterName: ClusterName, region: Option[String]): Future[Map[DataprocRole, Set[InstanceKey]]] = {
     Future.successful {
       if (clusters.contains(clusterName))
         instances.getOrElse(clusterName, mutable.Map[DataprocRole, Set[InstanceKey]]()).toMap
@@ -92,7 +92,7 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
     }
   }
 
-  override def getClusterStagingBucket(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[GcsBucketName]] = {
+  override def getClusterStagingBucket(googleProject: GoogleProject, clusterName: ClusterName, region: Option[String]): Future[Option[GcsBucketName]] = {
     Future.successful(Some(GcsBucketName("staging-bucket")))
   }
 

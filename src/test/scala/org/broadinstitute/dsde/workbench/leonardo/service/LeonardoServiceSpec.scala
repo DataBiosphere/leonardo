@@ -413,7 +413,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     leo.getClusterVPCSettings(decoySubnetMap) shouldBe Some(Right(VPCSubnetName("test-subnet")))
 
     //label behaviour should be: project-subnet, project-network, config-subnet, config-network
-    val configWithProjectLabels = dataprocConfig.copy(projectVPCSubnetLabel = Some("subnet-label"), projectVPCNetworkLabel = Some("network-label"))
+    val configWithProjectLabels = dataprocConfig.copy(projectVPCSubnetLabel = Some("subnet-label"), projectVPCNetworkLabel = Some("network-label"), projectLocationLabel = Some("project_location"))
     val projectLabelLeo = new LeonardoService(configWithProjectLabels, MockWelderDAO, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
 
     val subnetMap = Map("subnet-label" -> "correctSubnet", "network-label" -> "incorrectNetwork")
@@ -574,7 +574,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   it should "initialize bucket with correct files" in isolatedDbTest {
     // create the bucket and add files
     val bucketName = generateUniqueBucketName(name1.value + "-init")
-    val bucket = bucketHelper.createInitBucket(project, bucketName, ServiceAccountInfo(None, Some(serviceAccountEmail))).futureValue
+    val bucket = bucketHelper.createInitBucket(project, bucketName, ServiceAccountInfo(None, Some(serviceAccountEmail)), None).futureValue
     leo.initializeBucketObjects(userInfo.userEmail, project, name1, bucket, testClusterRequest, Some(serviceAccountKey), contentSecurityPolicy, Set(jupyterImage), stagingBucketName).futureValue
 
     // our bucket should now exist

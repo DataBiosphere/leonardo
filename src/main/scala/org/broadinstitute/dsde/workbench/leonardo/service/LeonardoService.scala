@@ -28,7 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, UserInfo, WorkbenchEmail, WorkbenchProjectLocation}
 import org.broadinstitute.dsde.workbench.util.Retry
 import slick.dbio.DBIO
 import spray.json._
@@ -567,7 +567,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           logger.error(s"Error occurred removing service account key for ${cluster.googleProject} / ${cluster.clusterName}", e)
         }
         // Delete the cluster in Google
-        _ <- gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)
+        _ <- gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName, getClusterComputeRegion(cluster))
         // Change the cluster status to Deleting in the database
         // Note this also changes the instance status to Deleting
         _ <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.id))
@@ -670,6 +670,15 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
+  private def getClusterComputeRegion(cluster: Cluster): Option[String] = {
+    cluster.labels.get(dataprocConfig.projectLocationLabel.get) match {
+      case Some(location) =>
+        WorkbenchProjectLocation.fromName(location).map(_.computeRegionAndZones.head._1)
+      case None =>
+        None
+    }
+  }
+
   private[service] def getActiveCluster(googleProject: GoogleProject, clusterName: ClusterName, dataAccess: DataAccess): DBIO[Cluster] = {
     dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName) flatMap {
       case None => throw ClusterNotFoundException(googleProject, clusterName)
@@ -713,13 +722,25 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // If the Google Compute default service account is being used, this is not necessary.
       _ <- addDataprocWorkerRoleToServiceAccount(googleProject, serviceAccountInfo.clusterServiceAccount)
 
-      // Create the bucket in the cluster's google project and populate with initialization files.
+      lookupProjectLabels = dataprocConfig.projectVPCNetworkLabel.isDefined || dataprocConfig.projectVPCSubnetLabel.isDefined || dataprocConfig.projectLocationLabel.isDefined
+      projectLabels <- if (lookupProjectLabels) googleProjectDAO.getLabels(googleProject.value) else Future.successful(Map.empty[String, String])
+      // Pull the region out of projectLabels
+      workBenchProjectLocation = projectLabels.get(dataprocConfig.projectLocationLabel.get) match {
+        case Some(location) =>
+          WorkbenchProjectLocation.fromName(location)
+        case None =>
+          None
+      }
+
+      // Create the bucket in the cluster's google project, and storage location (as pulled from project labels), and populate with initialization files.
       // ACLs are granted so the cluster service account can access the files at initialization time.
-      initBucket <- bucketHelper.createInitBucket(googleProject, initBucketName, serviceAccountInfo)
+      initBucket <- bucketHelper.createInitBucket(googleProject, initBucketName, serviceAccountInfo, workBenchProjectLocation.map(_.storageLocation))
       _ <- initializeBucketObjects(userEmail, googleProject, clusterName, initBucket, clusterRequest, serviceAccountKeyOpt, contentSecurityPolicy, clusterImages, stagingBucketName)
+//      initBucket <- bucketHelper.createInitBucket(googleProject, initBucketName, serviceAccountInfo, workBenchProjectLocation.map(_.storageLocation))
+//      _ <- initializeBucketObjects(userEmail, googleProject, clusterName, initBucket, clusterRequest, serviceAccountKeyOpt, contentSecurityPolicy, clusterImages, stagingBucketName)
 
       // Create the cluster staging bucket. ACLs are granted so the user/pet can access it.
-      stagingBucket <- bucketHelper.createStagingBucket(userEmail, googleProject, stagingBucketName, serviceAccountInfo)
+      stagingBucket <- bucketHelper.createStagingBucket(userEmail, googleProject, stagingBucketName, serviceAccountInfo, workBenchProjectLocation.map(_.storageLocation))
 
       // build cluster configuration
       machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
@@ -729,14 +750,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       credentialsFileName = serviceAccountInfo.notebookServiceAccount.map(_ => s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}")
 
       // decide whether to use VPC network
-      lookupProjectLabels = dataprocConfig.projectVPCNetworkLabel.isDefined || dataprocConfig.projectVPCSubnetLabel.isDefined
-      projectLabels <- if (lookupProjectLabels) googleProjectDAO.getLabels(googleProject.value) else Future.successful(Map.empty[String, String])
       clusterVPCSettings = getClusterVPCSettings(projectLabels)
 
       // Create the cluster
       createClusterConfig = CreateClusterConfig(machineConfig, initScript, serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket, clusterScopes, clusterVPCSettings, clusterRequest.properties)
       retryResult <- retryExponentially(whenGoogleZoneCapacityIssue, "Cluster creation failed because zone with adequate resources was not found") { () =>
-        gdDAO.createCluster(googleProject, clusterName, createClusterConfig)
+        gdDAO.createCluster(googleProject, clusterName, workBenchProjectLocation.map(_.computeRegionAndZones.head._1), createClusterConfig)
       }
       operation <- retryResult match {
         case Right((errors, op)) if errors == List.empty => Future.successful(op)
@@ -839,7 +858,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     // Don't delete the staging bucket so the user can see error logs.
 
-    val deleteClusterFuture = gdDAO.deleteCluster(googleProject, clusterName) map { _ =>
+    // TODO - Not sure how to handle this one.
+    val deleteClusterFuture = gdDAO.deleteCluster(googleProject, clusterName, None) map { _ =>
       logger.info(s"Successfully deleted cluster ${googleProject.value} / ${clusterName.value}")
     } recover { case e =>
       logger.error(s"Failed to delete cluster ${googleProject.value} / ${clusterName.value}", e)

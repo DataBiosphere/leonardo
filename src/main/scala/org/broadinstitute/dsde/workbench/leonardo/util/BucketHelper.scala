@@ -38,7 +38,7 @@ class BucketHelper(dataprocConfig: DataprocConfig,
   /**
     * Creates the dataproc init bucket and sets the necessary ACLs.
     */
-  def createInitBucket(googleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[GcsBucketName] = {
+  def createInitBucket(googleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo, location: Option[String]): Future[GcsBucketName] = {
     for {
       // The init bucket is created in the cluster's project.
       // Leo service account -> Owner
@@ -50,7 +50,7 @@ class BucketHelper(dataprocConfig: DataprocConfig,
       // Therefore, we are adding a second layer of retries on top of the one existing within
       // the googleStorageDAO.createBucket method
       _ <- retryUntilSuccessOrTimeout(failureLogMessage = s"Init bucket creation failed for Google project '$googleProject'")(30 seconds, 5 minutes) { () =>
-        googleStorageDAO.createBucket(googleProject, bucketName, bucketSAs, List(leoEntity))
+        googleStorageDAO.createBucket(googleProject, bucketName, bucketSAs, List(leoEntity), location)
       }
     } yield bucketName
   }
@@ -58,7 +58,7 @@ class BucketHelper(dataprocConfig: DataprocConfig,
   /**
     * Creates the dataproc staging bucket and sets the necessary ACLs.
     */
-  def createStagingBucket(userEmail: WorkbenchEmail, googleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[GcsBucketName] = {
+  def createStagingBucket(userEmail: WorkbenchEmail, googleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo, location: Option[String]): Future[GcsBucketName] = {
     for {
       // The staging bucket is created in the cluster's project.
       // Leo service account -> Owner
@@ -84,7 +84,7 @@ class BucketHelper(dataprocConfig: DataprocConfig,
       // Therefore, we are adding a second layer of retries on top of the one existing within
       // the googleStorageDAO.createBucket method
       _ <- retryUntilSuccessOrTimeout(failureLogMessage = s"Staging bucket creation failed for Google project '$googleProject'")(30 seconds, 5 minutes) { () =>
-        googleStorageDAO.createBucket(googleProject, bucketName, readers, owners)
+        googleStorageDAO.createBucket(googleProject, bucketName, readers, owners, location)
       }
     } yield bucketName
   }

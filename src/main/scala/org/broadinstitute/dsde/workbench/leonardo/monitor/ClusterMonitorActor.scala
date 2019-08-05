@@ -23,6 +23,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterDeleted, ClusterSupervisorMessage, RemoveFromList}
+import org.broadinstitute.dsde.workbench.model.WorkbenchProjectLocation
 import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GoogleProject}
 import org.broadinstitute.dsde.workbench.util.{Retry, addJitter}
 import slick.dbio.DBIOAction
@@ -178,7 +179,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     for {
       _ <- Future.sequence(List(
         // Delete the cluster in Google
-        gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName),
+        gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName, getClusterComputeRegion),
         // Remove the service account key in Google, if present.
         // Only happens if the cluster was NOT created with the pet service account.
         removeServiceAccountKey,
@@ -210,6 +211,15 @@ class ClusterMonitorActor(val cluster: Cluster,
         } yield ShutdownActor(RemoveFromList(cluster))
       }
     } yield res
+  }
+
+  private def getClusterComputeRegion: Option[String] = {
+    cluster.labels.get("project_location") match {
+      case Some(location) =>
+        WorkbenchProjectLocation.fromName(location).map(_.computeRegionAndZones.head._1)
+      case None =>
+        None
+    }
   }
 
   private def shouldRecreateCluster(code: Int, message: Option[String]): Boolean = {
@@ -277,7 +287,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     */
   private def checkClusterInGoogle(leoClusterStatus: ClusterStatus): Future[ClusterMonitorMessage] = {
     for {
-      googleStatus <- gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName)
+      googleStatus <- gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName, getClusterComputeRegion)
 
       googleInstances <- getClusterInstances
 
@@ -386,7 +396,7 @@ class ClusterMonitorActor(val cluster: Cluster,
 
   private def getClusterInstances: Future[Set[Instance]] = {
     for {
-      map <- gdDAO.getClusterInstances(cluster.googleProject, cluster.clusterName)
+      map <- gdDAO.getClusterInstances(cluster.googleProject, cluster.clusterName, getClusterComputeRegion)
       instances <- map.toList.flatTraverse { case (role, instances) =>
         instances.toList.traverseFilter(instance => googleComputeDAO.getInstance(instance).map(_.map(_.copy(dataprocRole = Some(role)))))
       }
@@ -395,7 +405,7 @@ class ClusterMonitorActor(val cluster: Cluster,
 
   private def getMasterIp: Future[Option[IP]] = {
     val transformed = for {
-      masterKey <- OptionT(gdDAO.getClusterMasterInstance(cluster.googleProject, cluster.clusterName))
+      masterKey <- OptionT(gdDAO.getClusterMasterInstance(cluster.googleProject, cluster.clusterName, getClusterComputeRegion))
       masterInstance <- OptionT(googleComputeDAO.getInstance(masterKey))
       masterIp <- OptionT.fromOption[Future](masterInstance.ip)
     } yield masterIp

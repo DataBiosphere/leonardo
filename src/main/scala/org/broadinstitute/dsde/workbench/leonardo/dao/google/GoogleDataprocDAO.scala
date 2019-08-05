@@ -10,19 +10,19 @@ import org.broadinstitute.dsde.workbench.model.google._
 import scala.concurrent.Future
 
 trait GoogleDataprocDAO {
-  def createCluster(googleProject: GoogleProject, clusterName: ClusterName, createClusterConfig: CreateClusterConfig): Future[Operation]
+  def createCluster(googleProject: GoogleProject, clusterName: ClusterName, region: Option[String], createClusterConfig: CreateClusterConfig): Future[Operation]
 
-  def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName): Future[Unit]
+  def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName, region: Option[String]): Future[Unit]
 
-  def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus]
+  def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName, region: Option[String]): Future[ClusterStatus]
 
   def listClusters(googleProject: GoogleProject): Future[List[UUID]]
 
-  def getClusterMasterInstance(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[InstanceKey]]
+  def getClusterMasterInstance(googleProject: GoogleProject, clusterName: ClusterName, region: Option[String]): Future[Option[InstanceKey]]
 
-  def getClusterInstances(googleProject: GoogleProject, clusterName: ClusterName): Future[Map[DataprocRole, Set[InstanceKey]]]
+  def getClusterInstances(googleProject: GoogleProject, clusterName: ClusterName, region: Option[String]): Future[Map[DataprocRole, Set[InstanceKey]]]
 
-  def getClusterStagingBucket(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[GcsBucketName]]
+  def getClusterStagingBucket(googleProject: GoogleProject, clusterName: ClusterName, region: Option[String]): Future[Option[GcsBucketName]]
 
   def getClusterErrorDetails(operationName: Option[OperationName]): Future[Option[ClusterErrorDetails]]
 

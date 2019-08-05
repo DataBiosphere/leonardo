@@ -11,8 +11,8 @@ object Dependencies {
   val catsV         = "1.3.1"
 
   val workbenchUtilV    = "0.5-4c7acd5"
-  val workbenchModelV   = "0.13-6dc016b"
-  val workbenchGoogleV  = "0.19-084fa1b"
+  val workbenchModelV   = "0.13-eb09cf4-SNAP"
+  val workbenchGoogleV  = "0.20-9c549fb-SNAP"
   val workbenchGoogle2V = "0.2-2149dba"
   val workbenchMetricsV = "0.3-c5b80d2"
   val workbenchNewRelicV = "0.2-24dabc8"

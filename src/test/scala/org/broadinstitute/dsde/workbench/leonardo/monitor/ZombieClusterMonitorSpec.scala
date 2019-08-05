@@ -105,7 +105,7 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
 
     // stub GoogleDataprocDAO to flag cluster2 as deleted
     val gdDAO = new MockGoogleDataprocDAO {
-      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] = {
+      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName, region: Option[String]): Future[ClusterStatus] = {
         Future.successful {
           if (clusterName == savedTestCluster2.clusterName) {
             ClusterStatus.Deleted
@@ -147,7 +147,7 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
 
     // stub GoogleDataprocDAO to flag both clusters as deleted
     val gdDAO = new MockGoogleDataprocDAO {
-      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] = {
+      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName, region: Option[String]): Future[ClusterStatus] = {
         Future.successful(ClusterStatus.Deleted)
       }
     }
@@ -184,7 +184,7 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
     val shouldNotHangBefore = zombieClusterConfig.creationHangTolerance.minus(zombieClusterConfig.zombieCheckPeriod)
     // stub GoogleDataprocDAO to flag both clusters as deleted
     val gdDAO = new MockGoogleDataprocDAO {
-      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] = {
+      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName, region: Option[String]): Future[ClusterStatus] = {
         Future.successful(ClusterStatus.Deleted)
       }
     }
@@ -228,7 +228,7 @@ class ZombieClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with
 
     // stub GoogleDataprocDAO to return an error for the bad cluster
     val gdDAO = new MockGoogleDataprocDAO {
-      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterStatus] = {
+      override def getClusterStatus(googleProject: GoogleProject, clusterName: ClusterName, region: Option[String] = None): Future[ClusterStatus] = {
         if (googleProject == clusterBadProject.googleProject && clusterName == clusterBadProject.clusterName) {
           Future.successful(ClusterStatus.Running)
         } else if (googleProject == badCluster.googleProject && clusterName == badCluster.clusterName) {

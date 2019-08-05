@@ -14,6 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterError}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ZombieClusterMonitor._
+import org.broadinstitute.dsde.workbench.model.WorkbenchProjectLocation
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.Future
@@ -102,11 +103,21 @@ class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO
     //this or'd with the google cluster status gives creating clusters a grace period before they are marked as zombies
     val isWithinHangTolerance =  cluster.status == ClusterStatus.Creating && secondsSinceClusterCreation > config.creationHangTolerance.toSeconds
 
-   gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName) map { clusterStatus =>
+   gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName, getClusterComputeRegion(cluster)) map { clusterStatus =>
       (ClusterStatus.activeStatuses contains clusterStatus) || isWithinHangTolerance
     } recover { case e =>
       logger.warn(s"Unable to check status of cluster ${cluster.projectNameString} for zombie cluster detection", e)
       true
+    }
+  }
+
+  // TODO - dataprocConfig not visible from within here, hard-coded label in for now
+  private def getClusterComputeRegion(cluster: Cluster): Option[String] = {
+    cluster.labels.get("project_location") match {
+      case Some(location) =>
+        WorkbenchProjectLocation.fromName(location).map(_.computeRegionAndZones.head._1)
+      case None =>
+        None
     }
   }
 
