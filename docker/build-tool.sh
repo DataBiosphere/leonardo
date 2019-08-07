@@ -87,7 +87,7 @@ if [ -z "$REPOSITORY" ]; then
     PRINT_HELP=true
 fi
 
-if [ -z "$REPOSITORY" ]; then
+if [ -z "$DOCKER_TAG" ]; then
     echo "tag is required"
     PRINT_HELP=true
 fi
