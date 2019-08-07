@@ -11,7 +11,7 @@ fi
 
 FIAB=$1
 
-FULL_LEO_JAR=$(sbt assembly | tail -3 | head -2 | grep -o '/Users[^ ]*')
+FULL_LEO_JAR=$(sbt -Dsbt.log.noformat=true assembly | tail -3 | head -2 | grep -o '/Users[^ ]*')
 SHORT_LEO_JAR=$(echo ${FULL_LEO_JAR} | grep -oP 'leonardo-assembly[^ ]*')
 
 gcloud compute scp ${FULL_LEO_JAR} ${FIAB}:/tmp --zone=us-central1-a --project broad-dsde-dev
