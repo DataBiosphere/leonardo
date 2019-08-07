@@ -3,7 +3,8 @@ import sbt._
 object Dependencies {
   val akkaV         = "2.5.22"
   val akkaHttpV     = "10.1.8"
-  val jacksonV      = "2.9.8"
+  val jacksonV      = "2.9.9"
+  val jacksonDatabindV = "2.9.9.2"  // jackson-databind has a security patch on the 2.9.9 branch
   val googleV       = "1.23.0"
   val scalaLoggingV = "3.9.0"
   val scalaTestV    = "3.0.5"
@@ -43,7 +44,7 @@ object Dependencies {
   val excludeReactiveStream     = ExclusionRule(organization = "org.reactivestreams", name = "reactive-streams")
 
   val jacksonAnnotations: ModuleID = "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonV
-  val jacksonDatabind: ModuleID =    "com.fasterxml.jackson.core" % "jackson-databind"    % jacksonV excludeAll(excludeJacksonAnnotation)
+  val jacksonDatabind: ModuleID =    "com.fasterxml.jackson.core" % "jackson-databind"    % jacksonDatabindV excludeAll(excludeJacksonAnnotation)
   val jacksonCore: ModuleID =        "com.fasterxml.jackson.core" % "jackson-core"        % jacksonV
 
   val logbackClassic: ModuleID = "ch.qos.logback"             %  "logback-classic" % "1.2.3"
