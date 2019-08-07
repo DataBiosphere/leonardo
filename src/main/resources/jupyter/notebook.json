@@ -1,0 +1,6 @@
+{
+  "googleProject": $(googleProject),
+  "clusterName": $(clusterName),
+  "loginHint": $(loginHint),
+  "googleClientId": $(googleClientId)
+}

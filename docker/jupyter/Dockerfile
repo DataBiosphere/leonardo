@@ -384,18 +384,24 @@ RUN R -e 'install.packages(c( \
  && chown -R $USER:users /home/jupyter-user/.rpackages
 
 #######################
-# Utilities
+# Customizations
 #######################
 
 ADD scripts $JUPYTER_HOME/scripts
-ADD custom/jupyter_delocalize.py $JUPYTER_HOME/custom/
-ADD custom/jupyter_localize_extension.py $JUPYTER_HOME/custom/
+ADD custom $JUPYTER_HOME/custom
 
 RUN chown -R $USER:users $JUPYTER_HOME \
- && find $JUPYTER_HOME/scripts -name '*.sh' -type f | xargs chmod +x \
  && chown -R $USER:users /usr/local/share/jupyter/lab \
+ && find $JUPYTER_HOME/scripts -name '*.sh' -type f | xargs chmod +x \
  && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-6 200 \
- && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 100
+ && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 100 \
+ && $JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
+ && cp $JUPYTER_HOME/custom/google_sign_in.sh $HOME/.jupyter/.custom/ \
+ && cp $JUPYTER_HOME/custom/extension_entry_jupyter.js $HOME/.jupyter/.custom/custom.js \
+ && cp $JUPYTER_HOME/custom/safe-mode.js $HOME/.jupyter/.custom/ \
+ && cp $JUPYTER_HOME/custom/edit-mode.js $HOME/.jupyter/.custom/ \
+ && $JUPYTER_HOME/scripts/extension/jupyter_install_lab_extension.sh $JUPYTER_HOME/custom/extension_entry_jupyterlab.js \
+ && mkdir $JUPYTER_HOME/nbconfig
 
 USER $USER
 WORKDIR $HOME

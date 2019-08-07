@@ -11,13 +11,24 @@
 // const namespace = require('base/js/namespace')
 
 define(() => {
-    // TEMPLATED CODE
-    // Leonardo has logic to find/replace templated values in the format $(...).
-    var googleProject = $(googleProject);
-    var clusterName = $(clusterName);
+    // define default values for config parameters
+    var params = {
+        googleProject: '',
+        clusterName: ''
+    };
 
-    const welderUrl = `/proxy/${googleProject}/${clusterName}/welder`
-    const checkMetaUrl = welderUrl + '/objects/metadata'
+    // update params with any specified in the server's config file
+    function updateParams() {
+        var config = Jupyter.notebook.config;
+        for (var key in params) {
+            if (config.data.hasOwnProperty(key))
+                params[key] = config.data[key];
+        }
+
+        // generate URLs based on params
+        let welderUrl = `/proxy/${params.googleProject}/${params.clusterName}/welder`
+        params.checkMetaUrl = welderUrl + '/objects/metadata'
+    }
 
     const headers = {
         'Content-Type': 'application/json',
@@ -36,6 +47,7 @@ define(() => {
             return; //exit, they are in list view
         }
 
+        updateParams()
         checkMetaLoop()
     }
 
@@ -76,7 +88,7 @@ define(() => {
             method: 'POST'
         }
 
-        return fetch(checkMetaUrl, payload)
+        return fetch(params.checkMetaUrl, payload)
             .then(res => {
                 if (!res.ok) {
                     throw Error("check metadata call failed due to status code")

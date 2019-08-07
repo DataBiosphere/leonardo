@@ -994,8 +994,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       clusterResourcesConfig.rstudioDockerCompose,
       clusterResourcesConfig.proxyDockerCompose,
       clusterResourcesConfig.proxySiteConf,
-      clusterResourcesConfig.extensionEntry,
-      clusterResourcesConfig.jupyterLabGooglePlugin,
       clusterResourcesConfig.welderDockerCompose
     )
 
@@ -1007,23 +1005,18 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     // Fill in templated resources with the given replacements
     val initScriptContent = templateResource(clusterResourcesConfig.initActionsScript, replacements)
-    val googleSignInJsContent = templateResource(clusterResourcesConfig.googleSignInJs, replacements)
-    val editModeJsContent = templateResource(clusterResourcesConfig.editModeJs, replacements)
-    val safeModeJsContent = templateResource(clusterResourcesConfig.safeModeJs, replacements)
     val jupyterNotebookConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookConfigUri, replacements)
+    val jupyterNotebookFrontendConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookFrotendConfigUri, replacements)
 
     for {
       // Upload the init script to the bucket
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.initActionsScript.value), initScriptContent, "text/plain")
 
-      // Upload the nb extensions to the bucket
-      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.googleSignInJs.value), googleSignInJsContent, "text/plain")
-      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.editModeJs.value), editModeJsContent, "text/plain")
-      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.safeModeJs.value), safeModeJsContent, "text/plain")
-
-
-      // Update the jupytyer notebook config file
+      // Upload the juptyer notebook config file
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value), jupyterNotebookConfigContent, "text/plain")
+
+      // Upload the juptyer notebook frontend config file
+      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookFrotendConfigUri.value), jupyterNotebookFrontendConfigContent, "text/plain")
 
       // Upload raw files (like certs) to the bucket
       _ <- Future.traverse(filesToUpload)(file => leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(file.getName), file, "text/plain"))
