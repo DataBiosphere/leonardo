@@ -386,18 +386,20 @@ if [[ "${ROLE}" == 'Master' ]]; then
       fi
 
       # If a jupyterlab_google_plugin.js was specified, install it as a Lab extension
-      if [ ! -z ${JUPYTER_LAB_GOOGLE_PLUGIN_URI} ] ; then
-        log 'Installing jupyterlab_google_plugin.js extension...'
-        gsutil cp ${JUPYTER_LAB_GOOGLE_PLUGIN_URI} /etc
-        JUPYTER_LAB_GOOGLE_PLUGIN=`basename ${JUPYTER_LAB_GOOGLE_PLUGIN_URI}`
-        docker cp /etc/${JUPYTER_LAB_GOOGLE_PLUGIN} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_LAB_GOOGLE_PLUGIN}
-        retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_LAB_GOOGLE_PLUGIN}
-      fi
 
-      log 'Starting Jupyter Notebook...'
-      retry 3 docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}
-      log 'All done!'
-    fi
+# disable for hackathon.  this is erroring out and I don't know why.
+#      if [ ! -z ${JUPYTER_LAB_GOOGLE_PLUGIN_URI} ] ; then
+#        log 'Installing jupyterlab_google_plugin.js extension...'
+#        gsutil cp ${JUPYTER_LAB_GOOGLE_PLUGIN_URI} /etc
+#        JUPYTER_LAB_GOOGLE_PLUGIN=`basename ${JUPYTER_LAB_GOOGLE_PLUGIN_URI}`
+#        docker cp /etc/${JUPYTER_LAB_GOOGLE_PLUGIN} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_LAB_GOOGLE_PLUGIN}
+#        retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_LAB_GOOGLE_PLUGIN}
+#      fi
+#
+#      log 'Starting Jupyter Notebook...'
+#      retry 3 docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}
+#      log 'All done!'
+#    fi
 fi
 
 # Install Python 3.6 on the master and worker VMs
