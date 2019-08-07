@@ -49,6 +49,10 @@ IntelliJ
 - use classpath and SDK of the leonardoTests module
 - should be able to right-click-run
 
+Note: If the test you're trying to run is annotated with `@DoNotDiscover`, do the following for running the individual test
+- Comment out `@DoNotDiscover` of the test you are running
+- add `with GPAllocBeforeAndAfterAll` to `ClusterFixtureSpec`
+
 ### Developing locally
 
 If you are developing a test that uses ClusterFixture to re-use the same cluster between tests, you can speed up development significantly by reusing the same cluster between runs:
