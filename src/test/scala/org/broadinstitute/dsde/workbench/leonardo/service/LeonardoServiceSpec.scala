@@ -651,8 +651,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
           |"${testClusterRequestWithExtensionAndScript.userJupyterExtensionConfig.get.combinedExtensions.values.mkString(" ")}"
           |"${GcsPath(stagingBucketName, GcsObjectName("userscript_output.txt")).toUri}"
           |"${GcsPath(initBucketPath, GcsObjectName("jupyter_notebook_config.py")).toUri}"
-          |"${GcsPath(initBucketPath, GcsObjectName("notebook.json")).toUri}"
-          |""".stripMargin
+          |"${GcsPath(initBucketPath, GcsObjectName("notebook.json")).toUri}"""".stripMargin
 
     result shouldEqual expected
   }
