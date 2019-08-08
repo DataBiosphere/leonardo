@@ -16,6 +16,7 @@ import com.google.api.services.dataproc.model.{Cluster => DataprocCluster, Clust
 import com.google.api.services.oauth2.Oauth2
 import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
+import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, SecondaryWorker, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.service.{AuthenticationError, DataprocDisabledException}
@@ -63,7 +64,7 @@ class HttpGoogleDataprocDAO(appName: String,
 
     val request = dataproc.projects().regions().clusters().create(googleProject.value, region.getOrElse(defaultRegion), cluster)
 
-    retryWithRecoverWhen500orGoogleError { () =>
+    retryWithRecover(when5xx, whenUsageLimited, when404, whenInvalidValueOnBucketCreation, whenNonHttpIOException) { () =>
       executeGoogleRequest(request)
     } {
       case e: GoogleJsonResponseException if e.getStatusCode == 403 &&
@@ -76,7 +77,7 @@ class HttpGoogleDataprocDAO(appName: String,
 
   override def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName, region: Option[String] = None): Future[Unit] = {
     val request = dataproc.projects().regions().clusters().delete(googleProject.value, region.getOrElse(defaultRegion), clusterName.value)
-    retryWithRecoverWhen500orGoogleError { () =>
+    retryWithRecover(when5xx, whenUsageLimited, when404, whenInvalidValueOnBucketCreation, whenNonHttpIOException) { () =>
       executeGoogleRequest(request)
       ()
     } {
@@ -100,7 +101,7 @@ class HttpGoogleDataprocDAO(appName: String,
     val request = dataproc.projects().regions().clusters().list(googleProject.value, defaultRegion)
     // Use OptionT to handle nulls in the Google response
     val transformed = for {
-      result <- OptionT.liftF(retryWhen500orGoogleError(() => executeGoogleRequest(request)))
+      result <- OptionT.liftF(retry(when5xx, whenUsageLimited, when404, whenInvalidValueOnBucketCreation, whenNonHttpIOException)(() => executeGoogleRequest(request)))
       googleClusters <- OptionT.fromOption[Future](Option(result.getClusters))
     } yield {
       googleClusters.asScala.toList.map(c => UUID.fromString(c.getClusterUuid))
@@ -184,14 +185,14 @@ class HttpGoogleDataprocDAO(appName: String,
     updateAndMask match {
       case Some((update, mask)) =>
         val request = dataproc.projects().regions().clusters().patch(googleProject.value, defaultRegion, clusterName.value, update).setUpdateMask(mask)
-        retryWhen500orGoogleError(() => executeGoogleRequest(request)).void
+        retry(when5xx, whenUsageLimited, when404, whenInvalidValueOnBucketCreation, whenNonHttpIOException)(() => executeGoogleRequest(request)).void
       case None => Future.successful(())
     }
   }
 
   override def getUserInfoAndExpirationFromAccessToken(accessToken: String): Future[(UserInfo, Instant)] = {
     val request = oauth2.tokeninfo().setAccessToken(accessToken)
-    retryWhen500orGoogleError(() => executeGoogleRequest(request)).map { tokenInfo =>
+    retry(when5xx, whenUsageLimited, when404, whenInvalidValueOnBucketCreation, whenNonHttpIOException)(() => executeGoogleRequest(request)).map { tokenInfo =>
       (UserInfo(OAuth2BearerToken(accessToken), WorkbenchUserId(tokenInfo.getUserId), WorkbenchEmail(tokenInfo.getEmail), tokenInfo.getExpiresIn.toInt), Instant.now().plusSeconds(tokenInfo.getExpiresIn.toInt))
     } recover {
         case e: GoogleJsonResponseException =>
@@ -337,7 +338,7 @@ class HttpGoogleDataprocDAO(appName: String,
     */
   private def getCluster(googleProject: GoogleProject, clusterName: ClusterName, region: Option[String] = None): Future[Option[DataprocCluster]] = {
     val request = dataproc.projects().regions().clusters().get(googleProject.value, region.getOrElse(defaultRegion), clusterName.value)
-    retryWithRecoverWhen500orGoogleError { () =>
+    retryWithRecover(when5xx, whenUsageLimited, when404, whenInvalidValueOnBucketCreation, whenNonHttpIOException) { () =>
       Option(executeGoogleRequest(request))
     } {
       case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => None
@@ -349,7 +350,7 @@ class HttpGoogleDataprocDAO(appName: String,
     */
   private def getOperation(operationName: OperationName): Future[Option[DataprocOperation]] = {
     val request = dataproc.projects().regions().operations().get(operationName.value)
-    retryWithRecoverWhen500orGoogleError { () =>
+    retryWithRecover(when5xx, whenUsageLimited, when404, whenInvalidValueOnBucketCreation, whenNonHttpIOException) { () =>
       Option(executeGoogleRequest(request))
     } {
       case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => None
