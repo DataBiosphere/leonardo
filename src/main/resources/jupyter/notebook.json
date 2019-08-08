@@ -2,5 +2,6 @@
   "googleProject": $(googleProject),
   "clusterName": $(clusterName),
   "loginHint": $(loginHint),
-  "googleClientId": $(googleClientId)
+  "googleClientId": $(googleClientId),
+  "welderEnabled": $(welderEnabled)
 }
