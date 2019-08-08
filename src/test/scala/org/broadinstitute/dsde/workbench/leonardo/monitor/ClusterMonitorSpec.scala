@@ -548,7 +548,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(())
 
     when {
-      storageDAO.createBucket(any[GoogleProject], any[GcsBucketName], any[List[GcsEntity]], any[List[GcsEntity]])
+      storageDAO.createBucket(any[GoogleProject], any[GcsBucketName], any[List[GcsEntity]], any[List[GcsEntity]], any[Option[String]])
     } thenReturn Future.successful(GcsBucketName("my-bucket"))
 
     when {
@@ -1016,7 +1016,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
         dbCluster shouldBe 'defined
         dbCluster.get shouldEqual errorCluster
       }
-      verify(gdDAO, never()).getClusterStatus(any[GoogleProject], any[ClusterName], None)
+      verify(gdDAO, never()).getClusterStatus(any[GoogleProject], any[ClusterName], any[Option[String]])
     }
   }
 }
