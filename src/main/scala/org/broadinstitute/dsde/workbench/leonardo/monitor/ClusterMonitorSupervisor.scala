@@ -7,7 +7,7 @@ import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props, Timers}
 import cats.effect.IO
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.Metrics
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, DataprocConfig, MonitorConfig}
@@ -25,8 +25,8 @@ import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
 object ClusterMonitorSupervisor {
-  def props(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, google2StorageDAO: GoogleStorageService[IO], dbRef: DbReference, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO, rstudioProxyDAO: RStudioDAO, welderDAO: WelderDAO, leonardoService: LeonardoService): Props =
-    Props(new ClusterMonitorSupervisor(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, google2StorageDAO, dbRef, authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, welderDAO, leonardoService))
+  def props(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, google2StorageDAO: GoogleStorageService[IO], dbRef: DbReference, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO, rstudioProxyDAO: RStudioDAO, welderDAO: WelderDAO, leonardoService: LeonardoService): Props =
+    Props(new ClusterMonitorSupervisor(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleProjectDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, google2StorageDAO, dbRef, authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, welderDAO, leonardoService))
 
   sealed trait ClusterSupervisorMessage
 
@@ -55,7 +55,7 @@ object ClusterMonitorSupervisor {
   private case object CheckForClusters extends ClusterSupervisorMessage
 }
 
-class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, google2StorageDAO: GoogleStorageService[IO], dbRef: DbReference, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO, rstudioProxyDAO: RStudioDAO, welderProxyDAO: WelderDAO, leonardoService: LeonardoService)
+class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, google2StorageDAO: GoogleStorageService[IO], dbRef: DbReference, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO, rstudioProxyDAO: RStudioDAO, welderProxyDAO: WelderDAO, leonardoService: LeonardoService)
   extends Actor with Timers with LazyLogging {
   import context.dispatcher
 
@@ -159,7 +159,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
       ClusterTool.RStudio -> (() => rstudioProxyDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName)),
       ClusterTool.Welder -> (() => welderProxyDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName))
     )
-    context.actorOf(ClusterMonitorActor.props(cluster, monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, google2StorageDAO, dbRef, authProvider, proxyDAOs))
+    context.actorOf(ClusterMonitorActor.props(cluster, monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleProjectDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, google2StorageDAO, dbRef, authProvider, proxyDAOs))
   }
 
   def startClusterMonitorActor(cluster: Cluster, watchMessageOpt: Option[ClusterSupervisorMessage] = None): Unit = {

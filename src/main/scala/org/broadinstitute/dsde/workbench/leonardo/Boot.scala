@@ -84,7 +84,7 @@ object Boot extends IOApp with LazyLogging {
         if(leoExecutionModeConfig.backLeo) {
           val jupyterDAO = new HttpJupyterDAO(clusterDnsCache)
           val rstudioDAO = new HttpRStudioDAO(clusterDnsCache)
-          val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, appDependencies.google2StorageDao, dbRef, authProvider, autoFreezeConfig, jupyterDAO, rstudioDAO, welderDao, leonardoService))
+          val clusterMonitorSupervisor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleProjectDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, appDependencies.google2StorageDao, dbRef, authProvider, autoFreezeConfig, jupyterDAO, rstudioDAO, welderDao, leonardoService))
           val zombieClusterMonitor = system.actorOf(ZombieClusterMonitor.props(zombieClusterMonitorConfig, gdDAO, googleProjectDAO, dbRef))
         }
         val samDAO = new HttpSamDAO(samConfig.server)

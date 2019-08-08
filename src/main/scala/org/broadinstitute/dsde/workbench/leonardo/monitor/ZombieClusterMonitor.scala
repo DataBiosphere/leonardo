@@ -103,22 +103,28 @@ class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO
     //this or'd with the google cluster status gives creating clusters a grace period before they are marked as zombies
     val isWithinHangTolerance =  cluster.status == ClusterStatus.Creating && secondsSinceClusterCreation > config.creationHangTolerance.toSeconds
 
-   gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName, getClusterComputeRegion(cluster)) map { clusterStatus =>
-      (ClusterStatus.activeStatuses contains clusterStatus) || isWithinHangTolerance
-    } recover { case e =>
-      logger.warn(s"Unable to check status of cluster ${cluster.projectNameString} for zombie cluster detection", e)
-      true
+    getClusterComputeRegion(cluster).flatMap { computeRegion =>
+      gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName, computeRegion) map { clusterStatus =>
+        (ClusterStatus.activeStatuses contains clusterStatus) || isWithinHangTolerance
+      } recover { case e =>
+        logger.warn(s"Unable to check status of cluster ${cluster.projectNameString} for zombie cluster detection", e)
+        true
+      }
     }
   }
 
   // TODO - dataprocConfig not visible from within here, hard-coded label in for now
-  private def getClusterComputeRegion(cluster: Cluster): Option[String] = {
-    cluster.labels.get("project_location") match {
-      case Some(location) =>
-        WorkbenchProjectLocation.fromName(location).map(_.computeRegionAndZones.head._1)
-      case None =>
-        None
-    }
+  private def getClusterComputeRegion(cluster: Cluster): Future[Option[String]] = {
+    for {
+      projectLabels <- googleProjectDAO.getLabels(cluster.googleProject.value)
+      // Pull the region out of projectLabels
+      computeRegion = projectLabels.get("project_location") match {
+        case Some(location) =>
+          WorkbenchProjectLocation.fromName(location).map(_.computeRegionAndZones.head._1)
+        case None =>
+          None
+      }
+    } yield computeRegion
   }
 
   private def handleZombieCluster(cluster: Cluster): Future[Unit] = {

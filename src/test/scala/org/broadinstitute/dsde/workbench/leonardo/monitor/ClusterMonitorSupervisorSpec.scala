@@ -60,7 +60,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
       storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, whitelistAuthProvider, serviceAccountProvider,
       bucketHelper, contentSecurityPolicy)
 
-    val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO,
+    val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, projectDAO,
       computeDAO, iamDAO, storageDAO, FakeGoogleStorageInterpreter, DbSingleton.ref, authProvider, autoFreezeConfig, MockJupyterDAO, MockRStudioDAO, MockWelderDAO, leoService))
 
     eventually(timeout(Span(30, Seconds))) {
@@ -103,7 +103,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
       storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, whitelistAuthProvider, serviceAccountProvider,
       bucketHelper, contentSecurityPolicy)
 
-    val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO,
+    val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, projectDAO,
       computeDAO, iamDAO, storageDAO, FakeGoogleStorageInterpreter, DbSingleton.ref, authProvider, autoFreezeConfig, jupyterProxyDAO, MockRStudioDAO, MockWelderDAO, leoService))
 
     eventually(timeout(Span(30, Seconds))) {
@@ -140,7 +140,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
       storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, whitelistAuthProvider, serviceAccountProvider,
       bucketHelper, contentSecurityPolicy)
 
-    val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO,
+    val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, projectDAO,
       computeDAO, iamDAO, storageDAO, FakeGoogleStorageInterpreter, DbSingleton.ref, authProvider, autoFreezeConfig, jupyterProxyDAO, MockRStudioDAO, MockWelderDAO, leoService))
 
     eventually(timeout(Span(30, Seconds))) {
@@ -176,7 +176,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
       storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, whitelistAuthProvider, serviceAccountProvider,
       bucketHelper, contentSecurityPolicy)
 
-    val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO,
+    val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, projectDAO,
       computeDAO, iamDAO, storageDAO, FakeGoogleStorageInterpreter, DbSingleton.ref, authProvider, autoFreezeConfig, jupyterProxyDAO, MockRStudioDAO, MockWelderDAO, leoService))
 
     eventually(timeout(Span(30, Seconds))) {

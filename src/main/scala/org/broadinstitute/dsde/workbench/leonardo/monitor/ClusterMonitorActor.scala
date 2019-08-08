@@ -13,7 +13,7 @@ import cats.implicits._
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
-import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterBucketConfig, DataprocConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
@@ -39,8 +39,8 @@ object ClusterMonitorActor {
   /**
     * Creates a Props object used for creating a {{{ClusterMonitorActor}}}.
     */
-  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, google2StorageDAO: GoogleStorageService[IO], dbRef: DbReference, authProvider: LeoAuthProvider, proxyDao: Map[ClusterTool, Function0[Future[Boolean]]]): Props =
-    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, google2StorageDAO, dbRef, authProvider, proxyDao))
+  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, google2StorageDAO: GoogleStorageService[IO], dbRef: DbReference, authProvider: LeoAuthProvider, proxyDao: Map[ClusterTool, Function0[Future[Boolean]]]): Props =
+    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleProjectDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, google2StorageDAO, dbRef, authProvider, proxyDao))
 
   // ClusterMonitorActor messages:
 
@@ -68,6 +68,7 @@ class ClusterMonitorActor(val cluster: Cluster,
                           val dataprocConfig: DataprocConfig,
                           val clusterBucketConfig: ClusterBucketConfig,
                           val gdDAO: GoogleDataprocDAO,
+                          val googleProjectDAO: GoogleProjectDAO,
                           val googleComputeDAO: GoogleComputeDAO,
                           val googleIamDAO: GoogleIamDAO,
                           val googleStorageDAO: GoogleStorageDAO,
@@ -177,9 +178,10 @@ class ClusterMonitorActor(val cluster: Cluster,
     */
   private def handleFailedCluster(errorDetails: ClusterErrorDetails, instances: Set[Instance]): Future[ClusterMonitorMessage] = {
     for {
+      computeRegion <- getClusterComputeRegion(cluster)
       _ <- Future.sequence(List(
         // Delete the cluster in Google
-        gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName, getClusterComputeRegion),
+        gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName, computeRegion),
         // Remove the service account key in Google, if present.
         // Only happens if the cluster was NOT created with the pet service account.
         removeServiceAccountKey,
@@ -213,13 +215,18 @@ class ClusterMonitorActor(val cluster: Cluster,
     } yield res
   }
 
-  private def getClusterComputeRegion: Option[String] = {
-    cluster.labels.get("project_location") match {
-      case Some(location) =>
-        WorkbenchProjectLocation.fromName(location).map(_.computeRegionAndZones.head._1)
-      case None =>
-        None
-    }
+  // TODO - dataprocConfig not visible from within here, hard-coded label in for now
+  private def getClusterComputeRegion(cluster: Cluster): Future[Option[String]] = {
+    for {
+      projectLabels <- googleProjectDAO.getLabels(cluster.googleProject.value)
+      // Pull the region out of projectLabels
+      computeRegion = projectLabels.get("project_location") match {
+        case Some(location) =>
+          WorkbenchProjectLocation.fromName(location).map(_.computeRegionAndZones.head._1)
+        case None =>
+          None
+      }
+    } yield computeRegion
   }
 
   private def shouldRecreateCluster(code: Int, message: Option[String]): Boolean = {
@@ -287,7 +294,8 @@ class ClusterMonitorActor(val cluster: Cluster,
     */
   private def checkClusterInGoogle(leoClusterStatus: ClusterStatus): Future[ClusterMonitorMessage] = {
     for {
-      googleStatus <- gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName, getClusterComputeRegion)
+      computeRegion <- getClusterComputeRegion(cluster)
+      googleStatus <- gdDAO.getClusterStatus(cluster.googleProject, cluster.clusterName, computeRegion)
 
       googleInstances <- getClusterInstances
 
@@ -396,7 +404,8 @@ class ClusterMonitorActor(val cluster: Cluster,
 
   private def getClusterInstances: Future[Set[Instance]] = {
     for {
-      map <- gdDAO.getClusterInstances(cluster.googleProject, cluster.clusterName, getClusterComputeRegion)
+      computeRegion <- getClusterComputeRegion(cluster)
+      map <- gdDAO.getClusterInstances(cluster.googleProject, cluster.clusterName, computeRegion)
       instances <- map.toList.flatTraverse { case (role, instances) =>
         instances.toList.traverseFilter(instance => googleComputeDAO.getInstance(instance).map(_.map(_.copy(dataprocRole = Some(role)))))
       }
@@ -405,7 +414,8 @@ class ClusterMonitorActor(val cluster: Cluster,
 
   private def getMasterIp: Future[Option[IP]] = {
     val transformed = for {
-      masterKey <- OptionT(gdDAO.getClusterMasterInstance(cluster.googleProject, cluster.clusterName, getClusterComputeRegion))
+      computeRegion <- OptionT.liftF(getClusterComputeRegion(cluster))
+      masterKey <- OptionT(gdDAO.getClusterMasterInstance(cluster.googleProject, cluster.clusterName, computeRegion))
       masterInstance <- OptionT(googleComputeDAO.getInstance(masterKey))
       masterIp <- OptionT.fromOption[Future](masterInstance.ip)
     } yield masterIp
