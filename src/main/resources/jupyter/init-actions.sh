@@ -100,7 +100,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
     JUPYTER_USER_SCRIPT_OUTPUT_URI=$(jupyterUserScriptOutputUri)
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
-    JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookConfigUri)
+    JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
 
     log 'Installing prerequisites...'
 
