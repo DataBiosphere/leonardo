@@ -50,7 +50,7 @@ define(() => {
 
         updateParams()
 
-        if (!(params.welderEnabed == 'true')) {
+        if (!(params.welderEnabled == 'true')) {
             console.info('welder is not enabled')
             return;
         }
