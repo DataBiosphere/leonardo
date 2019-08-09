@@ -17,6 +17,8 @@ import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.mockito.ArgumentMatchers.any
+import org.mockito.Mockito.when
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.mockito.MockitoSugar
 import org.scalatest.time.{Seconds, Span}
@@ -85,6 +87,10 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
 
     val projectDAO = mock[GoogleProjectDAO]
 
+    when {
+      projectDAO.getLabels(any[String])
+    } thenReturn Future.successful(Map[String,String]())
+
     val authProvider = mock[LeoAuthProvider]
 
     val jupyterProxyDAO = new JupyterDAO {
@@ -123,6 +129,10 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
     val iamDAO = mock[GoogleIamDAO]
     val projectDAO = mock[GoogleProjectDAO]
     val authProvider = mock[LeoAuthProvider]
+
+    when {
+      projectDAO.getLabels(any[String])
+    } thenReturn Future.successful(Map[String,String]())
 
     val jupyterProxyDAO = new JupyterDAO {
       override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = Future.successful(true)

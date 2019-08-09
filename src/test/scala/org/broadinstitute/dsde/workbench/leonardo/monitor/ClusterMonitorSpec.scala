@@ -114,7 +114,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => new MockGoogleStorageDAO
     val leoService = new LeonardoService(dataprocConfig, MockWelderDAO, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, whitelistAuthProvider, serviceAccountProvider, bucketHelper, contentSecurityPolicy)
-    val supervisorActor = system.actorOf(TestClusterSupervisorActor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, computeDAO, iamDAO, storageDAO, storage2DAO, DbSingleton.ref, testKit, authProvider, autoFreezeConfig, jupyterDAO, rstudioDAO, welderDAO, leoService))
+    val supervisorActor = system.actorOf(TestClusterSupervisorActor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, projectDAO, computeDAO, iamDAO, storageDAO, storage2DAO, DbSingleton.ref, testKit, authProvider, autoFreezeConfig, jupyterDAO, rstudioDAO, welderDAO, leoService))
 
     supervisorActor
   }
@@ -241,6 +241,10 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       val storageDAO = mock[GoogleStorageDAO]
       val authProvider = mock[LeoAuthProvider]
 
+      when {
+        projectDAO.getLabels(any[String])
+      } thenReturn Future.successful(Map[String,String]())
+
       withClusterSupervisor(gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, FakeGoogleStorageInterpreter, authProvider, MockJupyterDAO, MockRStudioDAO, MockWelderDAO, true) { actor =>
 
         eventually {
@@ -287,6 +291,10 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val projectDAO = mock[GoogleProjectDAO]
     val storageDAO = mock[GoogleStorageDAO]
     val authProvider = mock[LeoAuthProvider]
+
+    when {
+      projectDAO.getLabels(any[String])
+    } thenReturn Future.successful(Map[String,String]())
 
     withClusterSupervisor(dao, computeDAO, iamDAO, projectDAO, storageDAO, FakeGoogleStorageInterpreter, authProvider, MockJupyterDAO, MockRStudioDAO, MockWelderDAO,true) { actor =>
 
@@ -345,6 +353,10 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val storageDAO = mock[GoogleStorageDAO]
     val projectDAO = mock[GoogleProjectDAO]
     val authProvider = mock[LeoAuthProvider]
+
+    when {
+      projectDAO.getLabels(any[String])
+    } thenReturn Future.successful(Map[String,String]())
 
     withClusterSupervisor(gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, FakeGoogleStorageInterpreter, authProvider, MockJupyterDAO, MockRStudioDAO, MockWelderDAO, false) { actor =>
 
@@ -407,6 +419,10 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val projectDAO = mock[GoogleProjectDAO]
     val authProvider = mock[LeoAuthProvider]
 
+    when {
+      projectDAO.getLabels(any[String])
+    } thenReturn Future.successful(Map[String,String]())
+
     withClusterSupervisor(gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, FakeGoogleStorageInterpreter, authProvider, MockJupyterDAO, MockRStudioDAO, MockWelderDAO, false) { actor =>
 
       eventually {
@@ -448,6 +464,11 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
 
     val computeDAO = mock[GoogleComputeDAO]
     val projectDAO = mock[GoogleProjectDAO]
+
+    when {
+      projectDAO.getLabels(any[String])
+    } thenReturn Future.successful(Map[String,String]())
+
     val iamDAO = mock[GoogleIamDAO]
 
     val storageDAO = mock[GoogleStorageDAO]

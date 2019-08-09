@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 import akka.actor.{ActorRef, Props}
 import akka.testkit.TestKit
 import cats.effect.IO
-import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, DataprocConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, WelderDAO}
@@ -17,6 +17,7 @@ object TestClusterSupervisorActor {
             dataprocConfig: DataprocConfig,
             clusterBucketConfig: ClusterBucketConfig,
             gdDAO: GoogleDataprocDAO,
+            googleProjectDAO: GoogleProjectDAO,
             googleComputeDAO: GoogleComputeDAO,
             googleIamDAO: GoogleIamDAO,
             googleStorageDAO: GoogleStorageDAO,
@@ -30,7 +31,7 @@ object TestClusterSupervisorActor {
             welderDAO: WelderDAO,
             leonardoService: LeonardoService): Props =
     Props(new TestClusterSupervisorActor(
-      monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO,
+      monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleProjectDAO, googleComputeDAO, googleIamDAO, googleStorageDAO,
       google2StorageDAO, dbRef, testKit, authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, welderDAO, leonardoService))
 }
 
@@ -43,6 +44,7 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  dataprocConfig: DataprocConfig,
                                  clusterBucketConfig: ClusterBucketConfig,
                                  gdDAO: GoogleDataprocDAO,
+                                 googleProjectDAO: GoogleProjectDAO,
                                  googleComputeDAO: GoogleComputeDAO,
                                  googleIamDAO: GoogleIamDAO,
                                  googleStorageDAO: GoogleStorageDAO,
@@ -56,7 +58,7 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  welderDAO: WelderDAO,
                                  leonardoService: LeonardoService)
   extends ClusterMonitorSupervisor(
-    monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO,
+    monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleProjectDAO, googleComputeDAO,
     googleIamDAO, googleStorageDAO, google2StorageDAO, dbRef,
     authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, welderDAO, leonardoService) {
 
