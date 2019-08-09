@@ -189,7 +189,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     clusterInitMap("clusterName") shouldBe name1.value
     clusterInitMap("jupyterDockerImage") shouldBe jupyterImage.dockerImage
     clusterInitMap("proxyDockerImage") shouldBe proxyConfig.jupyterProxyDockerImage
-    clusterInitMap("defaultClientId") shouldBe testClusterRequestWithExtensionAndScript.defaultClientId.getOrElse("")
+    clusterInitMap("googleClientId") shouldBe testClusterRequestWithExtensionAndScript.defaultClientId.getOrElse("")
     clusterInitMap("welderDockerImage") shouldBe welderImage.dockerImage
 
     clusterInitMap.size shouldBe 32
