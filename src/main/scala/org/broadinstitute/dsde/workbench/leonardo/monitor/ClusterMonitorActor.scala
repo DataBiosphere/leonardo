@@ -444,7 +444,7 @@ class ClusterMonitorActor(val cluster: Cluster,
             // Retry 409s with exponential backoff. This can happen if concurrent policy updates are made in the same project.
             // Google recommends a retry in this case.
             retryExponentially(whenGoogle409, s"IAM policy change failed for Google project '${cluster.googleProject}'") { () =>
-              googleIamDAO.removeIamRolesForUser(cluster.googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
+              googleIamDAO.removeIamRolesForUser(cluster.googleProject, serviceAccountEmail, Set("roles/dataproc.worker", "roles/compute.imageUser"))
             }
           }
         }

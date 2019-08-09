@@ -455,13 +455,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           // Add Dataproc Worker role to the cluster service account, if present.
           // This is needed to be able to spin up Dataproc clusters.
           // If the Google Compute default service account is being used, this is not necessary.
-          _ <- addDataprocWorkerRoleToServiceAccount(existingCluster.googleProject, existingCluster.serviceAccountInfo.clusterServiceAccount)
+          _ <- addIamRolesToServiceAccount(existingCluster.googleProject, existingCluster.serviceAccountInfo.clusterServiceAccount)
 
           // Resize the cluster
           _ <- gdDAO.resizeCluster(existingCluster.googleProject, existingCluster.clusterName, updatedNumWorkersAndPreemptibles.left, updatedNumWorkersAndPreemptibles.right) recoverWith {
             case gjre: GoogleJsonResponseException =>
               //typically we will revoke this role in the monitor after everything is complete, but if Google fails to resize the cluster we need to revoke it manually here
-              removeDataprocWorkerRoleFromServiceAccount(existingCluster.googleProject, existingCluster.serviceAccountInfo.clusterServiceAccount)
+              removeIamRolesRoleFromServiceAccount(existingCluster.googleProject, existingCluster.serviceAccountInfo.clusterServiceAccount)
 
               logger.info("did not successfully update cluster")
               throw InvalidDataprocMachineConfigException(gjre.getMessage)
@@ -715,7 +715,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Add Dataproc Worker role to the cluster service account, if present.
       // This is needed to be able to spin up Dataproc clusters.
       // If the Google Compute default service account is being used, this is not necessary.
-      _ <- addDataprocWorkerRoleToServiceAccount(googleProject, serviceAccountInfo.clusterServiceAccount)
+      _ <- addIamRolesToServiceAccount(googleProject, serviceAccountInfo.clusterServiceAccount)
 
       // Create the bucket in the cluster's google project and populate with initialization files.
       // ACLs are granted so the cluster service account can access the files at initialization time.
@@ -882,23 +882,23 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
-  private[service] def addDataprocWorkerRoleToServiceAccount(googleProject: GoogleProject, serviceAccountOpt: Option[WorkbenchEmail]): Future[Unit] = {
+  private[service] def addIamRolesToServiceAccount(googleProject: GoogleProject, serviceAccountOpt: Option[WorkbenchEmail]): Future[Unit] = {
     serviceAccountOpt.map { serviceAccountEmail =>
       // Retry 409s with exponential backoff. This can happen if concurrent policy updates are made in the same project.
       // Google recommends a retry in this case.
       val iamFuture: Future[Unit] = retryExponentially(whenGoogle409, s"IAM policy change failed for Google project '$googleProject'") { () =>
-        googleIamDAO.addIamRolesForUser(googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
+        googleIamDAO.addIamRolesForUser(googleProject, serviceAccountEmail, Set("roles/dataproc.worker", "roles/compute.imageUser"))
       }
       iamFuture
     } getOrElse Future.unit
   }
 
-  private[service] def removeDataprocWorkerRoleFromServiceAccount(googleProject: GoogleProject, serviceAccountOpt: Option[WorkbenchEmail]): Future[Unit] = {
+  private[service] def removeIamRolesRoleFromServiceAccount(googleProject: GoogleProject, serviceAccountOpt: Option[WorkbenchEmail]): Future[Unit] = {
     serviceAccountOpt.map { serviceAccountEmail =>
       // Retry 409s with exponential backoff. This can happen if concurrent policy updates are made in the same project.
       // Google recommends a retry in this case.
       val iamFuture: Future[Unit] = retryExponentially(whenGoogle409, s"IAM policy change failed for Google project '$googleProject'") { () =>
-        googleIamDAO.removeIamRolesForUser(googleProject, serviceAccountEmail, Set("roles/dataproc.worker"))
+        googleIamDAO.removeIamRolesForUser(googleProject, serviceAccountEmail, Set("roles/dataproc.worker", "roles/compute.imageUser"))
       }
       iamFuture
     } getOrElse Future.unit
