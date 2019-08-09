@@ -21,6 +21,7 @@ set -e -x
 # UPDATE THIS IF YOU ADD MORE STEPS:
 # currently the steps are:
 # START init,
+# .. after env setup
 # .. after copying files from google and into docker
 # .. after docker compose
 # .. after welder start
