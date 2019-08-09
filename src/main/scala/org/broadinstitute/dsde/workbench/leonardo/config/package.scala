@@ -39,7 +39,8 @@ package object config {
       config.getAs[String]("projectVPCNetworkLabel"),
       config.getAs[String]("projectVPCSubnetLabel"),
       config.getString("welderEnabledNotebooksDir"),
-      config.getString("welderDisabledNotebooksDir")
+      config.getString("welderDisabledNotebooksDir"),
+      config.getAs[String]("customDataprocImage")
     )
   }
 
@@ -56,6 +57,7 @@ package object config {
   implicit val clusterResourcesConfigReader: ValueReader[ClusterResourcesConfig] = ValueReader.relative { config =>
     ClusterResourcesConfig(
       ClusterResource(config.getString("initActionsScript")),
+      ClusterResource(config.getString("customDataprocInitActionsScript")),
       ClusterResource(config.getString("jupyterDockerCompose")),
       ClusterResource(config.getString("rstudioDockerCompose")),
       ClusterResource(config.getString("proxyDockerCompose")),

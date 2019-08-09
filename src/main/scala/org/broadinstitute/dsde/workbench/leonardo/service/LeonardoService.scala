@@ -738,7 +738,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       clusterVPCSettings = getClusterVPCSettings(projectLabels)
 
       // Create the cluster
-      createClusterConfig = CreateClusterConfig(machineConfig, initScript, serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket, clusterScopes, clusterVPCSettings, clusterRequest.properties)
+      createClusterConfig = CreateClusterConfig(machineConfig, initScript, serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket, clusterScopes, clusterVPCSettings, clusterRequest.properties, dataprocConfig.customDataprocImage)
       retryResult <- retryExponentially(whenGoogleZoneCapacityIssue, "Cluster creation failed because zone with adequate resources was not found") { () =>
         gdDAO.createCluster(googleProject, clusterName, createClusterConfig)
       }
@@ -1008,13 +1008,14 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } getOrElse(Future.unit)
 
     // Fill in templated resources with the given replacements
-    val initScriptContent = templateResource(clusterResourcesConfig.initActionsScript, replacements)
+    val initActionsScriptResource = if (dataprocConfig.customDataprocImage.isDefined) clusterResourcesConfig.customDataprocInitActionsScript else clusterResourcesConfig.initActionsScript
+    val initScriptContent = templateResource(initActionsScriptResource, replacements)
     val jupyterNotebookConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookConfigUri, replacements)
     val jupyterNotebookFrontendConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookFrontendConfigUri, replacements)
 
     for {
       // Upload the init script to the bucket
-      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.initActionsScript.value), initScriptContent, "text/plain")
+      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(initActionsScriptResource.value), initScriptContent, "text/plain")
 
       // Upload the juptyer notebook config file
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value), jupyterNotebookConfigContent, "text/plain")

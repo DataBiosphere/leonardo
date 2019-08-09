@@ -236,13 +236,19 @@ class HttpGoogleDataprocDAO(appName: String,
       .setMachineTypeUri(config.machineConfig.masterMachineType.get)
       .setDiskConfig(new DiskConfig().setBootDiskSizeGb(config.machineConfig.masterDiskSize.get))
 
+    // If a custom dataproc image is specified, set it in the InstanceGroupConfig.
+    // This overrides the imageVersion set in SoftwareConfig.
+    config.dataprocCustomImage.foreach { customImage =>
+      masterConfig.setImageUri(customImage)
+    }
+
     // Set the zone, if specified. If not specified, Dataproc will pick a zone within the configured region.
     zoneOpt.foreach { zone =>
       gceClusterConfig.setZoneUri(zone)
     }
 
     // Create a Cluster Config and give it the GceClusterConfig, the NodeInitializationAction and the InstanceGroupConfig
-    createClusterConfig(config.machineConfig, config.credentialsFileName, config.properties)
+    createClusterConfig(config)
       .setGceClusterConfig(gceClusterConfig)
       .setInitializationActions(initActions.asJava)
       .setMasterConfig(masterConfig)
@@ -251,16 +257,16 @@ class HttpGoogleDataprocDAO(appName: String,
 
   // Expects a Machine Config with master configs defined for a 0 worker cluster and both master and worker
   // configs defined for 2 or more workers.
-  private def createClusterConfig(machineConfig: MachineConfig, credentialsFileName: Option[String], userProperties: Map[String, String]): DataprocClusterConfig = {
+  private def createClusterConfig(createClusterConfig: CreateClusterConfig): DataprocClusterConfig = {
 
-    val swConfig: SoftwareConfig = getSoftwareConfig(machineConfig.numberOfWorkers, credentialsFileName, userProperties)
+    val swConfig: SoftwareConfig = getSoftwareConfig(createClusterConfig.machineConfig.numberOfWorkers, createClusterConfig.credentialsFileName, createClusterConfig.properties)
 
     // If the number of workers is zero, make a Single Node cluster, else make a Standard one
-    if (machineConfig.numberOfWorkers.get == 0) {
+    if (createClusterConfig.machineConfig.numberOfWorkers.get == 0) {
       new DataprocClusterConfig().setSoftwareConfig(swConfig)
     }
     else // Standard, multi node cluster
-      getMultiNodeClusterConfig(machineConfig).setSoftwareConfig(swConfig)
+      getMultiNodeClusterConfig(createClusterConfig).setSoftwareConfig(swConfig)
   }
 
   private def getSoftwareConfig(numWorkers: Option[Int], credentialsFileName: Option[String], userProperties: Map[String, String]) = {
@@ -306,29 +312,43 @@ class HttpGoogleDataprocDAO(appName: String,
       .setImageVersion("1.2-deb9")
   }
 
-  private def getMultiNodeClusterConfig(machineConfig: MachineConfig): DataprocClusterConfig = {
+  private def getMultiNodeClusterConfig(createClusterConfig: CreateClusterConfig): DataprocClusterConfig = {
     // Set the configs of the non-preemptible, primary worker nodes
-    val clusterConfigWithWorkerConfigs = new DataprocClusterConfig().setWorkerConfig(getPrimaryWorkerConfig(machineConfig))
+    val clusterConfigWithWorkerConfigs = new DataprocClusterConfig().setWorkerConfig(getPrimaryWorkerConfig(createClusterConfig))
 
     // If the number of preemptible workers is greater than 0, set a secondary worker config
-    if (machineConfig.numberOfPreemptibleWorkers.get > 0) {
+    if (createClusterConfig.machineConfig.numberOfPreemptibleWorkers.get > 0) {
       val preemptibleWorkerConfig = new InstanceGroupConfig()
         .setIsPreemptible(true)
-        .setNumInstances(machineConfig.numberOfPreemptibleWorkers.get)
+        .setNumInstances(createClusterConfig.machineConfig.numberOfPreemptibleWorkers.get)
+
+      // If a custom dataproc image is specified, set it in the InstanceGroupConfig.
+      // This overrides the imageVersion set in SoftwareConfig.
+      createClusterConfig.dataprocCustomImage.foreach { customImage =>
+        preemptibleWorkerConfig.setImageUri(customImage)
+      }
 
       clusterConfigWithWorkerConfigs.setSecondaryWorkerConfig(preemptibleWorkerConfig)
     } else clusterConfigWithWorkerConfigs
   }
 
-  private def getPrimaryWorkerConfig(machineConfig: MachineConfig): InstanceGroupConfig = {
+  private def getPrimaryWorkerConfig(createClusterConfig: CreateClusterConfig): InstanceGroupConfig = {
     val workerDiskConfig = new DiskConfig()
-      .setBootDiskSizeGb(machineConfig.workerDiskSize.get)
-      .setNumLocalSsds(machineConfig.numberOfWorkerLocalSSDs.get)
+      .setBootDiskSizeGb(createClusterConfig.machineConfig.workerDiskSize.get)
+      .setNumLocalSsds(createClusterConfig.machineConfig.numberOfWorkerLocalSSDs.get)
 
-    new InstanceGroupConfig()
-      .setNumInstances(machineConfig.numberOfWorkers.get)
-      .setMachineTypeUri(machineConfig.workerMachineType.get)
+    val workerConfig = new InstanceGroupConfig()
+      .setNumInstances(createClusterConfig.machineConfig.numberOfWorkers.get)
+      .setMachineTypeUri(createClusterConfig.machineConfig.workerMachineType.get)
       .setDiskConfig(workerDiskConfig)
+
+    // If a custom dataproc image is specified, set it in the InstanceGroupConfig.
+    // This overrides the imageVersion set in SoftwareConfig.
+    createClusterConfig.dataprocCustomImage.foreach { customImage =>
+      workerConfig.setImageUri(customImage)
+    }
+
+    workerConfig
   }
 
   /**

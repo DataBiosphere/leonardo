@@ -21,8 +21,6 @@ set -e -x
 # UPDATE THIS IF YOU ADD MORE STEPS:
 # currently the steps are:
 # START init,
-# .. after env setup
-# .. after installs
 # .. after copying files from google and into docker
 # .. after docker compose
 # .. after welder start
@@ -121,50 +119,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_USER_SCRIPT_OUTPUT_URI=$(jupyterUserScriptOutputUri)
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
     JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
-
-    STEP_TIMINGS+=($(date +%s))
-
-    log 'Installing prerequisites...'
-
-    # Obtain the latest valid apt-key.gpg key file from https://packages.cloud.google.com to work
-    # around intermittent apt authentication errors. See:
-    # https://cloud.google.com/compute/docs/troubleshooting/known-issues
-    retry 5 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
-    retry 5 apt-key update
-
-    # install Docker
-    # https://docs.docker.com/install/linux/docker-ce/debian/
-    export DOCKER_CE_VERSION="18.06.2~ce~3-0~debian"
-    retry 5 betterAptGet
-    retry 5 apt-get install -y -q \
-     apt-transport-https \
-     ca-certificates \
-     curl \
-     gnupg2 \
-     software-properties-common
-
-    log 'Adding Docker package sources...'
-
-    retry 5 curl -fsSL https://download.docker.com/linux/$(. /etc/os-release; echo "$ID")/gpg | apt-key add -
-
-    add-apt-repository \
-     "deb [arch=amd64] https://download.docker.com/linux/$(. /etc/os-release; echo "$ID") \
-     $(lsb_release -cs) \
-     stable"
-
-    log 'Installing Docker...'
-
-    retry 5 betterAptGet
-    retry 5 apt-get install -y -q docker-ce=$DOCKER_CE_VERSION
-
-    log 'Installing Docker Compose...'
-
-    # Install docker-compose
-    # https://docs.docker.com/compose/install/#install-compose
-    retry 5 curl -L "https://github.com/docker/compose/releases/download/1.22.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-    chmod +x /usr/local/bin/docker-compose
-
-    STEP_TIMINGS+=($(date +%s))
 
     log 'Copying secrets from GCS...'
 
@@ -397,30 +351,5 @@ if [[ "${ROLE}" == 'Master' ]]; then
        STEP_TIMINGS+=($(date +%s))
     fi
 fi
-
-# Install Python 3.6 on the master and worker VMs
-export PYTHON_VERSION=3.6.8
-log "Installing Python $PYTHON_VERSION on the VM..."
-retry 5 wget -O python.tar.xz "https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/Python-$PYTHON_VERSION.tar.xz"
-mkdir -p /usr/src/python
-tar -xJC /usr/src/python --strip-components=1 -f python.tar.xz
-rm python.tar.xz
-cd /usr/src/python
-gnuArch="$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)"
-./configure \
-  --build="$gnuArch" \
-  --enable-loadable-sqlite-extensions \
-  --enable-shared \
-  --with-system-expat \
-  --with-system-ffi \
-  --without-ensurepip
-make -j "$(nproc)"
-make install
-ldconfig
-python3 --version
-
-log "Finished installing Python $PYTHON_VERSION"
-
-STEP_TIMINGS+=($(date +%s))
 
 log "Timings: ${STEP_TIMINGS[@]}"

@@ -33,7 +33,8 @@ final case class CreateClusterConfig(
                                       stagingBucket: GcsBucketName,
                                       clusterScopes: Set[String],
                                       clusterVPCSettings: Option[Either[VPCNetworkName, VPCSubnetName]],
-                                      properties: Map[String, String]) //valid properties are https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties
+                                      properties: Map[String, String], //valid properties are https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties
+                                      dataprocCustomImage: Option[String])
 // Dataproc Operation
 case class OperationName(value: String) extends ValueObject
 case class Operation(name: OperationName, uuid: UUID)
