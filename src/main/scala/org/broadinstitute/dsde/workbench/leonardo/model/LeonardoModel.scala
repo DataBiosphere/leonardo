@@ -226,7 +226,7 @@ object MachineConfigOps {
 
 // Fields that must be templated into cluster resources (e.g. the init script).
 // see https://broadinstitute.atlassian.net/browse/GAWB-2619 for why these are Strings rather than value classes
-case class ClusterInitValues(googleProject: String,
+case class ClusterInitValues private (googleProject: String,
                              clusterName: String,
                              jupyterDockerImage: String,
                              rstudioDockerImage: String,
@@ -247,7 +247,7 @@ case class ClusterInitValues(googleProject: String,
                              jupyterUserScriptUri: String,
                              jupyterUserScriptOutputUri: String,
                              jupyterServiceAccountCredentials: String,
-                             userEmailLoginHint: String,
+                             loginHint: String,
                              contentSecurityPolicy: String,
                              jupyterServerExtensions: String,
                              jupyterNbExtensions: String,
@@ -255,7 +255,7 @@ case class ClusterInitValues(googleProject: String,
                              jupyterLabExtensions: String,
                              jupyterNotebookConfigUri: String,
                              jupyterNotebookFrontendConfigUri: String,
-                             defaultClientId: String,
+                             googleClientId: String,
                              welderEnabled: String,
                              notebooksDir: String
                             ){

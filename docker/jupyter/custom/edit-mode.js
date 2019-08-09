@@ -6,7 +6,7 @@ define(() => {
     var params = {
         googleProject: '',
         clusterName: '',
-        welderEnabled: false
+        welderEnabled: 'false'
     };
 
     // update params with any specified in the server's config file
@@ -100,7 +100,7 @@ define(() => {
 
         updateParams()
 
-        if (!params.welderEnabed) {
+        if (!(params.welderEnabed == 'true')) {
             console.info('welder is not enabled')
             return;
         }
