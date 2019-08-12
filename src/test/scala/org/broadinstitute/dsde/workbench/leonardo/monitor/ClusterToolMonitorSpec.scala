@@ -20,7 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool
 import scala.concurrent.duration._
 import scala.util.Try
 
-class ClusterServiceMonitorSpec  extends TestKit(ActorSystem("leonardotest")) with
+class ClusterToolMonitorSpec  extends TestKit(ActorSystem("leonardotest")) with
   FlatSpecLike with LazyLogging with BeforeAndAfterAll with TestComponent with CommonTestData with GcsPathUtils with MockitoSugar { testKit =>
 
   override def afterAll(): Unit = {
@@ -87,7 +87,7 @@ class ClusterServiceMonitorSpec  extends TestKit(ActorSystem("leonardotest")) wi
   private def withServiceActor[T](newRelic: NewRelicMetrics = makeNewRelicMock(), welderDAO: WelderDAO = new MockWelderDAO(), jupyterDAO: JupyterDAO = new MockJupyterDAO())
                                 (testCode: (ActorRef, NewRelicMetrics) => T): T = {
     val toolMap: Map[ClusterTool, ToolDAO] = Map(ClusterTool.Jupyter -> jupyterDAO, ClusterTool.Welder -> welderDAO)
-    val actor = system.actorOf(ClusterServiceMonitor.props(clusterServiceConfig, gdDAO = new MockGoogleDataprocDAO, googleProjectDAO = new MockGoogleProjectDAO, DbSingleton.ref, toolMap, newRelic))
+    val actor = system.actorOf(ClusterToolMonitor.props(clusterServiceConfig, gdDAO = new MockGoogleDataprocDAO, googleProjectDAO = new MockGoogleProjectDAO, DbSingleton.ref, toolMap, newRelic))
     val testResult = Try(testCode(actor, newRelic))
 
     // shut down the actor and wait for it to terminate

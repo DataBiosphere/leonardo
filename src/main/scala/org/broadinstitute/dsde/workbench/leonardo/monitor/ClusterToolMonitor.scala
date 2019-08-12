@@ -8,17 +8,17 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterTool}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterServiceMonitor.{DetectClusterStatus, TimerKey, ToolStatus}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterToolMonitor.{DetectClusterStatus, TimerKey, ToolStatus}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.Welder
 
 import scala.concurrent.Future
 
-object ClusterServiceMonitor {
+object ClusterToolMonitor {
 
   def props(config: ClusterServiceConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference, toolDAOs: Map[ClusterTool, ToolDAO], newRelic: NewRelicMetrics): Props = {
-    Props(new ClusterServiceMonitor(config, gdDAO, googleProjectDAO, dbRef, toolDAOs, newRelic))
+    Props(new ClusterToolMonitor(config, gdDAO, googleProjectDAO, dbRef, toolDAOs, newRelic))
   }
 
   sealed trait ClusterServiceMonitorMessage
@@ -31,7 +31,7 @@ object ClusterServiceMonitor {
 /**
   * This monitor periodically sweeps the Leo database and checks for clusters which no longer exist in Google.
   */
-class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference, toolDAOs: Map[ClusterTool, ToolDAO], newRelic: NewRelicMetrics) extends Actor with Timers with LazyLogging {
+class ClusterToolMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference, toolDAOs: Map[ClusterTool, ToolDAO], newRelic: NewRelicMetrics) extends Actor with Timers with LazyLogging {
 
   import context._
 
