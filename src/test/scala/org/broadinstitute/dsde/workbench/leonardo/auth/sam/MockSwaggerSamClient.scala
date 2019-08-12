@@ -15,7 +15,7 @@ import scala.collection.mutable
 class MockSwaggerSamClient extends SwaggerSamClient("fake/path", true, new FiniteDuration(1, SECONDS), 0, WorkbenchEmail("fake-user@example.com"), new File("fake-pem")) {
 
   val billingProjects: mutable.Map[(GoogleProject, WorkbenchEmail), Set[String]] =  new TrieMap()
-  val notebookClusters: mutable.Map[ClusterInternalId, Set[String]] = new TrieMap()
+  val notebookClusters: mutable.Map[(ClusterInternalId, WorkbenchEmail), Set[String]] = new TrieMap()
   val projectOwners: mutable.Map[WorkbenchEmail, Set[GoogleProject]] = new TrieMap()
   val clusterCreators: mutable.Map[WorkbenchEmail, Set[(GoogleProject, ClusterName)]] = new TrieMap()
   val userProxy = "PROXY_1234567890@dev.test.firecloud.org"
@@ -23,12 +23,12 @@ class MockSwaggerSamClient extends SwaggerSamClient("fake/path", true, new Finit
 
   @throws[ApiException]
   override def createNotebookClusterResource(internalId: ClusterInternalId, userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
-    notebookClusters += internalId -> Set("status", "connect", "sync", "delete", "read_policies")
+    notebookClusters += (internalId, userEmail) -> Set("status", "connect", "sync", "delete", "read_policies")
   }
 
   @throws[ApiException]
   override def deleteNotebookClusterResource(internalId: ClusterInternalId, userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
-    notebookClusters.remove(internalId)
+    notebookClusters.remove((internalId, userEmail))
   }
 
   override def hasActionOnBillingProjectResource(userInfo: UserInfo, googleProject: GoogleProject, action: String): Boolean = {
@@ -38,7 +38,7 @@ class MockSwaggerSamClient extends SwaggerSamClient("fake/path", true, new Finit
   }
 
   override def hasActionOnNotebookClusterResource(internalId: ClusterInternalId, userInfo: UserInfo, action: String): Boolean = {
-    notebookClusters.get(internalId)
+    notebookClusters.get((internalId, userInfo.userEmail))
       .map( _.contains(action) )
       .getOrElse(false)
   }
