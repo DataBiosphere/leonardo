@@ -265,9 +265,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
         # Install the Hail additions to Spark conf.
         retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/hail/spark_install_hail.sh
+        STEP_TIMINGS+=($(date +%s))
       fi
-
-      STEP_TIMINGS+=($(date +%s))
 
        # Install jupyter_notebook_config.py
       if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG_URI} ] ; then
