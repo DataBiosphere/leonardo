@@ -75,25 +75,28 @@ class ProxyService(proxyConfig: ProxyConfig,
     }
   }
 
+  /* Cache for the cluster internal id from the database */
   private[leonardo] val clusterInternalIdCache = CacheBuilder.newBuilder()
     .expireAfterWrite(proxyConfig.cacheExpiryTime.toMinutes, TimeUnit.MINUTES)
     .maximumSize(proxyConfig.cacheMaxSize)
     .build(
-      new CacheLoader[(GoogleProject, ClusterName), Future[ClusterInternalId]] {
+      new CacheLoader[(GoogleProject, ClusterName), Future[Option[ClusterInternalId]]] {
         def load(key: (GoogleProject, ClusterName)) = {
           val (googleProject, clusterName) = key
           dbRef.inTransaction { dataAccess =>
             dataAccess.clusterQuery.getActiveClusterInternalIdByName(googleProject, clusterName)
-          } map {
-            case Some(id) => id
-            case None => throw ProxyException(googleProject, clusterName)
           }
         }
       }
     )
 
   def getCachedClusterInternalId(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterInternalId] = {
-    clusterInternalIdCache.get((googleProject, clusterName))
+    clusterInternalIdCache.get((googleProject, clusterName)).map {
+      case Some(clusterInternalId) => clusterInternalId
+      case None =>
+        logger.error(s"Unable to look up an internal ID for cluster ${googleProject.value} / ${clusterName}")
+        throw ProxyException(googleProject, clusterName)
+    }
   }
 
   /*
