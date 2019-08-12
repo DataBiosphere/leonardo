@@ -48,7 +48,7 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
 
   before {
     proxyService.googleTokenCache.invalidateAll()
-    proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(clusterName)), Future.successful(internalId))
+    proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(clusterName)), Future.successful(Some(internalId)))
   }
 
   val pathPrefixes = Set("notebooks", "proxy")
@@ -66,7 +66,7 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
         validateCors()
       }
       val newName = "aDifferentClusterName"
-      proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(newName)), Future.successful(internalId))
+      proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(newName)), Future.successful(Some(internalId)))
       Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
         handled shouldBe true
         status shouldEqual StatusCodes.NotFound
