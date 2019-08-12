@@ -2,10 +2,37 @@ const dialog = require('base/js/dialog')
 const utils = require("base/js/utils")
 
 define(() => {
-    // TEMPLATED CODE
-    // Leonardo has logic to find/replace templated values in the format $(...).
-    const googleProject = $(googleProject)
-    const clusterName = $(clusterName)
+    // define default values for config parameters
+    var params = {
+        googleProject: '',
+        clusterName: '',
+        welderEnabled: 'false'
+    };
+
+    // update params with any specified in the server's config file
+    function updateParams() {
+        var config = Jupyter.notebook.config;
+        for (let key in params) {
+            if (config.data.hasOwnProperty(key))
+                params[key] = config.data[key];
+        }
+
+        // generate URLs based on params
+        let leoUrl = '' //we are choosing to use a relative path here
+        let welderUrl = leoUrl + `/proxy/${params.googleProject}/${params.clusterName}/welder`
+
+        //URLS for local testing
+        // let leoUrl = 'http://localhost:8080' //for testing against local server
+        // let welderUrl = leoUrl
+        // params.jupyterServerApi = '/api/contents/'
+        // params.jupyterFsHref = '/notebooks/'
+
+        params.jupyterServerApi = leoUrl + `/notebooks/${params.googleProject}/${params.clusterName}` + '/api/contents/'
+        params.jupyterFsHref = leoUrl + `/notebooks/${params.googleProject}/${params.clusterName}/notebooks/`
+        params.localizeUrl = welderUrl + '/objects'
+        params.checkMetaUrl = welderUrl + '/objects/metadata'
+        params.lockUrl = welderUrl + '/objects/lock'
+    }
 
     let modalOpen = false
         //this needs to be available so the loop can be cancelled where needed
@@ -52,22 +79,6 @@ define(() => {
     const syncIssueTitle = "File versions out of sync"
     const syncIssueBody = "Your version of this file does not match the version in the workspace. What would you like to do?"
     const syncIssueNotFoundBody = "This file was either deleted from or was never saved to the workspace."
-
-    //URLS for leo deployment
-    const leoUrl = '' //we are choosing to use a relative path here
-    const welderUrl = leoUrl + `/proxy/${googleProject}/${clusterName}/welder`
-    const jupyterServerApi = `/notebooks/${googleProject}/${clusterName}` + '/api/contents/'
-    const jupyterFsHref = `/notebooks/${googleProject}/${clusterName}/notebooks/`
-
-    //URLS for local testing
-    // const jupyterServerApi = '/api/contents/'
-    // const jupyterFsHref = '/notebooks/'
-    // const leoUrl = 'http://localhost:8080' //for testing against local server
-    // const welderUrl = leoUrl
-
-    const localizeUrl = welderUrl + '/objects'
-    const checkMetaUrl = welderUrl + '/objects/metadata'
-    const lockUrl = welderUrl + '/objects/lock'
     const lastLockedTimer = 60000
 
     const headers = {
@@ -85,6 +96,13 @@ define(() => {
 
         if (!Jupyter.notebook) {
             return; //exit, they are in list view
+        }
+
+        updateParams()
+
+        if (!(params.welderEnabled == 'true')) {
+            console.info('welder is not enabled')
+            return;
         }
 
         checkMeta()
@@ -114,7 +132,7 @@ define(() => {
             method: 'POST'
         }
 
-        return fetch(checkMetaUrl, payload)
+        return fetch(params.checkMetaUrl, payload)
             .then(res => {
                 processInitialCheckMeta(res)
                 return res.json()
@@ -212,7 +230,7 @@ define(() => {
             body: JSON.stringify({ localPath: Jupyter.notebook.notebook_path })
         }
 
-        fetch(lockUrl, payload)
+        fetch(params.lockUrl, payload)
             .then(res => {
                 handleLockStatus(res, metaRes)
             })
@@ -305,14 +323,14 @@ define(() => {
             })
         }
 
-        fetch(jupyterServerApi + safeModeDir, postPayload)
+        fetch(params.jupyterServerApi + safeModeDir, postPayload)
             .then(res => handleJupyterServerResponse(res))
             .then(res => {
                 //then we rename the file, as POST does not allow us to specify the file name
-                fetch(jupyterServerApi + res.path, patchPayload)
+                fetch(params.jupyterServerApi + res.path, patchPayload)
                     .then(res => {
                         //navigate to new file
-                        window.location.href = jupyterFsHref + safeModeDir + '/' + originalNotebookName
+                        window.location.href = params.jupyterFsHref + safeModeDir + '/' + originalNotebookName
                     })
             })
     }
@@ -330,12 +348,12 @@ define(() => {
             })
         }
 
-        fetch(jupyterServerApi + newNotebookPath, payload)
+        fetch(params.jupyterServerApi + newNotebookPath, payload)
             .then(res => handleJupyterServerResponse(res))
             .then(res => {
                 //navigate to new file. we rely on the jupyter post api to supply the name of the file we have created as it ensures it does not exist
                 //POST also does not allow for the specification of a file name 
-                window.location.href = jupyterFsHref + res.path
+                window.location.href = params.jupyterFsHref + res.path
             })
     }
 
@@ -406,7 +424,7 @@ define(() => {
             body: JSON.stringify(entries)
         }
 
-        await fetch(localizeUrl, payload)
+        await fetch(params.localizeUrl, payload)
 
         location.reload(true)
     }

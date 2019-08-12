@@ -59,14 +59,10 @@ package object config {
       ClusterResource(config.getString("jupyterDockerCompose")),
       ClusterResource(config.getString("rstudioDockerCompose")),
       ClusterResource(config.getString("proxyDockerCompose")),
+      ClusterResource(config.getString("welderDockerCompose")),
       ClusterResource(config.getString("proxySiteConf")),
-      ClusterResource(config.getString("googleSignInJs")),
-      ClusterResource(config.getString("extensionEntry")),
-      ClusterResource(config.getString("jupyterLabGooglePlugin")),
-      ClusterResource(config.getString("safeModeJs")),
-      ClusterResource(config.getString("editModeJs")),
       ClusterResource(config.getString("jupyterNotebookConfigUri")),
-      ClusterResource(config.getString("welderDockerCompose"))
+      ClusterResource(config.getString("jupyterNotebookFrontendConfigUri"))
     )
   }
 

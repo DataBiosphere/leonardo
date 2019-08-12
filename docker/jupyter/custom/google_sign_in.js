@@ -8,28 +8,35 @@
  */
 
 
-// TEMPLATED CODE
-// Leonardo has logic to find/replace templated values in the format $(...).
-// This will be replaced with the real email login hint before uploading to the notebook server.
-var loginHint = $(userEmailLoginHint);
+// define default values for config parameters
+var params = {
+    loginHint: '',
+    googleClientId: ''
+};
 
-// This is refreshed via postMessage from the client app.
-var googleClientId = $(defaultClientId);
+// update params with any specified in the server's config file
+function updateParams() {
+    var config = Jupyter.notebook.config;
+    for (let key in params) {
+        if (config.data.hasOwnProperty(key))
+            params[key] = config.data[key];
+    }
+}
 
 function receive(event) {
     if (event.data.type == 'bootstrap-auth.response') {
         if (event.source !== window.opener)
             return;
-        googleClientId = event.data.body.googleClientId;
+        params.googleClientId = event.data.body.googleClientId;
     } else if (event.data.type == 'bootstrap-auth.request') {
         if (event.origin !== window.origin)
             return;
-        if (!googleClientId)
+        if (!params.googleClientId)
             return;
         event.source.postMessage({
             "type": "bootstrap-auth.response",
             "body": {
-                "googleClientId": googleClientId
+                "googleClientId": params.googleClientId
             }
         }, event.origin);
     }
@@ -38,11 +45,11 @@ function receive(event) {
 function startTimer() {
     loadGapi('auth2', function() {
         function doAuth() {
-            if (googleClientId) {
+            if (params.googleClientId) {
                 gapi.auth2.authorize({
-                    'client_id': googleClientId,
+                    'client_id': params.googleClientId,
                     'scope': 'openid profile email',
-                    'login_hint': loginHint,
+                    'login_hint': params.loginHint,
                     'prompt': 'none'
                 }, function(result) {
                     if (result.error) {
@@ -100,9 +107,10 @@ function loadGapi(google_lib, continuation) {
 
 function init() {
     console.log('Starting google_sign_in extension');
+    updateParams();
     startTimer();
     window.addEventListener('message', receive);
-    if (!googleClientId && window.opener) {
+    if (!params.googleClientId && window.opener) {
         window.opener.postMessage({ 'type': 'bootstrap-auth.request' }, '*');
     }
 }

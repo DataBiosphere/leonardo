@@ -97,14 +97,10 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_NB_EXTENSIONS=$(jupyterNbExtensions)
     JUPYTER_COMBINED_EXTENSIONS=$(jupyterCombinedExtensions)
     JUPYTER_LAB_EXTENSIONS=$(jupyterLabExtensions)
-    GOOGLE_SIGN_IN_JS_URI=$(googleSignInJsUri)
-    EXTENSION_ENTRY_URI=$(extensionEntryUri)
-    JUPYTER_LAB_GOOGLE_PLUGIN_URI=$(jupyterLabGooglePluginUri)
-    SAFE_MODE_JS_URI=$(safeModeJsUri)
-    EDIT_MODE_JS_URI=$(editModeJsUri)
     JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
     JUPYTER_USER_SCRIPT_OUTPUT_URI=$(jupyterUserScriptOutputUri)
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
+    JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
 
     log 'Installing prerequisites...'
 
@@ -238,6 +234,23 @@ if [[ "${ROLE}" == 'Master' ]]; then
       # Install the Hail additions to Spark conf.
       retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/hail/spark_install_hail.sh
 
+      # Install jupyter_notebook_config.py
+      if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG_URI} ] ; then
+        log 'Copy Jupyter notebook config...'
+        gsutil cp ${JUPYTER_NOTEBOOK_CONFIG_URI} /etc
+        JUPYTER_NOTEBOOK_CONFIG=`basename ${JUPYTER_NOTEBOOK_CONFIG_URI}`
+        docker cp /etc/${JUPYTER_NOTEBOOK_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/
+      fi
+
+      # Install notebook.json
+      if [ ! -z ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} ] ; then
+        log 'Copy Jupyter frontend notebook config...'
+        gsutil cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /etc
+        JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
+        docker cp /etc/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
+      fi
+
+
       #Install NbExtensions
       if [ ! -z "${JUPYTER_NB_EXTENSIONS}" ] ; then
         for ext in ${JUPYTER_NB_EXTENSIONS}
@@ -292,52 +305,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
         done
       fi
 
-      retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/install_jupyter_contrib_nbextensions.sh
-
-      # If a google_sign_in.js was specified, copy it into the jupyter docker container.
-      if [ ! -z ${GOOGLE_SIGN_IN_JS_URI} ] ; then
-        log 'Installing Google sign in extension...'
-        gsutil cp ${GOOGLE_SIGN_IN_JS_URI} /etc
-        GOOGLE_SIGN_IN_JS=`basename ${GOOGLE_SIGN_IN_JS_URI}`
-        retry 3 docker exec ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
-        docker cp /etc/${GOOGLE_SIGN_IN_JS} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
-      fi
-
-      # If extension_entry.js was specified, copy it into the jupyter docker container.
-      if [ ! -z ${EXTENSION_ENTRY_URI} ] ; then
-        log 'Installing extension_entry.js extension...'
-        gsutil cp ${EXTENSION_ENTRY_URI} /etc
-        EXTENSION_ENTRY=`basename ${EXTENSION_ENTRY_URI}`
-        retry 3 docker exec ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
-        # note this needs to be named custom.js in the container
-        docker cp /etc/${EXTENSION_ENTRY} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/custom.js
-      fi
-
-      # If safe-mode.js was specified, copy it into the jupyter docker container.
-      if [ ! -z ${SAFE_MODE_JS_URI} ] && [ "${WELDER_ENABLED}" == "true" ]; then
-        log 'Installing safe-mode.js extension...'
-        gsutil cp ${SAFE_MODE_JS_URI} /etc
-        SAFE_MODE_JS=`basename ${SAFE_MODE_JS_URI}`
-        retry 3 docker exec ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
-        docker cp /etc/${SAFE_MODE_JS} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
-      fi
-
-      # If edit-mode.js was specified, copy it into the jupyter docker container.
-        if [ ! -z ${EDIT_MODE_JS_URI} ] && [ "${WELDER_ENABLED}" == "true" ]; then
-          log 'Installing edit-mode.js extension...'
-          gsutil cp ${EDIT_MODE_JS_URI} /etc
-          EDIT_MODE_JS=`basename ${EDIT_MODE_JS_URI}`
-          retry 3 docker exec ${JUPYTER_SERVER_NAME} mkdir -p ${JUPYTER_USER_HOME}/.jupyter/custom
-          docker cp /etc/${EDIT_MODE_JS} ${JUPYTER_SERVER_NAME}:${JUPYTER_USER_HOME}/.jupyter/custom/
-        fi
-
-      if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG_URI} ] ; then
-        log 'Copy Jupyter notebook config...'
-        gsutil cp ${JUPYTER_NOTEBOOK_CONFIG_URI} /etc
-        JUPYTER_NOTEBOOK_CONFIG=`basename ${JUPYTER_NOTEBOOK_CONFIG_URI}`
-        docker cp /etc/${JUPYTER_NOTEBOOK_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/
-      fi
-
       # If a Jupyter user script was specified, copy it into the jupyter docker container.
       if [ ! -z ${JUPYTER_USER_SCRIPT_URI} ] ; then
         log 'Installing Jupyter user extension [$JUPYTER_USER_SCRIPT_URI]...'
@@ -358,9 +325,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
         fi
 
       fi
-
-       retry 5 docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter-user:users ${JUPYTER_HOME}
-       retry 5 docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter-user:users /usr/local/share/jupyter/lab
 
       #Install lab extensions
       #Note: lab extensions need to installed as jupyter user, not root
@@ -383,15 +347,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
             retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh $ext
           fi
         done
-      fi
-
-      # If a jupyterlab_google_plugin.js was specified, install it as a Lab extension
-      if [ ! -z ${JUPYTER_LAB_GOOGLE_PLUGIN_URI} ] ; then
-        log 'Installing jupyterlab_google_plugin.js extension...'
-        gsutil cp ${JUPYTER_LAB_GOOGLE_PLUGIN_URI} /etc
-        JUPYTER_LAB_GOOGLE_PLUGIN=`basename ${JUPYTER_LAB_GOOGLE_PLUGIN_URI}`
-        docker cp /etc/${JUPYTER_LAB_GOOGLE_PLUGIN} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_LAB_GOOGLE_PLUGIN}
-        retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_LAB_GOOGLE_PLUGIN}
       fi
 
       log 'Starting Jupyter Notebook...'

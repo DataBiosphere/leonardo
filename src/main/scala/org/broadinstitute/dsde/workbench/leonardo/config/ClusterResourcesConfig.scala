@@ -6,14 +6,10 @@ case class ClusterResourcesConfig(initActionsScript: ClusterResource,
                                   jupyterDockerCompose: ClusterResource,
                                   rstudioDockerCompose: ClusterResource,
                                   proxyDockerCompose: ClusterResource,
+                                  welderDockerCompose: ClusterResource,
                                   proxySiteConf: ClusterResource,
-                                  googleSignInJs: ClusterResource,
-                                  extensionEntry: ClusterResource,
-                                  jupyterLabGooglePlugin: ClusterResource,
-                                  safeModeJs: ClusterResource,
-                                  editModeJs: ClusterResource,
                                   jupyterNotebookConfigUri: ClusterResource,
-                                  welderDockerCompose: ClusterResource
+                                  jupyterNotebookFrontendConfigUri: ClusterResource
                                  )
 
 object ClusterResourcesConfig {

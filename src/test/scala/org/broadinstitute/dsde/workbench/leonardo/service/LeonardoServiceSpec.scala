@@ -85,18 +85,14 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterResourcesConfig.jupyterDockerCompose.value,
     clusterResourcesConfig.rstudioDockerCompose.value,
     clusterResourcesConfig.proxyDockerCompose.value,
+    clusterResourcesConfig.welderDockerCompose.value,
     clusterResourcesConfig.initActionsScript.value,
     clusterFilesConfig.jupyterServerCrt.getName,
     clusterFilesConfig.jupyterServerKey.getName,
     clusterFilesConfig.jupyterRootCaPem.getName,
     clusterResourcesConfig.proxySiteConf.value,
-    clusterResourcesConfig.googleSignInJs.value,
-    clusterResourcesConfig.extensionEntry.value,
-    clusterResourcesConfig.jupyterLabGooglePlugin.value,
-    clusterResourcesConfig.safeModeJs.value,
-    clusterResourcesConfig.editModeJs.value,
     clusterResourcesConfig.jupyterNotebookConfigUri.value,
-    clusterResourcesConfig.welderDockerCompose.value
+    clusterResourcesConfig.jupyterNotebookFrontendConfigUri.value
   )
 
   lazy val initFiles = (configFiles ++ serviceAccountCredentialFile).map(GcsObjectName(_))
@@ -654,25 +650,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
           |"${testClusterRequestWithExtensionAndScript.userJupyterExtensionConfig.get.nbExtensions.values.mkString(" ")}"
           |"${testClusterRequestWithExtensionAndScript.userJupyterExtensionConfig.get.combinedExtensions.values.mkString(" ")}"
           |"${GcsPath(stagingBucketName, GcsObjectName("userscript_output.txt")).toUri}"
-          |""".stripMargin
-
-    result shouldEqual expected
-  }
-
-  it should s"template google_sign_in.js with config values" in isolatedDbTest {
-
-    // Create replacements map
-    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequest, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy, Set(jupyterImage), stagingBucketName)
-    val replacements: Map[String, String] = clusterInit.toMap
-
-    // Each value in the replacement map will replace it's key in the file being processed
-    val result = leo.templateResource(clusterResourcesConfig.googleSignInJs, replacements)
-
-    // Check that the values in the bash script file were correctly replaced
-    val expected =
-      s"""|"${userInfo.userEmail.value}"
-          |"${testClusterRequest.defaultClientId.value}"
-          |""".stripMargin
+          |"${GcsPath(initBucketPath, GcsObjectName("jupyter_notebook_config.py")).toUri}"
+          |"${GcsPath(initBucketPath, GcsObjectName("notebook.json")).toUri}"""".stripMargin
 
     result shouldEqual expected
   }
