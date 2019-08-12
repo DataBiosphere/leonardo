@@ -13,6 +13,7 @@ import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
 import io.swagger.client.ApiClient
 import io.swagger.client.api.{GoogleApi, ResourcesApi}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterInternalId
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -115,18 +116,18 @@ class SwaggerSamClient(samBasePath: String, cacheEnabled: Boolean, cacheExpiryTi
     credential.refreshAccessToken.getTokenValue
   }
 
-  def createNotebookClusterResource(internalId: String, userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
+  def createNotebookClusterResource(internalId: ClusterInternalId, userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
     logger.debug(s"Calling Sam createNotebookClusterResource as PET for user [${userEmail.value}] with project [${googleProject.value}] and clusterName [${clusterName.value}]")
     // this is called as the user's pet
     val samAPI = samResourcesApiAsPet(userEmail, googleProject)
-    samAPI.createResource(notebookClusterResourceTypeName, internalId)
+    samAPI.createResource(notebookClusterResourceTypeName, internalId.value)
   }
 
-  def deleteNotebookClusterResource(internalId: String, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
+  def deleteNotebookClusterResource(internalId: ClusterInternalId, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
     logger.debug(s"Calling Sam deleteNotebookClusterResource as PET for user [${creatorEmail.value}] with project [${googleProject.value}] and clusterName [${clusterName.value}]")
     // this is called as the user's pet
     val samAPI = samResourcesApiAsPet(creatorEmail, googleProject)
-    samAPI.deleteResource(notebookClusterResourceTypeName, internalId)
+    samAPI.deleteResource(notebookClusterResourceTypeName, internalId.value)
   }
 
   def hasActionOnBillingProjectResource(userInfo: UserInfo, googleProject: GoogleProject, action: String): Boolean = {
@@ -134,9 +135,9 @@ class SwaggerSamClient(samBasePath: String, cacheEnabled: Boolean, cacheExpiryTi
     hasActionOnResource(userInfo, billingProjectResourceTypeName, googleProject.value, action)
   }
 
-  def hasActionOnNotebookClusterResource(internalId: String, userInfo: UserInfo, action: String): Boolean = {
+  def hasActionOnNotebookClusterResource(internalId: ClusterInternalId, userInfo: UserInfo, action: String): Boolean = {
     // this is called with the user's token
-    hasActionOnResource(userInfo, notebookClusterResourceTypeName, internalId, action)
+    hasActionOnResource(userInfo, notebookClusterResourceTypeName, internalId.value, action)
   }
 
   def getUserProxyFromSam(userEmail: WorkbenchEmail): WorkbenchEmail = {

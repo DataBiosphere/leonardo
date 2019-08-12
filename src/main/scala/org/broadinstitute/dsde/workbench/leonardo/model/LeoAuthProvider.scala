@@ -49,7 +49,7 @@ abstract class LeoAuthProvider(authConfig: Config, serviceAccountProvider: Servi
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return If the userEmail has permission on this individual notebook cluster to perform this action
     */
-  def hasNotebookClusterPermission(internalId: String, userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean]
+  def hasNotebookClusterPermission(internalId: ClusterInternalId, userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean]
 
   /**
     * Leo calls this method when it receives a "list clusters" API call, passing in all non-deleted clusters from the database.
@@ -75,7 +75,7 @@ abstract class LeoAuthProvider(authConfig: Config, serviceAccountProvider: Servi
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterCreated(internalId: String, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit]
+  def notifyClusterCreated(internalId: ClusterInternalId, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit]
 
   /**
     * Leo calls this method to notify the auth provider that a notebook cluster has been deleted.
@@ -89,7 +89,7 @@ abstract class LeoAuthProvider(authConfig: Config, serviceAccountProvider: Servi
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterDeleted(internalId: String, userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit]
+  def notifyClusterDeleted(internalId: ClusterInternalId, userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit]
 
   protected def getLeoServiceAccountAndKey: (WorkbenchEmail, File) = {
     serviceAccountProvider.getLeoServiceAccountAndKey

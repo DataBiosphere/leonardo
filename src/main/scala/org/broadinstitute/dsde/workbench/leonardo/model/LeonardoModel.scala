@@ -86,10 +86,12 @@ case class ClusterImage(tool: ClusterTool,
                         dockerImage: String,
                         timestamp: Instant)
 
+case class ClusterInternalId(value: String) extends ValueObject
+
 // The cluster itself
 // Also the API response for "list clusters" and "get active cluster"
 final case class Cluster(id: Long = 0, // DB AutoInc
-                   internalId: String, //For legacy clusters, "projectName_clusterName", for new ones UUID.
+                   internalId: ClusterInternalId,
                    clusterName: ClusterName,
                    googleProject: GoogleProject,
                    serviceAccountInfo: ServiceAccountInfo,
@@ -118,7 +120,7 @@ object Cluster {
   type LabelMap = Map[String, String]
 
   def create(clusterRequest: ClusterRequest,
-             internalId: String,
+             internalId: ClusterInternalId,
              userEmail: WorkbenchEmail,
              clusterName: ClusterName,
              googleProject: GoogleProject,
@@ -461,6 +463,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val ClusterImageFormat = jsonFormat3(ClusterImage.apply)
 
+  implicit val ClusterInternalIdFormat = ValueObjectFormat(ClusterInternalId)
 
   implicit object ClusterFormat extends RootJsonFormat[Cluster] {
     override def read(json: JsValue): Cluster = {
@@ -468,7 +471,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
         case JsObject(fields: Map[String, JsValue]) =>
           Cluster(
             fields.getOrElse("id", JsNull).convertTo[Long],
-            fields.getOrElse("internalId", JsNull).convertTo[String],
+            fields.getOrElse("internalId", JsNull).convertTo[ClusterInternalId],
             fields.getOrElse("clusterName", JsNull).convertTo[ClusterName],
             fields.getOrElse("googleProject", JsNull).convertTo[GoogleProject],
             fields.getOrElse("serviceAccountInfo", JsNull).convertTo[ServiceAccountInfo],

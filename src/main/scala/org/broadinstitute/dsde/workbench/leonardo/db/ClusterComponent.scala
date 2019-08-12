@@ -240,7 +240,7 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    def getActiveClusterInternalIdByName(project: GoogleProject, name: ClusterName): DBIO[Option[String]] = {
+    def getActiveClusterInternalIdByName(project: GoogleProject, name: ClusterName): DBIO[Option[ClusterInternalId]] = {
       clusterQuery
         .filter { _.googleProject === project.value }
         .filter { _.clusterName === name.value }
@@ -248,7 +248,7 @@ trait ClusterComponent extends LeoComponent {
         .result
         .map { recs =>
           recs.headOption.map { clusterRec =>
-            clusterRec.internalId
+            ClusterInternalId(clusterRec.internalId)
           }
         }
     }
@@ -461,7 +461,7 @@ trait ClusterComponent extends LeoComponent {
                                serviceAccountKeyId: Option[ServiceAccountKeyId]): ClusterRecord = {
       ClusterRecord(
         id = 0,    // DB AutoInc
-        cluster.internalId,
+        cluster.internalId.value,
         cluster.clusterName.value,
         cluster.dataprocInfo.googleId,
         cluster.googleProject.value,
@@ -564,7 +564,7 @@ trait ClusterComponent extends LeoComponent {
 
       Cluster(
         clusterRecord.id,
-        clusterRecord.internalId,
+        ClusterInternalId(clusterRecord.internalId),
         name,
         project,
         serviceAccountInfo,

@@ -66,7 +66,7 @@ class LeoAuthProviderHelper(wrappedAuthProvider: LeoAuthProvider, authConfig: Co
     }
   }
 
-  override def hasNotebookClusterPermission(internalId: String, userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  override def hasNotebookClusterPermission(internalId: ClusterInternalId, userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     safeCall {
       wrappedAuthProvider.hasNotebookClusterPermission(internalId, userInfo, action, googleProject, clusterName)
     }
@@ -78,13 +78,13 @@ class LeoAuthProviderHelper(wrappedAuthProvider: LeoAuthProvider, authConfig: Co
     }
   }
 
-  override def notifyClusterCreated(internalId: String, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  override def notifyClusterCreated(internalId: ClusterInternalId, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
     safeCall {
       wrappedAuthProvider.notifyClusterCreated(internalId, creatorEmail, googleProject, clusterName)
     }
   }
 
-  override def notifyClusterDeleted(internalId: String, userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  override def notifyClusterDeleted(internalId: ClusterInternalId, userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
     safeCall {
       wrappedAuthProvider.notifyClusterDeleted(internalId, userEmail, creatorEmail, googleProject, clusterName)
     }

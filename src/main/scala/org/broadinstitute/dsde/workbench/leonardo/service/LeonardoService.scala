@@ -194,7 +194,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } flatMap {
       case Some(existingCluster) => throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
       case None =>
-        val internalId = UUID.randomUUID().toString
+        val internalId = ClusterInternalId(UUID.randomUUID().toString)
         val augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
         val clusterImages = processClusterImages(clusterRequest)
         val clusterFuture = for {
@@ -270,7 +270,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                    clusterName: ClusterName,
                                    clusterRequest: ClusterRequest): Future[Cluster] = {
 
-    val internalId = UUID.randomUUID().toString
+    val internalId = ClusterInternalId(UUID.randomUUID().toString)
     val augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
     val clusterImages = processClusterImages(clusterRequest)
     val machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
@@ -692,7 +692,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
      - Create the initialization bucket for the cluster in the leo google project
      - Upload all the necessary initialization files to the bucket
      - Create the cluster in the google project */
-  private[service] def createGoogleCluster(internalId: String,
+  private[service] def createGoogleCluster(internalId: ClusterInternalId,
                                            userEmail: WorkbenchEmail,
                                            serviceAccountInfo: ServiceAccountInfo,
                                            googleProject: GoogleProject,

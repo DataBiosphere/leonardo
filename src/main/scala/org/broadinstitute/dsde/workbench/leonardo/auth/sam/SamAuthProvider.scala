@@ -24,7 +24,7 @@ case class UnknownLeoAuthAction(action: LeoAuthAction)
 
 object SamAuthProvider {
   private[sam] sealed trait SamCacheKey
-  private[sam] case class NotebookAuthCacheKey(internalId: String, userInfo: UserInfo, action: NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName, executionContext: ExecutionContext) extends SamCacheKey
+  private[sam] case class NotebookAuthCacheKey(internalId: ClusterInternalId, userInfo: UserInfo, action: NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName, executionContext: ExecutionContext) extends SamCacheKey
 }
 
 class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(config, serviceAccountProvider) with SamProvider {
@@ -101,7 +101,7 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return If the userEmail has permission on this individual notebook cluster to perform this action
     */
-  override def hasNotebookClusterPermission(internalId: String, userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  override def hasNotebookClusterPermission(internalId: ClusterInternalId, userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     // Consult the notebook auth cache if enabled
     if (notebookAuthCacheEnabled) {
       // tokenExpiresIn should not taken into account when comparing cache keys
@@ -111,7 +111,7 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     }
   }
 
-  private def hasNotebookClusterPermissionInternal(internalId: String, userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  private def hasNotebookClusterPermissionInternal(internalId: ClusterInternalId, userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
     // if action is connect, check only cluster resource. If action is anything else, either cluster or project must be true
     retryUntilSuccessOrTimeout(shouldInvalidateSamCacheAndRetry, s"SamAuthProvider.hasNotebookClusterPermissionInternal call failed for ${googleProject.value}/${clusterName.value}")(samRetryInterval, samRetryTimeout) { () =>
       Future {
@@ -162,7 +162,7 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  override def notifyClusterCreated(internalId: String, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
+  override def notifyClusterCreated(internalId: ClusterInternalId, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
     retryUntilSuccessOrTimeout(shouldInvalidateSamCacheAndRetry, s"SamAuthProvider.notifyClusterCreated call failed for ${googleProject.value}/${clusterName.value}")(samRetryInterval, samRetryTimeout) {  () =>
       Future {
         blocking(samClient.createNotebookClusterResource(internalId, creatorEmail, googleProject, clusterName))
@@ -188,7 +188,7 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     * @param clusterName      The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  override def notifyClusterDeleted(internalId: String, userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)
+  override def notifyClusterDeleted(internalId: ClusterInternalId, userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)
                                    (implicit executionContext: ExecutionContext): Future[Unit] = {
     retryUntilSuccessOrTimeout(shouldInvalidateSamCacheAndRetry, s"SamAuthProvider.notifyClusterDeleted call failed for ${googleProject.value}/${clusterName.value}")(samRetryInterval, samRetryTimeout) { () =>
       Future {

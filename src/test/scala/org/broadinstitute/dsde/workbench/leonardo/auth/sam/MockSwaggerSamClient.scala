@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.auth.sam
 import java.io.File
 
 import io.swagger.client.ApiException
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterInternalId
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -14,19 +15,19 @@ import scala.collection.mutable
 class MockSwaggerSamClient extends SwaggerSamClient("fake/path", true, new FiniteDuration(1, SECONDS), 0, WorkbenchEmail("fake-user@example.com"), new File("fake-pem")) {
 
   val billingProjects: mutable.Map[(GoogleProject, WorkbenchEmail), Set[String]] =  new TrieMap()
-  val notebookClusters: mutable.Map[String, Set[String]] = new TrieMap()
+  val notebookClusters: mutable.Map[ClusterInternalId, Set[String]] = new TrieMap()
   val projectOwners: mutable.Map[WorkbenchEmail, Set[GoogleProject]] = new TrieMap()
   val clusterCreators: mutable.Map[WorkbenchEmail, Set[(GoogleProject, ClusterName)]] = new TrieMap()
   val userProxy = "PROXY_1234567890@dev.test.firecloud.org"
   val serviceAccount = WorkbenchEmail("pet-1234567890@test-project.iam.gserviceaccount.com")
 
   @throws[ApiException]
-  override def createNotebookClusterResource(internalId: String, userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
+  override def createNotebookClusterResource(internalId: ClusterInternalId, userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
     notebookClusters += internalId -> Set("status", "connect", "sync", "delete", "read_policies")
   }
 
   @throws[ApiException]
-  override def deleteNotebookClusterResource(internalId: String, userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
+  override def deleteNotebookClusterResource(internalId: ClusterInternalId, userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName) = {
     notebookClusters.remove(internalId)
   }
 
@@ -36,7 +37,7 @@ class MockSwaggerSamClient extends SwaggerSamClient("fake/path", true, new Finit
       .getOrElse(false) //unpack the resulting option and handle the project never having existed
   }
 
-  override def hasActionOnNotebookClusterResource(internalId: String, userInfo: UserInfo, action: String): Boolean = {
+  override def hasActionOnNotebookClusterResource(internalId: ClusterInternalId, userInfo: UserInfo, action: String): Boolean = {
     notebookClusters.get(internalId)
       .map( _.contains(action) )
       .getOrElse(false)
