@@ -30,6 +30,8 @@ class ClusterServiceMonitorSpec  extends TestKit(ActorSystem("leonardotest")) wi
   val welderEnabledCluster = makeCluster(1).copy(status = ClusterStatus.Running, welderEnabled = true)
   val welderDisabledCluster = makeCluster(2).copy(welderEnabled = false)
 
+  val notRunningCluster = makeCluster(3).copy(status = ClusterStatus.Deleted, welderEnabled = true)
+
   it should "report both services are up normally" in isolatedDbTest {
     welderEnabledCluster.save()
 
@@ -65,13 +67,24 @@ class ClusterServiceMonitorSpec  extends TestKit(ActorSystem("leonardotest")) wi
     }
   }
 
+  it should "not check a non-active cluster" in isolatedDbTest {
+    notRunningCluster.save()
+
+    withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) { (_, mockNewRelic) =>
+      Thread.sleep(clusterServiceConfig.pollPeriod.toMillis * 3)
+      verify(mockNewRelic, never()).incrementCounterIO("welderDown")
+      verify(mockNewRelic, never()).incrementCounterIO("jupyterDown")
+    }
+  }
+
+
   private def makeNewRelicMock(): NewRelicMetrics = {
     val mockNewRelic = mock[NewRelicMetrics]
     when(mockNewRelic.incrementCounterIO(ArgumentMatchers.anyString(), ArgumentMatchers.anyInt())).thenReturn(IO.unit)
     mockNewRelic
   }
 
-  private def withServiceActor[T](newRelic: NewRelicMetrics = makeNewRelicMock(), welderDAO: WelderDAO = MockWelderDAO, jupyterDAO: JupyterDAO = MockJupyterDAO)
+  private def withServiceActor[T](newRelic: NewRelicMetrics = makeNewRelicMock(), welderDAO: WelderDAO = new MockWelderDAO(), jupyterDAO: JupyterDAO = new MockJupyterDAO())
                                 (testCode: (ActorRef, NewRelicMetrics) => T): T = {
     val actor = system.actorOf(ClusterServiceMonitor.props(clusterServiceConfig, gdDAO = new MockGoogleDataprocDAO, googleProjectDAO = new MockGoogleProjectDAO, DbSingleton.ref, welderDAO, jupyterDAO, newRelic))
     val testResult = Try(testCode(actor, newRelic))

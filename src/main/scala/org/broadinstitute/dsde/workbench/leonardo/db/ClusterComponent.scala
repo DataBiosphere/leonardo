@@ -159,14 +159,22 @@ trait ClusterComponent extends LeoComponent {
 
     // note: list* methods don't query the INSTANCE table
 
-    def list(): DBIO[Seq[Cluster]] = {
+    def listWithLabels(): DBIO[Seq[Cluster]] = {
       clusterLabelQuery.result.map(unmarshalMinimalCluster)
     }
 
-    def listActive(): DBIO[Seq[Cluster]] = {
+    def listActiveWithLabels(): DBIO[Seq[Cluster]] = {
       clusterLabelQuery.filter { _._1.status inSetBind ClusterStatus.activeStatuses.map(_.toString) }.result map { recs =>
         unmarshalMinimalCluster(recs)
       }
+    }
+
+    def listActiveOnly(): DBIO[Seq[Cluster]] = {
+      clusterQuery
+        .filter { _.status inSetBind ClusterStatus.activeStatuses.map(_.toString) }
+        .result map { recs =>
+          recs.map(rec => unmarshalCluster(rec, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty))
+        }
     }
 
     def listMonitoredClusterOnly(): DBIO[Seq[Cluster]] = {

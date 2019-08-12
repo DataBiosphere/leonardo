@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import akka.actor.{Actor, Props, Timers}
-import org.broadinstitute.dsde.workbench.leonardo.Metrics
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.ClusterServiceConfig
@@ -10,18 +9,14 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterServiceMonitor.{DetectClusterStatus, JupyterStatus, Status, TimerKey, WelderStatus}
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 
 import scala.concurrent.Future
 
 object ClusterServiceMonitor {
 
-
-  val newRelic: NewRelicMetrics = Metrics.newRelic
-
   def props(config: ClusterServiceConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference, welderDAO: WelderDAO, jupyterDAO: JupyterDAO, newRelic: NewRelicMetrics): Props = {
-    Props(new ClusterServiceMonitor(config, gdDAO, googleProjectDAO, dbRef, welderDAO, jupyterDAO, newRelic: NewRelicMetrics))
+    Props(new ClusterServiceMonitor(config, gdDAO, googleProjectDAO, dbRef, welderDAO, jupyterDAO, newRelic))
   }
 
   sealed trait ClusterServiceMonitorMessage
@@ -41,7 +36,8 @@ object ClusterServiceMonitor {
     final case object WelderDown extends WelderStatus
   }
 
-  case class Status(val welderStatus: WelderStatus, val jupyterStatus: JupyterStatus)
+  //we include the cluster here so there is contextual information with the status for logging
+  case class Status(val welderStatus: WelderStatus, val jupyterStatus: JupyterStatus, val cluster: Cluster)
 }
 
 /**
@@ -58,37 +54,36 @@ class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocD
 
   override def receive: Receive = {
     case DetectClusterStatus =>
-      // Get active clusters from the Leo DB, grouped by project
-      val activeClusters: Future[List[Cluster]] = getActiveClustersFromDatabase.flatMap(clusterMap => {
-        Future.successful(clusterMap.values.flatten.toList)
-      })
 
-      //check the status of the workers in each active cluster and log instances of a down worker to new relic
-      activeClusters.foreach { cs =>
-        cs.foreach { cluster =>
-          checkClusterStatus(cluster).foreach { status =>
+      val statusCheck: Future[Unit] =
+        for {
+          activeClusters <- getActiveClustersFromDatabase
+          statuses <- Future.traverse(activeClusters)(checkClusterStatus)
+          _ <- Future.traverse(statuses)(handleClusterStatus)
+        } yield ()
 
-            if (status.jupyterStatus.equals(JupyterStatus.JupyterDown)) {
-              logger.info("jupyter down")
-              newRelic.incrementCounterIO("jupyterDown").unsafeRunAsync(_ => ())
-            }
-
-            if (status.welderStatus.equals(WelderStatus.WelderDown)) {
-              logger.info("welder enabled and down")
-              newRelic.incrementCounterIO("welderDown").unsafeRunAsync(_ => ())
-            }
-
-          ()
-          }
-        }
+      statusCheck.failed.foreach { error =>
+        logger.error("Error occurred while attempting to compute status in ClusterServiceMonitor", error)
       }
   }
 
-  private def getActiveClustersFromDatabase: Future[Map[GoogleProject, Seq[Cluster]]] = {
+  private def handleClusterStatus(status: Status): Future[Unit] = {
+    if (status.jupyterStatus.equals(JupyterStatus.JupyterDown)) {
+      logger.info(s"jupyter down for cluster ${status.cluster.clusterName.value} in project ${status.cluster.googleProject.value}")
+      newRelic.incrementCounterIO("jupyterDown").unsafeRunAsync(_ => ())
+    }
+
+    if (status.welderStatus.equals(WelderStatus.WelderDown)) {
+      logger.info(s"welder enabled and down for cluster ${status.cluster.clusterName.value} in project ${status.cluster.googleProject.value}")
+      newRelic.incrementCounterIO("welderDown").unsafeRunAsync(_ => ())
+    }
+
+    Future.unit
+  }
+
+  private def getActiveClustersFromDatabase: Future[Seq[Cluster]] = {
     dbRef.inTransaction {
-      _.clusterQuery.listActive
-    } map { clusters =>
-      clusters.groupBy(_.googleProject)
+      _.clusterQuery.listActiveOnly
     }
   }
 
@@ -100,6 +95,6 @@ class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocD
       //if welder isn't enabled, the status is will be OK
       welderStatus: WelderStatus = if (!isWelderUp && cluster.welderEnabled) WelderStatus.WelderDown else WelderStatus.WelderOK
       jupyterStatus: JupyterStatus = if (isJupyterUp) JupyterStatus.JupyterOK else JupyterStatus.JupyterDown
-    } yield Status(welderStatus, jupyterStatus)
+    } yield Status(welderStatus, jupyterStatus, cluster)
   }
 }
