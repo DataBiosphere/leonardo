@@ -75,14 +75,35 @@ class ProxyService(proxyConfig: ProxyConfig,
     }
   }
 
+  private[leonardo] val clusterInternalIdCache = CacheBuilder.newBuilder()
+    .expireAfterWrite(proxyConfig.cacheExpiryTime.toMinutes, TimeUnit.MINUTES)
+    .maximumSize(proxyConfig.cacheMaxSize)
+    .build(
+      new CacheLoader[(GoogleProject, ClusterName), Future[ClusterInternalId]] {
+        def load(key: (GoogleProject, ClusterName)) = {
+          val (googleProject, clusterName) = key
+          dbRef.inTransaction { dataAccess =>
+            dataAccess.clusterQuery.getActiveClusterInternalIdByName(googleProject, clusterName)
+          } map {
+            case Some(id) => id
+            case None => throw ProxyException(googleProject, clusterName)
+          }
+        }
+      }
+    )
+
+  def getCachedClusterInternalId(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterInternalId] = {
+    clusterInternalIdCache.get((googleProject, clusterName))
+  }
+
   /*
    * Checks the user has the required notebook action, returning 401 or 404 depending on whether they can know the cluster exists
    */
   private[leonardo] def authCheck(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, notebookAction: NotebookClusterAction): Future[Unit] = {
     for {
-      internalId <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.getActiveClusterInternalIdByName(googleProject, clusterName))
-      hasViewPermission <- authProvider.hasNotebookClusterPermission(internalId.get, userInfo, GetClusterStatus, googleProject, clusterName) //TODO get rid of get
-      hasRequiredPermission <- authProvider.hasNotebookClusterPermission(internalId.get, userInfo, notebookAction, googleProject, clusterName) //TODO get rid of get
+      internalId <- getCachedClusterInternalId(googleProject, clusterName)
+      hasViewPermission <- authProvider.hasNotebookClusterPermission(internalId, userInfo, GetClusterStatus, googleProject, clusterName)
+      hasRequiredPermission <- authProvider.hasNotebookClusterPermission(internalId, userInfo, notebookAction, googleProject, clusterName)
     } yield {
       if (!hasViewPermission) {
         throw ClusterNotFoundException(googleProject, clusterName)
