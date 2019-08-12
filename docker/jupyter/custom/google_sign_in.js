@@ -17,7 +17,7 @@ var params = {
 // update params with any specified in the server's config file
 function updateParams() {
     var config = Jupyter.notebook.config;
-    for (var key in params) {
+    for (let key in params) {
         if (config.data.hasOwnProperty(key))
             params[key] = config.data[key];
     }

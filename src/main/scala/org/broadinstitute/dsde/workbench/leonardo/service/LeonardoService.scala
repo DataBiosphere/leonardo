@@ -1006,7 +1006,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     // Fill in templated resources with the given replacements
     val initScriptContent = templateResource(clusterResourcesConfig.initActionsScript, replacements)
     val jupyterNotebookConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookConfigUri, replacements)
-    val jupyterNotebookFrontendConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookFrotendConfigUri, replacements)
+    val jupyterNotebookFrontendConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookFrontendConfigUri, replacements)
 
     for {
       // Upload the init script to the bucket
@@ -1016,7 +1016,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value), jupyterNotebookConfigContent, "text/plain")
 
       // Upload the juptyer notebook frontend config file
-      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookFrotendConfigUri.value), jupyterNotebookFrontendConfigContent, "text/plain")
+      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookFrontendConfigUri.value), jupyterNotebookFrontendConfigContent, "text/plain")
 
       // Upload raw files (like certs) to the bucket
       _ <- Future.traverse(filesToUpload)(file => leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(file.getName), file, "text/plain"))

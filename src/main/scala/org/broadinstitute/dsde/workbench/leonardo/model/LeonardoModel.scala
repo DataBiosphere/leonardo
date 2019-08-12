@@ -297,7 +297,7 @@ object ClusterInitValues {
       clusterRequest.userJupyterExtensionConfig.map(x => x.combinedExtensions.values.mkString(" ")).getOrElse(""),
       clusterRequest.userJupyterExtensionConfig.map(x => x.labExtensions.values.mkString(" ")).getOrElse(""),
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value)).toUri,
-      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookFrotendConfigUri.value)).toUri,
+      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookFrontendConfigUri.value)).toUri,
       clusterRequest.defaultClientId.getOrElse(""),
       clusterRequest.enableWelder.getOrElse(false).toString,  // TODO: remove this and conditional below when welder is rolled out to all clusters
       if (clusterRequest.enableWelder.getOrElse(false)) dataprocConfig.welderEnabledNotebooksDir else dataprocConfig.welderDisabledNotebooksDir

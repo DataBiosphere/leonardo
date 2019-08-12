@@ -9,7 +9,7 @@ case class ClusterResourcesConfig(initActionsScript: ClusterResource,
                                   welderDockerCompose: ClusterResource,
                                   proxySiteConf: ClusterResource,
                                   jupyterNotebookConfigUri: ClusterResource,
-                                  jupyterNotebookFrotendConfigUri: ClusterResource
+                                  jupyterNotebookFrontendConfigUri: ClusterResource
                                  )
 
 object ClusterResourcesConfig {

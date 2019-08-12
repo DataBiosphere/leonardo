@@ -92,7 +92,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterFilesConfig.jupyterRootCaPem.getName,
     clusterResourcesConfig.proxySiteConf.value,
     clusterResourcesConfig.jupyterNotebookConfigUri.value,
-    clusterResourcesConfig.jupyterNotebookFrotendConfigUri.value
+    clusterResourcesConfig.jupyterNotebookFrontendConfigUri.value
   )
 
   lazy val initFiles = (configFiles ++ serviceAccountCredentialFile).map(GcsObjectName(_))
