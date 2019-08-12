@@ -4,46 +4,34 @@ import akka.actor.{Actor, Props, Timers}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.ClusterServiceConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, WelderDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterServiceMonitor.{DetectClusterStatus, JupyterStatus, Status, TimerKey, WelderStatus}
+import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterTool}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterServiceMonitor.{DetectClusterStatus, TimerKey, ToolStatus}
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
+import cats.implicits._
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.Welder
 
 import scala.concurrent.Future
 
 object ClusterServiceMonitor {
 
-  def props(config: ClusterServiceConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference, welderDAO: WelderDAO, jupyterDAO: JupyterDAO, newRelic: NewRelicMetrics): Props = {
-    Props(new ClusterServiceMonitor(config, gdDAO, googleProjectDAO, dbRef, welderDAO, jupyterDAO, newRelic))
+  def props(config: ClusterServiceConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference, toolDAOs: Map[ClusterTool, ToolDAO], newRelic: NewRelicMetrics): Props = {
+    Props(new ClusterServiceMonitor(config, gdDAO, googleProjectDAO, dbRef, toolDAOs, newRelic))
   }
 
   sealed trait ClusterServiceMonitorMessage
   case object DetectClusterStatus extends ClusterServiceMonitorMessage
   case object TimerKey extends ClusterServiceMonitorMessage
 
-  sealed trait ServiceStatus extends Product with Serializable
-  sealed trait JupyterStatus extends ServiceStatus with Product with Serializable
-  object JupyterStatus {
-    final case object JupyterOK extends JupyterStatus
-    final case object JupyterDown extends JupyterStatus
-  }
-
-  sealed trait WelderStatus extends ServiceStatus with Product with Serializable
-  object WelderStatus {
-    final case object WelderOK extends WelderStatus
-    final case object WelderDown extends WelderStatus
-  }
-
-  //we include the cluster here so there is contextual information with the status for logging
-  case class Status(val welderStatus: WelderStatus, val jupyterStatus: JupyterStatus, val cluster: Cluster)
+  case class ToolStatus(val isUp: Boolean, val tool: ClusterTool)
 }
 
 /**
   * This monitor periodically sweeps the Leo database and checks for clusters which no longer exist in Google.
   */
-class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference, welderDAO: WelderDAO, jupyterDAO: JupyterDAO, newRelic: NewRelicMetrics) extends Actor with Timers with LazyLogging {
+class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference, toolDAOs: Map[ClusterTool, ToolDAO], newRelic: NewRelicMetrics) extends Actor with Timers with LazyLogging {
 
   import context._
 
@@ -54,30 +42,21 @@ class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocD
 
   override def receive: Receive = {
     case DetectClusterStatus =>
-
-      val statusCheck: Future[Unit] =
-        for {
-          activeClusters <- getActiveClustersFromDatabase
-          statuses <- Future.traverse(activeClusters)(checkClusterStatus)
-          _ <- Future.traverse(statuses)(handleClusterStatus)
-        } yield ()
-
-      statusCheck.failed.foreach { error =>
-        logger.error("Error occurred while attempting to compute status in ClusterServiceMonitor", error)
-      }
+      for {
+        activeClusters <- getActiveClustersFromDatabase
+        statuses <- Future.traverse(activeClusters)(checkClusterStatus)
+        _ <- Future.traverse(statuses)(handleClusterStatus)
+      } yield ()
   }
 
-  private def handleClusterStatus(status: Status): Future[Unit] = {
-    if (status.jupyterStatus.equals(JupyterStatus.JupyterDown)) {
-      logger.info(s"jupyter down for cluster ${status.cluster.clusterName.value} in project ${status.cluster.googleProject.value}")
-      newRelic.incrementCounterIO("jupyterDown").unsafeRunAsync(_ => ())
+  private def handleClusterStatus(statuses: List[ToolStatus]): Future[Unit] = {
+    statuses.foreach { status =>
+      if (!status.isUp) {
+        val toolName = status.tool.toString
+        logger.info(s"The tool ${toolName} is down")
+        newRelic.incrementCounterIO(toolName + "Down")
+      }
     }
-
-    if (status.welderStatus.equals(WelderStatus.WelderDown)) {
-      logger.info(s"welder enabled and down for cluster ${status.cluster.clusterName.value} in project ${status.cluster.googleProject.value}")
-      newRelic.incrementCounterIO("welderDown").unsafeRunAsync(_ => ())
-    }
-
     Future.unit
   }
 
@@ -87,14 +66,17 @@ class ClusterServiceMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocD
     }
   }
 
-  def checkClusterStatus(cluster: Cluster): Future[Status] = {
-    for {
-      isWelderUp <- welderDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName)
-      isJupyterUp <- jupyterDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName)
-
-      //if welder isn't enabled, the status is will be OK
-      welderStatus: WelderStatus = if (!isWelderUp && cluster.welderEnabled) WelderStatus.WelderDown else WelderStatus.WelderOK
-      jupyterStatus: JupyterStatus = if (isJupyterUp) JupyterStatus.JupyterOK else JupyterStatus.JupyterDown
-    } yield Status(welderStatus, jupyterStatus, cluster)
+  def checkClusterStatus(cluster: Cluster): Future[List[ToolStatus]] = {
+    toolDAOs.toList.traverse { case (tool, dao) =>
+      dao
+        .isProxyAvailable(cluster.googleProject, cluster.clusterName)
+        .map(status => {
+          //the if else is necessary because otherwise we will be reporting the metric 'welder down' on all clusters without welder, which is not the desired behavior
+          //TODO: change to  `ToolStatus(status, tool)` when welder is gone
+          if (!cluster.welderEnabled && tool == Welder) {  ToolStatus(true, tool)  }
+          else { ToolStatus(status, tool) }
+        })
+    }
   }
+
 }

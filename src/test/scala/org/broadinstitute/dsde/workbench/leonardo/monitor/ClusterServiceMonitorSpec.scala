@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 import akka.actor.{ActorRef, ActorSystem, Terminated}
 import akka.testkit.TestKit
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleProjectDAO}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, MockJupyterDAO, MockWelderDAO, WelderDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, MockJupyterDAO, MockWelderDAO, ToolDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
@@ -15,6 +15,7 @@ import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.mockito.ArgumentMatchers
 import org.scalatest.concurrent.Eventually.eventually
 import cats.effect.IO
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool
 
 import scala.concurrent.duration._
 import scala.util.Try
@@ -38,8 +39,8 @@ class ClusterServiceMonitorSpec  extends TestKit(ActorSystem("leonardotest")) wi
     withServiceActor() { (_, mockNewRelic) =>
 
       Thread.sleep(clusterServiceConfig.pollPeriod.toMillis * 3)
-      verify(mockNewRelic, never()).incrementCounterIO("jupyterDown")
-      verify(mockNewRelic, never()).incrementCounterIO("welderDown")
+      verify(mockNewRelic, never()).incrementCounterIO("JupyterDown")
+      verify(mockNewRelic, never()).incrementCounterIO("WelderDown")
     }
   }
 
@@ -51,8 +52,8 @@ class ClusterServiceMonitorSpec  extends TestKit(ActorSystem("leonardotest")) wi
       eventually(timeout(clusterServiceConfig.pollPeriod * 4)) {
         //the second parameter is needed because of something scala does under the covers that mockito does not like to handle the fact we omit the predefined param count from our incrementCounterIO call.
         //explicitly specifying the count in the incrementCounterIO in the monitor itself does not fix this
-        verify(mockNewRelic, times(3)).incrementCounterIO("jupyterDown", 0)
-        verify(mockNewRelic, times(3)).incrementCounterIO("welderDown", 0)
+        verify(mockNewRelic, times(3)).incrementCounterIO("JupyterDown", 0)
+        verify(mockNewRelic, times(3)).incrementCounterIO("WelderDown", 0)
       }
     }
   }
@@ -63,7 +64,7 @@ class ClusterServiceMonitorSpec  extends TestKit(ActorSystem("leonardotest")) wi
     withServiceActor(welderDAO = new MockWelderDAO(false)) { (_, mockNewRelic) =>
 
       Thread.sleep(clusterServiceConfig.pollPeriod.toMillis * 3)
-      verify(mockNewRelic, never()).incrementCounterIO("welderDown")
+      verify(mockNewRelic, never()).incrementCounterIO("WelderDown")
     }
   }
 
@@ -72,11 +73,10 @@ class ClusterServiceMonitorSpec  extends TestKit(ActorSystem("leonardotest")) wi
 
     withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) { (_, mockNewRelic) =>
       Thread.sleep(clusterServiceConfig.pollPeriod.toMillis * 3)
-      verify(mockNewRelic, never()).incrementCounterIO("welderDown")
-      verify(mockNewRelic, never()).incrementCounterIO("jupyterDown")
+      verify(mockNewRelic, never()).incrementCounterIO("WelderDown")
+      verify(mockNewRelic, never()).incrementCounterIO("JupyterDown")
     }
   }
-
 
   private def makeNewRelicMock(): NewRelicMetrics = {
     val mockNewRelic = mock[NewRelicMetrics]
@@ -86,7 +86,8 @@ class ClusterServiceMonitorSpec  extends TestKit(ActorSystem("leonardotest")) wi
 
   private def withServiceActor[T](newRelic: NewRelicMetrics = makeNewRelicMock(), welderDAO: WelderDAO = new MockWelderDAO(), jupyterDAO: JupyterDAO = new MockJupyterDAO())
                                 (testCode: (ActorRef, NewRelicMetrics) => T): T = {
-    val actor = system.actorOf(ClusterServiceMonitor.props(clusterServiceConfig, gdDAO = new MockGoogleDataprocDAO, googleProjectDAO = new MockGoogleProjectDAO, DbSingleton.ref, welderDAO, jupyterDAO, newRelic))
+    val toolMap: Map[ClusterTool, ToolDAO] = Map(ClusterTool.Jupyter -> jupyterDAO, ClusterTool.Welder -> welderDAO)
+    val actor = system.actorOf(ClusterServiceMonitor.props(clusterServiceConfig, gdDAO = new MockGoogleDataprocDAO, googleProjectDAO = new MockGoogleProjectDAO, DbSingleton.ref, toolMap, newRelic))
     val testResult = Try(testCode(actor, newRelic))
 
     // shut down the actor and wait for it to terminate

@@ -45,7 +45,7 @@ class HttpWelderDAO(val clusterDnsCache: ClusterDnsCache)
   }
 }
 
-trait WelderDAO {
+trait WelderDAO extends ToolDAO {
   def flushCache(googleProject: GoogleProject, clusterName: ClusterName): Future[Unit]
   def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean]
 }
