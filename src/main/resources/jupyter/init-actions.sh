@@ -187,7 +187,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # authorize docker to interact with gcr.io.
     if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
       log 'Authorizing GCR...'
-      gcloud docker --authorize-only
+      gcloud auth configure-docker
     fi
 
     log 'Starting up the Jupydocker...'
@@ -229,10 +229,13 @@ if [[ "${ROLE}" == 'Master' ]]; then
       # Change Python and PySpark 2 and 3 kernel specs to allow each to have its own spark
       retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
 
-      log 'Installing Hail additions to Jupydocker spark.conf...'
+      # Install hail addition if the image is old leonardo jupyter image or it's a hail specific image
+      if [[ ${JUPYTER_DOCKER_IMAGE} == *"leonardo-jupyter"* ]] || [[ ${JUPYTER_DOCKER_IMAGE} == *"hail"* ]] ; then
+        log 'Installing Hail additions to Jupydocker spark.conf...'
 
-      # Install the Hail additions to Spark conf.
-      retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/hail/spark_install_hail.sh
+        # Install the Hail additions to Spark conf.
+        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/hail/spark_install_hail.sh
+      fi
 
       # Install jupyter_notebook_config.py
       if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG_URI} ] ; then
