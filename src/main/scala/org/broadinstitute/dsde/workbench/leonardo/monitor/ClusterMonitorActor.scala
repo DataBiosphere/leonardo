@@ -456,7 +456,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     val tea = for {
       key <- OptionT(dbRef.inTransaction { _.clusterQuery.getServiceAccountKeyId(cluster.googleProject, cluster.clusterName) })
       serviceAccountEmail <- OptionT.fromOption[Future](cluster.serviceAccountInfo.notebookServiceAccount)
-      _ <- OptionT.liftF(googleIamDAO.removeServiceAccountKey(dataprocConfig.leoGoogleProject, serviceAccountEmail, key))
+      _ <- OptionT.liftF(googleIamDAO.removeServiceAccountKey(cluster.googleProject, serviceAccountEmail, key))
     } yield ()
 
     tea.value.void

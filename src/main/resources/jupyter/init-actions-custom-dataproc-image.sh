@@ -122,23 +122,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
     touch /hadoop_gcs_connector_metadata_cache
     touch auth_openidc.conf
 
-    # If we have a service account JSON file, create an .env file to set GOOGLE_APPLICATION_CREDENTIALS
-    # in the docker container. Otherwise, we should _not_ set this environment variable so it uses the
-    # credentials on the metadata server.
     if [ ! -z ${SERVICE_ACCOUNT_CREDENTIALS} ] ; then
       echo "GOOGLE_APPLICATION_CREDENTIALS=/etc/${SERVICE_ACCOUNT_CREDENTIALS}" > /etc/google_application_credentials.env
-      if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
-        log 'Copying SA into Jupyter Docker...'
-        docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${JUPYTER_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
-      fi
-      if [ ! -z ${RSTUDIO_DOCKER_IMAGE} ] ; then
-        log 'Copying SA into RStudio Docker...'
-        docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${RSTUDIO_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
-      fi
-      if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
-        log 'Copying SA into Welder Docker...'
-        docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${WELDER_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
-      fi
     else
       echo "" > /etc/google_application_credentials.env
     fi
@@ -174,6 +159,24 @@ if [[ "${ROLE}" == 'Master' ]]; then
     retry 5 docker-compose "${COMPOSE_FILES[@]}" config
     retry 5 docker-compose "${COMPOSE_FILES[@]}" pull
     retry 5 docker-compose "${COMPOSE_FILES[@]}" up -d
+
+    # If we have a service account JSON file, create an .env file to set GOOGLE_APPLICATION_CREDENTIALS
+    # in the docker container. Otherwise, we should _not_ set this environment variable so it uses the
+    # credentials on the metadata server.
+    if [ ! -z ${SERVICE_ACCOUNT_CREDENTIALS} ] ; then
+      if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
+        log 'Copying SA into Jupyter Docker...'
+        docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${JUPYTER_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
+      fi
+      if [ ! -z ${RSTUDIO_DOCKER_IMAGE} ] ; then
+        log 'Copying SA into RStudio Docker...'
+        docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${RSTUDIO_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
+      fi
+      if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
+        log 'Copying SA into Welder Docker...'
+        docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${WELDER_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
+      fi
+    fi
 
     # if Welder is installed, start the service.
     # See https://broadworkbench.atlassian.net/browse/IA-1026

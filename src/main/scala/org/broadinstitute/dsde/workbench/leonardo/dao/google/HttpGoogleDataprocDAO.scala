@@ -259,7 +259,7 @@ class HttpGoogleDataprocDAO(appName: String,
   // configs defined for 2 or more workers.
   private def createClusterConfig(createClusterConfig: CreateClusterConfig): DataprocClusterConfig = {
 
-    val swConfig: SoftwareConfig = getSoftwareConfig(createClusterConfig.machineConfig.numberOfWorkers, createClusterConfig.credentialsFileName, createClusterConfig.properties)
+    val swConfig: SoftwareConfig = getSoftwareConfig(createClusterConfig)
 
     // If the number of workers is zero, make a Single Node cluster, else make a Standard one
     if (createClusterConfig.machineConfig.numberOfWorkers.get == 0) {
@@ -269,8 +269,8 @@ class HttpGoogleDataprocDAO(appName: String,
       getMultiNodeClusterConfig(createClusterConfig).setSoftwareConfig(swConfig)
   }
 
-  private def getSoftwareConfig(numWorkers: Option[Int], credentialsFileName: Option[String], userProperties: Map[String, String]) = {
-    val authProps: Map[String, String] = credentialsFileName match {
+  private def getSoftwareConfig(createClusterConfig: CreateClusterConfig) = {
+    val authProps: Map[String, String] = createClusterConfig.credentialsFileName match {
       case None =>
         // If we're not using a notebook service account, no need to set Hadoop properties since
         // the SA credentials are on the metadata server.
@@ -285,7 +285,7 @@ class HttpGoogleDataprocDAO(appName: String,
         )
     }
 
-    val dataprocProps: Map[String, String] = if (numWorkers.get == 0) {
+    val dataprocProps: Map[String, String] = if (createClusterConfig.machineConfig.numberOfWorkers.get == 0) {
       // Set a SoftwareConfig property that makes the cluster have only one node
       Map("dataproc:dataproc.allow.zero.workers" -> "true")
     }
@@ -303,13 +303,13 @@ class HttpGoogleDataprocDAO(appName: String,
       "spark:spark.yarn.am.memory" -> "640m"
     )
 
-    new SoftwareConfig().setProperties((authProps ++ dataprocProps ++ yarnProps ++ userProperties).asJava)
+    val swConfig = new SoftwareConfig().setProperties((authProps ++ dataprocProps ++ yarnProps ++ createClusterConfig.properties).asJava)
 
-      // This gives us Spark 2.0.2. See:
-      //   https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-versions
-      // Dataproc supports Spark 2.2.0, but there are no pre-packaged Hail distributions past 2.1.0. See:
-      //   https://hail.is/docs/stable/getting_started.html
-      .setImageVersion("1.2-deb9")
+    if (createClusterConfig.dataprocCustomImage.isEmpty) {
+      swConfig.setImageVersion("1.2-deb9")
+    }
+
+    swConfig
   }
 
   private def getMultiNodeClusterConfig(createClusterConfig: CreateClusterConfig): DataprocClusterConfig = {

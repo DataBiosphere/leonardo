@@ -727,7 +727,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
       // build cluster configuration
       machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
-      initScript = GcsPath(initBucket, GcsObjectName(clusterResourcesConfig.initActionsScript.value))
+      initScriptResource = if (dataprocConfig.customDataprocImage.isDefined) clusterResourcesConfig.customDataprocInitActionsScript else clusterResourcesConfig.initActionsScript
+      initScript = GcsPath(initBucket, GcsObjectName(initScriptResource.value))
       autopauseThreshold = calculateAutopauseThreshold(clusterRequest.autopause, clusterRequest.autopauseThreshold)
       clusterScopes = if(clusterRequest.scopes.isEmpty) dataprocConfig.defaultScopes else clusterRequest.scopes
       credentialsFileName = serviceAccountInfo.notebookServiceAccount.map(_ => s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}")
