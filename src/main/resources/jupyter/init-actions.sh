@@ -17,7 +17,7 @@ set -e -x
 # Retry 4/5 exited 1, retrying in 16 seconds...
 # Retry 5/5 exited 1, no more retries left.
 #
-# Array for new relic instrumentation
+# Array for instrumentation
 # UPDATE THIS IF YOU ADD MORE STEPS:
 # currently the steps are:
 # START init,
