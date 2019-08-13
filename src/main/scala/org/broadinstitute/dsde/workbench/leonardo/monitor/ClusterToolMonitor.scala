@@ -54,7 +54,7 @@ class ClusterToolMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocDAO,
       if (!status.isUp) {
         val toolName = status.tool.toString
         logger.info(s"The tool ${toolName} is down")
-        newRelic.incrementCounterIO(toolName + "Down")
+        newRelic.incrementCounterIO(toolName + "Down").unsafeRunSync()
       }
     }
     Future.unit

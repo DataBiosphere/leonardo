@@ -29,8 +29,7 @@ class ClusterToolMonitorSpec  extends TestKit(ActorSystem("leonardotest")) with
   }
 
   val welderEnabledCluster = makeCluster(1).copy(status = ClusterStatus.Running, welderEnabled = true)
-  val welderDisabledCluster = makeCluster(2).copy(welderEnabled = false)
-
+  val welderDisabledCluster = makeCluster(2).copy(status = ClusterStatus.Running, welderEnabled = false)
   val notRunningCluster = makeCluster(3).copy(status = ClusterStatus.Deleted, welderEnabled = true)
 
   it should "report both services are up normally" in isolatedDbTest {
@@ -39,8 +38,8 @@ class ClusterToolMonitorSpec  extends TestKit(ActorSystem("leonardotest")) with
     withServiceActor() { (_, mockNewRelic) =>
 
       Thread.sleep(clusterServiceConfig.pollPeriod.toMillis * 3)
-      verify(mockNewRelic, never()).incrementCounterIO("JupyterDown")
-      verify(mockNewRelic, never()).incrementCounterIO("WelderDown")
+      verify(mockNewRelic, never()).incrementCounterIO(ArgumentMatchers.startsWith("JupyterDown"), ArgumentMatchers.anyInt())
+      verify(mockNewRelic, never()).incrementCounterIO(ArgumentMatchers.startsWith("WelderDown"), ArgumentMatchers.anyInt())
     }
   }
 
@@ -52,19 +51,23 @@ class ClusterToolMonitorSpec  extends TestKit(ActorSystem("leonardotest")) with
       eventually(timeout(clusterServiceConfig.pollPeriod * 4)) {
         //the second parameter is needed because of something scala does under the covers that mockito does not like to handle the fact we omit the predefined param count from our incrementCounterIO call.
         //explicitly specifying the count in the incrementCounterIO in the monitor itself does not fix this
-        verify(mockNewRelic, times(3)).incrementCounterIO("JupyterDown", 0)
-        verify(mockNewRelic, times(3)).incrementCounterIO("WelderDown", 0)
+        verify(mockNewRelic, times(3)).incrementCounterIO(ArgumentMatchers.startsWith("JupyterDown"), ArgumentMatchers.anyInt())
+        verify(mockNewRelic, times(3)).incrementCounterIO(ArgumentMatchers.startsWith("WelderDown"), ArgumentMatchers.anyInt())
       }
     }
   }
 
-  it should "report welder as OK when it is disabled" in isolatedDbTest {
+  it should "report welder as OK when it is disabled while jupyter is down" in isolatedDbTest {
     welderDisabledCluster.save()
 
-    withServiceActor(welderDAO = new MockWelderDAO(false)) { (_, mockNewRelic) =>
+    withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) { (_, mockNewRelic) =>
+
+      eventually(timeout(clusterServiceConfig.pollPeriod * 4)) {
+        verify(mockNewRelic, times(3)).incrementCounterIO(ArgumentMatchers.startsWith("JupyterDown"), ArgumentMatchers.anyInt())
+      }
 
       Thread.sleep(clusterServiceConfig.pollPeriod.toMillis * 3)
-      verify(mockNewRelic, never()).incrementCounterIO("WelderDown")
+      verify(mockNewRelic, never()).incrementCounterIO(ArgumentMatchers.startsWith("WelderDown"), ArgumentMatchers.anyInt())
     }
   }
 
@@ -73,8 +76,8 @@ class ClusterToolMonitorSpec  extends TestKit(ActorSystem("leonardotest")) with
 
     withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) { (_, mockNewRelic) =>
       Thread.sleep(clusterServiceConfig.pollPeriod.toMillis * 3)
-      verify(mockNewRelic, never()).incrementCounterIO("WelderDown")
-      verify(mockNewRelic, never()).incrementCounterIO("JupyterDown")
+      verify(mockNewRelic, never()).incrementCounterIO(ArgumentMatchers.startsWith("WelderDown"), ArgumentMatchers.anyInt())
+      verify(mockNewRelic, never()).incrementCounterIO(ArgumentMatchers.startsWith("JupyterDown"), ArgumentMatchers.anyInt())
     }
   }
 
