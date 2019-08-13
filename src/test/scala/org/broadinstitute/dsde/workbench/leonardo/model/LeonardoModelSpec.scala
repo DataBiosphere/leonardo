@@ -87,6 +87,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     val expectedJson =
       """
         |{ "id": 0,
+        |  "internalId": "067e2867-5d4a-47f3-a53c-fd711529b287",
         |  "clusterName": "clustername1",
         |  "googleId": "4ba97751-026a-4555-961b-89ae6ce78df4",
         |  "googleProject": "dsp-leo-test",

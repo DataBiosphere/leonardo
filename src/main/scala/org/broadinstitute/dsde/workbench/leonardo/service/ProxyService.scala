@@ -75,13 +75,38 @@ class ProxyService(proxyConfig: ProxyConfig,
     }
   }
 
+  /* Cache for the cluster internal id from the database */
+  private[leonardo] val clusterInternalIdCache = CacheBuilder.newBuilder()
+    .expireAfterWrite(proxyConfig.cacheExpiryTime.toMinutes, TimeUnit.MINUTES)
+    .maximumSize(proxyConfig.cacheMaxSize)
+    .build(
+      new CacheLoader[(GoogleProject, ClusterName), Future[Option[ClusterInternalId]]] {
+        def load(key: (GoogleProject, ClusterName)) = {
+          val (googleProject, clusterName) = key
+          dbRef.inTransaction { dataAccess =>
+            dataAccess.clusterQuery.getActiveClusterInternalIdByName(googleProject, clusterName)
+          }
+        }
+      }
+    )
+
+  def getCachedClusterInternalId(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterInternalId] = {
+    clusterInternalIdCache.get((googleProject, clusterName)).map {
+      case Some(clusterInternalId) => clusterInternalId
+      case None =>
+        logger.error(s"Unable to look up an internal ID for cluster ${googleProject.value} / ${clusterName}")
+        throw ProxyException(googleProject, clusterName)
+    }
+  }
+
   /*
    * Checks the user has the required notebook action, returning 401 or 404 depending on whether they can know the cluster exists
    */
   private[leonardo] def authCheck(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, notebookAction: NotebookClusterAction): Future[Unit] = {
     for {
-      hasViewPermission <- authProvider.hasNotebookClusterPermission(userInfo, GetClusterStatus, googleProject, clusterName)
-      hasRequiredPermission <- authProvider.hasNotebookClusterPermission(userInfo, notebookAction, googleProject, clusterName)
+      internalId <- getCachedClusterInternalId(googleProject, clusterName)
+      hasViewPermission <- authProvider.hasNotebookClusterPermission(internalId, userInfo, GetClusterStatus, googleProject, clusterName)
+      hasRequiredPermission <- authProvider.hasNotebookClusterPermission(internalId, userInfo, notebookAction, googleProject, clusterName)
     } yield {
       if (!hasViewPermission) {
         throw ClusterNotFoundException(googleProject, clusterName)

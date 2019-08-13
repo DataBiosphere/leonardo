@@ -14,8 +14,9 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, _}
 import org.broadinstitute.dsde.workbench.leonardo.util.BucketHelper
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
-import org.broadinstitute.dsde.workbench.model.UserInfo
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito
 import org.mockito.Mockito._
 import org.scalatest.concurrent.ScalaFutures
@@ -101,10 +102,10 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       leo.deleteCluster(userInfo, project, cluster1Name).futureValue
 
       //verify we correctly notified the auth provider
-      verify(spyProvider).notifyClusterCreated(userEmail, project, cluster1Name)
+      verify(spyProvider).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])
 
       // notification of deletion happens only after it has been fully deleted
-      verify(spyProvider, never).notifyClusterDeleted(userEmail, userEmail, project, cluster1Name)
+      verify(spyProvider, never).notifyClusterDeleted(any[ClusterInternalId], any[WorkbenchEmail], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])
     }
 
     "should not let you do things if the auth provider says no" in isolatedDbTest {
@@ -140,8 +141,8 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       clusterNotFoundAgain shouldBe a [ClusterNotFoundException]
 
       //verify we never notified the auth provider of clusters happening because they didn't
-      verify(spyProvider, Mockito.never).notifyClusterCreated(userEmail, project, cluster1Name)
-      verify(spyProvider, Mockito.never).notifyClusterDeleted(userEmail, userEmail, project, cluster1Name)
+      verify(spyProvider, Mockito.never).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])
+      verify(spyProvider, Mockito.never).notifyClusterDeleted(any[ClusterInternalId], any[WorkbenchEmail], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])
     }
 
     "should give you a 401 if you can see a cluster's details but can't do the more specific action" in isolatedDbTest {
@@ -174,8 +175,8 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       clusterDestroyException shouldBe a [AuthorizationError]
 
       //verify we never notified the auth provider of clusters happening because they didn't
-      verify(spyProvider, Mockito.never).notifyClusterCreated(userEmail, project, cluster1Name)
-      verify(spyProvider, Mockito.never).notifyClusterDeleted(userEmail, userEmail, project, cluster1Name)
+      verify(spyProvider, Mockito.never).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])
+      verify(spyProvider, Mockito.never).notifyClusterDeleted(any[ClusterInternalId], any[WorkbenchEmail], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])
     }
 
     "should not create a cluster if auth provider notifyClusterCreated returns failure" in isolatedDbTest {
@@ -194,8 +195,8 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       mockGoogleDataprocDAO.clusters should not contain key (cluster1Name)
 
       // creation and deletion notifications should have been fired
-      verify(spyProvider).notifyClusterCreated(userEmail, project, cluster1Name)
-      verify(spyProvider).notifyClusterDeleted(userEmail, userEmail, project, cluster1Name)
+      verify(spyProvider).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])
+      verify(spyProvider).notifyClusterDeleted(any[ClusterInternalId], any[WorkbenchEmail], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])
     }
 
     "should return clusters the user created even if the auth provider doesn't" in isolatedDbTest {

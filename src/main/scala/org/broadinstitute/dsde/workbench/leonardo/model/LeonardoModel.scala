@@ -86,9 +86,12 @@ case class ClusterImage(tool: ClusterTool,
                         dockerImage: String,
                         timestamp: Instant)
 
+case class ClusterInternalId(value: String) extends ValueObject
+
 // The cluster itself
 // Also the API response for "list clusters" and "get active cluster"
 final case class Cluster(id: Long = 0, // DB AutoInc
+                   internalId: ClusterInternalId,
                    clusterName: ClusterName,
                    googleProject: GoogleProject,
                    serviceAccountInfo: ServiceAccountInfo,
@@ -117,6 +120,7 @@ object Cluster {
   type LabelMap = Map[String, String]
 
   def create(clusterRequest: ClusterRequest,
+             internalId: ClusterInternalId,
              userEmail: WorkbenchEmail,
              clusterName: ClusterName,
              googleProject: GoogleProject,
@@ -129,6 +133,7 @@ object Cluster {
              stagingBucket: Option[GcsBucketName] = None,
              clusterImages: Set[ClusterImage] = Set.empty): Cluster = {
     Cluster(
+      internalId = internalId,
       clusterName = clusterName,
       googleProject = googleProject,
       serviceAccountInfo = serviceAccountInfo,
@@ -448,6 +453,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val ClusterImageFormat = jsonFormat3(ClusterImage.apply)
 
+  implicit val ClusterInternalIdFormat = ValueObjectFormat(ClusterInternalId)
 
   implicit object ClusterFormat extends RootJsonFormat[Cluster] {
     override def read(json: JsValue): Cluster = {
@@ -455,6 +461,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
         case JsObject(fields: Map[String, JsValue]) =>
           Cluster(
             fields.getOrElse("id", JsNull).convertTo[Long],
+            fields.getOrElse("internalId", JsNull).convertTo[ClusterInternalId],
             fields.getOrElse("clusterName", JsNull).convertTo[ClusterName],
             fields.getOrElse("googleProject", JsNull).convertTo[GoogleProject],
             fields.getOrElse("serviceAccountInfo", JsNull).convertTo[ServiceAccountInfo],
@@ -490,6 +497,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     override def write(obj: Cluster): JsValue = {
       val allFields = List(
         "id" -> obj.id.toJson,
+        "internalId" -> obj.internalId.toJson,
         "clusterName" -> obj.clusterName.toJson,
         "googleId" -> obj.dataprocInfo.googleId.toJson,
         "googleProject" -> obj.googleProject.toJson,

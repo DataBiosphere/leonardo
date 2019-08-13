@@ -925,6 +925,9 @@ definitions:
       id:
         type: string
         description: The internally-referenced ID of the cluster
+      internalId:
+        type: string
+        description: Internal resource ID of the cluster
       clusterName:
         type: string
         description: The user-supplied name for the cluster

@@ -468,7 +468,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
           .map(_.status) shouldBe Some(ClusterStatus.Deleting)
 
         // the auth provider should have not yet been notified of deletion
-        verify(spyProvider, never).notifyClusterDeleted(mockitoEq(userInfo.userEmail), mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(clusterName))(any[ExecutionContext])
+        verify(spyProvider, never).notifyClusterDeleted(mockitoEq(cluster.internalId), mockitoEq(userInfo.userEmail), mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(clusterName))(any[ExecutionContext])
     }
   }
 

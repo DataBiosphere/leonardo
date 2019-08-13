@@ -9,14 +9,17 @@ import akka.http.scaladsl.model.ws.{TextMessage, WebSocketRequest}
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.service.TestProxy
 import org.broadinstitute.dsde.workbench.leonardo.service.TestProxy.Data
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll, FlatSpec}
 
 import scala.collection.immutable
+import scala.concurrent.Future
 import scala.concurrent.duration._
 
 /**
@@ -45,6 +48,7 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
 
   before {
     proxyService.googleTokenCache.invalidateAll()
+    proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(clusterName)), Future.successful(Some(internalId)))
   }
 
   val pathPrefixes = Set("notebooks", "proxy")
@@ -61,7 +65,9 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
         status shouldEqual StatusCodes.OK
         validateCors()
       }
-      Get(s"/$prefix/$googleProject/aDifferentClusterName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+      val newName = "aDifferentClusterName"
+      proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(newName)), Future.successful(Some(internalId)))
+      Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
         handled shouldBe true
         status shouldEqual StatusCodes.NotFound
         validateCors()
