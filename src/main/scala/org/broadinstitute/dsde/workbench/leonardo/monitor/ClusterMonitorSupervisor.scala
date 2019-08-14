@@ -7,7 +7,7 @@ import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props, Timers}
 import cats.effect.IO
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.Metrics
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, DataprocConfig, MonitorConfig}
@@ -19,14 +19,15 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, ClusterTool, LeoAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterSupervisorMessage, _}
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
+import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import org.broadinstitute.dsde.workbench.model.WorkbenchException
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
 object ClusterMonitorSupervisor {
-  def props(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, google2StorageDAO: GoogleStorageService[IO], dbRef: DbReference, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO, rstudioProxyDAO: RStudioDAO, welderDAO: WelderDAO, leonardoService: LeonardoService): Props =
-    Props(new ClusterMonitorSupervisor(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, google2StorageDAO, dbRef, authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, welderDAO, leonardoService))
+  def props(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleStorageDAO: GoogleStorageDAO, google2StorageDAO: GoogleStorageService[IO], dbRef: DbReference, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO, rstudioProxyDAO: RStudioDAO, welderDAO: WelderDAO, leonardoService: LeonardoService, clusterHelper: ClusterHelper): Props =
+    Props(new ClusterMonitorSupervisor(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleStorageDAO, google2StorageDAO, dbRef, authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, welderDAO, leonardoService, clusterHelper))
 
   sealed trait ClusterSupervisorMessage
 
@@ -55,7 +56,7 @@ object ClusterMonitorSupervisor {
   private case object CheckForClusters extends ClusterSupervisorMessage
 }
 
-class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, google2StorageDAO: GoogleStorageService[IO], dbRef: DbReference, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO, rstudioProxyDAO: RStudioDAO, welderProxyDAO: WelderDAO, leonardoService: LeonardoService)
+class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleStorageDAO: GoogleStorageDAO, google2StorageDAO: GoogleStorageService[IO], dbRef: DbReference, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO, rstudioProxyDAO: RStudioDAO, welderProxyDAO: WelderDAO, leonardoService: LeonardoService, clusterHelper: ClusterHelper)
   extends Actor with Timers with LazyLogging {
   import context.dispatcher
 
@@ -159,7 +160,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
       ClusterTool.RStudio -> (() => rstudioProxyDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName)),
       ClusterTool.Welder -> (() => welderProxyDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName))
     )
-    context.actorOf(ClusterMonitorActor.props(cluster, monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, google2StorageDAO, dbRef, authProvider, proxyDAOs))
+    context.actorOf(ClusterMonitorActor.props(cluster, monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleStorageDAO, google2StorageDAO, dbRef, authProvider, proxyDAOs, clusterHelper))
   }
 
   def startClusterMonitorActor(cluster: Cluster, watchMessageOpt: Option[ClusterSupervisorMessage] = None): Unit = {
@@ -176,46 +177,41 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
     clusters <- dbRef.inTransaction {
       _.clusterQuery.getClustersReadyToAutoFreeze()
     }
-    pauseableClusters <- clusters.toList.filterA {
-      cluster =>
-        jupyterProxyDAO.isAllKernalsIdle(cluster.googleProject, cluster.clusterName).attempt.map {
-          attempted =>
-            attempted match {
-              case Left(t) =>
-                logger.error(s"Fail to get kernel status for ${cluster.googleProject}/${cluster.clusterName} due to $t")
-                true
-              case Right(isIdle) =>
-                if (!isIdle) {
-                  val idleLimit = Duration.ofNanos(autoFreezeConfig.maxKernelBusyLimit.toNanos) // convert from FiniteDuration to java Duration
-                  val maxKernelActiveTimeExceeded = cluster.auditInfo.kernelFoundBusyDate match {
-                    case Some(attemptedDate) => Duration.between(attemptedDate, Instant.now()).compareTo(idleLimit) == 1
-                    case None => {
-                      dbRef.inTransaction { dataAccess =>
-                        dataAccess.clusterQuery.updateKernelFoundBusyDate(cluster.id, Instant.now())
-                      }
-                      false // max kernel active time has not been exceeded
-                    }
-                  }
-                  if (maxKernelActiveTimeExceeded){
-                    Metrics.newRelic.incrementCounterIO("maxKernelExceededClusters").unsafeRunAsync(_ => ())
-                    logger.info(s"Auto pausing ${cluster.googleProject}/${cluster.clusterName} due to exceeded max kernel active time")
-                  } else {
-                    Metrics.newRelic.incrementCounterIO("activeKernelClusters").unsafeRunAsync(_ => ())
-                    logger.info(s"Not going to auto pause cluster ${cluster.googleProject}/${cluster.clusterName} due to active kernels")
-                  }
-                  maxKernelActiveTimeExceeded
-
-                } else isIdle
+    pauseableClusters <- clusters.toList.filterA[Future] { cluster =>
+      jupyterProxyDAO.isAllKernalsIdle(cluster.googleProject, cluster.clusterName).attempt.map {
+        case Left(t) =>
+          logger.error(s"Fail to get kernel status for ${cluster.googleProject}/${cluster.clusterName} due to $t")
+          true
+        case Right(isIdle) =>
+          if (!isIdle) {
+            val idleLimit = Duration.ofNanos(autoFreezeConfig.maxKernelBusyLimit.toNanos) // convert from FiniteDuration to java Duration
+            val maxKernelActiveTimeExceeded = cluster.auditInfo.kernelFoundBusyDate match {
+              case Some(attemptedDate) => Duration.between(attemptedDate, Instant.now()).compareTo(idleLimit) == 1
+              case None => {
+                dbRef.inTransaction { dataAccess =>
+                  dataAccess.clusterQuery.updateKernelFoundBusyDate(cluster.id, Instant.now())
+                }
+                false // max kernel active time has not been exceeded
+              }
             }
+            if (maxKernelActiveTimeExceeded){
+              Metrics.newRelic.incrementCounterIO("maxKernelExceededClusters").unsafeRunAsync(_ => ())
+              logger.info(s"Auto pausing ${cluster.googleProject}/${cluster.clusterName} due to exceeded max kernel active time")
+            } else {
+              Metrics.newRelic.incrementCounterIO("activeKernelClusters").unsafeRunAsync(_ => ())
+              logger.info(s"Not going to auto pause cluster ${cluster.googleProject}/${cluster.clusterName} due to active kernels")
+            }
+            maxKernelActiveTimeExceeded
+
+          } else isIdle
         }
     }
     _ <- Metrics.newRelic.gauge("autopausedClusters", pauseableClusters.length).unsafeToFuture()
-    _ <- pauseableClusters.traverse{
-      cl =>
-        logger.info(s"Auto freezing cluster ${cl.clusterName} in project ${cl.googleProject}")
-        leonardoService.internalStopCluster(cl).attempt.map { e =>
-          e.fold(t => logger.warn(s"Error occurred auto freezing cluster ${cl.projectNameString}", e), identity)
-        }
+    _ <- pauseableClusters.traverse[Future, Unit] { cl =>
+      logger.info(s"Auto freezing cluster ${cl.clusterName} in project ${cl.googleProject}")
+      leonardoService.internalStopCluster(cl).attempt.map { e =>
+        e.fold(t => logger.warn(s"Error occurred auto freezing cluster ${cl.projectNameString}", e), identity)
+      }
     }
   } yield ()
 

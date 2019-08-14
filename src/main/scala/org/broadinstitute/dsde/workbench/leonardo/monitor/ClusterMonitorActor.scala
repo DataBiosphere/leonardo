@@ -13,7 +13,7 @@ import cats.implicits._
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
-import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo.Metrics
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterBucketConfig, DataprocConfig, MonitorConfig}
@@ -24,6 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, IP, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterDeleted, ClusterSupervisorMessage, RemoveFromList}
+import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GoogleProject}
 import org.broadinstitute.dsde.workbench.util.{Retry, addJitter}
 import slick.dbio.DBIOAction
@@ -39,8 +40,8 @@ object ClusterMonitorActor {
   /**
     * Creates a Props object used for creating a {{{ClusterMonitorActor}}}.
     */
-  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleIamDAO: GoogleIamDAO, googleStorageDAO: GoogleStorageDAO, google2StorageDAO: GoogleStorageService[IO], dbRef: DbReference, authProvider: LeoAuthProvider, proxyDao: Map[ClusterTool, Function0[Future[Boolean]]]): Props =
-    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO, google2StorageDAO, dbRef, authProvider, proxyDao))
+  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleStorageDAO: GoogleStorageDAO, google2StorageDAO: GoogleStorageService[IO], dbRef: DbReference, authProvider: LeoAuthProvider, proxyDao: Map[ClusterTool, Function0[Future[Boolean]]], clusterHelper: ClusterHelper): Props =
+    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleStorageDAO, google2StorageDAO, dbRef, authProvider, proxyDao, clusterHelper))
 
   // ClusterMonitorActor messages:
 
@@ -69,13 +70,13 @@ class ClusterMonitorActor(val cluster: Cluster,
                           val clusterBucketConfig: ClusterBucketConfig,
                           val gdDAO: GoogleDataprocDAO,
                           val googleComputeDAO: GoogleComputeDAO,
-                          val googleIamDAO: GoogleIamDAO,
                           val googleStorageDAO: GoogleStorageDAO,
                           val google2StorageDAO: GoogleStorageService[IO],
                           val dbRef: DbReference,
                           val authProvider: LeoAuthProvider,
                           proxyDao: Map[ClusterTool, Function0[Future[Boolean]]],
-                          val startTime: Long = System.currentTimeMillis()) extends Actor with LazyLogging with Retry {
+                          val startTime: Long = System.currentTimeMillis(),
+                          val clusterHelper: ClusterHelper) extends Actor with LazyLogging with Retry {
   import context._
 
   // the Retry trait needs a reference to the ActorSystem
@@ -441,11 +442,7 @@ class ClusterMonitorActor(val cluster: Cluster,
           if (count > 0) {
             Future.successful(())
           } else {
-            // Retry 409s with exponential backoff. This can happen if concurrent policy updates are made in the same project.
-            // Google recommends a retry in this case.
-            retryExponentially(whenGoogle409, s"IAM policy change failed for Google project '${cluster.googleProject}'") { () =>
-              googleIamDAO.removeIamRolesForUser(cluster.googleProject, serviceAccountEmail, Set("roles/dataproc.worker", "roles/compute.imageUser"))
-            }
+            clusterHelper.removeClusterIamRoles(cluster.googleProject, cluster.serviceAccountInfo).unsafeToFuture()
           }
         }
     }
@@ -453,13 +450,10 @@ class ClusterMonitorActor(val cluster: Cluster,
 
   private def removeServiceAccountKey: Future[Unit] = {
     // Delete the notebook service account key in Google, if present
-    val tea = for {
-      key <- OptionT(dbRef.inTransaction { _.clusterQuery.getServiceAccountKeyId(cluster.googleProject, cluster.clusterName) })
-      serviceAccountEmail <- OptionT.fromOption[Future](cluster.serviceAccountInfo.notebookServiceAccount)
-      _ <- OptionT.liftF(googleIamDAO.removeServiceAccountKey(cluster.googleProject, serviceAccountEmail, key))
+    for {
+      keyOpt <- dbRef.inTransaction { _.clusterQuery.getServiceAccountKeyId(cluster.googleProject, cluster.clusterName) }
+      _ <- clusterHelper.removeServiceAccountKey(cluster.googleProject, cluster.serviceAccountInfo.notebookServiceAccount, keyOpt).unsafeToFuture()
     } yield ()
-
-    tea.value.void
   }
 
   private def deleteInitBucket: Future[Unit] = {
