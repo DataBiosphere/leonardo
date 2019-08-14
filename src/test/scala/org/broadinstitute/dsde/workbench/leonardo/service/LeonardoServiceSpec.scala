@@ -1033,6 +1033,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     //we meed to use a special version of the MockGoogleIamDAO to simulate an error when adding IAM roles
     val iamDAO = new ErroredMockGoogleIamDAO
+    val clusterHelper = new ClusterHelper(dataprocConfig, mockGoogleDataprocDAO, computeDAO, iamDAO)
     leo = new LeonardoService(dataprocConfig, MockWelderDAO, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, mockGoogleDataprocDAO, computeDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, clusterHelper, contentSecurityPolicy)
 
     // create the cluster
@@ -1054,6 +1055,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
     //we meed to use a special version of the MockGoogleIamDAO to simulate a conflict when adding IAM roles
     val iamDAO = new ErroredMockGoogleIamDAO(409)
+    val clusterHelper = new ClusterHelper(dataprocConfig, mockGoogleDataprocDAO, computeDAO, iamDAO)
     leo = new LeonardoService(dataprocConfig, MockWelderDAO, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, mockGoogleDataprocDAO, computeDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, clusterHelper, contentSecurityPolicy)
 
     // create the cluster
