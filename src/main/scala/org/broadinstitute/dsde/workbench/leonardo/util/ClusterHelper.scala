@@ -41,7 +41,7 @@ class ClusterHelper(dataprocConfig: DataprocConfig,
     }
 
     val retryIam: (GoogleProject, WorkbenchEmail, Set[String]) => IO[Unit] = (project, email, roles) =>
-      IO.fromFuture[Unit](IO(retryExponentially(whenGoogle409, s"IAM policy change failed for Google project '$googleProject'") { () =>
+      IO.fromFuture[Unit](IO(retryExponentially(whenGoogle409, s"IAM policy change failed for Google project '$project'") { () =>
         if (create) {
           googleIamDAO.addIamRolesForUser(project, email, roles)
         } else {
