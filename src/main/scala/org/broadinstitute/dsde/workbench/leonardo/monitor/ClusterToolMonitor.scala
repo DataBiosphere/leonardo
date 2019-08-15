@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 import akka.actor.{Actor, Props, Timers}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
-import org.broadinstitute.dsde.workbench.leonardo.config.ClusterServiceConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.ClusterToolConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -17,21 +17,21 @@ import scala.concurrent.Future
 
 object ClusterToolMonitor {
 
-  def props(config: ClusterServiceConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference, toolDAOs: Map[ClusterTool, ToolDAO], newRelic: NewRelicMetrics): Props = {
+  def props(config: ClusterToolConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference, toolDAOs: Map[ClusterTool, ToolDAO], newRelic: NewRelicMetrics): Props = {
     Props(new ClusterToolMonitor(config, gdDAO, googleProjectDAO, dbRef, toolDAOs, newRelic))
   }
 
-  sealed trait ClusterServiceMonitorMessage
-  case object DetectClusterStatus extends ClusterServiceMonitorMessage
-  case object TimerKey extends ClusterServiceMonitorMessage
+  sealed trait ClusterToolMonitorMessage
+  case object DetectClusterStatus extends ClusterToolMonitorMessage
+  case object TimerKey extends ClusterToolMonitorMessage
 
-  case class ToolStatus(val isUp: Boolean, val tool: ClusterTool)
+  case class ToolStatus(val isUp: Boolean, val tool: ClusterTool, val cluster: Cluster)
 }
 
 /**
   * This monitor periodically sweeps the Leo database and checks for clusters which no longer exist in Google.
   */
-class ClusterToolMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference, toolDAOs: Map[ClusterTool, ToolDAO], newRelic: NewRelicMetrics) extends Actor with Timers with LazyLogging {
+class ClusterToolMonitor(config: ClusterToolConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference, toolDAOs: Map[ClusterTool, ToolDAO], newRelic: NewRelicMetrics) extends Actor with Timers with LazyLogging {
 
   import context._
 
@@ -45,19 +45,19 @@ class ClusterToolMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocDAO,
       for {
         activeClusters <- getActiveClustersFromDatabase
         statuses <- Future.traverse(activeClusters)(checkClusterStatus)
-        _ <- Future.traverse(statuses)(handleClusterStatus)
+        //statuses is a Seq[Seq[ToolStatus]] because we create a Seq[ToolStatus] for each cluster, necessitating the flatten below
+        _ <- Future.traverse(statuses.flatten)(handleClusterStatus)
       } yield ()
   }
 
-  private def handleClusterStatus(statuses: List[ToolStatus]): Future[Unit] = {
-    statuses.foreach { status =>
+  private def handleClusterStatus(status: ToolStatus): Future[Unit] = {
       if (!status.isUp) {
         val toolName = status.tool.toString
-        logger.info(s"The tool ${toolName} is down")
-        newRelic.incrementCounterIO(toolName + "Down").unsafeRunSync()
+        logger.info(s"The tool ${toolName} is down on cluster ${status.cluster.googleProject.value}/${status.cluster.clusterName.value}")
+        newRelic.incrementCounterFuture(toolName + "Down")
+      } else {
+        Future.unit
       }
-    }
-    Future.unit
   }
 
   private def getActiveClustersFromDatabase: Future[Seq[Cluster]] = {
@@ -66,15 +66,15 @@ class ClusterToolMonitor(config: ClusterServiceConfig, gdDAO: GoogleDataprocDAO,
     }
   }
 
-  def checkClusterStatus(cluster: Cluster): Future[List[ToolStatus]] = {
+  def checkClusterStatus(cluster: Cluster): Future[Seq[ToolStatus]] = {
     toolDAOs.toList.traverse { case (tool, dao) =>
       dao
         .isProxyAvailable(cluster.googleProject, cluster.clusterName)
         .map(status => {
           //the if else is necessary because otherwise we will be reporting the metric 'welder down' on all clusters without welder, which is not the desired behavior
-          //TODO: change to  `ToolStatus(status, tool)` when welder is gone
-          if (!cluster.welderEnabled && tool == Welder) {  ToolStatus(true, tool)  }
-          else { ToolStatus(status, tool) }
+          //TODO: change to  `ToolStatus(status, tool, cluster)` when data syncing is fully rolled out
+          if (!cluster.welderEnabled && tool == Welder) {  ToolStatus(true, tool, cluster)  }
+          else { ToolStatus(status, tool, cluster) }
         })
     }
   }

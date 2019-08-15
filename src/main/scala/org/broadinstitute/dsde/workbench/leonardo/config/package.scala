@@ -121,8 +121,8 @@ package object config {
     )
   }
 
-  implicit val clusterService: ValueReader[ClusterServiceConfig] = ValueReader.relative { config =>
-    ClusterServiceConfig(
+  implicit val clusterService: ValueReader[ClusterToolConfig] = ValueReader.relative { config =>
+    ClusterToolConfig(
       toScalaDuration(config.getDuration("pollPeriod"))
     )
   }

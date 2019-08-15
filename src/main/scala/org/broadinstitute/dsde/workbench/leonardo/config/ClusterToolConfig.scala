@@ -2,4 +2,4 @@ package org.broadinstitute.dsde.workbench.leonardo.config
 
 import scala.concurrent.duration.FiniteDuration
 
-case class ClusterServiceConfig(pollPeriod: FiniteDuration)
+case class ClusterToolConfig(pollPeriod: FiniteDuration)

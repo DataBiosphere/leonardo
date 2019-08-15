@@ -14,7 +14,6 @@ import org.scalatest.mockito.MockitoSugar
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.mockito.ArgumentMatchers
 import org.scalatest.concurrent.Eventually.eventually
-import cats.effect.IO
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool
 
 import scala.concurrent.duration._
@@ -37,9 +36,9 @@ class ClusterToolMonitorSpec  extends TestKit(ActorSystem("leonardotest")) with
 
     withServiceActor() { (_, mockNewRelic) =>
 
-      Thread.sleep(clusterServiceConfig.pollPeriod.toMillis * 3)
-      verify(mockNewRelic, never()).incrementCounterIO(ArgumentMatchers.startsWith("JupyterDown"), ArgumentMatchers.anyInt())
-      verify(mockNewRelic, never()).incrementCounterIO(ArgumentMatchers.startsWith("WelderDown"), ArgumentMatchers.anyInt())
+      Thread.sleep(clusterToolConfig.pollPeriod.toMillis * 3)
+      verify(mockNewRelic, never()).incrementCounterFuture(ArgumentMatchers.startsWith("JupyterDown"), ArgumentMatchers.anyInt())(ArgumentMatchers.any())
+      verify(mockNewRelic, never()).incrementCounterFuture(ArgumentMatchers.startsWith("WelderDown"), ArgumentMatchers.anyInt())(ArgumentMatchers.any())
     }
   }
 
@@ -48,11 +47,11 @@ class ClusterToolMonitorSpec  extends TestKit(ActorSystem("leonardotest")) with
 
     withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) { (_, mockNewRelic) =>
 
-      eventually(timeout(clusterServiceConfig.pollPeriod * 4)) {
+      eventually(timeout(clusterToolConfig.pollPeriod * 4)) {
         //the second parameter is needed because of something scala does under the covers that mockito does not like to handle the fact we omit the predefined param count from our incrementCounterIO call.
         //explicitly specifying the count in the incrementCounterIO in the monitor itself does not fix this
-        verify(mockNewRelic, times(3)).incrementCounterIO(ArgumentMatchers.startsWith("JupyterDown"), ArgumentMatchers.anyInt())
-        verify(mockNewRelic, times(3)).incrementCounterIO(ArgumentMatchers.startsWith("WelderDown"), ArgumentMatchers.anyInt())
+        verify(mockNewRelic, times(3)).incrementCounterFuture(ArgumentMatchers.startsWith("JupyterDown"), ArgumentMatchers.anyInt())(ArgumentMatchers.any())
+        verify(mockNewRelic, times(3)).incrementCounterFuture(ArgumentMatchers.startsWith("WelderDown"), ArgumentMatchers.anyInt())(ArgumentMatchers.any())
       }
     }
   }
@@ -62,12 +61,12 @@ class ClusterToolMonitorSpec  extends TestKit(ActorSystem("leonardotest")) with
 
     withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) { (_, mockNewRelic) =>
 
-      eventually(timeout(clusterServiceConfig.pollPeriod * 4)) {
-        verify(mockNewRelic, times(3)).incrementCounterIO(ArgumentMatchers.startsWith("JupyterDown"), ArgumentMatchers.anyInt())
+      eventually(timeout(clusterToolConfig.pollPeriod * 4)) {
+        verify(mockNewRelic, times(3)).incrementCounterFuture(ArgumentMatchers.startsWith("JupyterDown"), ArgumentMatchers.anyInt())(ArgumentMatchers.any())
       }
 
-      Thread.sleep(clusterServiceConfig.pollPeriod.toMillis * 3)
-      verify(mockNewRelic, never()).incrementCounterIO(ArgumentMatchers.startsWith("WelderDown"), ArgumentMatchers.anyInt())
+      Thread.sleep(clusterToolConfig.pollPeriod.toMillis * 3)
+      verify(mockNewRelic, never()).incrementCounterFuture(ArgumentMatchers.startsWith("WelderDown"), ArgumentMatchers.anyInt())(ArgumentMatchers.any())
     }
   }
 
@@ -75,22 +74,16 @@ class ClusterToolMonitorSpec  extends TestKit(ActorSystem("leonardotest")) with
     notRunningCluster.save()
 
     withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) { (_, mockNewRelic) =>
-      Thread.sleep(clusterServiceConfig.pollPeriod.toMillis * 3)
-      verify(mockNewRelic, never()).incrementCounterIO(ArgumentMatchers.startsWith("WelderDown"), ArgumentMatchers.anyInt())
-      verify(mockNewRelic, never()).incrementCounterIO(ArgumentMatchers.startsWith("JupyterDown"), ArgumentMatchers.anyInt())
+      Thread.sleep(clusterToolConfig.pollPeriod.toMillis * 3)
+      verify(mockNewRelic, never()).incrementCounterFuture(ArgumentMatchers.startsWith("WelderDown"), ArgumentMatchers.anyInt())(ArgumentMatchers.any())
+      verify(mockNewRelic, never()).incrementCounterFuture(ArgumentMatchers.startsWith("JupyterDown"), ArgumentMatchers.anyInt())(ArgumentMatchers.any())
     }
   }
 
-  private def makeNewRelicMock(): NewRelicMetrics = {
-    val mockNewRelic = mock[NewRelicMetrics]
-    when(mockNewRelic.incrementCounterIO(ArgumentMatchers.anyString(), ArgumentMatchers.anyInt())).thenReturn(IO.unit)
-    mockNewRelic
-  }
-
-  private def withServiceActor[T](newRelic: NewRelicMetrics = makeNewRelicMock(), welderDAO: WelderDAO = new MockWelderDAO(), jupyterDAO: JupyterDAO = new MockJupyterDAO())
+  private def withServiceActor[T](newRelic: NewRelicMetrics =  mock[NewRelicMetrics], welderDAO: WelderDAO = new MockWelderDAO(), jupyterDAO: JupyterDAO = new MockJupyterDAO())
                                 (testCode: (ActorRef, NewRelicMetrics) => T): T = {
     val toolMap: Map[ClusterTool, ToolDAO] = Map(ClusterTool.Jupyter -> jupyterDAO, ClusterTool.Welder -> welderDAO)
-    val actor = system.actorOf(ClusterToolMonitor.props(clusterServiceConfig, gdDAO = new MockGoogleDataprocDAO, googleProjectDAO = new MockGoogleProjectDAO, DbSingleton.ref, toolMap, newRelic))
+    val actor = system.actorOf(ClusterToolMonitor.props(clusterToolConfig, gdDAO = new MockGoogleDataprocDAO, googleProjectDAO = new MockGoogleProjectDAO, DbSingleton.ref, toolMap, newRelic))
     val testResult = Try(testCode(actor, newRelic))
 
     // shut down the actor and wait for it to terminate
