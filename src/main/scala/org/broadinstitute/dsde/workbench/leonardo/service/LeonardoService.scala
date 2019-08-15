@@ -723,8 +723,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
       // build cluster configuration
       machineConfig = MachineConfigOps.create(clusterRequest.machineConfig, clusterDefaultsConfig)
-      initScriptResource = if (dataprocConfig.customDataprocImage.isDefined) clusterResourcesConfig.customDataprocInitActionsScript else clusterResourcesConfig.initActionsScript
-      initScript = GcsPath(initBucket, GcsObjectName(initScriptResource.value))
+      initScriptResources = if (dataprocConfig.customDataprocImage.isEmpty) List(clusterResourcesConfig.initVmScript, clusterResourcesConfig.initActionsScript) else List(clusterResourcesConfig.initActionsScript)
+      initScripts = initScriptResources.map(resource => GcsPath(initBucket, GcsObjectName(resource.value)))
       autopauseThreshold = calculateAutopauseThreshold(clusterRequest.autopause, clusterRequest.autopauseThreshold)
       clusterScopes = if(clusterRequest.scopes.isEmpty) dataprocConfig.defaultScopes else clusterRequest.scopes
       credentialsFileName = serviceAccountInfo.notebookServiceAccount.map(_ => s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}")
@@ -735,7 +735,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       clusterVPCSettings = getClusterVPCSettings(projectLabels)
 
       // Create the cluster
-      createClusterConfig = CreateClusterConfig(machineConfig, initScript, serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket, clusterScopes, clusterVPCSettings, clusterRequest.properties, dataprocConfig.customDataprocImage)
+      createClusterConfig = CreateClusterConfig(machineConfig, initScripts, serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucket, clusterScopes, clusterVPCSettings, clusterRequest.properties, dataprocConfig.customDataprocImage)
       retryResult <- retryExponentially(whenGoogleZoneCapacityIssue, "Cluster creation failed because zone with adequate resources was not found") { () =>
         gdDAO.createCluster(googleProject, clusterName, createClusterConfig)
       }
@@ -960,7 +960,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       clusterResourcesConfig.rstudioDockerCompose,
       clusterResourcesConfig.proxyDockerCompose,
       clusterResourcesConfig.proxySiteConf,
-      clusterResourcesConfig.welderDockerCompose
+      clusterResourcesConfig.welderDockerCompose,
+      clusterResourcesConfig.initVmScript
     )
 
     // Uploads the service account private key to the init bucket, if defined.
@@ -970,14 +971,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } getOrElse(Future.unit)
 
     // Fill in templated resources with the given replacements
-    val initActionsScriptResource = if (dataprocConfig.customDataprocImage.isDefined) clusterResourcesConfig.customDataprocInitActionsScript else clusterResourcesConfig.initActionsScript
-    val initScriptContent = templateResource(initActionsScriptResource, replacements)
+    val initScriptContent = templateResource(clusterResourcesConfig.initActionsScript, replacements)
     val jupyterNotebookConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookConfigUri, replacements)
     val jupyterNotebookFrontendConfigContent = templateResource(clusterResourcesConfig.jupyterNotebookFrontendConfigUri, replacements)
 
     for {
       // Upload the init script to the bucket
-      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(initActionsScriptResource.value), initScriptContent, "text/plain")
+      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.initActionsScript.value), initScriptContent, "text/plain")
 
       // Upload the juptyer notebook config file
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value), jupyterNotebookConfigContent, "text/plain")

@@ -2,7 +2,10 @@
 
 set -e -x
 
-# adapted from https://github.com/GoogleCloudPlatform/dataproc-initialization-actions/blob/master/datalab/datalab.sh
+#
+# This script sets up a custom Dataproc image for Leonardo clusters.
+# See: https://cloud.google.com/dataproc/docs/guides/dataproc-images
+#
 
 #
 # Constants and Global Vars
@@ -141,7 +144,7 @@ else
     log "ERROR-VAR_NULL_OR_UNSET: docker_image_var_names. Will not pull docker images."
 fi
 
-# Install Python 3.6 on the master and worker VMs
+# Install Python 3.6.8
 export PYTHON_VERSION="3.6.8"
 python_source_archive_name="Python-${PYTHON_VERSION:?}.tar.xz"
 python_source_archive_download_url="https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/${python_source_archive_name:?}"

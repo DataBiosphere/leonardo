@@ -57,7 +57,7 @@ package object config {
   implicit val clusterResourcesConfigReader: ValueReader[ClusterResourcesConfig] = ValueReader.relative { config =>
     ClusterResourcesConfig(
       ClusterResource(config.getString("initActionsScript")),
-      ClusterResource(config.getString("customDataprocInitActionsScript")),
+      ClusterResource(config.getString("initVmScript")),
       ClusterResource(config.getString("jupyterDockerCompose")),
       ClusterResource(config.getString("rstudioDockerCompose")),
       ClusterResource(config.getString("proxyDockerCompose")),

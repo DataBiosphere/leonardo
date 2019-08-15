@@ -2,7 +2,14 @@
 
 set -e -x
 
-# adapted from https://github.com/GoogleCloudPlatform/dataproc-initialization-actions/blob/master/datalab/datalab.sh
+#
+# This init script instantiates the tool (e.g. Jupyter) docker images on the Dataproc cluster master node.
+# Adapted from https://github.com/GoogleCloudPlatform/dataproc-initialization-actions/blob/master/datalab/datalab.sh
+#
+
+#
+# Functions
+#
 
 # Retry a command up to a specific number of times until it exits successfully,
 # with exponential back off.
@@ -70,6 +77,9 @@ function betterAptGet() {
   fi
 }
 
+#
+# Main
+#
 ROLE=$(/usr/share/google/get_metadata_value attributes/dataproc-role)
 
 # If a Google credentials file was specified, grab the service account json file and set the GOOGLE_APPLICATION_CREDENTIALS EV.
@@ -176,7 +186,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
       cat /etc/`basename ${WELDER_DOCKER_COMPOSE}`
     fi
 
-
     retry 5 docker-compose "${COMPOSE_FILES[@]}" config
     retry 5 docker-compose "${COMPOSE_FILES[@]}" pull
     retry 5 docker-compose "${COMPOSE_FILES[@]}" up -d
@@ -240,6 +249,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
         docker cp /etc/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
       fi
 
+
       #Install NbExtensions
       if [ ! -z "${JUPYTER_NB_EXTENSIONS}" ] ; then
         for ext in ${JUPYTER_NB_EXTENSIONS}
@@ -261,8 +271,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
         done
       fi
 
-      STEP_TIMINGS+=($(date +%s))
-
       #Install serverExtensions
       if [ ! -z "${JUPYTER_SERVER_EXTENSIONS}" ] ; then
         for ext in ${JUPYTER_SERVER_EXTENSIONS}
@@ -278,8 +286,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
           fi
         done
       fi
-
-      STEP_TIMINGS+=($(date +%s))
 
       #Install combined extensions
       if [ ! -z "${JUPYTER_COMBINED_EXTENSIONS}"  ] ; then
@@ -318,11 +324,10 @@ if [[ "${ROLE}" == 'Master' ]]; then
         else
             retry 3 gsutil -h "x-goog-meta-passed":"true" cp us_output.txt ${JUPYTER_USER_SCRIPT_OUTPUT_URI}
         fi
-
       fi
 
-      #Install lab extensions
-      #Note: lab extensions need to installed as jupyter user, not root
+      # Install lab extensions
+      # Note: lab extensions need to installed as jupyter user, not root
       if [ ! -z "${JUPYTER_LAB_EXTENSIONS}" ] ; then
         for ext in ${JUPYTER_LAB_EXTENSIONS}
         do
@@ -353,5 +358,3 @@ if [[ "${ROLE}" == 'Master' ]]; then
        STEP_TIMINGS+=($(date +%s))
     fi
 fi
-
-log "Timings: ${STEP_TIMINGS[@]}"

@@ -89,6 +89,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterResourcesConfig.proxyDockerCompose.value,
     clusterResourcesConfig.welderDockerCompose.value,
     clusterResourcesConfig.initActionsScript.value,
+    clusterResourcesConfig.initVmScript.value,
     clusterFilesConfig.jupyterServerCrt.getName,
     clusterFilesConfig.jupyterServerKey.getName,
     clusterFilesConfig.jupyterRootCaPem.getName,

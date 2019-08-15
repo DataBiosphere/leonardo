@@ -25,16 +25,15 @@ case class MachineConfig(numberOfWorkers: Option[Int] = None,
                          numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                          numberOfPreemptibleWorkers: Option[Int] = None)
 
-final case class CreateClusterConfig(
-                                      machineConfig: MachineConfig,
-                                      initScript: GcsPath,
-                                      clusterServiceAccount: Option[WorkbenchEmail],
-                                      credentialsFileName: Option[String],
-                                      stagingBucket: GcsBucketName,
-                                      clusterScopes: Set[String],
-                                      clusterVPCSettings: Option[Either[VPCNetworkName, VPCSubnetName]],
-                                      properties: Map[String, String], //valid properties are https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties
-                                      dataprocCustomImage: Option[String])
+final case class CreateClusterConfig(machineConfig: MachineConfig,
+                                     initScripts: List[GcsPath],
+                                     clusterServiceAccount: Option[WorkbenchEmail],
+                                     credentialsFileName: Option[String],
+                                     stagingBucket: GcsBucketName,
+                                     clusterScopes: Set[String],
+                                     clusterVPCSettings: Option[Either[VPCNetworkName, VPCSubnetName]],
+                                     properties: Map[String, String], //valid properties are https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties
+                                     dataprocCustomImage: Option[String])
 // Dataproc Operation
 case class OperationName(value: String) extends ValueObject
 case class Operation(name: OperationName, uuid: UUID)

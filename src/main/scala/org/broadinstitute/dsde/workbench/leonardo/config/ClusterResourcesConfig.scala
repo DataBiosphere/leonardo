@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.config
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterResource
 
 case class ClusterResourcesConfig(initActionsScript: ClusterResource,
-                                  customDataprocInitActionsScript: ClusterResource,
+                                  initVmScript: ClusterResource,
                                   jupyterDockerCompose: ClusterResource,
                                   rstudioDockerCompose: ClusterResource,
                                   proxyDockerCompose: ClusterResource,
