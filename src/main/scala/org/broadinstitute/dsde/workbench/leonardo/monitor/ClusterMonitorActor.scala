@@ -199,7 +199,6 @@ class ClusterMonitorActor(val cluster: Cluster,
 
       // Decide if we should try recreating the cluster
       res <- if (shouldRecreateCluster(errorDetails.code, errorDetails.message)) {
-          // TODO add metric for cluster recreation
         // Update the database record to Deleting, shutdown this actor, and register a callback message
         // to the supervisor telling it to recreate the cluster.
         logger.info(s"Cluster ${cluster.projectNameString} is in an error state with $errorDetails. Attempting to recreate...")
