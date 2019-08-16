@@ -17,6 +17,26 @@ set -e -x
 # Retry 4/5 exited 1, retrying in 16 seconds...
 # Retry 5/5 exited 1, no more retries left.
 #
+# Array for instrumentation
+# UPDATE THIS IF YOU ADD MORE STEPS:
+# currently the steps are:
+# START init,
+# .. after env setup
+# .. after installs
+# .. after copying files from google and into docker
+# .. after docker compose
+# .. after welder start
+# .. after hail and spark
+# .. after nbextension install
+# .. after server extension install
+# .. after combined extension install
+# .. after static files copied to docker
+# .. after jupyter user script
+# .. after lab extension install
+# .. after jupyter notebook start
+# after python install (END)
+STEP_TIMINGS=($(date +%s))
+
 function retry {
   local retries=$1
   shift
@@ -102,6 +122,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
     JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
 
+    STEP_TIMINGS+=($(date +%s))
+
     log 'Installing prerequisites...'
 
     # Obtain the latest valid apt-key.gpg key file from https://packages.cloud.google.com to work
@@ -141,6 +163,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # https://docs.docker.com/compose/install/#install-compose
     retry 5 curl -L "https://github.com/docker/compose/releases/download/1.22.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
+
+    STEP_TIMINGS+=($(date +%s))
 
     log 'Copying secrets from GCS...'
 
@@ -190,6 +214,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
       gcloud docker --authorize-only
     fi
 
+    STEP_TIMINGS+=($(date +%s))
+
     log 'Starting up the Jupydocker...'
 
     # Run docker-compose for each specified compose file.
@@ -215,12 +241,16 @@ if [[ "${ROLE}" == 'Master' ]]; then
     retry 5 docker-compose "${COMPOSE_FILES[@]}" pull
     retry 5 docker-compose "${COMPOSE_FILES[@]}" up -d
 
+    STEP_TIMINGS+=($(date +%s))
+
     # if Welder is installed, start the service.
     # See https://broadworkbench.atlassian.net/browse/IA-1026
     if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
       log 'Starting Welder file synchronization service...'
       retry 3 docker exec -d ${WELDER_SERVER_NAME} /opt/docker/bin/entrypoint.sh
     fi
+
+    STEP_TIMINGS+=($(date +%s))
 
     # Jupyter-specific setup, only do if Jupyter is installed
     if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
@@ -234,7 +264,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
       # Install the Hail additions to Spark conf.
       retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/hail/spark_install_hail.sh
 
-      # Install jupyter_notebook_config.py
+      STEP_TIMINGS+=($(date +%s))
+
+       # Install jupyter_notebook_config.py
       if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG_URI} ] ; then
         log 'Copy Jupyter notebook config...'
         gsutil cp ${JUPYTER_NOTEBOOK_CONFIG_URI} /etc
@@ -249,7 +281,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
         JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
         docker cp /etc/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
       fi
-
 
       #Install NbExtensions
       if [ ! -z "${JUPYTER_NB_EXTENSIONS}" ] ; then
@@ -272,6 +303,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
         done
       fi
 
+      STEP_TIMINGS+=($(date +%s))
+
       #Install serverExtensions
       if [ ! -z "${JUPYTER_SERVER_EXTENSIONS}" ] ; then
         for ext in ${JUPYTER_SERVER_EXTENSIONS}
@@ -287,6 +320,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
           fi
         done
       fi
+
+      STEP_TIMINGS+=($(date +%s))
 
       #Install combined extensions
       if [ ! -z "${JUPYTER_COMBINED_EXTENSIONS}"  ] ; then
@@ -304,6 +339,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
           fi
         done
       fi
+
+      STEP_TIMINGS+=($(date +%s))
 
       # If a Jupyter user script was specified, copy it into the jupyter docker container.
       if [ ! -z ${JUPYTER_USER_SCRIPT_URI} ] ; then
@@ -349,9 +386,13 @@ if [[ "${ROLE}" == 'Master' ]]; then
         done
       fi
 
+       STEP_TIMINGS+=($(date +%s))
+
       log 'Starting Jupyter Notebook...'
       retry 3 docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}
       log 'All done!'
+
+       STEP_TIMINGS+=($(date +%s))
     fi
 fi
 
@@ -377,3 +418,7 @@ ldconfig
 python3 --version
 
 log "Finished installing Python $PYTHON_VERSION"
+
+STEP_TIMINGS+=($(date +%s))
+
+log "Timings: ${STEP_TIMINGS[@]}"

@@ -80,7 +80,7 @@ class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO
 
   private def getActiveClustersFromDatabase: Future[Map[GoogleProject, Seq[Cluster]]] = {
     dbRef.inTransaction {
-      _.clusterQuery.listActive
+      _.clusterQuery.listActiveWithLabels
     } map { clusters =>
       clusters.groupBy(_.googleProject)
     }

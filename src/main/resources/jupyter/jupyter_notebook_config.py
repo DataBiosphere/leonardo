@@ -34,6 +34,7 @@ if os.environ['WELDER_ENABLED'] == 'true':
 c.NotebookApp.nbserver_extensions = {
     'jupyter_localize_extension': True
 }
+
 mgr_class = 'DelocalizingContentsManager'
 if os.environ['WELDER_ENABLED'] == 'true':
   mgr_class = 'WelderContentsManager'

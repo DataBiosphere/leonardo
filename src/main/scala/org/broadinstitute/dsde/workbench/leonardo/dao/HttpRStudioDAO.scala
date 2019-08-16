@@ -27,6 +27,4 @@ class HttpRStudioDAO(val clusterDnsCache: ClusterDnsCache)(implicit system: Acto
   }
 }
 
-trait RStudioDAO {
-  def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean]
-}
+trait RStudioDAO extends ToolDAO

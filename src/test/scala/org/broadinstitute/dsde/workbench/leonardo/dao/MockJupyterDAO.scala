@@ -4,9 +4,10 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.Future
 
-object MockJupyterDAO extends JupyterDAO {
+class MockJupyterDAO(isUp: Boolean = true) extends JupyterDAO {
+  override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = Future.successful(isUp)
 
-  override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = Future.successful(true)
-
-  override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = Future.successful(true)
+  override def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = Future.successful(isUp)
 }
+
+object MockJupyterDAO extends MockJupyterDAO(isUp = true)

@@ -20,7 +20,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
   }
 
   "ClusterComponent" should "list, save, get, and delete" in isolatedDbTest {
-    dbFutureValue { _.clusterQuery.list() } shouldEqual Seq()
+    dbFutureValue { _.clusterQuery.listWithLabels() } shouldEqual Seq()
 
     lazy val err1 = ClusterError("some failure", 10, Instant.now().truncatedTo(ChronoUnit.SECONDS))
     lazy val cluster1UUID = UUID.randomUUID()
@@ -52,7 +52,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
 
     // instances are returned by list* methods
     val expectedClusters123 = Seq(savedCluster1, savedCluster2, savedCluster3).map(_.copy(instances = Set.empty))
-    dbFutureValue { _.clusterQuery.list() } should contain theSameElementsAs expectedClusters123.map(stripFieldsForListCluster)
+    dbFutureValue { _.clusterQuery.listWithLabels() } should contain theSameElementsAs expectedClusters123.map(stripFieldsForListCluster)
 
     // instances are returned by get* methods
     dbFutureValue { _.clusterQuery.getActiveClusterByName(cluster1.googleProject, cluster1.clusterName) } shouldEqual Some(savedCluster1)
@@ -78,7 +78,7 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     dbFailure { _.clusterQuery.save(cluster4, Option(gcsPath("gs://bucket3")), Some(serviceAccountKey.id)) } shouldBe a[SQLException]
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(savedCluster1.id) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.listActive() } should contain theSameElementsAs Seq(cluster2, cluster3).map(stripFieldsForListCluster)
+    dbFutureValue { _.clusterQuery.listActiveWithLabels() } should contain theSameElementsAs Seq(cluster2, cluster3).map(stripFieldsForListCluster)
 
     val cluster1status = dbFutureValue { _.clusterQuery.getClusterById(savedCluster1.id) }.get
     cluster1status.status shouldEqual ClusterStatus.Deleting
@@ -87,14 +87,14 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     cluster1status.instances shouldBe cluster1.instances
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(savedCluster2.id) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq(cluster3).map(stripFieldsForListCluster)
+    dbFutureValue { _.clusterQuery.listActiveWithLabels() } shouldEqual Seq(cluster3).map(stripFieldsForListCluster)
     val cluster2status = dbFutureValue { _.clusterQuery.getClusterById(savedCluster2.id) }.get
     cluster2status.status shouldEqual ClusterStatus.Deleting
     cluster2status.auditInfo.destroyedDate shouldBe None
     cluster2status.dataprocInfo.hostIp shouldBe None
 
     dbFutureValue { _.clusterQuery.markPendingDeletion(savedCluster3.id) } shouldEqual 1
-    dbFutureValue { _.clusterQuery.listActive() } shouldEqual Seq()
+    dbFutureValue { _.clusterQuery.listActiveWithLabels() } shouldEqual Seq()
     val cluster3status = dbFutureValue { _.clusterQuery.getClusterById(savedCluster3.id) }.get
     cluster3status.status shouldEqual ClusterStatus.Deleting
     cluster3status.auditInfo.destroyedDate shouldBe None
