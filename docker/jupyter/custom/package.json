@@ -1,0 +1,19 @@
+{
+  "name": "jupyter-nbextension",
+  "version": "1.0.0",
+  "description": "Used exclusively for linting the nbextension files. See the README for instructions.",
+  "main": "edit-mode.js",
+  "directories": {
+    "test": "test"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "eslint": "^6.1.0",
+    "eslint-config-google": "^0.13.0"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}
