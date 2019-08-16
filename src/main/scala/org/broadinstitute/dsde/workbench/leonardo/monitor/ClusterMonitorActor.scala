@@ -511,7 +511,7 @@ class ClusterMonitorActor(val cluster: Cluster,
   private def recordMetrics(origStatus: ClusterStatus, finalStatus: ClusterStatus): IO[Unit] = {
     for {
       endTime <- IO(System.currentTimeMillis)
-      name = s"ClusterMonitor/${origStatus}_to_${finalStatus}"
+      name = s"ClusterMonitor/${origStatus}->${finalStatus}"
       duration = (endTime - startTime).millis
       _ <- Metrics.newRelic.incrementCounterIO(name)
       _ <- Metrics.newRelic.recordResponseTimeIO(name, duration)
