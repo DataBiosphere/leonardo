@@ -22,9 +22,7 @@ class ClusterHelper(dataprocConfig: DataprocConfig,
                     gdDAO: GoogleDataprocDAO,
                     googleComputeDAO: GoogleComputeDAO,
                     googleIamDAO: GoogleIamDAO)
-                   (implicit val executionContext: ExecutionContext, val system: ActorSystem) extends LazyLogging with Retry {
-
-  implicit val cs = IO.contextShift(executionContext)
+                   (implicit val executionContext: ExecutionContext, val system: ActorSystem, val contextShift: ContextShift[IO]) extends LazyLogging with Retry {
 
   def createClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo): IO[Unit] = {
     updateClusterIamRoles(googleProject, serviceAccountInfo, true)
@@ -69,7 +67,7 @@ class ClusterHelper(dataprocConfig: DataprocConfig,
       } yield ()
     } else IO.unit
 
-    List(dataprocWorkerIO, computeImageUserIO).sequence[IO, Unit].void
+    List(dataprocWorkerIO, computeImageUserIO).parSequence_
   }
 
   def generateServiceAccountKey(googleProject: GoogleProject, serviceAccountEmailOpt: Option[WorkbenchEmail]): IO[Option[ServiceAccountKey]] = {

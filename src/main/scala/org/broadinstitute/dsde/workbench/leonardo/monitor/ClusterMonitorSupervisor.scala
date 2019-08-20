@@ -177,7 +177,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
     clusters <- dbRef.inTransaction {
       _.clusterQuery.getClustersReadyToAutoFreeze()
     }
-    pauseableClusters <- clusters.toList.filterA[Future] { cluster =>
+    pauseableClusters <- clusters.toList.filterA { cluster =>
       jupyterProxyDAO.isAllKernalsIdle(cluster.googleProject, cluster.clusterName).attempt.map {
         case Left(t) =>
           logger.error(s"Fail to get kernel status for ${cluster.googleProject}/${cluster.clusterName} due to $t")
@@ -207,7 +207,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
         }
     }
     _ <- Metrics.newRelic.gauge("autopausedClusters", pauseableClusters.length).unsafeToFuture()
-    _ <- pauseableClusters.traverse[Future, Unit] { cl =>
+    _ <- pauseableClusters.traverse { cl =>
       logger.info(s"Auto freezing cluster ${cl.clusterName} in project ${cl.googleProject}")
       leonardoService.internalStopCluster(cl).attempt.map { e =>
         e.fold(t => logger.warn(s"Error occurred auto freezing cluster ${cl.projectNameString}", e), identity)
