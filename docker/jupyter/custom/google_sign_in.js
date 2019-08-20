@@ -10,6 +10,8 @@
 
 // define default values for config parameters
 var params = {
+    googleProject: '',
+    clusterName: '',
     loginHint: '',
     googleClientId: ''
 };
@@ -68,13 +70,8 @@ function startTimer() {
 
 
     function statusCheck() {
-        // Leonardo has logic to find/replace templated values in the format $(...).
-        // TEMPLATED CODE
-        var googleProject = $(googleProject);
-        var clusterName = $(clusterName);
-
         var xhttp = new XMLHttpRequest();
-        xhttp.open("GET", "/notebooks/" + googleProject + "/" + clusterName + "/api/status", true);
+        xhttp.open("GET", "/notebooks/" + params.googleProject + "/" + params.clusterName + "/api/status", true);
         xhttp.send();
     }
     setInterval(statusCheck, 60000)
