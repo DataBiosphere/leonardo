@@ -63,6 +63,18 @@ function betterAptGet() {
 # Main
 #
 
+#
+# Array for instrumentation
+# UPDATE THIS IF YOU ADD MORE STEPS:
+# currently the steps are:
+# START init,
+# .. after prerequisites
+# .. after docker install
+# .. after docker-compose install
+# .. after python install
+# END
+STEP_TIMINGS=($(date +%s))
+
 ROLE=$(/usr/share/google/get_metadata_value attributes/dataproc-role)
 
 # Install docker, docker-compose on the master node.
@@ -87,6 +99,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
         gnupg2 \
         software-properties-common
 
+    STEP_TIMINGS=($(date +%s))
+
     log 'Adding Docker package sources...'
 
     # shellcheck disable=SC1091
@@ -110,6 +124,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
     retry 5 betterAptGet
     retry 5 apt-get install -y -q docker-ce="${DOCKER_CE_VERSION:?}"
 
+    STEP_TIMINGS=($(date +%s))
+
     log 'Installing Docker Compose...'
 
     # Install docker-compose
@@ -122,6 +138,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
     retry 5 curl -L "${docker_compose_binary_download_url:?}" -o "${docker_compose_binary_download_target_filename:?}"
     chmod +x "${docker_compose_binary_download_target_filename:?}"
+
+    STEP_TIMINGS=($(date +%s))
 fi
 
 # Install Python 3.6 on the master and worker VMs
@@ -146,3 +164,7 @@ ldconfig
 python3 --version
 
 log "Finished installing Python $PYTHON_VERSION"
+
+STEP_TIMINGS=($(date +%s))
+
+log "Timings: ${STEP_TIMINGS[@]}"

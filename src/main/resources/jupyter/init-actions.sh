@@ -23,26 +23,6 @@ set -e -x
 # Retry 3/5 exited 1, retrying in 8 seconds...
 # Retry 4/5 exited 1, retrying in 16 seconds...
 # Retry 5/5 exited 1, no more retries left.
-#
-# Array for instrumentation
-# UPDATE THIS IF YOU ADD MORE STEPS:
-# currently the steps are:
-# START init,
-# .. after env setup
-# .. after copying files from google and into docker
-# .. after docker compose
-# .. after welder start
-# .. after hail and spark
-# .. after nbextension install
-# .. after server extension install
-# .. after combined extension install
-# .. after static files copied to docker
-# .. after jupyter user script
-# .. after lab extension install
-# .. after jupyter notebook start
-# END
-STEP_TIMINGS=($(date +%s))
-
 function retry {
   local retries=$1
   shift
@@ -80,6 +60,26 @@ function betterAptGet() {
 #
 # Main
 #
+
+#
+# Array for instrumentation
+# UPDATE THIS IF YOU ADD MORE STEPS:
+# currently the steps are:
+# START init,
+# .. after env setup
+# .. after copying files from google and into docker
+# .. after docker compose
+# .. after welder start
+# .. after hail and spark
+# .. after nbextension install
+# .. after server extension install
+# .. after combined extension install
+# .. after user script
+# .. after lab extension install
+# .. after jupyter notebook start
+# END
+STEP_TIMINGS=($(date +%s))
+
 ROLE=$(/usr/share/google/get_metadata_value attributes/dataproc-role)
 
 # If a Google credentials file was specified, grab the service account json file and set the GOOGLE_APPLICATION_CREDENTIALS EV.
@@ -130,6 +130,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_USER_SCRIPT_OUTPUT_URI=$(jupyterUserScriptOutputUri)
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
     JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
+
+    STEP_TIMINGS+=($(date +%s))
 
     log 'Copying secrets from GCS...'
 
@@ -190,6 +192,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
     retry 5 docker-compose "${COMPOSE_FILES[@]}" pull
     retry 5 docker-compose "${COMPOSE_FILES[@]}" up -d
 
+    STEP_TIMINGS+=($(date +%s))
+
     # If we have a service account JSON file, create an .env file to set GOOGLE_APPLICATION_CREDENTIALS
     # in the docker container. Otherwise, we should _not_ set this environment variable so it uses the
     # credentials on the metadata server.
@@ -230,10 +234,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
         # Install the Hail additions to Spark conf.
         retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/hail/spark_install_hail.sh
-        STEP_TIMINGS+=($(date +%s))
       fi
 
-       # Install jupyter_notebook_config.py
+      # Install jupyter_notebook_config.py
       if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG_URI} ] ; then
         log 'Copy Jupyter notebook config...'
         gsutil cp ${JUPYTER_NOTEBOOK_CONFIG_URI} /etc
@@ -249,8 +252,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
         docker cp /etc/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
       fi
 
+      STEP_TIMINGS+=($(date +%s))
 
-      #Install NbExtensions
+      # Install NbExtensions
       if [ ! -z "${JUPYTER_NB_EXTENSIONS}" ] ; then
         for ext in ${JUPYTER_NB_EXTENSIONS}
         do
@@ -271,7 +275,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
         done
       fi
 
-      #Install serverExtensions
+      STEP_TIMINGS+=($(date +%s))
+
+      # Install serverExtensions
       if [ ! -z "${JUPYTER_SERVER_EXTENSIONS}" ] ; then
         for ext in ${JUPYTER_SERVER_EXTENSIONS}
         do
@@ -287,7 +293,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
         done
       fi
 
-      #Install combined extensions
+      STEP_TIMINGS+=($(date +%s))
+
+      # Install combined extensions
       if [ ! -z "${JUPYTER_COMBINED_EXTENSIONS}"  ] ; then
         for ext in ${JUPYTER_COMBINED_EXTENSIONS}
         do
@@ -326,6 +334,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
         fi
       fi
 
+      STEP_TIMINGS+=($(date +%s))
+
       # Install lab extensions
       # Note: lab extensions need to installed as jupyter user, not root
       if [ ! -z "${JUPYTER_LAB_EXTENSIONS}" ] ; then
@@ -349,12 +359,14 @@ if [[ "${ROLE}" == 'Master' ]]; then
         done
       fi
 
-       STEP_TIMINGS+=($(date +%s))
+      STEP_TIMINGS+=($(date +%s))
 
       log 'Starting Jupyter Notebook...'
       retry 3 docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}
       log 'All done!'
 
-       STEP_TIMINGS+=($(date +%s))
+      STEP_TIMINGS+=($(date +%s))
     fi
 fi
+
+log "Timings: ${STEP_TIMINGS[@]}"
