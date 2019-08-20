@@ -16,7 +16,7 @@ object Dependencies {
   val workbenchGoogleV  = "0.19-084fa1b"
   val workbenchGoogle2V = "0.2-2149dba"
   val workbenchMetricsV = "0.3-c5b80d2"
-  val workbenchNewRelicV = "0.2-24dabc8"
+  val workbenchNewRelicV = "0.2-38aa1bc-SNAP" // TODO: update to non-SNAP once https://github.com/broadinstitute/workbench-libs/pull/269 is merged
 
   val samV =  "1.0-5cdffb4"
 

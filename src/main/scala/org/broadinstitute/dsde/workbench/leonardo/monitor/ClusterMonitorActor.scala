@@ -15,6 +15,7 @@ import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleStorageService}
+import org.broadinstitute.dsde.workbench.leonardo.Metrics
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterBucketConfig, DataprocConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -73,7 +74,8 @@ class ClusterMonitorActor(val cluster: Cluster,
                           val google2StorageDAO: GoogleStorageService[IO],
                           val dbRef: DbReference,
                           val authProvider: LeoAuthProvider,
-                          proxyDao: Map[ClusterTool, Function0[Future[Boolean]]]) extends Actor with LazyLogging with Retry {
+                          proxyDao: Map[ClusterTool, Function0[Future[Boolean]]],
+                          val startTime: Long = System.currentTimeMillis()) extends Actor with LazyLogging with Retry {
   import context._
 
   // the Retry trait needs a reference to the ActorSystem
@@ -160,6 +162,8 @@ class ClusterMonitorActor(val cluster: Cluster,
       // Only happens if the cluster was created with a service account other
       // than the compute engine default service account.
       _ <- if (clusterStatus == ClusterStatus.Creating || clusterStatus == ClusterStatus.Updating) removeIamRolesForUser else Future.successful(())
+      // Record metrics in NewRelic
+      _ <- recordMetrics(clusterStatus, ClusterStatus.Running).unsafeToFuture()
     } yield {
       // Finally pipe a shutdown message to this actor
       logger.info(s"Cluster ${cluster.googleProject}/${cluster.clusterName} is ready for use!")
@@ -176,6 +180,8 @@ class ClusterMonitorActor(val cluster: Cluster,
     */
   private def handleFailedCluster(errorDetails: ClusterErrorDetails, instances: Set[Instance]): Future[ClusterMonitorMessage] = {
     for {
+      clusterStatus <- getDbClusterStatus
+
       _ <- Future.sequence(List(
         // Delete the cluster in Google
         gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName),
@@ -187,6 +193,9 @@ class ClusterMonitorActor(val cluster: Cluster,
         //save cluster error in the DB
         persistClusterErrors(errorDetails)
       ))
+
+      // Record metrics in NewRelic
+      _ <- recordMetrics(clusterStatus, ClusterStatus.Error).unsafeToFuture()
 
       // Decide if we should try recreating the cluster
       res <- if (shouldRecreateCluster(errorDetails.code, errorDetails.message)) {
@@ -227,6 +236,8 @@ class ClusterMonitorActor(val cluster: Cluster,
     logger.info(s"Cluster ${cluster.projectNameString} has been deleted.")
 
     for {
+      clusterStatus <- getDbClusterStatus
+
       // delete the init bucket so we don't continue to accrue costs after cluster is deleted
       _ <- deleteInitBucket
 
@@ -240,6 +251,9 @@ class ClusterMonitorActor(val cluster: Cluster,
         dataAccess.clusterQuery.completeDeletion(cluster.id)
       }
       _ <- authProvider.notifyClusterDeleted(cluster.internalId, cluster.auditInfo.creator, cluster.auditInfo.creator, cluster.googleProject, cluster.clusterName)
+
+      // Record metrics in NewRelic
+      _ <- recordMetrics(clusterStatus, ClusterStatus.Deleted).unsafeToFuture()
     } yield ShutdownActor(RemoveFromList(cluster))
   }
 
@@ -252,12 +266,15 @@ class ClusterMonitorActor(val cluster: Cluster,
     logger.info(s"Cluster ${cluster.projectNameString} has been stopped.")
 
     for {
+      clusterStatus <- getDbClusterStatus
       // create or update instances in the DB
       _ <- persistInstances(instances)
       // this sets the cluster status to stopped and clears the cluster IP
       _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Stopped) }
       // reset the time at which the kernel was last found to be busy
       _ <- dbRef.inTransaction {_.clusterQuery.clearKernelFoundBusyDate(cluster.id)}
+      // Record metrics in NewRelic
+      _ <- recordMetrics(clusterStatus, ClusterStatus.Stopped).unsafeToFuture()
     } yield ShutdownActor(RemoveFromList(cluster))
   }
 
@@ -488,5 +505,17 @@ class ClusterMonitorActor(val cluster: Cluster,
 
   private def getDbClusterStatus: Future[ClusterStatus] = {
     dbRef.inTransaction { _.clusterQuery.getClusterStatus(cluster.id) } map { _.getOrElse(ClusterStatus.Unknown) }
+  }
+
+  private def recordMetrics(origStatus: ClusterStatus, finalStatus: ClusterStatus): IO[Unit] = {
+    for {
+      endTime <- IO(System.currentTimeMillis)
+      baseName = s"ClusterMonitor/${origStatus}->${finalStatus}"
+      counterName = s"${baseName}/count"
+      timerName = s"${baseName}/timer"
+      duration = (endTime - startTime).millis
+      _ <- Metrics.newRelic.incrementCounterIO(counterName)
+      _ <- Metrics.newRelic.recordResponseTimeIO(timerName, duration)
+    } yield ()
   }
 }
