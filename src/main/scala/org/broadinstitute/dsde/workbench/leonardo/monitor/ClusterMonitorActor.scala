@@ -75,8 +75,8 @@ class ClusterMonitorActor(val cluster: Cluster,
                           val dbRef: DbReference,
                           val authProvider: LeoAuthProvider,
                           proxyDao: Map[ClusterTool, Function0[Future[Boolean]]],
-                          val startTime: Long = System.currentTimeMillis(),
-                          val clusterHelper: ClusterHelper) extends Actor with LazyLogging with Retry {
+                          val clusterHelper: ClusterHelper,
+                          val startTime: Long = System.currentTimeMillis()) extends Actor with LazyLogging with Retry {
   import context._
 
   // the Retry trait needs a reference to the ActorSystem

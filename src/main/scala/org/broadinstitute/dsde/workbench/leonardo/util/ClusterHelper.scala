@@ -54,18 +54,21 @@ class ClusterHelper(dataprocConfig: DataprocConfig,
       retryIam(googleProject, email, Set("roles/dataproc.worker"))
     } getOrElse IO.unit
 
-    // Add the Compute Image User role in Leo's project to the Google API service account.
+    // Add the Compute Image User role in the image project to the Google API service account.
     // This is needed in order to use a custom dataproc VM image.
     // If a custom image is not being used, this is not necessary.
-    val computeImageUserIO = if (dataprocConfig.customDataprocImage.isDefined) {
-      for {
-        emailOpt <- IO.fromFuture(IO(googleComputeDAO.getGoogleApiServiceAccount(googleProject)))
-        _ <- emailOpt match {
-          case Some(email) => retryIam(dataprocConfig.leoGoogleProject, email, Set("roles/compute.imageUser"))
-          case None => IO.raiseError(ClusterIamSetupException(googleProject))
-        }
-      } yield ()
-    } else IO.unit
+    val computeImageUserIO = dataprocConfig.customDataprocImage.flatMap(parseImageProject) match {
+      case None => IO.unit
+      case Some(imageProject) if imageProject == googleProject => IO.unit
+      case Some(imageProject) =>
+        for {
+          emailOpt <- IO.fromFuture(IO(googleComputeDAO.getGoogleApiServiceAccount(googleProject)))
+          _ <- emailOpt match {
+            case Some(email) => retryIam(imageProject, email, Set("roles/compute.imageUser"))
+            case None => IO.raiseError(ClusterIamSetupException(imageProject))
+          }
+        } yield ()
+    }
 
     List(dataprocWorkerIO, computeImageUserIO).parSequence_
   }
@@ -82,6 +85,15 @@ class ClusterHelper(dataprocConfig: DataprocConfig,
     (serviceAccountEmailOpt, serviceAccountKeyIdOpt).mapN { case (email, keyId) =>
       IO.fromFuture(IO(googleIamDAO.removeServiceAccountKey(googleProject, email, keyId)))
     } getOrElse IO.unit
+  }
+
+  // See https://cloud.google.com/dataproc/docs/guides/dataproc-images#custom_image_uri
+  private def parseImageProject(customDataprocImage: String): Option[GoogleProject] = {
+    val regex = ".*projects/(.*)/global/images/(.*)".r
+    customDataprocImage match {
+      case regex(project, _) => Some(GoogleProject(project))
+      case _ => None
+    }
   }
 
 }

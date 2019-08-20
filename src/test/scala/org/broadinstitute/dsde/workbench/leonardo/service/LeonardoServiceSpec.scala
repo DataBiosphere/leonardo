@@ -6,6 +6,7 @@ import java.util.UUID
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
+import cats.effect.IO
 import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
 import com.google.api.client.testing.json.MockJsonFactory
 import com.typesafe.scalalogging.LazyLogging
@@ -55,6 +56,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   val mockPetGoogleDAO: String => GoogleStorageDAO = _ => {
     new MockGoogleStorageDAO
   }
+
+  implicit val cs = IO.contextShift(system.dispatcher)
 
   before {
     gdDAO = new MockGoogleDataprocDAO

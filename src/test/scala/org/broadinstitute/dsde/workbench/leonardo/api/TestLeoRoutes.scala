@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream
 
 import akka.http.scaladsl.model.headers.{HttpCookiePair, `Set-Cookie`}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
@@ -23,6 +24,7 @@ import scala.concurrent.duration._
   */
 trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with CommonTestData =>
 
+  implicit val cs = IO.contextShift(executor)
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
   val mockGoogleProjectDAO = new MockGoogleProjectDAO

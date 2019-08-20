@@ -5,6 +5,7 @@ import java.time.temporal.ChronoUnit
 
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
+import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleStorageInterpreter
@@ -27,6 +28,8 @@ import scala.concurrent.Future
 class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
   with FlatSpecLike with Matchers with MockitoSugar with BeforeAndAfterAll
   with TestComponent with CommonTestData with GcsPathUtils { testKit =>
+
+  implicit val cs = IO.contextShift(system.dispatcher)
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
