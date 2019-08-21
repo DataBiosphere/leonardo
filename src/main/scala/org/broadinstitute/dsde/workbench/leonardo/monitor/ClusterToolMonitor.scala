@@ -29,7 +29,7 @@ object ClusterToolMonitor {
 }
 
 /**
-  * This monitor periodically sweeps the Leo database and checks for clusters which no longer exist in Google.
+  * Monitors tool status (Jupyter, RStudio, Welder, etc) on Running clusters and reports if any tool is down.
   */
 class ClusterToolMonitor(config: ClusterToolConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference, toolDAOs: Map[ClusterTool, ToolDAO], newRelic: NewRelicMetrics) extends Actor with Timers with LazyLogging {
 
@@ -53,7 +53,7 @@ class ClusterToolMonitor(config: ClusterToolConfig, gdDAO: GoogleDataprocDAO, go
   private def handleClusterStatus(status: ToolStatus): Future[Unit] = {
       if (!status.isUp) {
         val toolName = status.tool.toString
-        logger.info(s"The tool ${toolName} is down on cluster ${status.cluster.googleProject.value}/${status.cluster.clusterName.value}")
+        logger.warn(s"The tool ${toolName} is down on cluster ${status.cluster.googleProject.value}/${status.cluster.clusterName.value}")
         newRelic.incrementCounterFuture(toolName + "Down")
       } else {
         Future.unit
@@ -62,7 +62,7 @@ class ClusterToolMonitor(config: ClusterToolConfig, gdDAO: GoogleDataprocDAO, go
 
   private def getActiveClustersFromDatabase: Future[Seq[Cluster]] = {
     dbRef.inTransaction {
-      _.clusterQuery.listActiveOnly
+      _.clusterQuery.listRunningOnly
     }
   }
 
