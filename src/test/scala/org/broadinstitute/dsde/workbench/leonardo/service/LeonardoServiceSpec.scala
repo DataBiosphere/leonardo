@@ -1030,7 +1030,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.machineConfig.numberOfWorkers shouldBe Some(0)
   }
 
-  it should "cluster creation should end in Error state if adding dataproc worker role fails" in isolatedDbTest {
+  it should "cluster creation should end in Error state if adding IAM roles fails" in isolatedDbTest {
     val mockPetGoogleDAO: String => GoogleStorageDAO = _ => {
       new MockGoogleStorageDAO
     }
@@ -1044,15 +1044,16 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterCreateResponse =
       leo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
 
-    eventually {
+    eventually(timeout(Span(5, Minutes))) {
       dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Error)
     }
 
-    // IAM call should not have been retried
-    iamDAO.invocationCount shouldBe 1
+    // We make at most 2 IAM calls - they should not have been retried
+    // Assertion is <= 2 because calls are made in parallel with parSequence, so 1 or both may have been tried.
+    iamDAO.invocationCount should be <= 2
   }
 
-  it should "retry 409 errors when adding dataproc worker role" in isolatedDbTest {
+  it should "retry 409 errors when adding IAM roles" in isolatedDbTest {
     val mockPetGoogleDAO: String => GoogleStorageDAO = _ => {
       new MockGoogleStorageDAO
     }
@@ -1070,8 +1071,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Error)
     }
 
-    // IAM call should have been retried exponentially
-    iamDAO.invocationCount shouldBe exponentialBackOffIntervals.size + 1
+    // IAM calls should have been retried exponentially
+    iamDAO.invocationCount should be > 2
   }
 
   it should "update the autopause threshold for a cluster" in isolatedDbTest {

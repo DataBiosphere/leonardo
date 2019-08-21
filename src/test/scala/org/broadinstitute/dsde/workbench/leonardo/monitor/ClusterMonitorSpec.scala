@@ -966,6 +966,10 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       computeDAO.stopInstance(mockitoEq(masterInstance.key))
     } thenReturn Future.successful(())
 
+    when {
+      computeDAO.getGoogleApiServiceAccount(mockitoEq(creatingCluster.googleProject))
+    } thenReturn Future.successful(Some(WorkbenchEmail("api-service-account")))
+
     val storageDAO = mock[GoogleStorageDAO]
     when {
       storageDAO.deleteBucket(any[GcsBucketName], any[Boolean])
