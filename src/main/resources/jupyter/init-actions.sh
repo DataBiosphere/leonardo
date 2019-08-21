@@ -93,7 +93,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     # The following values are populated by Leo when a cluster is created.
     export CLUSTER_NAME=$(clusterName)
     export GOOGLE_PROJECT=$(googleProject)
-    export OWNER_EMAIL=$(userEmailLoginHint)
+    export OWNER_EMAIL=$(loginHint)
     export JUPYTER_SERVER_NAME=$(jupyterServerName)
     export RSTUDIO_SERVER_NAME=$(rstudioServerName)
     export PROXY_SERVER_NAME=$(proxyServerName)
@@ -265,9 +265,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
         # Install the Hail additions to Spark conf.
         retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/hail/spark_install_hail.sh
+        STEP_TIMINGS+=($(date +%s))
       fi
-
-      STEP_TIMINGS+=($(date +%s))
 
        # Install jupyter_notebook_config.py
       if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG_URI} ] ; then
