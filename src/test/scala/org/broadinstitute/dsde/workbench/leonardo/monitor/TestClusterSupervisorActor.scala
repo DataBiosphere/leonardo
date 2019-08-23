@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 import akka.actor.{ActorRef, Props}
 import akka.testkit.TestKit
 import cats.effect.IO
-import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, DataprocConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, WelderDAO}
@@ -11,6 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, 
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, LeoAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
+import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 
 object TestClusterSupervisorActor {
   def props(monitorConfig: MonitorConfig,
@@ -18,7 +19,6 @@ object TestClusterSupervisorActor {
             clusterBucketConfig: ClusterBucketConfig,
             gdDAO: GoogleDataprocDAO,
             googleComputeDAO: GoogleComputeDAO,
-            googleIamDAO: GoogleIamDAO,
             googleStorageDAO: GoogleStorageDAO,
             google2StorageDAO: GoogleStorageService[IO],
             dbRef: DbReference,
@@ -28,10 +28,12 @@ object TestClusterSupervisorActor {
             jupyterProxyDAO: JupyterDAO,
             rstudioProxyDAO: RStudioDAO,
             welderDAO: WelderDAO,
-            leonardoService: LeonardoService): Props =
+            leonardoService: LeonardoService,
+            clusterHelper: ClusterHelper): Props =
     Props(new TestClusterSupervisorActor(
-      monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleIamDAO, googleStorageDAO,
-      google2StorageDAO, dbRef, testKit, authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, welderDAO, leonardoService))
+      monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleStorageDAO,
+      google2StorageDAO, dbRef, testKit, authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, welderDAO,
+      leonardoService, clusterHelper))
 }
 
 object TearDown
@@ -44,7 +46,6 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  clusterBucketConfig: ClusterBucketConfig,
                                  gdDAO: GoogleDataprocDAO,
                                  googleComputeDAO: GoogleComputeDAO,
-                                 googleIamDAO: GoogleIamDAO,
                                  googleStorageDAO: GoogleStorageDAO,
                                  google2StorageDAO: GoogleStorageService[IO],
                                  dbRef: DbReference,
@@ -54,11 +55,12 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  jupyterProxyDAO: JupyterDAO,
                                  rstudioProxyDAO: RStudioDAO,
                                  welderDAO: WelderDAO,
-                                 leonardoService: LeonardoService)
+                                 leonardoService: LeonardoService,
+                                 clusterHelper: ClusterHelper)
   extends ClusterMonitorSupervisor(
     monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO,
-    googleIamDAO, googleStorageDAO, google2StorageDAO, dbRef,
-    authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, welderDAO, leonardoService) {
+    googleStorageDAO, google2StorageDAO, dbRef, authProvider, autoFreezeConfig,
+    jupyterProxyDAO, rstudioProxyDAO, welderDAO, leonardoService, clusterHelper) {
 
   // Keep track of spawned child actors so we can shut them down when this actor is stopped
   var childActors: Seq[ActorRef] = Seq.empty
