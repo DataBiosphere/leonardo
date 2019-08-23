@@ -10,12 +10,13 @@ USER root
 
 ENV DEBIAN_FRONTEND noninteractive
 ENV DEBIAN_REPO http://cdn-fastly.deb.debian.org
-ENV CRAN_REPO http://cran.mtu.edu
+ENV CRAN_REPO http://cran.case.edu
 
 RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sources.list \
  && echo "deb $DEBIAN_REPO/debian-security stretch/updates main" >> /etc/apt/sources.list \
  && echo "deb $DEBIAN_REPO/debian stretch-backports main"        >> /etc/apt/sources.list \
  && echo "deb $DEBIAN_REPO/debian testing main"                  >> /etc/apt/sources.list \
+ && echo "deb $DEBIAN_REPO/debian buster main"                   >> /etc/apt/sources.list \
  && echo 'APT::Default-Release "oldstable";' | tee -a /etc/apt/apt.conf.d/00local \
  && apt-get update \
  && apt-get -yq dist-upgrade \
@@ -51,6 +52,7 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sou
     git \
     locales \
     jq \
+    apt-transport-https \
 
  # R separately because it depends on gnupg installed above
  && echo "deb $CRAN_REPO/bin/linux/debian stretch-cran35/"       >> /etc/apt/sources.list \
