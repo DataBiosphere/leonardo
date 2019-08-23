@@ -185,8 +185,9 @@ function docker_cmd()
         fi
 
         # builds the juptyer notebooks and rstudio docker images that go on dataproc clusters
-        bash ./docker/build-tool.sh -i jupyter -r "${NOTEBOOK_REPO}" -t "${DOCKER_TAG}"
-        bash ./docker/build-tool.sh -i rstudio -r "${NOTEBOOK_REPO}" -t "${DOCKER_TAG}"
+        # Stop building jupyter and rstudio images in leonardo repo as we move the process to terra-docker repo
+#        bash ./docker/build-tool.sh -i jupyter -r "${NOTEBOOK_REPO}" -t "${DOCKER_TAG}"
+#        bash ./docker/build-tool.sh -i rstudio -r "${NOTEBOOK_REPO}" -t "${DOCKER_TAG}"
 
         # Build the UI if specified.
         if $BUILD_UI; then
@@ -220,9 +221,9 @@ function docker_cmd()
                 $GCR_REMOTES_BINARY push ${GCR_IMAGE}:${DOCKER_TAG}
             fi
            
-            # pushes the juptyer notebooks and rstudio docker images that go on dataproc clusters
-            bash ./docker/build-tool.sh --push -i jupyter -r "${NOTEBOOK_REPO}" -t "${DOCKER_TAG}" -b "${GIT_BRANCH}"
-            bash ./docker/build-tool.sh --push -i rstudio -r "${NOTEBOOK_REPO}" -t "${DOCKER_TAG}" -b "${GIT_BRANCH}"
+#            # pushes the juptyer notebooks and rstudio docker images that go on dataproc clusters
+#            bash ./docker/build-tool.sh --push -i jupyter -r "${NOTEBOOK_REPO}" -t "${DOCKER_TAG}" -b "${GIT_BRANCH}"
+#            bash ./docker/build-tool.sh --push -i rstudio -r "${NOTEBOOK_REPO}" -t "${DOCKER_TAG}" -b "${GIT_BRANCH}"
  
             # push the UI docker image.
             if $BUILD_UI; then

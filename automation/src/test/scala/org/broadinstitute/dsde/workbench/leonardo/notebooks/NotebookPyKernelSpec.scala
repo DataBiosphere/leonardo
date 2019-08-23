@@ -166,6 +166,7 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
             notebookPage.executeCell("! echo $GOOGLE_PROJECT").get shouldBe clusterFixture.cluster.googleProject.value
             notebookPage.executeCell("! echo $WORKSPACE_NAMESPACE").get shouldBe clusterFixture.cluster.googleProject.value
             notebookPage.executeCell("! echo $WORKSPACE_NAME").get shouldBe "notebooks"
+            notebookPage.executeCell("! echo $OWNER_EMAIL").get shouldBe ronEmail
             // workspace bucket is not wired up in tests
             notebookPage.executeCell("! echo $WORKSPACE_BUCKET").get shouldBe ""
           }
