@@ -349,7 +349,7 @@ RUN aptitude update && aptitude install -y apt-utils \
     r-base-dev=3.5.2-1 \
     r-base-core=3.5.2-1 \
     r-recommended=3.5.2-1 \
- && aptitude install -t buster -y \
+ && aptitude install -t stretch-cran35 -y \
     fonts-dejavu \
     tzdata \
     gfortran \
