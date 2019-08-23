@@ -16,6 +16,7 @@ RUN echo "deb $DEBIAN_REPO/debian stretch main"                   > /etc/apt/sou
  && echo "deb $DEBIAN_REPO/debian-security stretch/updates main" >> /etc/apt/sources.list \
  && echo "deb $DEBIAN_REPO/debian stretch-backports main"        >> /etc/apt/sources.list \
  && echo "deb $DEBIAN_REPO/debian testing main"                  >> /etc/apt/sources.list \
+ && echo "deb $DEBIAN_REPO/debian buster main"                   >> /etc/apt/sources.list \
  && echo 'APT::Default-Release "oldstable";' | tee -a /etc/apt/apt.conf.d/00local \
  && apt-get update \
  && apt-get -yq dist-upgrade \
@@ -343,12 +344,12 @@ ENV PIP_USER=true
 
 # using aptitude for R packages so that all dependencies are automatically installed
 RUN aptitude update && aptitude install -y apt-utils \
- && aptitude update && aptitude -t stretch-cran35 install -y \
+ && aptitude update && aptitude -t buster install -y \
     r-base=3.5.2-1 \
     r-base-dev=3.5.2-1 \
     r-base-core=3.5.2-1 \
     r-recommended=3.5.2-1 \
- && aptitude install -t stretch-cran35 -y \
+ && aptitude install -t buster -y \
     fonts-dejavu \
     tzdata \
     gfortran \
