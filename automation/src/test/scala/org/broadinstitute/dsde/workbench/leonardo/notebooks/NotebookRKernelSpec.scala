@@ -12,7 +12,7 @@ import scala.language.postfixOps
   */
 @DoNotDiscover
 class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
-
+  override val jupyterDockerImage: Option[String] = Some("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:0.0.1")
   "NotebookRKernelSpec" - {
 
     // See https://github.com/DataBiosphere/leonardo/issues/398
