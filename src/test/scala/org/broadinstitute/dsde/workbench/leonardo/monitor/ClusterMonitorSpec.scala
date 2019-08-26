@@ -186,9 +186,6 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(())
 
     val iamDAO = mock[GoogleIamDAO]
-    when {
-      iamDAO.removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
-    } thenReturn Future.successful(())
 
     val authProvider = mock[LeoAuthProvider]
 
@@ -204,12 +201,6 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
         updatedCluster.map(_.instances) shouldBe Some(Set(masterInstance, workerInstance1, workerInstance2))
       }
       verify(storageDAO, never()).deleteBucket(any[GcsBucketName], any[Boolean])
-      val dpWorkerTimes = if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()
-      verify(iamDAO, dpWorkerTimes).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
-      val imageUserTimes = if (dataprocConfig.customDataprocImage.isDefined) times(1) else never()
-      verify(iamDAO, imageUserTimes).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/compute.imageUser")))
-      verify(iamDAO, if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()).removeIamRolesForUser(mockitoEq(creatingCluster.googleProject), any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
-      verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
     }
   }
 
@@ -358,10 +349,6 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
         updatedCluster.map(_.instances) shouldBe Some(Set(masterInstance, workerInstance1, workerInstance2))
       }
       verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
-      val dpWorkerTimes = if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()
-      verify(iamDAO, dpWorkerTimes).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
-      val imageUserTimes = if (dataprocConfig.customDataprocImage.isDefined) times(1) else never()
-      verify(iamDAO, imageUserTimes).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/compute.imageUser")))
       verify(iamDAO, if (notebookServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
     }
   }
@@ -422,10 +409,6 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
         updatedCluster.map(_.instances) shouldBe Some(Set(masterInstance, workerInstance1, workerInstance2))
       }
       verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
-      val dpWorkerTimes = if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()
-      verify(iamDAO, dpWorkerTimes).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
-      val imageUserTimes = if (dataprocConfig.customDataprocImage.isDefined) times(1) else never()
-      verify(iamDAO, imageUserTimes).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/compute.imageUser")))
       verify(iamDAO, if (notebookServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
     }
   }
@@ -455,6 +438,9 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val computeDAO = mock[GoogleComputeDAO]
     val projectDAO = mock[GoogleProjectDAO]
     val iamDAO = mock[GoogleIamDAO]
+    when {
+      iamDAO.removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
+    } thenReturn Future.successful(())
 
     val storageDAO = mock[GoogleStorageDAO]
     when {
@@ -484,7 +470,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       }
       verify(storageDAO, times(1)).deleteBucket(any[GcsBucketName], any[Boolean])
       verify(storageDAO, times(1)).setBucketLifecycle(any[GcsBucketName], any[Int], any[GcsLifecycleType])
-      verify(iamDAO, never()).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
+      verify(iamDAO, times(1)).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
       verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
       verify(authProvider).notifyClusterDeleted(mockitoEq(deletingCluster.internalId), mockitoEq(deletingCluster.auditInfo.creator), mockitoEq(deletingCluster.auditInfo.creator), mockitoEq(deletingCluster.googleProject), mockitoEq(deletingCluster.clusterName))(any[ExecutionContext])
     }
@@ -756,9 +742,6 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(())
 
     val iamDAO = mock[GoogleIamDAO]
-    when {
-      iamDAO.removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
-    } thenReturn Future.successful(())
 
     val authProvider = mock[LeoAuthProvider]
 
@@ -791,10 +774,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       verify(storageDAO, never).deleteBucket(any[GcsBucketName], any[Boolean])
       // Changing to atleast once since based on the timing of the monitor this method can be called once or twice
       val dpWorkerTimes = if (clusterServiceAccount(creatingCluster.googleProject).isDefined) atLeastOnce() else never()
-      verify(iamDAO, dpWorkerTimes).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
       val imageUserTimes = if (dataprocConfig.customDataprocImage.isDefined) atLeastOnce() else never()
-      verify(iamDAO, imageUserTimes).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/compute.imageUser")))
-      verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
     }
   }
 
@@ -984,9 +964,6 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(())
 
     val iamDAO = mock[GoogleIamDAO]
-    when {
-      iamDAO.removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
-    } thenReturn Future.successful(())
 
     val authProvider = mock[LeoAuthProvider]
 
@@ -1002,9 +979,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       }
       verify(storageDAO, never()).deleteBucket(any[GcsBucketName], any[Boolean])
       val dpWorkerTimes = if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()
-      verify(iamDAO, dpWorkerTimes).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
       val imageUserTimes = if (dataprocConfig.customDataprocImage.isDefined) times(1) else never()
-      verify(iamDAO, imageUserTimes).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/compute.imageUser")))
       verify(iamDAO, never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
     }
   }
