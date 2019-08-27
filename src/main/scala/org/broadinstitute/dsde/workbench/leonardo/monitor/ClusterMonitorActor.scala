@@ -159,10 +159,6 @@ class ClusterMonitorActor(val cluster: Cluster,
       _ <- persistInstances(instances)
       // update DB after auth futures finish
       _ <- dbRef.inTransaction { _.clusterQuery.setToRunning(cluster.id, publicIp) }
-      // Remove the Dataproc Worker IAM role for the cluster service account.
-      // Only happens if the cluster was created with a service account other
-      // than the compute engine default service account.
-      _ <- if (clusterStatus == ClusterStatus.Creating || clusterStatus == ClusterStatus.Updating) removeIamRolesForUser else Future.successful(())
       // Record metrics in NewRelic
       _ <- recordMetrics(clusterStatus, ClusterStatus.Running).unsafeToFuture()
     } yield {
@@ -252,6 +248,10 @@ class ClusterMonitorActor(val cluster: Cluster,
         dataAccess.clusterQuery.completeDeletion(cluster.id)
       }
       _ <- authProvider.notifyClusterDeleted(cluster.internalId, cluster.auditInfo.creator, cluster.auditInfo.creator, cluster.googleProject, cluster.clusterName)
+      // Remove the Dataproc Worker IAM role for the cluster service account.
+      // Only happens if the cluster was created with a service account other
+      // than the compute engine default service account.
+      _ <- removeIamRolesForUser
 
       // Record metrics in NewRelic
       _ <- recordMetrics(clusterStatus, ClusterStatus.Deleted).unsafeToFuture()
