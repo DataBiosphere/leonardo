@@ -5,7 +5,7 @@ set -e -x
 ##
 # This is a startup script designed to run on Leo-created Dataproc clusters.
 #
-# It starts Jupyter and Welder processes. It also optionally deploys welder on a
+# It starts up Jupyter and Welder processes. It also optionally deploys welder on a
 # cluster if not already installed.
 ##
 
@@ -89,9 +89,11 @@ if [ "$deploy_welder" = true ] ; then
 fi
 
 # Start Jupyter
+echo "Starting Jupyter on cluster $google_project / $cluster_name..."
 docker exec -d jupyter-server /bin/bash -c "/etc/jupyter/scripts/run-jupyter.sh $notebooks_dir || /usr/local/bin/jupyter notebook"
 
 # Start welder, if enabled
 if [ "$welder_enabled" = true ] ; then
+    echo "Starting Welder on cluster $google_project / $cluster_name..."
     docker exec -d welder-server /opt/docker/bin/entrypoint.sh
 fi
