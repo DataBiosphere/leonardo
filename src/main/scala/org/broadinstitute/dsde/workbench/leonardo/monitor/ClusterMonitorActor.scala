@@ -212,7 +212,7 @@ class ClusterMonitorActor(val cluster: Cluster,
           _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Error) }
           // Remove the Dataproc Worker IAM role for the pet service account
           // Only happens if the cluster was created with the pet service account.
-          _ <-  removeIamRolesForUser
+          _ <- clusterHelper.removeClusterIamRoles(cluster.googleProject, cluster.serviceAccountInfo).unsafeToFuture()
         } yield ShutdownActor(RemoveFromList(cluster))
       }
     } yield res
@@ -251,7 +251,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       // Remove the Dataproc Worker IAM role for the cluster service account.
       // Only happens if the cluster was created with a service account other
       // than the compute engine default service account.
-      _ <- removeIamRolesForUser
+      _ <- clusterHelper.removeClusterIamRoles(cluster.googleProject, cluster.serviceAccountInfo).unsafeToFuture()
 
       // Record metrics in NewRelic
       _ <- recordMetrics(clusterStatus, ClusterStatus.Deleted).unsafeToFuture()
@@ -425,26 +425,6 @@ class ClusterMonitorActor(val cluster: Cluster,
     throwable match {
       case t: GoogleJsonResponseException => t.getStatusCode == 409
       case _ => false
-    }
-  }
-
-  private def removeIamRolesForUser: Future[Unit] = {
-    // Remove the Dataproc Worker IAM role for the cluster service account
-    cluster.serviceAccountInfo.clusterServiceAccount match {
-      case None => Future.successful(())
-      case Some(serviceAccountEmail) =>
-        // Only remove the Dataproc Worker role if there are no other clusters with the same owner
-        // in the DB with CREATING or UPDATING status. This prevents situations where we prematurely
-        // yank pet SA roles when the same user is creating or resizing multiple clusters.
-        dbRef.inTransaction { dataAccess =>
-          dataAccess.clusterQuery.countByClusterServiceAccountAndStatuses(serviceAccountEmail, Set(ClusterStatus.Creating, ClusterStatus.Updating))
-        } flatMap { count =>
-          if (count > 0) {
-            Future.successful(())
-          } else {
-            clusterHelper.removeClusterIamRoles(cluster.googleProject, cluster.serviceAccountInfo).unsafeToFuture()
-          }
-        }
     }
   }
 
