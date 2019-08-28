@@ -212,7 +212,6 @@ class ClusterMonitorActor(val cluster: Cluster,
           _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Error) }
           // Remove the Dataproc Worker IAM role for the pet service account
           // Only happens if the cluster was created with the pet service account.
-          _ <- clusterHelper.removeClusterIamRoles(cluster.googleProject, cluster.serviceAccountInfo).unsafeToFuture()
         } yield ShutdownActor(RemoveFromList(cluster))
       }
     } yield res
