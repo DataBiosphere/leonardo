@@ -128,8 +128,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   // Startup script to install on the cluster master node. This allows Jupyter to start back up after
   // a cluster is resumed.
   // TODO: remove conditionals on welderEnabled once welder is rolled out to all clusters
-  protected def getMasterInstanceStartupScript(welderEnabled: Boolean): immutable.Map[String, String] = {
+  protected def getMasterInstanceStartupScript(cluster: Cluster): immutable.Map[String, String] = {
     val googleKey = "startup-script"  // required; see https://cloud.google.com/compute/docs/startupscript
+
+
+
+
 
     val servicesStart = if (welderEnabled) {
       // The || clause is included because older clusters may not have the run-jupyter.sh script installed,
