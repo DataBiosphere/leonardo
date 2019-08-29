@@ -9,6 +9,7 @@ set -e -x
 # cluster if not already installed.
 ##
 
+# Templated values
 export GOOGLE_PROJECT=$(googleProject)
 export CLUSTER_NAME=$(clusterName)
 export OWNER_EMAIL=$(loginHint)
@@ -21,6 +22,7 @@ export WELDER_DOCKER_IMAGE=$(welderDockerImage)
 
 if [ "$DEPLOY_WELDER" == "true" ] ; then
     echo "Deploying Welder on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
+    export WELDER_ENABLED="true"
 
     # Run welder-docker-compose
     gcloud auth configure-docker

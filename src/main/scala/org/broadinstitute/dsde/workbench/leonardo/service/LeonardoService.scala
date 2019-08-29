@@ -127,25 +127,26 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   // Startup script to install on the cluster master node. This allows Jupyter to start back up after
   // a cluster is resumed.
-  // TODO: remove conditionals on welderEnabled once welder is rolled out to all clusters
   protected def getMasterInstanceStartupScript(cluster: Cluster): immutable.Map[String, String] = {
     val googleKey = "startup-script"  // required; see https://cloud.google.com/compute/docs/startupscript
 
+    // These things need to be provided to ClusterInitValues, but aren't actually needed for the startup script
+    val dummyInitBucket = GcsBucketName("dummy-init-bucket")
+    val dummyStagingBucket = GcsBucketName("dummy-staging-bucket")
+    val dummyClusterRequest = ClusterRequest()
 
+    val clusterInit = ClusterInitValues(cluster.googleProject, cluster.clusterName, dummyInitBucket, dummyClusterRequest,
+      dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, None, cluster.auditInfo.creator,
+      contentSecurityPolicy, cluster.clusterImages, dummyStagingBucket)
+    val replacements: Map[String, String] = clusterInit.toMap ++ Map("deployWelder" -> shouldDeployWelder(cluster).toString)
 
+    val startupScriptContent = templateResource(clusterResourcesConfig.startupScript, replacements)
 
+    immutable.Map(googleKey -> startupScriptContent)
+  }
 
-    val servicesStart = if (welderEnabled) {
-      // The || clause is included because older clusters may not have the run-jupyter.sh script installed,
-      // so we need to fall back running `jupyter notebook` directly. See https://github.com/DataBiosphere/leonardo/issues/481.
-      val jupyterStart = s"docker exec -d ${dataprocConfig.jupyterServerName} /bin/bash -c '/etc/jupyter/scripts/run-jupyter.sh ${dataprocConfig.welderEnabledNotebooksDir} || /usr/local/bin/jupyter notebook'"
-
-      val welderStart = s"docker exec -d ${dataprocConfig.welderServerName} /opt/docker/bin/entrypoint.sh"
-      s"($jupyterStart) && $welderStart"
-    }
-    else s"docker exec -d ${dataprocConfig.jupyterServerName} /bin/bash -c '/etc/jupyter/scripts/run-jupyter.sh ${dataprocConfig.welderDisabledNotebooksDir} || /usr/local/bin/jupyter notebook'"
-
-    immutable.Map(googleKey -> servicesStart)
+  def shouldDeployWelder(cluster: Cluster): Boolean = {
+    !cluster.welderEnabled && dataprocConfig.deployWelderToTerraClusters && cluster.labels.contains("saturnVersion")
   }
 
   protected def checkProjectPermission(userInfo: UserInfo, action: ProjectAction, project: GoogleProject): Future[Unit] = {
@@ -602,29 +603,19 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                gdDAO.resizeCluster(cluster.googleProject, cluster.clusterName, numPreemptibles = Some(0))
              else Future.unit
 
+        // Flush the welder cache to disk
         _ <- if(cluster.welderEnabled) {
           welderDao.flushCache(cluster.googleProject, cluster.clusterName).handleError(e => logger.error(s"fail to flush welder cache for ${cluster}"))
-        }
-        else Future.unit
+        } else Future.unit
+
         // Now stop each instance individually
         _ <- Future.traverse(cluster.nonPreemptibleInstances) { instance =>
-          // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
-          instance.dataprocRole match {
-            case Some(Master) =>
-              if (cluster.clusterImages.map(_.tool) contains (Jupyter)) {
-                googleComputeDAO.addInstanceMetadata(instance.key, getMasterInstanceStartupScript(cluster.welderEnabled)).flatMap { _ =>
-                  googleComputeDAO.stopInstance(instance.key)
-                }
-              }
-              else googleComputeDAO.stopInstance(instance.key)
-            case _ =>
-              googleComputeDAO.stopInstance(instance.key)
-          }
+          googleComputeDAO.stopInstance(instance.key)
         }
 
         // Update the cluster status to Stopping
         _ <- dbRef.inTransaction { _.clusterQuery.setToStopping(cluster.id) }
-      } yield { }
+      } yield ()
 
     } else Future.failed(ClusterCannotBeStoppedException(cluster.googleProject, cluster.clusterName, cluster.status))
   }
@@ -651,12 +642,26 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         // Start each instance individually
         _ <- Future.traverse(cluster.nonPreemptibleInstances) { instance =>
-          googleComputeDAO.startInstance(instance.key)
+          // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
+          instance.dataprocRole match {
+            case Some(Master) =>
+              googleComputeDAO.addInstanceMetadata(instance.key, getMasterInstanceStartupScript(cluster)) >>
+                googleComputeDAO.startInstance(instance.key)
+            case _ =>
+              googleComputeDAO.startInstance(instance.key)
+          }
         }
 
         // Update the cluster status to Starting
-        _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Starting) }
-      } yield { () }
+        _ <- dbRef.inTransaction { dataAccess =>
+          if (shouldDeployWelder(cluster)) {
+            dataAccess.clusterQuery.updateWelderEnabled(cluster.id, true) >>
+              dataAccess.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Starting)
+          } else {
+            dataAccess.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Starting)
+          }
+        }
+      } yield ()
 
     } else Future.failed(ClusterCannotBeStartedException(cluster.googleProject, cluster.clusterName, cluster.status))
   }

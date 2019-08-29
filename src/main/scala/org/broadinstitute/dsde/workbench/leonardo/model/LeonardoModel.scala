@@ -25,11 +25,11 @@ import spray.json.{RootJsonFormat, RootJsonReader, _}
 import ca.mrvisser.sealerate
 
 // Create cluster API request
-final case class ClusterRequest(labels: LabelMap,
+final case class ClusterRequest(labels: LabelMap = Map.empty,
                           jupyterExtensionUri: Option[GcsPath] = None,
                           jupyterUserScriptUri: Option[GcsPath] = None,
                           machineConfig: Option[MachineConfig] = None,
-                          properties: Map[String, String],
+                          properties: Map[String, String] = Map.empty,
                           stopAfterCreation: Option[Boolean] = None,
                           userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
                           autopause: Option[Boolean] = None,
