@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, Leonardo}
+import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, Leonardo, LeonardoConfig}
 import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.DoNotDiscover
@@ -9,10 +9,12 @@ import scala.concurrent.duration.DurationLong
 import scala.language.postfixOps
 
 /**
-  * This spec verifies notebook functionality specifically around the Python 2 and 3 kernels.
+  * This spec verifies notebook functionality specifically around the Python 3 kernel.
   */
 @DoNotDiscover
 class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
+
+  override val jupyterDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.pythonImageUrl)
 
   "NotebookPyKernelSpec" - {
 
@@ -27,13 +29,13 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
               |bx.bitset.sys.copyright""".stripMargin
 
           notebookPage.executeCell("1+1") shouldBe Some("2")
-          notebookPage.executeCell(getPythonVersion) shouldBe Some("3.6.8")
+          notebookPage.executeCell(getPythonVersion) shouldBe Some("3.7.4")
           notebookPage.executeCell(getBxPython).get should include("Copyright (c)")
         }
       }
     }
 
-    Seq(Python2, Python3).foreach { kernel =>
+    Seq(Python3).foreach { kernel =>
       s"should be able to pip install packages using ${kernel.string}" in { clusterFixture =>
         withWebDriver { implicit driver =>
           withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
@@ -133,13 +135,13 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
     }
 
 
-    Seq(Python2, Python3).foreach { kernel =>
+    Seq(Python3).foreach { kernel =>
       s"should preinstall google cloud subpackages for ${kernel.string}" in { clusterFixture =>
         withWebDriver { implicit driver =>
           withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
             //all other packages cannot be tested for their versions in this manner
             //warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
-            notebookPage.executeCell("import warnings; warnings.simplefilter('ignore')\nfrom google.cloud import bigquery\nprint(bigquery.__version__)") shouldBe Some("1.7.0")
+            notebookPage.executeCell("import warnings; warnings.simplefilter('ignore')\nfrom google.cloud import bigquery\nprint(bigquery.__version__)") shouldBe Some("1.9.0")
             notebookPage.executeCell("from google.cloud import datastore\nprint(datastore.__version__)") shouldBe Some("1.7.0")
             notebookPage.executeCell("from google.cloud import storage\nprint(storage.__version__)") shouldBe Some("1.13.0")
           }
@@ -148,7 +150,7 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
     }
 
     // https://github.com/DataBiosphere/leonardo/issues/797
-    Seq(Python2, Python3).foreach { kernel =>
+    Seq(Python3).foreach { kernel =>
       s"should be able to import ggplot for ${kernel.toString}" in { clusterFixture =>
         withWebDriver { implicit driver =>
           withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
@@ -159,7 +161,7 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
       }
     }
 
-    Seq(Python2, Python3).foreach { kernel =>
+    Seq(Python3).foreach { kernel =>
       s"should have the workspace-related environment variables set in ${kernel.toString} kernel" in { clusterFixture =>
         withWebDriver { implicit driver =>
           withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
@@ -192,7 +194,7 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
       clusterFixture.cluster.serviceAccountInfo.notebookServiceAccount shouldBe None
 
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, PySpark2) { notebookPage =>
+        withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
           // should not have notebook credentials because Leo is not configured to use a notebook service account
           verifyNoNotebookCredentials(notebookPage)
         }
