@@ -8,6 +8,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
+import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoException, ServiceAccountInfo}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId}
@@ -18,7 +19,8 @@ import scala.concurrent.ExecutionContext
 case class ClusterIamSetupException(googleProject: GoogleProject)
   extends LeoException(s"Error occurred setting up IAM roles in project ${googleProject.value}")
 
-class ClusterHelper(dataprocConfig: DataprocConfig,
+class ClusterHelper(dbRef: DbReference,
+                    dataprocConfig: DataprocConfig,
                     gdDAO: GoogleDataprocDAO,
                     googleComputeDAO: GoogleComputeDAO,
                     googleIamDAO: GoogleIamDAO)
@@ -51,7 +53,16 @@ class ClusterHelper(dataprocConfig: DataprocConfig,
     // This is needed to be able to spin up Dataproc clusters using a custom service account.
     // If the Google Compute default service account is being used, this is not necessary.
     val dataprocWorkerIO = serviceAccountInfo.clusterServiceAccount.map { email =>
-      retryIam(googleProject, email, Set("roles/dataproc.worker"))
+      // Note: don't remove the role if there are existing active clusters owned by the same user,
+      // because it could potentially break other clusters. We only check this for the 'remove' case,
+      // it's ok to re-add the roles.
+      IO.fromFuture(IO(dbRef.inTransaction { _.clusterQuery.countActiveByClusterServiceAccount(email) })).flatMap { count =>
+        if (count > 0 && create == false) {
+          IO.unit
+        } else {
+          retryIam(googleProject, email, Set("roles/dataproc.worker"))
+        }
+      }
     } getOrElse IO.unit
 
     // Add the Compute Image User role in the image project to the Google API service account.
@@ -61,13 +72,22 @@ class ClusterHelper(dataprocConfig: DataprocConfig,
       case None => IO.unit
       case Some(imageProject) if imageProject == googleProject => IO.unit
       case Some(imageProject) =>
-        for {
-          emailOpt <- IO.fromFuture(IO(googleComputeDAO.getGoogleApiServiceAccount(googleProject)))
-          _ <- emailOpt match {
-            case Some(email) => retryIam(imageProject, email, Set("roles/compute.imageUser"))
-            case None => IO.raiseError(ClusterIamSetupException(imageProject))
+        IO.fromFuture(IO(dbRef.inTransaction { _.clusterQuery.countActiveByProject(googleProject) })).flatMap { count =>
+          // Note: don't remove the role if there are existing active clusters in the same project,
+          // because it could potentially break other clusters. We only check this for the 'remove' case,
+          // it's ok to re-add the roles.
+          if (count > 0 && create == false) {
+            IO.unit
+          } else {
+            for {
+              emailOpt <- IO.fromFuture(IO(googleComputeDAO.getGoogleApiServiceAccount(googleProject)))
+              _ <- emailOpt match {
+                case Some(email) => retryIam(imageProject, email, Set("roles/compute.imageUser"))
+                case None => IO.raiseError(ClusterIamSetupException(imageProject))
+              }
+            } yield ()
           }
-        } yield ()
+        }
     }
 
     List(dataprocWorkerIO, computeImageUserIO).parSequence_
