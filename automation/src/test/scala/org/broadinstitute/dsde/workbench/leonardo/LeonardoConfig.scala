@@ -9,6 +9,7 @@ object LeonardoConfig extends CommonConfig {
   object Leonardo {
     val apiUrl: String = leonardo.getString("apiUrl")
     val notebooksServiceAccountEmail: String = leonardo.getString("notebooksServiceAccountEmail")
+    val rImageUrl: String = leonardo.getString("rImageUrl")
   }
 
   // for qaEmail and pathToQAPem and pathToQAJson

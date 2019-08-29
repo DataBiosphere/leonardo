@@ -159,10 +159,6 @@ class ClusterMonitorActor(val cluster: Cluster,
       _ <- persistInstances(instances)
       // update DB after auth futures finish
       _ <- dbRef.inTransaction { _.clusterQuery.setToRunning(cluster.id, publicIp) }
-      // Remove the Dataproc Worker IAM role for the cluster service account.
-      // Only happens if the cluster was created with a service account other
-      // than the compute engine default service account.
-      _ <- if (clusterStatus == ClusterStatus.Creating || clusterStatus == ClusterStatus.Updating) removeIamRolesForUser else Future.successful(())
       // Record metrics in NewRelic
       _ <- recordMetrics(clusterStatus, ClusterStatus.Running).unsafeToFuture()
     } yield {
@@ -216,7 +212,6 @@ class ClusterMonitorActor(val cluster: Cluster,
           _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Error) }
           // Remove the Dataproc Worker IAM role for the pet service account
           // Only happens if the cluster was created with the pet service account.
-          _ <-  removeIamRolesForUser
         } yield ShutdownActor(RemoveFromList(cluster))
       }
     } yield res
@@ -252,6 +247,10 @@ class ClusterMonitorActor(val cluster: Cluster,
         dataAccess.clusterQuery.completeDeletion(cluster.id)
       }
       _ <- authProvider.notifyClusterDeleted(cluster.internalId, cluster.auditInfo.creator, cluster.auditInfo.creator, cluster.googleProject, cluster.clusterName)
+      // Remove the Dataproc Worker IAM role for the cluster service account.
+      // Only happens if the cluster was created with a service account other
+      // than the compute engine default service account.
+      _ <- clusterHelper.removeClusterIamRoles(cluster.googleProject, cluster.serviceAccountInfo).unsafeToFuture()
 
       // Record metrics in NewRelic
       _ <- recordMetrics(clusterStatus, ClusterStatus.Deleted).unsafeToFuture()
@@ -425,26 +424,6 @@ class ClusterMonitorActor(val cluster: Cluster,
     throwable match {
       case t: GoogleJsonResponseException => t.getStatusCode == 409
       case _ => false
-    }
-  }
-
-  private def removeIamRolesForUser: Future[Unit] = {
-    // Remove the Dataproc Worker IAM role for the cluster service account
-    cluster.serviceAccountInfo.clusterServiceAccount match {
-      case None => Future.successful(())
-      case Some(serviceAccountEmail) =>
-        // Only remove the Dataproc Worker role if there are no other clusters with the same owner
-        // in the DB with CREATING or UPDATING status. This prevents situations where we prematurely
-        // yank pet SA roles when the same user is creating or resizing multiple clusters.
-        dbRef.inTransaction { dataAccess =>
-          dataAccess.clusterQuery.countByClusterServiceAccountAndStatuses(serviceAccountEmail, Set(ClusterStatus.Creating, ClusterStatus.Updating))
-        } flatMap { count =>
-          if (count > 0) {
-            Future.successful(())
-          } else {
-            clusterHelper.removeClusterIamRoles(cluster.googleProject, cluster.serviceAccountInfo).unsafeToFuture()
-          }
-        }
     }
   }
 

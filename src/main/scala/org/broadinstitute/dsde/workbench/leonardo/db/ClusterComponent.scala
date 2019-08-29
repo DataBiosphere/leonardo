@@ -204,10 +204,18 @@ trait ClusterComponent extends LeoComponent {
       }
     }
 
-    def countByClusterServiceAccountAndStatuses(clusterServiceAccount: WorkbenchEmail, statuses: Set[ClusterStatus]) = {
+    def countActiveByClusterServiceAccount(clusterServiceAccount: WorkbenchEmail) = {
       clusterQuery
         .filter { _.clusterServiceAccount === Option(clusterServiceAccount.value) }
-        .filter { _.status inSetBind  statuses.map(_.toString) }
+        .filter { _.status inSetBind ClusterStatus.activeStatuses.map(_.toString) }
+        .length
+        .result
+    }
+
+    def countActiveByProject(googleProject: GoogleProject) = {
+      clusterQuery
+        .filter { _.googleProject === googleProject.value }
+        .filter { _.status inSetBind ClusterStatus.activeStatuses.map(_.toString) }
         .length
         .result
     }

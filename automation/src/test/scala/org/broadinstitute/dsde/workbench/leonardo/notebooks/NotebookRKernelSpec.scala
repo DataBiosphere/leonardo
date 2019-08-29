@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import org.broadinstitute.dsde.workbench.leonardo.ClusterFixtureSpec
+import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, LeonardoConfig}
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.DoNotDiscover
 
@@ -12,7 +12,7 @@ import scala.language.postfixOps
   */
 @DoNotDiscover
 class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
-
+  override val jupyterDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.rImageUrl)
   "NotebookRKernelSpec" - {
 
     // See https://github.com/DataBiosphere/leonardo/issues/398

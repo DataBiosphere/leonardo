@@ -77,7 +77,7 @@ object Boot extends IOApp with LazyLogging {
     val googleProjectDAO = new HttpGoogleProjectDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google")
     val clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, clusterDnsCacheConfig)
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, googleComputeDAO, googleStorageDAO, serviceAccountProvider)
-    val clusterHelper = new ClusterHelper(dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO)
+    val clusterHelper = new ClusterHelper(dbRef, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO)
     implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
 
     createDependencies(leoServiceAccountJsonFile).use {
