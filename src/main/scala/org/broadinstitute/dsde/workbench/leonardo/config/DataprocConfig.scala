@@ -26,5 +26,5 @@ case class DataprocConfig(
                            welderEnabledNotebooksDir: String,
                            welderDisabledNotebooksDir: String,   // TODO: remove once welder is rolled out to all clusters
                            customDataprocImage: Option[String],
-                           deployWelderToTerraClusters: Boolean
+                           deployWelderLabel: Option[String]
                          )

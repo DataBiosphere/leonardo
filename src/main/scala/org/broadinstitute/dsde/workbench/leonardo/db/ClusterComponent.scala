@@ -425,8 +425,11 @@ trait ClusterComponent extends LeoComponent {
       findByIdQuery(id).map(_.masterDiskSize).update(newSizeGb)
     }
 
-    def updateWelderEnabled(id: Long, newWelderEnabled: Boolean): DBIO[Int] = {
-      findByIdQuery(id).map(_.welderEnabled).update(newWelderEnabled)
+    def enableWedler(id: Long, welderImage: ClusterImage): DBIO[Unit] = {
+      for {
+        _ <- findByIdQuery(id).map(_.welderEnabled).update(true)
+        _ <- clusterImageQuery.save(id, welderImage)
+      } yield ()
     }
 
     def setToRunning(id: Long, hostIp: IP): DBIO[Int] = {

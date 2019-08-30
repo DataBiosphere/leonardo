@@ -8,6 +8,7 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import cats.Monoid
 import cats.data.{Ior, OptionT}
+import cats.effect.IO
 import cats.implicits._
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
@@ -124,30 +125,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     ports = List(FirewallRulePort(proxyConfig.jupyterPort.toString)),
     network = dataprocConfig.vpcNetwork.map(VPCNetworkName),
     targetTags = List(NetworkTag(dataprocConfig.networkTag)))
-
-  // Startup script to install on the cluster master node. This allows Jupyter to start back up after
-  // a cluster is resumed.
-  protected def getMasterInstanceStartupScript(cluster: Cluster): immutable.Map[String, String] = {
-    val googleKey = "startup-script"  // required; see https://cloud.google.com/compute/docs/startupscript
-
-    // These things need to be provided to ClusterInitValues, but aren't actually needed for the startup script
-    val dummyInitBucket = GcsBucketName("dummy-init-bucket")
-    val dummyStagingBucket = GcsBucketName("dummy-staging-bucket")
-    val dummyClusterRequest = ClusterRequest()
-
-    val clusterInit = ClusterInitValues(cluster.googleProject, cluster.clusterName, dummyInitBucket, dummyClusterRequest,
-      dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, None, cluster.auditInfo.creator,
-      contentSecurityPolicy, cluster.clusterImages, dummyStagingBucket)
-    val replacements: Map[String, String] = clusterInit.toMap ++ Map("deployWelder" -> shouldDeployWelder(cluster).toString)
-
-    val startupScriptContent = templateResource(clusterResourcesConfig.startupScript, replacements)
-
-    immutable.Map(googleKey -> startupScriptContent)
-  }
-
-  def shouldDeployWelder(cluster: Cluster): Boolean = {
-    !cluster.welderEnabled && dataprocConfig.deployWelderToTerraClusters && cluster.labels.contains("saturnVersion")
-  }
 
   protected def checkProjectPermission(userInfo: UserInfo, action: ProjectAction, project: GoogleProject): Future[Unit] = {
     authProvider.hasProjectPermission(userInfo, action, project) map {
@@ -635,17 +612,20 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   def internalStartCluster(userEmail: WorkbenchEmail, cluster: Cluster): Future[Unit] = {
     if (cluster.status.isStartable) {
       for {
+        // Check if welder should be deployed
+        updatedCluster <- if (shouldDeployWelder(cluster)) enableWelder(cluster).unsafeToFuture() else Future.successful(cluster)
+
         // Add back the preemptible instances
-        _ <- if (cluster.machineConfig.numberOfPreemptibleWorkers.exists(_ > 0))
-               gdDAO.resizeCluster(cluster.googleProject, cluster.clusterName, numPreemptibles = cluster.machineConfig.numberOfPreemptibleWorkers)
+        _ <- if (updatedCluster.machineConfig.numberOfPreemptibleWorkers.exists(_ > 0))
+               gdDAO.resizeCluster(updatedCluster.googleProject, updatedCluster.clusterName, numPreemptibles = updatedCluster.machineConfig.numberOfPreemptibleWorkers)
              else Future.unit
 
         // Start each instance individually
-        _ <- Future.traverse(cluster.nonPreemptibleInstances) { instance =>
+        _ <- Future.traverse(updatedCluster.nonPreemptibleInstances) { instance =>
           // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
           instance.dataprocRole match {
             case Some(Master) =>
-              googleComputeDAO.addInstanceMetadata(instance.key, getMasterInstanceStartupScript(cluster)) >>
+              googleComputeDAO.addInstanceMetadata(instance.key, getMasterInstanceStartupScript(updatedCluster)) >>
                 googleComputeDAO.startInstance(instance.key)
             case _ =>
               googleComputeDAO.startInstance(instance.key)
@@ -654,12 +634,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         // Update the cluster status to Starting
         _ <- dbRef.inTransaction { dataAccess =>
-          if (shouldDeployWelder(cluster)) {
-            dataAccess.clusterQuery.updateWelderEnabled(cluster.id, true) >>
-              dataAccess.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Starting)
-          } else {
-            dataAccess.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Starting)
-          }
+          dataAccess.clusterQuery.updateClusterStatus(updatedCluster.id, ClusterStatus.Starting)
         }
       } yield ()
 
@@ -1123,6 +1098,39 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val rstudioImageOpt: Option[ClusterImage] = clusterRequest.rstudioDockerImage.map(i => ClusterImage(RStudio, i, now))
 
     Set(welderImageOpt, Some(jupyterImage), rstudioImageOpt).flatten
+  }
+
+  private def shouldDeployWelder(cluster: Cluster): Boolean = {
+    !cluster.welderEnabled && dataprocConfig.deployWelderLabel.exists(cluster.labels.contains)
+  }
+
+  private def enableWelder(cluster: Cluster): IO[Cluster] = {
+    for {
+      now <- IO(Instant.now)
+      welderImage = ClusterImage(Welder, dataprocConfig.welderDockerImage, now)
+      _ <- dbRef.inTransactionIO { _.clusterQuery.enableWedler(cluster.id, ClusterImage(Welder, dataprocConfig.welderDockerImage, Instant.now)) }
+      newCluster = cluster.copy(welderEnabled = true, clusterImages = cluster.clusterImages + welderImage)
+    } yield newCluster
+  }
+
+  // Startup script to install on the cluster master node. This allows Jupyter to start back up after
+  // a cluster is resumed.
+  private def getMasterInstanceStartupScript(cluster: Cluster): immutable.Map[String, String] = {
+    val googleKey = "startup-script"  // required; see https://cloud.google.com/compute/docs/startupscript
+
+    // These things need to be provided to ClusterInitValues, but aren't actually needed for the startup script
+    val dummyInitBucket = GcsBucketName("dummy-init-bucket")
+    val dummyStagingBucket = GcsBucketName("dummy-staging-bucket")
+    val dummyClusterRequest = ClusterRequest()
+
+    val clusterInit = ClusterInitValues(cluster.googleProject, cluster.clusterName, dummyInitBucket, dummyClusterRequest,
+      dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, None, cluster.auditInfo.creator,
+      contentSecurityPolicy, cluster.clusterImages, dummyStagingBucket)
+    val replacements: Map[String, String] = clusterInit.toMap
+
+    val startupScriptContent = templateResource(clusterResourcesConfig.startupScript, replacements)
+
+    immutable.Map(googleKey -> startupScriptContent)
   }
 
 }
