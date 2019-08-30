@@ -611,9 +611,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   def internalStartCluster(userEmail: WorkbenchEmail, cluster: Cluster): Future[Unit] = {
     if (cluster.status.isStartable) {
+      val deployWelder = shouldDeployWelder(cluster)
       for {
         // Check if welder should be deployed
-        updatedCluster <- if (shouldDeployWelder(cluster)) enableWelder(cluster).unsafeToFuture() else Future.successful(cluster)
+        updatedCluster <- if (deployWelder) enableWelder(cluster).unsafeToFuture() else Future.successful(cluster)
 
         // Add back the preemptible instances
         _ <- if (updatedCluster.machineConfig.numberOfPreemptibleWorkers.exists(_ > 0))
@@ -625,7 +626,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
           instance.dataprocRole match {
             case Some(Master) =>
-              googleComputeDAO.addInstanceMetadata(instance.key, getMasterInstanceStartupScript(updatedCluster)) >>
+              googleComputeDAO.addInstanceMetadata(instance.key, getMasterInstanceStartupScript(updatedCluster, deployWelder)) >>
                 googleComputeDAO.startInstance(instance.key)
             case _ =>
               googleComputeDAO.startInstance(instance.key)
@@ -1106,6 +1107,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   private def enableWelder(cluster: Cluster): IO[Cluster] = {
     for {
+      _ <- IO(logger.info(s"Deploying welder on cluster ${cluster.projectNameString}"))
+      _ <- Metrics.newRelic.incrementCounterIO("welderDeployed")
       now <- IO(Instant.now)
       welderImage = ClusterImage(Welder, dataprocConfig.welderDockerImage, now)
       _ <- dbRef.inTransactionIO { _.clusterQuery.enableWedler(cluster.id, ClusterImage(Welder, dataprocConfig.welderDockerImage, Instant.now)) }
@@ -1115,7 +1118,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   // Startup script to install on the cluster master node. This allows Jupyter to start back up after
   // a cluster is resumed.
-  private def getMasterInstanceStartupScript(cluster: Cluster): immutable.Map[String, String] = {
+  private def getMasterInstanceStartupScript(cluster: Cluster, deployWelder: Boolean): immutable.Map[String, String] = {
     val googleKey = "startup-script"  // required; see https://cloud.google.com/compute/docs/startupscript
 
     // These things need to be provided to ClusterInitValues, but aren't actually needed for the startup script
@@ -1126,7 +1129,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val clusterInit = ClusterInitValues(cluster.googleProject, cluster.clusterName, dummyInitBucket, dummyClusterRequest,
       dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, None, cluster.auditInfo.creator,
       contentSecurityPolicy, cluster.clusterImages, dummyStagingBucket)
-    val replacements: Map[String, String] = clusterInit.toMap
+    val replacements: Map[String, String] = clusterInit.toMap ++ Map("deployWelder" -> deployWelder.toString)
 
     val startupScriptContent = templateResource(clusterResourcesConfig.startupScript, replacements)
 
