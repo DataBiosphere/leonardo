@@ -42,6 +42,10 @@ trait ClusterImageComponent extends LeoComponent {
       }
     }
 
+    def upsert(clusterId: Long, clusterImage: ClusterImage): DBIO[Int] = {
+      clusterImageQuery.insertOrUpdate(marshallClusterImage(clusterId, clusterImage))
+    }
+
     def get(clusterId: Long, tool: ClusterTool): DBIO[Option[ClusterImage]] = {
       clusterImageQuery
         .filter { _.clusterId === clusterId }

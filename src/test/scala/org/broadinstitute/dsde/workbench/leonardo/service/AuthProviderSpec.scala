@@ -37,6 +37,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
   val routeTest = this
 
   implicit val cs = IO.contextShift(executor)
+  implicit val timer = IO.timer(executor)
 
   private val alwaysYesProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), serviceAccountProvider)
   private val alwaysNoProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysNoProviderConfig"), serviceAccountProvider)

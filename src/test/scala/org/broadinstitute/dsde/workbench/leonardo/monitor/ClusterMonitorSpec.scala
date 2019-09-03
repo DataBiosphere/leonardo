@@ -78,7 +78,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   implicit val monitorPat = PatienceConfig(timeout = scaled(Span(30, Seconds)), interval = scaled(Span(2, Seconds)))
 
   implicit val cs = IO.contextShift(system.dispatcher)
-
+  implicit val timer = IO.timer(system.dispatcher)
 
   def stubComputeDAO(status: InstanceStatus): GoogleComputeDAO = {
     val dao = mock[GoogleComputeDAO]

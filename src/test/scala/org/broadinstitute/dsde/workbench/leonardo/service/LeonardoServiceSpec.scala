@@ -58,6 +58,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   implicit val cs = IO.contextShift(system.dispatcher)
+  implicit val timer = IO.timer(system.dispatcher)
 
   before {
     gdDAO = new MockGoogleDataprocDAO

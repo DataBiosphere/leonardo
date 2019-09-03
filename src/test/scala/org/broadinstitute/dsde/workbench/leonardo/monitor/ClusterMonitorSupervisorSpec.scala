@@ -30,6 +30,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
   with TestComponent with CommonTestData with GcsPathUtils { testKit =>
 
   implicit val cs = IO.contextShift(system.dispatcher)
+  implicit val timer = IO.timer(system.dispatcher)
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)

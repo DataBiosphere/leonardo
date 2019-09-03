@@ -18,11 +18,11 @@ export WELDER_SERVER_NAME=$(welderServerName)
 export NOTEBOOKS_DIR=$(notebooksDir)
 export WELDER_ENABLED=$(welderEnabled)
 export DEPLOY_WELDER=$(deployWelder)
+export UPDATE_WELDER=$(updateWelder)
 export WELDER_DOCKER_IMAGE=$(welderDockerImage)
 
 if [ "$DEPLOY_WELDER" == "true" ] ; then
     echo "Deploying Welder on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
-    export WELDER_ENABLED="true"
 
     # Run welder-docker-compose
     gcloud auth configure-docker
@@ -33,6 +33,14 @@ if [ "$DEPLOY_WELDER" == "true" ] ; then
 
     # Move existing notebooks to new notebooks dir
     docker exec -it $JUPYTER_SERVER_NAME bash -c "ls -I jupyter.log -I localization.log -I notebooks /home/jupyter-user | xargs -d '\n'  -I file mv file $NOTEBOOKS_DIR"
+fi
+
+if [ "$UPDATE_WELDER" == "true" ] ; then
+    # Run welder-docker-compose
+    gcloud auth configure-docker
+    docker-compose -f /etc/welder-docker-compose.yaml stop
+    docker-compose -f /etc/welder-docker-compose.yaml rm -f
+    docker-compose -f /etc/welder-docker-compose.yaml up -d
 fi
 
 # Start Jupyter
