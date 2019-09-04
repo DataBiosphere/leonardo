@@ -179,6 +179,27 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
         }
       }
     }
+
+//    "should deploy welder on a cluster" in { billingProject =>
+//      implicit val ronToken: AuthToken = ronAuthToken
+//
+//      // Create a cluster with welder disabled
+//      withNewCluster(billingProject, request = defaultClusterRequest.copy(enableWelder = Some(false))) { cluster =>
+//        withWebDriver { implicit driver =>
+//          // Create a notebook and execute a cell
+//          withNewNotebook(cluster, kernel = Python3) { notebookPage =>
+//            notebookPage.executeCell(s"""print("$printStr")""") shouldBe Some(printStr)
+//            notebookPage.saveAndCheckpoint()
+//          }
+//
+//          // Stop the cluster
+//          stopAndMonitor(cluster.googleProject, cluster.clusterName)
+//
+//          // Start the cluster
+//          startAndMonitor(cluster.googleProject, cluster.clusterName)
+//      }
+//
+//    }
   }
 
 }

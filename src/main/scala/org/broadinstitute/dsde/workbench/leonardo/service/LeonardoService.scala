@@ -930,7 +930,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
     val clusterInit = ClusterInitValues(googleProject, clusterName, initBucketName, clusterRequest, dataprocConfig,
-      clusterFilesConfig, clusterResourcesConfig, proxyConfig, serviceAccountKey, userEmail, contentSecurityPolicy, clusterImages, stagingBucket)
+      clusterFilesConfig, clusterResourcesConfig, proxyConfig, serviceAccountKey, userEmail, contentSecurityPolicy, clusterImages, stagingBucket,
+      clusterRequest.enableWelder.getOrElse(false))
     val replacements: Map[String, String] = clusterInit.toMap
 
     // Raw files to upload to the bucket, no additional processing needed.
@@ -1120,7 +1121,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   private def updateWelder(cluster: Cluster): IO[Cluster] = {
     for {
-      _ <- IO(logger.info(s"Deploying welder on cluster ${cluster.projectNameString}"))
+      _ <- IO(logger.info(s"Will deploy welder on cluster ${cluster.projectNameString}"))
       _ <- Metrics.newRelic.incrementCounterIO("welderDeployed")
       epochMilli <- timer.clock.realTime(MILLISECONDS)
       now = Instant.ofEpochMilli(epochMilli)
@@ -1142,7 +1143,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     val clusterInit = ClusterInitValues(cluster.googleProject, cluster.clusterName, dummyInitBucket, dummyClusterRequest,
       dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, None, cluster.auditInfo.creator,
-      contentSecurityPolicy, cluster.clusterImages, dummyStagingBucket)
+      contentSecurityPolicy, cluster.clusterImages, dummyStagingBucket, cluster.welderEnabled)
     val replacements: Map[String, String] = clusterInit.toMap ++ Map("deployWelder" -> deployWelder.toString, "updateWelder" -> updateWelder.toString)
 
     val startupScriptContent = templateResource(clusterResourcesConfig.startupScript, replacements)
