@@ -28,6 +28,8 @@ trait ClusterImageComponent extends LeoComponent {
     def uniqueKey = index("IDX_CLUSTER_IMAGE_UNIQUE", (clusterId, tool), unique = true)
 
     def * = (clusterId, tool, dockerImage, timestamp) <> (ClusterImageRecord.tupled, ClusterImageRecord.unapply)
+
+    def pk = primaryKey("cluster_image_pk", (clusterId, tool))
   }
 
   object clusterImageQuery extends TableQuery(new ClusterImageTable(_)) {
