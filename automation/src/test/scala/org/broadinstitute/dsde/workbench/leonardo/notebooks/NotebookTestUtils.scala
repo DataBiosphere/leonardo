@@ -58,17 +58,18 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     // verify google-authn
     notebookPage.executeCell("import google.auth") shouldBe None
     notebookPage.executeCell("credentials, project_id = google.auth.default()") shouldBe None
-    notebookPage.executeCell("print credentials.service_account_email") shouldBe Some("default")
+    notebookPage.executeCell("print(credentials.service_account_email)") shouldBe Some("default")
 
     // verify FISS
     notebookPage.executeCell("import firecloud.api as fapi") shouldBe None
     notebookPage.executeCell("fiss_credentials, project = fapi.google.auth.default()") shouldBe None
-    notebookPage.executeCell("print fiss_credentials.service_account_email") shouldBe Some("default")
+    notebookPage.executeCell("print(fiss_credentials.service_account_email)") shouldBe Some("default")
 
     // verify Spark
-    notebookPage.executeCell("hadoop_config = sc._jsc.hadoopConfiguration()") shouldBe None
-    notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.enable')") shouldBe Some("None")
-    notebookPage.executeCell("print hadoop_config.get('google.cloud.auth.service.account.json.keyfile')") shouldBe Some("None")
+    //TODO: re-enable with spark image
+//    notebookPage.executeCell("hadoop_config = sc._jsc.hadoopConfiguration()") shouldBe None
+//    notebookPage.executeCell("print(hadoop_config.get('google.cloud.auth.service.account.enable'))") shouldBe Some("None")
+//    notebookPage.executeCell("print(hadoop_config.get('google.cloud.auth.service.account.json.keyfile'))") shouldBe Some("None")
   }
 
   def withNotebooksListPage[T](cluster: Cluster)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {

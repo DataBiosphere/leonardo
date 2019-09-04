@@ -18,7 +18,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
 
   //To use, comment out the lines in after all that clean-up and run the test once normally. Then, instantiate a mock cluster in your test file via the `mockCluster` method in NotebookTestUtils with the project/cluster created
   //You must also set debug to true. Example usage (goes in the Spec you are creating):
-  //Consider adding autopause = Some(false) to the cluster request if you encounter issues with autopause 
+  //Consider adding autopause = Some(false) to the cluster request if you encounter issues with autopause
   //
   //example usage:
   //  debug = true
