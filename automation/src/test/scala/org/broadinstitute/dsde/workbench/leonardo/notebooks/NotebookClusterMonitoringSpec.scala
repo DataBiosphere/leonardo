@@ -197,7 +197,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
           // Create a notebook and execute cells to create a local file
           withNewNotebook(cluster, kernel = Python3) { notebookPage =>
             notebookPage.executeCell(s"""! echo "foo" > foo.txt""") shouldBe None
-            notebookPage.executeCell(s"""! foo.txt""") shouldBe Some("foo")
+            notebookPage.executeCell(s"""! cat foo.txt""") shouldBe Some("foo")
             notebookPage.saveAndCheckpoint()
           }
 
@@ -212,7 +212,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
 
           // Make a new notebook and verify the file still exists
           withNewNotebook(cluster, kernel = Python3) { notebookPage =>
-            notebookPage.executeCell(s"""! foo.txt""") shouldBe Some("foo")
+            notebookPage.executeCell(s"""! cat foo.txt""") shouldBe Some("foo")
           }
         }
       }
