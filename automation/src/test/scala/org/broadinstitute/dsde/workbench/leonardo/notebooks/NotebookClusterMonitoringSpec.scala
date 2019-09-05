@@ -180,10 +180,9 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
       }
     }
 
-    // TODO: ignored until we configure Leo to deploy welder to clusters
-    "should deploy welder on a cluster" ignore { billingProject =>
+    "should deploy welder on a cluster" in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
-      val deployWelderLabel = "testDeployWelder"
+      val deployWelderLabel = "TEST_ONLY_DEPLOY_WELDER"  // matches deployWelderLabel in Leo reference.conf
 
       // Create a cluster with welder disabled
 
