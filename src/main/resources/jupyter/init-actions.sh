@@ -362,7 +362,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
       STEP_TIMINGS+=($(date +%s))
 
       log 'Starting Jupyter Notebook...'
-      retry 3 docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}
+      retry 3 docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/run-jupyter.sh
       log 'All done!'
 
       STEP_TIMINGS+=($(date +%s))
