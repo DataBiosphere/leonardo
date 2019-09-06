@@ -6,7 +6,6 @@ import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.DoNotDiscover
 
 import scala.concurrent.duration.DurationLong
-import scala.language.postfixOps
 
 /**
   * This spec verifies notebook functionality specifically around the Python 3 kernel.

@@ -195,10 +195,8 @@ function docker_cmd()
         fi
 
         docker build -t "${DEFAULT_IMAGE}:${DOCKER_TAG}" .
-        cd automation
         echo "building $TESTS_IMAGE docker image..."
         docker build -f Dockerfile-tests -t "${TESTS_IMAGE}:${DOCKER_TAG_TESTS}" .
-        cd ..
 
         if [ $DOCKER_CMD = "push" ]; then
 
@@ -224,7 +222,7 @@ function docker_cmd()
 #            # pushes the juptyer notebooks and rstudio docker images that go on dataproc clusters
 #            bash ./docker/build-tool.sh --push -i jupyter -r "${NOTEBOOK_REPO}" -t "${DOCKER_TAG}" -b "${GIT_BRANCH}"
 #            bash ./docker/build-tool.sh --push -i rstudio -r "${NOTEBOOK_REPO}" -t "${DOCKER_TAG}" -b "${GIT_BRANCH}"
- 
+
             # push the UI docker image.
             if $BUILD_UI; then
               bash ./ui/build.sh push "${NOTEBOOK_REPO}" "${DOCKER_TAG}" "${GIT_BRANCH}"

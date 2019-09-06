@@ -1,16 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import akka.http.scaladsl.model.HttpResponse
-import org.broadinstitute.dsde.workbench.service.RestClient
+import akka.http.scaladsl.model.headers.{Cookie, HttpCookiePair}
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo._
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import akka.http.scaladsl.model.headers.{Authorization, Cookie, HttpCookiePair, OAuth2BearerToken}
-
-import scala.concurrent.Await
-import scala.concurrent.duration._
+import org.broadinstitute.dsde.workbench.leonardo._
+import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, _}
+import org.broadinstitute.dsde.workbench.service.RestClient
 
 
 /**

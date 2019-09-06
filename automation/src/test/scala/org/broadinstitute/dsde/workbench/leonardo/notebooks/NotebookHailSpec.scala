@@ -9,7 +9,6 @@ import org.scalatest.DoNotDiscover
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.DurationInt
-import scala.language.postfixOps
 
 /**
   * This spec verifies Hail and Spark functionality.

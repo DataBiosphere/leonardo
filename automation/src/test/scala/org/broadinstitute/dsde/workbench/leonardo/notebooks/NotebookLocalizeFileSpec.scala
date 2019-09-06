@@ -7,8 +7,6 @@ import org.broadinstitute.dsde.workbench.service.RestException
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.DoNotDiscover
 
-import scala.language.postfixOps
-
 /**
   * This spec verifies legacy notebook localization/delocalization, pre-welder.
   * Remove this once welder is fully rolled out.

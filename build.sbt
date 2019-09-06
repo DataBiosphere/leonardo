@@ -2,8 +2,18 @@ import Settings._
 import Testing._
 
 lazy val root = project.in(file("."))
-  .settings(rootSettings:_*)
+  .settings(
+    name := "leonardo",
+    skip in publish := true,
+    rootSettings
+  ).aggregate(http, automation)
+
+lazy val http = project.in(file("http"))
+  .settings(rootSettings)
   .withTestSettings
+
+lazy val automation = project.in(file("automation"))
+  .settings(automationSettings)
 
 Revolver.settings
 
