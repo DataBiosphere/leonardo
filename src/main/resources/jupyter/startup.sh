@@ -42,7 +42,7 @@ fi
 
 # Start Jupyter
 echo "Starting Jupyter on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
-docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh || /usr/local/bin/jupyter notebook)"
+docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /usr/local/bin/jupyter notebook)"
 
 # Start welder, if enabled
 if [ "$WELDER_ENABLED" == "true" ] ; then

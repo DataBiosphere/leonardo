@@ -5,12 +5,12 @@ set -e
 # Change the default umask to support R/W access to the shared volume with welder
 umask 002
 
-LOG_DIR=${NOTEBOOKS_DIR:-${HOME}}
+# TODO: change default to ${HOME}/notebooks once welder is rolled out to all clusters
+NOTEBOOKS_DIR=${1:-${HOME}}
 
 # Forces python 3
-# Note: relies on NOTEBOOKS_DIR environment variable
 JUPYTER_BASE="/usr/local/bin/python3 /usr/local/bin/jupyter-notebook"
-JUPYTER_CMD="$JUPYTER_BASE --NotebookApp.nbserver_extensions=\"{'jupyter_localize_extension':True}\" &> ${LOG_DIR}/jupyter.log"
+JUPYTER_CMD="$JUPYTER_BASE --NotebookApp.nbserver_extensions=\"{'jupyter_localize_extension':True}\" &> ${NOTEBOOKS_DIR}/jupyter.log"
 
 echo $JUPYTER_CMD
 
