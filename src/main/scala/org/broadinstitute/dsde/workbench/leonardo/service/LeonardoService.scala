@@ -1121,7 +1121,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   private def updateWelder(cluster: Cluster): IO[Cluster] = {
     for {
-      _ <- IO(logger.info(s"Will deploy welder on cluster ${cluster.projectNameString}"))
+      _ <- IO(logger.info(s"Will deploy welder to cluster ${cluster.projectNameString}"))
       _ <- Metrics.newRelic.incrementCounterIO("welderDeployed")
       epochMilli <- timer.clock.realTime(MILLISECONDS)
       now = Instant.ofEpochMilli(epochMilli)
