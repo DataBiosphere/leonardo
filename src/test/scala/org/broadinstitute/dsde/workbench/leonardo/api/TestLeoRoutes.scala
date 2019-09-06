@@ -25,6 +25,7 @@ import scala.concurrent.duration._
 trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with CommonTestData =>
 
   implicit val cs = IO.contextShift(executor)
+  implicit val timer = IO.timer(executor)
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
   val mockGoogleProjectDAO = new MockGoogleProjectDAO

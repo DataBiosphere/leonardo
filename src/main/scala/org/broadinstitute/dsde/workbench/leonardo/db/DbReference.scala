@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.db
 
 import java.sql.SQLTimeoutException
 
+import cats.effect.IO
 import com.google.common.base.Throwables
 import com.typesafe.config.Config
 import com.typesafe.scalalogging.LazyLogging
@@ -63,6 +64,10 @@ case class DbReference(private val dbConfig: DatabaseConfig[JdbcProfile])(implic
   def inTransaction[T](f: (DataAccess) => DBIO[T], isolationLevel: TransactionIsolation = TransactionIsolation.RepeatableRead): Future[T] = {
     import dataAccess.profile.api._
     database.run(f(dataAccess).transactionally.withTransactionIsolation(isolationLevel))
+  }
+
+  def inTransactionIO[T](f: (DataAccess) => DBIO[T], isolationLevel: TransactionIsolation = TransactionIsolation.RepeatableRead): IO[T] = {
+    IO.fromFuture(IO(inTransaction(f, isolationLevel)))
   }
 }
 

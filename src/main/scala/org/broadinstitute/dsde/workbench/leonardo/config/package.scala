@@ -40,7 +40,9 @@ package object config {
       config.getAs[String]("projectVPCSubnetLabel"),
       config.getString("welderEnabledNotebooksDir"),
       config.getString("welderDisabledNotebooksDir"),
-      config.getAs[String]("customDataprocImage")
+      config.getAs[String]("customDataprocImage"),
+      config.getAs[String]("deployWelderLabel"),
+      config.getAs[String]("updateWelderLabel")
     )
   }
 
@@ -58,6 +60,7 @@ package object config {
     ClusterResourcesConfig(
       ClusterResource(config.getString("initActionsScript")),
       ClusterResource(config.getString("initVmScript")),
+      ClusterResource(config.getString("startupScript")),
       ClusterResource(config.getString("jupyterDockerCompose")),
       ClusterResource(config.getString("rstudioDockerCompose")),
       ClusterResource(config.getString("proxyDockerCompose")),
