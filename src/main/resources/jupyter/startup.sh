@@ -29,10 +29,10 @@ if [ "$DEPLOY_WELDER" == "true" ] ; then
     docker-compose -f /etc/welder-docker-compose.yaml up -d
 
     # Set EVs inside Jupyter container necessary for welder
-    docker exec -it $JUPYTER_SERVER_NAME bash -c "echo $'export WELDER_ENABLED=true\nexport NOTEBOOKS_DIR=$NOTEBOOKS_DIR' >> /home/jupyter-user/.bashrc"
+    docker exec -i $JUPYTER_SERVER_NAME bash -c "echo $'export WELDER_ENABLED=true\nexport NOTEBOOKS_DIR=$NOTEBOOKS_DIR' >> /home/jupyter-user/.bashrc"
 
     # Move existing notebooks to new notebooks dir
-    docker exec -it $JUPYTER_SERVER_NAME bash -c "ls -I jupyter.log -I localization.log -I notebooks /home/jupyter-user | xargs -d '\n'  -I file mv file $NOTEBOOKS_DIR"
+    docker exec -i $JUPYTER_SERVER_NAME bash -c "ls -I jupyter.log -I localization.log -I notebooks /home/jupyter-user | xargs -d '\n'  -I file mv file $NOTEBOOKS_DIR"
 fi
 
 if [ "$UPDATE_WELDER" == "true" ] ; then
