@@ -229,7 +229,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
       retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
 
       # Install hail addition if the image is old leonardo jupyter image or it's a hail specific image
-      if [[ ${JUPYTER_DOCKER_IMAGE} == *"leonardo-jupyter"* ]] || [[ ${JUPYTER_DOCKER_IMAGE} == *"hail"* ]] ; then
+      if [[ ${JUPYTER_DOCKER_IMAGE} == *"leonardo-jupyter"* ]] ; then
         log 'Installing Hail additions to Jupydocker spark.conf...'
 
         # Install the Hail additions to Spark conf.
