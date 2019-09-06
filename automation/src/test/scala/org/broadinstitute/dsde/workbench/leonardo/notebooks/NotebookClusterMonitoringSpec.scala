@@ -179,6 +179,44 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
         }
       }
     }
+
+    "should deploy welder on a cluster" in { billingProject =>
+      implicit val ronToken: AuthToken = ronAuthToken
+      val deployWelderLabel = "TEST_ONLY_DEPLOY_WELDER"  // matches deployWelderLabel in Leo reference.conf
+
+      // Create a cluster with welder disabled
+
+      withNewCluster(billingProject, request = defaultClusterRequest.copy(
+        enableWelder = Some(false),
+        labels = Map(deployWelderLabel -> "true"))
+      ) { cluster =>
+        withWebDriver { implicit driver =>
+          // Verify welder is not running
+          Welder.getWelderStatus(cluster).status.isSuccess() shouldBe false
+
+          // Create a notebook and execute cells to create a local file
+          withNewNotebook(cluster, kernel = Python3) { notebookPage =>
+            notebookPage.executeCell(s"""! echo "foo" > foo.txt""") shouldBe None
+            notebookPage.executeCell(s"""! cat foo.txt""") shouldBe Some("foo")
+            notebookPage.saveAndCheckpoint()
+          }
+
+          // Stop the cluster
+          stopAndMonitor(cluster.googleProject, cluster.clusterName)
+
+          // Start the cluster
+          startAndMonitor(cluster.googleProject, cluster.clusterName)
+
+          // Verify welder is now running
+          Welder.getWelderStatus(cluster).status.isSuccess() shouldBe true
+
+          // Make a new notebook and verify the file still exists
+          withNewNotebook(cluster, kernel = Python3) { notebookPage =>
+            notebookPage.executeCell(s"""! cat foo.txt""") shouldBe Some("foo")
+          }
+        }
+      }
+    }
   }
 
 }

@@ -58,6 +58,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   }
 
   implicit val cs = IO.contextShift(system.dispatcher)
+  implicit val timer = IO.timer(system.dispatcher)
 
   before {
     gdDAO = new MockGoogleDataprocDAO
@@ -635,7 +636,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "template a script using config values" in isolatedDbTest {
     // Create replacements map
-    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy, Set(jupyterImage, rstudioImage), stagingBucketName)
+    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy, Set(jupyterImage, rstudioImage), stagingBucketName, true)
     val replacements: Map[String, String] = clusterInit.toMap
 
     // Each value in the replacement map will replace its key in the file being processed
@@ -962,7 +963,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key name1
 
     // populate some instances for the cluster
-    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2)) }
+    val clusterInstances = Seq(masterInstance, workerInstance1, workerInstance2)
+    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), clusterInstances) }
+    computeDAO.instances ++= clusterInstances.groupBy(_.key).mapValues(_.head)
+    computeDAO.instanceMetadata ++= clusterInstances.groupBy(_.key).mapValues(_ => Map.empty)
 
     // set the cluster to Running
     dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
@@ -982,6 +986,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse)) }
     instances.size shouldBe 3
     instances.map(_.status).toSet shouldBe Set(InstanceStatus.Running)
+
+    // Google instances should be stopped
+    computeDAO.instances.keySet shouldBe clusterInstances.map(_.key).toSet
+    computeDAO.instanceMetadata.keySet shouldBe clusterInstances.map(_.key).toSet
+    computeDAO.instances.values.toSet shouldBe clusterInstances.map(_.copy(status = InstanceStatus.Stopped)).toSet
+    computeDAO.instanceMetadata.values.toSet shouldBe Set(Map.empty)
   }
 
   it should "resize a cluster" in isolatedDbTest {
@@ -1197,8 +1207,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
 
     // populate some instances for the cluster
-    dbFutureValue { _.instanceQuery.saveAllForCluster(
-        getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2)) }
+    val clusterInstances = Seq(masterInstance, workerInstance1, workerInstance2)
+    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), clusterInstances) }
+    computeDAO.instances ++= clusterInstances.groupBy(_.key).mapValues(_.head)
+    computeDAO.instanceMetadata ++= clusterInstances.groupBy(_.key).mapValues(_ => Map.empty)
 
     // set the cluster to Running
     dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
@@ -1218,6 +1230,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse)) }
     instances.size shouldBe 3
     instances.map(_.status).toSet shouldBe Set(InstanceStatus.Running)
+
+    // Google instances should be stopped
+    computeDAO.instances.keySet shouldBe clusterInstances.map(_.key).toSet
+    computeDAO.instanceMetadata.keySet shouldBe clusterInstances.map(_.key).toSet
+    computeDAO.instances.values.toSet shouldBe clusterInstances.map(_.copy(status = InstanceStatus.Stopped)).toSet
+    computeDAO.instanceMetadata.values.toSet shouldBe Set(Map.empty)
   }
 
   it should "start a cluster" in isolatedDbTest {
@@ -1231,8 +1249,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key name1
 
     // populate some instances for the cluster and set its status to Stopped
-    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped))) }
+    val clusterInstances = Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped))
+    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), clusterInstances) }
     dbFutureValue { _.clusterQuery.updateClusterStatus(clusterCreateResponse.id, ClusterStatus.Stopped) }
+    computeDAO.instances ++= clusterInstances.groupBy(_.key).mapValues(_.head)
+    computeDAO.instanceMetadata ++= clusterInstances.groupBy(_.key).mapValues(_ => Map.empty)
 
     // start the cluster
     leo.startCluster(userInfo, project, name1).futureValue
@@ -1251,6 +1272,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
     instances.size shouldBe 3
     instances.map(_.status).toSet shouldBe Set(InstanceStatus.Stopped)
+
+    // Google instances should be started
+    computeDAO.instances.keySet shouldBe clusterInstances.map(_.key).toSet
+    computeDAO.instanceMetadata.keySet shouldBe clusterInstances.map(_.key).toSet
+    computeDAO.instances.values.toSet shouldBe clusterInstances.map(_.copy(status = InstanceStatus.Running)).toSet
+    computeDAO.instanceMetadata.values.map(_.keys).flatten.toSet shouldBe Set("startup-script")
   }
 
   it should "start a cluster created via v2 API" in isolatedDbTest {
@@ -1267,8 +1294,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
 
     // populate some instances for the cluster and set its status to Stopped
-    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped))) }
+    val clusterInstances = Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped))
+    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), clusterInstances) }
     dbFutureValue { _.clusterQuery.updateClusterStatus(clusterCreateResponse.id, ClusterStatus.Stopped) }
+    computeDAO.instances ++= clusterInstances.groupBy(_.key).mapValues(_.head)
+    computeDAO.instanceMetadata ++= clusterInstances.groupBy(_.key).mapValues(_ => Map.empty)
 
     // start the cluster
     leo.startCluster(userInfo, project, name1).futureValue
@@ -1285,6 +1315,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse)) }
     instances.size shouldBe 3
     instances.map(_.status).toSet shouldBe Set(InstanceStatus.Stopped)
+
+    // Google instances should be started
+    computeDAO.instances.keySet shouldBe clusterInstances.map(_.key).toSet
+    computeDAO.instanceMetadata.keySet shouldBe clusterInstances.map(_.key).toSet
+    computeDAO.instances.values.toSet shouldBe clusterInstances.map(_.copy(status = InstanceStatus.Running)).toSet
+    computeDAO.instanceMetadata.values.map(_.keys).flatten.toSet shouldBe Set("startup-script")
   }
 
   it should "update disk size for 0 workers when a consumer specifies numberOfPreemptibleWorkers" in isolatedDbTest {

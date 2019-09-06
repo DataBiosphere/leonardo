@@ -25,11 +25,11 @@ import spray.json.{RootJsonFormat, RootJsonReader, _}
 import ca.mrvisser.sealerate
 
 // Create cluster API request
-final case class ClusterRequest(labels: LabelMap,
+final case class ClusterRequest(labels: LabelMap = Map.empty,
                           jupyterExtensionUri: Option[GcsPath] = None,
                           jupyterUserScriptUri: Option[GcsPath] = None,
                           machineConfig: Option[MachineConfig] = None,
-                          properties: Map[String, String],
+                          properties: Map[String, String] = Map.empty,
                           stopAfterCreation: Option[Boolean] = None,
                           userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
                           autopause: Option[Boolean] = None,
@@ -272,7 +272,7 @@ object ClusterInitValues {
   def apply(googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, dataprocConfig: DataprocConfig,
             clusterFilesConfig: ClusterFilesConfig, clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig,
             serviceAccountKey: Option[ServiceAccountKey], userEmailLoginHint: WorkbenchEmail, contentSecurityPolicy: String,
-            clusterImages: Set[ClusterImage], stagingBucket: GcsBucketName): ClusterInitValues =
+            clusterImages: Set[ClusterImage], stagingBucket: GcsBucketName, welderEnabled: Boolean): ClusterInitValues =
     ClusterInitValues(
       googleProject.value,
       clusterName.value,
@@ -304,8 +304,8 @@ object ClusterInitValues {
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value)).toUri,
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookFrontendConfigUri.value)).toUri,
       clusterRequest.defaultClientId.getOrElse(""),
-      clusterRequest.enableWelder.getOrElse(false).toString,  // TODO: remove this and conditional below when welder is rolled out to all clusters
-      if (clusterRequest.enableWelder.getOrElse(false)) dataprocConfig.welderEnabledNotebooksDir else dataprocConfig.welderDisabledNotebooksDir
+      welderEnabled.toString,  // TODO: remove this and conditional below when welder is rolled out to all clusters
+      if (welderEnabled) dataprocConfig.welderEnabledNotebooksDir else dataprocConfig.welderDisabledNotebooksDir
     )
 }
 
