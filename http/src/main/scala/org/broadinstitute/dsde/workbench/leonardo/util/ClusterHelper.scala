@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 import akka.actor.ActorSystem
 import cats.effect._
 import cats.implicits._
-import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
@@ -12,6 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoException, ServiceAccountInfo}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId}
+import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.util.Retry
 
 import scala.concurrent.ExecutionContext
@@ -35,13 +35,8 @@ class ClusterHelper(dbRef: DbReference,
   }
 
   private def updateClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo, create: Boolean): IO[Unit] = {
-    val whenGoogle409: PartialFunction[Throwable, Boolean] = {
-      case t: GoogleJsonResponseException => t.getStatusCode == 409
-      case _ => false
-    }
-
-    val retryIam: (GoogleProject, WorkbenchEmail, Set[String]) => IO[Unit] = (project, email, roles) =>
-      IO.fromFuture[Unit](IO(retryExponentially(whenGoogle409, s"IAM policy change failed for Google project '$project'") { () =>
+    val retryIam: (GoogleProject, WorkbenchEmail, Set[String]) => IO[Boolean] = (project, email, roles) =>
+      IO.fromFuture[Boolean](IO(retryExponentially(when409, s"IAM policy change failed for Google project '$project'") { () =>
         if (create) {
           googleIamDAO.addIamRolesForUser(project, email, roles)
         } else {
