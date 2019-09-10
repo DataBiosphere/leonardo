@@ -180,7 +180,7 @@ object Dependencies {
     "com.typesafe.akka"   %%  "akka-http"           % akkaHttpV,
     "com.typesafe.akka"   %%  "akka-testkit"        % akkaV     % "test",
     "com.typesafe.akka"   %%  "akka-slf4j"          % akkaV,
-    "org.scalatest"       %%  "scalatest"           % "3.0.5"   % "test",
+    scalaTest,
     "org.seleniumhq.selenium" % "selenium-java"     % "3.141.59" % "test",
     "com.typesafe.scala-logging" %% "scala-logging" % "3.8.0",
     "org.apache.commons" % "commons-text"           % "1.2",

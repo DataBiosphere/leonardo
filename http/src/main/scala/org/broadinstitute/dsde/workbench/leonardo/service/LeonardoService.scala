@@ -1098,7 +1098,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     // Note: Jupyter image is not currently optional
     val jupyterImage: ClusterImage = ClusterImage(Jupyter,
-      clusterRequest.jupyterDockerImage.getOrElse(dataprocConfig.dataprocDockerImage), now)
+      clusterRequest.jupyterDockerImage.getOrElse(dataprocConfig.jupyterImage), now)
 
     // Optional RStudio image
     val rstudioImageOpt: Option[ClusterImage] = clusterRequest.rstudioDockerImage.map(i => ClusterImage(RStudio, i, now))

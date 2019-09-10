@@ -215,7 +215,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       val createdCluster = leo.getActiveClusterDetails(userInfo, project, name1).futureValue
 
       // cluster images should contain welder and Jupyter
-      createdCluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage) shouldBe Some(dataprocConfig.dataprocDockerImage)
+      createdCluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage) shouldBe Some(dataprocConfig.jupyterImage)
       createdCluster.clusterImages.find(_.tool == RStudio) shouldBe None
       createdCluster.clusterImages.find(_.tool == Welder).map(_.dockerImage) shouldBe Some(dataprocConfig.welderDockerImage)
     }
@@ -240,7 +240,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       val createdCluster = leo.getActiveClusterDetails(userInfo, project, name1).futureValue
 
       // cluster images should contain welder and Jupyter
-      createdCluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage) shouldBe Some(dataprocConfig.dataprocDockerImage)
+      createdCluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage) shouldBe Some(dataprocConfig.jupyterImage)
       createdCluster.clusterImages.find(_.tool == RStudio) shouldBe None
       createdCluster.clusterImages.find(_.tool == Welder).map(_.dockerImage) shouldBe customWelderImage
     }
