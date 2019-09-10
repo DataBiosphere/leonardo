@@ -162,6 +162,7 @@ object Dependencies {
     "com.fasterxml.jackson.core" % "jackson-core"         % jacksonV,
     "com.fasterxml.jackson.module" % ("jackson-module-scala_" + scalaV) % jacksonV,
     "ch.qos.logback"  % "logback-classic" % "1.2.3"  % "test",
+    "com.google.guava" % "guava" % "28.0-jre",
     "com.google.apis" % "google-api-services-oauth2" % "v1-rev142-1.23.0" excludeAll (
       excludeGuavaJdk5,
       excludeApacheHttpClient,

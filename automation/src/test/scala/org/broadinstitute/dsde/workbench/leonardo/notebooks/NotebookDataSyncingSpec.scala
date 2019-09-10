@@ -1,6 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import java.io.File
+import java.math.BigInteger
+import java.security.MessageDigest
 import java.time.Instant
 
 import akka.http.scaladsl.model.HttpResponse
@@ -59,6 +61,8 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
                 remoteContentSize shouldBe localContentSize
               }
 
+              val hashedUser = Some(String.format("%064x", new BigInteger(1, MessageDigest.getInstance("SHA-256").digest((gcsPath.bucketName + ":" + clusterFixture.cluster.creator).getBytes("UTF-8")))))
+
               eventually(timeout(Span(4, Minutes)), interval(Span(30, Seconds))) {
                 val gcsLockedBy: Option[String] = getLockedBy(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value)).unsafeRunSync()
                 val welderLockedBy: Option[String] = Welder.getMetadata(clusterFixture.cluster, gcsPath, isEditMode).lastLockedBy
@@ -66,6 +70,7 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
                 gcsLockedBy should not be None
                 welderLockedBy should not be None
                 gcsLockedBy shouldBe welderLockedBy
+                gcsLockedBy shouldBe hashedUser
               }
             }
           }
