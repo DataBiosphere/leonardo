@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 import java.nio.file.Files
 
 import org.broadinstitute.dsde.workbench.ResourceFile
-import org.broadinstitute.dsde.workbench.leonardo.ClusterFixtureSpec
+import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, LeonardoConfig}
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.DoNotDiscover
 
@@ -17,8 +17,9 @@ import scala.concurrent.duration.DurationInt
 class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
   // Should match the HAILHASH env var in the Jupyter Dockerfile
-  val expectedHailVersion = "0.2.11-daed180b84d8"
+  val expectedHailVersion = "devel-9d6bf0096349"
   val hailTutorialUploadFile = ResourceFile(s"diff-tests/hail-tutorial.ipynb")
+  override val jupyterDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.hailImageUrl)
 
 
   "NotebookHailSpec" - {
