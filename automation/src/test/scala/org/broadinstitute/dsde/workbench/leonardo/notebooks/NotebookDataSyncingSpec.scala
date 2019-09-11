@@ -61,7 +61,8 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
                 remoteContentSize shouldBe localContentSize
               }
 
-              val hashedUser = Some(String.format("%064x", new BigInteger(1, MessageDigest.getInstance("SHA-256").digest((gcsPath.bucketName + ":" + clusterFixture.cluster.creator).getBytes("UTF-8")))))
+              val hashedUser = MessageDigest.getInstance("SHA-256").digest((gcsPath.bucketName + ":" + clusterFixture.cluster.creator).getBytes("UTF-8"))
+              val formattedHashedUser = Some(String.format("%064x", new BigInteger(1, hashedUser)))
 
               eventually(timeout(Span(4, Minutes)), interval(Span(30, Seconds))) {
                 val gcsLockedBy: Option[String] = getLockedBy(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value)).unsafeRunSync()
@@ -70,7 +71,7 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
                 gcsLockedBy should not be None
                 welderLockedBy should not be None
                 gcsLockedBy shouldBe welderLockedBy
-                gcsLockedBy shouldBe hashedUser
+                gcsLockedBy shouldBe formattedHashedUser
               }
             }
           }
