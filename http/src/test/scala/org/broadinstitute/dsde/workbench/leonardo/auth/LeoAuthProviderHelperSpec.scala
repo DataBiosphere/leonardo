@@ -55,7 +55,7 @@ class LeoAuthProviderHelperSpec extends TestKit(ActorSystem("leonardotest")) wit
     val exception = helper.notifyClusterCreated(internalId, userEmail, project, name1).failed.futureValue
 
     exception shouldBe a [AuthProviderException]
-    exception.asInstanceOf[AuthProviderException].statusCode shouldBe Forbidden
+    exception.asInstanceOf[AuthProviderException].statusCode shouldBe InternalServerError
   }
 
   it should "handle thrown exceptions" in {
