@@ -7,7 +7,7 @@ import com.typesafe.scalalogging.LazyLogging
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.FutureSupport
 
@@ -15,8 +15,10 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future, TimeoutException}
 import scala.util.control.NonFatal
 
-case class AuthProviderException(authProviderClassName: String, isTimeout: Boolean = false)
-  extends LeoException(s"Call to $authProviderClassName auth provider ${if (isTimeout) "timed out" else "failed"}", StatusCodes.InternalServerError)
+case class AuthProviderException(authProviderClassName: String,
+                                 isTimeout: Boolean = false,
+                                 traceId: TraceId)
+  extends LeoException(s"[$traceId] Call to $authProviderClassName auth provider ${if (isTimeout) "timed out" else "failed"}", StatusCodes.InternalServerError)
 
 /**
   * Wraps a LeoAuthProvider and provides error handling so provider-thrown errors don't bubble up our app.
@@ -48,12 +50,14 @@ class LeoAuthProviderHelper(wrappedAuthProvider: LeoAuthProvider, authConfig: Co
       case e: LeoException => Future.failed(e)
       case te: TimeoutException =>
         val wrappedClassName = wrappedAuthProvider.getClass.getSimpleName
-        logger.error(s"Auth provider $wrappedClassName timed out after $providerTimeout", te)
-        Future.failed(AuthProviderException(wrappedClassName, isTimeout = true))
+        val randomTraceId = TraceId(java.util.UUID.randomUUID)
+        logger.error(s"[$randomTraceId] Auth provider $wrappedClassName timed out after $providerTimeout", te)
+        Future.failed(AuthProviderException(wrappedClassName, isTimeout = true, traceId = randomTraceId))
       case NonFatal(e) =>
         val wrappedClassName = wrappedAuthProvider.getClass.getSimpleName
-        logger.error(s"Auth provider $wrappedClassName threw an exception", e)
-        Future.failed(AuthProviderException(wrappedClassName))
+        val randomTraceId = TraceId(java.util.UUID.randomUUID)
+        logger.error(s"[$randomTraceId] Auth provider $wrappedClassName threw an exception", e)
+        Future.failed(AuthProviderException(wrappedClassName, traceId = randomTraceId))
     }
 
     // recover from failed futures AND catch thrown exceptions

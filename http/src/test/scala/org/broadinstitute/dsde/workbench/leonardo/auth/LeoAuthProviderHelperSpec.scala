@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth
 
 import akka.actor.ActorSystem
-import akka.http.scaladsl.model.StatusCodes.{InternalServerError, Forbidden}
+import akka.http.scaladsl.model.StatusCodes.InternalServerError
 import akka.testkit.TestKit
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.model.{NotebookClusterActions, ProjectActions}
