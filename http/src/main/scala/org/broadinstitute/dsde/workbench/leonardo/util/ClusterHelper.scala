@@ -65,15 +65,15 @@ class ClusterHelper(dbRef: DbReference,
     // If a custom image is not being used, this is not necessary.
     val computeImageUserIO = dataprocConfig.customDataprocImage.flatMap(parseImageProject) match {
       case None => IO.unit
-      case Some(imageProject) if create == false || imageProject == googleProject => IO.unit
+      case Some(imageProject) if imageProject == googleProject => IO.unit
       case Some(imageProject) =>
-       // IO.fromFuture(IO(dbRef.inTransaction { _.clusterQuery.countActiveByProject(googleProject) })).flatMap { count =>
+        IO.fromFuture(IO(dbRef.inTransaction { _.clusterQuery.countActiveByProject(googleProject) })).flatMap { count =>
           // Note: don't remove the role if there are existing active clusters in the same project,
           // because it could potentially break other clusters. We only check this for the 'remove' case,
           // it's ok to re-add the roles.
-//          if (count > 0 && create == false) {
-//            IO.unit
-//          } else {
+          if (count > 0 && create == false) {
+            IO.unit
+          } else {
             for {
               emailOpt <- IO.fromFuture(IO(googleComputeDAO.getGoogleApiServiceAccount(googleProject)))
               _ <- emailOpt match {
@@ -81,8 +81,8 @@ class ClusterHelper(dbRef: DbReference,
                 case None => IO.raiseError(ClusterIamSetupException(imageProject))
               }
             } yield ()
-//          }
-//        }
+          }
+        }
     }
 
     List(dataprocWorkerIO, computeImageUserIO).parSequence_
