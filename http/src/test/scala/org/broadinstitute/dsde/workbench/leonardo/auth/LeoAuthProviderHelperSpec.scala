@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth
 
 import akka.actor.ActorSystem
+import akka.http.scaladsl.model.StatusCodes.{InternalServerError, Forbidden}
 import akka.testkit.TestKit
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.model.{NotebookClusterActions, ProjectActions}
@@ -51,7 +52,10 @@ class LeoAuthProviderHelperSpec extends TestKit(ActorSystem("leonardotest")) wit
     val mockProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), serviceAccountProvider, notifySucceeds = false)
     val helper = LeoAuthProviderHelper(mockProvider, config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider)
 
-    helper.notifyClusterCreated(internalId, userEmail, project, name1).failed.futureValue shouldBe a [AuthProviderException]
+    val exception = helper.notifyClusterCreated(internalId, userEmail, project, name1).failed.futureValue
+
+    exception shouldBe a [AuthProviderException]
+    exception.asInstanceOf[AuthProviderException].statusCode shouldBe Forbidden
   }
 
   it should "handle thrown exceptions" in {

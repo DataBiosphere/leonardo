@@ -52,7 +52,7 @@ class LeoAuthProviderHelper(wrappedAuthProvider: LeoAuthProvider, authConfig: Co
         Future.failed(AuthProviderException(wrappedClassName, isTimeout = true))
       case NonFatal(e) =>
         val wrappedClassName = wrappedAuthProvider.getClass.getSimpleName
-        logger.error(s"Auth provider $wrappedClassName throw an exception", e)
+        logger.error(s"Auth provider $wrappedClassName threw an exception", e)
         Future.failed(AuthProviderException(wrappedClassName))
     }
 
