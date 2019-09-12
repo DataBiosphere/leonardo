@@ -45,19 +45,17 @@ class LeoAuthProviderHelper(wrappedAuthProvider: LeoAuthProvider, authConfig: Co
   private lazy val providerTimeout = authConfig.as[FiniteDuration]("providerTimeout")
   private implicit val scheduler = system.scheduler
 
-  private def safeCall[T](future: => Future[T])(implicit executionContext: ExecutionContext): Future[T] = {
+  private def safeCall[T](traceId: TraceId = TraceId(java.util.UUID.randomUUID))(future: => Future[T])(implicit executionContext: ExecutionContext): Future[T] = {
     val exceptionHandler: PartialFunction[Throwable, Future[Nothing]] = {
       case e: LeoException => Future.failed(e)
       case te: TimeoutException =>
         val wrappedClassName = wrappedAuthProvider.getClass.getSimpleName
-        val randomTraceId = TraceId(java.util.UUID.randomUUID)
-        logger.error(s"[$randomTraceId] Auth provider $wrappedClassName timed out after $providerTimeout", te)
-        Future.failed(AuthProviderException(wrappedClassName, isTimeout = true, traceId = randomTraceId))
+        logger.error(s"[$traceId] Auth provider $wrappedClassName timed out after $providerTimeout", te)
+        Future.failed(AuthProviderException(wrappedClassName, isTimeout = true, traceId = traceId))
       case NonFatal(e) =>
         val wrappedClassName = wrappedAuthProvider.getClass.getSimpleName
-        val randomTraceId = TraceId(java.util.UUID.randomUUID)
-        logger.error(s"[$randomTraceId] Auth provider $wrappedClassName threw an exception", e)
-        Future.failed(AuthProviderException(wrappedClassName, traceId = randomTraceId))
+        logger.error(s"[$traceId] Auth provider $wrappedClassName threw an exception", e)
+        Future.failed(AuthProviderException(wrappedClassName, traceId = traceId))
     }
 
     // recover from failed futures AND catch thrown exceptions
@@ -65,31 +63,31 @@ class LeoAuthProviderHelper(wrappedAuthProvider: LeoAuthProvider, authConfig: Co
   }
 
   override def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-    safeCall {
+    safeCall() {
       wrappedAuthProvider.hasProjectPermission(userInfo, action, googleProject)
     }
   }
 
   override def hasNotebookClusterPermission(internalId: ClusterInternalId, userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean] = {
-    safeCall {
+    safeCall() {
       wrappedAuthProvider.hasNotebookClusterPermission(internalId, userInfo, action, googleProject, clusterName)
     }
   }
 
   override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterName)])(implicit executionContext: ExecutionContext): Future[List[(GoogleProject, ClusterName)]] = {
-    safeCall {
+    safeCall() {
       wrappedAuthProvider.filterUserVisibleClusters(userInfo, clusters)
     }
   }
 
-  override def notifyClusterCreated(internalId: ClusterInternalId, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    safeCall {
-      wrappedAuthProvider.notifyClusterCreated(internalId, creatorEmail, googleProject, clusterName)
+  override def notifyClusterCreated(internalId: ClusterInternalId, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, traceId: TraceId = TraceId(java.util.UUID.randomUUID))(implicit executionContext: ExecutionContext): Future[Unit] = {
+    safeCall(traceId) {
+      wrappedAuthProvider.notifyClusterCreated(internalId, creatorEmail, googleProject, clusterName, traceId)
     }
   }
 
   override def notifyClusterDeleted(internalId: ClusterInternalId, userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = {
-    safeCall {
+    safeCall() {
       wrappedAuthProvider.notifyClusterDeleted(internalId, userEmail, creatorEmail, googleProject, clusterName)
     }
   }

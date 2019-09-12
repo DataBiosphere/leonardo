@@ -12,9 +12,9 @@ import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.{DeleteCluster, SyncDataToCluster}
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.CreateClusters
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.mockito.ArgumentMatchers.{eq => mockitoEq, any}
+import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.Mockito._
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
@@ -187,6 +187,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
 
   "notifyClusterCreated should retry errors and invalidate the pet token cache" in isolatedDbTest {
     logger.info("testing retries, stack traces expected")
+    val dummyTraceId = TraceId(java.util.UUID.fromString("dummy trace ID for testing"))
 
     // should retry 401s
     val samClientThrowing401 = mock[MockSwaggerSamClient]
@@ -198,7 +199,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
       override lazy val samClient = samClientThrowing401
     }
 
-    providerThrowing401.notifyClusterCreated(internalId, userInfo.userEmail, project, name1).failed.futureValue shouldBe a [ApiException]
+    providerThrowing401.notifyClusterCreated(internalId, userInfo.userEmail, project, name1, dummyTraceId).failed.futureValue shouldBe a [ApiException]
     verify(samClientThrowing401, times(3)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
 
     // should retry 500s
@@ -210,8 +211,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
     val providerThrowing500 = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider) {
       override lazy val samClient = samClientThrowing500
     }
-
-    providerThrowing500.notifyClusterCreated(internalId, userInfo.userEmail, project, name1).failed.futureValue shouldBe a [ApiException]
+    providerThrowing500.notifyClusterCreated(internalId, userInfo.userEmail, project, name1, dummyTraceId).failed.futureValue shouldBe a [ApiException]
     verify(samClientThrowing500, times(3)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
 
     // should not retry 404s
@@ -224,7 +224,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
       override lazy val samClient = samClientThrowing404
     }
 
-    providerThrowing404.notifyClusterCreated(internalId, userInfo.userEmail, project, name1).failed.futureValue shouldBe a [ApiException]
+    providerThrowing404.notifyClusterCreated(internalId, userInfo.userEmail, project, name1, dummyTraceId).failed.futureValue shouldBe a [ApiException]
     verify(samClientThrowing404, never).invalidatePetAccessToken(any[WorkbenchEmail], any[GoogleProject])
   }
 
