@@ -17,7 +17,6 @@ import com.google.api.services.dataproc.model.{Cluster => DataprocCluster, Clust
 import com.google.api.services.oauth2.Oauth2
 import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
-import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.{Master, SecondaryWorker, Worker}
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.service.{AuthenticationError, DataprocDisabledException}
