@@ -1372,7 +1372,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   private class ErroredMockGoogleIamDAO(statusCode: Int = 400) extends MockGoogleIamDAO {
     var invocationCount = 0
-    override def addIamRolesForUser(iamProject: GoogleProject, email: WorkbenchEmail, rolesToAdd: Set[String]): Future[Unit] = {
+    override def addIamRolesForUser(iamProject: GoogleProject, email: WorkbenchEmail, rolesToAdd: Set[String]): Future[Boolean] = {
       invocationCount += 1
       val jsonFactory = new MockJsonFactory
       val testException = GoogleJsonResponseExceptionFactoryTesting.newMock(jsonFactory, statusCode, "oh no i have failed")
