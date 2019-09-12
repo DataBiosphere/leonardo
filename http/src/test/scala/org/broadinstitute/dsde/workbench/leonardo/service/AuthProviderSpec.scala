@@ -107,7 +107,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       leo.deleteCluster(userInfo, project, cluster1Name).futureValue
 
       //verify we correctly notified the auth provider
-      verify(spyProvider, times(1)).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName], any[TraceId])(any[ExecutionContext])
+      verify(spyProvider).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName], any[TraceId])(any[ExecutionContext])
 
       // notification of deletion happens only after it has been fully deleted
       verify(spyProvider, never).notifyClusterDeleted(any[ClusterInternalId], any[WorkbenchEmail], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])

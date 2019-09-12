@@ -187,7 +187,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
 
   "notifyClusterCreated should retry errors and invalidate the pet token cache" in isolatedDbTest {
     logger.info("testing retries, stack traces expected")
-    val dummyTraceId = TraceId(java.util.UUID.fromString("dummy trace ID for testing"))
+    val dummyTraceId = TraceId(java.util.UUID.randomUUID)
 
     // should retry 401s
     val samClientThrowing401 = mock[MockSwaggerSamClient]
