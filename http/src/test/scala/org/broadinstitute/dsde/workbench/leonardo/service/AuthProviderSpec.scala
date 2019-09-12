@@ -146,7 +146,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       clusterNotFoundAgain shouldBe a [ClusterNotFoundException]
 
       //verify we never notified the auth provider of clusters happening because they didn't
-      verify(spyProvider, Mockito.never).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])
+      verify(spyProvider, Mockito.never).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName], any[TraceId])(any[ExecutionContext])
       verify(spyProvider, Mockito.never).notifyClusterDeleted(any[ClusterInternalId], any[WorkbenchEmail], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])
     }
 
@@ -180,7 +180,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       clusterDestroyException shouldBe a [AuthorizationError]
 
       //verify we never notified the auth provider of clusters happening because they didn't
-      verify(spyProvider, Mockito.never).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])
+      verify(spyProvider, Mockito.never).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName], any[TraceId])(any[ExecutionContext])
       verify(spyProvider, Mockito.never).notifyClusterDeleted(any[ClusterInternalId], any[WorkbenchEmail], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])
     }
 
@@ -200,7 +200,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       mockGoogleDataprocDAO.clusters should not contain key (cluster1Name)
 
       // creation and deletion notifications should have been fired
-      verify(spyProvider).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])
+      verify(spyProvider).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName], any[TraceId])(any[ExecutionContext])
       verify(spyProvider).notifyClusterDeleted(any[ClusterInternalId], any[WorkbenchEmail], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])
     }
 
