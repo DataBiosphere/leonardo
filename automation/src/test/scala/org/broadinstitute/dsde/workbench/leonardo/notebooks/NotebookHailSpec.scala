@@ -62,6 +62,8 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
     val sparkJobToSucceed =
       """import random
+        |import hail as hl
+        |sc = hl.spark_context()
         |NUM_SAMPLES=20
         |def inside(p):
         |    x, y = random.random(), random.random()
