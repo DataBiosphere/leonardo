@@ -55,7 +55,7 @@ class HttpGoogleComputeDAO(appName: String,
   override def getInstance(instanceKey: InstanceKey): Future[Option[Instance]] = {
     val request = compute.instances().get(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value)
 
-    retryWithRecover(when5xx, whenUsageLimited, whenGlobalUsageLimited, when404, whenInvalidValueOnBucketCreation, whenNonHttpIOException) { () =>
+    retryWithRecover(retryPredicates:_*) { () =>
       Option(executeGoogleRequest(request)) map { gi =>
         Instance(
           instanceKey,
@@ -73,18 +73,18 @@ class HttpGoogleComputeDAO(appName: String,
   override def stopInstance(instanceKey: InstanceKey): Future[Unit] = {
     val request = compute.instances().stop(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value)
 
-    retry(when5xx, whenUsageLimited, whenGlobalUsageLimited, when404, whenInvalidValueOnBucketCreation, whenNonHttpIOException)(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
+    retry(retryPredicates:_*)(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
   }
 
   override def startInstance(instanceKey: InstanceKey): Future[Unit] = {
     val request = compute.instances.start(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value)
 
-    retry(when5xx, whenUsageLimited, whenGlobalUsageLimited, when404, whenInvalidValueOnBucketCreation, whenNonHttpIOException)(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
+    retry(retryPredicates:_*)(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
   }
 
   override def addInstanceMetadata(instanceKey: InstanceKey, metadata: Map[String, String]): Future[Unit] = {
     val getInstanceRequest = compute.instances().get(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value)
-    retry(when5xx, whenUsageLimited, whenGlobalUsageLimited, when404, whenInvalidValueOnBucketCreation, whenNonHttpIOException)(() => executeGoogleRequest(getInstanceRequest)).flatMap { googleInstance =>
+    retry(retryPredicates:_*)(() => executeGoogleRequest(getInstanceRequest)).flatMap { googleInstance =>
       val curMetadataOpt = for {
         instance <- Option(googleInstance)
         metadata <- Option(instance.getMetadata)
@@ -97,13 +97,13 @@ class HttpGoogleComputeDAO(appName: String,
         .setFingerprint(fingerprint)
         .setItems((curItems.filterNot(i => metadata.contains(i.getKey)) ++ metadata.toList.map { case (k, v) => new Items().setKey(k).setValue(v) }).asJava)
       val setMetadataRequest = compute.instances.setMetadata(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value, newMetadata)
-      retry(when5xx, whenUsageLimited, whenGlobalUsageLimited, when404, whenInvalidValueOnBucketCreation, whenNonHttpIOException)(() => executeGoogleRequest(setMetadataRequest)).void.handleGoogleException(instanceKey)
+      retry(retryPredicates:_*)(() => executeGoogleRequest(setMetadataRequest)).void.handleGoogleException(instanceKey)
     }
   }
 
   override def updateFirewallRule(googleProject: GoogleProject, firewallRule: FirewallRule): Future[Unit] = {
     val request = compute.firewalls().get(googleProject.value, firewallRule.name.value)
-    val response = retryWithRecover(when5xx, whenUsageLimited, whenGlobalUsageLimited, when404, whenInvalidValueOnBucketCreation, whenNonHttpIOException) { () =>
+    val response = retryWithRecover(retryPredicates:_*) { () =>
       executeGoogleRequest(request)
       ()
     } {
@@ -127,7 +127,7 @@ class HttpGoogleComputeDAO(appName: String,
 
     val request = compute.firewalls().insert(googleProject.value, googleFirewall)
     logger.info(s"Creating firewall rule with name '${firewallRule.name.value}' in project ${googleProject.value}")
-    retry(when5xx, whenUsageLimited, whenGlobalUsageLimited, when404, whenInvalidValueOnBucketCreation, whenNonHttpIOException)(() => executeGoogleRequest(request)).void
+    retry(retryPredicates:_*)(() => executeGoogleRequest(request)).void
   }
 
   override def getComputeEngineDefaultServiceAccount(googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
@@ -160,7 +160,7 @@ class HttpGoogleComputeDAO(appName: String,
 
   override def getProjectNumber(googleProject: GoogleProject): Future[Option[Long]] = {
     val request = cloudResourceManager.projects().get(googleProject.value)
-    retryWithRecover(when5xx, whenUsageLimited, whenGlobalUsageLimited, when404, whenInvalidValueOnBucketCreation, whenNonHttpIOException) { () =>
+    retryWithRecover(retryPredicates:_*) { () =>
       Option(executeGoogleRequest(request).getProjectNumber).map(_.toLong)
     } {
       case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => None
@@ -185,14 +185,14 @@ class HttpGoogleComputeDAO(appName: String,
     val request = compute.instances().setMachineType(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value,
       new InstancesSetMachineTypeRequest().setMachineType(buildMachineTypeUri(instanceKey, newMachineType.value)))
 
-    retry(when5xx, whenUsageLimited, whenGlobalUsageLimited, when404, whenInvalidValueOnBucketCreation, whenNonHttpIOException)(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
+    retry(retryPredicates:_*)(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
   }
 
   override def resizeDisk(instanceKey: InstanceKey, newSizeGb: Int): Future[Unit] = {
     val request = compute.disks().resize(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value,
       new DisksResizeRequest().setSizeGb(newSizeGb.toLong))
 
-    retry(when5xx, whenUsageLimited, whenGlobalUsageLimited, when404, whenInvalidValueOnBucketCreation, whenNonHttpIOException)(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
+    retry(retryPredicates:_*)(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
   }
 
   private def buildMachineTypeUri(instanceKey: InstanceKey, machineType: String): String = {
