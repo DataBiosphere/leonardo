@@ -1,7 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.time.Instant
-
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec._
@@ -27,29 +25,22 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   //  debug = true
   //  mockedCluster = mockCluster("gpalloc-dev-master-0h7pzni","automation-test-apm25lvlz")
   val debug: Boolean = false //if true, will not spin up and tear down a cluster on each test. Used in conjunction with mockedCluster
-  var mockedCluster: Cluster = _ // mockCluster("gpalloc-dev-master-0dkewwf", "automation-test-aktfcd0cz") //_ //must specify a google project name and cluster name via the mockCluster utility method in NotebookTestUtils
-<<<<<<< HEAD
+  var mockedClusterFixture: ClusterFixture = _ // mockedClusterFixture("gpalloc-dev-master-0dkewwf", "automation-test-aktfcd0cz") //_ //must specify a google project name and cluster name via the mockCluster utility method in NotebookTestUtils
 
-  def mockCluster(googleProject: String, clusterName: String): Cluster = {
-    Cluster(ClusterName(clusterName), java.util.UUID.randomUUID(), GoogleProject(googleProject),
-      ServiceAccountInfo(Map()), MachineConfig(), new java.net.URL("https://FAKE/URL/IF_YOU_SEE_THIS_INVESTIGATE_YOUR_USAGE_OF_MOCKCLUSTER_METHOD/"), OperationName(""), ClusterStatus.Running, None, WorkbenchEmail(""), Instant.now(), None, Map(), None, None, None, List(), Instant.now(), None, false, Set())
-  }
-=======
->>>>>>> refactor hailspec
-
-  def mockCluster(googleProject: String, clusterName: String): Cluster = {
-    Cluster(ClusterName(clusterName), java.util.UUID.randomUUID(), GoogleProject(googleProject),
-      ServiceAccountInfo(Map()), MachineConfig(), new java.net.URL("https://FAKE/URL/IF_YOU_SEE_THIS_INVESTIGATE_YOUR_USAGE_OF_MOCKCLUSTER_METHOD/"), OperationName(""), ClusterStatus.Running, None, WorkbenchEmail(""), Instant.now(), None, Map(), None, None, None, List(), Instant.now(), None, false, Set())
+  def mockedClusterFixture(googleProject: String, clusterName: String): ClusterFixture = {
+    ClusterFixture(ClusterName(clusterName),
+      GoogleProject(googleProject),
+      ServiceAccountInfo(Map()), WorkbenchEmail(""))
   }
 
   override type FixtureParam = ClusterFixture
 
   override def withFixture(test: OneArgTest): Outcome = {
-    if (debug) {
+    val clusterFixture: ClusterFixture = if (debug) {
       logger.info(s"[Debug] Using mocked cluster for cluster fixture tests")
-      ronCluster = mockedCluster
-    }
-    withFixture(test.toNoArgTest(ClusterFixture(ronCluster.clusterName, ronCluster.googleProject, ronCluster.serviceAccountInfo, ronCluster.creator)))
+      mockedClusterFixture
+    } else ronCluster.toClusterFixture
+    withFixture(test.toNoArgTest(clusterFixture))
   }
 
   /**
@@ -114,4 +105,4 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   *
   * Claim a billing project for project owner
   */
-final case class ClusterFixture(clusterName: ClusterName, googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo, creator: WorkbenchEmail)
+final case class ClusterFixture(clusterName: ClusterName, googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo, creator: WorkbenchEmail) extends Product with Serializable
