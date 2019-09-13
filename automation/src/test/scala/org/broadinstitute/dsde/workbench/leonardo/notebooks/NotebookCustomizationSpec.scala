@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
-import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec
+import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixture, GPAllocFixtureSpec}
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.service.util.Tags
@@ -48,7 +48,7 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
             Thread.sleep(10000)
             withWebDriver { implicit driver =>
               // Create a notebook that will check if the user script ran
-              withNewNotebook(cluster, Python2) { notebookPage =>
+              withNewNotebook(cluster.toClusterFixture, Python2) { notebookPage =>
                 notebookPage.executeCell("""print('Hello Notebook!')""") shouldBe Some("Hello Notebook!")
                 notebookPage.executeCell("""import dummy""") shouldBe None
               }
@@ -68,7 +68,7 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
         val extensionConfig = multiExtensionClusterRequest.copy(nbExtensions = multiExtensionClusterRequest.nbExtensions + ("translate" -> translateExtensionBucketPath.toUri))
         withNewCluster(billingProject, request = defaultClusterRequest.copy(userJupyterExtensionConfig = Some(extensionConfig))) { cluster =>
           withWebDriver { implicit driver =>
-            withNewNotebook(cluster, Python3) { notebookPage =>
+            withNewNotebook(cluster.toClusterFixture, Python3) { notebookPage =>
               // Check the extensions were installed
               val nbExt = notebookPage.executeCell("! jupyter nbextension list")
               nbExt.get should include("jupyter-gmaps/extension  enabled")
@@ -96,7 +96,8 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
 
       withNewCluster(billingProject, request = defaultClusterRequest.copy(scopes = Set("https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/source.read_only"))) { cluster =>
         withWebDriver { implicit driver =>
-          withNewNotebook(cluster) { notebookPage =>
+          val clusterFixture = ClusterFixture(cluster.clusterName, cluster.googleProject, cluster.serviceAccountInfo, cluster.creator)
+          withNewNotebook(clusterFixture) { notebookPage =>
             val query = """! bq query --disable_ssl_validation --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
 
             val result = notebookPage.executeCell(query, timeout = 5.minutes).get

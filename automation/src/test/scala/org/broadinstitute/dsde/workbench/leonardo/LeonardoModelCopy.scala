@@ -73,6 +73,7 @@ case class Cluster(clusterName: ClusterName,
                    stopAfterCreation: Boolean,
                    scopes: Set[String]) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.string}"
+  def toClusterFixture: ClusterFixture =  ClusterFixture(clusterName, googleProject, serviceAccountInfo, creator)
 }
 
 case class ClusterRequest(labels: LabelMap = Map(),

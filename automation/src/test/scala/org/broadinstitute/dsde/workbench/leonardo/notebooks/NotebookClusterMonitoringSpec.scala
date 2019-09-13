@@ -34,7 +34,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
 
         withWebDriver { implicit driver =>
           // Create a notebook and execute a cell
-          withNewNotebook(cluster, kernel = Python3) { notebookPage =>
+          withNewNotebook(cluster.toClusterFixture, kernel = Python3) { notebookPage =>
             notebookPage.executeCell(s"""print("$printStr")""") shouldBe Some(printStr)
             notebookPage.saveAndCheckpoint()
           }
@@ -47,8 +47,9 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
 
           // TODO make tests rename notebooks?
           val notebookPath = new File("Untitled.ipynb")
+          val clusterFixture = ClusterFixture(cluster.clusterName, cluster.googleProject, cluster.serviceAccountInfo, cluster.creator)
           // Use a longer timeout than default because opening notebooks after resume can be slow
-          withOpenNotebook(cluster, notebookPath, 10.minutes) { notebookPage =>
+          withOpenNotebook(clusterFixture, notebookPath, 10.minutes) { notebookPage =>
             // old output should still exist
             val firstCell = notebookPage.firstCell
             notebookPage.cellOutput(firstCell) shouldBe Some(CellOutput(printStr, None))
@@ -150,7 +151,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
         withNewCluster(billingProject, request = request) { cluster =>
           // Verify a Hail job uses preemptibles
           withWebDriver { implicit driver =>
-            withNewNotebook(cluster, PySpark3) { notebookPage =>
+            withNewNotebook(cluster.toClusterFixture, PySpark3) { notebookPage =>
               verifyHailImport(notebookPage, destPath, cluster)
               notebookPage.saveAndCheckpoint()
             }
@@ -163,7 +164,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
 
             // Verify the Hail import again in a new notebook
             // Use a longer timeout than default because opening notebooks after resume can be slow
-            withNewNotebook(cluster, timeout = 10.minutes) { notebookPage =>
+            withNewNotebook(cluster.toClusterFixture, timeout = 10.minutes) { notebookPage =>
               notebookPage.executeCell("sum(range(1,10))") shouldBe Some("45")
 
               // TODO: Hail verification is disabled here because Spark sometimes doesn't restart correctly
@@ -191,12 +192,13 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
         enableWelder = Some(false),
         labels = Map(deployWelderLabel -> "true"))
       ) { cluster =>
+        val clusterFixture = ClusterFixture(cluster.clusterName, cluster.googleProject, cluster.serviceAccountInfo, cluster.creator)
         withWebDriver { implicit driver =>
           // Verify welder is not running
-          Welder.getWelderStatus(cluster).status.isSuccess() shouldBe false
+          Welder.getWelderStatus(clusterFixture).status.isSuccess() shouldBe false
 
           // Create a notebook and execute cells to create a local file
-          withNewNotebook(cluster, kernel = Python3) { notebookPage =>
+          withNewNotebook(cluster.toClusterFixture, kernel = Python3) { notebookPage =>
             notebookPage.executeCell(s"""! echo "foo" > foo.txt""") shouldBe None
             notebookPage.executeCell(s"""! cat foo.txt""") shouldBe Some("foo")
             notebookPage.saveAndCheckpoint()
@@ -209,10 +211,10 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
           startAndMonitor(cluster.googleProject, cluster.clusterName)
 
           // Verify welder is now running
-          Welder.getWelderStatus(cluster).status.isSuccess() shouldBe true
+          Welder.getWelderStatus(clusterFixture).status.isSuccess() shouldBe true
 
           // Make a new notebook and verify the file still exists
-          withNewNotebook(cluster, kernel = Python3) { notebookPage =>
+          withNewNotebook(cluster.toClusterFixture, kernel = Python3) { notebookPage =>
             notebookPage.executeCell(s"""! cat foo.txt""") shouldBe Some("foo")
           }
         }

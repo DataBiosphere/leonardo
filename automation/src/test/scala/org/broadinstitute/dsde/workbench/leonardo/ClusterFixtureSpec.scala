@@ -28,21 +28,19 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   //  mockedCluster = mockCluster("gpalloc-dev-master-0h7pzni","automation-test-apm25lvlz")
   val debug: Boolean = false //if true, will not spin up and tear down a cluster on each test. Used in conjunction with mockedCluster
   var mockedCluster: Cluster = _ // mockCluster("gpalloc-dev-master-0dkewwf", "automation-test-aktfcd0cz") //_ //must specify a google project name and cluster name via the mockCluster utility method in NotebookTestUtils
+<<<<<<< HEAD
 
   def mockCluster(googleProject: String, clusterName: String): Cluster = {
     Cluster(ClusterName(clusterName), java.util.UUID.randomUUID(), GoogleProject(googleProject),
       ServiceAccountInfo(Map()), MachineConfig(), new java.net.URL("https://FAKE/URL/IF_YOU_SEE_THIS_INVESTIGATE_YOUR_USAGE_OF_MOCKCLUSTER_METHOD/"), OperationName(""), ClusterStatus.Running, None, WorkbenchEmail(""), Instant.now(), None, Map(), None, None, None, List(), Instant.now(), None, false, Set())
   }
+=======
+>>>>>>> refactor hailspec
 
-  /**
-    * See
-    *  https://www.artima.com/docs-scalatest-2.0.M5/org/scalatest/FreeSpec.html
-    *   Section: "Overriding withFixture(OneArgTest)"
-    *
-    * Claim a billing project for project owner
-    * @param billingProject
-    */
-  case class ClusterFixture(cluster: Cluster)
+  def mockCluster(googleProject: String, clusterName: String): Cluster = {
+    Cluster(ClusterName(clusterName), java.util.UUID.randomUUID(), GoogleProject(googleProject),
+      ServiceAccountInfo(Map()), MachineConfig(), new java.net.URL("https://FAKE/URL/IF_YOU_SEE_THIS_INVESTIGATE_YOUR_USAGE_OF_MOCKCLUSTER_METHOD/"), OperationName(""), ClusterStatus.Running, None, WorkbenchEmail(""), Instant.now(), None, Map(), None, None, None, List(), Instant.now(), None, false, Set())
+  }
 
   override type FixtureParam = ClusterFixture
 
@@ -51,7 +49,7 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
       logger.info(s"[Debug] Using mocked cluster for cluster fixture tests")
       ronCluster = mockedCluster
     }
-    withFixture(test.toNoArgTest(ClusterFixture(ronCluster)))
+    withFixture(test.toNoArgTest(ClusterFixture(ronCluster.clusterName, ronCluster.googleProject, ronCluster.serviceAccountInfo, ronCluster.creator)))
   }
 
   /**
@@ -102,8 +100,18 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
         case Some(billingProject) => deleteRonCluster(GoogleProject(billingProject))
         case None => throw new RuntimeException("leonardo.billingProject system property is not set")
       }
+      super.afterAll()
     }
-    super.afterAll()
   }
 
 }
+
+
+/**
+  * See
+  *  https://www.artima.com/docs-scalatest-2.0.M5/org/scalatest/FreeSpec.html
+  *   Section: "Overriding withFixture(OneArgTest)"
+  *
+  * Claim a billing project for project owner
+  */
+final case class ClusterFixture(clusterName: ClusterName, googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo, creator: WorkbenchEmail)

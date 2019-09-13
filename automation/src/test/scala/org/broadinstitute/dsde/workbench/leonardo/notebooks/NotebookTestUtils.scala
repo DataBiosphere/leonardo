@@ -77,6 +77,10 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     testCode(notebooksListPage.open)
   }
 
+  def withNotebooksListPage[T](cluster: ClusterFixture)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+    val notebooksListPage = Notebook.get(cluster.googleProject, cluster.clusterName)
+    testCode(notebooksListPage.open)
+  }
 
   def withFileUpload[T](cluster: Cluster, file: File)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
@@ -94,7 +98,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     }
   }
 
-  def withNewNotebook[T](cluster: Cluster, kernel: NotebookKernel = Python3, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+  def withNewNotebook[T](cluster: ClusterFixture, kernel: NotebookKernel = Python3, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
       logger.info(s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}...")
       val result: Future[T] = retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds, 2 minutes) { () =>
@@ -108,7 +112,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     }
   }
 
-  def withOpenNotebook[T](cluster: Cluster, notebookPath: File, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+  def withOpenNotebook[T](cluster: ClusterFixture, notebookPath: File, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
       logger.info(s"Opening notebook ${notebookPath.getAbsolutePath} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}...")
       notebooksListPage.withOpenNotebook(notebookPath, timeout) { notebookPage =>
@@ -130,7 +134,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   }
 
 
-  def withLocalizeDelocalizeFiles[T](cluster: Cluster, fileToLocalize: String, fileToLocalizeContents: String,
+  def withLocalizeDelocalizeFiles[T](cluster: ClusterFixture, fileToLocalize: String, fileToLocalizeContents: String,
                                      fileToDelocalize: String, fileToDelocalizeContents: String,
                                      dataFileName: String, dataFileContents: String)(testCode: (Map[String, String], GcsBucketName, NotebookPage) => T)
                                     (implicit webDriver: WebDriver, token: AuthToken): T = {
@@ -162,9 +166,9 @@ trait NotebookTestUtils extends LeonardoTestUtils {
           // Verify and save the localization.log file to test output to aid in debugging
           Try(verifyAndSaveLocalizationLog(cluster)) match {
             case Success(downloadFile) =>
-              logger.info(s"Saved localization log for cluster ${cluster.projectNameString} to ${downloadFile.getAbsolutePath}")
+              logger.info(s"Saved localization log for cluster ${cluster.googleProject} to ${downloadFile.getAbsolutePath}")
             case Failure(e) =>
-              logger.warn(s"Could not obtain localization log files for cluster ${cluster.projectNameString}: ${e.getMessage}")
+              logger.warn(s"Could not obtain localization log files for cluster ${cluster.googleProject}: ${e.getMessage}")
           }
 
           //TODO:: the code below messes up the test somehow, figure out why that happens and fix.
@@ -180,7 +184,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     }
   }
 
-  def verifyLocalizeDelocalize(cluster: Cluster, localizedFileName: String, localizedFileContents: String,
+  def verifyLocalizeDelocalize(cluster: ClusterFixture, localizedFileName: String, localizedFileContents: String,
                                delocalizedBucketPath: GcsPath, delocalizedBucketContents: String,
                                dataFileName: String, dataFileContents: String)(implicit token: AuthToken): Unit = {
     implicit val patienceConfig: PatienceConfig = storagePatience
@@ -198,7 +202,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     dataItem.content shouldBe Some(dataFileContents)
   }
 
-  def verifyAndSaveLocalizationLog(cluster: Cluster)(implicit token: AuthToken): File = {
+  def verifyAndSaveLocalizationLog(cluster: ClusterFixture)(implicit token: AuthToken): File = {
     // check localization.log for existence
     val localizationLog = Notebook.getContentItem(cluster.googleProject, cluster.clusterName, "localization.log", includeContent = true)
     localizationLog.content shouldBe defined
@@ -318,7 +322,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   }
 
   //initializes storageLinks/ and localizes the file to the passed gcsPath
-  def withWelderInitialized[T](cluster: Cluster, gcsPath: GcsPath, shouldLocalizeFileInEditMode: Boolean)(testCode: File => T)(implicit token: AuthToken): T = {
+  def withWelderInitialized[T](cluster: ClusterFixture, gcsPath: GcsPath, shouldLocalizeFileInEditMode: Boolean)(testCode: File => T)(implicit token: AuthToken): T = {
     Welder.postStorageLink(cluster, gcsPath)
     Welder.localize(cluster, gcsPath, shouldLocalizeFileInEditMode)
 

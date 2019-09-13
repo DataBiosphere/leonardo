@@ -15,7 +15,7 @@ class LabSpec extends ClusterFixtureSpec with LabTestUtils {
     // TODO: ignored until we officially support JupyterLab
     "should execute cells" taggedAs Tags.SmokeTest ignore { clusterFixture =>
       withWebDriver { implicit driver =>
-        withNewLabNotebook(clusterFixture.cluster) { labNotebookPage =>
+        withNewLabNotebook(clusterFixture) { labNotebookPage =>
           labNotebookPage.runCodeInEmptyCell("1+1") shouldBe Some("2")
           labNotebookPage.runCodeInEmptyCell("2*3") shouldBe Some("6")
           labNotebookPage.runCodeInEmptyCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")

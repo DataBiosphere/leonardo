@@ -18,7 +18,7 @@ class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
     "should use UTF-8 encoding" in { clusterFixture =>
 
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(clusterFixture, RKernel) { notebookPage =>
           // Check the locale is set to en_US.UTF-8
           notebookPage.executeCell("""Sys.getenv("LC_ALL")""") shouldBe Some("'en_US.UTF-8'")
 
@@ -43,7 +43,7 @@ class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
     // Opening a Google ticket and temporarily ignoring this test.
     "should create a notebook with a working R kernel and import installed packages" ignore { clusterFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(clusterFixture, RKernel) { notebookPage =>
           notebookPage.executeCell("library(SparkR)").get should include("SparkR")
           notebookPage.executeCell("sparkR.session()")
           notebookPage.executeCell("df <- as.DataFrame(faithful)")
@@ -67,7 +67,7 @@ class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
     "should be able to install new R packages" taggedAs Tags.SmokeTest in { clusterFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(clusterFixture, RKernel) { notebookPage =>
           // httr is a simple http library for R
           // http://httr.r-lib.org//index.html
 
@@ -93,7 +93,7 @@ class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
     // See https://github.com/DataBiosphere/leonardo/issues/398
     "should be able to install mlr" in { clusterFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(clusterFixture, RKernel) { notebookPage =>
           // mlr: machine learning in R
           // https://github.com/mlr-org/mlr
 
@@ -114,7 +114,7 @@ class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
     "should have tidyverse automatically installed" in { clusterFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(clusterFixture, RKernel) { notebookPage =>
           notebookPage.executeCell(""""tidyverse" %in% installed.packages()""") shouldBe Some("TRUE")
         }
       }
@@ -122,7 +122,7 @@ class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
     "should have Ronaldo automatically installed" in { clusterFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(clusterFixture, RKernel) { notebookPage =>
           notebookPage.executeCell(""""Ronaldo" %in% installed.packages()""") shouldBe Some("TRUE")
         }
       }
@@ -131,7 +131,7 @@ class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
     // See https://github.com/DataBiosphere/leonardo/issues/710
     "should be able to install packages that depend on gfortran" in { clusterFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+        withNewNotebook(clusterFixture, RKernel) { notebookPage =>
           val installTimeout = 5.minutes
 
           val installOutput = notebookPage.executeCell("""install.packages('qwraps2')""", installTimeout)
@@ -146,9 +146,9 @@ class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
     s"should have the workspace-related environment variables set" in { clusterFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
-          notebookPage.executeCell("Sys.getenv('GOOGLE_PROJECT')").get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
-          notebookPage.executeCell("Sys.getenv('WORKSPACE_NAMESPACE')").get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
+        withNewNotebook(clusterFixture, RKernel) { notebookPage =>
+          notebookPage.executeCell("Sys.getenv('GOOGLE_PROJECT')").get shouldBe s"'${clusterFixture.googleProject.value}'"
+          notebookPage.executeCell("Sys.getenv('WORKSPACE_NAMESPACE')").get shouldBe s"'${clusterFixture.googleProject.value}'"
           notebookPage.executeCell("Sys.getenv('WORKSPACE_NAME')").get shouldBe "'notebooks'"
           // workspace bucket is not wired up in tests
           notebookPage.executeCell("Sys.getenv('WORKSPACE_BUCKET')").get shouldBe "''"

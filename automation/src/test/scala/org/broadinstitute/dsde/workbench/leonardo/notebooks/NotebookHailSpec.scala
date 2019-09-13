@@ -20,7 +20,11 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
   "NotebookHailSpec" - {
     "should install the right Hail version" taggedAs Tags.SmokeTest in { clusterFixture =>
       withWebDriver { implicit driver =>
+<<<<<<< HEAD
         withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
+=======
+        withNewNotebook(clusterFixture, Python3) { notebookPage =>
+>>>>>>> refactor hailspec
           // Verify we have the right hail version
           val importHail =
             """import hail as hl
@@ -52,6 +56,7 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
               |hl.balding_nichols_model(3, 1000, 1000)._force_count_rows()""".stripMargin
           val sparkJobToSucceedcellResult = notebookPage.executeCellWithCellOutput(sparkJobToSucceed, cellNumberOpt = Some(3)).get
           sparkJobToSucceedcellResult.output.get.toInt shouldBe(1000)
+<<<<<<< HEAD
         }
       }
     }
@@ -86,5 +91,10 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
 >>>>>>> fix automation tests
 =======
 >>>>>>> more fix
+=======
+        }
+      }
+    }
+>>>>>>> refactor hailspec
   }
 }

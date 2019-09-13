@@ -18,7 +18,7 @@ class NotebookLocalizeFileSpec extends ClusterFixtureSpec with NotebookTestUtils
 
   "NotebookLocalizeFileSpec" - {
 
-    "should localize files in async mode" in { clusterFixture =>
+    "should localize files in async mode" in { cluster =>
       val localizeFileName = "localize_async.txt"
       val localizeFileContents = "Async localize test"
       val delocalizeFileName = "delocalize_async.txt"
@@ -27,7 +27,6 @@ class NotebookLocalizeFileSpec extends ClusterFixtureSpec with NotebookTestUtils
       val localizeDataContents = "Hello World"
 
       withWebDriver { implicit driver =>
-        val cluster = clusterFixture.cluster
         withLocalizeDelocalizeFiles(cluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
           // call localize; this should return 200
           Notebook.localize(cluster.googleProject, cluster.clusterName, localizeRequest, async = true)
@@ -52,7 +51,7 @@ class NotebookLocalizeFileSpec extends ClusterFixtureSpec with NotebookTestUtils
       }
     }
 
-    "should localize files in sync mode" taggedAs Tags.SmokeTest in { clusterFixture =>
+    "should localize files in sync mode" taggedAs Tags.SmokeTest in { cluster =>
       val localizeFileName = "localize_sync.txt"
       val localizeFileContents = "Sync localize test"
       val delocalizeFileName = "delocalize_sync.txt"
@@ -61,7 +60,6 @@ class NotebookLocalizeFileSpec extends ClusterFixtureSpec with NotebookTestUtils
       val localizeDataContents = "Hello World"
 
       withWebDriver { implicit driver =>
-        val cluster = clusterFixture.cluster
         withLocalizeDelocalizeFiles(cluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
           // call localize; this should return 200
           Notebook.localize(cluster.googleProject, cluster.clusterName, localizeRequest, async = false)
@@ -97,10 +95,9 @@ class NotebookLocalizeFileSpec extends ClusterFixtureSpec with NotebookTestUtils
       val localizeDataContents = "Localize data"
 
       withWebDriver { implicit driver =>
-        val cluster = clusterFixture.cluster
-        withLocalizeDelocalizeFiles(cluster, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
+        withLocalizeDelocalizeFiles(clusterFixture, localizeFileName, localizeFileContents, delocalizeFileName, delocalizeFileContents, localizeDataFileName, localizeDataContents) { (localizeRequest, bucketName, notebookPage) =>
           // call localize; this should return 200
-          Notebook.localize(cluster.googleProject, cluster.clusterName, localizeRequest, async = false)
+          Notebook.localize(clusterFixture.googleProject, clusterFixture.clusterName, localizeRequest, async = false)
 
           // check that the files are at their destinations
           implicit val patienceConfig: PatienceConfig = storagePatience

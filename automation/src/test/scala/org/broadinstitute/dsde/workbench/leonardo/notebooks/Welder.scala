@@ -25,7 +25,7 @@ object Welder extends RestClient with LazyLogging {
     s"${url}proxy/${googleProject.value}/${clusterName.string}/welder"
   }
 
-  def getWelderStatus(cluster: Cluster)(implicit token: AuthToken): HttpResponse = {
+  def getWelderStatus(cluster: ClusterFixture)(implicit token: AuthToken): HttpResponse = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName)
     logger.info(s"Get welder status: GET $path/status")
 
@@ -33,7 +33,7 @@ object Welder extends RestClient with LazyLogging {
     rawResponse
   }
 
-  def postStorageLink(cluster: Cluster, cloudStoragePath: GcsPath)(implicit token: AuthToken): String = {
+  def postStorageLink(cluster: ClusterFixture, cloudStoragePath: GcsPath)(implicit token: AuthToken): String = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/storageLinks"
 
     val payload = Map(
@@ -50,7 +50,7 @@ object Welder extends RestClient with LazyLogging {
     postRequest(path, payload, httpHeaders = List(cookie))
   }
 
-def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(implicit token: AuthToken): String = {
+def localize(cluster: ClusterFixture, cloudStoragePath: GcsPath, isEditMode: Boolean)(implicit token: AuthToken): String = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/objects"
 
     val payload = Map(
@@ -67,7 +67,7 @@ def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(i
     postRequest(path, payload, httpHeaders = List(cookie))
   }
 
-  def getMetadata(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(implicit token: AuthToken): Metadata = {
+  def getMetadata(cluster: ClusterFixture, cloudStoragePath: GcsPath, isEditMode: Boolean)(implicit token: AuthToken): Metadata = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/objects/metadata"
 
     val payload = Map(
