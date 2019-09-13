@@ -97,14 +97,13 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
 
   override def afterAll(): Unit = {
     logger.info("afterAll")
-    if (debug)
-      super.afterAll()
-    else {
+    if (!debug) {
       sys.props.get(gpallocProjectKey) match {
         case Some(billingProject) => deleteRonCluster(GoogleProject(billingProject))
         case None => throw new RuntimeException("leonardo.billingProject system property is not set")
       }
     }
+    super.afterAll()
   }
 
 }
