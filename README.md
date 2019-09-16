@@ -55,11 +55,11 @@ sbt clean compile "project http" test
 ```
 You can also run a particular test suite, e.g.
 ```
-sbt "project http" "testOnly *LeoAuthProviderHelperSpec"
+sbt "testOnly *LeoAuthProviderHelperSpec"
 ```
 or a particular test within a suite, e.g.
 ```
-sbt "project http" "testOnly *LeoAuthProviderHelperSpec -- -z map"
+sbt "testOnly *LeoAuthProviderHelperSpec -- -z map"
 ```
 where `map` is a substring within the test name.
 
