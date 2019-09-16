@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.{DeleteCluster, SyncDataToCluster}
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.CreateClusters
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.Mockito._
