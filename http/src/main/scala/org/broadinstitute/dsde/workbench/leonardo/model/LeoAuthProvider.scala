@@ -4,7 +4,7 @@ import java.io.File
 
 import com.typesafe.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.{ExecutionContext, Future}
