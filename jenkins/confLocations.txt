@@ -1,0 +1,2 @@
+http/src/main/resources/reference.conf
+automation/src/test/resources/reference.conf

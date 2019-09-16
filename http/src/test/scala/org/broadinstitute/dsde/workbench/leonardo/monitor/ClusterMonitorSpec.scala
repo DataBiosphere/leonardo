@@ -327,7 +327,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val iamDAO = mock[GoogleIamDAO]
     when {
       iamDAO.removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
-    } thenReturn Future.successful(())
+    } thenReturn Future.successful(true)
 
     when {
       iamDAO.removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
@@ -387,7 +387,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val iamDAO = mock[GoogleIamDAO]
     when {
       iamDAO.removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
-    } thenReturn Future.successful(())
+    } thenReturn Future.successful(true)
 
     when {
       iamDAO.removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
@@ -441,7 +441,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val iamDAO = mock[GoogleIamDAO]
     when {
       iamDAO.removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
-    } thenReturn Future.successful(())
+    } thenReturn Future.successful(true)
 
     val storageDAO = mock[GoogleStorageDAO]
     when {
@@ -583,11 +583,11 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val iamDAO = mock[GoogleIamDAO]
     when {
       iamDAO.addIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
-    } thenReturn Future.successful(())
+    } thenReturn Future.successful(true)
 
     when {
       iamDAO.removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
-    } thenReturn Future.successful(())
+    } thenReturn Future.successful(true)
 
     when {
       iamDAO.removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
@@ -865,7 +865,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val iamDAO = mock[GoogleIamDAO]
     when {
       iamDAO.removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], any[Set[String]])
-    } thenReturn Future.successful(())
+    } thenReturn Future.successful(true)
     val authProvider = mock[LeoAuthProvider]
 
     val jupyterDAO = mock[JupyterDAO]
