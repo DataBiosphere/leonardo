@@ -1,0 +1,210 @@
+import static org.broadinstitute.dspjenkins.FCConstants.*
+
+//"Update the custom data proc image used in leo.  The name of the job contains the name of the dataproc image created. This job will fail if master of terra-docker has not been updated since the last run, as the git hash has not changed. This is a happy side-effect of the fact image names must be unique."
+
+//populated by first step
+def String[] images = []
+def shortHash = ""
+
+def LinkedHashMap<String, String> imageToParamMap = [:]
+
+def getShortHash(hash) {
+  return hash.substring(0,7)
+}
+
+def boolean hasHashChanges(String[] configPaths, String[] images) {
+
+  def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
+  def Set imagesChanged = []
+
+  for (String config: configPaths) {
+    for (String image: images) {
+      output = sh(
+        script: "git diff HEAD~1..HEAD $configPath | grep $image"
+          returnStdout: true
+      ).trim() 
+
+      if (!output.isEmpty()) {
+        imagesChanged.add(image)
+      }
+    }
+  }
+
+  return !imagesChanged.isEmpty()
+}
+
+//if an image is in imageNames but not the confFile, the returned version will be an empty string
+def getVersionMap(String[] imageNames, String confFile) {
+  def LinkedHashMap<String,String> versionMap = [:]
+
+  for (String image: imageNames) {
+    def version = sh(
+      script: "cat $confFile | grep $image | tr ':' '\n' | tail -1 | tr -d '\"' ",
+      returnStdout: true
+    )
+
+    versionMap[image] = version
+  }
+
+}
+
+pipeline {
+  agent { label 'node210' } 
+
+  parameters {
+    globalVariableParam(name: "IMAGE_BASE_NAME", defaultValue: "custom-leo-image",
+          description: "The name to give the custom dataproc image. This will be appended with an hypen and the short version of the commit hash (first 7 characters).")
+    booleanParam(name: "useCustomImages", defaultValue: false)
+    stringParam(name: "GOOGLE_PROJECT", defaultValue: "broad-dsp-gcr-public",
+          description: "The google project to use")
+    stringParam(name: "BUCKET_NAME", defaultValue: "gs://leo-dataproc-image",
+          description: "The bucket where the image will be stored")
+    stringParam(name: "terra-jupyter-base", defaultValue: "0.0.1")
+    stringParam(name: "terra-jupyter-hail", defaultValue: "0.0.1")
+    stringParam(name: "terra-jupyter-r", defaultValue: "0.0.3")
+    stringParam(name: "terra-jupyter-python", defaultValue: "0.0.1")
+    stringParam(name: "terra-jupyter-bioconductor", defaultValue: "0.0.2")
+    stringParam(name: "leonardo-jupyter", defaultValue: "dev",
+          description: "The tag of the jupyter image to pull in docker image build. Used in the prepare script.")
+    stringParam(name: "welder-server", defaultValue: "latest",
+          description: "The tag of the welder image to pull in docker image build. Used in the prepare script.")
+    stringParam(name: "openidc-proxy", defaultValue: "2.3.1_2",
+          description:"The tag of the openidc proxy image to pull in docker image build. Used in the prepare script.")
+  }
+
+  triggers {
+    //dataproc images expire every 60 days
+    cron("0 0 */59 * *")
+  }
+
+
+
+  stages {
+    
+    stage('Terra docker image scan') {
+      steps {
+         git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/terra-docker.git', branch: 'master'
+
+          script {
+            images = readFile("jenkins/imageDirs.txt").trim().split("\n")
+
+            //non terra-docker images
+            images.add('leonardo-jupyter')
+            images.add('welder-server')
+            images.add('openidc-proxy')
+          }
+
+      }
+    }
+
+    stage('Leonardo Git') {
+      steps {
+        git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'develop'
+      }
+    }
+        
+    //create short hash properties file
+
+    stage('Get Short Hash') {
+      steps {
+        script {
+          shortHash = getShortHash("$GIT_COMMIT")
+        }
+      }
+    }
+
+    stage('Docker and Gcloud Auth') {
+      steps {
+        sh """
+          sudo chown -R jenkins:jenkins /home/jenkins/.config
+          docker run --rm  -v /etc/vault-token-dsde:/root/.vault-token:ro broadinstitute/dsde-toolbox:latest vault read --format=json secret/dsde/firecloud/common/image-build-account.json | jq .data > image-build-account.json   
+          gcloud auth activate-service-account --key-file=image-build-account.json
+          gcloud auth configure-docker --quiet
+        """
+      }
+    }
+
+    stage ('Detect Hash Changes') {
+      when { expression { !useCustomImages } }
+      steps {
+        script {
+          def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
+
+          def boolean shouldUpdate = hasHashChanges(configPaths, images)
+          def versionMap = getVersionMap(images, "automation/src/test/resources/reference.conf")
+        
+          if (shouldUpdate) {
+
+            for (String image: images) {
+              if (image in versionMap.keySet() && !versionMap[image].isEmpty()) { //the version could be empty if the image from terra-docker is not in a leo conf yet
+                version = versionMap[image]
+                println("using version $version for $image in this build of custom dataproc image")
+
+                sh """
+                  sed -i "s/$image.*/$image:$version\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+                """
+              }
+            }
+          }
+        }
+      }
+    }
+
+    stage ('Use manually specified hashes') {
+      when { expression { useCustomImages } }
+
+      steps {
+        script {
+          for(String image: images) {
+            // ${BUILD_NUMBER}
+
+            version = sh(
+              script: """ 
+                eval "echo \$$image" 
+              """,
+              returnStdout: true
+            ).trim()
+
+            println("Manually replacing line with $image with $image:$version")
+
+            sh (
+              script: """
+                sed -i "s/$image.*/$image:$version\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+              """
+            )
+
+            sh(
+              script: "cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh; git diff jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh"
+            )
+          }
+        }
+
+      }
+    }
+            
+      stage('Run build script') {
+        steps {
+          sh """
+            git submodule init && git submodule update
+            cd jenkins/dataproc-custom-images/dataproc-custom-images
+            python generate_custom_image.py \
+              --image-name "$IMAGE_BASE_NAME-$shortHash" \
+              --dataproc-version "1.2.79-debian9" \
+              --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
+              --zone us-central1-a \
+              --gcs-bucket $BUCKET_NAME \
+              --project-id=$GOOGLE_PROJECT
+          """
+        }
+      }
+
+      stage('Update Build Name') {
+        steps {
+          script {
+            currentBuild.displayName = "#${BUILD_NUMBER}: $IMAGE_BASE_NAME-$shortHash"
+          }
+        }
+      }
+      
+  }
+}
