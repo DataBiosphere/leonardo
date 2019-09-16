@@ -73,7 +73,7 @@ class WhitelistAuthProvider(config: Config, serviceAccountProvider: ServiceAccou
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterCreated(internalId: ClusterInternalId, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, traceId: TraceId = TraceId(randomUUID))(implicit executionContext: ExecutionContext): Future[Unit] = Future.successful(())
+  def notifyClusterCreated(internalId: ClusterInternalId, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, traceId: TraceId = TraceId(randomUUID))(implicit executionContext: ExecutionContext): Future[Unit] = Future.unit
 
   /**
     * Leo calls this method to notify the auth provider that a notebook cluster has been destroyed.
@@ -87,6 +87,6 @@ class WhitelistAuthProvider(config: Config, serviceAccountProvider: ServiceAccou
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterDeleted(internalId: ClusterInternalId, userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = Future.successful(())
+  def notifyClusterDeleted(internalId: ClusterInternalId, userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = Future.unit
 
 }
