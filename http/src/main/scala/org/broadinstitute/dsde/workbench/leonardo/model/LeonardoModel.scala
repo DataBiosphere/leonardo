@@ -313,17 +313,16 @@ case class ClusterInitValues private (googleProject: String,
 object ClusterInitValues {
   val serviceAccountCredentialsFilename = "service-account-credentials.json"
 
-  def apply(googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, dataprocConfig: DataprocConfig,
-            clusterFilesConfig: ClusterFilesConfig, clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig,
-            serviceAccountKey: Option[ServiceAccountKey], userEmailLoginHint: WorkbenchEmail, contentSecurityPolicy: String,
-            clusterImages: Set[ClusterImage], stagingBucket: GcsBucketName, welderEnabled: Boolean): ClusterInitValues =
+  def apply(cluster: Cluster, initBucketName: GcsBucketName, serviceAccountKey: Option[ServiceAccountKey],
+            dataprocConfig: DataprocConfig, proxyConfig: ProxyConfig, clusterFilesConfig: ClusterFilesConfig,
+            clusterResourcesConfig: ClusterResourcesConfig, contentSecurityPolicy: String): ClusterInitValues =
     ClusterInitValues(
-      googleProject.value,
-      clusterName.value,
-      clusterImages.find(_.tool == Jupyter).map(_.dockerImage).getOrElse(""),
-      clusterImages.find(_.tool == RStudio).map(_.dockerImage).getOrElse(""),
+      cluster.googleProject.value,
+      cluster.clusterName.value,
+      cluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage).getOrElse(""),
+      cluster.clusterImages.find(_.tool == RStudio).map(_.dockerImage).getOrElse(""),
       proxyConfig.jupyterProxyDockerImage,
-      clusterImages.find(_.tool == Welder).map(_.dockerImage).getOrElse(""),
+      cluster.clusterImages.find(_.tool == Welder).map(_.dockerImage).getOrElse(""),
       GcsPath(initBucketName, GcsObjectName(clusterFilesConfig.jupyterServerCrt.getName)).toUri,
       GcsPath(initBucketName, GcsObjectName(clusterFilesConfig.jupyterServerKey.getName)).toUri,
       GcsPath(initBucketName, GcsObjectName(clusterFilesConfig.jupyterRootCaPem.getName)).toUri,
@@ -336,20 +335,20 @@ object ClusterInitValues {
       dataprocConfig.rstudioServerName,
       dataprocConfig.welderServerName,
       proxyConfig.proxyServerName,
-      clusterRequest.jupyterUserScriptUri.map(_.toUri).getOrElse(""),
-      GcsPath(stagingBucket, GcsObjectName("userscript_output.txt")).toUri,
+      cluster.jupyterUserScriptUri.map(_.toUri).getOrElse(""),
+      cluster.dataprocInfo.stagingBucket.map(x => GcsPath(x, GcsObjectName("userscript_output.txt")).toUri).getOrElse(""),
       serviceAccountKey.map(_ => GcsPath(initBucketName, GcsObjectName(serviceAccountCredentialsFilename)).toUri).getOrElse(""),
-      userEmailLoginHint.value,
+      cluster.auditInfo.creator.value,
       contentSecurityPolicy,
-      clusterRequest.userJupyterExtensionConfig.map(x => x.serverExtensions.values.mkString(" ")).getOrElse(""),
-      clusterRequest.userJupyterExtensionConfig.map(x => x.nbExtensions.values.mkString(" ")).getOrElse(""),
-      clusterRequest.userJupyterExtensionConfig.map(x => x.combinedExtensions.values.mkString(" ")).getOrElse(""),
-      clusterRequest.userJupyterExtensionConfig.map(x => x.labExtensions.values.mkString(" ")).getOrElse(""),
+      cluster.userJupyterExtensionConfig.map(x => x.serverExtensions.values.mkString(" ")).getOrElse(""),
+      cluster.userJupyterExtensionConfig.map(x => x.nbExtensions.values.mkString(" ")).getOrElse(""),
+      cluster.userJupyterExtensionConfig.map(x => x.combinedExtensions.values.mkString(" ")).getOrElse(""),
+      cluster.userJupyterExtensionConfig.map(x => x.labExtensions.values.mkString(" ")).getOrElse(""),
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value)).toUri,
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookFrontendConfigUri.value)).toUri,
-      clusterRequest.defaultClientId.getOrElse(""),
-      welderEnabled.toString,  // TODO: remove this and conditional below when welder is rolled out to all clusters
-      if (welderEnabled) dataprocConfig.welderEnabledNotebooksDir else dataprocConfig.welderDisabledNotebooksDir
+      cluster.defaultClientId.getOrElse(""),
+      cluster.welderEnabled.toString,  // TODO: remove this and conditional below when welder is rolled out to all clusters
+      if (cluster.welderEnabled) dataprocConfig.welderEnabledNotebooksDir else dataprocConfig.welderDisabledNotebooksDir
     )
 }
 
