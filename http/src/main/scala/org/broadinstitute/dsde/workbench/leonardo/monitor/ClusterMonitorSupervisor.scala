@@ -8,6 +8,7 @@ import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props, Timers}
 import cats.effect.IO
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
+import java.util.UUID.randomUUID
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, DataprocConfig, MonitorConfig}
@@ -89,7 +90,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
       startClusterMonitorActor(cluster, None)
 
     case RecreateCluster(cluster) =>
-      val traceId = TraceId(java.util.UUID.randomUUID)
+      val traceId = TraceId(randomUUID)
       if (monitorConfig.recreateCluster) {
         logger.info(s"[$traceId] Recreating cluster ${cluster.projectNameString}...")
         dbRef.inTransaction { dataAccess =>

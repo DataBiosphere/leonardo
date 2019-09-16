@@ -5,6 +5,7 @@ import akka.testkit.TestKit
 import com.typesafe.config.Config
 import com.typesafe.scalalogging.LazyLogging
 import io.swagger.client.ApiException
+import java.util.UUID.randomUUID
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProvider.NotebookAuthCacheKey
@@ -187,7 +188,7 @@ class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with Free
 
   "notifyClusterCreated should retry errors and invalidate the pet token cache" in isolatedDbTest {
     logger.info("testing retries, stack traces expected")
-    val dummyTraceId = TraceId(java.util.UUID.randomUUID)
+    val dummyTraceId = TraceId(randomUUID)
 
     // should retry 401s
     val samClientThrowing401 = mock[MockSwaggerSamClient]

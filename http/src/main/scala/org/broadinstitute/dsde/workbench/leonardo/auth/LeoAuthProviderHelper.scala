@@ -4,6 +4,7 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import com.typesafe.config.Config
 import com.typesafe.scalalogging.LazyLogging
+import java.util.UUID.randomUUID
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
@@ -45,7 +46,7 @@ class LeoAuthProviderHelper(wrappedAuthProvider: LeoAuthProvider, authConfig: Co
   private lazy val providerTimeout = authConfig.as[FiniteDuration]("providerTimeout")
   private implicit val scheduler = system.scheduler
 
-  private def safeCall[T](traceId: TraceId = TraceId(java.util.UUID.randomUUID))(future: => Future[T])(implicit executionContext: ExecutionContext): Future[T] = {
+  private def safeCall[T](traceId: TraceId = TraceId(randomUUID))(future: => Future[T])(implicit executionContext: ExecutionContext): Future[T] = {
     val exceptionHandler: PartialFunction[Throwable, Future[Nothing]] = {
       case e: LeoException => Future.failed(e)
       case te: TimeoutException =>

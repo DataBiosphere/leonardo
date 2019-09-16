@@ -6,6 +6,7 @@ import java.util.concurrent.TimeUnit
 import com.typesafe.config.Config
 import akka.http.scaladsl.model.StatusCodes
 import com.google.common.cache.{CacheBuilder, CacheLoader}
+import java.util.UUID.randomUUID
 import io.swagger.client.ApiException
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProvider.{NotebookAuthCacheKey, SamCacheKey}
@@ -162,7 +163,7 @@ class SamAuthProvider(val config: Config, serviceAccountProvider: ServiceAccount
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  override def notifyClusterCreated(internalId: ClusterInternalId, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, traceId: TraceId = TraceId(java.util.UUID.randomUUID))(implicit executionContext: ExecutionContext): Future[Unit] = {
+  override def notifyClusterCreated(internalId: ClusterInternalId, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, traceId: TraceId = TraceId(randomUUID))(implicit executionContext: ExecutionContext): Future[Unit] = {
     retryUntilSuccessOrTimeout(shouldInvalidateSamCacheAndRetry, s"[$traceId] SamAuthProvider.notifyClusterCreated call failed for ${googleProject.value}/${clusterName.value}")(samRetryInterval, samRetryTimeout) {  () =>
       Future {
         blocking(samClient.createNotebookClusterResource(internalId, creatorEmail, googleProject, clusterName))

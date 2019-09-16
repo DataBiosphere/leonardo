@@ -14,6 +14,7 @@ import cats.implicits._
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
+import java.util.UUID.randomUUID
 import org.broadinstitute.dsde.workbench.google.{GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
@@ -156,7 +157,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                     googleProject: GoogleProject,
                     clusterName: ClusterName,
                     clusterRequest: ClusterRequest): Future[Cluster] = {
-    val traceId = TraceId(java.util.UUID.randomUUID)
+    val traceId = TraceId(randomUUID)
     for {
       _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
 
@@ -221,7 +222,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                     googleProject: GoogleProject,
                                     clusterName: ClusterName,
                                     clusterRequest: ClusterRequest): Future[Cluster] = {
-    val traceId = TraceId(java.util.UUID.randomUUID)
+    val traceId = TraceId(randomUUID)
     for {
       _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
 

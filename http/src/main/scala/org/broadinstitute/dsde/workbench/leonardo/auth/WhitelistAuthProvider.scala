@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.auth
 
 import cats.implicits._
 import com.typesafe.config.Config
+import java.util.UUID.randomUUID
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterInternalId, LeoAuthProvider, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
@@ -72,7 +73,7 @@ class WhitelistAuthProvider(config: Config, serviceAccountProvider: ServiceAccou
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterCreated(internalId: ClusterInternalId, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, traceId: TraceId = TraceId(java.util.UUID.randomUUID))(implicit executionContext: ExecutionContext): Future[Unit] = Future.successful(())
+  def notifyClusterCreated(internalId: ClusterInternalId, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, traceId: TraceId = TraceId(randomUUID))(implicit executionContext: ExecutionContext): Future[Unit] = Future.successful(())
 
   /**
     * Leo calls this method to notify the auth provider that a notebook cluster has been destroyed.
