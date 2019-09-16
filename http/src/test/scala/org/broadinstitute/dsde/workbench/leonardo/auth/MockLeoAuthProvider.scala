@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.auth
 import com.typesafe.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import net.ceedubs.ficus.Ficus._
 

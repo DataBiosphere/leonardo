@@ -14,8 +14,8 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.IamProxyAuthProvider.{Cac
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.NotebookClusterAction
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.ProjectAction
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterInternalId, LeoAuthProvider, ServiceAccountProvider, TraceId}
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterInternalId, LeoAuthProvider, ServiceAccountProvider}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, IamPermission}
 
 import scala.concurrent.duration.{FiniteDuration, MINUTES}
