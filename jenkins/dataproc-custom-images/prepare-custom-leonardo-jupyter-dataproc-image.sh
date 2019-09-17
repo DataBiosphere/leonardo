@@ -77,7 +77,7 @@ function log() {
 }
 
 function betterAptGet() {
-    if ! { apt-get update 2>&1 || echo E: update failed; } | grep -q '^[WE]:'; then
+    if ! { apt-get update || echo E: update failed; } | grep -q '^[WE]:'; then
         return 0
     else
         return 1
