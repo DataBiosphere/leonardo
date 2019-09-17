@@ -61,7 +61,7 @@ class ClusterHelper(dbRef: DbReference,
     } getOrElse IO.unit
 
     // TODO: replace this logic with a group based approach so we don't have to manipulate IAM directly in the image project.
-    // See <jira>
+    // See https://broadworkbench.atlassian.net/browse/IA-1364
     //
     // Add the Compute Image User role in the image project to the Google API service account.
     // This is needed in order to use a custom dataproc VM image.
