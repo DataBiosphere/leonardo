@@ -10,7 +10,7 @@ def getShortHash(hash) {
   return hash.substring(0,7)
 }
 
-def boolean hasHashChanges(String[] images) {
+def boolean hasHashChanges(ArrayList<String> images) {
   def Set imagesChanged = []
 
   def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
