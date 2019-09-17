@@ -587,35 +587,35 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
-  private def whenGoogleZoneCapacityIssue(throwable: Throwable): Boolean = {
-    throwable match {
-      case t: GoogleJsonResponseException => t.getStatusCode == 429 && t.getDetails.getErrors.asScala.head.getReason.equalsIgnoreCase("rateLimitExceeded")
-      case _ => false
-    }
-  }
+//  private def whenGoogleZoneCapacityIssue(throwable: Throwable): Boolean = {
+//    throwable match {
+//      case t: GoogleJsonResponseException => t.getStatusCode == 429 && t.getDetails.getErrors.asScala.head.getReason.equalsIgnoreCase("rateLimitExceeded")
+//      case _ => false
+//    }
+//  }
 
-  def getClusterVPCSettings(projectLabels: Map[String, String]): Option[Either[VPCNetworkName, VPCSubnetName]] = {
-    //Dataproc only allows you to specify a subnet OR a network. Subnets will be preferred if present.
-    //High-security networks specified inside of the project will always take precedence over anything
-    //else. Thus, VPC configuration takes the following precedence:
-    // 1) High-security subnet in the project (if present)
-    // 2) High-security network in the project (if present)
-    // 3) Subnet specified in leonardo.conf (if present)
-    // 4) Network specified in leonardo.conf (if present)
-    // 5) The default network in the project
-    val projectSubnet  = dataprocConfig.projectVPCSubnetLabel.flatMap(subnetLabel => projectLabels.get(subnetLabel).map(VPCSubnetName) )
-    val projectNetwork = dataprocConfig.projectVPCNetworkLabel.flatMap( networkLabel => projectLabels.get(networkLabel).map(VPCNetworkName) )
-    val configSubnet   = dataprocConfig.vpcSubnet.map(VPCSubnetName)
-    val configNetwork  = dataprocConfig.vpcNetwork.map(VPCNetworkName)
-
-    (projectSubnet, projectNetwork, configSubnet, configNetwork) match {
-      case (Some(subnet), _, _, _)  => Some(Right(subnet))
-      case (_, Some(network), _, _) => Some(Left(network))
-      case (_, _, Some(subnet), _)  => Some(Right(subnet))
-      case (_, _, _, Some(network)) => Some(Left(network))
-      case (_, _, _, _)             => None
-    }
-  }
+//  def getClusterVPCSettings(projectLabels: Map[String, String]): Option[Either[VPCNetworkName, VPCSubnetName]] = {
+//    //Dataproc only allows you to specify a subnet OR a network. Subnets will be preferred if present.
+//    //High-security networks specified inside of the project will always take precedence over anything
+//    //else. Thus, VPC configuration takes the following precedence:
+//    // 1) High-security subnet in the project (if present)
+//    // 2) High-security network in the project (if present)
+//    // 3) Subnet specified in leonardo.conf (if present)
+//    // 4) Network specified in leonardo.conf (if present)
+//    // 5) The default network in the project
+//    val projectSubnet  = dataprocConfig.projectVPCSubnetLabel.flatMap(subnetLabel => projectLabels.get(subnetLabel).map(VPCSubnetName) )
+//    val projectNetwork = dataprocConfig.projectVPCNetworkLabel.flatMap( networkLabel => projectLabels.get(networkLabel).map(VPCNetworkName) )
+//    val configSubnet   = dataprocConfig.vpcSubnet.map(VPCSubnetName)
+//    val configNetwork  = dataprocConfig.vpcNetwork.map(VPCNetworkName)
+//
+//    (projectSubnet, projectNetwork, configSubnet, configNetwork) match {
+//      case (Some(subnet), _, _, _)  => Some(Right(subnet))
+//      case (_, Some(network), _, _) => Some(Left(network))
+//      case (_, _, Some(subnet), _)  => Some(Right(subnet))
+//      case (_, _, _, Some(network)) => Some(Left(network))
+//      case (_, _, _, _)             => None
+//    }
+//  }
 
   private def calculateAutopauseThreshold(autopause: Option[Boolean], autopauseThreshold: Option[Int]): Int = {
     autopause match {
@@ -655,37 +655,37 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
-  private[service] def cleanUpGoogleResourcesOnError(throwable: Throwable, googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[Unit] = {
-    logger.error(s"Cluster creation failed in Google for $googleProject / ${clusterName.value}. Cleaning up resources in Google...")
-
-    // Clean up resources in Google
-
-    val deleteInitBucketFuture = leoGoogleStorageDAO.deleteBucket(initBucketName, recurse = true) map { _ =>
-      logger.info(s"Successfully deleted init bucket ${initBucketName.value} for  ${googleProject.value} / ${clusterName.value}")
-    } recover { case e =>
-      logger.error(s"Failed to delete init bucket ${initBucketName.value} for  ${googleProject.value} / ${clusterName.value}", e)
-    }
-
-    // Don't delete the staging bucket so the user can see error logs.
-
-    val deleteClusterFuture = gdDAO.deleteCluster(googleProject, clusterName) map { _ =>
-      logger.info(s"Successfully deleted cluster ${googleProject.value} / ${clusterName.value}")
-    } recover { case e =>
-      logger.error(s"Failed to delete cluster ${googleProject.value} / ${clusterName.value}", e)
-    }
-
-    // Delete the notebook service account key in Google, if present
-    val deleteServiceAccountKeyFuture = (for {
-      keyIdOpt <- dbRef.inTransaction { _.clusterQuery.getServiceAccountKeyId(googleProject, clusterName) }
-      _ <- clusterHelper.removeServiceAccountKey(googleProject, serviceAccountInfo.notebookServiceAccount, keyIdOpt).unsafeToFuture()
-    } yield ()) map { _ =>
-      logger.info(s"Successfully deleted service account key for ${serviceAccountInfo.notebookServiceAccount}")
-    } recover { case e =>
-      logger.error(s"Failed to delete service account key for ${serviceAccountInfo.notebookServiceAccount}", e)
-    }
-
-    Future.sequence(Seq(deleteInitBucketFuture, deleteClusterFuture, deleteServiceAccountKeyFuture)).void
-  }
+//  private[service] def cleanUpGoogleResourcesOnError(throwable: Throwable, googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[Unit] = {
+//    logger.error(s"Cluster creation failed in Google for $googleProject / ${clusterName.value}. Cleaning up resources in Google...")
+//
+//    // Clean up resources in Google
+//
+//    val deleteInitBucketFuture = leoGoogleStorageDAO.deleteBucket(initBucketName, recurse = true) map { _ =>
+//      logger.info(s"Successfully deleted init bucket ${initBucketName.value} for  ${googleProject.value} / ${clusterName.value}")
+//    } recover { case e =>
+//      logger.error(s"Failed to delete init bucket ${initBucketName.value} for  ${googleProject.value} / ${clusterName.value}", e)
+//    }
+//
+//    // Don't delete the staging bucket so the user can see error logs.
+//
+//    val deleteClusterFuture = gdDAO.deleteCluster(googleProject, clusterName) map { _ =>
+//      logger.info(s"Successfully deleted cluster ${googleProject.value} / ${clusterName.value}")
+//    } recover { case e =>
+//      logger.error(s"Failed to delete cluster ${googleProject.value} / ${clusterName.value}", e)
+//    }
+//
+//    // Delete the notebook service account key in Google, if present
+//    val deleteServiceAccountKeyFuture = (for {
+//      keyIdOpt <- dbRef.inTransaction { _.clusterQuery.getServiceAccountKeyId(googleProject, clusterName) }
+//      _ <- clusterHelper.removeServiceAccountKey(googleProject, serviceAccountInfo.notebookServiceAccount, keyIdOpt).unsafeToFuture()
+//    } yield ()) map { _ =>
+//      logger.info(s"Successfully deleted service account key for ${serviceAccountInfo.notebookServiceAccount}")
+//    } recover { case e =>
+//      logger.error(s"Failed to delete service account key for ${serviceAccountInfo.notebookServiceAccount}", e)
+//    }
+//
+//    Future.sequence(Seq(deleteInitBucketFuture, deleteClusterFuture, deleteServiceAccountKeyFuture)).void
+//  }
 
   private def whenGoogle409(throwable: Throwable): Boolean = {
     throwable match {

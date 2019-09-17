@@ -5,10 +5,10 @@ import java.nio.charset.Charset
 import akka.actor.ActorSystem
 import cats.effect._
 import cats.implicits._
-import com.google.api.client.http.HttpResponseException
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.typesafe.scalalogging.LazyLogging
 import fs2._
-import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
+import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -17,11 +17,13 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google2.GcsBlobName
+import org.broadinstitute.dsde.workbench.leonardo.Metrics
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.Master
-import org.broadinstitute.dsde.workbench.leonardo.model.google.{FirewallRule, FirewallRuleName, FirewallRulePort, FirewallRuleProtocol, MachineType, NetworkTag, VPCNetworkName}
+import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, CreateClusterConfig, FirewallRule, FirewallRuleName, FirewallRulePort, FirewallRuleProtocol, MachineType, NetworkTag, VPCNetworkName, VPCSubnetName}
 import org.broadinstitute.dsde.workbench.leonardo.util.TemplateHelper.GcsResource
 import org.broadinstitute.dsde.workbench.util.Retry
 
+import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
 
 case class ClusterIamSetupException(googleProject: GoogleProject)
@@ -36,6 +38,7 @@ class ClusterHelper(dbRef: DbReference,
                     gdDAO: GoogleDataprocDAO,
                     googleComputeDAO: GoogleComputeDAO,
                     googleIamDAO: GoogleIamDAO,
+                    googleProjectDAO: GoogleProjectDAO,
                     contentSecurityPolicy: String)
                    (implicit val executionContext: ExecutionContext, val system: ActorSystem, val contextShift: ContextShift[IO]) extends LazyLogging with Retry {
 
@@ -218,7 +221,7 @@ class ClusterHelper(dbRef: DbReference,
     // We don't need to do this for the cluster service account because its credentials are already
     // on the metadata server.
     generateServiceAccountKey(cluster.googleProject, cluster.serviceAccountInfo.notebookServiceAccount).flatMap { serviceAccountKeyOpt =>
-      for {
+      val ioResult = for {
         // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
         _ <- IO.fromFuture(IO(googleComputeDAO.updateFirewallRule(cluster.googleProject, firewallRule)))
 
@@ -232,75 +235,76 @@ class ClusterHelper(dbRef: DbReference,
 
         // Create the cluster staging bucket. ACLs are granted so the user/pet can access it.
         _ <- bucketHelper.createStagingBucket(cluster.auditInfo.creator, cluster.googleProject, stagingBucketName, cluster.serviceAccountInfo).compile.drain
-      } yield ???
 
-    }
+        // build cluster configuration
+        machineConfig = cluster.machineConfig
+        initScriptResources = if (dataprocConfig.customDataprocImage.isEmpty) List(clusterResourcesConfig.initVmScript, clusterResourcesConfig.initActionsScript) else List(clusterResourcesConfig.initActionsScript)
+        initScripts = initScriptResources.map(resource => GcsPath(initBucketName, GcsObjectName(resource.value)))
+        credentialsFileName = cluster.serviceAccountInfo.notebookServiceAccount.map(_ => s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}")
 
-    // memoized
-    val serviceAccountKeyFuture = generateServiceAccountKey(cluster.googleProject, cluster.serviceAccountInfo.notebookServiceAccount)
-    val serviceAccountKeyIO = IO.fromFuture(IO(serviceAccountKeyFuture))
+        // decide whether to use VPC network
+        lookupProjectLabels = dataprocConfig.projectVPCNetworkLabel.isDefined || dataprocConfig.projectVPCSubnetLabel.isDefined
+        projectLabels <- if (lookupProjectLabels) IO.fromFuture(IO(googleProjectDAO.getLabels(cluster.googleProject.value))) else IO(Map.empty[String, String])
+        clusterVPCSettings = getClusterVPCSettings(projectLabels)
 
-    val ioResult: IO[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = for {
-      // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
-      _ <- IO.fromFuture(IO(googleComputeDAO.updateFirewallRule(cluster.googleProject, firewallRule)))
+        // Create the cluster
+        createClusterConfig = CreateClusterConfig(machineConfig, initScripts, cluster.serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucketName, cluster.scopes, clusterVPCSettings, cluster.properties, dataprocConfig.customDataprocImage)
+        retryResult <- IO.fromFuture(IO(retryExponentially(whenGoogleZoneCapacityIssue, "Cluster creation failed because zone with adequate resources was not found") { () =>
+          gdDAO.createCluster(cluster.googleProject, cluster.clusterName, createClusterConfig)
+        }))
 
-      // Generate a service account key for the notebook service account (if present) to localize on the cluster.
-      // We don't need to do this for the cluster service account because its credentials are already
-      // on the metadata server.
-      serviceAccountKeyOpt <- serviceAccountKeyIO
+        operation <- retryResult match {
+          case Right((errors, op)) if errors == List.empty => IO(op)
+          case Right((errors, op)) =>
+            Metrics.newRelic.incrementCounterIO("zoneCapacityClusterCreationFailure", errors.length)
+              .as(op)
+          case Left(errors) =>
+            Metrics.newRelic.incrementCounterIO("zoneCapacityClusterCreationFailure", errors.filter(whenGoogleZoneCapacityIssue).length)
+              .flatMap(_ => IO.raiseError(errors.head))
+        }
 
-      // Add Dataproc Worker role to the cluster service account, if present.
-      // This is needed to be able to spin up Dataproc clusters.
-      // If the Google Compute default service account is being used, this is not necessary.
-      _ <- IO.fromFuture(IO(addDataprocWorkerRoleToServiceAccount(cluster.googleProject, cluster.serviceAccountInfo.clusterServiceAccount)))
+        cluster = Cluster.createFinal(cluster, operation, stagingBucketName)
 
-      // Create the bucket in the cluster's google project and populate with initialization files.
-      // ACLs are granted so the cluster service account can access the files at initialization time.
-      _ <- bucketHelper.createInitBucket(cluster.googleProject, initBucketName, cluster.serviceAccountInfo).compile.drain
-      _ <- initializeBucketObjects(cluster, initBucketName, serviceAccountKeyOpt).compile.drain
+      } yield (cluster, initBucketName, serviceAccountKeyOpt)
 
-      // Create the cluster staging bucket. ACLs are granted so the user/pet can access it.
-      _ <- bucketHelper.createStagingBucket(cluster.auditInfo.creator, cluster.googleProject, stagingBucketName, cluster.serviceAccountInfo)
-
-      // build cluster configuration
-      machineConfig = cluster.machineConfig
-      initScript = GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.initActionsScript.value))
-      //   autopauseThreshold = cluster.autopauseThreshold
-      //  clusterScopes = if(clusterRequest.scopes.isEmpty) dataprocConfig.defaultScopes else clusterRequest.scopes
-      credentialsFileName = cluster.serviceAccountInfo.notebookServiceAccount.map(_ => s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}")
-
-      // decide whether to use VPC network
-      lookupProjectLabels = dataprocConfig.projectVPCNetworkLabel.isDefined || dataprocConfig.projectVPCSubnetLabel.isDefined
-      projectLabels <- if (lookupProjectLabels) IO.fromFuture(IO(googleProjectDAO.getLabels(cluster.googleProject.value))) else IO(Map.empty[String, String])
-      clusterVPCSettings = getClusterVPCSettings(projectLabels)
-
-      // Create the cluster
-      createClusterConfig = CreateClusterConfig(machineConfig, initScript, cluster.serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucketName, cluster.scopes, clusterVPCSettings, cluster.properties)
-      retryResult <- IO.fromFuture(IO(retryExponentially(whenGoogleZoneCapacityIssue, "Cluster creation failed because zone with adequate resources was not found") { () =>
-        gdDAO.createCluster(cluster.googleProject, cluster.clusterName, createClusterConfig)
-      }))
-
-
-      operation <- retryResult match {
-        case Right((errors, op)) if errors == List.empty => IO(op)
-        case Right((errors, op)) =>
-          Metrics.newRelic.incrementCounterIO("zoneCapacityClusterCreationFailure", errors.length)
-            .as(op)
-        case Left(errors) =>
-          Metrics.newRelic.incrementCounterIO("zoneCapacityClusterCreationFailure", errors.filter(whenGoogleZoneCapacityIssue).length)
-            .flatMap(_ => IO.raiseError(errors.head))
+      ioResult.handleErrorWith { throwable =>
+        cleanUpGoogleResourcesOnError(cluster.googleProject,
+          cluster.clusterName, initBucketName,
+          cluster.serviceAccountInfo, serviceAccountKeyOpt) >> IO.raiseError(throwable)
       }
 
-      cluster = Cluster.createFinal(cluster, operation, stagingBucketName)
-    } yield (cluster, initBucketName, serviceAccountKeyOpt)
-
-
-    ioResult.handleErrorWith { throwable =>
-      cleanUpGoogleResourcesOnError(cluster.googleProject,
-        cluster.clusterName, initBucketName,
-        cluster.serviceAccountInfo, serviceAccountKeyIO) >> IO.raiseError(throwable)
     }
 
+  }
+
+  private[service] def cleanUpGoogleResourcesOnError(googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo, serviceAccountKeyOpt: Option[ServiceAccountKey]): IO[Unit] = {
+    logger.error(s"Cluster creation failed in Google for $googleProject / ${clusterName.value}. Cleaning up resources in Google...")
+
+    // Clean up resources in Google
+    val deleteBucket = bucketHelper.deleteInitBucket(initBucketName) map { _ =>
+      logger.info(s"Successfully deleted init bucket ${initBucketName.value} for  ${googleProject.value} / ${clusterName.value}")
+    } recover { case e =>
+      logger.error(s"Failed to delete init bucket ${initBucketName.value} for  ${googleProject.value} / ${clusterName.value}", e)
+    }
+
+    // Don't delete the staging bucket so the user can see error logs.
+
+    val deleteCluster = IO.fromFuture(IO(gdDAO.deleteCluster(googleProject, clusterName))) map { _ =>
+      logger.info(s"Successfully deleted cluster ${googleProject.value} / ${clusterName.value}")
+    } recover { case e =>
+      logger.error(s"Failed to delete cluster ${googleProject.value} / ${clusterName.value}", e)
+    }
+
+    val deleteServiceAccountKey = removeServiceAccountKey(googleProject, serviceAccountInfo.notebookServiceAccount, serviceAccountKeyOpt.map(_.id)) map { _ =>
+      logger.info(s"Successfully deleted service account key for ${serviceAccountInfo.notebookServiceAccount}")
+    } recover { case e =>
+      logger.error(s"Failed to delete service account key for ${serviceAccountInfo.notebookServiceAccount}", e)
+    }
+
+    // TODO also remove dataproc role
+
+    // TODO: parJoin?
+    (Stream.eval(deleteBucket) ++ Stream.eval(deleteCluster) ++ Stream.eval(deleteServiceAccountKey)).compile.drain
   }
 
   private def firewallRule = FirewallRule(
@@ -365,8 +369,38 @@ class ClusterHelper(dbRef: DbReference,
       } yield GcsResource(GcsBlobName(ClusterInitValues.serviceAccountCredentialsFilename), d.getBytes(Charset.defaultCharset))
     ).unNone
 
-    (rawFilesToUpload ++ rawResourcesToUpload ++ templatedResourcesToUpload ++ privateKey).evalMap[IO, Unit] { resource =>
+    (rawFilesToUpload ++ rawResourcesToUpload ++ templatedResourcesToUpload ++ privateKey).flatMap { resource =>
       bucketHelper.storeObject(initBucketName, resource.gcsBlobName, resource.content, "text/plain")
+    }
+  }
+
+  private def getClusterVPCSettings(projectLabels: Map[String, String]): Option[Either[VPCNetworkName, VPCSubnetName]] = {
+    //Dataproc only allows you to specify a subnet OR a network. Subnets will be preferred if present.
+    //High-security networks specified inside of the project will always take precedence over anything
+    //else. Thus, VPC configuration takes the following precedence:
+    // 1) High-security subnet in the project (if present)
+    // 2) High-security network in the project (if present)
+    // 3) Subnet specified in leonardo.conf (if present)
+    // 4) Network specified in leonardo.conf (if present)
+    // 5) The default network in the project
+    val projectSubnet  = dataprocConfig.projectVPCSubnetLabel.flatMap(subnetLabel => projectLabels.get(subnetLabel).map(VPCSubnetName) )
+    val projectNetwork = dataprocConfig.projectVPCNetworkLabel.flatMap( networkLabel => projectLabels.get(networkLabel).map(VPCNetworkName) )
+    val configSubnet   = dataprocConfig.vpcSubnet.map(VPCSubnetName)
+    val configNetwork  = dataprocConfig.vpcNetwork.map(VPCNetworkName)
+
+    (projectSubnet, projectNetwork, configSubnet, configNetwork) match {
+      case (Some(subnet), _, _, _)  => Some(Right(subnet))
+      case (_, Some(network), _, _) => Some(Left(network))
+      case (_, _, Some(subnet), _)  => Some(Right(subnet))
+      case (_, _, _, Some(network)) => Some(Left(network))
+      case (_, _, _, _)             => None
+    }
+  }
+
+  private def whenGoogleZoneCapacityIssue(throwable: Throwable): Boolean = {
+    throwable match {
+      case t: GoogleJsonResponseException => t.getStatusCode == 429 && t.getDetails.getErrors.asScala.head.getReason.equalsIgnoreCase("rateLimitExceeded")
+      case _ => false
     }
   }
 

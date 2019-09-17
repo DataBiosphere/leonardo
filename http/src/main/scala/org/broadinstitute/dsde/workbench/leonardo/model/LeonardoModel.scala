@@ -108,10 +108,10 @@ case class ClusterError(errorMessage: String,
                         errorCode: Int,
                         timestamp: Instant)
 
-case class DataprocInfo(googleId: Option[UUID],
-                        operationName: Option[OperationName],
-                        stagingBucket: Option[GcsBucketName],
-                        hostIp: Option[IP])
+case class DataprocInfo(googleId: Option[UUID] = None,
+                        operationName: Option[OperationName] = None,
+                        stagingBucket: Option[GcsBucketName] = None,
+                        hostIp: Option[IP] = None)
 
 case class AuditInfo(creator: WorkbenchEmail,
                      createdDate: Instant,
@@ -163,25 +163,23 @@ final case class Cluster(id: Long = 0, // DB AutoInc
 object Cluster {
   type LabelMap = Map[String, String]
 
-  def create(clusterRequest: ClusterRequest,
-             internalId: ClusterInternalId,
-             userEmail: WorkbenchEmail,
-             clusterName: ClusterName,
-             googleProject: GoogleProject,
-             serviceAccountInfo: ServiceAccountInfo,
-             machineConfig: MachineConfig,
-             clusterUrlBase: String,
-             autopauseThreshold: Int,
-             clusterScopes: Set[String],
-             operation: Option[Operation] = None,
-             stagingBucket: Option[GcsBucketName] = None,
-             clusterImages: Set[ClusterImage] = Set.empty): Cluster = {
+  def createInitial(clusterRequest: ClusterRequest,
+                    internalId: ClusterInternalId,
+                    userEmail: WorkbenchEmail,
+                    clusterName: ClusterName,
+                    googleProject: GoogleProject,
+                    serviceAccountInfo: ServiceAccountInfo,
+                    machineConfig: MachineConfig,
+                    clusterUrlBase: String,
+                    autopauseThreshold: Int,
+                    clusterScopes: Set[String],
+                    clusterImages: Set[ClusterImage] = Set.empty): Cluster = {
     Cluster(
       internalId = internalId,
       clusterName = clusterName,
       googleProject = googleProject,
       serviceAccountInfo = serviceAccountInfo,
-      dataprocInfo = DataprocInfo(operation.map(_.uuid), operation.map(_.name), stagingBucket, None),
+      dataprocInfo = DataprocInfo(),
       auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now(), None),
       machineConfig = machineConfig,
       properties = clusterRequest.properties,
@@ -199,6 +197,12 @@ object Cluster {
       clusterImages = clusterImages,
       scopes = clusterScopes,
       welderEnabled = clusterRequest.enableWelder.getOrElse(false))
+  }
+
+  def createFinal(cluster: Cluster, operation: Operation, stagingBucket: GcsBucketName): Cluster = {
+    cluster.copy(
+      dataprocInfo = DataprocInfo(Option(operation.uuid), Option(operation.name), Option(stagingBucket), None)
+    )
   }
 
   // TODO it's hacky to re-parse the Leo config in the model object.
