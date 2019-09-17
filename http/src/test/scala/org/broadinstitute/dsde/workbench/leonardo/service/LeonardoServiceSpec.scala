@@ -64,7 +64,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   before {
     gdDAO = new MockGoogleDataprocDAO
     computeDAO = new MockGoogleComputeDAO
-    iamDAO = new MockGoogleIamDAO
+    iamDAO = new LeoMockGoogleIamDAO
     projectDAO = new MockGoogleProjectDAO
     storageDAO = new MockGoogleStorageDAO
     // Pre-populate the juptyer extension bucket in the mock storage DAO, as it is passed in some requests
@@ -1370,7 +1370,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
   }
 
-  private class ErroredMockGoogleIamDAO(statusCode: Int = 400) extends MockGoogleIamDAO {
+  private class ErroredMockGoogleIamDAO(statusCode: Int = 400) extends LeoMockGoogleIamDAO {
     var invocationCount = 0
     override def addIamRolesForUser(iamProject: GoogleProject, email: WorkbenchEmail, rolesToAdd: Set[String]): Future[Boolean] = {
       invocationCount += 1

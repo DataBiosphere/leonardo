@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
 import akka.actor.ActorSystem
+import cats.data.OptionT
 import cats.effect._
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
@@ -75,7 +76,7 @@ class ClusterHelper(dbRef: DbReference,
             IO.unit
           } else {
             for {
-              emailOpt <- IO.fromFuture(IO(googleComputeDAO.getGoogleApiServiceAccount(googleProject)))
+              emailOpt <- getDataprocServiceAccount(googleProject)
               _ <- emailOpt match {
                 case Some(email) => retryIam(imageProject, email, Set("roles/compute.imageUser"))
                 case None => IO.raiseError(ClusterIamSetupException(imageProject))
@@ -86,6 +87,27 @@ class ClusterHelper(dbRef: DbReference,
     }
 
     List(dataprocWorkerIO, computeImageUserIO).parSequence_
+  }
+
+  private[leonardo] def googleApiServiceAccount: Long => WorkbenchEmail = projectNumber =>
+    WorkbenchEmail(s"$projectNumber@cloudservices.gserviceaccount.com")
+
+  private[leonardo] def dataprocServiceAccount: Long => WorkbenchEmail = projectNumber =>
+    WorkbenchEmail(s"service-$projectNumber@dataproc-accounts.iam.gserviceaccount.com")
+
+  // Returns the service account Dataproc uses to perform its actions.
+  // See: https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
+  private def getDataprocServiceAccount(googleProject: GoogleProject): IO[Option[WorkbenchEmail]] = {
+    val findSA = (email: WorkbenchEmail) => OptionT(IO.fromFuture(IO(googleIamDAO.findServiceAccount(googleProject, email))).map(_.map(_.email)))
+    val findGoogleApiServiceAccount = findSA compose googleApiServiceAccount
+    val findDataprocServiceAccount = findSA compose dataprocServiceAccount
+
+    (for {
+      number <- OptionT(IO.fromFuture(IO(googleComputeDAO.getProjectNumber(googleProject))))
+      // use dataproc service account if it exists; otherwise fall back to the API service account
+      precedence = (findDataprocServiceAccount, findGoogleApiServiceAccount).mapN(_ orElse _)
+      sa <- precedence(number)
+    } yield sa).value
   }
 
   def generateServiceAccountKey(googleProject: GoogleProject, serviceAccountEmailOpt: Option[WorkbenchEmail]): IO[Option[ServiceAccountKey]] = {

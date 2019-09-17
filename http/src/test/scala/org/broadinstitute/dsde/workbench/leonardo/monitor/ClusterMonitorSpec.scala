@@ -26,7 +26,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GcsLifecycleTypes.GcsLifecycleType
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsObjectName, GoogleProject, ServiceAccountKeyId}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsObjectName, GoogleProject, ServiceAccount, ServiceAccountDisplayName, ServiceAccountKeyId, ServiceAccountSubjectId}
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.Mockito._
 import org.scalatest.concurrent.Eventually
@@ -105,9 +105,6 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     when {
       dao.getProjectNumber(any[GoogleProject])
     } thenReturn Future.successful(Some((new Random).nextLong()))
-    when {
-      dao.getGoogleApiServiceAccount(any[GoogleProject])
-    } thenReturn Future.successful(Some(WorkbenchEmail("test@example.com")))
     dao
   }
 
@@ -596,6 +593,9 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     when {
       iamDAO.createServiceAccountKey(any[GoogleProject], any[WorkbenchEmail])
     } thenReturn Future.successful(serviceAccountKey)
+    when {
+      iamDAO.findServiceAccount(any[GoogleProject], any[WorkbenchEmail])
+    } thenReturn Future.successful(Some(ServiceAccount(ServiceAccountSubjectId("subject-id"), WorkbenchEmail("email"), ServiceAccountDisplayName("display-name"))))
 
     val authProvider = mock[LeoAuthProvider]
 
@@ -946,10 +946,6 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     when {
       computeDAO.stopInstance(mockitoEq(masterInstance.key))
     } thenReturn Future.successful(())
-
-    when {
-      computeDAO.getGoogleApiServiceAccount(mockitoEq(creatingCluster.googleProject))
-    } thenReturn Future.successful(Some(WorkbenchEmail("api-service-account")))
 
     val storageDAO = mock[GoogleStorageDAO]
     when {

@@ -23,8 +23,6 @@ trait GoogleComputeDAO {
 
   def getComputeEngineDefaultServiceAccount(googleProject: GoogleProject): Future[Option[WorkbenchEmail]]
 
-  def getGoogleApiServiceAccount(googleProject: GoogleProject): Future[Option[WorkbenchEmail]]
-
   def getProjectNumber(googleProject: GoogleProject): Future[Option[Long]]
 
   def setMachineType(instanceKey: InstanceKey, newMachineType: MachineType): Future[Unit]

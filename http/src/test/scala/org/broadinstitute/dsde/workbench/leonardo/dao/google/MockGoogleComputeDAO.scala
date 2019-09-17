@@ -53,10 +53,6 @@ class MockGoogleComputeDAO extends GoogleComputeDAO {
     Future.successful(Some(WorkbenchEmail("compute-engine@example.com")))
   }
 
-  override def getGoogleApiServiceAccount(googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
-    Future.successful(Some(WorkbenchEmail("google-api@example.com")))
-  }
-
   override def getProjectNumber(googleProject: GoogleProject): Future[Option[Long]] = {
     val rng = new Random
     Future.successful(Some(rng.nextLong()))
