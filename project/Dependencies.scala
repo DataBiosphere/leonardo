@@ -7,7 +7,7 @@ object Dependencies {
   val jacksonDatabindV = "2.9.9.2"  // jackson-databind has a security patch on the 2.9.9 branch
   val googleV       = "1.23.0"
   val scalaLoggingV = "3.9.0"
-  val scalaTestV    = "3.0.5"
+  val scalaTestV    = "3.0.8"
   val slickV        = "3.2.3"
 
   val workbenchUtilV    = "0.5-4c7acd5"
@@ -180,7 +180,7 @@ object Dependencies {
     "com.typesafe.akka"   %%  "akka-http"           % akkaHttpV,
     "com.typesafe.akka"   %%  "akka-testkit"        % akkaV     % "test",
     "com.typesafe.akka"   %%  "akka-slf4j"          % akkaV,
-    "org.scalatest"       %%  "scalatest"           % "3.0.5"   % "test",
+    scalaTest,
     "org.seleniumhq.selenium" % "selenium-java"     % "3.141.59" % "test",
     "com.typesafe.scala-logging" %% "scala-logging" % "3.8.0",
     "org.apache.commons" % "commons-text"           % "1.2",
