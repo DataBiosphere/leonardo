@@ -1,9 +1,7 @@
-import static org.broadinstitute.dspjenkins.FCConstants.*
-
 //"Update the custom data proc image used in leo.  The name of the job contains the name of the dataproc image created. This job will fail if master of terra-docker has not been updated since the last run, as the git hash has not changed. This is a happy side-effect of the fact image names must be unique."
 
 //populated by first step
-def String[] images = []
+def ArrayList<String> images = []
 def shortHash = ""
 
 def LinkedHashMap<String, String> imageToParamMap = [:]
@@ -12,15 +10,13 @@ def getShortHash(hash) {
   return hash.substring(0,7)
 }
 
-def boolean hasHashChanges(String[] configPaths, String[] images) {
-
-  def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
+def boolean hasHashChanges(String[] images) {
   def Set imagesChanged = []
 
   for (String config: configPaths) {
     for (String image: images) {
       output = sh(
-        script: "git diff HEAD~1..HEAD $configPath | grep $image"
+        script: "git diff HEAD~1..HEAD $configPath | grep $image",
           returnStdout: true
       ).trim() 
 
@@ -52,23 +48,23 @@ pipeline {
   agent { label 'node210' } 
 
   parameters {
-    globalVariableParam(name: "IMAGE_BASE_NAME", defaultValue: "custom-leo-image",
+    string(name: "IMAGE_BASE_NAME", defaultValue: "custom-leo-image",
           description: "The name to give the custom dataproc image. This will be appended with an hypen and the short version of the commit hash (first 7 characters).")
     booleanParam(name: "useCustomImages", defaultValue: false)
-    stringParam(name: "GOOGLE_PROJECT", defaultValue: "broad-dsp-gcr-public",
+    string(name: "GOOGLE_PROJECT", defaultValue: "broad-dsp-gcr-public",
           description: "The google project to use")
-    stringParam(name: "BUCKET_NAME", defaultValue: "gs://leo-dataproc-image",
+    string(name: "BUCKET_NAME", defaultValue: "gs://leo-dataproc-image",
           description: "The bucket where the image will be stored")
-    stringParam(name: "terra-jupyter-base", defaultValue: "0.0.1")
-    stringParam(name: "terra-jupyter-hail", defaultValue: "0.0.1")
-    stringParam(name: "terra-jupyter-r", defaultValue: "0.0.3")
-    stringParam(name: "terra-jupyter-python", defaultValue: "0.0.1")
-    stringParam(name: "terra-jupyter-bioconductor", defaultValue: "0.0.2")
-    stringParam(name: "leonardo-jupyter", defaultValue: "dev",
+    string(name: "terra-jupyter-base", defaultValue: "0.0.1")
+    string(name: "terra-jupyter-hail", defaultValue: "0.0.1")
+    string(name: "terra-jupyter-r", defaultValue: "0.0.3")
+    string(name: "terra-jupyter-python", defaultValue: "0.0.1")
+    string(name: "terra-jupyter-bioconductor", defaultValue: "0.0.2")
+    string(name: "leonardo-jupyter", defaultValue: "dev",
           description: "The tag of the jupyter image to pull in docker image build. Used in the prepare script.")
-    stringParam(name: "welder-server", defaultValue: "latest",
+    string(name: "welder-server", defaultValue: "latest",
           description: "The tag of the welder image to pull in docker image build. Used in the prepare script.")
-    stringParam(name: "openidc-proxy", defaultValue: "2.3.1_2",
+    string(name: "openidc-proxy", defaultValue: "2.3.1_2",
           description:"The tag of the openidc proxy image to pull in docker image build. Used in the prepare script.")
   }
 
@@ -83,10 +79,11 @@ pipeline {
     
     stage('Terra docker image scan') {
       steps {
-         git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/terra-docker.git', branch: 'master'
+         git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/terra-docker.git', branch: 'jc-jenkinsfile'
 
           script {
-            images = readFile("jenkins/imageDirs.txt").trim().split("\n")
+            def temp = readFile("jenkins/imageDirs.txt").trim().split("\n")
+            images = new ArrayList<String>(Arrays.asList(temp))
 
             //non terra-docker images
             images.add('leonardo-jupyter')
@@ -107,8 +104,10 @@ pipeline {
 
     stage('Get Short Hash') {
       steps {
+         sh 'printenv'
+
         script {
-          shortHash = getShortHash("$GIT_COMMIT")
+          shortHash = getShortHash("${env.GIT_COMMIT}")
         }
       }
     }
