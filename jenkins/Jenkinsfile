@@ -58,6 +58,18 @@ def LinkedHashMap<String,String> getVersionMap(ArrayList<String> imageNames, Str
 pipeline {
   agent { label 'node210' } 
 
+  options { 
+    //we don't want to be building more than one PR's changes at once, we will queue them instead
+    disableConcurrentBuilds() 
+  }
+
+  triggers {
+    // poll repo every 2 minute for changes
+    pollSCM('*/2 * * * *')
+    //dataproc images expire every 60 days
+    cron("0 0 */59 * *")
+  }
+
   parameters {
     string(name: "IMAGE_BASE_NAME", defaultValue: "custom-leo-image",
           description: "The name to give the custom dataproc image. This will be appended with an hypen and the short version of the commit hash (first 7 characters).")
@@ -79,15 +91,7 @@ pipeline {
           description:"The tag of the openidc proxy image to pull in docker image build. Used in the prepare script.")
   }
 
-  triggers {
-    //dataproc images expire every 60 days
-    cron("0 0 */59 * *")
-  }
-
-
-
   stages {
-    
     stage('Terra docker image scan') {
       steps {
          git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/terra-docker.git', branch: 'jc-jenkinsfile'
@@ -115,11 +119,9 @@ pipeline {
 
     stage('Get Short Hash') {
       steps {
-        sh "echo FILLER"
-//TODO uncomment
-        // script {
-        //   shortHash = getShortHash("${env.GIT_COMMIT}")
-        // }
+        script {
+          shortHash = getShortHash("${env.GIT_COMMIT}")
+        }
       }
     }
 
@@ -158,7 +160,7 @@ pipeline {
 
         sh """
           echo 'printing changed config'
-          cat prepare-custom-leonardo-jupyter-dataproc-image.sh
+          cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
         """
       }
     }
@@ -192,7 +194,6 @@ pipeline {
             )
           }
         }
-
       }
     }
             
@@ -217,6 +218,12 @@ pipeline {
           script {
             currentBuild.displayName = "#${BUILD_NUMBER}: $IMAGE_BASE_NAME-$shortHash"
           }
+        }
+      }
+
+      stage('Notify Slack') {
+        steps {
+          slackSend(channel: '#newrelictest', message: "Jenkins has successfully built a custom leo dataproc image with the name:  $IMAGE_BASE_NAME-$shortHash")
         }
       }
       
