@@ -19,7 +19,7 @@ import scala.util.control.NonFatal
 case class AuthProviderException(authProviderClassName: String,
                                  isTimeout: Boolean = false,
                                  traceId: TraceId)
-  extends LeoException(s"[$traceId] Call to $authProviderClassName auth provider ${if (isTimeout) "timed out" else "failed"}", StatusCodes.InternalServerError)
+  extends LeoException(s"[$traceId] An authorization step ${if (isTimeout) "timed out." else "failed."}", StatusCodes.InternalServerError)
 
 /**
   * Wraps a LeoAuthProvider and provides error handling so provider-thrown errors don't bubble up our app.
