@@ -139,16 +139,6 @@ class HttpGoogleComputeDAO(appName: String,
     }.handleGoogleException(googleProject)
   }
 
-  override def getGoogleApiServiceAccount(googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
-    getProjectNumber(googleProject).map { numberOpt =>
-      numberOpt.map { number =>
-        // Service account email format documented in:
-        // https://cloud.google.com/iam/docs/service-accounts#google-managed_service_accounts
-        WorkbenchEmail(s"$number@cloudservices.gserviceaccount.com")
-      }
-    }.handleGoogleException(googleProject)
-  }
-
   private def parseGoogleTimestamp(googleTimestamp: String): Option[Instant] = {
     Try {
       new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX").parse(googleTimestamp)

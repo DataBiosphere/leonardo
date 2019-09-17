@@ -105,9 +105,6 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     when {
       dao.getProjectNumber(any[GoogleProject])
     } thenReturn Future.successful(Some((new Random).nextLong()))
-    when {
-      dao.getGoogleApiServiceAccount(any[GoogleProject])
-    } thenReturn Future.successful(Some(WorkbenchEmail("test@example.com")))
     dao
   }
 
@@ -637,7 +634,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       val dpWorkerTimes = if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()
       verify(iamDAO, dpWorkerTimes).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
       verify(iamDAO, dpWorkerTimes).addIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
-      val imageUserTimes = if (dataprocConfig.customDataprocImage.isDefined) times(1) else never()
+      val imageUserTimes = if (dataprocConfig.customDataprocImage.isDefined) times(2) else never()
       verify(iamDAO, imageUserTimes).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/compute.imageUser")))
       verify(iamDAO, imageUserTimes).addIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/compute.imageUser")))
       verify(iamDAO, if (notebookServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])
@@ -946,10 +943,6 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     when {
       computeDAO.stopInstance(mockitoEq(masterInstance.key))
     } thenReturn Future.successful(())
-
-    when {
-      computeDAO.getGoogleApiServiceAccount(mockitoEq(creatingCluster.googleProject))
-    } thenReturn Future.successful(Some(WorkbenchEmail("api-service-account")))
 
     val storageDAO = mock[GoogleStorageDAO]
     when {
