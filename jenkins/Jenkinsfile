@@ -13,6 +13,8 @@ def getShortHash(hash) {
 def boolean hasHashChanges(String[] images) {
   def Set imagesChanged = []
 
+  def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
+
   for (String config: configPaths) {
     for (String image: images) {
       output = sh(
@@ -128,9 +130,7 @@ pipeline {
       when { expression { useCustomImages.equals("false") } }
       steps {
         script {
-          def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
-
-          def boolean shouldUpdate = hasHashChanges(configPaths, images)
+          def boolean shouldUpdate = hasHashChanges(images)
           def versionMap = getVersionMap(images, "automation/src/test/resources/reference.conf")
         
           if (shouldUpdate) {
@@ -170,7 +170,7 @@ pipeline {
 
             sh (
               script: """
-                sed -i "s/$image.*/$image:$version\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+                sed -i "s/$image.*/$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
               """
             )
 
