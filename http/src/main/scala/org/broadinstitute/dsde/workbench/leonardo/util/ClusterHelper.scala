@@ -89,30 +89,21 @@ class ClusterHelper(dbRef: DbReference,
     List(dataprocWorkerIO, computeImageUserIO).parSequence_
   }
 
-  // Service account email format documented in:
-  // https://cloud.google.com/iam/docs/service-accounts#google-managed_service_accounts
-  private[leonardo] def googleApiServiceAccount: Long => WorkbenchEmail = projectNumber =>
-    WorkbenchEmail(s"$projectNumber@cloudservices.gserviceaccount.com")
-
-  // Service account email format documented in:
-  // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
-  private[leonardo] def dataprocServiceAccount: Long => WorkbenchEmail = projectNumber =>
-    WorkbenchEmail(s"service-$projectNumber@dataproc-accounts.iam.gserviceaccount.com")
-
   // Returns the service account Dataproc uses to perform its actions.
-  // Precedence order documented in:
-  // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
+  // Email formats and precendence documented in:
+  // - https://cloud.google.com/iam/docs/service-accounts#google-managed_service_accounts
+  // - https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
   private def getDataprocServiceAccount(googleProject: GoogleProject): IO[Option[WorkbenchEmail]] = {
     val findSA = (email: WorkbenchEmail) => OptionT(IO.fromFuture(IO(googleIamDAO.findServiceAccount(googleProject, email))).map(_.map(_.email)))
-    val findGoogleApiServiceAccount = findSA compose googleApiServiceAccount
-    val findDataprocServiceAccount = findSA compose dataprocServiceAccount
 
-    (for {
-      number <- OptionT(IO.fromFuture(IO(googleComputeDAO.getProjectNumber(googleProject))))
-      // use dataproc service account if it exists; otherwise fall back to the API service account
-      precedence = (findDataprocServiceAccount, findGoogleApiServiceAccount).mapN(_ orElse _)
-      sa <- precedence(number)
-    } yield sa).value
+    val transformed = for {
+      projectNumber <- OptionT(IO.fromFuture(IO(googleComputeDAO.getProjectNumber(googleProject))))
+      apiSA = WorkbenchEmail(s"$projectNumber@cloudservices.gserviceaccount.com")
+      dataprocSA = WorkbenchEmail(s"service-$projectNumber@dataproc-accounts.iam.gserviceaccount.com")
+      sa <- findSA(dataprocSA) orElse findSA(apiSA)
+    } yield sa
+
+    transformed.value
   }
 
   def generateServiceAccountKey(googleProject: GoogleProject, serviceAccountEmailOpt: Option[WorkbenchEmail]): IO[Option[ServiceAccountKey]] = {
