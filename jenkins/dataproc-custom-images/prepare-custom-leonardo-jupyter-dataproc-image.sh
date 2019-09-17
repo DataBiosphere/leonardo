@@ -99,7 +99,7 @@ retry 5 apt-key update
 # https://docs.docker.com/install/linux/docker-ce/debian/
 export DOCKER_CE_VERSION="18.06.2~ce~3-0~debian"
 
-retry 5 betterAptGet
+# retry 5 betterAptGet
 retry 5 apt-get install -y -q \
     apt-transport-https \
     ca-certificates \
@@ -127,7 +127,7 @@ add-apt-repository \
 
 log 'Installing Docker...'
 
-retry 5 betterAptGet
+# retry 5 betterAptGet
 retry 5 apt-get install -y -q docker-ce="${DOCKER_CE_VERSION:?}"
 
 log 'Installing Docker Compose...'
