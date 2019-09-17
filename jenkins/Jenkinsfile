@@ -15,10 +15,10 @@ def boolean hasHashChanges(ArrayList<String> images) {
 
   def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
 
-  for (String config: configPaths) {
+  for (String configFile: configPaths) {
     for (String image: images) {
       output = sh(
-        script: "git diff HEAD~1..HEAD $configPath | grep $image",
+        script: "git diff HEAD~1..HEAD $configFile | grep $image",
           returnStdout: true
       ).trim() 
 
@@ -32,12 +32,12 @@ def boolean hasHashChanges(ArrayList<String> images) {
 }
 
 //if an image is in imageNames but not the confFile, the returned version will be an empty string
-def getVersionMap(String[] imageNames, String confFile) {
+def getVersionMap(String[] imageNames, String configFile) {
   def LinkedHashMap<String,String> versionMap = [:]
 
   for (String image: imageNames) {
     def version = sh(
-      script: "cat $confFile | grep $image | tr ':' '\n' | tail -1 | tr -d '\"' ",
+      script: "cat $configFile | grep $image | tr ':' '\n' | tail -1 | tr -d '\"' ",
       returnStdout: true
     )
 
