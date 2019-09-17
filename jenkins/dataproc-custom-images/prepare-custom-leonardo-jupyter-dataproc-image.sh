@@ -17,11 +17,17 @@ set -e -x
 #
 
 #filled out by jenkins job
-terra-jupyter-base="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:0.0.1"
-terra-jupyter-bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:0.0.2"
-terra-jupyter-hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:0.0.1"
-terra-jupyter-python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:0.0.1"
-terra-jupyter-r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:0.0.3"
+terra-jupyter-base="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:0.0.0"
+terra-jupyter-bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:0.0.0"
+terra-jupyter-hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:0.0.0"
+terra-jupyter-python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:0.0.0"
+terra-jupyter-r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:0.0.0"
+
+# terra-jupyter-base="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:0.0.1"
+# terra-jupyter-bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:0.0.2"
+# terra-jupyter-hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:0.0.1"
+# terra-jupyter-python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:0.0.1"
+# terra-jupyter-r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:0.0.3"
 
 leonardo-jupyter="us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:dev"
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:latest"

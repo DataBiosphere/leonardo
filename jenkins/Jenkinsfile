@@ -15,14 +15,22 @@ def boolean hasHashChanges(ArrayList<String> images) {
 
   def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
 
-  for (String configFile: configPaths) {
-    for (String image: images) {
-      output = sh(
-        script: "git diff HEAD~1..HEAD $configFile | grep $image",
-          returnStdout: true
-      ).trim() 
 
-      if (!output.isEmpty()) {
+  for (String configFile: configPaths) {
+
+    println("in change detection loop, before bash. File: $configFile") 
+    def gitOutput = sh(
+      // script: "git diff HEAD~1..HEAD $configFile | grep $image",
+      script: "git diff HEAD~20..HEAD $configFile",
+      returnStdout: true
+    ).trim()
+
+      println("in change detection loop, after bash: $gitOutput") 
+
+    for (String image: images) {
+
+      if (gitOutput.contains(image)) {
+        println("detected changed image for $image")
         imagesChanged.add(image)
       }
     }
@@ -32,18 +40,19 @@ def boolean hasHashChanges(ArrayList<String> images) {
 }
 
 //if an image is in imageNames but not the confFile, the returned version will be an empty string
-def getVersionMap(String[] imageNames, String configFile) {
+def LinkedHashMap<String,String> getVersionMap(ArrayList<String> imageNames, String configFile) {
   def LinkedHashMap<String,String> versionMap = [:]
 
   for (String image: imageNames) {
     def version = sh(
       script: "cat $configFile | grep $image | tr ':' '\n' | tail -1 | tr -d '\"' ",
       returnStdout: true
-    )
+    ).trim()
 
     versionMap[image] = version
   }
 
+  return versionMap
 }
 
 pipeline {
@@ -98,7 +107,7 @@ pipeline {
 
     stage('Leonardo Git') {
       steps {
-        git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'develop'
+        git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'jc-auto-build-dataproc'
       }
     }
         
@@ -106,12 +115,11 @@ pipeline {
 
     stage('Get Short Hash') {
       steps {
-         sh 'printenv'
-         sh "echo $useCustomImages"
-
-        script {
-          shortHash = getShortHash("${env.GIT_COMMIT}")
-        }
+        sh "echo FILLER"
+//TODO uncomment
+        // script {
+        //   shortHash = getShortHash("${env.GIT_COMMIT}")
+        // }
       }
     }
 
@@ -141,12 +149,17 @@ pipeline {
                 println("using version $version for $image in this build of custom dataproc image")
 
                 sh """
-                  sed -i "s/$image.*/$image:$version\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+                  sed -i "s/$image.*/$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
                 """
               }
             }
           }
         }
+
+        sh """
+          echo 'printing changed config'
+          cat prepare-custom-leonardo-jupyter-dataproc-image.sh
+        """
       }
     }
 
