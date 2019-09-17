@@ -49,7 +49,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
     }
   }
 
-  val mockGoogleIamDAO = new LeoMockGoogleIamDAO
+  val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
   val mockGoogleProjectDAO = new MockGoogleProjectDAO
   val bucketHelper = new BucketHelper(dataprocConfig, mockGoogleDataprocDAO, mockGoogleComputeDAO, mockGoogleStorageDAO, serviceAccountProvider)

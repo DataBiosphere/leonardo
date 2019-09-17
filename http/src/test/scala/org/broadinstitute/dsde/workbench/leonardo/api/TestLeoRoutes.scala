@@ -26,7 +26,7 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with CommonTestData
 
   implicit val cs = IO.contextShift(executor)
   implicit val timer = IO.timer(executor)
-  val mockGoogleIamDAO = new LeoMockGoogleIamDAO
+  val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
   val mockGoogleProjectDAO = new MockGoogleProjectDAO
   mockGoogleStorageDAO.buckets += jupyterExtensionUri.bucketName -> Set((jupyterExtensionUri.objectName, new ByteArrayInputStream("foo".getBytes())))

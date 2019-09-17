@@ -26,7 +26,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GcsLifecycleTypes.GcsLifecycleType
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.GcsRole
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsObjectName, GoogleProject, ServiceAccount, ServiceAccountDisplayName, ServiceAccountKeyId, ServiceAccountSubjectId}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsEntity, GcsObjectName, GoogleProject, ServiceAccountKeyId}
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.Mockito._
 import org.scalatest.concurrent.Eventually
@@ -593,9 +593,6 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     when {
       iamDAO.createServiceAccountKey(any[GoogleProject], any[WorkbenchEmail])
     } thenReturn Future.successful(serviceAccountKey)
-    when {
-      iamDAO.findServiceAccount(any[GoogleProject], any[WorkbenchEmail])
-    } thenReturn Future.successful(Some(ServiceAccount(ServiceAccountSubjectId("subject-id"), WorkbenchEmail("email"), ServiceAccountDisplayName("display-name"))))
 
     val authProvider = mock[LeoAuthProvider]
 
@@ -637,7 +634,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       val dpWorkerTimes = if (clusterServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()
       verify(iamDAO, dpWorkerTimes).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
       verify(iamDAO, dpWorkerTimes).addIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/dataproc.worker")))
-      val imageUserTimes = if (dataprocConfig.customDataprocImage.isDefined) times(1) else never()
+      val imageUserTimes = if (dataprocConfig.customDataprocImage.isDefined) times(2) else never()
       verify(iamDAO, imageUserTimes).removeIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/compute.imageUser")))
       verify(iamDAO, imageUserTimes).addIamRolesForUser(any[GoogleProject], any[WorkbenchEmail], mockitoEq(Set("roles/compute.imageUser")))
       verify(iamDAO, if (notebookServiceAccount(creatingCluster.googleProject).isDefined) times(1) else never()).removeServiceAccountKey(any[GoogleProject], any[WorkbenchEmail], any[ServiceAccountKeyId])

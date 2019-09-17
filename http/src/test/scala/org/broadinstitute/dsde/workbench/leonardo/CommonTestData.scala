@@ -6,7 +6,7 @@ import java.util.UUID
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO}
+import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, ClusterDefaultsConfig, ClusterDnsCacheConfig, ClusterFilesConfig, ClusterResourcesConfig, ClusterToolConfig, DataprocConfig, MonitorConfig, ProxyConfig, SwaggerConfig, ZombieClusterConfig}
@@ -19,7 +19,7 @@ import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAcc
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.concurrent.ScalaFutures
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 
 // values common to multiple tests, to reduce boilerplate
@@ -197,12 +197,6 @@ trait CommonTestData{ this: ScalaFutures =>
   }
   protected def modifyInstanceKey(instanceKey: InstanceKey): InstanceKey = {
     instanceKey.copy(name = InstanceName(instanceKey.name.value + "_2"))
-  }
-
-  protected class LeoMockGoogleIamDAO extends MockGoogleIamDAO {
-    override def findServiceAccount(serviceAccountProject: GoogleProject, email: WorkbenchEmail): Future[Option[ServiceAccount]] = {
-      Future.successful(Some(ServiceAccount(ServiceAccountSubjectId("subject-id"), email, ServiceAccountDisplayName("display-name"))))
-    }
   }
 }
 

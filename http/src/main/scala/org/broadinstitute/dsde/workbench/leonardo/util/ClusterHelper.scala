@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
 import akka.actor.ActorSystem
-import cats.data.OptionT
 import cats.effect._
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
@@ -61,6 +60,9 @@ class ClusterHelper(dbRef: DbReference,
       }
     } getOrElse IO.unit
 
+    // TODO: replace this logic with a group based approach so we don't have to manipulate IAM directly in the image project.
+    // See <jira>
+    //
     // Add the Compute Image User role in the image project to the Google API service account.
     // This is needed in order to use a custom dataproc VM image.
     // If a custom image is not being used, this is not necessary.
@@ -76,11 +78,9 @@ class ClusterHelper(dbRef: DbReference,
             IO.unit
           } else {
             for {
-              emailOpt <- getDataprocServiceAccount(googleProject)
-              _ <- emailOpt match {
-                case Some(email) => retryIam(imageProject, email, Set("roles/compute.imageUser"))
-                case None => IO.raiseError(ClusterIamSetupException(imageProject))
-              }
+              emails <- getDataprocServiceAccounts(googleProject)
+              _ <- if (emails.isEmpty) IO.raiseError(ClusterIamSetupException(imageProject))
+                   else emails.traverse(e => retryIam(imageProject, e, Set("roles/compute.imageUser")))
             } yield ()
           }
         }
@@ -89,21 +89,17 @@ class ClusterHelper(dbRef: DbReference,
     List(dataprocWorkerIO, computeImageUserIO).parSequence_
   }
 
-  // Returns the service account Dataproc uses to perform its actions.
-  // Email formats and precendence documented in:
-  // - https://cloud.google.com/iam/docs/service-accounts#google-managed_service_accounts
+  // Returns the service accounts Dataproc uses to perform its actions. Email formats documented in:
   // - https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
-  private def getDataprocServiceAccount(googleProject: GoogleProject): IO[Option[WorkbenchEmail]] = {
-    val findSA = (email: WorkbenchEmail) => OptionT(IO.fromFuture(IO(googleIamDAO.findServiceAccount(googleProject, email))).map(_.map(_.email)))
-
-    val transformed = for {
-      projectNumber <- OptionT(IO.fromFuture(IO(googleComputeDAO.getProjectNumber(googleProject))))
-      apiSA = WorkbenchEmail(s"$projectNumber@cloudservices.gserviceaccount.com")
-      dataprocSA = WorkbenchEmail(s"service-$projectNumber@dataproc-accounts.iam.gserviceaccount.com")
-      sa <- findSA(dataprocSA) orElse findSA(apiSA)
-    } yield sa
-
-    transformed.value
+  // - https://cloud.google.com/iam/docs/service-accounts#google-managed_service_accounts
+  private def getDataprocServiceAccounts(googleProject: GoogleProject): IO[List[WorkbenchEmail]] = {
+    IO.fromFuture(IO(googleComputeDAO.getProjectNumber(googleProject))) map {
+      case Some(projectNumber) =>
+        val apiSA = WorkbenchEmail(s"$projectNumber@cloudservices.gserviceaccount.com")
+        val dataprocSA = WorkbenchEmail(s"service-$projectNumber@dataproc-accounts.iam.gserviceaccount.com")
+        List(dataprocSA, apiSA)
+      case None => List.empty
+    }
   }
 
   def generateServiceAccountKey(googleProject: GoogleProject, serviceAccountEmailOpt: Option[WorkbenchEmail]): IO[Option[ServiceAccountKey]] = {
