@@ -68,7 +68,7 @@ pipeline {
 
   triggers {
     // poll repo every 2 minute for changes
-    pollSCM('*/2 * * * *')
+    pollSCM()
     //dataproc images expire every 60 days
     cron("0 0 */59 * *")
   }
@@ -177,6 +177,7 @@ pipeline {
           for(String image: images) {
             def varName = image.replace("-","_") //needed because the env vars use _ in place of the - in the image name due to bash restrictions
 
+            //here we take advantage of the fact that the image names and jenkins version env variables have the same name to retrieve the versions 
             version = sh(
               script: """ 
                 eval "echo \$$varName" 
