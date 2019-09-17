@@ -4,6 +4,8 @@
 def ArrayList<String> images = []
 def shortHash = ""
 
+def shouldAbortBuild = false
+
 def LinkedHashMap<String, String> imageToParamMap = [:]
 
 def getShortHash(hash) {
@@ -21,6 +23,7 @@ def boolean hasHashChanges(ArrayList<String> images) {
     println("in change detection loop, before bash. File: $configFile") 
     def gitOutput = sh(
       // script: "git diff HEAD~1..HEAD $configFile | grep $image",
+      //TODO change to ~1
       script: "git diff HEAD~20..HEAD $configFile",
       returnStdout: true
     ).trim()
@@ -141,6 +144,7 @@ pipeline {
       steps {
         script {
           def boolean shouldUpdate = hasHashChanges(images)
+          shouldAbortBuild = !shouldUpdate //set variable to control if future steps get run
           def versionMap = getVersionMap(images, "automation/src/test/resources/reference.conf")
         
           if (shouldUpdate) {
@@ -171,7 +175,6 @@ pipeline {
       steps {
         script {
           for(String image: images) {
-            // ${BUILD_NUMBER}
             def varName = image.replace("-","_") //needed because the env vars use _ in place of the - in the image name due to bash restrictions
 
             version = sh(
@@ -198,6 +201,7 @@ pipeline {
     }
             
       stage('Run build script') {
+        when { expression { !shouldAbortBuild } }
         steps {
           sh """
             git submodule init && git submodule update
@@ -214,6 +218,7 @@ pipeline {
       }
 
       stage('Update Build Name') {
+        when { expression { !shouldAbortBuild } }
         steps {
           script {
             currentBuild.displayName = "#${BUILD_NUMBER}: $IMAGE_BASE_NAME-$shortHash"
@@ -222,6 +227,7 @@ pipeline {
       }
 
       stage('Notify Slack') {
+        when { expression { !shouldAbortBuild } }
         steps {
           slackSend(channel: '#newrelictest', message: "Jenkins has successfully built a custom leo dataproc image with the name:  $IMAGE_BASE_NAME-$shortHash")
         }

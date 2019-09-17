@@ -97,7 +97,8 @@ retry 5 apt-key update
 
 # install Docker
 # https://docs.docker.com/install/linux/docker-ce/debian/
-export DOCKER_CE_VERSION="18.06.2~ce~3-0~debian"
+# must not be upgraded as per https://github.com/docker/for-linux/issues/591
+export DOCKER_CE_VERSION="18.06.1~ce~3-0~debian"
 
 # retry 5 betterAptGet
 retry 5 apt-get install -y -q \
