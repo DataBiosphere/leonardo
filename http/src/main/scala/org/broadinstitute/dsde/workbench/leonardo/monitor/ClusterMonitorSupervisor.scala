@@ -8,6 +8,7 @@ import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props, Timers}
 import cats.effect.IO
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
+import java.util.UUID.randomUUID
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, DataprocConfig, MonitorConfig}
@@ -20,7 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterSupervisorMessage, _}
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
-import org.broadinstitute.dsde.workbench.model.WorkbenchException
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchException}
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
@@ -89,8 +90,9 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
       startClusterMonitorActor(cluster, None)
 
     case RecreateCluster(cluster) =>
+      val traceId = TraceId(randomUUID)
       if (monitorConfig.recreateCluster) {
-        logger.info(s"Recreating cluster ${cluster.projectNameString}...")
+        logger.info(s"[$traceId] Recreating cluster ${cluster.projectNameString}...")
         dbRef.inTransaction { dataAccess =>
           dataAccess.clusterQuery.getClusterById(cluster.id)
         }.flatMap {
@@ -107,15 +109,15 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
               Some(cluster.autopauseThreshold),
               cluster.defaultClientId,
               cluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage))
-            val createFuture = leonardoService.internalCreateCluster(cluster.auditInfo.creator, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest)
+            val createFuture = leonardoService.internalCreateCluster(cluster.auditInfo.creator, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest, traceId)
             createFuture.failed.foreach { e =>
-              logger.error(s"Error occurred recreating cluster ${cluster.projectNameString}", e)
+              logger.error(s"[$traceId] Error occurred recreating cluster ${cluster.projectNameString}", e)
             }
             createFuture
-          case None => Future.failed(new WorkbenchException(s"Cluster ${cluster.projectNameString} not found in the database"))
+          case None => Future.failed(new WorkbenchException(s"[$traceId] Cluster ${cluster.projectNameString} not found in the database"))
         }
       } else {
-        logger.warn(s"Received RecreateCluster message for cluster ${cluster.projectNameString} but cluster recreation is disabled.")
+        logger.warn(s"[$traceId] Received RecreateCluster message for cluster ${cluster.projectNameString} but cluster recreation is disabled.")
       }
 
     case StopClusterAfterCreation(cluster) =>

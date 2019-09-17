@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.auth
 import com.typesafe.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import net.ceedubs.ficus.Ficus._
 
@@ -44,7 +44,10 @@ class MockLeoAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAcc
       Future.failed(new RuntimeException("boom"))
   }
 
-  override def notifyClusterCreated(internalId: ClusterInternalId, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = notifyInternal
+  override def notifyClusterCreated(internalId: ClusterInternalId, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, traceId: TraceId)
+                                   (implicit executionContext: ExecutionContext): Future[Unit] = {
+    notifyInternal
+  }
 
   override def notifyClusterDeleted(internalId: ClusterInternalId, userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = notifyInternal
 
