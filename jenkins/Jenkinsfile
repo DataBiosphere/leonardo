@@ -68,7 +68,7 @@ pipeline {
 
   triggers {
     // poll repo every 2 minute for changes
-    pollSCM()
+    pollSCM("")
     //dataproc images expire every 60 days
     cron("0 0 */59 * *")
   }
