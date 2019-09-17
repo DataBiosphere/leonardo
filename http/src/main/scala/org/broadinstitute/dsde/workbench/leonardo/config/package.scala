@@ -24,7 +24,7 @@ package object config {
       config.getString("dataprocDefaultRegion"),
       config.getAs[String]("dataprocZone"),
       GoogleProject(config.getString("leoGoogleProject")),
-      config.getString("dataprocDockerImage"),
+      config.getString("jupyterImage"),
       config.getString("clusterUrlBase"),
       toScalaDuration(config.getDuration("defaultExecutionTimeout")),
       config.getString("jupyterServerName"),
