@@ -130,6 +130,8 @@ log 'Installing Docker...'
 # retry 5 betterAptGet
 retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu artful stable"
 retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable"
+add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
+apt-cache policy docker-ce
 #retry 5 
 apt-get install -y -q docker-ce ="${DOCKER_CE_VERSION:?}"
 
