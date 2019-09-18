@@ -97,7 +97,7 @@ retry 5 apt-key update
 
 # install Docker
 # https://docs.docker.com/install/linux/docker-ce/debian/
-# export DOCKER_CE_VERSION="18.06.2~ce~3-0~debian"
+export DOCKER_CE_VERSION="19.03.2~ce~3-0~debian"
 
 # retry 5 betterAptGet
 retry 5 apt-get install -y -q \
@@ -130,7 +130,8 @@ log 'Installing Docker...'
 # retry 5 betterAptGet
 retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu artful stable"
 retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable"
-retry 5 apt-get install -y -q docker-ce # ="${DOCKER_CE_VERSION:?}"
+#retry 5 
+apt-get install -y -q docker-ce ="${DOCKER_CE_VERSION:?}"
 
 log 'Installing Docker Compose...'
 
