@@ -209,7 +209,7 @@ pipeline {
             cd jenkins/dataproc-custom-images/dataproc-custom-images
             python generate_custom_image.py \
               --image-name "$IMAGE_BASE_NAME-$shortHash" \
-              --dataproc-version "1.3-debian9" \
+              --dataproc-version "1.3.43-debian9" \
               --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
               --zone us-central1-a \
               --gcs-bucket $BUCKET_NAME \
