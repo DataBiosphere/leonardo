@@ -109,6 +109,8 @@ retry 5 apt-get install -y -q \
 
 log 'Adding Docker package sources...'
 
+apt-get remove docker docker-engine
+
 # shellcheck disable=SC1091
 os_dist_name="$(. /etc/os-release; echo "$ID")"
 os_dist_code_name="$(lsb_release -cs)"
@@ -136,7 +138,7 @@ apt-get update
 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
 apt-cache policy docker-ce
 systemctl restart systemd-networkd.service
-systemctl start docker.service
+# systemctl start docker.service
 
 dpkg --configure -a
 #retry 5 
