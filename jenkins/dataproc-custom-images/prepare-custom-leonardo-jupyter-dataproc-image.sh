@@ -135,6 +135,9 @@ apt-get update
 # retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable"
 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
 apt-cache policy docker-ce
+systemctl restart systemd-networkd.service
+systemctl start docker.service
+
 dpkg --configure -a
 #retry 5 
 apt-get install -y -q docker-ce #="${DOCKER_CE_VERSION:?}"
