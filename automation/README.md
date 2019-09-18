@@ -47,6 +47,7 @@ IntelliJ
 - set VM parameters `-Djsse.enableSNIExtension=false -Dheadless=false`
 - set Working dir to local dir
 - use classpath and SDK of the leonardoTests module
+- comment out `"-Xfatal-warnings"` on `Settings.scala`
 - if you get a `NoSuchMethodError` related to the `spray` library, comment out the line `"com.typesafe.akka" %% "akka-http-spray-json" % "10.0.6" % "provided"` on `Dependencies.scala`
 - should be able to right-click-run
 
