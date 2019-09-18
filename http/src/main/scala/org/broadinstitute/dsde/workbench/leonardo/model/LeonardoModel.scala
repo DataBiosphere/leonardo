@@ -31,28 +31,39 @@ sealed trait ContainerRegistry extends Product with Serializable {
 }
 object ContainerRegistry {
   final case object GCR extends ContainerRegistry {
-    def regex: Regex = "(.*gcr.io)\\/(.*)\\/(.*)(\\:?.*)$".r
+    def regex: Regex = """(.*gcr.io)\/(.+)\/(.+)(\:?.*)$""".r
+
+    override def toString: String = "gcr"
   }
+
+// Repo format: https://docs.docker.com/docker-hub/repos/
+// Docker hub doesn't have documentation about length limitation on repo name and image name, but 100 max seems reasonable
   final case object DockerHub extends ContainerRegistry {
-    def regex: Regex = ".*\\/.*$".r
+    def regex: Regex = """^([a-z0-9-_\/\S]){1,100}(:?[a-z0-9-_]{1,100}\S)$""".r
+    override def toString: String = "docker hub"
   }
 
-  val allRegistry: Set[ContainerRegistry] = sealerate.values[ContainerRegistry]
+  val allRegistries: Set[ContainerRegistry] = sealerate.values[ContainerRegistry]
 }
 
-sealed trait JupyterDockerImage extends Product with Serializable {
+sealed trait ContainerImage extends Product with Serializable {
   def imageUrl: String
+  def registry: ContainerRegistry
 }
-object JupyterDockerImage {
-  final case class GCR(imageUrl: String) extends JupyterDockerImage
-  final case class DockerHub(imageUrl: String) extends JupyterDockerImage
+object ContainerImage {
+  final case class GCR(imageUrl: String) extends ContainerImage {
+    val registry: ContainerRegistry = ContainerRegistry.GCR
+  }
+  final case class DockerHub(imageUrl: String) extends ContainerImage {
+    val registry: ContainerRegistry = ContainerRegistry.DockerHub
+  }
 
-  def stringToJupyterDockerImage(imageUrl: String): Option[JupyterDockerImage] = ContainerRegistry.allRegistry.toList
+  def stringToJupyterDockerImage(imageUrl: String): Option[ContainerImage] = List(ContainerRegistry.GCR, ContainerRegistry.DockerHub)
     .find(image => image.regex.pattern.asPredicate().test(imageUrl))
     .map{ dockerRegistry =>
       dockerRegistry match {
-        case ContainerRegistry.GCR => JupyterDockerImage.GCR(imageUrl)
-        case ContainerRegistry.DockerHub => JupyterDockerImage.DockerHub(imageUrl)
+        case ContainerRegistry.GCR => ContainerImage.GCR(imageUrl)
+        case ContainerRegistry.DockerHub => ContainerImage.DockerHub(imageUrl)
       }
     }
 }
@@ -68,7 +79,7 @@ final case class ClusterRequest(labels: LabelMap = Map.empty,
                                 autopause: Option[Boolean] = None,
                                 autopauseThreshold: Option[Int] = None,
                                 defaultClientId: Option[String] = None,
-                                jupyterDockerImage: Option[JupyterDockerImage] = None,
+                                jupyterDockerImage: Option[ContainerImage] = None,
                                 rstudioDockerImage: Option[String] = None,
                                 welderDockerImage: Option[String] = None,
                                 scopes: Set[String] = Set.empty,
@@ -437,14 +448,14 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     }
   }
 
-  implicit object JupyterDockerImageJsonFormat extends JsonFormat[JupyterDockerImage] {
-    def read(json: JsValue): JupyterDockerImage = json match {
+  implicit object JupyterDockerImageJsonFormat extends JsonFormat[ContainerImage] {
+    def read(json: JsValue): ContainerImage = json match {
       case JsString(imageUrl) =>
-        JupyterDockerImage.stringToJupyterDockerImage(imageUrl)
-          .getOrElse(throw DeserializationException(s"Invalid docker registry. Only gcr.io or dockerhub are supported"))
+        ContainerImage.stringToJupyterDockerImage(imageUrl)
+          .getOrElse(throw DeserializationException(s"Invalid docker registry. Only ${ContainerRegistry.allRegistries.mkString(", ")} are supported"))
       case other => throw DeserializationException(s"Expected custom docker image URL, got: $other")
     }
-    override def write(obj: JupyterDockerImage): JsValue = JsString(obj.imageUrl)
+    override def write(obj: ContainerImage): JsValue = JsString(obj.imageUrl)
   }
 
   implicit val UserClusterExtensionConfigFormat = jsonFormat4(UserJupyterExtensionConfig.apply)
@@ -476,7 +487,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
       fieldsWithoutNull.get("autopause").map(_.convertTo[Boolean]),
       fieldsWithoutNull.get("autopauseThreshold").map(_.convertTo[Int]),
       fieldsWithoutNull.get("defaultClientId").map(_.convertTo[String]),
-      fieldsWithoutNull.get("jupyterDockerImage").map(_.convertTo[JupyterDockerImage]),
+      fieldsWithoutNull.get("jupyterDockerImage").map(_.convertTo[ContainerImage]),
       fieldsWithoutNull.get("rstudioDockerImage").map(_.convertTo[String]),
       fieldsWithoutNull.get("welderDockerImage").map(_.convertTo[String]),
       fieldsWithoutNull.get("scopes").map(_.convertTo[Set[String]]).getOrElse(Set.empty),

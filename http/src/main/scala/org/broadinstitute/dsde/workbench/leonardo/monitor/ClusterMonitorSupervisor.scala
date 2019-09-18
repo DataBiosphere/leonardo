@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, W
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.Jupyter
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, ClusterTool, JupyterDockerImage, LeoAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest, ClusterTool, ContainerImage, LeoAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterSupervisorMessage, _}
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
@@ -109,7 +109,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
               if (cluster.autopauseThreshold == 0) Some(false) else Some(true),
               Some(cluster.autopauseThreshold),
               cluster.defaultClientId,
-              cluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage).flatMap(s => JupyterDockerImage.stringToJupyterDockerImage(s)))
+              cluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage).flatMap(s => ContainerImage.stringToJupyterDockerImage(s)))
             val createFuture = leonardoService.internalCreateCluster(cluster.auditInfo.creator, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest, traceId)
             createFuture.failed.foreach { e =>
               logger.error(s"[$traceId] Error occurred recreating cluster ${cluster.projectNameString}", e)

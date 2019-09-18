@@ -198,11 +198,14 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
   }
 
   "DockerRegistry regex" should "match expected image url format" in {
-    ContainerRegistry.GCR.regex.findFirstIn("us.gcr.io/google/ubuntu1804:latest").isDefined shouldBe(true)
-    ContainerRegistry.GCR.regex.findFirstIn("us.gcr.io/broad-dsp-gcr-public/ubuntu1804").isDefined shouldBe(true)
-    ContainerRegistry.GCR.regex.findFirstIn("us/broad-dsp-gcr-public/ubuntu1804").isDefined shouldBe(false)
+    ContainerRegistry.GCR.regex.pattern.asPredicate().test("us.gcr.io/google/ubuntu1804:latest") shouldBe(true)
+    ContainerRegistry.GCR.regex.pattern.asPredicate().test("us.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe(true)
+    ContainerRegistry.GCR.regex.pattern.asPredicate().test("us/broad-dsp-gcr-public/ubuntu1804") shouldBe(false)
 
-    ContainerRegistry.DockerHub.regex.findFirstIn("asd/asdf").isDefined shouldBe(true)
-    ContainerRegistry.DockerHub.regex.findFirstIn("asd").isDefined shouldBe(false)
+    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd/asdf") shouldBe(true)
+    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd") shouldBe(true)
+    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd_sd_as:asdf") shouldBe(true)
+    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd_as:asdf ") shouldBe(false) //trailing white space
+    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("myrepo/mydocker; mysql -c \"DROP ALL TABLES\"; sudo rm -rf / ") shouldBe(false)
   }
 }
