@@ -128,9 +128,11 @@ add-apt-repository \
 log 'Installing Docker...'
 
 # retry 5 betterAptGet
+rm -rf /var/lib/docker
+systemctl kill docker.service
 apt-get update
-retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu artful stable"
-retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable"
+# retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu artful stable"
+# retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable"
 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
 apt-cache policy docker-ce
 #retry 5 
