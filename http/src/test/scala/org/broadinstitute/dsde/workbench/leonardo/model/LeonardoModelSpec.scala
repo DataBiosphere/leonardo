@@ -197,4 +197,12 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     clusterInitMap.size shouldBe 32
   }
 
+  "DockerRegistry regex" should "match expected image url format" in {
+    ContainerRegistry.GCR.regex.findFirstIn("us.gcr.io/google/ubuntu1804:latest").isDefined shouldBe(true)
+    ContainerRegistry.GCR.regex.findFirstIn("us.gcr.io/broad-dsp-gcr-public/ubuntu1804").isDefined shouldBe(true)
+    ContainerRegistry.GCR.regex.findFirstIn("us/broad-dsp-gcr-public/ubuntu1804").isDefined shouldBe(false)
+
+    ContainerRegistry.DockerHub.regex.findFirstIn("asd/asdf").isDefined shouldBe(true)
+    ContainerRegistry.DockerHub.regex.findFirstIn("asd").isDefined shouldBe(false)
+  }
 }

@@ -24,22 +24,55 @@ import org.broadinstitute.dsde.workbench.model._
 import spray.json.{RootJsonFormat, RootJsonReader, _}
 import ca.mrvisser.sealerate
 
+import scala.util.matching.Regex
+
+sealed trait ContainerRegistry extends Product with Serializable {
+  def regex: Regex
+}
+object ContainerRegistry {
+  final case object GCR extends ContainerRegistry {
+    def regex: Regex = "(.*gcr.io)\\/(.*)\\/(.*)(\\:?.*)$".r
+  }
+  final case object DockerHub extends ContainerRegistry {
+    def regex: Regex = ".*\\/.*$".r
+  }
+
+  val allRegistry: Set[ContainerRegistry] = sealerate.values[ContainerRegistry]
+}
+
+sealed trait JupyterDockerImage extends Product with Serializable {
+  def imageUrl: String
+}
+object JupyterDockerImage {
+  final case class GCR(imageUrl: String) extends JupyterDockerImage
+  final case class DockerHub(imageUrl: String) extends JupyterDockerImage
+
+  def stringToJupyterDockerImage(imageUrl: String): Option[JupyterDockerImage] = ContainerRegistry.allRegistry.toList
+    .find(image => image.regex.pattern.asPredicate().test(imageUrl))
+    .map{ dockerRegistry =>
+      dockerRegistry match {
+        case ContainerRegistry.GCR => JupyterDockerImage.GCR(imageUrl)
+        case ContainerRegistry.DockerHub => JupyterDockerImage.DockerHub(imageUrl)
+      }
+    }
+}
+
 // Create cluster API request
 final case class ClusterRequest(labels: LabelMap = Map.empty,
-                          jupyterExtensionUri: Option[GcsPath] = None,
-                          jupyterUserScriptUri: Option[GcsPath] = None,
-                          machineConfig: Option[MachineConfig] = None,
-                          properties: Map[String, String] = Map.empty,
-                          stopAfterCreation: Option[Boolean] = None,
-                          userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
-                          autopause: Option[Boolean] = None,
-                          autopauseThreshold: Option[Int] = None,
-                          defaultClientId: Option[String] = None,
-                          jupyterDockerImage: Option[String] = None,
-                          rstudioDockerImage: Option[String] = None,
-                          welderDockerImage: Option[String] = None,
-                          scopes: Set[String] = Set.empty,
-                          enableWelder: Option[Boolean] = None)
+                                jupyterExtensionUri: Option[GcsPath] = None,
+                                jupyterUserScriptUri: Option[GcsPath] = None,
+                                machineConfig: Option[MachineConfig] = None,
+                                properties: Map[String, String] = Map.empty,
+                                stopAfterCreation: Option[Boolean] = None,
+                                userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
+                                autopause: Option[Boolean] = None,
+                                autopauseThreshold: Option[Int] = None,
+                                defaultClientId: Option[String] = None,
+                                jupyterDockerImage: Option[JupyterDockerImage] = None,
+                                rstudioDockerImage: Option[String] = None,
+                                welderDockerImage: Option[String] = None,
+                                scopes: Set[String] = Set.empty,
+                                enableWelder: Option[Boolean] = None)
 
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
@@ -404,6 +437,16 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
     }
   }
 
+  implicit object JupyterDockerImageJsonFormat extends JsonFormat[JupyterDockerImage] {
+    def read(json: JsValue): JupyterDockerImage = json match {
+      case JsString(imageUrl) =>
+        JupyterDockerImage.stringToJupyterDockerImage(imageUrl)
+          .getOrElse(throw DeserializationException(s"Invalid docker registry. Only gcr.io or dockerhub are supported"))
+      case other => throw DeserializationException(s"Expected custom docker image URL, got: $other")
+    }
+    override def write(obj: JupyterDockerImage): JsValue = JsString(obj.imageUrl)
+  }
+
   implicit val UserClusterExtensionConfigFormat = jsonFormat4(UserJupyterExtensionConfig.apply)
 
   implicit val ClusterRequestFormat: RootJsonReader[ClusterRequest] = (json: JsValue) => {
@@ -433,7 +476,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
       fieldsWithoutNull.get("autopause").map(_.convertTo[Boolean]),
       fieldsWithoutNull.get("autopauseThreshold").map(_.convertTo[Int]),
       fieldsWithoutNull.get("defaultClientId").map(_.convertTo[String]),
-      fieldsWithoutNull.get("jupyterDockerImage").map(_.convertTo[String]),
+      fieldsWithoutNull.get("jupyterDockerImage").map(_.convertTo[JupyterDockerImage]),
       fieldsWithoutNull.get("rstudioDockerImage").map(_.convertTo[String]),
       fieldsWithoutNull.get("welderDockerImage").map(_.convertTo[String]),
       fieldsWithoutNull.get("scopes").map(_.convertTo[Set[String]]).getOrElse(Set.empty),
