@@ -47,11 +47,12 @@ IntelliJ
 - set VM parameters `-Djsse.enableSNIExtension=false -Dheadless=false`
 - set Working dir to local dir
 - use classpath and SDK of the leonardoTests module
+- if you get a compilation error related to `spray` library, comment out the line `"com.typesafe.akka" %% "akka-http-spray-json" % "10.0.6" % "provided"` on `Dependencies.scala`
 - should be able to right-click-run
 
 Note: If the test you're trying to run is annotated with `@DoNotDiscover`, do the following for running the individual test
-- Comment out `@DoNotDiscover` of the test you are running
-- add `with GPAllocBeforeAndAfterAll` to `ClusterFixtureSpec`
+- comment out `@DoNotDiscover` of the test you are running
+- add `with GPAllocBeforeAndAfterAll` to `ClusterFixtureSpec` if your test is extending `ClusterFixtureSpec`; if not, have your test extend `GPAllocBeforeAndAfterAll`
 
 ### Developing locally
 
