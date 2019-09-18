@@ -128,6 +128,7 @@ add-apt-repository \
 log 'Installing Docker...'
 
 # retry 5 betterAptGet
+apt-get update
 retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu artful stable"
 retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable"
 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
