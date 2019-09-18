@@ -134,7 +134,7 @@ retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/u
 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
 apt-cache policy docker-ce
 #retry 5 
-apt-get install -y -q docker-ce ="${DOCKER_CE_VERSION:?}"
+apt-get install -y -q docker-ce #="${DOCKER_CE_VERSION:?}"
 
 log 'Installing Docker Compose...'
 
