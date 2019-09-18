@@ -84,6 +84,8 @@ class ClusterMonitorActor(val cluster: Cluster,
 
   private val internalError = "Internal Error"
 
+  private val startupTimings: scala.collection.mutable.Map[Long, FiniteDuration] = scala.collection.mutable.Map()
+
   override def preStart(): Unit = {
     super.preStart()
     scheduleInitialMonitorPass
@@ -123,6 +125,7 @@ class ClusterMonitorActor(val cluster: Cluster,
 
   private def scheduleInitialMonitorPass(): Unit = {
     // Wait anything _up to_ the poll interval for a much wider distribution of cluster monitor start times when Leo starts up
+    startupTimings += (cluster.id -> 0 seconds)
     system.scheduler.scheduleOnce(addJitter(0 seconds, monitorConfig.pollPeriod), self, QueryForCluster)
   }
 
@@ -137,6 +140,12 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ScheduleMonitorPass
     */
   private def handleNotReadyCluster(status: ClusterStatus, instances: Set[Instance]): Future[ClusterMonitorMessage] = {
+    val currTimeElapsed: FiniteDuration = startupTimings.getOrElse(cluster.id, 0 seconds)
+    logger.info(s"Cluster ${cluster.projectNameString} has taken ${currTimeElapsed.toString} so far, continuing to monitor.")
+    if (currTimeElapsed > monitorConfig.creationTimeLimit) {
+      handleFailedCluster(ClusterErrorDetails(Code.DEADLINE_EXCEEDED.value,Some(s"Failed to create cluster ${cluster.projectNameString} within ${monitorConfig.creationTimeLimit.toString()}")),instances)
+    }
+    startupTimings += (cluster.id -> startupTimings.getOrElse(cluster.id, 0 seconds).+(monitorConfig.pollPeriod))
     logger.info(s"Cluster ${cluster.projectNameString} is not ready yet (cluster status = $status, instance statuses = ${instances.groupBy(_.status).mapValues(_.size)}). Checking again in ${monitorConfig.pollPeriod.toString}.")
     persistInstances(instances).map { _ =>
       ScheduleMonitorPass
