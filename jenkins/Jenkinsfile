@@ -24,7 +24,7 @@ def boolean hasHashChanges(ArrayList<String> images) {
     def gitOutput = sh(
       // script: "git diff HEAD~1..HEAD $configFile | grep $image",
       //TODO change to ~1
-      script: "git diff HEAD~20..HEAD $configFile",
+      script: "git diff HEAD~40..HEAD $configFile",
       returnStdout: true
     ).trim()
 
