@@ -206,6 +206,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd") shouldBe(true)
     ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd_sd_as:asdf") shouldBe(true)
     ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd_as:asdf ") shouldBe(false) //trailing white space
+    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd_as: asdf") shouldBe(false) //white space
     ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("myrepo/mydocker; mysql -c \"DROP ALL TABLES\"; sudo rm -rf / ") shouldBe(false)
   }
 }
