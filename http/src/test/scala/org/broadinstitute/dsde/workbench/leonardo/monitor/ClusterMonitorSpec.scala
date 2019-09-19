@@ -31,7 +31,7 @@ import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.Mockito._
 import org.scalatest.concurrent.Eventually
 import org.scalatest.mockito.MockitoSugar
-import org.scalatest.time.{Seconds, Span}
+import org.scalatest.time.{Minute, Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, FlatSpecLike, Matchers}
 
 import scala.concurrent.duration._
@@ -202,6 +202,53 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     }
   }
 
+  //Pre:
+  // - cluster exists in DB with status Creating
+  // - dataproc DAO returns creating and compute DAO returns status running
+  // - the poll period for creationTimeLimit passes
+  //Post:
+  // - cluster status is set to Error in the DB
+  // - instances are populated in the DB (?)
+  // - monitor actor shuts down
+  it should "Delete a cluster that is stuck creating for too long" in isolatedDbTest {
+    val savedCreatingCluster = creatingCluster.save()
+    creatingCluster shouldEqual savedCreatingCluster
+
+    val gdDAO = mock[GoogleDataprocDAO]
+    when {
+      gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+    } thenReturn Future.successful(ClusterStatus.Creating)
+
+    when {
+      gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+    } thenReturn Future.successful(clusterInstances)
+
+    when {
+      gdDAO.deleteCluster(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+    } thenReturn Future.successful(())
+
+    val computeDAO = stubComputeDAO(InstanceStatus.Running)
+    val projectDAO = mock[GoogleProjectDAO]
+    val iamDAO = mock[GoogleIamDAO]
+    val storageDAO = mock[GoogleStorageDAO]
+    val authProvider = mock[LeoAuthProvider]
+
+//                eventually(timeout(Span(420, Seconds)), interval(Span(30, Seconds))) {
+    withClusterSupervisor(gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, FakeGoogleStorageService, authProvider, MockJupyterDAO, MockRStudioDAO, MockWelderDAO, true) { actor =>
+      eventually(timeout(Span((monitorConfig.creationTimeLimit * 2).toSeconds, Seconds))) {
+        val updatedCluster = dbFutureValue {
+          _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
+        }
+        println("printing cluster")
+        println(updatedCluster)
+
+        updatedCluster shouldBe 'defined
+        updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Error)
+      }
+    }
+
+  }
+
   // Pre:
   // - cluster exists in the DB with status Creating
   // - dataproc DAO returns status CREATING, UNKNOWN, or UPDATING
@@ -218,7 +265,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       val gdDAO = mock[GoogleDataprocDAO]
       when {
         gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
-      } thenReturn Future.successful(status)
+      } thenReturn Future.successful(ClusterStatus.Error)
 
       when {
         gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))

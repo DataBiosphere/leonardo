@@ -125,7 +125,7 @@ class ClusterMonitorActor(val cluster: Cluster,
 
   private def scheduleInitialMonitorPass(): Unit = {
     // Wait anything _up to_ the poll interval for a much wider distribution of cluster monitor start times when Leo starts up
-    startupTimings += (cluster.id -> 0 seconds)
+    startupTimings += (cluster.id -> 0.seconds)
     system.scheduler.scheduleOnce(addJitter(0 seconds, monitorConfig.pollPeriod), self, QueryForCluster)
   }
 
@@ -142,13 +142,16 @@ class ClusterMonitorActor(val cluster: Cluster,
   private def handleNotReadyCluster(status: ClusterStatus, instances: Set[Instance]): Future[ClusterMonitorMessage] = {
     val currTimeElapsed: FiniteDuration = startupTimings.getOrElse(cluster.id, 0 seconds)
     logger.info(s"Cluster ${cluster.projectNameString} has taken ${currTimeElapsed.toString} so far, continuing to monitor.")
-    if (currTimeElapsed > monitorConfig.creationTimeLimit) {
+    logger.info(s"Info, currTimeElapsed: ${currTimeElapsed}. limit: ${monitorConfig.creationTimeLimit}, status: $status")
+    if (currTimeElapsed > monitorConfig.creationTimeLimit && status == ClusterStatus.Creating) {
+      logger.info(s"Detected that ${cluster.projectNameString} has been creating too long. Failing it.")
       handleFailedCluster(ClusterErrorDetails(Code.DEADLINE_EXCEEDED.value,Some(s"Failed to create cluster ${cluster.projectNameString} within ${monitorConfig.creationTimeLimit.toString()}")),instances)
-    }
-    startupTimings += (cluster.id -> startupTimings.getOrElse(cluster.id, 0 seconds).+(monitorConfig.pollPeriod))
-    logger.info(s"Cluster ${cluster.projectNameString} is not ready yet (cluster status = $status, instance statuses = ${instances.groupBy(_.status).mapValues(_.size)}). Checking again in ${monitorConfig.pollPeriod.toString}.")
-    persistInstances(instances).map { _ =>
-      ScheduleMonitorPass
+    } else {
+      startupTimings += (cluster.id -> startupTimings.getOrElse(cluster.id, 0 seconds).+(monitorConfig.pollPeriod))
+      logger.info(s"Cluster ${cluster.projectNameString} is not ready yet (cluster status = $status, instance statuses = ${instances.groupBy(_.status).mapValues(_.size)}). Checking again in ${monitorConfig.pollPeriod.toString}.")
+      persistInstances(instances).map { _ =>
+        ScheduleMonitorPass
+      }
     }
   }
 
@@ -185,9 +188,11 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ShutdownActor
     */
   private def handleFailedCluster(errorDetails: ClusterErrorDetails, instances: Set[Instance]): Future[ClusterMonitorMessage] = {
+    println("here0 in handleFailedCluster")
     for {
       clusterStatus <- getDbClusterStatus
 
+      x = println(s"cluster status in handle failed cluster: ${clusterStatus}")
       _ <- Future.sequence(List(
         // Delete the cluster in Google
         gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName),
@@ -201,7 +206,9 @@ class ClusterMonitorActor(val cluster: Cluster,
       ))
 
       // Record metrics in NewRelic
+      y = println("here1 in handleFailedCluster")
       _ <- recordMetrics(clusterStatus, ClusterStatus.Error).unsafeToFuture()
+      z = println("here2 in handleFailedCluster")
 
       // Decide if we should try recreating the cluster
       res <- if (shouldRecreateCluster(errorDetails.code, errorDetails.message)) {
@@ -228,6 +235,7 @@ class ClusterMonitorActor(val cluster: Cluster,
 
   private def shouldRecreateCluster(code: Int, message: Option[String]): Boolean = {
     // TODO: potentially add more checks here as we learn which errors are recoverable
+    println("determining if we should re-create cluster")
     monitorConfig.recreateCluster && (code == Code.UNKNOWN.value)
   }
 
