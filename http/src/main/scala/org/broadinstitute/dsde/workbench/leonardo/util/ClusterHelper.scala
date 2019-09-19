@@ -78,28 +78,23 @@ class ClusterHelper(dbRef: DbReference,
             IO.unit
           } else {
             for {
-              emails <- getDataprocServiceAccounts(googleProject)
-              _ <- if (emails.isEmpty) IO.raiseError(ClusterIamSetupException(imageProject))
-                   else emails.traverse(e => retryIam(imageProject, e, Set("roles/compute.imageUser")))
+              projectNumber <- IO.fromFuture(IO(googleComputeDAO.getProjectNumber(googleProject))).map(_.getOrElse(throw ClusterIamSetupException(imageProject)))
+              roles = Set("roles/compute.imageUser")
+
+              // The Dataproc SA is used to retrieve the image. However projects created prior to 2016
+              // don't have a Dataproc SA so they fall back to the API service account. This is documented here:
+              // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
+              dataprocSA = WorkbenchEmail(s"service-$projectNumber@dataproc-accounts.iam.gserviceaccount.com")
+              apiSA = WorkbenchEmail(s"$projectNumber@cloudservices.gserviceaccount.com")
+              _ <- retryIam(imageProject, dataprocSA, roles).handleErrorWith { _ =>
+                retryIam(imageProject, apiSA, roles)
+              }
             } yield ()
           }
         }
     }
 
     List(dataprocWorkerIO, computeImageUserIO).parSequence_
-  }
-
-  // Returns the service accounts Dataproc uses to perform its actions. Email formats documented in:
-  // - https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
-  // - https://cloud.google.com/iam/docs/service-accounts#google-managed_service_accounts
-  private def getDataprocServiceAccounts(googleProject: GoogleProject): IO[List[WorkbenchEmail]] = {
-    IO.fromFuture(IO(googleComputeDAO.getProjectNumber(googleProject))) map {
-      case Some(projectNumber) =>
-        val apiSA = WorkbenchEmail(s"$projectNumber@cloudservices.gserviceaccount.com")
-        val dataprocSA = WorkbenchEmail(s"service-$projectNumber@dataproc-accounts.iam.gserviceaccount.com")
-        List(dataprocSA, apiSA)
-      case None => List.empty
-    }
   }
 
   def generateServiceAccountKey(googleProject: GoogleProject, serviceAccountEmailOpt: Option[WorkbenchEmail]): IO[Option[ServiceAccountKey]] = {
