@@ -97,7 +97,7 @@ retry 5 apt-key update
 
 # install Docker
 # https://docs.docker.com/install/linux/docker-ce/debian/
-export DOCKER_CE_VERSION="19.03.2~ce~3-0~debian"
+# export DOCKER_CE_VERSION="19.03.2~ce~3-0~debian"
 
 # retry 5 betterAptGet
 retry 5 apt-get install -y -q \
@@ -130,18 +130,18 @@ add-apt-repository \
 log 'Installing Docker...'
 
 # retry 5 betterAptGet
-rm -rf /var/lib/docker
+# rm -rf /var/lib/docker
 # systemctl kill docker.service
 apt-get update
 # retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu artful stable"
 # retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable"
 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
 apt-cache policy docker-ce
-systemctl restart systemd-networkd.service
+# systemctl restart systemd-networkd.service
 # systemctl start docker.service
 
 dpkg --configure -a
-systemctl status docker
+# systemctl status docker
 #retry 5 
 export DOCKER_CE_VERSION="18.06.2~ce~3-0~debian"
 apt-get install -y -q docker-ce="${DOCKER_CE_VERSION:?}"
