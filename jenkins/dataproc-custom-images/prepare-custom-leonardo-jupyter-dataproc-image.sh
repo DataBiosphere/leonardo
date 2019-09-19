@@ -141,8 +141,10 @@ systemctl restart systemd-networkd.service
 # systemctl start docker.service
 
 dpkg --configure -a
+systemctl status docker
 #retry 5 
-apt-get install -y -q docker-ce #="${DOCKER_CE_VERSION:?}"
+export DOCKER_CE_VERSION="18.06.2~ce~3-0~debian"
+apt-get install -y -q docker-ce="${DOCKER_CE_VERSION:?}"
 
 log 'Installing Docker Compose...'
 
