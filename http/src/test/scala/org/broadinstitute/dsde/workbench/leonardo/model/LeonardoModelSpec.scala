@@ -209,4 +209,9 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd_as: asdf") shouldBe(false) //white space
     ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("myrepo/mydocker; mysql -c \"DROP ALL TABLES\"; sudo rm -rf / ") shouldBe(false)
   }
+
+  "ContainerImage.stringToJupyterDockerImage" should "match GCR first, and then dockerhub" in {
+    ContainerImage.stringToJupyterDockerImage("us.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe(Some(ContainerImage.GCR("us.gcr.io/broad-dsp-gcr-public/ubuntu1804")))
+    ContainerImage.stringToJupyterDockerImage("asd/asdf") shouldBe(Some(ContainerImage.DockerHub("asd/asdf")))
+  }
 }
