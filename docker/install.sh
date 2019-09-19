@@ -9,7 +9,7 @@ rm -f leonardo*.jar
 # Test
 export SBT_OPTS="-Dmysql.host=mysql -Dmysql.port=3306"
 sbt -J-Xms4g -J-Xmx4g "project http" test
-sbt -batch -J-Xms6g -J-Xmx6g "project http" assembly
+sbt -J-Xms6g -J-Xmx6g "project http" assembly
 LEONARDO_JAR=$(find http/target | grep 'http-assembly.*\.jar')
 
 # new generated jar name starts with `http`, but renaming it to `leonardo*.jar`
