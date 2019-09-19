@@ -208,8 +208,6 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
   // - the poll period for creationTimeLimit passes
   //Post:
   // - cluster status is set to Error in the DB
-  // - instances are populated in the DB (?)
-  // - monitor actor shuts down
   it should "Delete a cluster that is stuck creating for too long" in isolatedDbTest {
     val savedCreatingCluster = creatingCluster.save()
     creatingCluster shouldEqual savedCreatingCluster
@@ -224,6 +222,10 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     } thenReturn Future.successful(clusterInstances)
 
     when {
+      gdDAO.getClusterErrorDetails(mockitoEq(creatingCluster.dataprocInfo.operationName))
+    } thenReturn Future.successful(Some(ClusterErrorDetails(Code.DEADLINE_EXCEEDED.value, Some("Test message"))))
+
+    when {
       gdDAO.deleteCluster(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
     } thenReturn Future.successful(())
 
@@ -233,17 +235,14 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val storageDAO = mock[GoogleStorageDAO]
     val authProvider = mock[LeoAuthProvider]
 
-//                eventually(timeout(Span(420, Seconds)), interval(Span(30, Seconds))) {
     withClusterSupervisor(gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, FakeGoogleStorageService, authProvider, MockJupyterDAO, MockRStudioDAO, MockWelderDAO, true) { actor =>
       eventually(timeout(Span((monitorConfig.creationTimeLimit * 2).toSeconds, Seconds))) {
         val updatedCluster = dbFutureValue {
           _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
         }
-        println("printing cluster")
-        println(updatedCluster)
-
         updatedCluster shouldBe 'defined
         updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Error)
+        verify(gdDAO, times(1)).deleteCluster(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
       }
     }
 
@@ -265,7 +264,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
       val gdDAO = mock[GoogleDataprocDAO]
       when {
         gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
-      } thenReturn Future.successful(ClusterStatus.Error)
+      } thenReturn Future.successful(status)
 
       when {
         gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
