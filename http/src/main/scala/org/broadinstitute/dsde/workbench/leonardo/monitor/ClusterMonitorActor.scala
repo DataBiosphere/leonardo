@@ -142,8 +142,10 @@ class ClusterMonitorActor(val cluster: Cluster,
   private def handleNotReadyCluster(status: ClusterStatus, instances: Set[Instance]): Future[ClusterMonitorMessage] = {
     val currTimeElapsed: FiniteDuration = startupTimings.getOrElse(cluster.id, 0 seconds)
     logger.info(s"Cluster ${cluster.projectNameString} has taken ${currTimeElapsed.toString} so far, continuing to monitor.")
+
     if (currTimeElapsed > monitorConfig.creationTimeLimit && status == ClusterStatus.Creating) {
       logger.info(s"Detected that ${cluster.projectNameString} has been creating too long, time limit is ${monitorConfig.creationTimeLimit}. Failing it.")
+      Metrics.newRelic.incrementCounterIO("createClusterTimeout").unsafeRunSync()
       handleFailedCluster(ClusterErrorDetails(Code.DEADLINE_EXCEEDED.value,Some(s"Failed to create cluster ${cluster.projectNameString} within ${monitorConfig.creationTimeLimit.toMinutes.toString()} minutes")),instances)
     } else {
       startupTimings += (cluster.id -> startupTimings.getOrElse(cluster.id, 0 seconds).+(monitorConfig.pollPeriod))
