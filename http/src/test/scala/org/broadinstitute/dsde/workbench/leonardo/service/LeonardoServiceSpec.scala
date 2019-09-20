@@ -1058,9 +1058,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Error)
     }
 
-    // We make at most 2 IAM calls - they should not have been retried
-    // Assertion is <= 2 because calls are made in parallel with parSequence, so 1 or both may have been tried.
-    iamDAO.invocationCount should be <= 2
+    // We make at most 3 IAM calls - they should not have been retried
+    // Assertion is <= 3 because calls are made in parallel with parSequence, so 1 or both may have been tried.
+    iamDAO.invocationCount should be <= 3
   }
 
   it should "retry 409 errors when adding IAM roles" in isolatedDbTest {
@@ -1082,7 +1082,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
 
     // IAM calls should have been retried exponentially
-    iamDAO.invocationCount should be > 2
+    iamDAO.invocationCount should be > 3
   }
 
   it should "update the autopause threshold for a cluster" in isolatedDbTest {
