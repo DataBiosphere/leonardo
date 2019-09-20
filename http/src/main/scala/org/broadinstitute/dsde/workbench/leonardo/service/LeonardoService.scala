@@ -185,7 +185,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         val internalId = ClusterInternalId(UUID.randomUUID().toString)
         val augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
         val clusterImages = processClusterImages(clusterRequest)
-        val clusterFuture = for {
+        for {
           // Metrics
           _ <- Metrics.newRelic.incrementCounterFuture("numberOfCreateClusterRequests")
           _ <- if (clusterRequest.enableWelder.getOrElse(false)) Metrics.newRelic.incrementCounterFuture("numberOfWelderEnabledCreateClusterRequests") else Future.unit
@@ -204,15 +204,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         } yield {
           savedCluster
         }
-
-        // If cluster creation failed on the Google side, createGoogleCluster removes resources in Google.
-        // We also need to notify our auth provider that the cluster has been deleted.
-        clusterFuture.andThen {
-          // Don't wait for this future
-          case Failure(_) => authProvider.notifyClusterDeleted(internalId, userEmail, userEmail, googleProject, clusterName)
-        }
-
-        clusterFuture
     }
   }
 
@@ -303,11 +294,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           case Failure(e) =>
             logger.error(s"[$traceId] Failed the asynchronous portion of the creation of cluster '$clusterName' " +
               s"on Google project '$googleProject'.", e)
-
-            // Since we failed, createGoogleCluster removes resources in Google but
-            // we also need to notify our auth provider that the cluster has been deleted.
-            // We won't wait for that deletion, though.
-            authProvider.notifyClusterDeleted(internalId, userEmail, userEmail, googleProject, clusterName)
 
             // We also want to record the error in database for future reference.
             persistErrorInDb(e, clusterName, savedInitialCluster.id, googleProject)

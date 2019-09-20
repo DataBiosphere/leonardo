@@ -201,9 +201,9 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       // check that the cluster does not exist
       mockGoogleDataprocDAO.clusters should not contain key (cluster1Name)
 
-      // creation and deletion notifications should have been fired
+      // creation should have been fired but not deletion
       verify(spyProvider).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName], TraceId(any[UUID]))(any[ExecutionContext])
-      verify(spyProvider).notifyClusterDeleted(any[ClusterInternalId], any[WorkbenchEmail], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])
+      verify(spyProvider, never).notifyClusterDeleted(any[ClusterInternalId], any[WorkbenchEmail], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])
     }
 
     "should return clusters the user created even if the auth provider doesn't" in isolatedDbTest {
@@ -215,6 +215,18 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       // list
       val listResponse = leo.listClusters(userInfo, Map()).futureValue
       listResponse shouldBe Seq(cluster1).map(stripFieldsForListCluster)
+    }
+
+    "should not call notifyClusterDeleted if cluster creation fails" in isolatedDbTest {
+      val spyProvider = spy(alwaysYesProvider)
+      val leo = leoWithAuthProvider(spyProvider)
+
+      // create
+      leo.createCluster(userInfo, project, mockGoogleDataprocDAO.badClusterName, testClusterRequest).failed.futureValue shouldBe a [Exception]
+
+      // creation should have been fired but not deletion
+      verify(spyProvider).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName], TraceId(any[UUID]))(any[ExecutionContext])
+      verify(spyProvider, never).notifyClusterDeleted(any[ClusterInternalId], any[WorkbenchEmail], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])
     }
   }
 }

@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 import akka.actor.ActorSystem
 import cats.effect._
 import cats.implicits._
+import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
@@ -78,9 +79,17 @@ class ClusterHelper(dbRef: DbReference,
             IO.unit
           } else {
             for {
-              emails <- getDataprocServiceAccounts(googleProject)
-              _ <- if (emails.isEmpty) IO.raiseError(ClusterIamSetupException(imageProject))
-                   else emails.traverse(e => retryIam(imageProject, e, Set("roles/compute.imageUser")))
+              projectNumber <- IO.fromFuture(IO(googleComputeDAO.getProjectNumber(googleProject))).flatMap(_.fold(IO.raiseError[Long](ClusterIamSetupException(imageProject)))(IO.pure))
+              roles = Set("roles/compute.imageUser")
+
+              // The Dataproc SA is used to retrieve the image. However projects created prior to 2016
+              // don't have a Dataproc SA so they fall back to the API service account. This is documented here:
+              // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
+              dataprocSA = WorkbenchEmail(s"service-$projectNumber@dataproc-accounts.iam.gserviceaccount.com")
+              apiSA = WorkbenchEmail(s"$projectNumber@cloudservices.gserviceaccount.com")
+              _ <- retryIam(imageProject, dataprocSA, roles).recoverWith {
+                case e if when400(e) => retryIam(imageProject, apiSA, roles)
+              }
             } yield ()
           }
         }
@@ -89,17 +98,9 @@ class ClusterHelper(dbRef: DbReference,
     List(dataprocWorkerIO, computeImageUserIO).parSequence_
   }
 
-  // Returns the service accounts Dataproc uses to perform its actions. Email formats documented in:
-  // - https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
-  // - https://cloud.google.com/iam/docs/service-accounts#google-managed_service_accounts
-  private def getDataprocServiceAccounts(googleProject: GoogleProject): IO[List[WorkbenchEmail]] = {
-    IO.fromFuture(IO(googleComputeDAO.getProjectNumber(googleProject))) map {
-      case Some(projectNumber) =>
-        val apiSA = WorkbenchEmail(s"$projectNumber@cloudservices.gserviceaccount.com")
-        val dataprocSA = WorkbenchEmail(s"service-$projectNumber@dataproc-accounts.iam.gserviceaccount.com")
-        List(dataprocSA, apiSA)
-      case None => List.empty
-    }
+  private def when400(throwable: Throwable): Boolean = throwable match {
+    case t: HttpResponseException => t.getStatusCode == 400
+    case _ => false
   }
 
   def generateServiceAccountKey(googleProject: GoogleProject, serviceAccountEmailOpt: Option[WorkbenchEmail]): IO[Option[ServiceAccountKey]] = {
