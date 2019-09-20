@@ -186,7 +186,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                             clusterRequest: ClusterRequest,
                             traceId: TraceId): Future[Cluster] = {
     // Check if the google project has an active cluster with the same name. If not, we can create it
-//    Thread.sleep((25 minutes).toMillis) //TODO: Remove. Test code.x
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName)
     } flatMap {

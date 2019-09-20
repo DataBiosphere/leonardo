@@ -187,7 +187,6 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ShutdownActor
     */
   private def handleFailedCluster(errorDetails: ClusterErrorDetails, instances: Set[Instance]): Future[ClusterMonitorMessage] = {
-    println("here0 in handleFailedCluster")
     for {
       clusterStatus <- getDbClusterStatus
 
@@ -231,7 +230,7 @@ class ClusterMonitorActor(val cluster: Cluster,
 
   private def shouldRecreateCluster(code: Int, message: Option[String]): Boolean = {
     // TODO: potentially add more checks here as we learn which errors are recoverable
-    println("determining if we should re-create cluster")
+    logger.info("determining if we should re-create cluster")
     monitorConfig.recreateCluster && (code == Code.UNKNOWN.value)
   }
 
