@@ -192,7 +192,6 @@ class ClusterMonitorActor(val cluster: Cluster,
     for {
       clusterStatus <- getDbClusterStatus
 
-      x = println(s"cluster status in handle failed cluster: ${clusterStatus}")
       _ <- Future.sequence(List(
         // Delete the cluster in Google
         gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName),
@@ -206,9 +205,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       ))
 
       // Record metrics in NewRelic
-      y = println("here1 in handleFailedCluster")
       _ <- recordMetrics(clusterStatus, ClusterStatus.Error).unsafeToFuture()
-      z = println("here2 in handleFailedCluster")
 
       // Decide if we should try recreating the cluster
       res <- if (shouldRecreateCluster(errorDetails.code, errorDetails.message)) {
