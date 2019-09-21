@@ -1,10 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo.model.google
 
+import java.io.File
 import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import enumeratum._
+import org.broadinstitute.dsde.workbench.google2.GcsBlobName
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterResource
 import org.broadinstitute.dsde.workbench.model.{ValueObject, ValueObjectFormat, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject}
@@ -136,6 +139,12 @@ case class Instance(key: InstanceKey,
                     ip: Option[IP],
                     dataprocRole: Option[DataprocRole],
                     createdDate: Instant)
+
+case class GcsResource(gcsBlobName: GcsBlobName, content: Array[Byte])
+object GcsResource {
+  def apply(file: File, content: Array[Byte]): GcsResource = GcsResource(GcsBlobName(file.getName), content)
+  def apply(clusterResource: ClusterResource, content: Array[Byte]): GcsResource = GcsResource(GcsBlobName(clusterResource.value), content)
+}
 
 object GoogleJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit object UUIDFormat extends JsonFormat[UUID] {

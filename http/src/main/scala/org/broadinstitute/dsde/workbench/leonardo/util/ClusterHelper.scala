@@ -1,30 +1,27 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
-import java.nio.charset.Charset
+import java.nio.charset.{Charset, StandardCharsets}
 
 import akka.actor.ActorSystem
 import cats.effect._
 import cats.implicits._
-import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.typesafe.scalalogging.LazyLogging
 import fs2._
+import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO}
+import org.broadinstitute.dsde.workbench.google2.GcsBlobName
+import org.broadinstitute.dsde.workbench.leonardo.Metrics
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.Master
+import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterInitValues, LeoException, ServiceAccountInfo}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
-import org.broadinstitute.dsde.workbench.google2.GcsBlobName
-import org.broadinstitute.dsde.workbench.leonardo.Metrics
-import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.Master
-import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterName, CreateClusterConfig, FirewallRule, FirewallRuleName, FirewallRulePort, FirewallRuleProtocol, MachineType, NetworkTag, VPCNetworkName, VPCSubnetName}
-import org.broadinstitute.dsde.workbench.leonardo.util.TemplateHelper.GcsResource
 import org.broadinstitute.dsde.workbench.util.Retry
 
-import scala.collection.JavaConverters._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 case class ClusterIamSetupException(googleProject: GoogleProject)
   extends LeoException(s"Error occurred setting up IAM roles in project ${googleProject.value}")
@@ -40,7 +37,10 @@ class ClusterHelper(dbRef: DbReference,
                     googleIamDAO: GoogleIamDAO,
                     googleProjectDAO: GoogleProjectDAO,
                     contentSecurityPolicy: String)
-                   (implicit val executionContext: ExecutionContext, val system: ActorSystem, val contextShift: ContextShift[IO]) extends LazyLogging with Retry {
+                   (implicit
+                    val executionContext: ExecutionContext,
+                    val system: ActorSystem,
+                    val contextShift: ContextShift[IO]) extends LazyLogging with Retry {
 
   def createClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo): IO[Unit] = {
     updateClusterIamRoles(googleProject, serviceAccountInfo, true)
@@ -119,14 +119,12 @@ class ClusterHelper(dbRef: DbReference,
   }
 
   def generateServiceAccountKey(googleProject: GoogleProject, serviceAccountEmailOpt: Option[WorkbenchEmail]): IO[Option[ServiceAccountKey]] = {
-    // TODO: implement google2 version of GoogleIamDAO
     serviceAccountEmailOpt.traverse { email =>
       IO.fromFuture(IO(googleIamDAO.createServiceAccountKey(googleProject, email)))
     }
   }
 
   def removeServiceAccountKey(googleProject: GoogleProject, serviceAccountEmailOpt: Option[WorkbenchEmail], serviceAccountKeyIdOpt: Option[ServiceAccountKeyId]): IO[Unit] = {
-    // TODO: implement google2 version of GoogleIamDAO
     (serviceAccountEmailOpt, serviceAccountKeyIdOpt).mapN { case (email, keyId) =>
       IO.fromFuture(IO(googleIamDAO.removeServiceAccountKey(googleProject, email, keyId)))
     } getOrElse IO.unit
@@ -138,7 +136,6 @@ class ClusterHelper(dbRef: DbReference,
       _ <- createClusterIamRoles(cluster.googleProject, cluster.serviceAccountInfo)
 
       // Resize the cluster in Google
-      // TODO: implement google2 version of GoogleComputeDAO
       _ <- IO.fromFuture(IO(gdDAO.resizeCluster(cluster.googleProject, cluster.clusterName, numWorkers, numPreemptibles)))
     } yield ()
   }
@@ -147,7 +144,6 @@ class ClusterHelper(dbRef: DbReference,
     cluster.instances.toList.traverse { instance =>
       instance.dataprocRole match {
         case Some(Master) =>
-          // TODO: implement google2 version of GoogleComputeDAO
           IO.fromFuture(IO(googleComputeDAO.setMachineType(instance.key, machineType)))
         case _ =>
           // Note: we don't support changing the machine type for worker instances. While this is possible
@@ -162,7 +158,6 @@ class ClusterHelper(dbRef: DbReference,
     cluster.instances.toList.traverse { instance =>
       instance.dataprocRole match {
         case Some(Master) =>
-          // TODO: implement google2 version of GoogleComputeDAO
           IO.fromFuture(IO(googleComputeDAO.resizeDisk(instance.key, diskSize)))
         case _ =>
           // Note: we don't support changing the machine type for worker instances. While this is possible
@@ -191,8 +186,10 @@ class ClusterHelper(dbRef: DbReference,
     } yield ()
   }
 
-  def startCluster(cluster: Cluster, metadata: Map[String, String]): IO[Unit] = {
+  def startCluster(cluster: Cluster, welderDeploy: Boolean, welderUpdate: Boolean): IO[Unit] = {
     for {
+      metadata <- getMasterInstanceStartupScript(cluster, welderDeploy, welderUpdate)
+
       // Add back the preemptible instances, if any
       _ <- if (cluster.machineConfig.numberOfPreemptibleWorkers.exists(_ > 0))
         IO.fromFuture(IO(gdDAO.resizeCluster(cluster.googleProject, cluster.clusterName, numPreemptibles = cluster.machineConfig.numberOfPreemptibleWorkers)))
@@ -263,28 +260,26 @@ class ClusterHelper(dbRef: DbReference,
               .flatMap(_ => IO.raiseError(errors.head))
         }
 
-        cluster = Cluster.createFinal(cluster, operation, stagingBucketName)
+        finalCluster = Cluster.createFinal(cluster, operation, stagingBucketName)
 
-      } yield (cluster, initBucketName, serviceAccountKeyOpt)
+      } yield (finalCluster, initBucketName, serviceAccountKeyOpt)
 
       ioResult.handleErrorWith { throwable =>
         cleanUpGoogleResourcesOnError(cluster.googleProject,
           cluster.clusterName, initBucketName,
           cluster.serviceAccountInfo, serviceAccountKeyOpt) >> IO.raiseError(throwable)
       }
-
     }
-
   }
 
-  private[service] def cleanUpGoogleResourcesOnError(googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo, serviceAccountKeyOpt: Option[ServiceAccountKey]): IO[Unit] = {
+  private def cleanUpGoogleResourcesOnError(googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo, serviceAccountKeyOpt: Option[ServiceAccountKey]): IO[Unit] = {
     logger.error(s"Cluster creation failed in Google for $googleProject / ${clusterName.value}. Cleaning up resources in Google...")
 
     // Clean up resources in Google
     val deleteBucket = bucketHelper.deleteInitBucket(initBucketName) map { _ =>
-      logger.info(s"Successfully deleted init bucket ${initBucketName.value} for  ${googleProject.value} / ${clusterName.value}")
+      logger.info(s"Successfully deleted init bucket ${initBucketName.value} for ${googleProject.value} / ${clusterName.value}")
     } recover { case e =>
-      logger.error(s"Failed to delete init bucket ${initBucketName.value} for  ${googleProject.value} / ${clusterName.value}", e)
+      logger.error(s"Failed to delete init bucket ${initBucketName.value} for ${googleProject.value} / ${clusterName.value}", e)
     }
 
     // Don't delete the staging bucket so the user can see error logs.
@@ -301,10 +296,17 @@ class ClusterHelper(dbRef: DbReference,
       logger.error(s"Failed to delete service account key for ${serviceAccountInfo.notebookServiceAccount}", e)
     }
 
-    // TODO also remove dataproc role
+    val removeIamRoles = removeClusterIamRoles(googleProject, serviceAccountInfo).map { _ =>
+      logger.info(s"Successfully removed IAM roles for ${googleProject.value} / ${clusterName.value}")
+    } recover { case e =>
+      logger.error(s"Failed to remove IAM roles for ${googleProject.value} / ${clusterName.value}", e)
+    }
 
-    // TODO: parJoin?
-    (Stream.eval(deleteBucket) ++ Stream.eval(deleteCluster) ++ Stream.eval(deleteServiceAccountKey)).compile.drain
+    List(deleteBucket, deleteCluster, deleteServiceAccountKey, removeIamRoles)
+      .map(Stream.eval)
+      .reduce(_ ++ _)
+      //.parJoin(4)  TODO: why does this not compile?
+      .compile.drain
   }
 
   private def firewallRule = FirewallRule(
@@ -336,7 +338,7 @@ class ClusterHelper(dbRef: DbReference,
         clusterFilesConfig.jupyterRootCaPem
       )
     ).evalMap { f =>
-      TemplateHelper.readFile[IO](f, executionContext)
+      TemplateHelper.readFile[IO](f, executionContext).map(GcsResource(f, _))
     }
 
     val rawResourcesToUpload = Stream.emits(
@@ -349,7 +351,7 @@ class ClusterHelper(dbRef: DbReference,
         clusterResourcesConfig.initVmScript
       )
     ).evalMap { resource =>
-      TemplateHelper.readResource(resource, executionContext)
+      TemplateHelper.readResource(resource, executionContext).map(GcsResource(resource, _))
     }
 
     val templatedResourcesToUpload = Stream.emits(
@@ -359,7 +361,7 @@ class ClusterHelper(dbRef: DbReference,
         clusterResourcesConfig.jupyterNotebookFrontendConfigUri
       )
     ).evalMap { resource =>
-      TemplateHelper.templateResource(replacements, resource, executionContext)
+      TemplateHelper.templateResource(replacements, resource, executionContext).map(GcsResource(resource, _))
     }
 
     val privateKey = Stream.emit(
@@ -397,10 +399,19 @@ class ClusterHelper(dbRef: DbReference,
     }
   }
 
-  private def whenGoogleZoneCapacityIssue(throwable: Throwable): Boolean = {
-    throwable match {
-      case t: GoogleJsonResponseException => t.getStatusCode == 429 && t.getDetails.getErrors.asScala.head.getReason.equalsIgnoreCase("rateLimitExceeded")
-      case _ => false
+  // Startup script to install on the cluster master node. This allows Jupyter to start back up after
+  // a cluster is resumed.
+  private def getMasterInstanceStartupScript(cluster: Cluster, deployWelder: Boolean, updateWelder: Boolean): IO[Map[String, String]] = {
+    val googleKey = "startup-script"  // required; see https://cloud.google.com/compute/docs/startupscript
+
+    // These things need to be provided to ClusterInitValues, but aren't actually needed for the startup script
+    val dummyInitBucket = GcsBucketName("dummy-init-bucket")
+
+    val clusterInit = ClusterInitValues(cluster, dummyInitBucket, None, dataprocConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig, contentSecurityPolicy).toMap
+    val replacements: Map[String, String] = clusterInit ++ Map("deployWelder" -> deployWelder.toString, "updateWelder" -> updateWelder.toString)
+
+    TemplateHelper.templateResource(replacements, clusterResourcesConfig.startupScript, executionContext).map { startupScriptContent =>
+      Map(googleKey -> new String(startupScriptContent, StandardCharsets.UTF_8))
     }
   }
 

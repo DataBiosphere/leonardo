@@ -3,11 +3,16 @@ package org.broadinstitute.dsde.workbench.leonardo.dao.google
 import java.time.Instant
 import java.util.UUID
 
+import akka.http.scaladsl.model.StatusCodes
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google._
 
 import scala.concurrent.Future
+
+case class DataprocDisabledException(errorMsg: String)
+  extends LeoException(s"${errorMsg}", StatusCodes.Forbidden)
 
 trait GoogleDataprocDAO {
   def createCluster(googleProject: GoogleProject, clusterName: ClusterName, createClusterConfig: CreateClusterConfig): Future[Operation]

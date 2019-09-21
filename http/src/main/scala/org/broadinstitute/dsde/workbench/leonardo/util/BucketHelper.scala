@@ -65,7 +65,7 @@ class BucketHelper(dataprocConfig: DataprocConfig,
       ownerAcl = Map(StorageRole.ObjectAdmin ->  NonEmptyList(leoEntity, bucketSAs))
 
       // TODO set retryPolicy?
-      _ <- google2StorageDAO.createBucket(googleProject, bucketName)
+      _ <- google2StorageDAO.insertBucket(googleProject, bucketName)
       _ <- google2StorageDAO.setIamPolicy(bucketName, readerAcl ++ ownerAcl)
     } yield ()
   }

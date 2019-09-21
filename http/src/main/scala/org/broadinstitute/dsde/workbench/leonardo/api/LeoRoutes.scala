@@ -20,10 +20,13 @@ import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, Prox
 import org.broadinstitute.dsde.workbench.leonardo.util.CookieHelper
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchException, WorkbenchExceptionWithErrorReport}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchEmail, WorkbenchException, WorkbenchExceptionWithErrorReport}
 import LeoRoutes._
 
 import scala.concurrent.{ExecutionContext, Future}
+
+case class AuthenticationError(email: Option[WorkbenchEmail] = None)
+  extends LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is not authenticated", StatusCodes.Unauthorized)
 
 abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService: ProxyService, val statusService: StatusService, val swaggerConfig: SwaggerConfig)
                         (implicit val system: ActorSystem, val materializer: Materializer, val executionContext: ExecutionContext)
@@ -52,7 +55,7 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
                     entity(as[ClusterRequest]) { cluster =>
                       complete {
                         leonardoService
-                          .processClusterCreationRequest(userInfo, GoogleProject(googleProject), clusterName, cluster)
+                          .createCluster(userInfo, GoogleProject(googleProject), clusterName, cluster)
                           .map { cluster =>
                             StatusCodes.Accepted -> cluster
                           }

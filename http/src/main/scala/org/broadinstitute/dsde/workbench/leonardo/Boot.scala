@@ -80,15 +80,15 @@ object Boot extends IOApp with LazyLogging {
     val googleStorageDAO = new HttpGoogleStorageDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google")
     val googleProjectDAO = new HttpGoogleProjectDAO(dataprocConfig.applicationName, Pem(leoServiceAccountEmail, leoServiceAccountPemFile), "google")
     val clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, clusterDnsCacheConfig)
-    val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, googleComputeDAO, googleStorageDAO, serviceAccountProvider)
-    val clusterHelper = new ClusterHelper(dbRef, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO)
     implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
     implicit val lineBacker = Linebacker.fromExecutionContext[IO](scala.concurrent.ExecutionContext.global)
 
     createDependencies(leoServiceAccountJsonFile).use {
       appDependencies =>
         val welderDao = new HttpWelderDAO(clusterDnsCache)
-        val leonardoService = new LeonardoService(dataprocConfig, welderDao, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, gdDAO, googleComputeDAO, googleProjectDAO, googleStorageDAO, petGoogleStorageDAO, dbRef, authProvider, serviceAccountProvider, bucketHelper, clusterHelper, contentSecurityPolicy)
+        val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, googleComputeDAO, googleStorageDAO, appDependencies.google2StorageDao, serviceAccountProvider)
+        val clusterHelper = new ClusterHelper(dbRef, dataprocConfig, proxyConfig, clusterResourcesConfig, clusterFilesConfig, bucketHelper, gdDAO, googleComputeDAO, googleIamDAO, googleProjectDAO, contentSecurityPolicy)
+        val leonardoService = new LeonardoService(dataprocConfig, welderDao, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, petGoogleStorageDAO, dbRef, authProvider, serviceAccountProvider, bucketHelper, clusterHelper, contentSecurityPolicy)
         if(leoExecutionModeConfig.backLeo) {
           val jupyterDAO = new HttpJupyterDAO(clusterDnsCache)
           val rstudioDAO = new HttpRStudioDAO(clusterDnsCache)
