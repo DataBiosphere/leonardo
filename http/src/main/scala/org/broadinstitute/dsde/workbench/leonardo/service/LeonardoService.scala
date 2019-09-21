@@ -28,7 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Sto
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.Retry
 import spray.json._
 
@@ -134,6 +134,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                     googleProject: GoogleProject,
                     clusterName: ClusterName,
                     clusterRequest: ClusterRequest): Future[Cluster] = {
+    val traceId = TraceId(UUID.randomUUID)
     for {
       _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
 
@@ -150,15 +151,17 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           serviceAccountInfo,
           googleProject,
           clusterName,
-          clusterRequest))(c => Future.failed(ClusterAlreadyExistsException(googleProject, clusterName, c.status)))
+          clusterRequest,
+          traceId))(c => Future.failed(ClusterAlreadyExistsException(googleProject, clusterName, c.status)))
     } yield cluster
   }
 
   private[leonardo] def internalCreateCluster(userEmail: WorkbenchEmail,
-                                   serviceAccountInfo: ServiceAccountInfo,
-                                   googleProject: GoogleProject,
-                                   clusterName: ClusterName,
-                                   clusterRequest: ClusterRequest): Future[Cluster] = {
+                                              serviceAccountInfo: ServiceAccountInfo,
+                                              googleProject: GoogleProject,
+                                              clusterName: ClusterName,
+                                              clusterRequest: ClusterRequest,
+                                              traceId: TraceId): Future[Cluster] = {
     val internalId = ClusterInternalId(UUID.randomUUID().toString)
     val augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
     val clusterImages = getClusterImages(clusterRequest)
@@ -173,9 +176,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     for {
       _ <- validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest)
-      _ = logger.info(s"Attempting to notify the AuthProvider for creation of cluster ${initialClusterToSave.projectNameString}...")
-      _ <- authProvider.notifyClusterCreated(internalId, userEmail, googleProject, clusterName)
-      _ = logger.info(s"Successfully notified the AuthProvider for creation of cluster ${initialClusterToSave.projectNameString}")
+      _ = logger.info(s"[$traceId] Attempting to notify the AuthProvider for creation of cluster ${initialClusterToSave.projectNameString}...")
+      _ <- authProvider.notifyClusterCreated(internalId, userEmail, googleProject, clusterName, traceId)
+      _ = logger.info(s"[$traceId] Successfully notified the AuthProvider for creation of cluster ${initialClusterToSave.projectNameString}")
       cluster <- dbRef.inTransaction { _.clusterQuery.save(initialClusterToSave) }
     } yield cluster
   }
@@ -661,7 +664,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     // Note: Jupyter image is not currently optional
     val jupyterImage: ClusterImage = ClusterImage(Jupyter,
-      clusterRequest.jupyterDockerImage.getOrElse(dataprocConfig.dataprocDockerImage), now)
+      clusterRequest.jupyterDockerImage.map(_.imageUrl).getOrElse(dataprocConfig.jupyterImage), now)
 
     // Optional RStudio image
     val rstudioImageOpt: Option[ClusterImage] = clusterRequest.rstudioDockerImage.map(i => ClusterImage(RStudio, i, now))

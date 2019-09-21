@@ -113,11 +113,6 @@ class ClusterHelper(dbRef: DbReference,
     List(dataprocWorkerIO, computeImageUserIO).parSequence_
   }
 
-  private def when400(throwable: Throwable): Boolean = throwable match {
-    case t: HttpResponseException => t.getStatusCode == 400
-    case _ => false
-  }
-
   def generateServiceAccountKey(googleProject: GoogleProject, serviceAccountEmailOpt: Option[WorkbenchEmail]): IO[Option[ServiceAccountKey]] = {
     serviceAccountEmailOpt.traverse { email =>
       IO.fromFuture(IO(googleIamDAO.createServiceAccountKey(googleProject, email)))
