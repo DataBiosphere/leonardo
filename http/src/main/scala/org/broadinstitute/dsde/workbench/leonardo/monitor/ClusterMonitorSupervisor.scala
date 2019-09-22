@@ -9,13 +9,12 @@ import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props, Timers}
 import cats.effect.IO
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
-
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, DataprocConfig, MonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, WelderDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, RStudioDAO, ToolDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.Jupyter
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
@@ -24,12 +23,27 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervis
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchException}
+import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
 object ClusterMonitorSupervisor {
-  def props(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleStorageDAO: GoogleStorageDAO, google2StorageDAO: GoogleStorageService[IO], dbRef: DbReference, authProvider: LeoAuthProvider[IO], autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO, rstudioProxyDAO: RStudioDAO, welderDAO: WelderDAO, leonardoService: LeonardoService, clusterHelper: ClusterHelper): Props =
+  def props(monitorConfig: MonitorConfig,
+            dataprocConfig: DataprocConfig,
+            clusterBucketConfig: ClusterBucketConfig,
+            gdDAO: GoogleDataprocDAO,
+            googleComputeDAO: GoogleComputeDAO,
+            googleStorageDAO: GoogleStorageDAO,
+            google2StorageDAO: GoogleStorageService[IO],
+            dbRef: DbReference,
+            authProvider: LeoAuthProvider[IO],
+            autoFreezeConfig: AutoFreezeConfig,
+            jupyterProxyDAO: JupyterDAO,
+            rstudioProxyDAO: RStudioDAO,
+            welderDAO: WelderDAO[IO],
+            leonardoService: LeonardoService,
+            clusterHelper: ClusterHelper)(implicit metrics: NewRelicMetrics[IO]): Props =
     Props(new ClusterMonitorSupervisor(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleStorageDAO, google2StorageDAO, dbRef, authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, welderDAO, leonardoService, clusterHelper))
 
   sealed trait ClusterSupervisorMessage
@@ -59,7 +73,21 @@ object ClusterMonitorSupervisor {
   private case object CheckForClusters extends ClusterSupervisorMessage
 }
 
-class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleStorageDAO: GoogleStorageDAO, google2StorageDAO: GoogleStorageService[IO], dbRef: DbReference, authProvider: LeoAuthProvider[IO], autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO, rstudioProxyDAO: RStudioDAO, welderProxyDAO: WelderDAO, leonardoService: LeonardoService, clusterHelper: ClusterHelper)
+class ClusterMonitorSupervisor(monitorConfig: MonitorConfig,
+                               dataprocConfig: DataprocConfig,
+                               clusterBucketConfig: ClusterBucketConfig,
+                               gdDAO: GoogleDataprocDAO,
+                               googleComputeDAO: GoogleComputeDAO,
+                               googleStorageDAO: GoogleStorageDAO,
+                               google2StorageDAO: GoogleStorageService[IO],
+                               dbRef: DbReference,
+                               authProvider: LeoAuthProvider[IO],
+                               autoFreezeConfig: AutoFreezeConfig,
+                               jupyterProxyDAO: JupyterDAO,
+                               rstudioProxyDAO: RStudioDAO,
+                               welderProxyDAO: WelderDAO[IO],
+                               leonardoService: LeonardoService,
+                               clusterHelper: ClusterHelper)(implicit metrics: NewRelicMetrics[IO])
   extends Actor with Timers with LazyLogging {
   import context.dispatcher
 
@@ -161,10 +189,10 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
   }
 
   def createChildActor(cluster: Cluster): ActorRef = {
-    val proxyDAOs: Map[ClusterTool, () => Future[Boolean]] = Map(
-      ClusterTool.Jupyter -> (() => jupyterProxyDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName)),
-      ClusterTool.RStudio -> (() => rstudioProxyDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName)),
-      ClusterTool.Welder -> (() => welderProxyDAO.isProxyAvailable(cluster.googleProject, cluster.clusterName))
+    val proxyDAOs: Map[ClusterTool, ToolDAO] = Map(
+      ClusterTool.Jupyter -> ToolDAO.jupyterToolDAO(jupyterProxyDAO),
+      ClusterTool.RStudio -> ToolDAO.rSutdioToolDAO(rstudioProxyDAO),
+      ClusterTool.Welder -> ToolDAO.welderToolDAO(welderProxyDAO)
     )
     context.actorOf(ClusterMonitorActor.props(cluster, monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleStorageDAO, google2StorageDAO, dbRef, authProvider, proxyDAOs, clusterHelper))
   }
@@ -201,10 +229,10 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
               }
             }
             if (maxKernelActiveTimeExceeded){
-              Metrics.newRelic.incrementCounterIO("maxKernelExceededClusters").unsafeRunAsync(_ => ())
+              metrics.incrementCounter("maxKernelExceededClusters").unsafeRunAsync(_ => ())
               logger.info(s"Auto pausing ${cluster.googleProject}/${cluster.clusterName} due to exceeded max kernel active time")
             } else {
-              Metrics.newRelic.incrementCounterIO("activeKernelClusters").unsafeRunAsync(_ => ())
+              metrics.incrementCounter("activeKernelClusters").unsafeRunAsync(_ => ())
               logger.info(s"Not going to auto pause cluster ${cluster.googleProject}/${cluster.clusterName} due to active kernels")
             }
             maxKernelActiveTimeExceeded
@@ -212,7 +240,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
           } else isIdle
         }
     }
-    _ <- Metrics.newRelic.gauge("autopausedClusters", pauseableClusters.length).unsafeToFuture()
+    _ <- metrics.gauge("autopausedClusters", pauseableClusters.length).unsafeToFuture()
     _ <- pauseableClusters.traverse { cl =>
       logger.info(s"Auto freezing cluster ${cl.clusterName} in project ${cl.googleProject}")
       leonardoService.internalStopCluster(cl).attempt.map { e =>

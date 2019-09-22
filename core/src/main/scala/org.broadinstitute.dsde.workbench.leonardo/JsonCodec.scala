@@ -2,10 +2,10 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.time.Instant
 
-import io.circe.Decoder
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import cats.implicits._
+import io.circe.{Decoder, Encoder}
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GoogleProject}
 
 object JsonCodec {
   implicit val googleProjectDecoder: Decoder[GoogleProject] = Decoder.decodeString.map(GoogleProject)
@@ -24,6 +24,8 @@ object JsonCodec {
     "notebookServiceAccount"
   )(ServiceAccountInfo.apply)
   implicit val gcsBucketNameDecoder: Decoder[GcsBucketName] = Decoder.decodeString.map(GcsBucketName)
+  implicit val gcsBucketNameEncoder: Encoder[GcsBucketName] = Encoder.encodeString.contramap(_.value)
+  implicit val gcsObjectNameEncoder: Encoder[GcsObjectName] = Encoder.encodeString.contramap(_.value)
   implicit val instantDecoder: Decoder[Instant] = Decoder.decodeString.emap(s => Either.catchNonFatal(Instant.parse(s)).leftMap(_.getMessage))
   implicit val clusterErrorDecoder: Decoder[ClusterError] = Decoder.forProduct3(
     "errorMessage",

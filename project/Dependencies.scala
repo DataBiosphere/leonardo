@@ -18,7 +18,7 @@ object Dependencies {
   val workbenchGoogleV  = "0.21-58c913d"
   val workbenchGoogle2V = "0.6-ef5e8c1-SNAP" //TODO: pending PR review https://github.com/broadinstitute/workbench-libs/pull/271
   val workbenchMetricsV = "0.3-c5b80d2"
-  val workbenchNewRelicV = "0.2-ad29822"
+  val workbenchNewRelicV = "0.3-886a282-SNAP"
 
   val excludeAkkaActor          = ExclusionRule(organization = "com.typesafe.akka", name = "akka-actor_2.12")
   val excludeGuavaJDK5          = ExclusionRule(organization = "com.google.guava", name = "guava-jdk5")

@@ -13,6 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, LeoAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.service.LeonardoService
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
+import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
 
 object TestClusterSupervisorActor {
   def props(monitorConfig: MonitorConfig,
@@ -28,7 +29,7 @@ object TestClusterSupervisorActor {
             autoFreezeConfig: AutoFreezeConfig,
             jupyterProxyDAO: JupyterDAO,
             rstudioProxyDAO: RStudioDAO,
-            welderDAO: WelderDAO,
+            welderDAO: WelderDAO[IO],
             leonardoService: LeonardoService,
             clusterHelper: ClusterHelper): Props =
     Props(new TestClusterSupervisorActor(
@@ -55,13 +56,13 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  autoFreezeConfig: AutoFreezeConfig,
                                  jupyterProxyDAO: JupyterDAO,
                                  rstudioProxyDAO: RStudioDAO,
-                                 welderDAO: WelderDAO,
+                                 welderDAO: WelderDAO[IO],
                                  leonardoService: LeonardoService,
                                  clusterHelper: ClusterHelper)
   extends ClusterMonitorSupervisor(
     monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO,
     googleStorageDAO, google2StorageDAO, dbRef, authProvider, autoFreezeConfig,
-    jupyterProxyDAO, rstudioProxyDAO, welderDAO, leonardoService, clusterHelper) {
+    jupyterProxyDAO, rstudioProxyDAO, welderDAO, leonardoService, clusterHelper)(FakeNewRelicMetricsInterpreter) {
 
   // Keep track of spawned child actors so we can shut them down when this actor is stopped
   var childActors: Seq[ActorRef] = Seq.empty

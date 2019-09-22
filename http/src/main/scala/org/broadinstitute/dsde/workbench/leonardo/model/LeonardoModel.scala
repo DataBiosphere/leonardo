@@ -268,8 +268,9 @@ object MachineConfigOps {
 
 // Fields that must be templated into cluster resources (e.g. the init script).
 // see https://broadinstitute.atlassian.net/browse/GAWB-2619 for why these are Strings rather than value classes
-case class ClusterInitValues private (googleProject: String,
+final case class ClusterInitValues private (googleProject: String,
                              clusterName: String,
+                             stagingBucketName: String,
                              jupyterDockerImage: String,
                              rstudioDockerImage: String,
                              proxyDockerImage: String,
@@ -306,13 +307,14 @@ case class ClusterInitValues private (googleProject: String,
 object ClusterInitValues {
   val serviceAccountCredentialsFilename = "service-account-credentials.json"
 
-  def apply(googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, dataprocConfig: DataprocConfig,
+  def apply(googleProject: GoogleProject, clusterName: ClusterName, stagingBucketName: GcsBucketName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, dataprocConfig: DataprocConfig,
             clusterFilesConfig: ClusterFilesConfig, clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig,
             serviceAccountKey: Option[ServiceAccountKey], userEmailLoginHint: WorkbenchEmail, contentSecurityPolicy: String,
             clusterImages: Set[ClusterImage], stagingBucket: GcsBucketName, welderEnabled: Boolean): ClusterInitValues =
     ClusterInitValues(
       googleProject.value,
       clusterName.value,
+      stagingBucketName.value,
       clusterImages.find(_.tool == Jupyter).map(_.dockerImage).getOrElse(""),
       clusterImages.find(_.tool == RStudio).map(_.dockerImage).getOrElse(""),
       proxyConfig.jupyterProxyDockerImage,

@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import akka.actor.{ActorRef, ActorSystem, Terminated}
 import akka.testkit.TestKit
+import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleProjectDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, MockJupyterDAO, MockWelderDAO, ToolDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
@@ -80,9 +81,9 @@ class ClusterToolMonitorSpec  extends TestKit(ActorSystem("leonardotest")) with
     }
   }
 
-  private def withServiceActor[T](newRelic: NewRelicMetrics =  mock[NewRelicMetrics], welderDAO: WelderDAO = new MockWelderDAO(), jupyterDAO: JupyterDAO = new MockJupyterDAO())
-                                (testCode: (ActorRef, NewRelicMetrics) => T): T = {
-    val toolMap: Map[ClusterTool, ToolDAO] = Map(ClusterTool.Jupyter -> jupyterDAO, ClusterTool.Welder -> welderDAO)
+  private def withServiceActor[T](newRelic: NewRelicMetrics[IO] =  mock[NewRelicMetrics[IO]], welderDAO: WelderDAO[IO] = new MockWelderDAO(), jupyterDAO: JupyterDAO = new MockJupyterDAO())
+                                (testCode: (ActorRef, NewRelicMetrics[IO]) => T): T = {
+    val toolMap: Map[ClusterTool, ToolDAO] = Map(ClusterTool.Jupyter -> ToolDAO.jupyterToolDAO(jupyterDAO), ClusterTool.Welder -> ToolDAO.welderToolDAO(welderDAO))
     val actor = system.actorOf(ClusterToolMonitor.props(clusterToolConfig, gdDAO = new MockGoogleDataprocDAO, googleProjectDAO = new MockGoogleProjectDAO, DbSingleton.ref, toolMap, newRelic))
     val testResult = Try(testCode(actor, newRelic))
 

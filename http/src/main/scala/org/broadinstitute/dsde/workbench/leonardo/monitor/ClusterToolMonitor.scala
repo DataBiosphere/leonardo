@@ -13,11 +13,13 @@ import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.Welder
 import ClusterToolMonitor._
+import cats.effect.IO
+
 import scala.concurrent.Future
 
 object ClusterToolMonitor {
 
-  def props(config: ClusterToolConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference, toolDAOs: Map[ClusterTool, ToolDAO], newRelic: NewRelicMetrics): Props = {
+  def props(config: ClusterToolConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference, toolDAOs: Map[ClusterTool, ToolDAO], newRelic: NewRelicMetrics[IO]): Props = {
     Props(new ClusterToolMonitor(config, gdDAO, googleProjectDAO, dbRef, toolDAOs, newRelic))
   }
 
@@ -31,7 +33,7 @@ object ClusterToolMonitor {
 /**
   * Monitors tool status (Jupyter, RStudio, Welder, etc) on Running clusters and reports if any tool is down.
   */
-class ClusterToolMonitor(config: ClusterToolConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference, toolDAOs: Map[ClusterTool, ToolDAO], newRelic: NewRelicMetrics) extends Actor with Timers with LazyLogging {
+class ClusterToolMonitor(config: ClusterToolConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference, toolDAOs: Map[ClusterTool, ToolDAO], newRelic: NewRelicMetrics[IO]) extends Actor with Timers with LazyLogging {
 
   import context._
 

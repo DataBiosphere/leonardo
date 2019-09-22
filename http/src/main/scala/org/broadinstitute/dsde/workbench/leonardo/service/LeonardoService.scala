@@ -34,6 +34,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.Retry
 import slick.dbio.DBIO
 import spray.json._
@@ -104,7 +105,7 @@ case class InvalidDataprocMachineConfigException(errorMsg: String)
   extends LeoException(s"${errorMsg}", StatusCodes.BadRequest)
 
 class LeonardoService(protected val dataprocConfig: DataprocConfig,
-                      protected val welderDao: WelderDAO,
+                      protected val welderDao: WelderDAO[IO],
                       protected val clusterFilesConfig: ClusterFilesConfig,
                       protected val clusterResourcesConfig: ClusterResourcesConfig,
                       protected val clusterDefaultsConfig: ClusterDefaultsConfig,
@@ -125,7 +126,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                      (implicit val executionContext: ExecutionContext,
                       implicit override val system: ActorSystem,
                       timer: Timer[IO],
-                      cs: ContextShift[IO]) extends LazyLogging with Retry {
+                      cs: ContextShift[IO],
+                      metrics: NewRelicMetrics[IO]) extends LazyLogging with Retry {
 
   private val bucketPathMaxLength = 1024
   private val includeDeletedKey = "includeDeleted"
@@ -198,8 +200,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         val clusterImages = processClusterImages(clusterRequest)
         for {
           // Metrics
-          _ <- Metrics.newRelic.incrementCounterFuture("numberOfCreateClusterRequests")
-          _ <- if (clusterRequest.enableWelder.getOrElse(false)) Metrics.newRelic.incrementCounterFuture("numberOfWelderEnabledCreateClusterRequests") else Future.unit
+          _ <- metrics.incrementCounterFuture("numberOfCreateClusterRequests")
+          _ <- if (clusterRequest.enableWelder.getOrElse(false)) metrics.incrementCounterFuture("numberOfWelderEnabledCreateClusterRequests") else Future.unit
 
           // Notify the auth provider that the cluster has been created
           _ <- authProvider.notifyClusterCreated(internalId, userEmail, googleProject, clusterName).unsafeToFuture()
@@ -273,7 +275,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     for {
       traceId <- ev.ask
       _ <- IO.fromFuture(IO(validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest)))
-      _ <- IO(logger.info(s"[$traceId] Attempting to notify the AuthProvider for creation of cluster '$clusterName' " +
+      _ <- IO(logger.debug(s"[$traceId] Attempting to notify the AuthProvider for creation of cluster '$clusterName' " +
         s"on Google project '$googleProject'..."))
       _ <- authProvider.notifyClusterCreated(internalId, userEmail, googleProject, clusterName).handleErrorWith {
         t =>
@@ -281,7 +283,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
             s"on Google project '$googleProject'.")) >> IO.raiseError(t)
       }
       savedInitialCluster <- IO.fromFuture(IO(dbRef.inTransaction[Cluster] { _.clusterQuery.save(initialClusterToSave) }))
-      _ <- IO(logger.info(s"[$traceId] Inserted an initial record into the DB for cluster '$clusterName' " +
+      _ <- IO(logger.debug(s"[$traceId] Inserted an initial record into the DB for cluster '$clusterName' " +
         s"on Google project '$googleProject'. Attemping to create cluster in google"))
     } yield {
       completeClusterCreation(userEmail, savedInitialCluster, augmentedClusterRequest)
@@ -578,7 +580,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         // Flush the welder cache to disk
         _ <- if(cluster.welderEnabled) {
-          welderDao.flushCache(cluster.googleProject, cluster.clusterName).handleError(e => logger.error(s"fail to flush welder cache for ${cluster}"))
+          welderDao.flushCache(cluster.googleProject, cluster.clusterName).handleError(e => logger.error(s"fail to flush welder cache for ${cluster}", e)).unsafeToFuture()
         } else Future.unit
 
         // Now stop each instance individually
@@ -726,10 +728,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       operation <- retryResult match {
         case Right((errors, op)) if errors == List.empty => Future.successful(op)
         case Right((errors, op)) =>
-          Metrics.newRelic.incrementCounterIO("zoneCapacityClusterCreationFailure", errors.length).unsafeRunAsync(_ => ())
+          metrics.incrementCounter("zoneCapacityClusterCreationFailure", errors.length).unsafeRunAsync(_ => ())
           Future.successful(op)
         case Left(errors) =>
-          Metrics.newRelic.incrementCounterIO("zoneCapacityClusterCreationFailure", errors.filter(whenGoogleZoneCapacityIssue).length).unsafeRunAsync(_ => ())
+          metrics.incrementCounter("zoneCapacityClusterCreationFailure", errors.filter(whenGoogleZoneCapacityIssue).length).unsafeRunAsync(_ => ())
           Future.failed(errors.head)
       }
       cluster = Cluster.create(clusterRequest, internalId, userEmail, clusterName, googleProject, serviceAccountInfo,
@@ -925,7 +927,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                                clusterImages: Set[ClusterImage],
                                                stagingBucket: GcsBucketName): Future[Unit] = {
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
-    val clusterInit = ClusterInitValues(googleProject, clusterName, initBucketName, clusterRequest, dataprocConfig,
+    val clusterInit = ClusterInitValues(googleProject, clusterName, stagingBucket, initBucketName, clusterRequest, dataprocConfig,
       clusterFilesConfig, clusterResourcesConfig, proxyConfig, serviceAccountKey, userEmail, contentSecurityPolicy, clusterImages, stagingBucket,
       clusterRequest.enableWelder.getOrElse(false))
     val replacements: Map[String, String] = clusterInit.toMap
@@ -1135,7 +1137,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private def updateWelder(cluster: Cluster): IO[Cluster] = {
     for {
       _ <- IO(logger.info(s"Will deploy welder to cluster ${cluster.projectNameString}"))
-      _ <- Metrics.newRelic.incrementCounterIO("welderDeployed")
+      _ <- metrics.incrementCounter("welderDeployed")
       epochMilli <- timer.clock.realTime(MILLISECONDS)
       now = Instant.ofEpochMilli(epochMilli)
       welderImage = ClusterImage(Welder, dataprocConfig.welderDockerImage, now)
@@ -1154,7 +1156,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val dummyStagingBucket = GcsBucketName("dummy-staging-bucket")
     val dummyClusterRequest = ClusterRequest()
 
-    val clusterInit = ClusterInitValues(cluster.googleProject, cluster.clusterName, dummyInitBucket, dummyClusterRequest,
+    //TODO: why is staging bucket optional here?
+    val clusterInit = ClusterInitValues(cluster.googleProject, cluster.clusterName, cluster.dataprocInfo.stagingBucket.getOrElse(GcsBucketName("NoStagingBucket")), dummyInitBucket, dummyClusterRequest,
       dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, None, cluster.auditInfo.creator,
       contentSecurityPolicy, cluster.clusterImages, dummyStagingBucket, cluster.welderEnabled)
     val replacements: Map[String, String] = clusterInit.toMap ++ Map("deployWelder" -> (welderAction == DeployWelder).toString, "updateWelder" -> (welderAction == UpdateWelder).toString)
