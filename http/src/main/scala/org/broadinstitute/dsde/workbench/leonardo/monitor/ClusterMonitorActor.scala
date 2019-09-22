@@ -3,6 +3,7 @@ package monitor
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import java.util.UUID
 
 import akka.actor.Status.Failure
 import akka.actor.{Actor, Props}
@@ -11,6 +12,7 @@ import akka.pattern.pipe
 import cats.data.OptionT
 import cats.effect.IO
 import cats.implicits._
+import cats.mtl.ApplicativeAsk
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
@@ -25,6 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.{ClusterStatus, I
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorActor._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervisor.{ClusterDeleted, ClusterSupervisorMessage, RemoveFromList}
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
+import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GoogleProject}
 import org.broadinstitute.dsde.workbench.util.{Retry, addJitter}
 import slick.dbio.DBIOAction
@@ -40,7 +43,7 @@ object ClusterMonitorActor {
   /**
     * Creates a Props object used for creating a {{{ClusterMonitorActor}}}.
     */
-  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleStorageDAO: GoogleStorageDAO, google2StorageDAO: GoogleStorageService[IO], dbRef: DbReference, authProvider: LeoAuthProvider, proxyDao: Map[ClusterTool, Function0[Future[Boolean]]], clusterHelper: ClusterHelper): Props =
+  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleStorageDAO: GoogleStorageDAO, google2StorageDAO: GoogleStorageService[IO], dbRef: DbReference, authProvider: LeoAuthProvider[IO], proxyDao: Map[ClusterTool, Function0[Future[Boolean]]], clusterHelper: ClusterHelper): Props =
     Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleStorageDAO, google2StorageDAO, dbRef, authProvider, proxyDao, clusterHelper))
 
   // ClusterMonitorActor messages:
@@ -73,7 +76,7 @@ class ClusterMonitorActor(val cluster: Cluster,
                           val googleStorageDAO: GoogleStorageDAO,
                           val google2StorageDAO: GoogleStorageService[IO],
                           val dbRef: DbReference,
-                          val authProvider: LeoAuthProvider,
+                          val authProvider: LeoAuthProvider[IO],
                           proxyDao: Map[ClusterTool, Function0[Future[Boolean]]],
                           val clusterHelper: ClusterHelper,
                           val startTime: Long = System.currentTimeMillis()) extends Actor with LazyLogging with Retry {
@@ -106,6 +109,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       handleFailedCluster(errorDetails, instances) pipeTo self
 
     case DeletedCluster =>
+      implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
       handleDeletedCluster pipeTo self
 
     case StoppedCluster(instances) =>
@@ -147,7 +151,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       Metrics.newRelic.incrementCounterIO(s"ClusterTransitionTimeout/$status").unsafeRunSync()
       handleFailedCluster(ClusterErrorDetails(Code.DEADLINE_EXCEEDED.value, Some(s"Failed to transition ${cluster.projectNameString} from status $status within the time limit:  ${monitorConfig.monitorStatusTimeouts.toString}")), instances)
     } else {
-      logger.info(s"Cluster ${cluster.projectNameString} is not ready yet and has taken ${currTimeElapsed.toString} so far (cluster status = $status, instance statuses = ${instances.groupBy(_.status).mapValues(_.size)}). Checking again in ${monitorConfig.pollPeriod.toString}.")
+      logger.info(s"Cluster ${cluster.projectNameString} is not ready yet and has taken ${currTimeElapsed.toString} so far (Dataproc cluster status = $status, GCE instance statuses = ${instances.groupBy(_.status).mapValues(_.size)}). Checking again in ${monitorConfig.pollPeriod.toString}.")
       persistInstances(instances).map { _ =>
         ScheduleMonitorPass
       }
@@ -165,7 +169,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       clusterStatus <- getDbClusterStatus
       // Remove credentials from instance metadata.
       // Only happens if an notebook service account was used.
-      _ <- if (clusterStatus == ClusterStatus.Creating) removeCredentialsFromMetadata else Future.successful(())
+      _ <- if (clusterStatus == ClusterStatus.Creating) removeCredentialsFromMetadata else Future.unit
       // create or update instances in the DB
       _ <- persistInstances(instances)
       // update DB after auth futures finish
@@ -240,7 +244,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     * and shut down this actor.
     * @return error or ShutdownActor
     */
-  private def handleDeletedCluster: Future[ClusterMonitorMessage] = {
+  private def handleDeletedCluster(implicit ev: ApplicativeAsk[IO, TraceId]): Future[ClusterMonitorMessage] = {
     logger.info(s"Cluster ${cluster.projectNameString} has been deleted.")
 
     for {
@@ -258,7 +262,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       _ <- dbRef.inTransaction { dataAccess =>
         dataAccess.clusterQuery.completeDeletion(cluster.id)
       }
-      _ <- authProvider.notifyClusterDeleted(cluster.internalId, cluster.auditInfo.creator, cluster.auditInfo.creator, cluster.googleProject, cluster.clusterName)
+      _ <- authProvider.notifyClusterDeleted(cluster.internalId, cluster.auditInfo.creator, cluster.auditInfo.creator, cluster.googleProject, cluster.clusterName).unsafeToFuture()
       // Remove the Dataproc Worker IAM role for the cluster service account.
       // Only happens if the cluster was created with a service account other
       // than the compute engine default service account.

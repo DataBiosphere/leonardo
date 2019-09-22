@@ -1,12 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package service
 
-import java.util.UUID
-
 import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.{HttpRequest, StatusCodes, Uri}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
+import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.{clusterEq, clusterSetEq, stripFieldsForListCluster}
@@ -26,8 +25,6 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.mockito.MockitoSugar
 import org.scalatest.{BeforeAndAfterAll, FreeSpec, Matchers, OptionValues}
 
-import scala.concurrent.{ExecutionContext, Future}
-
 class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers with MockitoSugar with TestComponent with ScalaFutures with OptionValues with GcsPathUtils with TestProxy with BeforeAndAfterAll with CommonTestData{
 
   val cluster1 = makeCluster(1)
@@ -40,12 +37,11 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
 
   implicit val cs = IO.contextShift(executor)
   implicit val timer = IO.timer(executor)
-
   private val alwaysYesProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), serviceAccountProvider)
   private val alwaysNoProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysNoProviderConfig"), serviceAccountProvider)
   private val noVisibleClustersProvider = new MockLeoAuthProvider(config.getConfig("auth.alwaysYesProviderConfig"), serviceAccountProvider) {
-    override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterName)])(implicit executionContext: ExecutionContext): Future[List[(GoogleProject, ClusterName)]] = {
-      Future.successful(List.empty)
+    override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterInternalId)])(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[(GoogleProject, ClusterInternalId)]] = {
+      IO.pure(List.empty)
     }
   }
 
@@ -66,14 +62,14 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
     super.afterAll()
   }
 
-  def leoWithAuthProvider(authProvider: LeoAuthProvider): LeonardoService = {
+  def leoWithAuthProvider(authProvider: LeoAuthProvider[IO]): LeonardoService = {
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
       new MockGoogleStorageDAO
     }
     new LeonardoService(dataprocConfig, MockWelderDAO, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, mockGoogleDataprocDAO, mockGoogleComputeDAO, mockGoogleProjectDAO, mockGoogleStorageDAO ,mockPetGoogleStorageDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, clusterHelper, contentSecurityPolicy)
   }
 
-  def proxyWithAuthProvider(authProvider: LeoAuthProvider): ProxyService = {
+  def proxyWithAuthProvider(authProvider: LeoAuthProvider[IO]): ProxyService = {
     new MockProxyService(proxyConfig, mockGoogleDataprocDAO, DbSingleton.ref, authProvider, clusterDnsCache)
   }
 
@@ -110,13 +106,13 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       leo.deleteCluster(userInfo, project, cluster1Name).futureValue
 
       //verify we correctly notified the auth provider
-      verify(spyProvider).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName], TraceId(any[UUID]))(any[ExecutionContext])
+      verify(spyProvider).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ApplicativeAsk[IO, TraceId]])
 
       // notification of deletion happens only after it has been fully deleted
-      verify(spyProvider, never).notifyClusterDeleted(any[ClusterInternalId], any[WorkbenchEmail], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])
+      verify(spyProvider, never).notifyClusterDeleted(any[ClusterInternalId], any[WorkbenchEmail], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ApplicativeAsk[IO, TraceId]])
     }
 
-    "should not let you do things if the auth provider says no" in isolatedDbTest {
+    "should not let you do things if the auth provider says no" in {
       val spyProvider = spy(alwaysNoProvider)
       val leo = leoWithAuthProvider(spyProvider)
       val proxy = proxyWithAuthProvider(spyProvider)
@@ -149,8 +145,8 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       clusterNotFoundAgain shouldBe a [ClusterNotFoundException]
 
       //verify we never notified the auth provider of clusters happening because they didn't
-      verify(spyProvider, Mockito.never).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName], TraceId(any[UUID]))(any[ExecutionContext])
-      verify(spyProvider, Mockito.never).notifyClusterDeleted(any[ClusterInternalId], any[WorkbenchEmail], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])
+      verify(spyProvider, Mockito.never).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ApplicativeAsk[IO, TraceId]])
+      verify(spyProvider, Mockito.never).notifyClusterDeleted(any[ClusterInternalId], any[WorkbenchEmail], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ApplicativeAsk[IO, TraceId]])
     }
 
     "should give you a 401 if you can see a cluster's details but can't do the more specific action" in isolatedDbTest {
@@ -183,8 +179,8 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       clusterDestroyException shouldBe a [AuthorizationError]
 
       //verify we never notified the auth provider of clusters happening because they didn't
-      verify(spyProvider, Mockito.never).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName], TraceId(any[UUID]))(any[ExecutionContext])
-      verify(spyProvider, Mockito.never).notifyClusterDeleted(any[ClusterInternalId], any[WorkbenchEmail], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])
+      verify(spyProvider, Mockito.never).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ApplicativeAsk[IO, TraceId]])
+      verify(spyProvider, Mockito.never).notifyClusterDeleted(any[ClusterInternalId], any[WorkbenchEmail], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ApplicativeAsk[IO, TraceId]])
     }
 
     "should not create a cluster if auth provider notifyClusterCreated returns failure" in isolatedDbTest {
@@ -202,9 +198,8 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       // check that the cluster does not exist
       mockGoogleDataprocDAO.clusters should not contain key (cluster1Name)
 
-      // creation should have been fired but not deletion
-      verify(spyProvider).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName], TraceId(any[UUID]))(any[ExecutionContext])
-      verify(spyProvider, never).notifyClusterDeleted(any[ClusterInternalId], any[WorkbenchEmail], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])
+      // creation notifications should have been fired
+      verify(spyProvider).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ApplicativeAsk[IO, TraceId]])
     }
 
     "should return clusters the user created even if the auth provider doesn't" in isolatedDbTest {
@@ -226,8 +221,8 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
       leo.createCluster(userInfo, project, mockGoogleDataprocDAO.badClusterName, testClusterRequest).failed.futureValue shouldBe a [Exception]
 
       // creation should have been fired but not deletion
-      verify(spyProvider).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName], TraceId(any[UUID]))(any[ExecutionContext])
-      verify(spyProvider, never).notifyClusterDeleted(any[ClusterInternalId], any[WorkbenchEmail], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ExecutionContext])
+      verify(spyProvider).notifyClusterCreated(any[ClusterInternalId], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ApplicativeAsk[IO, TraceId]])
+      verify(spyProvider, never).notifyClusterDeleted(any[ClusterInternalId], any[WorkbenchEmail], any[WorkbenchEmail], any[GoogleProject], any[ClusterName])(any[ApplicativeAsk[IO, TraceId]])
     }
   }
 }

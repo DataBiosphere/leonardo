@@ -1,36 +1,20 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth
 
+import cats.effect.IO
+import cats.mtl.ApplicativeAsk
 import com.typesafe.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-
-import scala.concurrent.{ExecutionContext, Future}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
 /**
   * A ServiceAccountProvider which uses all defaults.
+  * TOOD: is this still needed? Or move this to test code?
   */
-class DefaultServiceAccountProvider(config: Config) extends ServiceAccountProvider(config) {
-
-  override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
-    // Create clusters with the Compute Engine default service account
-    Future.successful(None)
-  }
-
-  override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
-    // Don't localize any credentials to the notebook server
-    Future.successful(None)
-  }
-
-  override def listGroupsStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {
-    Future.successful(List.empty)
-  }
-
-  override def listUsersStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {
-    Future.successful(List.empty)
-  }
-
-  override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[String]] = {
-    Future.successful(None)
-  }
+class DefaultServiceAccountProvider(config: Config) extends ServiceAccountProvider[IO] {
+  override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Option[WorkbenchEmail]] = IO.pure(None)
+  override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Option[WorkbenchEmail]] = IO.pure(None)
+  override def listGroupsStagingBucketReaders(userEmail: WorkbenchEmail)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[WorkbenchEmail]] = IO.pure(List.empty)
+  override def listUsersStagingBucketReaders(userEmail: WorkbenchEmail): IO[List[WorkbenchEmail]] = IO.pure(List.empty)
+  override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Option[String]] = IO.pure(None)
 }

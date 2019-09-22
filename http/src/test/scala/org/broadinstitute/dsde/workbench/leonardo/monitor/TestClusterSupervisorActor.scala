@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.monitor
+package org.broadinstitute.dsde.workbench.leonardo
+package monitor
 
 import akka.actor.{ActorRef, Props}
 import akka.testkit.TestKit
@@ -23,7 +24,7 @@ object TestClusterSupervisorActor {
             google2StorageDAO: GoogleStorageService[IO],
             dbRef: DbReference,
             testKit: TestKit,
-            authProvider: LeoAuthProvider,
+            authProvider: LeoAuthProvider[IO],
             autoFreezeConfig: AutoFreezeConfig,
             jupyterProxyDAO: JupyterDAO,
             rstudioProxyDAO: RStudioDAO,
@@ -50,7 +51,7 @@ class TestClusterSupervisorActor(monitorConfig: MonitorConfig,
                                  google2StorageDAO: GoogleStorageService[IO],
                                  dbRef: DbReference,
                                  testKit: TestKit,
-                                 authProvider: LeoAuthProvider,
+                                 authProvider: LeoAuthProvider[IO],
                                  autoFreezeConfig: AutoFreezeConfig,
                                  jupyterProxyDAO: JupyterDAO,
                                  rstudioProxyDAO: RStudioDAO,

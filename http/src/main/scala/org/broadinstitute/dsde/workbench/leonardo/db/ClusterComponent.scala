@@ -63,7 +63,7 @@ trait ClusterComponent extends LeoComponent {
 
   // mysql 5.6 doesns't support json. Hence writing properties field as string in json format
   private implicit val jsValueMappedColumnType: BaseColumnType[Json] =
-    MappedColumnType.base[Json, String](_.pretty(Printer.noSpaces), s => io.circe.parser.parse(s).fold(e => throw e, identity))
+    MappedColumnType.base[Json, String](_.printWith(Printer.noSpaces), s => io.circe.parser.parse(s).fold(e => throw e, identity))
 
   class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
     def id = column[Long]("id", O.PrimaryKey, O.AutoInc)

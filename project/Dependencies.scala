@@ -9,15 +9,14 @@ object Dependencies {
   val scalaLoggingV = "3.9.0"
   val scalaTestV    = "3.0.8"
   val slickV        = "3.2.3"
+  val http4sVersion = "0.21.0-M5" //remove http4s related dependencies once workbench-libs are upgraded
 
   val workbenchUtilV    = "0.5-4c7acd5"
   val workbenchModelV   = "0.13-6dc016b"
   val workbenchGoogleV  = "0.21-58c913d"
-  val workbenchGoogle2V = "0.5-32be5dd"
+  val workbenchGoogle2V = "0.6-ef5e8c1-SNAP" //TODO: pending PR review https://github.com/broadinstitute/workbench-libs/pull/271
   val workbenchMetricsV = "0.3-c5b80d2"
   val workbenchNewRelicV = "0.2-ad29822"
-
-  val samV =  "1.0-5cdffb4"
 
   val excludeAkkaActor          = ExclusionRule(organization = "com.typesafe.akka", name = "akka-actor_2.12")
   val excludeGuavaJDK5          = ExclusionRule(organization = "com.google.guava", name = "guava-jdk5")
@@ -63,7 +62,7 @@ object Dependencies {
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka"   %%  "akka-http-testkit"    % akkaHttpV % "test"
 
   val googleDataproc: ModuleID =    "com.google.apis"     % "google-api-services-dataproc" % s"v1-rev91-$googleV" excludeAll(excludeGuavaJDK5, excludeJacksonCore, excludeFindbugsJsr, excludeHttpComponent)
-  val googleRpc: ModuleID = "io.grpc" % "grpc-core" % "1.22.1" excludeAll(excludeGuava, excludeGson, excludeFindbugsJsr)
+  val googleRpc: ModuleID = "io.grpc" % "grpc-core" % "1.24.0" excludeAll(excludeGuava, excludeGson, excludeFindbugsJsr)
   val googleOAuth2: ModuleID = "com.google.auth" % "google-auth-library-oauth2-http" % "0.9.1" excludeAll(excludeGuava, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleApiClientJackson2, excludeGoogleHttpClient, excludeHttpComponent)
   val googleSourceRepositories: ModuleID = "com.google.apis" % "google-api-services-sourcerepo" % s"v1-rev21-$googleV" excludeAll(excludeGuavaJDK5)
 
@@ -71,7 +70,7 @@ object Dependencies {
   val mockito: ModuleID =   "org.mockito"    % "mockito-core" % "2.18.3"   % "test"
 
   // Exclude workbench-libs transitive dependencies so we can control the library versions individually.
-  // workbench-google pulls in workbench-{util, model, metrics} and workbench-metrics pulls in workbench-util.
+  // workbench-google pulls in workbench-{util, model, metrics} and workbcan ench-metrics pulls in workbench-util.
   val workbenchUtil: ModuleID       = "org.broadinstitute.dsde.workbench" %% "workbench-util"    % workbenchUtilV   excludeAll(excludeWorkbenchModel, excludeGoogleError)
   val workbenchModel: ModuleID      = "org.broadinstitute.dsde.workbench" %% "workbench-model"   % workbenchModelV  excludeAll(excludeGoogleError)
   val workbenchGoogle: ModuleID     = "org.broadinstitute.dsde.workbench" %% "workbench-google"  % workbenchGoogleV excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics, excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent)
@@ -83,8 +82,6 @@ object Dependencies {
   val workbenchNewRelicTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-newrelic" % workbenchNewRelicV % "test" classifier "tests"
 
 
-  val sam: ModuleID = "org.broadinstitute.dsde.sam-client" %% "sam" % samV
-
   val slick: ModuleID =     "com.typesafe.slick" %% "slick"                 % slickV excludeAll(excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =  "com.typesafe.slick" %% "slick-hikaricp"        % slickV excludeAll(excludeSlf4j)
   val mysql: ModuleID =     "mysql"               % "mysql-connector-java"  % "8.0.11"
@@ -92,12 +89,28 @@ object Dependencies {
   val sealerate: ModuleID = "ca.mrvisser" %% "sealerate" % "0.0.5"
   val googleCloudNio: ModuleID = "com.google.cloud" % "google-cloud-nio" % "0.107.0-alpha" % "test" // brought in for FakeStorageInterpreter
 
+  val http4sCirce = "org.http4s" %% "http4s-circe" % http4sVersion
+  val http4sBlazeClient = "org.http4s" %% "http4s-blaze-client" % http4sVersion
+  val http4sDsl = "org.http4s"      %% "http4s-dsl"          % http4sVersion
+  val fs2Io: ModuleID = "co.fs2" %% "fs2-io" % "2.0.1"
+
+  val coreDependencies = List(
+    workbenchModel,
+    workbenchGoogle2,
+    workbenchGoogle2Test
+  )
+
   val rootDependencies = Seq(
     // proactively pull in latest versions of Jackson libs, instead of relying on the versions
     // specified as transitive dependencies, due to OWASP DependencyCheck warnings for earlier versions.
     jacksonAnnotations,
     jacksonDatabind,
     jacksonCore,
+
+    http4sCirce,
+    http4sBlazeClient,
+    http4sDsl,
+    fs2Io,
 
     logbackClassic,
     ravenLogback,
@@ -129,17 +142,15 @@ object Dependencies {
     liquibase,
 
     workbenchUtil,
-    workbenchModel,
     workbenchGoogle,
-    workbenchGoogle2,
     workbenchGoogleTest,
-    workbenchGoogle2Test,
     workbenchMetrics,
     workbenchNewRelic,
     workbenchNewRelicTest,
-    sam,
 
     sealerate,
+    "org.typelevel" %% "cats-mtl-core" % "0.7.0",
+    "org.typelevel" %% "cats-effect" % "2.0.0", //forcing cats 2.0.0
     googleCloudNio
   )
 
@@ -182,6 +193,7 @@ object Dependencies {
     "com.typesafe.akka"   %%  "akka-slf4j"          % akkaV,
     scalaTest,
     "org.seleniumhq.selenium" % "selenium-java"     % "3.141.59" % "test",
+    "io.github.bonigarcia" % "webdrivermanager" % "3.7.1",
     "com.typesafe.scala-logging" %% "scala-logging" % "3.8.0",
     "org.apache.commons" % "commons-text"           % "1.2",
     googleRpc,

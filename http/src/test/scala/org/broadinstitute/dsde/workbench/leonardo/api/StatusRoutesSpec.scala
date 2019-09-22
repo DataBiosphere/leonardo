@@ -3,15 +3,22 @@ package org.broadinstitute.dsde.workbench.leonardo.api
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import cats.effect.IO
+import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
-import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.{ResourceTypeName, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterInternalId
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.service.StatusService
-import org.broadinstitute.dsde.workbench.model.UserInfo
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, ValueObject, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.health.StatusJsonSupport._
 import org.broadinstitute.dsde.workbench.util.health.Subsystems._
-import org.broadinstitute.dsde.workbench.util.health.{HealthMonitor, StatusCheckResponse}
+import org.broadinstitute.dsde.workbench.util.health.{HealthMonitor, StatusCheckResponse, SubsystemStatus}
+import org.http4s.EntityDecoder
+import org.http4s.headers.Authorization
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -43,7 +50,23 @@ class StatusRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest wi
   }
 
   it should "give 500 for not ok" in {
-    val badSam = new MockSamDAO(false)
+    val badSam = new SamDAO[IO] {
+      override def getStatus(implicit ev: ApplicativeAsk[IO, TraceId]): IO[StatusCheckResponse] = IO.pure(StatusCheckResponse(false, Map(OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!"))))))
+
+      override def hasResourcePermission(resourceId: ValueObject, action: String, resourceTypeName: ResourceTypeName, authHeader: Authorization)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
+
+      override def getResourcePolicies[A](authHeader: Authorization, resourseTypeName: ResourceTypeName)(implicit decoder: EntityDecoder[IO, List[A]], ev: ApplicativeAsk[IO, TraceId]): IO[List[A]] = ???
+
+      override def createClusterResource(internalId: ClusterInternalId, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
+
+      override def deleteClusterResource(internalId: ClusterInternalId, userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
+
+      override def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Option[WorkbenchEmail]] = ???
+
+      override def getUserProxy(userEmail: WorkbenchEmail)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Option[WorkbenchEmail]] = ???
+
+      override def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Option[String]] = ???
+    }
     val badDataproc = new MockGoogleDataprocDAO(false)
     val statusService = new StatusService(badDataproc, badSam, DbSingleton.ref, dataprocConfig, pollInterval = 1.second)
     val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with MockUserInfoDirectives {

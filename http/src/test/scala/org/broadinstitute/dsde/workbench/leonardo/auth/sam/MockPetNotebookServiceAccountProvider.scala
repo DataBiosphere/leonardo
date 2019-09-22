@@ -1,38 +1,40 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth.sam
 
-import com.typesafe.config.Config
+import cats.effect.IO
+import cats.mtl.ApplicativeAsk
+import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-
-import scala.concurrent.{ExecutionContext, Future}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
+import org.http4s.headers.Authorization
+import org.http4s.{AuthScheme, Credentials}
 
 /**
   * Created by rtitle on 12/4/17.
   */
-class MockPetNotebookServiceAccountProvider(config: Config) extends ServiceAccountProvider(config) {
-  private val mockSamClient = new MockSwaggerSamClient
-  private implicit val ec = scala.concurrent.ExecutionContext.global
-
-  override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
+class MockPetNotebookServiceAccountProvider extends ServiceAccountProvider[IO] {
+  val samDAO2 = new MockSamDAO
+  override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Option[WorkbenchEmail]] = {
     // Pretend we're using the compute engine default SA
-    Future.successful(None)
+    IO.pure(None)
   }
 
-  override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[WorkbenchEmail]] = {
+  override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Option[WorkbenchEmail]] = {
+    val auth = Authorization(Credentials.Token(AuthScheme.Bearer, s"TokenFor${userInfo.userEmail}"))
+
     // Pretend we're asking Sam for the pet
-    Future(Option(mockSamClient.getPetServiceAccount(userInfo, googleProject)))
+    samDAO2.getPetServiceAccount(auth, googleProject)
   }
 
-  override def listUsersStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {
-    Future(List.empty[WorkbenchEmail])
+  override def listUsersStagingBucketReaders(userEmail: WorkbenchEmail): IO[List[WorkbenchEmail]] = {
+    IO.pure(List.empty[WorkbenchEmail])
   }
 
-  override def listGroupsStagingBucketReaders(userEmail: WorkbenchEmail)(implicit executionContext: ExecutionContext): Future[List[WorkbenchEmail]] = {
-    Future(mockSamClient.getUserProxyFromSam(userEmail))map(List(_))
+  override def listGroupsStagingBucketReaders(userEmail: WorkbenchEmail)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[WorkbenchEmail]] = {
+    samDAO2.getUserProxy(userEmail).map(_.toList)
   }
 
-  override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Option[String]] = {
-    Future(Option(mockSamClient.getCachedPetAccessToken(userEmail, googleProject)))
+  override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Option[String]] = {
+    samDAO2.getCachedPetAccessToken(userEmail, googleProject)
   }
 }

@@ -1,74 +1,142 @@
-package org.broadinstitute.dsde.workbench.leonardo.dao
+package org.broadinstitute.dsde.workbench.leonardo
+package dao
 
-import akka.http.scaladsl.Http
-import akka.http.scaladsl.Http.ServerBinding
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
-import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
-import akka.http.scaladsl.testkit.ScalatestRouteTest
-import org.broadinstitute.dsde.workbench.model._
-import org.broadinstitute.dsde.workbench.util.health.StatusJsonSupport._
-import org.broadinstitute.dsde.workbench.util.health.Subsystems.{GoogleIam, OpenDJ}
+import cats.effect.IO
+import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+import org.broadinstitute.dsde.workbench.util.health.Subsystems.{GoogleGroups, GoogleIam, GooglePubSub, OpenDJ}
 import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus}
-import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.time.{Seconds, Span}
+import org.http4s.circe.CirceEntityEncoder._
+import org.http4s.client.Client
+import org.http4s.{HttpApp, Response, Status, Uri}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
+import io.circe.parser._
+import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import cats.implicits._
 
-import scala.concurrent.Future
+import scala.concurrent.duration._
+import java.io.File
+import java.util.UUID
 
-/**
-  * Created by rtitle on 10/16/17.
-  */
-class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll with ScalatestRouteTest with ScalaFutures {
-  implicit val patience = PatienceConfig(timeout = scaled(Span(10, Seconds)))
-  implicit val errorReportSource = ErrorReportSource("test")
-  var bindingFutureHealthy: Future[ServerBinding] = _
-  var bindingFutureUnhealthy: Future[ServerBinding] = _
+import scala.concurrent.ExecutionContext.global
+import cats.mtl.ApplicativeAsk
+import org.http4s.client.middleware.{Retry, RetryPolicy}
 
-  val healthyPort = 9090
-  val unhealthyPort = 9091
-  val unknownPort = 9092
+import scala.util.control.NoStackTrace
 
-  val dao = new HttpSamDAO(s"http://localhost:$healthyPort")
-  val unhealthyDAO = new HttpSamDAO(s"http://localhost:$unhealthyPort")
-  val unknownDAO = new HttpSamDAO(s"http://localhost:$unknownPort")
+class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
+  implicit val timer = IO.timer(global)
+  implicit val cs = IO.contextShift(global)
 
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    bindingFutureHealthy = Http().bindAndHandle(backendRoute, "0.0.0.0", healthyPort)
-    bindingFutureUnhealthy = Http().bindAndHandle(unhealthyRoute, "0.0.0.0", unhealthyPort)
+  val config = HttpSamDaoConfig(Uri.unsafeFromString("localhost"),
+    false,
+    1 seconds,
+    10,
+    ServiceAccountProviderConfig(WorkbenchEmail("leo@gmail.com"), new File("test"))
+  )
+  implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
+  implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID())) //we don't care much about traceId in unit tests, hence providing a constant UUID here
+
+  "HttpSamDAO" should "get Sam ok status" in {
+    val okResponse =
+      """
+        |{
+        |  "ok": true,
+        |  "systems": {
+        |    "GoogleGroups": {
+        |      "ok": true
+        |    },
+        |    "GooglePubSub": {
+        |      "ok": true
+        |    },
+        |    "GoogleIam": {
+        |      "ok": true
+        |    },
+        |    "OpenDJ": {
+        |      "ok": true
+        |    }
+        |  }
+        |}
+        |""".stripMargin
+
+    val okSam = Client.fromHttpApp[IO](
+      HttpApp(_ => IO.fromEither(parse(okResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
+    )
+
+    val samDao = new HttpSamDAO(okSam, config)
+    val expectedResponse = StatusCheckResponse(true,
+      Map(OpenDJ -> SubsystemStatus(true, None),
+        GoogleIam -> SubsystemStatus(true, None),
+        GoogleGroups -> SubsystemStatus(true, None),
+        GooglePubSub -> SubsystemStatus(true, None)
+      ))
+    samDao.getStatus.unsafeRunSync() shouldBe expectedResponse
   }
 
-  override def afterAll(): Unit = {
-    bindingFutureHealthy.flatMap(_.unbind())
-    bindingFutureUnhealthy.flatMap(_.unbind())
-    super.afterAll()
+  it should "get Sam ok status with no systems" in {
+    val okResponse =
+      """
+        |{
+        |  "ok": true,
+        |  "systems": {
+        |  }
+        |}
+        |""".stripMargin
+    val okSam = Client.fromHttpApp[IO](
+      HttpApp(_ => IO.fromEither(parse(okResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
+    )
+
+    val samDao = new HttpSamDAO(okSam, config)
+    val expectedResponse = StatusCheckResponse(true, Map.empty)
+
+    samDao.getStatus.unsafeRunSync() shouldBe expectedResponse
   }
 
-  val returnedOkStatus = StatusCheckResponse(true, Map(OpenDJ -> SubsystemStatus(true, None), GoogleIam -> SubsystemStatus(true, None)))
-  val expectedOkStatus = StatusCheckResponse(true, Map.empty)
-  val notOkStatus = StatusCheckResponse(false, Map(OpenDJ -> SubsystemStatus(false, Option(List("OpenDJ is down. Panic!"))), GoogleIam -> SubsystemStatus(true, None)))
+  it should "get Sam unhealthy status with no systems" in {
+    val response =
+      """
+        |{
+        |  "ok": false,
+        |  "systems": {
+        |    "GoogleIam": {
+        |      "ok": true
+        |    },
+        |    "OpenDJ": {
+        |      "ok": false,
+        |      "messages": ["OpenDJ is down. Panic!"]
+        |    }
+        |  }
+        |}
+        |""".stripMargin
+    val okSam = Client.fromHttpApp[IO](
+      HttpApp(_ => IO.fromEither(parse(response)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
+    )
 
-  val unhealthyRoute: Route =
-    path("status") {
-      get {
-        complete(StatusCodes.InternalServerError -> notOkStatus)
-      }
+    val samDao = new HttpSamDAO(okSam, config)
+    val expectedResponse = StatusCheckResponse(false, Map(GoogleIam -> SubsystemStatus(true, None), OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!")))))
+
+    samDao.getStatus.unsafeRunSync() shouldBe expectedResponse
+  }
+
+  it should "throws exception once client times out" in {
+    var hitCount = -1
+    val retryPolicy = RetryPolicy[IO](RetryPolicy.exponentialBackoff(5 milliseconds, 4))
+    val errorSam = Client.fromHttpApp[IO](
+      HttpApp{ _ => IO(hitCount = hitCount + 1) >>IO.raiseError[Response[IO]](FakeException(s"retried ${hitCount + 1} times"))}
+    )
+    val clientWithRetry = Retry(retryPolicy)(errorSam)
+    val samDao = new HttpSamDAO(clientWithRetry, config)
+
+    val res = for {
+      result <- samDao.getStatus.attempt
+    } yield {
+      result shouldBe Left(FakeException("retried 5 times"))
     }
 
-  val backendRoute: Route =
-    path("status") {
-      get {
-        complete(returnedOkStatus)
-      }
-    }
-
-  "HttpSamDAO" should "get Sam status" in {
-    dao.getStatus().futureValue shouldBe expectedOkStatus
-    unhealthyDAO.getStatus().futureValue shouldBe notOkStatus
-    val exception = unknownDAO.getStatus().failed.futureValue
-    exception shouldBe a [CallToSamFailedException]
-    exception.asInstanceOf[CallToSamFailedException].status shouldBe StatusCodes.InternalServerError
+    res.unsafeRunSync()
   }
+}
+
+final case class FakeException(msg: String) extends NoStackTrace {
+  override def getMessage: String = msg
 }

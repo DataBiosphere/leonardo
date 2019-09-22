@@ -50,7 +50,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
 
     val projectDAO = mock[GoogleProjectDAO]
 
-    val authProvider = mock[LeoAuthProvider]
+    val authProvider = mock[LeoAuthProvider[IO]]
 
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
       new MockGoogleStorageDAO
@@ -65,7 +65,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
       storageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, whitelistAuthProvider, serviceAccountProvider,
       bucketHelper, clusterHelper, contentSecurityPolicy)
 
-    val clusterSupervisorActor = system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO,
+    system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO,
       computeDAO, storageDAO, FakeGoogleStorageService, DbSingleton.ref, authProvider, autoFreezeConfig, MockJupyterDAO, MockRStudioDAO, MockWelderDAO, leoService, clusterHelper))
 
     eventually(timeout(Span(30, Seconds))) {
@@ -90,7 +90,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
 
     val projectDAO = mock[GoogleProjectDAO]
 
-    val authProvider = mock[LeoAuthProvider]
+    val authProvider = mock[LeoAuthProvider[IO]]
 
     val jupyterProxyDAO = new JupyterDAO {
       override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = Future.successful(true)
@@ -129,7 +129,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
     val storageDAO = mock[GoogleStorageDAO]
     val iamDAO = mock[GoogleIamDAO]
     val projectDAO = mock[GoogleProjectDAO]
-    val authProvider = mock[LeoAuthProvider]
+    val authProvider = mock[LeoAuthProvider[IO]]
 
     val jupyterProxyDAO = new JupyterDAO {
       override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = Future.successful(true)
@@ -167,7 +167,7 @@ class ClusterMonitorSupervisorSpec extends TestKit(ActorSystem("leonardotest"))
     val storageDAO = mock[GoogleStorageDAO]
     val iamDAO = mock[GoogleIamDAO]
     val projectDAO = mock[GoogleProjectDAO]
-    val authProvider = mock[LeoAuthProvider]
+    val authProvider = mock[LeoAuthProvider[IO]]
 
     val jupyterProxyDAO = new JupyterDAO {
       override def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean] = Future.successful(true)

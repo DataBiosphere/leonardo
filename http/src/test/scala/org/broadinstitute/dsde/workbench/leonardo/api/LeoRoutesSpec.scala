@@ -1,9 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
-import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.model.headers.{OAuth2BearerToken, `Set-Cookie`}
+import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.testkit.TestDuration
+import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
@@ -14,11 +15,10 @@ import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, Workbe
 import org.scalatest.FlatSpec
 import slick.dbio.DBIO
 import spray.json._
-import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments._
+
 import scala.concurrent.duration._
 
 class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData with TestLeoRoutes with TestComponent {
-
   // https://doc.akka.io/docs/akka-http/current/routing-dsl/testkit.html#increase-timeout
   implicit val timeout = RouteTestTimeout(5.seconds dilated)
 
@@ -55,8 +55,8 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
 
         val responseCluster = responseAs[Cluster]
         responseCluster.clusterName.value shouldEqual cn
-        responseCluster.serviceAccountInfo.clusterServiceAccount shouldEqual serviceAccountProvider.getClusterServiceAccount(defaultUserInfo, googleProject).futureValue
-        responseCluster.serviceAccountInfo.notebookServiceAccount shouldEqual serviceAccountProvider.getNotebookServiceAccount(defaultUserInfo, googleProject).futureValue
+        responseCluster.serviceAccountInfo.clusterServiceAccount shouldEqual serviceAccountProvider.getClusterServiceAccount(defaultUserInfo, googleProject).unsafeRunSync()
+        responseCluster.serviceAccountInfo.notebookServiceAccount shouldEqual serviceAccountProvider.getNotebookServiceAccount(defaultUserInfo, googleProject).unsafeRunSync()
         responseCluster.jupyterExtensionUri shouldEqual Some(jupyterExtensionUri)
 
         validateCookie { header[`Set-Cookie`] }

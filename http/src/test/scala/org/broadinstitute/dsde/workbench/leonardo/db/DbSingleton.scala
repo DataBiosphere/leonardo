@@ -1,11 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
-import com.typesafe.config.ConfigFactory
-import org.broadinstitute.dsde.workbench.leonardo.TestExecutionContext
-
+import org.broadinstitute.dsde.workbench.leonardo.config.LiquibaseConfig
+import scala.concurrent.ExecutionContext.Implicits.global
 // initialize database tables and connection pool only once
 object DbSingleton {
-  import TestExecutionContext.testExecutionContext
-
-  val ref: DbReference = DbReference.init(ConfigFactory.load())
+  val ref: DbReference = DbReference.init(LiquibaseConfig( "org/broadinstitute/dsde/workbench/leonardo/liquibase/changelog.xml", true))
 }

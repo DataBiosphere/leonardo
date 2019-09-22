@@ -6,14 +6,19 @@ lazy val root = project.in(file("."))
     name := "leonardo",
     skip in publish := true,
     rootSettings
-  ).aggregate(http, automation)
+  ).aggregate(core, http, automation)
+
+lazy val core = project.in(file("core"))
+  .settings(coreSettings)
 
 lazy val http = project.in(file("http"))
   .settings(rootSettings)
+  .dependsOn(core % "test->test;compile->compile")
   .withTestSettings
 
 lazy val automation = project.in(file("automation"))
   .settings(automationSettings)
+  .dependsOn(core % "test->test;compile->compile")
 
 Revolver.settings
 

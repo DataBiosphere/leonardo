@@ -1,10 +1,9 @@
-package org.broadinstitute.dsde.workbench.leonardo.db
+package org.broadinstitute.dsde.workbench.leonardo
+package db
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
-import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
-import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.scalatest.FlatSpecLike
 
 class ClusterErrorComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils {

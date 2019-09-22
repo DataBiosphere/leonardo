@@ -4,16 +4,14 @@ import java.sql.SQLTimeoutException
 
 import cats.effect.{ContextShift, IO}
 import com.google.common.base.Throwables
-import com.typesafe.config.Config
 import com.typesafe.scalalogging.LazyLogging
-import liquibase.{Contexts, Liquibase}
 import liquibase.database.jvm.JdbcConnection
 import liquibase.resource.{ClassLoaderResourceAccessor, ResourceAccessor}
+import liquibase.{Contexts, Liquibase}
 import org.broadinstitute.dsde.workbench.leonardo.config.LiquibaseConfig
 import slick.basic.DatabaseConfig
 import slick.dbio.DBIO
 import slick.jdbc.{JdbcBackend, JdbcDataSource, JdbcProfile, TransactionIsolation}
-import net.ceedubs.ficus.Ficus._
 import sun.security.provider.certpath.SunCertPathBuilderException
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -46,12 +44,11 @@ object DbReference extends LazyLogging {
     }
   }
 
-  def init(config: Config)(implicit executionContext: ExecutionContext): DbReference = {
-    val dbConfig = DatabaseConfig.forConfig[JdbcProfile]("mysql", config)
+  def init(config: LiquibaseConfig)(implicit executionContext: ExecutionContext): DbReference = {
+    val dbConfig = DatabaseConfig.forConfig[JdbcProfile]("mysql", org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
 
-    val liquibaseConf = config.as[LiquibaseConfig]("liquibase")
-    if (liquibaseConf.initWithLiquibase)
-      initWithLiquibase(dbConfig.db.source, liquibaseConf)
+    if (config.initWithLiquibase)
+      initWithLiquibase(dbConfig.db.source, config)
 
     DbReference(dbConfig)
   }

@@ -1,13 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.model
 
-import java.io.File
-
-import com.typesafe.config.Config
+import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-
-import scala.concurrent.{ExecutionContext, Future}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
 sealed trait LeoAuthAction extends Product with Serializable
 
@@ -26,18 +22,18 @@ object NotebookClusterActions {
   case object ModifyCluster extends NotebookClusterAction
   case object StopStartCluster extends NotebookClusterAction
   val allActions = Seq(GetClusterStatus, ConnectToCluster, SyncDataToCluster, DeleteCluster, StopStartCluster)
-
 }
 
-abstract class LeoAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider) {
-
+abstract class LeoAuthProvider[F[_]] {
+  def serviceAccountProvider: ServiceAccountProvider[F]
   /**
     * @param userInfo The user in question
     * @param action The project-level action (above) the user is requesting
     * @param googleProject The Google project to check in
     * @return If the given user has permissions in this project to perform the specified action.
     */
-  def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean]
+  def hasProjectPermission(userInfo: UserInfo, action: ProjectActions.ProjectAction, googleProject: GoogleProject)
+                          (implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean]
 
   /**
     * Leo calls this method to verify if the user has permission to perform the given action on a specific notebook cluster.
@@ -49,7 +45,8 @@ abstract class LeoAuthProvider(authConfig: Config, serviceAccountProvider: Servi
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return If the userEmail has permission on this individual notebook cluster to perform this action
     */
-  def hasNotebookClusterPermission(internalId: ClusterInternalId, userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean]
+  def hasNotebookClusterPermission(internalId: ClusterInternalId, userInfo: UserInfo, action: NotebookClusterActions.NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)
+                                  (implicit ev: ApplicativeAsk[F, TraceId]): F[Boolean]
 
   /**
     * Leo calls this method when it receives a "list clusters" API call, passing in all non-deleted clusters from the database.
@@ -59,7 +56,7 @@ abstract class LeoAuthProvider(authConfig: Config, serviceAccountProvider: Servi
     * @param clusters All non-deleted clusters from the database
     * @return         Filtered list of clusters that the user is allowed to see
     */
-  def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterName)])(implicit executionContext: ExecutionContext): Future[List[(GoogleProject, ClusterName)]]
+  def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterInternalId)])(implicit ev: ApplicativeAsk[F, TraceId]): F[List[(GoogleProject, ClusterInternalId)]]
 
   //Notifications that Leo has created/destroyed clusters. Allows the auth provider to register things.
 
@@ -75,7 +72,8 @@ abstract class LeoAuthProvider(authConfig: Config, serviceAccountProvider: Servi
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterCreated(internalId: ClusterInternalId, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, traceId: TraceId)(implicit executionContext: ExecutionContext): Future[Unit]
+  def notifyClusterCreated(internalId: ClusterInternalId, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)
+                          (implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
 
   /**
     * Leo calls this method to notify the auth provider that a notebook cluster has been deleted.
@@ -89,9 +87,6 @@ abstract class LeoAuthProvider(authConfig: Config, serviceAccountProvider: Servi
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterDeleted(internalId: ClusterInternalId, userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit]
-
-  protected def getLeoServiceAccountAndKey: (WorkbenchEmail, File) = {
-    serviceAccountProvider.getLeoServiceAccountAndKey
-  }
+  def notifyClusterDeleted(internalId: ClusterInternalId, userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)
+                          (implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
 }

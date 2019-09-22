@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
+import java.util.UUID
+
 import akka.actor.ActorSystem
 import akka.event.Logging.LogLevel
 import akka.event.{Logging, LoggingAdapter}
@@ -20,8 +22,10 @@ import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, Prox
 import org.broadinstitute.dsde.workbench.leonardo.util.CookieHelper
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchException, WorkbenchExceptionWithErrorReport}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException, WorkbenchExceptionWithErrorReport}
 import LeoRoutes._
+import cats.effect.IO
+import cats.mtl.ApplicativeAsk
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -42,6 +46,8 @@ abstract class LeoRoutes(val leonardoService: LeonardoService, val proxyService:
 
   def leoRoutes: Route =
     requireUserInfo { userInfo =>
+      implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
+
       setTokenCookie(userInfo, tokenCookieName) {
         pathPrefix("cluster") {
           pathPrefix("v2" / Segment / Segment) { (googleProject, clusterNameString) =>

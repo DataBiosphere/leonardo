@@ -3,8 +3,6 @@ package db
 
 import java.sql.Timestamp
 
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterError
-
 case class ClusterErrorRecord(id: Long, clusterId: Long, errorMessage: String, errorCode: Int, timestamp: Timestamp)
 
 trait ClusterErrorComponent extends LeoComponent {

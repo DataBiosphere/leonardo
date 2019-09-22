@@ -6,10 +6,9 @@ import java.nio.file.Files
 
 import akka.actor.ActorSystem
 import cats.data.OptionT
-import cats.effect.IO
+import cats.effect.{Blocker, IO}
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
-import io.chrisdavenport.linebacker.Linebacker
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserAuthToken}
@@ -59,7 +58,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   lazy val voldyAuthToken = UserAuthToken(voldyCreds, AuthTokenScopes.userLoginScopes)
   lazy val ronEmail = ronCreds.email
 
-  val clusterPatience = PatienceConfig(timeout = scaled(Span(30, Minutes)), interval = scaled(Span(20, Seconds)))
+  val clusterPatience = PatienceConfig(timeout = scaled(Span(10, Minutes)), interval = scaled(Span(20, Seconds)))
   val localizePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
   val saPatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
   val storagePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
@@ -77,8 +76,8 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   implicit val cs = IO.contextShift(global)
   implicit val t = IO.timer(global)
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
-  implicit val lineBacker = Linebacker.fromExecutionContext[IO](global)
-  val google2StorageResource = GoogleStorageService.resource[IO](LeonardoConfig.GCS.pathToQAJson)
+  val blocker = Blocker.liftExecutionContext(global)
+  val google2StorageResource = GoogleStorageService.resource[IO](LeonardoConfig.GCS.pathToQAJson, blocker)
 
   // TODO: move this to NotebookTestUtils and chance cluster-specific functions to only call if necessary after implementing RStudio
   def saveClusterLogFiles(googleProject: GoogleProject, clusterName: ClusterName, paths: List[String], suffix: String)(implicit token: AuthToken): Unit = {
@@ -139,12 +138,10 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
                     expectedStatuses: Iterable[ClusterStatus],
                     clusterRequest: ClusterRequest,
                     bucketCheck: Boolean = true): Cluster = {
-
     // Always log cluster errors
     if (cluster.errors.nonEmpty) {
       logger.warn(s"Cluster ${cluster.projectNameString} returned the following errors: ${cluster.errors}")
     }
-
     withClue(s"Cluster ${cluster.projectNameString}: ") {
       expectedStatuses should contain (cluster.status)
     }
@@ -208,11 +205,11 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
     val runningOrErroredCluster = Try {
       eventually {
-        verifyCluster(Leonardo.cluster.get(googleProject, clusterName), googleProject, clusterName,
+        val cluster = Leonardo.cluster.get(googleProject, clusterName)
+        verifyCluster(cluster, googleProject, clusterName,
           expectedStatuses, clusterRequest, true)
       }
     }
-
     // Save the cluster init log file whether or not the cluster created successfully
     saveDataprocLogFiles(creatingCluster).recover { case e =>
       logger.error(s"Error occurred saving Dataproc log files for cluster ${creatingCluster.projectNameString}", e)

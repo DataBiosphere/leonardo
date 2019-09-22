@@ -13,6 +13,8 @@ import akka.http.scaladsl.model.ws._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import akka.util.Timeout
+import cats.effect.IO
+import cats.mtl.ApplicativeAsk
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
@@ -24,7 +26,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterDateAccessedActor.UpdateDateAccessed
-import org.broadinstitute.dsde.workbench.model.UserInfo
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.collection.immutable
@@ -50,7 +52,7 @@ class ProxyService(proxyConfig: ProxyConfig,
                    gdDAO: GoogleDataprocDAO,
                    dbRef: DbReference,
                    clusterDnsCache: ClusterDnsCache,
-                   authProvider: LeoAuthProvider,
+                   authProvider: LeoAuthProvider[IO],
                    clusterDateAccessedActor: ActorRef)(implicit val system: ActorSystem, materializer: ActorMaterializer, executionContext: ExecutionContext) extends LazyLogging {
 
   /* Cache for the bearer token and corresponding google user email */
@@ -92,34 +94,34 @@ class ProxyService(proxyConfig: ProxyConfig,
     )
 
   def getCachedClusterInternalId(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterInternalId] = {
-    clusterInternalIdCache.get((googleProject, clusterName)).map {
-      case Some(clusterInternalId) => clusterInternalId
+    clusterInternalIdCache.get((googleProject, clusterName)).flatMap {
+      case Some(clusterInternalId) => Future.successful(clusterInternalId)
       case None =>
-        logger.error(s"Unable to look up an internal ID for cluster ${googleProject.value} / ${clusterName}")
-        throw ProxyException(googleProject, clusterName)
+        logger.error(s"Unable to look up an internal ID for cluster ${googleProject.value} / ${clusterName.value}")
+        Future.failed[ClusterInternalId](ProxyException(googleProject, clusterName))
     }
   }
 
   /*
    * Checks the user has the required notebook action, returning 401 or 404 depending on whether they can know the cluster exists
    */
-  private[leonardo] def authCheck(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, notebookAction: NotebookClusterAction): Future[Unit] = {
+  private[leonardo] def authCheck(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, notebookAction: NotebookClusterAction)(implicit ev: ApplicativeAsk[IO, TraceId]): Future[Unit] = {
     for {
       internalId <- getCachedClusterInternalId(googleProject, clusterName)
-      hasViewPermission <- authProvider.hasNotebookClusterPermission(internalId, userInfo, GetClusterStatus, googleProject, clusterName)
-      hasRequiredPermission <- authProvider.hasNotebookClusterPermission(internalId, userInfo, notebookAction, googleProject, clusterName)
+      hasViewPermission <- authProvider.hasNotebookClusterPermission(internalId, userInfo, GetClusterStatus, googleProject, clusterName).unsafeToFuture() //TODO: combine the sam calls into one
+      hasRequiredPermission <- authProvider.hasNotebookClusterPermission(internalId, userInfo, notebookAction, googleProject, clusterName).unsafeToFuture()
     } yield {
       if (!hasViewPermission) {
         throw ClusterNotFoundException(googleProject, clusterName)
       } else if (!hasRequiredPermission) {
-        throw AuthorizationError(Option(userInfo.userEmail))
+        throw AuthorizationError(Some(userInfo.userEmail))
       } else {
         ()
       }
     }
   }
 
-  def proxyLocalize(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest): Future[HttpResponse] = {
+  def proxyLocalize(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest)(implicit ev: ApplicativeAsk[IO, TraceId]): Future[HttpResponse] = {
     authCheck(userInfo, googleProject, clusterName, SyncDataToCluster).flatMap { _ =>
       proxyInternal(userInfo, googleProject, clusterName, request)
     }
@@ -140,7 +142,7 @@ class ProxyService(proxyConfig: ProxyConfig,
     * @return HttpResponse future representing the proxied response, or NotFound if a notebook
     *         server IP could not be found.
     */
-  def proxyRequest(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest): Future[HttpResponse] = {
+  def proxyRequest(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName, request: HttpRequest)(implicit ev: ApplicativeAsk[IO, TraceId]): Future[HttpResponse] = {
     authCheck(userInfo, googleProject, clusterName, ConnectToCluster).flatMap { _ =>
       proxyInternal(userInfo, googleProject, clusterName, request)
     }
@@ -158,9 +160,9 @@ class ProxyService(proxyConfig: ProxyConfig,
           case Some(upgrade) => handleWebSocketRequest(targetHost, request, upgrade)
           case None => handleHttpRequest(targetHost, request)
         }
-        responseFuture recover { case e =>
+        responseFuture recoverWith { case e =>
           logger.error("Error occurred in proxy", e)
-          throw ProxyException(googleProject, clusterName)
+          Future.failed[HttpResponse](ProxyException(googleProject, clusterName))
         }
       case HostNotReady =>
         throw ClusterNotReadyException(googleProject, clusterName)

@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.model
+package org.broadinstitute.dsde.workbench.leonardo
+package model
 
 import java.net.URL
 import java.time.Instant
@@ -23,7 +24,7 @@ import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model._
 import spray.json.{RootJsonFormat, RootJsonReader, _}
 import ca.mrvisser.sealerate
-
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.dataprocConfigReader
 import scala.util.matching.Regex
 
 sealed trait ContainerRegistry extends Product with Serializable {
@@ -99,14 +100,6 @@ case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
 
 // A resource that is required by a cluster
 case class ClusterResource(value: String) extends ValueObject
-
-// Information about service accounts used by the cluster
-case class ServiceAccountInfo(clusterServiceAccount: Option[WorkbenchEmail],
-                              notebookServiceAccount: Option[WorkbenchEmail])
-
-case class ClusterError(errorMessage: String,
-                        errorCode: Int,
-                        timestamp: Instant)
 
 case class DataprocInfo(googleId: Option[UUID],
                         operationName: Option[OperationName],
