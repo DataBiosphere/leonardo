@@ -144,6 +144,7 @@ dpkg --configure -a
 # systemctl status docker
 #retry 5 
 export DOCKER_CE_VERSION="18.06.2~ce~3-0~debian"
+sleep 10000
 apt-get install -y -q docker-ce="${DOCKER_CE_VERSION:?}"
 
 log 'Installing Docker Compose...'
