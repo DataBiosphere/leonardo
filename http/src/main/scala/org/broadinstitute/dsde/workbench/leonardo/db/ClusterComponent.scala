@@ -172,7 +172,6 @@ trait ClusterComponent extends LeoComponent {
     def listMonitoredClusterOnly(): DBIO[Seq[Cluster]] = {
       clusterQuery
         .filter { _.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }
-        .filter { _.googleId.isDefined }
         .result map { recs =>
           recs.map(rec => unmarshalCluster(rec, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty))
         }
@@ -253,6 +252,14 @@ trait ClusterComponent extends LeoComponent {
     def getClusterById(id: Long): DBIO[Option[Cluster]] = {
       fullClusterQuery.filter { _._1.id === id }.result map { recs =>
         unmarshalFullCluster(recs).headOption
+      }
+    }
+
+    def getMinimalClusterById(id: Long): DBIO[Option[Cluster]] = {
+      findByIdQuery(id).result.headOption.map { recOpt =>
+        recOpt map { rec =>
+          unmarshalCluster(rec, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty)
+        }
       }
     }
 
@@ -373,6 +380,12 @@ trait ClusterComponent extends LeoComponent {
         .map(c => (c.initBucket, c.serviceAccountKeyId, c.googleId, c.operationName, c.stagingBucket, c.dateAccessed))
         .update(initBucket.map(_.toUri), serviceAccountKey.map(_.id.value), cluster.dataprocInfo.googleId,
           cluster.dataprocInfo.operationName.map(_.value), cluster.dataprocInfo.stagingBucket.map(_.value), Timestamp.from(Instant.now))
+    }
+
+    def clearAsyncClusterCreationFields(cluster: Cluster): DBIO[Int] = {
+      findByIdQuery(cluster.id)
+        .map(c => (c.initBucket, c.serviceAccountKeyId, c.googleId, c.operationName, c.stagingBucket, c.dateAccessed))
+        .update(None, None, None, None, None, Timestamp.from(Instant.now))
     }
 
     def updateClusterStatus(id: Long, newStatus: ClusterStatus): DBIO[Int] = {
