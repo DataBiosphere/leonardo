@@ -1,23 +1,21 @@
 /**
   *  1. Check if singleCellExp, DESeq2 etc %in% installed.packages()
-  *  2. BiocManager::install() for 
+  *  2. BiocManager::install() for
   *  3. BiocManager::version() == 3.6.1
   *  4. BiocManager::install('rsbml')
   *  5. BiocManager::install('RCurl') ## tests libcurl
   *  6. "XML" ##libxml
   *  7. "graphviz" RGraphviz
-  *  8. "BiocSklearn" 
-  *  9. "rhhdf5" 
+  *  8. "BiocSklearn"
+  *  9. "rhhdf5"
   *  10. openbabel - ChemmineOB
-  *  gsl - DirichletMultinomial
-  *  gtk - RGtk2
-  *  magick++ EBImage
-  *  protobuf- protolite
-  *  databse stuff - RdbiPgSQL RMySQL
-  *  jags - rjags
+  *  11. gsl - DirichletMultinomial
+  *  12. gtk - RGtk2
+  *  13. magick++ EBImage
+  *  14. protobuf- protolite
+  *  15. databse stuff - RMySQL
+  *  16. jags - rjags
   */
-
-
 
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
@@ -29,155 +27,273 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 
 /**
-  * This spec verifies notebook functionality specifically around the Bioconductor kernel.
+  * This spec verifies notebook functionality specifically around the R-Bioconductor kernel.
   */
 @DoNotDiscover
 class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
   override val jupyterDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.biocImageUrl)
   "NotebookBioconductorKernelSpec" - {
 
-    // See https://github.com/DataBiosphere/leonardo/issues/398
-    "should use UTF-8 encoding" in { clusterFixture =>
+    "should use Bioconductor version 3.9" in { clusterFixture =>
 
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
-          // Check the locale is set to en_US.UTF-8
-          notebookPage.executeCell("""Sys.getenv("LC_ALL")""") shouldBe Some("'en_US.UTF-8'")
+          // Make sure BiocManager has the correct version of Bioconductor
+          notebookPage.executeCell("""BiocManager::version() == "3.9"""")
+        }
+      }
+    }
+
+    "should create a notebook with a working R kernel and install package rsbml" ignore { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
 
           // Make sure unicode characters display correctly
-          notebookPage.executeCell("""install.packages("skimr")""")
-          notebookPage.executeCell("library(skimr)")
+          notebookPage.executeCell("""BiocManager::install("rsbml")""")
+          notebookPage.executeCell("library(rsbml)")
 
-          val output = notebookPage.executeCell(
-            """data(iris)
-              |skim(iris)""".stripMargin)
-
-          output shouldBe 'defined
-          output.get should not include ("<U+")
-          output.get should include("▂▇▅▇▆▅▂▂")
         }
       }
     }
 
-    // TODO: temporarily ignored. This was failing because we install SparkR based on Spark 2.2.3, but
-    // Dataproc is giving us Spark 2.2.1. However this chart indicates that we should be getting Spark 2.2.3:
-    // https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-release-1.2.
-    // Opening a Google ticket and temporarily ignoring this test.
-    "should create a notebook with a working R kernel and import installed packages" ignore { clusterFixture =>
+    "should create a notebook with a working R kernel and install package RCurl" ignore { clusterFixture =>
+
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
-          notebookPage.executeCell("library(SparkR)").get should include("SparkR")
-          notebookPage.executeCell("sparkR.session()")
-          notebookPage.executeCell("df <- as.DataFrame(faithful)")
-          notebookPage.executeCell("head(df)").get should include("3.600 79")
+          // Make sure unicode characters display correctly
+          notebookPage.executeCell("""BiocManager::install("RCurl")""")
+          notebookPage.executeCell("library(RCurl)")
 
-          val sparkJob =
-            """samples <- 200
-              |inside <- function(index) {
-              |  set.seed(index)
-              |  rand <- runif(2, 0.0, 1.0)
-              |  sum(rand^2) < 1
-              |}
-              |res <- spark.lapply(c(1:samples), inside)
-              |pi <- length(which(unlist(res)))*4.0/samples
-              |cat("Pi is roughly", pi, "\n")""".stripMargin
-
-          notebookPage.executeCell(sparkJob).get should include("Pi is roughly ")
         }
       }
     }
 
-    "should be able to install new R packages" taggedAs Tags.SmokeTest in { clusterFixture =>
+
+    "should be able to call installed Bioconductor libraries" taggedAs Tags.SmokeTest in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
-          // httr is a simple http library for R
-          // http://httr.r-lib.org//index.html
 
-          // it may take a little while to install
-          val installTimeout = 2.minutes
+          // it shouldn't take long to load libraries
+          val callLibraryTimeout = 1.minutes
 
-          val output = notebookPage.executeCell("""install.packages("httr")""", installTimeout)
-          output shouldBe 'defined
-          output.get should include("Installing package into")
-          output.get should include("/home/jupyter-user/.rpackages")
+          notebookPage.executeCell("""library("SingleCellExperiment")""", callLibraryTimeout)
+          notebookPage.executeCell("""library("DESeq2")""", callLibraryTimeout)
+          notebookpage.executeCell("""library("ShortRead")""", callLibraryTimeout)
+          notebookPage.executeCell("""library("GenomicAlignments")""", callLibraryTimeout)
+          notebookPage.executeCell("""library("GenomicFeatures")""", callLibraryTimeout)
 
-          val httpGetTest =
-            """library(httr)
-              |r <- GET("http://www.example.com")
-              |status_code(r)
-            """.stripMargin
-
-          notebookPage.executeCell(httpGetTest) shouldBe Some("200")
         }
       }
     }
 
-    // See https://github.com/DataBiosphere/leonardo/issues/398
-    "should be able to install mlr" in { clusterFixture =>
+
+    "should have GenomicFeatures automatically installed" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
-          // mlr: machine learning in R
-          // https://github.com/mlr-org/mlr
-
-          // it may take a little while to install
-          val installTimeout = 5.minutes
-
-          val installOutput = notebookPage.executeCell("""devtools::install_github("mlr-org/mlr")""", installTimeout)
-          installOutput shouldBe 'defined
-          installOutput.get should include ("Downloading GitHub repo mlr-org/mlr@master")
-          installOutput.get should not include ("Installation failed")
-
-          // Make sure it was installed correctly; if not, this will return an error
-          notebookPage.executeCell("library(mlr)").get should include ("Loading required package: ParamHelpers")
-          notebookPage.executeCell(""""mlr" %in% installed.packages()""") shouldBe Some("TRUE")
+          notebookPage.executeCell(""""GenomicFeatures" %in% installed.packages()""") shouldBe Some("TRUE")
         }
       }
     }
 
-    "should have tidyverse automatically installed" in { clusterFixture =>
+
+    "should have SingleCellExperiment automatically installed" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
-          notebookPage.executeCell(""""tidyverse" %in% installed.packages()""") shouldBe Some("TRUE")
+          notebookPage.executeCell(""""SingleCellExperiment" %in% installed.packages()""") shouldBe Some("TRUE")
         }
       }
     }
 
-    "should have Ronaldo automatically installed" in { clusterFixture =>
+
+    "should have GenomicAlignments automatically installed" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
-          notebookPage.executeCell(""""Ronaldo" %in% installed.packages()""") shouldBe Some("TRUE")
+          notebookPage.executeCell(""""GenomicAlignments" %in% installed.packages()""") shouldBe Some("TRUE")
         }
       }
     }
 
-    // See https://github.com/DataBiosphere/leonardo/issues/710
-    "should be able to install packages that depend on gfortran" in { clusterFixture =>
+
+    "should have ShortRead automatically installed" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+          notebookPage.executeCell(""""ShortRead" %in% installed.packages()""") shouldBe Some("TRUE")
+        }
+      }
+    }
+
+    "should have DESeq2 automatically installed" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+          notebookPage.executeCell(""""DESeq2" %in% installed.packages()""") shouldBe Some("TRUE")
+        }
+      }
+    }
+
+
+    "should be able to install packages that depend on libXML" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
           val installTimeout = 5.minutes
 
-          val installOutput = notebookPage.executeCell("""install.packages('qwraps2')""", installTimeout)
+          val installOutput = notebookPage.executeCell("""BiocManager::install('XML')""", installTimeout)
           installOutput shouldBe 'defined
-          installOutput.get should include ("RcppArmadillo")
-          installOutput.get should include ("Installing package into")
+          installOutput.get should include ("package 'XML' successfully unpacked and MD5 sums checked")
           installOutput.get should include ("/home/jupyter-user/.rpackages")
-          installOutput.get should not include ("cannot find -lgfortran")
+          installOutput.get should include ("DONE (XML)")
         }
       }
     }
 
-    s"should have the workspace-related environment variables set" in { clusterFixture =>
+
+    "should be able to install packages that depend on graphviz" in { clusterFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
-          notebookPage.executeCell("Sys.getenv('GOOGLE_PROJECT')").get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
-          notebookPage.executeCell("Sys.getenv('WORKSPACE_NAMESPACE')").get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
-          notebookPage.executeCell("Sys.getenv('WORKSPACE_NAME')").get shouldBe "'notebooks'"
-          // workspace bucket is not wired up in tests
-          notebookPage.executeCell("Sys.getenv('WORKSPACE_BUCKET')").get shouldBe "''"
+          val installTimeout = 5.minutes
+
+          val installOutput = notebookPage.executeCell("""BiocManager::install('RGraphviz')""", installTimeout)
+          installOutput shouldBe 'defined
+          installOutput.get should include ("package 'XML' successfully unpacked and MD5 sums checked")
+          installOutput.get should include ("/home/jupyter-user/.rpackages")
+          installOutput.get should include ("DONE (XML)")
+        }
+      }
+    }
+
+
+    "should be able to install packages that depend on scikit-learn python package" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+          val installTimeout = 5.minutes
+
+          val installOutput = notebookPage.executeCell("""BiocManager::install('BiocSklearn')""", installTimeout)
+          installOutput shouldBe 'defined
+          installOutput.get should include ("package 'BiocSklearn' successfully unpacked and MD5 sums checked")
+          installOutput.get should include ("/home/jupyter-user/.rpackages")
+          installOutput.get should include ("DONE (BiocSklearn)")
+        }
+      }
+    }
+
+
+    "should be able to install packages that depend on hdf5" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+          val installTimeout = 5.minutes
+
+          val installOutput = notebookPage.executeCell("""BiocManager::install('rhdf5')""", installTimeout)
+          installOutput shouldBe 'defined
+          installOutput.get should include ("package 'rhdf5' successfully unpacked and MD5 sums checked")
+          installOutput.get should include ("/home/jupyter-user/.rpackages")
+          installOutput.get should include ("DONE (rhdf5)")
+        }
+      }
+    }
+
+
+    "should be able to install packages that depend on openbabel" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+          val installTimeout = 5.minutes
+
+          val installOutput = notebookPage.executeCell("""BiocManager::install('ChemmineOB')""", installTimeout)
+          installOutput shouldBe 'defined
+          installOutput.get should include ("package 'ChemmineOB' successfully unpacked and MD5 sums checked")
+          installOutput.get should include ("/home/jupyter-user/.rpackages")
+          installOutput.get should include ("DONE (ChemmineOB)")
+        }
+      }
+    }
+
+
+    "should be able to install packages that depend on gsl" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+          val installTimeout = 5.minutes
+
+          val installOutput = notebookPage.executeCell("""BiocManager::install('DirichletMultinomial')""", installTimeout)
+          installOutput shouldBe 'defined
+          installOutput.get should include ("package 'DirichletMultinomial' successfully unpacked and MD5 sums checked")
+          installOutput.get should include ("/home/jupyter-user/.rpackages")
+          installOutput.get should include ("DONE (DirichletMultinomial)")
+        }
+      }
+    }
+
+
+    "should be able to install packages that depend on magick++" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+          val installTimeout = 5.minutes
+
+          val installOutput = notebookPage.executeCell("""BiocManager::install('EBImage')""", installTimeout)
+          installOutput shouldBe 'defined
+          installOutput.get should include ("package 'EBImage' successfully unpacked and MD5 sums checked")
+          installOutput.get should include ("/home/jupyter-user/.rpackages")
+          installOutput.get should include ("DONE (EBImage)")
+        }
+      }
+    }
+
+
+    "should be able to install packages that depend on database packages" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+          val installTimeout = 5.minutes
+
+          val installOutput = notebookPage.executeCell("""BiocManager::install('RMySQL')""", installTimeout)
+          installOutput shouldBe 'defined
+          installOutput.get should include ("package 'RMySQL' successfully unpacked and MD5 sums checked")
+          installOutput.get should include ("/home/jupyter-user/.rpackages")
+          installOutput.get should include ("DONE (RMySQL)")
+        }
+      }
+    }
+
+
+    "should be able to install packages that depend on jags" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+          val installTimeout = 5.minutes
+
+          val installOutput = notebookPage.executeCell("""BiocManager::install('rjags')""", installTimeout)
+          installOutput shouldBe 'defined
+          installOutput.get should include ("package 'rjags' successfully unpacked and MD5 sums checked")
+          installOutput.get should include ("/home/jupyter-user/.rpackages")
+          installOutput.get should include ("DONE (rjags)")
+        }
+      }
+    }
+
+
+    "should be able to install packages that depend on protobuf" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+          val installTimeout = 5.minutes
+
+          val installOutput = notebookPage.executeCell("""BiocManager::install('protolite')""", installTimeout)
+          installOutput shouldBe 'defined
+          installOutput.get should include ("package 'protolite' successfully unpacked and MD5 sums checked")
+          installOutput.get should include ("/home/jupyter-user/.rpackages")
+          installOutput.get should include ("DONE (protolite)")
+        }
+      }
+    }
+
+
+    "should be able to install packages that depend on Cairo and gtk" in { clusterFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
+          val installTimeout = 5.minutes
+
+          val installOutput = notebookPage.executeCell("""BiocManager::install('RGtk2')""", installTimeout)
+          installOutput shouldBe 'defined
+          installOutput.get should include ("package 'RGtk2' successfully unpacked and MD5 sums checked")
+          installOutput.get should include ("/home/jupyter-user/.rpackages")
+          installOutput.get should include ("DONE (RGtk2)")
+
         }
       }
     }
   }
-
 }
-
