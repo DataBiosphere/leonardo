@@ -28,7 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Sto
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.Retry
 import spray.json._
 
@@ -115,7 +115,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   // Throws 404 and pretends we don't even know there's a cluster there, by default.
-  // If the cluster really exists and you're OK with the user knowing that, set throw401 = true.
+  // If the cluster really exists and you're OK with the user knowing that, set throw403 = true.
   protected def checkClusterPermission(userInfo: UserInfo, action: NotebookClusterAction, cluster: Cluster, throw403: Boolean = false): Future[Unit] = {
     authProvider.hasNotebookClusterPermission(cluster.internalId, userInfo, action, cluster.googleProject, cluster.clusterName) map {
       case false =>
@@ -187,7 +187,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   def getActiveClusterDetails(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Cluster] = {
     for {
       cluster <- internalGetActiveClusterDetails(googleProject, clusterName) //throws 404 if nonexistent
-      _ <- checkClusterPermission(userInfo, GetClusterStatus, cluster) //throws 404 if no auth
+
+      //if you've got to here you at least have GetClusterDetails permissions so a 403 is appropriate if you can't actually update it
+      _ <- checkClusterPermission(userInfo, GetClusterStatus, cluster)
     } yield cluster
   }
 
@@ -205,8 +207,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                     clusterName: ClusterName,
                     clusterRequest: ClusterRequest): Future[Cluster] = {
     for {
-      cluster <- internalGetActiveClusterDetails(googleProject, clusterName) //throws 404 if nonexistent
-      _ <- checkClusterPermission(userInfo, ModifyCluster, cluster) //throws 404 if no auth
+      cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName) //throws 404 if nonexistent
+      _ <- checkClusterPermission(userInfo, ModifyCluster, cluster, throw403 = true)
       updatedCluster <- internalUpdateCluster(cluster, clusterRequest)
     } yield updatedCluster
   }
@@ -366,7 +368,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       //throws 404 if no permissions
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
 
-      //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually destroy it
+      //if you've got to here you at least have GetClusterDetails permissions so a 403 is appropriate if you can't actually destroy it
       _ <- checkClusterPermission(userInfo,  DeleteCluster, cluster, throw403 = true)
 
       _ <- internalDeleteCluster(userInfo.userEmail, cluster)
@@ -398,7 +400,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       //throws 404 if no permissions
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
 
-      //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually stop it
+      //if you've got to here you at least have GetClusterDetails permissions so a 403 is appropriate if you can't actually stop it
       _ <- checkClusterPermission(userInfo, StopStartCluster, cluster, throw403 = true)
 
       _ <- internalStopCluster(cluster)
@@ -428,7 +430,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       //throws 404 if no permissions
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
 
-      //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually stop it
+      //if you've got to here you at least have GetClusterDetails permissions so a 403 is appropriate if you can't actually start it
       _ <- checkClusterPermission(userInfo, StopStartCluster, cluster, throw403 = true)
 
       _ <- internalStartCluster(userInfo.userEmail, cluster)
@@ -481,33 +483,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       case _ =>
         if (autopauseThreshold.isEmpty) autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
         else Math.max(autoPauseOffValue, autopauseThreshold.get)
-    }
-  }
-
-  // TODO move to back leo
-  private def persistErrorInDb(e: Throwable,
-                               clusterName: ClusterName,
-                               clusterId: Long,
-                               googleProject: GoogleProject): Future[Unit] = {
-    val errorMessage = e match {
-      case leoEx: LeoException =>
-        ErrorReport.loggableString(leoEx.toErrorReport)
-      case _ =>
-        s"Asynchronous creation of cluster '$clusterName' on Google project " +
-          s"'$googleProject' failed due to '${e.toString}'."
-    }
-
-    // TODO Make errorCode field nullable in ClusterErrorComponent and pass None below
-    // See https://github.com/DataBiosphere/leonardo/issues/512
-    val dummyErrorCode = -1
-
-    val errorInfo = ClusterError(errorMessage, dummyErrorCode, Instant.now)
-
-    dbRef.inTransaction { dataAccess =>
-      for {
-        _ <- dataAccess.clusterQuery.updateClusterStatus(clusterId, ClusterStatus.Error)
-        _ <- dataAccess.clusterErrorQuery.save(clusterId, errorInfo)
-      } yield ()
     }
   }
 

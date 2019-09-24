@@ -11,7 +11,6 @@ import akka.pattern.pipe
 import cats.data.OptionT
 import cats.effect.IO
 import cats.implicits._
-import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
@@ -279,6 +278,27 @@ class ClusterMonitorActor(val cluster: Cluster,
     } yield ShutdownActor(RemoveFromList(cluster))
   }
 
+  private def createClusterInGoogle: Future[ClusterMonitorMessage] = {
+    logger.info(s"Attempting to create cluster ${cluster.projectNameString} in Google...")
+    val future = for {
+      clusterResult <- clusterHelper.createGoogleCluster(cluster).unsafeToFuture()
+      (cluster, initBucket, saKey) = clusterResult
+      _ <- dbRef.inTransaction { _.clusterQuery.updateAsyncClusterCreationFields(Option(GcsPath(initBucket, GcsObjectName(""))), saKey, cluster) }
+      _ = logger.info(s"Cluster ${cluster.projectNameString} was successfully created. Will monitor the creation process.")
+    } yield NotReadyCluster(cluster.status, Set.empty)
+
+    future.recover { case e =>
+      logger.error(s"Failed to create cluster ${cluster.projectNameString} in Google", e)
+      val errorMessage = e match {
+        case leoEx: LeoException =>
+          ErrorReport.loggableString(leoEx.toErrorReport)
+        case _ =>
+          s"Failed to create cluster ${cluster.projectNameString} due to ${e.toString}"
+      }
+      FailedCluster(ClusterErrorDetails(-1, Option(errorMessage)), Set.empty)
+    }
+  }
+
   private def checkCluster: Future[ClusterMonitorMessage] = {
     for {
       cluster <- getDbCluster
@@ -294,27 +314,6 @@ class ClusterMonitorActor(val cluster: Cluster,
           Future.successful(ShutdownActor(RemoveFromList(cluster)))
       }
     } yield next
-  }
-
-  private def createClusterInGoogle: Future[ClusterMonitorMessage] = {
-    logger.info(s"Attempting to create cluster ${cluster.projectNameString} in Google...")
-    val future = for {
-      clusterResult <- clusterHelper.createGoogleCluster(cluster).unsafeToFuture()
-      (cluster, initBucket, saKey) = clusterResult
-      _ = logger.info(s"Cluster ${cluster.projectNameString} was successfully created. Will monitor the creation process.")
-      _ <- dbRef.inTransaction { _.clusterQuery.updateAsyncClusterCreationFields(Option(GcsPath(initBucket, GcsObjectName(""))), saKey, cluster) }
-    } yield NotReadyCluster(cluster.status, Set.empty)
-
-    future.recover { case e =>
-      logger.error(s"Failed to create cluster ${cluster.projectNameString} in Google", e)
-      val errorMessage = e match {
-        case leoEx: LeoException =>
-          ErrorReport.loggableString(leoEx.toErrorReport)
-        case _ =>
-          s"Failed to create cluster ${cluster.projectNameString} due to ${e.toString}"
-      }
-      FailedCluster(ClusterErrorDetails(-1, Option(errorMessage)), Set.empty)
-    }
   }
 
   /**
@@ -449,13 +448,6 @@ class ClusterMonitorActor(val cluster: Cluster,
     transformed.value
   }
 
-  private def whenGoogle409(throwable: Throwable): Boolean = {
-    throwable match {
-      case t: GoogleJsonResponseException => t.getStatusCode == 409
-      case _ => false
-    }
-  }
-
   private def removeServiceAccountKey: Future[Unit] = {
     // Delete the notebook service account key in Google, if present
     for {
@@ -506,10 +498,11 @@ class ClusterMonitorActor(val cluster: Cluster,
   }
 
   private def getDbCluster: Future[Cluster] = {
-    dbRef.inTransaction { _.clusterQuery.getMinimalClusterById(cluster.id) } flatMap {
-      case Some(c) => Future.successful(c)
-      case None => Future.failed(new Exception(s"Cluster ${cluster.projectNameString} not found in the database"))
-    }
+    for {
+      clusterOpt <- dbRef.inTransaction { _.clusterQuery.getMinimalClusterById(cluster.id) }
+      cluster <- clusterOpt.fold(Future.failed[Cluster](
+        new Exception(s"Cluster ${cluster.projectNameString} not found in the database")))(Future.successful)
+    } yield cluster
   }
 
   private def recordMetrics(origStatus: ClusterStatus, finalStatus: ClusterStatus): IO[Unit] = {
