@@ -23,8 +23,7 @@ import spray.json.DefaultJsonProtocol._
 import spray.json.RootJsonFormat
 import scala.concurrent.duration._
 
-import scala.concurrent.{Await, Future}
-
+import scala.concurrent.Future
 
 trait TestProxy { this: ScalaFutures =>
   val googleProject: String
@@ -35,7 +34,7 @@ trait TestProxy { this: ScalaFutures =>
   import routeTest._
 
   // The backend server behind the proxy
-  var serverBinding: Future[ServerBinding] = _
+  var serverBinding: ServerBinding = _
 
   def startProxyServer() = {
     val password = "leo-test".toCharArray
@@ -56,15 +55,12 @@ trait TestProxy { this: ScalaFutures =>
     sslContext.init(keyManagerFactory.getKeyManagers, tmf.getTrustManagers, new SecureRandom)
     val https: HttpsConnectionContext = ConnectionContext.https(sslContext)
 
-    serverBinding = Http().bindAndHandle(backendRoute, "0.0.0.0", proxyConfig.jupyterPort, https)
-    //Ensures the server starts
-    serverBinding.futureValue
+    serverBinding = Http().bindAndHandle(backendRoute, "0.0.0.0", proxyConfig.jupyterPort, https).futureValue
   }
 
   def shutdownProxyServer() = {
     val onceAllConnectionsTerminated: Future[Http.HttpTerminated] =
-      Await.result(serverBinding, 10.seconds)
-        .terminate(hardDeadline = 3.seconds)
+      serverBinding.terminate(hardDeadline = 3.seconds)
 
     // once all connections are terminated,
     // - you can invoke coordinated shutdown to tear down the rest of the system:
