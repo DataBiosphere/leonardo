@@ -2,11 +2,11 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 
 import java.io.InputStream
 import java.security.{KeyStore, SecureRandom}
-import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
 
+import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
 import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
-import akka.http.scaladsl.model.headers.{`Access-Control-Allow-Origin`, ContentDispositionTypes, `Content-Disposition`}
+import akka.http.scaladsl.model.headers.{ContentDispositionTypes, `Access-Control-Allow-Origin`, `Content-Disposition`}
 import akka.http.scaladsl.model.HttpResponse
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
@@ -17,10 +17,13 @@ import akka.stream.scaladsl.{Flow, Sink, Source}
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.service.TestProxy.Data
 import org.scalatest.concurrent.ScalaFutures
+
 import scala.collection.immutable
 import spray.json.DefaultJsonProtocol._
 import spray.json.RootJsonFormat
+import scala.concurrent.duration._
 
+import scala.concurrent.Future
 
 trait TestProxy { this: ScalaFutures =>
   val googleProject: String
@@ -56,7 +59,14 @@ trait TestProxy { this: ScalaFutures =>
   }
 
   def shutdownProxyServer() = {
-    serverBinding.unbind().futureValue
+    val onceAllConnectionsTerminated: Future[Http.HttpTerminated] =
+      serverBinding.terminate(hardDeadline = 3.seconds)
+
+    // once all connections are terminated,
+    // - you can invoke coordinated shutdown to tear down the rest of the system:
+    onceAllConnectionsTerminated.flatMap { _ =>
+      system.terminate()
+    }
   }
 
   // The backend route (i.e. the route behind the proxy)

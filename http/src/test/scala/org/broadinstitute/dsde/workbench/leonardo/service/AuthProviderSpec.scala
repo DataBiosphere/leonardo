@@ -55,6 +55,7 @@ class AuthProviderSpec extends FreeSpec with ScalatestRouteTest with Matchers wi
   val bucketHelper = new BucketHelper(dataprocConfig, mockGoogleDataprocDAO, mockGoogleComputeDAO, mockGoogleStorageDAO, serviceAccountProvider)
   val clusterHelper = new ClusterHelper(DbSingleton.ref, dataprocConfig, mockGoogleDataprocDAO, mockGoogleComputeDAO, mockGoogleIamDAO)
   val clusterDnsCache =  new ClusterDnsCache(proxyConfig, DbSingleton.ref, dnsCacheConfig)
+  
   override def beforeAll(): Unit = {
     super.beforeAll()
     startProxyServer()
