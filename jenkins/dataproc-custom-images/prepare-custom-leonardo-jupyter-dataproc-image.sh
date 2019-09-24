@@ -17,18 +17,22 @@ set -e -x
 #
 
 #filled out by jenkins job
-terra_jupyter_base="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:0.0.1"
-terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:0.0.2"
-terra_jupyter_hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:0.0.1"
+terra_jupyter_base="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:0.0.1"\
 terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:0.0.1"
 terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:0.0.3"
 
+#bioconductor and hail currently are not baked into the custom image
+terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:0.0.2"
+terra_jupyter_hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:0.0.1"
+
+#leonardo_jupyter will be discontinued soon
 leonardo_jupyter="us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:dev"
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:latest"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
 
-# docker_image_var_names="leonardo_jupyter_docker_image welder_server_docker_image openidc_proxy_docker_image"
-docker_image_var_names="welder_server leonardo_jupyter terra_jupyter_base terra_jupyter_bioconductor terra_jupyter_hail terra_jupyter_python openidc_proxy"
+# this array determines which of the above images are baked into the custom image
+# the entry must match the var name above, which must correspond to a valid docker URI
+docker_image_var_names="welder_server leonardo_jupyter terra_jupyter_base terra_jupyter_python openidc_proxy"
 
 #
 # Functions
@@ -76,14 +80,6 @@ function log() {
         "$*"
 }
 
-function betterAptGet() {
-    if ! { apt-get update || echo E: update failed; } | grep -q '^[WE]:'; then
-        return 0
-    else
-        return 1
-    fi
-}
-
 #
 # Main
 #
@@ -129,24 +125,12 @@ add-apt-repository \
 
 log 'Installing Docker...'
 
-# retry 5 betterAptGet
-# rm -rf /var/lib/docker
-# systemctl kill docker.service
-apt-get update
-# retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu artful stable"
-# retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable"
-add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
-apt-cache policy docker-ce
-# systemctl restart systemd-networkd.service
-# systemctl start docker.service
+retry 5 apt-get update
+retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
 
 dpkg --configure -a
-# systemctl status docker
-#retry 5 
-export DOCKER_CE_VERSION="18.06.2~ce~3-0~debian"
-# sleep 10000
-apt-get install -y -q docker-ce="${DOCKER_CE_VERSION:?}" || true
-systemctl status docker.service
+#this line fails consistently, but it does not fail in a fatal way so we add `|| true` to prevent the script from halting execution
+apt-get install -y -q docker-ce || true
 
 log 'Installing Docker Compose...'
 

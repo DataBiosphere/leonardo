@@ -5,8 +5,8 @@ def ArrayList<String> images = []
 def shortHash = ""
 
 def shouldAbortBuild = false
-
 def LinkedHashMap<String, String> imageToParamMap = [:]
+def branchName = "automated-custom-image-hash-update-"
 
 def getShortHash(hash) {
   return hash.substring(0,7)
@@ -22,9 +22,8 @@ def boolean hasHashChanges(ArrayList<String> images) {
 
     println("in change detection loop, before bash. File: $configFile") 
     def gitOutput = sh(
-      // script: "git diff HEAD~1..HEAD $configFile | grep $image",
-      //TODO change to ~1
-      script: "git diff HEAD~80..HEAD $configFile",
+      //TODO: revert
+      script: "git diff HEAD~60..HEAD $configFile",
       returnStdout: true
     ).trim()
 
@@ -46,6 +45,8 @@ def boolean hasHashChanges(ArrayList<String> images) {
 def LinkedHashMap<String,String> getVersionMap(ArrayList<String> imageNames, String configFile) {
   def LinkedHashMap<String,String> versionMap = [:]
 
+  //for example, if $image is 'welder-server', this line would isolate 'a4f0e04' from the line below in a $configFile
+  // welderDockerImage = "us.gcr.io/broad-dsp-gcr-public/welder-server:a4f0e04"
   for (String image: imageNames) {
     def version = sh(
       script: "cat $configFile | grep $image | tr ':' '\n' | tail -1 | tr -d '\"' ",
@@ -67,7 +68,7 @@ pipeline {
   }
 
   triggers {
-    // poll repo every 2 minute for changes
+    // leaving the string empty causes it to trigger off pushes/PRs to the specified branch
     pollSCM("")
     //dataproc images expire every 60 days
     cron("0 0 */59 * *")
@@ -82,10 +83,12 @@ pipeline {
     string(name: "BUCKET_NAME", defaultValue: "gs://leo-dataproc-image",
           description: "The bucket where the image will be stored")
     string(name: "terra_jupyter_base", defaultValue: "0.0.1")
-    string(name: "terra_jupyter_hail", defaultValue: "0.0.1")
+    string(name: "terra_jupyter_hail", defaultValue: "0.0.1",
+          description: "Is not currently baked into the image, but is here for future functionality")
     string(name: "terra_jupyter_r", defaultValue: "0.0.3")
     string(name: "terra_jupyter_python", defaultValue: "0.0.1")
-    string(name: "terra_jupyter_bioconductor", defaultValue: "0.0.2")
+    string(name: "terra_jupyter_bioconductor", defaultValue: "0.0.2",
+          description: "Is not currently baked into the image, but is here for future functionality")
     string(name: "leonardo_jupyter", defaultValue: "dev",
           description: "The tag of the jupyter image to pull in docker image build. Used in the prepare script.")
     string(name: "welder_server", defaultValue: "latest",
@@ -97,18 +100,17 @@ pipeline {
   stages {
     stage('Terra docker image scan') {
       steps {
-         git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/terra-docker.git', branch: 'jc-jenkinsfile'
+        git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/terra-docker.git', branch: 'master'
 
-          script {
-            def temp = readFile("jenkins/imageDirs.txt").trim().split("\n")
-            images = new ArrayList<String>(Arrays.asList(temp))
+        script {
+          def temp = readFile("jenkins/imageDirs.txt").trim().split("\n")
+          images = new ArrayList<String>(Arrays.asList(temp))
 
-            //non terra-docker images
-            images.add('leonardo-jupyter')
-            images.add('welder-server')
-            images.add('openidc-proxy')
-          }
-
+          //non terra-docker images
+          images.add('leonardo-jupyter')
+          images.add('welder-server')
+          images.add('openidc-proxy')
+        }
       }
     }
 
@@ -119,7 +121,6 @@ pipeline {
     }
         
     //create short hash properties file
-
     stage('Get Short Hash') {
       steps {
         script {
@@ -148,7 +149,6 @@ pipeline {
           def versionMap = getVersionMap(images, "automation/src/test/resources/reference.conf")
         
           if (shouldUpdate) {
-
             for (String image: images) {
               if (image in versionMap.keySet() && !versionMap[image].isEmpty()) { //the version could be empty if the image from terra-docker is not in a leo conf yet
                 version = versionMap[image]
@@ -165,6 +165,7 @@ pipeline {
         sh """
           echo 'printing changed config'
           cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+          git diff jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
         """
       }
     }
@@ -193,6 +194,7 @@ pipeline {
               """
             )
 
+            //will print any changed lines via git diff
             sh(
               script: "cat jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh; git diff jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh"
             )
@@ -219,6 +221,32 @@ pipeline {
         }
       }
 
+      stage('Update custom leo image in conf') {
+        when { expression { !shouldAbortBuild } }
+        steps {
+          script {
+
+            def String[] configPaths = readFile("jenkins/confLocations.txt").trim().split("\n")
+            for (String configFile: configPaths) {
+              sh (
+                  script: """
+                    sed -i "s/$IMAGE_BASE_NAME.*/$IMAGE_BASE_NAME-$shortHash\\"/" $configFile; git add $configFile || true; git diff $configFile
+                  """
+              )
+            }
+          }
+
+          sshagent(['jenkins-ssh-github']) {
+            sh """
+              git checkout -b $branchName$shortHash
+              git commit -m "automated custom image hash updates"
+              git push origin $branchName$shortHash
+            """
+          }
+
+        }
+      }
+
       stage('Update Build Name') {
         when { expression { !shouldAbortBuild } }
         steps {
@@ -231,7 +259,7 @@ pipeline {
       stage('Notify Slack') {
         when { expression { !shouldAbortBuild } }
         steps {
-          slackSend(channel: '#newrelictest', message: "Jenkins has successfully built a custom leo dataproc image with the name:  $IMAGE_BASE_NAME-$shortHash")
+          slackSend(channel: '#dsp-callisto-internal', message: "Jenkins has successfully built a custom leo dataproc image with the name:  $IMAGE_BASE_NAME-$shortHash. \nIf you would like to merge it, click: https://github.com/DataBiosphere/leonardo/pull/new/$branchName$shortHash")
         }
       }
       
