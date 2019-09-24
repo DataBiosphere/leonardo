@@ -51,7 +51,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
           withOpenNotebook(cluster, notebookPath, 10.minutes) { notebookPage =>
             // old output should still exist
             val firstCell = notebookPage.firstCell
-            notebookPage.cellOutput(firstCell) shouldBe Some(printStr)
+            notebookPage.cellOutput(firstCell) shouldBe Some(CellOutput(printStr, None))
             // execute a new cell to make sure the notebook kernel still works
             notebookPage.runAllCells()
             notebookPage.executeCell("sum(range(1,10))") shouldBe Some("45")
@@ -174,6 +174,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
               logger.info("ClusterMonitoringSpec: Hail verification is disabled after pause/resuming a cluster. See https://github.com/DataBiosphere/leonardo/issues/459.")
 
               notebookPage.saveAndCheckpoint()
+
             }
           }
         }

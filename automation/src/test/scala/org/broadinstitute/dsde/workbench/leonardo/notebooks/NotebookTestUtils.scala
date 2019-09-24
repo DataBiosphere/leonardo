@@ -29,7 +29,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   this: Suite =>
 
   private def whenKernelNotReady(t: Throwable): Boolean = t match {
-    case e: KernelNotReadyException => true
+    case _: KernelNotReadyException => true
     case _ => false
   }
 
@@ -329,11 +329,6 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     testCode(localFile)
   }
 
-  def mockCluster(googleProject: String, clusterName: String): Cluster = {
-    Cluster(ClusterName(clusterName), java.util.UUID.randomUUID(), GoogleProject(googleProject),
-      ServiceAccountInfo(Map()), MachineConfig(), new java.net.URL("https://FAKE/URL/IF_YOU_SEE_THIS_INVESTIGATE_YOUR_USAGE_OF_MOCKCLUSTER_METHOD/"), OperationName(""), ClusterStatus.Running, None, WorkbenchEmail(""), Instant.now(), None, Map(), None, None, None, List(), Instant.now(), None, false, Set())
-  }
-
   def getLockedBy(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[Option[String]] = {
     google2StorageResource.use {
       google2StorageDAO =>
@@ -360,7 +355,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   def getObjectAsString(workspaceBucketName: GcsBucketName, notebookName: GcsBlobName): IO[Option[String]] = {
     google2StorageResource.use {
       google2StorageDAO =>
-        google2StorageDAO.unsafeGetObject(workspaceBucketName, notebookName, None)
+        google2StorageDAO.unsafeGetBlobBody(workspaceBucketName, notebookName, None)
     }
   }
 

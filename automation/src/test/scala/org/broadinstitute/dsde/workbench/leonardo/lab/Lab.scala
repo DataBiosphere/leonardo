@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.lab
 import akka.http.scaladsl.model.headers.{Cookie, HttpCookiePair}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook.{contentsPath, getRequest, handleContentItemResponse, logger, parseResponse, url}
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook.{contentsPath, handleContentItemResponse}
 import org.broadinstitute.dsde.workbench.leonardo.{ClusterName, ContentItem, LeonardoConfig}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.RestClient
