@@ -153,9 +153,9 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
 
           val installOutput = notebookPage.executeCell("""BiocManager::install('RGraphviz')""", installTimeout)
           installOutput shouldBe 'defined
-          installOutput.get should include ("package 'XML' successfully unpacked and MD5 sums checked")
+          installOutput.get should include ("package 'RGraphviz' successfully unpacked and MD5 sums checked")
           installOutput.get should include ("/home/jupyter-user/.rpackages")
-          installOutput.get should include ("DONE (XML)")
+          installOutput.get should include ("DONE (RGraphviz)")
         }
       }
     }
