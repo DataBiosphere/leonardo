@@ -379,6 +379,11 @@ trait ClusterComponent extends LeoComponent {
       findByIdQuery(id).map(c => (c.status, c.dateAccessed)).update(newStatus.toString, Timestamp.from(Instant.now))
     }
 
+    // for testing only
+    def updateClusterCreatedDate(id: Long, createdDate: Instant): DBIO[Int] = {
+      findByIdQuery(id).map { _.createdDate }.update(Timestamp.from(createdDate))
+    }
+
     def updateDateAccessed(id: Long, dateAccessed: Instant): DBIO[Int] = {
       findByIdQuery(id).filter { _.dateAccessed < Timestamp.from(dateAccessed)}.map(_.dateAccessed).update(Timestamp.from(dateAccessed))
     }

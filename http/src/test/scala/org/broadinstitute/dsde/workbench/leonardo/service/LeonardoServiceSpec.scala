@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package service
 
 import java.io.ByteArrayInputStream
+import java.text.SimpleDateFormat
 import java.time.Instant
 import java.util.UUID
 
@@ -1321,6 +1322,34 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     computeDAO.instanceMetadata.keySet shouldBe clusterInstances.map(_.key).toSet
     computeDAO.instances.values.toSet shouldBe clusterInstances.map(_.copy(status = InstanceStatus.Running)).toSet
     computeDAO.instanceMetadata.values.map(_.keys).flatten.toSet shouldBe Set("startup-script")
+  }
+
+  it should "fail to start an old cluster" in isolatedDbTest {
+    // check that the cluster does not exist
+    gdDAO.clusters should not contain key(name1)
+
+    // create the cluster
+    val clusterCreateResponse =
+      leo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
+
+    eventually {
+      // check that the cluster was created
+      gdDAO.clusters should contain key name1
+    }
+
+    // set its status to Stopped and update its createdDate
+    dbFutureValue { _.clusterQuery.updateClusterStatus(clusterCreateResponse.id, ClusterStatus.Stopped) }
+    dbFutureValue { _.clusterQuery.updateClusterCreatedDate(clusterCreateResponse.id, new SimpleDateFormat("yyyy-MM-dd").parse("2018-12-31").toInstant) }
+
+    // start the cluster and verify exception
+    leo.startCluster(userInfo, project, name1).failed.futureValue shouldBe a [ClusterOutOfDateException]
+
+    // cluster status should still be Stopped in the DB
+    dbFutureValue { _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse) }.get
+      .status shouldBe ClusterStatus.Stopped
+
+    // cluster should still exist in Google
+    gdDAO.clusters should contain key name1
   }
 
   it should "update disk size for 0 workers when a consumer specifies numberOfPreemptibleWorkers" in isolatedDbTest {

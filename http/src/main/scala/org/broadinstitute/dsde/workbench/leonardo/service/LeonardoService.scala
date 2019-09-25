@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package service
 
 import java.io.File
+import java.text.SimpleDateFormat
 import java.time.Instant
 import java.util.UUID
 
@@ -15,6 +16,7 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import java.util.UUID.randomUUID
+
 import org.broadinstitute.dsde.workbench.google.{GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
@@ -43,7 +45,7 @@ import scala.concurrent.duration._
 import scala.collection.JavaConverters._
 import scala.io.Source
 import scala.util.control.NonFatal
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 case class AuthorizationError(email: Option[WorkbenchEmail] = None)
   extends LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is unauthorized", StatusCodes.Forbidden)
@@ -65,6 +67,12 @@ case class ClusterCannotBeDeletedException(googleProject: GoogleProject, cluster
 
 case class ClusterCannotBeStartedException(googleProject: GoogleProject, clusterName: ClusterName, status: ClusterStatus)
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} cannot be started in ${status.toString} status", StatusCodes.Conflict)
+
+case class ClusterOutOfDateException()
+  extends LeoException(
+    "Your notebook runtime is out of date, and cannot be started due to recent updates in Terra. If you generated " +
+    "data or copied external files to the runtime that you want to keep please contact support. Otherwise, simply " +
+    "delete your existing runtime and create a new one.", StatusCodes.Conflict)
 
 case class ClusterCannotBeUpdatedException(cluster: Cluster)
   extends LeoException(s"Cluster ${cluster.projectNameString} cannot be updated in ${cluster.status} status", StatusCodes.Conflict)
@@ -605,35 +613,38 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   def internalStartCluster(userEmail: WorkbenchEmail, cluster: Cluster): Future[Unit] = {
     if (cluster.status.isStartable) {
-      val welderDeploy = shouldDeployWelder(cluster)
-      val welderUpdate = shouldUpdateWelder(cluster)
-      for {
-        // Check if welder should be deployed
-        updatedCluster <- if (welderDeploy || welderUpdate) updateWelder(cluster).unsafeToFuture() else Future.successful(cluster)
+      if (isClusterBeforeCutoffDate(cluster)) {
+        Future.failed(ClusterOutOfDateException())
+      } else {
+        val welderDeploy = shouldDeployWelder(cluster)
+        val welderUpdate = shouldUpdateWelder(cluster)
+        for {
+          // Check if welder should be deployed
+          updatedCluster <- if (welderDeploy || welderUpdate) updateWelder(cluster).unsafeToFuture() else Future.successful(cluster)
 
-        // Add back the preemptible instances
-        _ <- if (updatedCluster.machineConfig.numberOfPreemptibleWorkers.exists(_ > 0))
-               gdDAO.resizeCluster(updatedCluster.googleProject, updatedCluster.clusterName, numPreemptibles = updatedCluster.machineConfig.numberOfPreemptibleWorkers)
-             else Future.unit
+          // Add back the preemptible instances
+          _ <- if (updatedCluster.machineConfig.numberOfPreemptibleWorkers.exists(_ > 0))
+            gdDAO.resizeCluster(updatedCluster.googleProject, updatedCluster.clusterName, numPreemptibles = updatedCluster.machineConfig.numberOfPreemptibleWorkers)
+          else Future.unit
 
-        // Start each instance individually
-        _ <- Future.traverse(updatedCluster.nonPreemptibleInstances) { instance =>
-          // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
-          instance.dataprocRole match {
-            case Some(Master) =>
-              googleComputeDAO.addInstanceMetadata(instance.key, getMasterInstanceStartupScript(updatedCluster, welderDeploy, welderUpdate)) >>
+          // Start each instance individually
+          _ <- Future.traverse(updatedCluster.nonPreemptibleInstances) { instance =>
+            // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
+            instance.dataprocRole match {
+              case Some(Master) =>
+                googleComputeDAO.addInstanceMetadata(instance.key, getMasterInstanceStartupScript(updatedCluster, welderDeploy, welderUpdate)) >>
+                  googleComputeDAO.startInstance(instance.key)
+              case _ =>
                 googleComputeDAO.startInstance(instance.key)
-            case _ =>
-              googleComputeDAO.startInstance(instance.key)
+            }
           }
-        }
 
-        // Update the cluster status to Starting
-        _ <- dbRef.inTransaction { dataAccess =>
-          dataAccess.clusterQuery.updateClusterStatus(updatedCluster.id, ClusterStatus.Starting)
-        }
-      } yield ()
-
+          // Update the cluster status to Starting
+          _ <- dbRef.inTransaction { dataAccess =>
+            dataAccess.clusterQuery.updateClusterStatus(updatedCluster.id, ClusterStatus.Starting)
+          }
+        } yield ()
+      }
     } else Future.failed(ClusterCannotBeStartedException(cluster.googleProject, cluster.clusterName, cluster.status))
   }
 
@@ -1142,6 +1153,14 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val startupScriptContent = templateResource(clusterResourcesConfig.startupScript, replacements)
 
     immutable.Map(googleKey -> startupScriptContent)
+  }
+
+  private def isClusterBeforeCutoffDate(cluster: Cluster): Boolean = {
+    (for {
+      dateStr <- dataprocConfig.clusterCutoffDate
+      date <- Try(new SimpleDateFormat("yyyy-MM-dd").parse(dateStr)).toOption
+      isClusterBeforeCutoffDate = cluster.auditInfo.createdDate.isBefore(date.toInstant)
+    } yield isClusterBeforeCutoffDate) getOrElse false
   }
 
 }
