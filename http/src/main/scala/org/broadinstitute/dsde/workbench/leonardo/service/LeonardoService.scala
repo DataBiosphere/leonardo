@@ -613,38 +613,38 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   def internalStartCluster(userEmail: WorkbenchEmail, cluster: Cluster): Future[Unit] = {
     if (cluster.status.isStartable) {
-      if (isClusterBeforeCutoffDate(cluster)) {
-        Future.failed(ClusterOutOfDateException())
-      } else {
-        val welderDeploy = shouldDeployWelder(cluster)
-        val welderUpdate = shouldUpdateWelder(cluster)
-        for {
-          // Check if welder should be deployed
-          updatedCluster <- if (welderDeploy || welderUpdate) updateWelder(cluster).unsafeToFuture() else Future.successful(cluster)
+      val welderDeploy = shouldDeployWelder(cluster)
+      val welderUpdate = shouldUpdateWelder(cluster)
+      for {
+        // Check if welder should be deployed or updated
+        // If we are updating welder but the cluster is too old, throw a ClusterOutOfDateException
+        updatedCluster <- if (welderDeploy || welderUpdate) {
+          if (isClusterBeforeCutoffDate(cluster)) Future.failed(ClusterOutOfDateException())
+          else updateWelder(cluster).unsafeToFuture()
+        } else Future.successful(cluster)
 
-          // Add back the preemptible instances
-          _ <- if (updatedCluster.machineConfig.numberOfPreemptibleWorkers.exists(_ > 0))
-            gdDAO.resizeCluster(updatedCluster.googleProject, updatedCluster.clusterName, numPreemptibles = updatedCluster.machineConfig.numberOfPreemptibleWorkers)
-          else Future.unit
+        // Add back the preemptible instances
+        _ <- if (updatedCluster.machineConfig.numberOfPreemptibleWorkers.exists(_ > 0))
+          gdDAO.resizeCluster(updatedCluster.googleProject, updatedCluster.clusterName, numPreemptibles = updatedCluster.machineConfig.numberOfPreemptibleWorkers)
+        else Future.unit
 
-          // Start each instance individually
-          _ <- Future.traverse(updatedCluster.nonPreemptibleInstances) { instance =>
-            // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
-            instance.dataprocRole match {
-              case Some(Master) =>
-                googleComputeDAO.addInstanceMetadata(instance.key, getMasterInstanceStartupScript(updatedCluster, welderDeploy, welderUpdate)) >>
-                  googleComputeDAO.startInstance(instance.key)
-              case _ =>
+        // Start each instance individually
+        _ <- Future.traverse(updatedCluster.nonPreemptibleInstances) { instance =>
+          // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
+          instance.dataprocRole match {
+            case Some(Master) =>
+              googleComputeDAO.addInstanceMetadata(instance.key, getMasterInstanceStartupScript(updatedCluster, welderDeploy, welderUpdate)) >>
                 googleComputeDAO.startInstance(instance.key)
-            }
+            case _ =>
+              googleComputeDAO.startInstance(instance.key)
           }
+        }
 
-          // Update the cluster status to Starting
-          _ <- dbRef.inTransaction { dataAccess =>
-            dataAccess.clusterQuery.updateClusterStatus(updatedCluster.id, ClusterStatus.Starting)
-          }
-        } yield ()
-      }
+        // Update the cluster status to Starting
+        _ <- dbRef.inTransaction { dataAccess =>
+          dataAccess.clusterQuery.updateClusterStatus(updatedCluster.id, ClusterStatus.Starting)
+        }
+      } yield ()
     } else Future.failed(ClusterCannotBeStartedException(cluster.googleProject, cluster.clusterName, cluster.status))
   }
 

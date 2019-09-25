@@ -1329,8 +1329,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should not contain key(name1)
 
     // create the cluster
+    val request = testClusterRequest.copy(labels = Map("TEST_ONLY_DEPLOY_WELDER" -> "yes"))
     val clusterCreateResponse =
-      leo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
+      leo.processClusterCreationRequest(userInfo, project, name1, request).futureValue
 
     eventually {
       // check that the cluster was created
