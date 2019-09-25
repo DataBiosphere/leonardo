@@ -84,8 +84,6 @@ class ClusterMonitorActor(val cluster: Cluster,
 
   private val internalError = "Internal Error"
 
-  private val startupTimings: scala.collection.mutable.Map[Long, FiniteDuration] = scala.collection.mutable.Map()
-
   override def preStart(): Unit = {
     super.preStart()
     scheduleInitialMonitorPass
@@ -125,7 +123,6 @@ class ClusterMonitorActor(val cluster: Cluster,
 
   private def scheduleInitialMonitorPass(): Unit = {
     // Wait anything _up to_ the poll interval for a much wider distribution of cluster monitor start times when Leo starts up
-    startupTimings += (cluster.id -> 0.seconds)
     system.scheduler.scheduleOnce(addJitter(0 seconds, monitorConfig.pollPeriod), self, QueryForCluster)
   }
 
@@ -140,15 +137,14 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ScheduleMonitorPass
     */
   private def handleNotReadyCluster(status: ClusterStatus, instances: Set[Instance]): Future[ClusterMonitorMessage] = {
-    val currTimeElapsed: FiniteDuration = startupTimings.getOrElse(cluster.id, 0 seconds)
-    logger.info(s"Cluster ${cluster.projectNameString} has taken ${currTimeElapsed.toString} so far, continuing to monitor.")
+    val currTimeElapsed: Long = (System.currentTimeMillis() - startTime)
 
-    if (currTimeElapsed > monitorConfig.creationTimeLimit && status == ClusterStatus.Creating) {
-      logger.info(s"Detected that ${cluster.projectNameString} has been creating too long, time limit is ${monitorConfig.creationTimeLimit}. Failing it.")
-      Metrics.newRelic.incrementCounterIO("createClusterTimeout").unsafeRunSync()
-      handleFailedCluster(ClusterErrorDetails(Code.DEADLINE_EXCEEDED.value,Some(s"Failed to create cluster ${cluster.projectNameString} within ${monitorConfig.creationTimeLimit.toMinutes.toString()} minutes")),instances)
+    if (monitorConfig.monitorStatusTimeouts.keySet.contains(status) &&
+      currTimeElapsed > monitorConfig.monitorStatusTimeouts.getOrElse(status, throw new Exception(s"monitor config is not properly configured to handle status: $status")).toMillis) {
+      logger.info(s"Detected that ${cluster.projectNameString} has been stuck in status $status too long. Failing it. Current timeout config: ${monitorConfig.monitorStatusTimeouts.toString}")
+      Metrics.newRelic.incrementCounterIO(s"$status-timeout").unsafeRunSync()
+      handleFailedCluster(ClusterErrorDetails(Code.DEADLINE_EXCEEDED.value,Some(s"Failed to transition ${cluster.projectNameString} from status $status within the time limit:  ${monitorConfig.monitorStatusTimeouts.toString}")),instances)
     } else {
-      startupTimings += (cluster.id -> startupTimings.getOrElse(cluster.id, 0 seconds).+(monitorConfig.pollPeriod))
       logger.info(s"Cluster ${cluster.projectNameString} is not ready yet and has taken ${currTimeElapsed.toString} so far (cluster status = $status, instance statuses = ${instances.groupBy(_.status).mapValues(_.size)}). Checking again in ${monitorConfig.pollPeriod.toString}.")
       persistInstances(instances).map { _ =>
         ScheduleMonitorPass
