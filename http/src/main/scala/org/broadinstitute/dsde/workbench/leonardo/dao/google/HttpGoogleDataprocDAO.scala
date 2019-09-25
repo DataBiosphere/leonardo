@@ -35,8 +35,7 @@ class HttpGoogleDataprocDAO(appName: String,
                             override val workbenchMetricBaseName: String,
                             networkTag: NetworkTag,
                             defaultRegion: String,
-                            zoneOpt: Option[String],
-                            defaultExecutionTimeout: FiniteDuration)
+                            zoneOpt: Option[String])
                            (implicit override val system: ActorSystem, override val executionContext: ExecutionContext)
   extends AbstractHttpGoogleDAO(appName, googleCredentialMode, workbenchMetricBaseName) with GoogleDataprocDAO {
 
@@ -231,7 +230,7 @@ class HttpGoogleDataprocDAO(appName: String,
     // Create a NodeInitializationAction, which specifies the executable to run on a node.
     // This executable is our init-actions.sh, which will stand up our jupyter server and proxy.
     val initActions = config.initScripts.map { script =>
-      new NodeInitializationAction().setExecutableFile(script.toUri).setExecutionTimeout(finiteDurationToGoogleDuration(defaultExecutionTimeout))
+      new NodeInitializationAction().setExecutableFile(script.toUri)
     }
 
     // Create a config for the master node, if properties are not specified in request, use defaults

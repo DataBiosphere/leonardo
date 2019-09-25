@@ -29,7 +29,6 @@ package object config {
       GoogleProject(config.getString("leoGoogleProject")),
       config.getString("jupyterImage"),
       config.getString("clusterUrlBase"),
-      toScalaDuration(config.getDuration("defaultExecutionTimeout")),
       config.getString("jupyterServerName"),
       config.getString("rstudioServerName"),
       config.getString("welderServerName"),
