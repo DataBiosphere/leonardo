@@ -71,8 +71,8 @@ case class ClusterCannotBeStartedException(googleProject: GoogleProject, cluster
 case class ClusterOutOfDateException()
   extends LeoException(
     "Your notebook runtime is out of date, and cannot be started due to recent updates in Terra. If you generated " +
-    "data or copied external files to the runtime that you want to keep please contact support. Otherwise, simply " +
-    "delete your existing runtime and create a new one.", StatusCodes.Conflict)
+    "data or copied external files to the runtime that you want to keep please contact support by emailing " +
+    "Terra-support@broadinstitute.zendesk.com. Otherwise, simply delete your existing runtime and create a new one.", StatusCodes.Conflict)
 
 case class ClusterCannotBeUpdatedException(cluster: Cluster)
   extends LeoException(s"Cluster ${cluster.projectNameString} cannot be updated in ${cluster.status} status", StatusCodes.Conflict)
