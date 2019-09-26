@@ -14,9 +14,10 @@ import org.broadinstitute.dsde.workbench.leonardo.Metrics
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.model.WelderAction.{DeployWelder, UpdateWelder}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.Master
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
-import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterInitValues, LeoException, ServiceAccountInfo}
+import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterInitValues, LeoException, ServiceAccountInfo, WelderAction}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.util.Retry
@@ -181,9 +182,9 @@ class ClusterHelper(dbRef: DbReference,
     } yield ()
   }
 
-  def startCluster(cluster: Cluster, welderDeploy: Boolean, welderUpdate: Boolean): IO[Unit] = {
+  def startCluster(cluster: Cluster, welderAction: WelderAction): IO[Unit] = {
     for {
-      metadata <- getMasterInstanceStartupScript(cluster, welderDeploy, welderUpdate)
+      metadata <- getMasterInstanceStartupScript(cluster, welderAction)
 
       // Add back the preemptible instances, if any
       _ <- if (cluster.machineConfig.numberOfPreemptibleWorkers.exists(_ > 0))
@@ -396,14 +397,14 @@ class ClusterHelper(dbRef: DbReference,
 
   // Startup script to install on the cluster master node. This allows Jupyter to start back up after
   // a cluster is resumed.
-  private def getMasterInstanceStartupScript(cluster: Cluster, deployWelder: Boolean, updateWelder: Boolean): IO[Map[String, String]] = {
+  private def getMasterInstanceStartupScript(cluster: Cluster, welderAction: WelderAction): IO[Map[String, String]] = {
     val googleKey = "startup-script"  // required; see https://cloud.google.com/compute/docs/startupscript
 
     // These things need to be provided to ClusterInitValues, but aren't actually needed for the startup script
     val dummyInitBucket = GcsBucketName("dummy-init-bucket")
 
     val clusterInit = ClusterInitValues(cluster, dummyInitBucket, None, dataprocConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig, contentSecurityPolicy).toMap
-    val replacements: Map[String, String] = clusterInit ++ Map("deployWelder" -> deployWelder.toString, "updateWelder" -> updateWelder.toString)
+    val replacements: Map[String, String] = clusterInit ++ Map("deployWelder" -> (welderAction == DeployWelder).toString, "updateWelder" -> (welderAction == UpdateWelder).toString)
 
     TemplateHelper.templateResource(replacements, clusterResourcesConfig.startupScript, executionContext).map { startupScriptContent =>
       Map(googleKey -> new String(startupScriptContent, StandardCharsets.UTF_8))

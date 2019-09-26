@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package service
 
+import java.text.SimpleDateFormat
 import java.time.Instant
 import java.util.UUID
 
@@ -23,6 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RS
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
+import org.broadinstitute.dsde.workbench.leonardo.model.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
@@ -34,6 +36,7 @@ import spray.json._
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Try
 import scala.util.control.NonFatal
 
 case class AuthorizationError(email: Option[WorkbenchEmail] = None)
