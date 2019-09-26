@@ -42,7 +42,8 @@ package object config {
       config.getString("welderDisabledNotebooksDir"),
       config.getAs[String]("customDataprocImage"),
       config.getAs[String]("deployWelderLabel"),
-      config.getAs[String]("updateWelderLabel")
+      config.getAs[String]("updateWelderLabel"),
+      config.getAs[String]("deployWelderCutoffDate")
     )
   }
 

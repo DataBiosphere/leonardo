@@ -27,5 +27,6 @@ case class DataprocConfig(
                            welderDisabledNotebooksDir: String, // TODO: remove once welder is rolled out to all clusters
                            customDataprocImage: Option[String],
                            deployWelderLabel: Option[String],
-                           updateWelderLabel: Option[String]
+                           updateWelderLabel: Option[String],
+                           deployWelderCutoffDate: Option[String]
                          )

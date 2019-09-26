@@ -33,7 +33,7 @@ if [ "$DEPLOY_WELDER" == "true" ] ; then
 
     # Enable welder in /etc/jupyter/nbconfig/notebook.json (which powers the front-end extensions like edit.js and safe.js)
     docker exec -u root -i $JUPYTER_SERVER_NAME bash -c \
-      "jq '.welderEnabled=\"true\"' /etc/jupyter/nbconfig/notebook.json > /etc/jupyter/nbconfig/notebook.json.tmp && mv /etc/jupyter/nbconfig/notebook.json.tmp /etc/jupyter/nbconfig/notebook.json"
+      "test -f /etc/jupyter/nbconfig/notebook.json && jq '.welderEnabled=\"true\"' /etc/jupyter/nbconfig/notebook.json > /etc/jupyter/nbconfig/notebook.json.tmp && mv /etc/jupyter/nbconfig/notebook.json.tmp /etc/jupyter/nbconfig/notebook.json || true"
 fi
 
 if [ "$UPDATE_WELDER" == "true" ] ; then

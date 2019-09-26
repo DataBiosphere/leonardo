@@ -428,6 +428,16 @@ object ExtensionType extends Enum[ExtensionType] {
   case object LabExtension extends ExtensionType
 }
 
+sealed trait WelderAction extends EnumEntry
+object WelderAction extends Enum[WelderAction] {
+  val values = findValues
+
+  case object DeployWelder extends WelderAction
+  case object UpdateWelder extends WelderAction
+  case object NoAction extends WelderAction
+  case object ClusterOutOfDate extends WelderAction
+}
+
 object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit object URLFormat extends JsonFormat[URL] {
     def write(obj: URL) = JsString(obj.toString)
