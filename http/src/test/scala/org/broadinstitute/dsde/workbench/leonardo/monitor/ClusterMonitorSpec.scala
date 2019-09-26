@@ -236,7 +236,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     val authProvider = mock[LeoAuthProvider]
 
     withClusterSupervisor(gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, FakeGoogleStorageService, authProvider, MockJupyterDAO, MockRStudioDAO, MockWelderDAO, true) { actor =>
-      eventually(timeout(Span((monitorConfig.monitorStatusTimeouts.getOrElse(ClusterStatus.Creating, throw new Exception("config does not have proper params for monitor status timeouts")) * 2).toSeconds, Seconds))) {
+      eventually(timeout(Span((monitorConfig.monitorStatusTimeouts.getOrElse(ClusterStatus.Creating, throw new Exception("config does not have proper params for monitor status timeouts")) * 3).toSeconds, Seconds))) {
         val updatedCluster = dbFutureValue {
           _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
         }
