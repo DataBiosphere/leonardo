@@ -130,6 +130,7 @@ retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/d
 
 dpkg --configure -a
 #this line fails consistently, but it does not fail in a fatal way so we add `|| true` to prevent the script from halting execution
+sleep 1000000
 apt-get install -y -q docker-ce || true
 
 log 'Installing Docker Compose...'
