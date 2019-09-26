@@ -43,7 +43,7 @@ package object config {
       config.getAs[String]("customDataprocImage"),
       config.getAs[String]("deployWelderLabel"),
       config.getAs[String]("updateWelderLabel"),
-      config.getAs[String]("clusterCutoffDate")
+      config.getAs[String]("deployWelderCutoffDate")
     )
   }
 

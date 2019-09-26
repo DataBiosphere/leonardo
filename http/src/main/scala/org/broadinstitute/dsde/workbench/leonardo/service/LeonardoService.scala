@@ -28,6 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RS
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
+import org.broadinstitute.dsde.workbench.leonardo.model.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole._
@@ -613,15 +614,14 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   def internalStartCluster(userEmail: WorkbenchEmail, cluster: Cluster): Future[Unit] = {
     if (cluster.status.isStartable) {
-      val welderDeploy = shouldDeployWelder(cluster)
-      val welderUpdate = shouldUpdateWelder(cluster)
+      val welderAction = getWelderAction(cluster)
       for {
         // Check if welder should be deployed or updated
-        // If we are updating welder but the cluster is too old, throw a ClusterOutOfDateException
-        updatedCluster <- if (welderDeploy || welderUpdate) {
-          if (isClusterBeforeCutoffDate(cluster)) Future.failed(ClusterOutOfDateException())
-          else updateWelder(cluster).unsafeToFuture()
-        } else Future.successful(cluster)
+        updatedCluster <- welderAction match {
+          case DeployWelder | UpdateWelder => updateWelder(cluster).unsafeToFuture()
+          case NoAction => Future.successful(cluster)
+          case ClusterOutOfDate => Future.failed(ClusterOutOfDateException())
+        }
 
         // Add back the preemptible instances
         _ <- if (updatedCluster.machineConfig.numberOfPreemptibleWorkers.exists(_ > 0))
@@ -633,7 +633,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
           instance.dataprocRole match {
             case Some(Master) =>
-              googleComputeDAO.addInstanceMetadata(instance.key, getMasterInstanceStartupScript(updatedCluster, welderDeploy, welderUpdate)) >>
+              googleComputeDAO.addInstanceMetadata(instance.key, getMasterInstanceStartupScript(updatedCluster, welderAction)) >>
                 googleComputeDAO.startInstance(instance.key)
             case _ =>
               googleComputeDAO.startInstance(instance.key)
@@ -1108,19 +1108,36 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     Set(welderImageOpt, Some(jupyterImage), rstudioImageOpt).flatten
   }
 
-  private def shouldDeployWelder(cluster: Cluster): Boolean = {
-    !cluster.welderEnabled && dataprocConfig.deployWelderLabel.exists(cluster.labels.contains)
+  private def getWelderAction(cluster: Cluster): WelderAction = {
+    if (cluster.welderEnabled) {
+      // Welder is already enabled; do we need to update it?
+      val labelFound = dataprocConfig.updateWelderLabel.exists(cluster.labels.contains)
+
+      val imageChanged = cluster.clusterImages.find(_.tool == Welder) match {
+        case Some(welderImage) if welderImage.dockerImage != dataprocConfig.welderDockerImage => true
+        case _ => false
+      }
+
+      if (labelFound && imageChanged) UpdateWelder
+      else NoAction
+    }
+    else {
+      // Welder is not enabled; do we need to deploy it?
+      val labelFound = dataprocConfig.deployWelderLabel.exists(cluster.labels.contains)
+      if (labelFound) {
+        if (isClusterBeforeCutoffDate(cluster)) ClusterOutOfDate
+        else DeployWelder
+      }
+      else NoAction
+    }
   }
 
-  private def shouldUpdateWelder(cluster: Cluster): Boolean = {
-    val labelFound = cluster.welderEnabled && dataprocConfig.updateWelderLabel.exists(cluster.labels.contains)
-
-    val imageChanged = cluster.clusterImages.find(_.tool == Welder) match {
-      case Some(welderImage) if welderImage.dockerImage != dataprocConfig.welderDockerImage => true
-      case _ => false
-    }
-
-    labelFound && imageChanged
+  private def isClusterBeforeCutoffDate(cluster: Cluster): Boolean = {
+    (for {
+      dateStr <- dataprocConfig.deployWelderCutoffDate
+      date <- Try(new SimpleDateFormat("yyyy-MM-dd").parse(dateStr)).toOption
+      isClusterBeforeCutoffDate = cluster.auditInfo.createdDate.isBefore(date.toInstant)
+    } yield isClusterBeforeCutoffDate) getOrElse false
   }
 
   private def updateWelder(cluster: Cluster): IO[Cluster] = {
@@ -1137,7 +1154,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   // Startup script to install on the cluster master node. This allows Jupyter to start back up after
   // a cluster is resumed.
-  private def getMasterInstanceStartupScript(cluster: Cluster, deployWelder: Boolean, updateWelder: Boolean): immutable.Map[String, String] = {
+  private def getMasterInstanceStartupScript(cluster: Cluster, welderAction: WelderAction): immutable.Map[String, String] = {
     val googleKey = "startup-script"  // required; see https://cloud.google.com/compute/docs/startupscript
 
     // These things need to be provided to ClusterInitValues, but aren't actually needed for the startup script
@@ -1148,19 +1165,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val clusterInit = ClusterInitValues(cluster.googleProject, cluster.clusterName, dummyInitBucket, dummyClusterRequest,
       dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, None, cluster.auditInfo.creator,
       contentSecurityPolicy, cluster.clusterImages, dummyStagingBucket, cluster.welderEnabled)
-    val replacements: Map[String, String] = clusterInit.toMap ++ Map("deployWelder" -> deployWelder.toString, "updateWelder" -> updateWelder.toString)
+    val replacements: Map[String, String] = clusterInit.toMap ++ Map("deployWelder" -> (welderAction == DeployWelder).toString, "updateWelder" -> (welderAction == UpdateWelder).toString)
 
     val startupScriptContent = templateResource(clusterResourcesConfig.startupScript, replacements)
 
     immutable.Map(googleKey -> startupScriptContent)
-  }
-
-  private def isClusterBeforeCutoffDate(cluster: Cluster): Boolean = {
-    (for {
-      dateStr <- dataprocConfig.clusterCutoffDate
-      date <- Try(new SimpleDateFormat("yyyy-MM-dd").parse(dateStr)).toOption
-      isClusterBeforeCutoffDate = cluster.auditInfo.createdDate.isBefore(date.toInstant)
-    } yield isClusterBeforeCutoffDate) getOrElse false
   }
 
 }

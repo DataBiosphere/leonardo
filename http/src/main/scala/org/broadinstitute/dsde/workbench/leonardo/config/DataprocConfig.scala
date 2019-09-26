@@ -28,5 +28,5 @@ case class DataprocConfig(
                            customDataprocImage: Option[String],
                            deployWelderLabel: Option[String],
                            updateWelderLabel: Option[String],
-                           clusterCutoffDate: Option[String]
+                           deployWelderCutoffDate: Option[String]
                          )
