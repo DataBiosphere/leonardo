@@ -229,7 +229,7 @@ class ClusterMonitorActor(val cluster: Cluster,
 
   private def shouldRecreateCluster(code: Int, message: Option[String]): Boolean = {
     // TODO: potentially add more checks here as we learn which errors are recoverable
-    logger.info("determining if we should re-create cluster")
+    logger.info(s"determining if we should re-create cluster ${cluster.projectNameString}")
     monitorConfig.recreateCluster && (code == Code.UNKNOWN.value)
   }
 
