@@ -67,6 +67,7 @@ final class LeonardoSuite extends Suites(
   new NotebookClusterMonitoringSpec,
   new NotebookCustomizationSpec,
   new NotebookDataSyncingSpec,
+  new NotebookGATKSpec,
   new NotebookHailSpec,
   new NotebookLocalizeFileSpec,
   new NotebookPyKernelSpec,
