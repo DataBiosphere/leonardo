@@ -1,14 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import java.nio.file.Files
-
-import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, LeonardoConfig}
-import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.DoNotDiscover
-
-import scala.collection.JavaConverters._
-import scala.concurrent.duration.DurationInt
 
 /**
   * This spec verifies expected functionality of the Terra GATK+Samtools image.
