@@ -12,6 +12,7 @@ object LeonardoConfig extends CommonConfig {
     val rImageUrl: String = leonardo.getString("rImageUrl")
     val pythonImageUrl: String = leonardo.getString("pythonImageUrl")
     val hailImageUrl: String = leonardo.getString("hailImageUrl")
+    val gatkImageUrl: String = leonardo.getString("gatkImageUrl")
   }
 
   // for qaEmail and pathToQAPem and pathToQAJson
