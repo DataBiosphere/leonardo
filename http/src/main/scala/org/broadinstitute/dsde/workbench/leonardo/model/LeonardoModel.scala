@@ -351,7 +351,7 @@ object ClusterInitValues {
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookConfigUri.value)).toUri,
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookFrontendConfigUri.value)).toUri,
       cluster.defaultClientId.getOrElse(""),
-      cluster.welderEnabled.toString,  // TODO: remove this and conditional below when welder is rolled out to all clusters
+      cluster.welderEnabled.toString,  // TODO: remove this and conditional below when we sunset FireCloud, which does not have welder enabled
       if (cluster.welderEnabled) dataprocConfig.welderEnabledNotebooksDir else dataprocConfig.welderDisabledNotebooksDir
     )
 }

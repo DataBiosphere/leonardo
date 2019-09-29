@@ -283,7 +283,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     val future = for {
       clusterResult <- clusterHelper.createGoogleCluster(cluster).unsafeToFuture()
       (cluster, initBucket, saKey) = clusterResult
-      _ <- dbRef.inTransaction { _.clusterQuery.updateAsyncClusterCreationFields(Option(GcsPath(initBucket, GcsObjectName(""))), saKey, cluster) }
+      _ <- dbRef.inTransaction { _.clusterQuery.updateAsyncClusterCreationFields(Some(GcsPath(initBucket, GcsObjectName(""))), saKey, cluster) }
       _ = logger.info(s"Cluster ${cluster.projectNameString} was successfully created. Will monitor the creation process.")
     } yield NotReadyCluster(cluster.status, Set.empty)
 
@@ -295,7 +295,7 @@ class ClusterMonitorActor(val cluster: Cluster,
         case _ =>
           s"Failed to create cluster ${cluster.projectNameString} due to ${e.toString}"
       }
-      FailedCluster(ClusterErrorDetails(-1, Option(errorMessage)), Set.empty)
+      FailedCluster(ClusterErrorDetails(-1, Some(errorMessage)), Set.empty)
     }
   }
 

@@ -1,12 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
-import java.nio.charset.{Charset, StandardCharsets}
+import java.nio.charset.StandardCharsets
 
 import akka.actor.ActorSystem
 import cats.effect._
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 import fs2._
+import _root_.io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google.{GoogleIamDAO, GoogleProjectDAO}
 import org.broadinstitute.dsde.workbench.google2.GcsBlobName
@@ -16,6 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.WelderAction.{DeployWelder, UpdateWelder}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole.Master
+import org.broadinstitute.dsde.workbench.leonardo.model.google.VPCConfig.{VPCNetwork, VPCSubnet}
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterInitValues, LeoException, ServiceAccountInfo, WelderAction}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -41,7 +43,8 @@ class ClusterHelper(dbRef: DbReference,
                    (implicit
                     val executionContext: ExecutionContext,
                     val system: ActorSystem,
-                    val contextShift: ContextShift[IO]) extends LazyLogging with Retry {
+                    val contextShift: ContextShift[IO],
+                    val log: Logger[IO]) extends LazyLogging with Retry {
 
   def createClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo): IO[Unit] = {
     updateClusterIamRoles(googleProject, serviceAccountInfo, true)
@@ -137,7 +140,7 @@ class ClusterHelper(dbRef: DbReference,
   }
 
   def setMasterMachineType(cluster: Cluster, machineType: MachineType): IO[Unit] = {
-    cluster.instances.toList.traverse { instance =>
+    cluster.instances.toList.traverse_ { instance =>
       instance.dataprocRole match {
         case Some(Master) =>
           IO.fromFuture(IO(googleComputeDAO.setMachineType(instance.key, machineType)))
@@ -147,11 +150,11 @@ class ClusterHelper(dbRef: DbReference,
           // and rebuilding the cluster if new worker machine/disk sizes are needed.
           IO.unit
       }
-    }.void
+    }
   }
 
   def updateMasterDiskSize(cluster: Cluster, diskSize: Int): IO[Unit] = {
-    cluster.instances.toList.traverse { instance =>
+    cluster.instances.toList.traverse_ { instance =>
       instance.dataprocRole match {
         case Some(Master) =>
           IO.fromFuture(IO(googleComputeDAO.resizeDisk(instance.key, diskSize)))
@@ -161,7 +164,7 @@ class ClusterHelper(dbRef: DbReference,
           // and rebuilding the cluster if new worker machine/disk sizes are needed.
           IO.unit
       }
-    }.void
+    }
   }
 
   def deleteCluster(cluster: Cluster): IO[Unit] = {
@@ -176,7 +179,7 @@ class ClusterHelper(dbRef: DbReference,
       else IO.unit
 
       // Now stop each instance individually
-      _ <- cluster.nonPreemptibleInstances.toList.traverse { instance =>
+      _ <- cluster.nonPreemptibleInstances.toList.parTraverse { instance =>
         IO.fromFuture(IO(googleComputeDAO.stopInstance(instance.key)))
       }
     } yield ()
@@ -192,7 +195,7 @@ class ClusterHelper(dbRef: DbReference,
       else IO.unit
 
       // Start each instance individually
-      _ <- cluster.nonPreemptibleInstances.toList.traverse { instance =>
+      _ <- cluster.nonPreemptibleInstances.toList.parTraverse { instance =>
         // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
         IO.fromFuture(IO(instance.dataprocRole match {
           case Some(Master) =>
@@ -215,8 +218,14 @@ class ClusterHelper(dbRef: DbReference,
     // on the metadata server.
     generateServiceAccountKey(cluster.googleProject, cluster.serviceAccountInfo.notebookServiceAccount).flatMap { serviceAccountKeyOpt =>
       val ioResult = for {
+        // get VPC settings
+        projectLabels <- if (dataprocConfig.projectVPCNetworkLabel.isDefined || dataprocConfig.projectVPCSubnetLabel.isDefined) {
+          IO.fromFuture(IO(googleProjectDAO.getLabels(cluster.googleProject.value)))
+        } else IO.pure(Map.empty[String, String])
+        clusterVPCSettings = getClusterVPCSettings(projectLabels)
+
         // Create the firewall rule in the google project if it doesn't already exist, so we can access the cluster
-        _ <- IO.fromFuture(IO(googleComputeDAO.updateFirewallRule(cluster.googleProject, firewallRule)))
+        _ <- IO.fromFuture(IO(googleComputeDAO.updateFirewallRule(cluster.googleProject, getFirewallRule(clusterVPCSettings))))
 
         // Set up IAM roles necessary to create a cluster.
         _ <- createClusterIamRoles(cluster.googleProject, cluster.serviceAccountInfo)
@@ -234,12 +243,7 @@ class ClusterHelper(dbRef: DbReference,
         initScriptResources = if (dataprocConfig.customDataprocImage.isEmpty) List(clusterResourcesConfig.initVmScript, clusterResourcesConfig.initActionsScript) else List(clusterResourcesConfig.initActionsScript)
         initScripts = initScriptResources.map(resource => GcsPath(initBucketName, GcsObjectName(resource.value)))
         credentialsFileName = cluster.serviceAccountInfo.notebookServiceAccount.map(_ => s"/etc/${ClusterInitValues.serviceAccountCredentialsFilename}")
-
-        // decide whether to use VPC network
-        lookupProjectLabels = dataprocConfig.projectVPCNetworkLabel.isDefined || dataprocConfig.projectVPCSubnetLabel.isDefined
-        projectLabels <- if (lookupProjectLabels) IO.fromFuture(IO(googleProjectDAO.getLabels(cluster.googleProject.value))) else IO(Map.empty[String, String])
-        clusterVPCSettings = getClusterVPCSettings(projectLabels)
-
+        
         // Create the cluster
         createClusterConfig = CreateClusterConfig(machineConfig, initScripts, cluster.serviceAccountInfo.clusterServiceAccount, credentialsFileName, stagingBucketName, cluster.scopes, clusterVPCSettings, cluster.properties, dataprocConfig.customDataprocImage)
         retryResult <- IO.fromFuture(IO(retryExponentially(whenGoogleZoneCapacityIssue, "Cluster creation failed because zone with adequate resources was not found") { () =>
@@ -269,48 +273,39 @@ class ClusterHelper(dbRef: DbReference,
   }
 
   private def cleanUpGoogleResourcesOnError(googleProject: GoogleProject, clusterName: ClusterName, initBucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo, serviceAccountKeyOpt: Option[ServiceAccountKey]): IO[Unit] = {
-    logger.error(s"Cluster creation failed in Google for $googleProject / ${clusterName.value}. Cleaning up resources in Google...")
-
     // Clean up resources in Google
-    val deleteBucket = bucketHelper.deleteInitBucket(initBucketName) map { _ =>
-      logger.info(s"Successfully deleted init bucket ${initBucketName.value} for ${googleProject.value} / ${clusterName.value}")
-    } recover { case e =>
-      logger.error(s"Failed to delete init bucket ${initBucketName.value} for ${googleProject.value} / ${clusterName.value}", e)
+    val deleteBucket = (for {
+      _ <- bucketHelper.deleteInitBucket(initBucketName)
+      _ <- log.info(s"Successfully deleted init bucket ${initBucketName.value} for ${googleProject.value} / ${clusterName.value}")
+    } yield ()).recoverWith { case e =>
+      log.error(e)(s"Failed to delete init bucket ${initBucketName.value} for ${googleProject.value} / ${clusterName.value}")
     }
 
     // Don't delete the staging bucket so the user can see error logs.
 
-    val deleteCluster = IO.fromFuture(IO(gdDAO.deleteCluster(googleProject, clusterName))) map { _ =>
-      logger.info(s"Successfully deleted cluster ${googleProject.value} / ${clusterName.value}")
-    } recover { case e =>
-      logger.error(s"Failed to delete cluster ${googleProject.value} / ${clusterName.value}", e)
+    val deleteCluster = (for {
+      _ <- IO.fromFuture(IO(gdDAO.deleteCluster(googleProject, clusterName)))
+      _ <- log.info(s"Successfully deleted cluster ${googleProject.value} / ${clusterName.value}")
+    } yield ()).recoverWith { case e =>
+      log.error(e)(s"Failed to delete cluster ${googleProject.value} / ${clusterName.value}")
     }
 
-    val deleteServiceAccountKey = removeServiceAccountKey(googleProject, serviceAccountInfo.notebookServiceAccount, serviceAccountKeyOpt.map(_.id)) map { _ =>
-      logger.info(s"Successfully deleted service account key for ${serviceAccountInfo.notebookServiceAccount}")
-    } recover { case e =>
-      logger.error(s"Failed to delete service account key for ${serviceAccountInfo.notebookServiceAccount}", e)
+    val deleteServiceAccountKey = (for {
+      _ <- removeServiceAccountKey(googleProject, serviceAccountInfo.notebookServiceAccount, serviceAccountKeyOpt.map(_.id))
+      _ <- log.info(s"Successfully deleted service account key for ${serviceAccountInfo.notebookServiceAccount}")
+    } yield ()).recoverWith { case e =>
+      log.error(e)(s"Failed to delete service account key for ${serviceAccountInfo.notebookServiceAccount}")
     }
 
-    val removeIamRoles = removeClusterIamRoles(googleProject, serviceAccountInfo).map { _ =>
-      logger.info(s"Successfully removed IAM roles for ${googleProject.value} / ${clusterName.value}")
-    } recover { case e =>
-      logger.error(s"Failed to remove IAM roles for ${googleProject.value} / ${clusterName.value}", e)
+    val removeIamRoles = (for {
+      _ <- removeClusterIamRoles(googleProject, serviceAccountInfo)
+      _ <- log.info(s"Successfully removed IAM roles for ${googleProject.value} / ${clusterName.value}")
+    } yield ()).recoverWith { case e =>
+      log.error(e)(s"Failed to remove IAM roles for ${googleProject.value} / ${clusterName.value}")
     }
 
-    List(deleteBucket, deleteCluster, deleteServiceAccountKey, removeIamRoles)
-      .map(Stream.eval)
-      .reduce(_ ++ _)
-      //.parJoin(4)  TODO: why does this not compile?
-      .compile.drain
+    List(deleteBucket, deleteCluster, deleteServiceAccountKey, removeIamRoles).parSequence_
   }
-
-  private def firewallRule = FirewallRule(
-    name = FirewallRuleName(dataprocConfig.firewallRuleName),
-    protocol = FirewallRuleProtocol(proxyConfig.jupyterProtocol),
-    ports = List(FirewallRulePort(proxyConfig.jupyterPort.toString)),
-    network = dataprocConfig.vpcNetwork.map(VPCNetworkName),
-    targetTags = List(NetworkTag(dataprocConfig.networkTag)))
 
   // See https://cloud.google.com/dataproc/docs/guides/dataproc-images#custom_image_uri
   private def parseImageProject(customDataprocImage: String): Option[GoogleProject] = {
@@ -326,53 +321,49 @@ class ClusterHelper(dbRef: DbReference,
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
     val replacements = ClusterInitValues(cluster, initBucketName, serviceAccountKey, dataprocConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig, contentSecurityPolicy).toMap
 
-    // Raw files to upload to the bucket, no additional processing needed.
-    val rawFilesToUpload = Stream.emits(
-      Seq(
+    val uploadRawFiles = for {
+      f <- Stream.emits(Seq(
         clusterFilesConfig.jupyterServerCrt,
         clusterFilesConfig.jupyterServerKey,
         clusterFilesConfig.jupyterRootCaPem
-      )
-    ).evalMap { f =>
-      TemplateHelper.readFile[IO](f, executionContext).map(GcsResource(f, _))
-    }
+      ))
+      bytes <- Stream.eval(TemplateHelper.fileStream(f, executionContext).compile.to[Array])
+      _ <- bucketHelper.storeObject(initBucketName, GcsBlobName(f.getName), bytes, "text/plain")
+    } yield ()
 
-    val rawResourcesToUpload = Stream.emits(
-      Seq(
+    val uploadRawResources = for {
+      r <- Stream.emits(Seq(
         clusterResourcesConfig.jupyterDockerCompose,
         clusterResourcesConfig.rstudioDockerCompose,
         clusterResourcesConfig.proxyDockerCompose,
         clusterResourcesConfig.proxySiteConf,
         clusterResourcesConfig.welderDockerCompose,
         clusterResourcesConfig.initVmScript
-      )
-    ).evalMap { resource =>
-      TemplateHelper.readResource(resource, executionContext).map(GcsResource(resource, _))
-    }
+      ))
+      bytes <- Stream.eval(TemplateHelper.resourceStream(r, executionContext).compile.to[Array])
+      _ <- bucketHelper.storeObject(initBucketName, GcsBlobName(r.value), bytes, "text/plain")
+    } yield ()
 
-    val templatedResourcesToUpload = Stream.emits(
-      Seq(
+    val uploadTemplatedResources = for {
+      r <- Stream.emits(Seq(
         clusterResourcesConfig.initActionsScript,
         clusterResourcesConfig.jupyterNotebookConfigUri,
         clusterResourcesConfig.jupyterNotebookFrontendConfigUri
-      )
-    ).evalMap { resource =>
-      TemplateHelper.templateResource(replacements, resource, executionContext).map(GcsResource(resource, _))
-    }
+      ))
+      bytes <- Stream.eval(TemplateHelper.templateResource(replacements, r, executionContext).compile.to[Array])
+      _ <- bucketHelper.storeObject(initBucketName, GcsBlobName(r.value), bytes, "text/plain")
+    } yield ()
 
-    val privateKey = Stream.emit(
-      for {
-        k <- serviceAccountKey
-        d <- k.privateKeyData.decode
-      } yield GcsResource(GcsBlobName(ClusterInitValues.serviceAccountCredentialsFilename), d.getBytes(Charset.defaultCharset))
-    ).unNone
+    val uploadPrivateKey = for {
+      k <- Stream(serviceAccountKey).unNone
+      data <- Stream(k.privateKeyData.decode).unNone
+      _ <- bucketHelper.storeObject(initBucketName, GcsBlobName(ClusterInitValues.serviceAccountCredentialsFilename), data.getBytes(StandardCharsets.UTF_8), "text/plain")
+    } yield ()
 
-    (rawFilesToUpload ++ rawResourcesToUpload ++ templatedResourcesToUpload ++ privateKey).flatMap { resource =>
-      bucketHelper.storeObject(initBucketName, resource.gcsBlobName, resource.content, "text/plain")
-    }
+    Stream(uploadRawFiles, uploadRawResources, uploadTemplatedResources, uploadPrivateKey).parJoin(4)
   }
 
-  private def getClusterVPCSettings(projectLabels: Map[String, String]): Option[Either[VPCNetworkName, VPCSubnetName]] = {
+  private def getClusterVPCSettings(projectLabels: Map[String, String]): Option[VPCConfig] = {
     //Dataproc only allows you to specify a subnet OR a network. Subnets will be preferred if present.
     //High-security networks specified inside of the project will always take precedence over anything
     //else. Thus, VPC configuration takes the following precedence:
@@ -381,19 +372,26 @@ class ClusterHelper(dbRef: DbReference,
     // 3) Subnet specified in leonardo.conf (if present)
     // 4) Network specified in leonardo.conf (if present)
     // 5) The default network in the project
-    val projectSubnet  = dataprocConfig.projectVPCSubnetLabel.flatMap(subnetLabel => projectLabels.get(subnetLabel).map(VPCSubnetName) )
-    val projectNetwork = dataprocConfig.projectVPCNetworkLabel.flatMap( networkLabel => projectLabels.get(networkLabel).map(VPCNetworkName) )
-    val configSubnet   = dataprocConfig.vpcSubnet.map(VPCSubnetName)
-    val configNetwork  = dataprocConfig.vpcNetwork.map(VPCNetworkName)
+    val projectSubnet  = dataprocConfig.projectVPCSubnetLabel.flatMap(subnetLabel => projectLabels.get(subnetLabel))
+    val projectNetwork = dataprocConfig.projectVPCNetworkLabel.flatMap( networkLabel => projectLabels.get(networkLabel))
+    val configSubnet   = dataprocConfig.vpcSubnet
+    val configNetwork  = dataprocConfig.vpcNetwork
 
     (projectSubnet, projectNetwork, configSubnet, configNetwork) match {
-      case (Some(subnet), _, _, _)  => Some(Right(subnet))
-      case (_, Some(network), _, _) => Some(Left(network))
-      case (_, _, Some(subnet), _)  => Some(Right(subnet))
-      case (_, _, _, Some(network)) => Some(Left(network))
+      case (Some(subnet), _, _, _)  => Some(VPCSubnet(subnet))
+      case (_, Some(network), _, _) => Some(VPCNetwork(network))
+      case (_, _, Some(subnet), _)  => Some(VPCSubnet(subnet))
+      case (_, _, _, Some(network)) => Some(VPCNetwork(network))
       case (_, _, _, _)             => None
     }
   }
+
+  private def getFirewallRule(vpcConfig: Option[VPCConfig]) = FirewallRule(
+    name = FirewallRuleName(dataprocConfig.firewallRuleName),
+    protocol = FirewallRuleProtocol(proxyConfig.jupyterProtocol),
+    ports = List(FirewallRulePort(proxyConfig.jupyterPort.toString)),
+    network = vpcConfig,
+    targetTags = List(NetworkTag(dataprocConfig.networkTag)))
 
   // Startup script to install on the cluster master node. This allows Jupyter to start back up after
   // a cluster is resumed.
@@ -406,8 +404,8 @@ class ClusterHelper(dbRef: DbReference,
     val clusterInit = ClusterInitValues(cluster, dummyInitBucket, None, dataprocConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig, contentSecurityPolicy).toMap
     val replacements: Map[String, String] = clusterInit ++ Map("deployWelder" -> (welderAction == DeployWelder).toString, "updateWelder" -> (welderAction == UpdateWelder).toString)
 
-    TemplateHelper.templateResource(replacements, clusterResourcesConfig.startupScript, executionContext).map { startupScriptContent =>
-      Map(googleKey -> new String(startupScriptContent, StandardCharsets.UTF_8))
+    TemplateHelper.templateResource(replacements, clusterResourcesConfig.startupScript, executionContext).compile.to[Array].map { bytes =>
+      Map(googleKey -> new String(bytes, StandardCharsets.UTF_8))
     }
   }
 

@@ -1,13 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo.model.google
 
-import java.io.File
 import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import enumeratum._
-import org.broadinstitute.dsde.workbench.google2.GcsBlobName
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterResource
 import org.broadinstitute.dsde.workbench.model.{ValueObject, ValueObjectFormat, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleModelJsonSupport._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsPath, GoogleProject}
@@ -34,7 +31,7 @@ final case class CreateClusterConfig(machineConfig: MachineConfig,
                                      credentialsFileName: Option[String],
                                      stagingBucket: GcsBucketName,
                                      clusterScopes: Set[String],
-                                     clusterVPCSettings: Option[Either[VPCNetworkName, VPCSubnetName]],
+                                     clusterVPCSettings: Option[VPCConfig],
                                      properties: Map[String, String], //valid properties are https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/cluster-properties
                                      dataprocCustomImage: Option[String])
 // Dataproc Operation
@@ -108,9 +105,15 @@ case class NetworkTag(value: String) extends ValueObject
 case class FirewallRuleName(value: String) extends ValueObject
 case class FirewallRulePort(value: String) extends ValueObject
 case class FirewallRuleProtocol(value: String) extends ValueObject
-case class VPCNetworkName(value: String) extends ValueObject
-case class VPCSubnetName(value: String) extends ValueObject
-case class FirewallRule(name: FirewallRuleName, protocol: FirewallRuleProtocol, ports: List[FirewallRulePort], network: Option[VPCNetworkName], targetTags: List[NetworkTag])
+case class FirewallRule(name: FirewallRuleName, protocol: FirewallRuleProtocol, ports: List[FirewallRulePort], network: Option[VPCConfig], targetTags: List[NetworkTag])
+
+sealed trait VPCConfig extends Product with Serializable {
+  def value: String
+}
+object VPCConfig {
+  final case class VPCNetwork(value: String) extends VPCConfig
+  final case class VPCSubnet(value: String) extends VPCConfig
+}
 
 // Instance status
 // See: https://cloud.google.com/compute/docs/instances/checking-instance-status
@@ -139,12 +142,6 @@ case class Instance(key: InstanceKey,
                     ip: Option[IP],
                     dataprocRole: Option[DataprocRole],
                     createdDate: Instant)
-
-case class GcsResource(gcsBlobName: GcsBlobName, content: Array[Byte])
-object GcsResource {
-  def apply(file: File, content: Array[Byte]): GcsResource = GcsResource(GcsBlobName(file.getName), content)
-  def apply(clusterResource: ClusterResource, content: Array[Byte]): GcsResource = GcsResource(GcsBlobName(clusterResource.value), content)
-}
 
 object GoogleJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit object UUIDFormat extends JsonFormat[UUID] {
@@ -183,8 +180,6 @@ object GoogleJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val FirewallRuleNameFormat = ValueObjectFormat(FirewallRuleName)
   implicit val FirewallRulePortFormat = ValueObjectFormat(FirewallRulePort)
   implicit val FirewallRuleProtocolFormat = ValueObjectFormat(FirewallRuleProtocol)
-  implicit val VPCNetworkNameFormat = ValueObjectFormat(VPCNetworkName)
-  implicit val FirewallRuleFormat = jsonFormat5(FirewallRule)
 
   implicit val InstanceNameFormat = ValueObjectFormat(InstanceName)
   implicit val DataprocRoleFormat = EnumEntryFormat(DataprocRole.withName)
