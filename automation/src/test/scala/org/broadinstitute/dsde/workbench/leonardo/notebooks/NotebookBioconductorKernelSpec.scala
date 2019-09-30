@@ -78,7 +78,7 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
 
           notebookPage.executeCell("""library("SingleCellExperiment")""", callLibraryTimeout)
           notebookPage.executeCell("""library("DESeq2")""", callLibraryTimeout)
-          notebookPage.executeCell("""library("ShortRead")""", callLibraryTimeout)
+          notebookpage.executeCell("""library("ShortRead")""", callLibraryTimeout)
           notebookPage.executeCell("""library("GenomicAlignments")""", callLibraryTimeout)
           notebookPage.executeCell("""library("GenomicFeatures")""", callLibraryTimeout)
 
