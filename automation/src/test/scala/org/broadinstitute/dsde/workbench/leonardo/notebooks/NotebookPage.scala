@@ -171,14 +171,31 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
     webDriver.findElements(cells.by).asScala.toList.length
   }
 
-  def cellOutput(cell: WebElement): Option[String] = {
+  def cellOutput(cell: WebElement): Option[CellOutput] = {
     val outputs = cell.findElements(By.xpath("../../../..//div[contains(@class,'output_subarea')]"))
-    outputs.asScala.headOption.map(_.getText)
+    outputs.asScala.toList match {
+      case Nil => None
+      case renderResult :: tail =>
+        Some(CellOutput(renderResult.getText, tail.headOption.map(_.getText)))
+    }
   }
 
   //TODO: This function is buggy because the cell numbers are kernel specific not notebook specific
   //It is possible to have a notebook with two cells, numbered 1,1 or even 1, 9
   def executeCell(code: String, timeout: FiniteDuration = 1 minute, cellNumberOpt: Option[Int] = None): Option[String] = {
+    dismissNotebookChanged()
+    await enabled cells
+    val cell = lastCell
+    val cellNumber = cellNumberOpt.getOrElse(numCellsOnPage)
+    click on cell
+    val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
+    executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
+    clickRunCell(timeout)
+    await condition(cellIsRendered(cellNumber), timeout.toSeconds)
+    cellOutput(cell).map(_.renderResult)
+  }
+
+  def executeCellWithCellOutput(code: String, timeout: FiniteDuration = 1 minute, cellNumberOpt: Option[Int] = None): Option[CellOutput] = {
     dismissNotebookChanged()
     await enabled cells
     val cell = lastCell
@@ -359,3 +376,5 @@ class NotebookPage(override val url: String)(override implicit val authToken: Au
   }
 
 }
+
+final case class CellOutput(renderResult: String, output: Option[String])

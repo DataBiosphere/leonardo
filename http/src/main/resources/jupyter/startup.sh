@@ -29,7 +29,11 @@ if [ "$DEPLOY_WELDER" == "true" ] ; then
     docker-compose -f /etc/welder-docker-compose.yaml up -d
 
     # Move existing notebooks to new notebooks dir
-    docker exec -i $JUPYTER_SERVER_NAME bash -c "ls -I jupyter.log -I localization.log -I notebooks /home/jupyter-user | xargs -d '\n'  -I file mv file $NOTEBOOKS_DIR"
+    docker exec -i $JUPYTER_SERVER_NAME bash -c "ls -I notebooks /home/jupyter-user | xargs -d '\n'  -I file mv file $NOTEBOOKS_DIR"
+
+    # Enable welder in /etc/jupyter/nbconfig/notebook.json (which powers the front-end extensions like edit.js and safe.js)
+    docker exec -u root -i $JUPYTER_SERVER_NAME bash -c \
+      "test -f /etc/jupyter/nbconfig/notebook.json && jq '.welderEnabled=\"true\"' /etc/jupyter/nbconfig/notebook.json > /etc/jupyter/nbconfig/notebook.json.tmp && mv /etc/jupyter/nbconfig/notebook.json.tmp /etc/jupyter/nbconfig/notebook.json || true"
 fi
 
 if [ "$UPDATE_WELDER" == "true" ] ; then

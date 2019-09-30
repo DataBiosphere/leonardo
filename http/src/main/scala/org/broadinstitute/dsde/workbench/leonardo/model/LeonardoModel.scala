@@ -24,22 +24,66 @@ import org.broadinstitute.dsde.workbench.model._
 import spray.json.{RootJsonFormat, RootJsonReader, _}
 import ca.mrvisser.sealerate
 
+import scala.util.matching.Regex
+
+sealed trait ContainerRegistry extends Product with Serializable {
+  def regex: Regex
+}
+object ContainerRegistry {
+  final case object GCR extends ContainerRegistry {
+    def regex: Regex = """(.*gcr.io)\/(.+)\/(.+)(\:?.*)$""".r
+
+    override def toString: String = "gcr"
+  }
+
+// Repo format: https://docs.docker.com/docker-hub/repos/
+// Docker hub doesn't have documentation about length limitation on repo name and image name, but 100 max seems reasonable
+  final case object DockerHub extends ContainerRegistry {
+    def regex: Regex = """^([a-z0-9-_\/\S]){1,100}(:?[a-z0-9-_]{1,100}\S)$""".r
+    override def toString: String = "docker hub"
+  }
+
+  val allRegistries: Set[ContainerRegistry] = sealerate.values[ContainerRegistry]
+}
+
+sealed trait ContainerImage extends Product with Serializable {
+  def imageUrl: String
+  def registry: ContainerRegistry
+}
+object ContainerImage {
+  final case class GCR(imageUrl: String) extends ContainerImage {
+    val registry: ContainerRegistry = ContainerRegistry.GCR
+  }
+  final case class DockerHub(imageUrl: String) extends ContainerImage {
+    val registry: ContainerRegistry = ContainerRegistry.DockerHub
+  }
+
+  def stringToJupyterDockerImage(imageUrl: String): Option[ContainerImage] = List(ContainerRegistry.GCR, ContainerRegistry.DockerHub)
+    .find(image => image.regex.pattern.asPredicate().test(imageUrl))
+    .map{ dockerRegistry =>
+      dockerRegistry match {
+        case ContainerRegistry.GCR => ContainerImage.GCR(imageUrl)
+        case ContainerRegistry.DockerHub => ContainerImage.DockerHub(imageUrl)
+      }
+    }
+}
+
 // Create cluster API request
 final case class ClusterRequest(labels: LabelMap = Map.empty,
-                          jupyterExtensionUri: Option[GcsPath] = None,
-                          jupyterUserScriptUri: Option[GcsPath] = None,
-                          machineConfig: Option[MachineConfig] = None,
-                          properties: Map[String, String] = Map.empty,
-                          stopAfterCreation: Option[Boolean] = None,
-                          userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
-                          autopause: Option[Boolean] = None,
-                          autopauseThreshold: Option[Int] = None,
-                          defaultClientId: Option[String] = None,
-                          jupyterDockerImage: Option[String] = None,
-                          rstudioDockerImage: Option[String] = None,
-                          welderDockerImage: Option[String] = None,
-                          scopes: Set[String] = Set.empty,
-                          enableWelder: Option[Boolean] = None)
+                                jupyterExtensionUri: Option[GcsPath] = None,
+                                jupyterUserScriptUri: Option[GcsPath] = None,
+                                machineConfig: Option[MachineConfig] = None,
+                                properties: Map[String, String] = Map.empty,
+                                stopAfterCreation: Option[Boolean] = None,
+                                userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
+                                autopause: Option[Boolean] = None,
+                                autopauseThreshold: Option[Int] = None,
+                                defaultClientId: Option[String] = None,
+                                jupyterDockerImage: Option[ContainerImage] = None,
+                                rstudioDockerImage: Option[String] = None,
+                                welderDockerImage: Option[String] = None,
+                                scopes: Set[String] = Set.empty,
+                                enableWelder: Option[Boolean] = None)
 
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
@@ -384,6 +428,16 @@ object ExtensionType extends Enum[ExtensionType] {
   case object LabExtension extends ExtensionType
 }
 
+sealed trait WelderAction extends EnumEntry
+object WelderAction extends Enum[WelderAction] {
+  val values = findValues
+
+  case object DeployWelder extends WelderAction
+  case object UpdateWelder extends WelderAction
+  case object NoAction extends WelderAction
+  case object ClusterOutOfDate extends WelderAction
+}
+
 object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit object URLFormat extends JsonFormat[URL] {
     def write(obj: URL) = JsString(obj.toString)
@@ -402,6 +456,16 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
       case JsString(uri) => parseGcsPath(uri).getOrElse(throw DeserializationException(s"Could not parse bucket URI from: $uri"))
       case other => throw DeserializationException(s"Expected bucket URI, got: $other")
     }
+  }
+
+  implicit object JupyterDockerImageJsonFormat extends JsonFormat[ContainerImage] {
+    def read(json: JsValue): ContainerImage = json match {
+      case JsString(imageUrl) =>
+        ContainerImage.stringToJupyterDockerImage(imageUrl)
+          .getOrElse(throw DeserializationException(s"Invalid docker registry. Only ${ContainerRegistry.allRegistries.mkString(", ")} are supported"))
+      case other => throw DeserializationException(s"Expected custom docker image URL, got: $other")
+    }
+    override def write(obj: ContainerImage): JsValue = JsString(obj.imageUrl)
   }
 
   implicit val UserClusterExtensionConfigFormat = jsonFormat4(UserJupyterExtensionConfig.apply)
@@ -433,7 +497,7 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
       fieldsWithoutNull.get("autopause").map(_.convertTo[Boolean]),
       fieldsWithoutNull.get("autopauseThreshold").map(_.convertTo[Int]),
       fieldsWithoutNull.get("defaultClientId").map(_.convertTo[String]),
-      fieldsWithoutNull.get("jupyterDockerImage").map(_.convertTo[String]),
+      fieldsWithoutNull.get("jupyterDockerImage").map(_.convertTo[ContainerImage]),
       fieldsWithoutNull.get("rstudioDockerImage").map(_.convertTo[String]),
       fieldsWithoutNull.get("welderDockerImage").map(_.convertTo[String]),
       fieldsWithoutNull.get("scopes").map(_.convertTo[Set[String]]).getOrElse(Set.empty),

@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package service
 
 import java.io.File
+import java.text.SimpleDateFormat
 import java.time.Instant
 import java.util.UUID
 
@@ -14,6 +15,8 @@ import cats.implicits._
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
+import java.util.UUID.randomUUID
+
 import org.broadinstitute.dsde.workbench.google.{GoogleProjectDAO, GoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
@@ -25,13 +28,14 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RS
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions._
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions._
+import org.broadinstitute.dsde.workbench.leonardo.model.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.model.google.DataprocRole._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.util.Retry
 import slick.dbio.DBIO
 import spray.json._
@@ -42,7 +46,7 @@ import scala.concurrent.duration._
 import scala.collection.JavaConverters._
 import scala.io.Source
 import scala.util.control.NonFatal
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 case class AuthorizationError(email: Option[WorkbenchEmail] = None)
   extends LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is unauthorized", StatusCodes.Forbidden)
@@ -64,6 +68,12 @@ case class ClusterCannotBeDeletedException(googleProject: GoogleProject, cluster
 
 case class ClusterCannotBeStartedException(googleProject: GoogleProject, clusterName: ClusterName, status: ClusterStatus)
   extends LeoException(s"Cluster ${googleProject.value}/${clusterName.value} cannot be started in ${status.toString} status", StatusCodes.Conflict)
+
+case class ClusterOutOfDateException()
+  extends LeoException(
+    "Your notebook runtime is out of date, and cannot be started due to recent updates in Terra. If you generated " +
+    "data or copied external files to the runtime that you want to keep please contact support by emailing " +
+    "Terra-support@broadinstitute.zendesk.com. Otherwise, simply delete your existing runtime and create a new one.", StatusCodes.Conflict)
 
 case class ClusterCannotBeUpdatedException(cluster: Cluster)
   extends LeoException(s"Cluster ${cluster.projectNameString} cannot be updated in ${cluster.status} status", StatusCodes.Conflict)
@@ -156,6 +166,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                     googleProject: GoogleProject,
                     clusterName: ClusterName,
                     clusterRequest: ClusterRequest): Future[Cluster] = {
+    val traceId = TraceId(randomUUID)
     for {
       _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
 
@@ -164,7 +175,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       notebookServiceAccountOpt <- serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject)
       serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountOpt, notebookServiceAccountOpt)
 
-      cluster <- internalCreateCluster(userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
+      cluster <- internalCreateCluster(userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest, traceId)
     } yield cluster
   }
 
@@ -172,7 +183,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                             serviceAccountInfo: ServiceAccountInfo,
                             googleProject: GoogleProject,
                             clusterName: ClusterName,
-                            clusterRequest: ClusterRequest): Future[Cluster] = {
+                            clusterRequest: ClusterRequest,
+                            traceId: TraceId): Future[Cluster] = {
     // Check if the google project has an active cluster with the same name. If not, we can create it
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName)
@@ -182,13 +194,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         val internalId = ClusterInternalId(UUID.randomUUID().toString)
         val augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
         val clusterImages = processClusterImages(clusterRequest)
-        val clusterFuture = for {
+        for {
           // Metrics
           _ <- Metrics.newRelic.incrementCounterFuture("numberOfCreateClusterRequests")
           _ <- if (clusterRequest.enableWelder.getOrElse(false)) Metrics.newRelic.incrementCounterFuture("numberOfWelderEnabledCreateClusterRequests") else Future.unit
 
           // Notify the auth provider that the cluster has been created
-          _ <- authProvider.notifyClusterCreated(internalId, userEmail, googleProject, clusterName)
+          _ <- authProvider.notifyClusterCreated(internalId, userEmail, googleProject, clusterName, traceId)
 
           // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
           _ <- validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest)
@@ -201,15 +213,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         } yield {
           savedCluster
         }
-
-        // If cluster creation failed on the Google side, createGoogleCluster removes resources in Google.
-        // We also need to notify our auth provider that the cluster has been deleted.
-        clusterFuture.andThen {
-          // Don't wait for this future
-          case Failure(_) => authProvider.notifyClusterDeleted(internalId, userEmail, userEmail, googleProject, clusterName)
-        }
-
-        clusterFuture
     }
   }
 
@@ -219,6 +222,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                     googleProject: GoogleProject,
                                     clusterName: ClusterName,
                                     clusterRequest: ClusterRequest): Future[Cluster] = {
+    val traceId = TraceId(randomUUID)
     for {
       _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
 
@@ -228,7 +232,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountOpt, notebookServiceAccountOpt)
 
       cluster <- initiateClusterCreation(
-        userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
+        userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest, traceId)
     } yield cluster
   }
 
@@ -238,14 +242,15 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                               serviceAccountInfo: ServiceAccountInfo,
                               googleProject: GoogleProject,
                               clusterName: ClusterName,
-                              clusterRequest: ClusterRequest): Future[Cluster] = {
+                              clusterRequest: ClusterRequest,
+                              traceId: TraceId): Future[Cluster] = {
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getActiveClusterByNameMinimal(googleProject, clusterName)
     } flatMap {
       case Some(existingCluster) =>
         throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
       case None =>
-        stageClusterCreation(userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
+        stageClusterCreation(userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest, traceId)
     }
   }
 
@@ -253,8 +258,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                    serviceAccountInfo: ServiceAccountInfo,
                                    googleProject: GoogleProject,
                                    clusterName: ClusterName,
-                                   clusterRequest: ClusterRequest): Future[Cluster] = {
-
+                                   clusterRequest: ClusterRequest,
+                                   traceId: TraceId): Future[Cluster] = {
     val internalId = ClusterInternalId(UUID.randomUUID().toString)
     val augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
     val clusterImages = processClusterImages(clusterRequest)
@@ -271,11 +276,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     // and if so, save the cluster creation request parameters in DB
     val attemptToSaveClusterInDb: Future[Cluster] = validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest)
       .flatMap { _ =>
-        logger.info(s"Attempting to notify the AuthProvider for creation of cluster '$clusterName' " +
+        logger.info(s"[$traceId] Attempting to notify the AuthProvider for creation of cluster '$clusterName' " +
           s"on Google project '$googleProject'...")
-        authProvider.notifyClusterCreated(internalId, userEmail, googleProject, clusterName) }
+        authProvider.notifyClusterCreated(internalId, userEmail, googleProject, clusterName, traceId) }
       .flatMap { _ =>
-        logger.info(s"Successfully notified the AuthProvider for creation of cluster '$clusterName' " +
+        logger.info(s"[$traceId] Successfully notified the AuthProvider for creation of cluster '$clusterName' " +
           s"on Google project '$googleProject'.")
 
         dbRef.inTransaction { _.clusterQuery.save(initialClusterToSave) }
@@ -283,26 +288,21 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     // For the success case, register the following callbacks...
     attemptToSaveClusterInDb foreach { savedInitialCluster =>
-      logger.info(s"Inserted an initial record into the DB for cluster '$clusterName' " +
+      logger.info(s"[$traceId] Inserted an initial record into the DB for cluster '$clusterName' " +
         s"on Google project '$googleProject'.")
 
-      logger.info(s"Attempting to asynchronously create cluster '$clusterName' " +
+      logger.info(s"[$traceId] Attempting to asynchronously create cluster '$clusterName' " +
         s"on Google project '$googleProject'...")
 
       completeClusterCreation(userEmail, savedInitialCluster, augmentedClusterRequest)
         .onComplete {
           case Success(updatedCluster) =>
-            logger.info(s"Successfully submitted to Google the request to create cluster " +
+            logger.info(s"[$traceId] Successfully submitted to Google the request to create cluster " +
               s"'${updatedCluster.clusterName}' on Google project '${updatedCluster.googleProject}', " +
               s"and updated the database record accordingly. Will monitor the cluster creation process...")
           case Failure(e) =>
-            logger.error(s"Failed the asynchronous portion of the creation of cluster '$clusterName' " +
+            logger.error(s"[$traceId] Failed the asynchronous portion of the creation of cluster '$clusterName' " +
               s"on Google project '$googleProject'.", e)
-
-            // Since we failed, createGoogleCluster removes resources in Google but
-            // we also need to notify our auth provider that the cluster has been deleted.
-            // We won't wait for that deletion, though.
-            authProvider.notifyClusterDeleted(internalId, userEmail, userEmail, googleProject, clusterName)
 
             // We also want to record the error in database for future reference.
             persistErrorInDb(e, clusterName, savedInitialCluster.id, googleProject)
@@ -614,23 +614,26 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   def internalStartCluster(userEmail: WorkbenchEmail, cluster: Cluster): Future[Unit] = {
     if (cluster.status.isStartable) {
-      val welderDeploy = shouldDeployWelder(cluster)
-      val welderUpdate = shouldUpdateWelder(cluster)
+      val welderAction = getWelderAction(cluster)
       for {
-        // Check if welder should be deployed
-        updatedCluster <- if (welderDeploy || welderUpdate) updateWelder(cluster).unsafeToFuture() else Future.successful(cluster)
+        // Check if welder should be deployed or updated
+        updatedCluster <- welderAction match {
+          case DeployWelder | UpdateWelder => updateWelder(cluster).unsafeToFuture()
+          case NoAction => Future.successful(cluster)
+          case ClusterOutOfDate => Future.failed(ClusterOutOfDateException())
+        }
 
         // Add back the preemptible instances
         _ <- if (updatedCluster.machineConfig.numberOfPreemptibleWorkers.exists(_ > 0))
-               gdDAO.resizeCluster(updatedCluster.googleProject, updatedCluster.clusterName, numPreemptibles = updatedCluster.machineConfig.numberOfPreemptibleWorkers)
-             else Future.unit
+          gdDAO.resizeCluster(updatedCluster.googleProject, updatedCluster.clusterName, numPreemptibles = updatedCluster.machineConfig.numberOfPreemptibleWorkers)
+        else Future.unit
 
         // Start each instance individually
         _ <- Future.traverse(updatedCluster.nonPreemptibleInstances) { instance =>
           // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
           instance.dataprocRole match {
             case Some(Master) =>
-              googleComputeDAO.addInstanceMetadata(instance.key, getMasterInstanceStartupScript(updatedCluster, welderDeploy, welderUpdate)) >>
+              googleComputeDAO.addInstanceMetadata(instance.key, getMasterInstanceStartupScript(updatedCluster, welderAction)) >>
                 googleComputeDAO.startInstance(instance.key)
             case _ =>
               googleComputeDAO.startInstance(instance.key)
@@ -642,7 +645,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           dataAccess.clusterQuery.updateClusterStatus(updatedCluster.id, ClusterStatus.Starting)
         }
       } yield ()
-
     } else Future.failed(ClusterCannotBeStartedException(cluster.googleProject, cluster.clusterName, cluster.status))
   }
 
@@ -1098,7 +1100,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     // Note: Jupyter image is not currently optional
     val jupyterImage: ClusterImage = ClusterImage(Jupyter,
-      clusterRequest.jupyterDockerImage.getOrElse(dataprocConfig.dataprocDockerImage), now)
+      clusterRequest.jupyterDockerImage.map(_.imageUrl).getOrElse(dataprocConfig.jupyterImage), now)
 
     // Optional RStudio image
     val rstudioImageOpt: Option[ClusterImage] = clusterRequest.rstudioDockerImage.map(i => ClusterImage(RStudio, i, now))
@@ -1106,19 +1108,36 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     Set(welderImageOpt, Some(jupyterImage), rstudioImageOpt).flatten
   }
 
-  private def shouldDeployWelder(cluster: Cluster): Boolean = {
-    !cluster.welderEnabled && dataprocConfig.deployWelderLabel.exists(cluster.labels.contains)
+  private def getWelderAction(cluster: Cluster): WelderAction = {
+    if (cluster.welderEnabled) {
+      // Welder is already enabled; do we need to update it?
+      val labelFound = dataprocConfig.updateWelderLabel.exists(cluster.labels.contains)
+
+      val imageChanged = cluster.clusterImages.find(_.tool == Welder) match {
+        case Some(welderImage) if welderImage.dockerImage != dataprocConfig.welderDockerImage => true
+        case _ => false
+      }
+
+      if (labelFound && imageChanged) UpdateWelder
+      else NoAction
+    }
+    else {
+      // Welder is not enabled; do we need to deploy it?
+      val labelFound = dataprocConfig.deployWelderLabel.exists(cluster.labels.contains)
+      if (labelFound) {
+        if (isClusterBeforeCutoffDate(cluster)) ClusterOutOfDate
+        else DeployWelder
+      }
+      else NoAction
+    }
   }
 
-  private def shouldUpdateWelder(cluster: Cluster): Boolean = {
-    val labelFound = cluster.welderEnabled && dataprocConfig.updateWelderLabel.exists(cluster.labels.contains)
-
-    val imageChanged = cluster.clusterImages.find(_.tool == Welder) match {
-      case Some(welderImage) if welderImage.dockerImage != dataprocConfig.welderDockerImage => true
-      case _ => false
-    }
-
-    labelFound && imageChanged
+  private def isClusterBeforeCutoffDate(cluster: Cluster): Boolean = {
+    (for {
+      dateStr <- dataprocConfig.deployWelderCutoffDate
+      date <- Try(new SimpleDateFormat("yyyy-MM-dd").parse(dateStr)).toOption
+      isClusterBeforeCutoffDate = cluster.auditInfo.createdDate.isBefore(date.toInstant)
+    } yield isClusterBeforeCutoffDate) getOrElse false
   }
 
   private def updateWelder(cluster: Cluster): IO[Cluster] = {
@@ -1135,7 +1154,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
   // Startup script to install on the cluster master node. This allows Jupyter to start back up after
   // a cluster is resumed.
-  private def getMasterInstanceStartupScript(cluster: Cluster, deployWelder: Boolean, updateWelder: Boolean): immutable.Map[String, String] = {
+  private def getMasterInstanceStartupScript(cluster: Cluster, welderAction: WelderAction): immutable.Map[String, String] = {
     val googleKey = "startup-script"  // required; see https://cloud.google.com/compute/docs/startupscript
 
     // These things need to be provided to ClusterInitValues, but aren't actually needed for the startup script
@@ -1146,7 +1165,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val clusterInit = ClusterInitValues(cluster.googleProject, cluster.clusterName, dummyInitBucket, dummyClusterRequest,
       dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, None, cluster.auditInfo.creator,
       contentSecurityPolicy, cluster.clusterImages, dummyStagingBucket, cluster.welderEnabled)
-    val replacements: Map[String, String] = clusterInit.toMap ++ Map("deployWelder" -> deployWelder.toString, "updateWelder" -> updateWelder.toString)
+    val replacements: Map[String, String] = clusterInit.toMap ++ Map("deployWelder" -> (welderAction == DeployWelder).toString, "updateWelder" -> (welderAction == UpdateWelder).toString)
 
     val startupScriptContent = templateResource(clusterResourcesConfig.startupScript, replacements)
 

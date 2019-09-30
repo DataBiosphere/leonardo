@@ -24,7 +24,7 @@ package object config {
       config.getString("dataprocDefaultRegion"),
       config.getAs[String]("dataprocZone"),
       GoogleProject(config.getString("leoGoogleProject")),
-      config.getString("dataprocDockerImage"),
+      config.getString("jupyterImage"),
       config.getString("clusterUrlBase"),
       toScalaDuration(config.getDuration("defaultExecutionTimeout")),
       config.getString("jupyterServerName"),
@@ -42,7 +42,8 @@ package object config {
       config.getString("welderDisabledNotebooksDir"),
       config.getAs[String]("customDataprocImage"),
       config.getAs[String]("deployWelderLabel"),
-      config.getAs[String]("updateWelderLabel")
+      config.getAs[String]("updateWelderLabel"),
+      config.getAs[String]("deployWelderCutoffDate")
     )
   }
 

@@ -84,7 +84,7 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
               serverExt.get should include("jupyter_nbextensions_configurator  enabled")
 
               // Exercise the translate extension
-              notebookPage.translateMarkup("Hello") should include("Bonjour")
+              notebookPage.translateMarkup("Hello") should include("Salut")
             }
           }
         }

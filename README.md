@@ -48,11 +48,21 @@ Ensure docker is running. Spin up MySQL locally:
 ```
 $ ./docker/run-mysql.sh start leonardo  
 ```
-Build Leonardo and run tests.
+Build Leonardo and run all unit tests.
 ```
 export SBT_OPTS="-Xmx2G -Xms1G -Dmysql.host=localhost -Dmysql.port=3311"
 sbt clean compile "project http" test
 ```
+You can also run a particular test suite, e.g.
+```
+sbt "testOnly *LeoAuthProviderHelperSpec"
+```
+or a particular test within a suite, e.g.
+```
+sbt "testOnly *LeoAuthProviderHelperSpec -- -z map"
+```
+where `map` is a substring within the test name.
+
 Once you're done, tear down MySQL.
 ```
 ./docker/run-mysql.sh stop leonardo

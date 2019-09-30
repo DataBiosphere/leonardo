@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package service
 
 import java.io.ByteArrayInputStream
+import java.text.SimpleDateFormat
 import java.time.Instant
 import java.util.UUID
 
@@ -14,7 +15,6 @@ import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{MockPetClusterServiceAccountProvider, MockSwaggerSamClient}
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockWelderDAO
@@ -215,7 +215,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       val createdCluster = leo.getActiveClusterDetails(userInfo, project, name1).futureValue
 
       // cluster images should contain welder and Jupyter
-      createdCluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage) shouldBe Some(dataprocConfig.dataprocDockerImage)
+      createdCluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage) shouldBe Some(dataprocConfig.jupyterImage)
       createdCluster.clusterImages.find(_.tool == RStudio) shouldBe None
       createdCluster.clusterImages.find(_.tool == Welder).map(_.dockerImage) shouldBe Some(dataprocConfig.welderDockerImage)
     }
@@ -240,7 +240,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       val createdCluster = leo.getActiveClusterDetails(userInfo, project, name1).futureValue
 
       // cluster images should contain welder and Jupyter
-      createdCluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage) shouldBe Some(dataprocConfig.dataprocDockerImage)
+      createdCluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage) shouldBe Some(dataprocConfig.jupyterImage)
       createdCluster.clusterImages.find(_.tool == RStudio) shouldBe None
       createdCluster.clusterImages.find(_.tool == Welder).map(_.dockerImage) shouldBe customWelderImage
     }
@@ -1059,9 +1059,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
       dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Error)
     }
 
-    // We make at most 2 IAM calls - they should not have been retried
-    // Assertion is <= 2 because calls are made in parallel with parSequence, so 1 or both may have been tried.
-    iamDAO.invocationCount should be <= 2
+    // We make at most 3 IAM calls - they should not have been retried
+    // Assertion is <= 3 because calls are made in parallel with parSequence, so 1 or both may have been tried.
+    iamDAO.invocationCount should be <= 3
   }
 
   it should "retry 409 errors when adding IAM roles" in isolatedDbTest {
@@ -1083,7 +1083,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     }
 
     // IAM calls should have been retried exponentially
-    iamDAO.invocationCount should be > 2
+    iamDAO.invocationCount should be > 3
   }
 
   it should "update the autopause threshold for a cluster" in isolatedDbTest {
@@ -1322,6 +1322,35 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     computeDAO.instanceMetadata.keySet shouldBe clusterInstances.map(_.key).toSet
     computeDAO.instances.values.toSet shouldBe clusterInstances.map(_.copy(status = InstanceStatus.Running)).toSet
     computeDAO.instanceMetadata.values.map(_.keys).flatten.toSet shouldBe Set("startup-script")
+  }
+
+  it should "fail to start an old cluster" in isolatedDbTest {
+    // check that the cluster does not exist
+    gdDAO.clusters should not contain key(name1)
+
+    // create the cluster
+    val request = testClusterRequest.copy(labels = Map("TEST_ONLY_DEPLOY_WELDER" -> "yes"))
+    val clusterCreateResponse =
+      leo.processClusterCreationRequest(userInfo, project, name1, request).futureValue
+
+    eventually {
+      // check that the cluster was created
+      gdDAO.clusters should contain key name1
+    }
+
+    // set its status to Stopped and update its createdDate
+    dbFutureValue { _.clusterQuery.updateClusterStatus(clusterCreateResponse.id, ClusterStatus.Stopped) }
+    dbFutureValue { _.clusterQuery.updateClusterCreatedDate(clusterCreateResponse.id, new SimpleDateFormat("yyyy-MM-dd").parse("2018-12-31").toInstant) }
+
+    // start the cluster and verify exception
+    leo.startCluster(userInfo, project, name1).failed.futureValue shouldBe a [ClusterOutOfDateException]
+
+    // cluster status should still be Stopped in the DB
+    dbFutureValue { _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse) }.get
+      .status shouldBe ClusterStatus.Stopped
+
+    // cluster should still exist in Google
+    gdDAO.clusters should contain key name1
   }
 
   it should "update disk size for 0 workers when a consumer specifies numberOfPreemptibleWorkers" in isolatedDbTest {

@@ -105,9 +105,6 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     when {
       dao.getProjectNumber(any[GoogleProject])
     } thenReturn Future.successful(Some((new Random).nextLong()))
-    when {
-      dao.getGoogleApiServiceAccount(any[GoogleProject])
-    } thenReturn Future.successful(Some(WorkbenchEmail("test@example.com")))
     dao
   }
 
@@ -946,10 +943,6 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     when {
       computeDAO.stopInstance(mockitoEq(masterInstance.key))
     } thenReturn Future.successful(())
-
-    when {
-      computeDAO.getGoogleApiServiceAccount(mockitoEq(creatingCluster.googleProject))
-    } thenReturn Future.successful(Some(WorkbenchEmail("api-service-account")))
 
     val storageDAO = mock[GoogleStorageDAO]
     when {
