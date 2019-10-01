@@ -160,7 +160,7 @@ else
 fi
 
 # Install Python 3.7
-export PYTHON_VERSION="3.7.0"
+export PYTHON_VERSION="3.7.4"
 python_source_archive_name="Python-${PYTHON_VERSION:?}.tar.xz"
 python_source_archive_download_url="https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/${python_source_archive_name:?}"
 python_target_archive_name="python.tar.xz"

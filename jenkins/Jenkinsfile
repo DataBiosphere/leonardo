@@ -22,8 +22,7 @@ def boolean hasHashChanges(ArrayList<String> images) {
 
     println("in change detection loop, before bash. File: $configFile") 
     def gitOutput = sh(
-      //TODO: revert
-      script: "git diff HEAD~60..HEAD $configFile",
+      script: "git diff HEAD~1..HEAD $configFile",
       returnStdout: true
     ).trim()
 
@@ -116,8 +115,7 @@ pipeline {
 
     stage('Leonardo Git') {
       steps {
-        //TODO: FIX BRANCH
-        git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'jc-auto-build-dataproc'
+        git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'develop'
       }
     }
         
