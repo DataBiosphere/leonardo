@@ -301,10 +301,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
               s"'${updatedCluster.clusterName}' on Google project '${updatedCluster.googleProject}', " +
               s"and updated the database record accordingly. Will monitor the cluster creation process...")
           case Failure(e) =>
-            logger.error(s"[$traceId] Failed the asynchronous portion of the creation of cluster '$clusterName' " +
+            logger.error(s"[$traceId] Failed the google call portion of the creation of cluster '$clusterName' " +
               s"on Google project '$googleProject'.", e)
-
-            Metrics.newRelic.incrementCounterIO("asyncClusterCreationFailure")
 
             // We also want to record the error in database for future reference.
             persistErrorInDb(e, clusterName, savedInitialCluster.id, googleProject)
