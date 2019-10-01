@@ -31,7 +31,7 @@ import scala.language.postfixOps
   */
 @DoNotDiscover
 class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
-  override val jupyterDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.biocImageUrl)
+  override val jupyterDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.bioconductorImageUrl)
   "NotebookBioconductorKernelSpec" - {
 
     "should use Bioconductor version 3.9" in { clusterFixture =>
@@ -78,7 +78,7 @@ class NotebookBioconductorKernelSpec extends ClusterFixtureSpec with NotebookTes
 
           notebookPage.executeCell("""library("SingleCellExperiment")""", callLibraryTimeout)
           notebookPage.executeCell("""library("DESeq2")""", callLibraryTimeout)
-          notebookpage.executeCell("""library("ShortRead")""", callLibraryTimeout)
+          notebookPage.executeCell("""library("ShortRead")""", callLibraryTimeout)
           notebookPage.executeCell("""library("GenomicAlignments")""", callLibraryTimeout)
           notebookPage.executeCell("""library("GenomicFeatures")""", callLibraryTimeout)
 
