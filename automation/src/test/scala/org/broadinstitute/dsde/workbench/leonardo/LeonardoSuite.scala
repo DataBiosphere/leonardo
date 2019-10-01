@@ -64,6 +64,7 @@ final class LeonardoSuite extends Suites(
   new PingSpec,
   new ClusterStatusTransitionsSpec,
   new LabSpec,
+  new NotebookBioconductorKernelSpec,
   new NotebookClusterMonitoringSpec,
   new NotebookCustomizationSpec,
   new NotebookDataSyncingSpec,
