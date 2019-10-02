@@ -26,7 +26,7 @@ terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-biocond
 terra_jupyter_hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:0.0.1"
 
 #leonardo_jupyter will be discontinued soon
-leonardo_jupyter="us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:dev"
+leonardo_jupyter="us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:5c51ce6935da"
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:latest"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
 
