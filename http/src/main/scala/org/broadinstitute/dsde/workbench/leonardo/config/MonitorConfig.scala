@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
+
 import scala.concurrent.duration.FiniteDuration
 
 /**
@@ -7,4 +9,5 @@ import scala.concurrent.duration.FiniteDuration
   */
 case class MonitorConfig(pollPeriod: FiniteDuration,
                          maxRetries: Int = -1,
-                         recreateCluster: Boolean = true)
+                         recreateCluster: Boolean = true,
+                         monitorStatusTimeouts: Map[ClusterStatus, FiniteDuration])

@@ -202,6 +202,53 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     }
   }
 
+  //Pre:
+  // - cluster exists in DB with status Creating
+  // - dataproc DAO returns creating and compute DAO returns status running
+  // - the poll period for creationTimeLimit passes
+  //Post:
+  // - cluster status is set to Error in the DB
+  it should "Delete a cluster that is stuck creating for too long" in isolatedDbTest {
+    val savedCreatingCluster = creatingCluster.save()
+    creatingCluster shouldEqual savedCreatingCluster
+
+    val gdDAO = mock[GoogleDataprocDAO]
+    when {
+      gdDAO.getClusterStatus(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+    } thenReturn Future.successful(ClusterStatus.Creating)
+
+    when {
+      gdDAO.getClusterInstances(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+    } thenReturn Future.successful(clusterInstances)
+
+    when {
+      gdDAO.getClusterErrorDetails(mockitoEq(creatingCluster.dataprocInfo.operationName))
+    } thenReturn Future.successful(Some(ClusterErrorDetails(Code.DEADLINE_EXCEEDED.value, Some("Test message"))))
+
+    when {
+      gdDAO.deleteCluster(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+    } thenReturn Future.successful(())
+
+    val computeDAO = stubComputeDAO(InstanceStatus.Running)
+    val projectDAO = mock[GoogleProjectDAO]
+    val iamDAO = mock[GoogleIamDAO]
+    val storageDAO = mock[GoogleStorageDAO]
+    val authProvider = mock[LeoAuthProvider]
+
+    withClusterSupervisor(gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, FakeGoogleStorageService, authProvider, MockJupyterDAO, MockRStudioDAO, MockWelderDAO, true) { actor =>
+      eventually(timeout(Span((monitorConfig.monitorStatusTimeouts.getOrElse(ClusterStatus.Creating, throw new Exception("config does not have proper params for monitor status timeouts")) * 3).toSeconds, Seconds))) {
+        val updatedCluster = dbFutureValue {
+          _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
+        }
+        updatedCluster shouldBe 'defined
+        updatedCluster.map(_.status) shouldBe Some(ClusterStatus.Error)
+
+        verify(gdDAO, times(1)).deleteCluster(mockitoEq(creatingCluster.googleProject), mockitoEq(creatingCluster.clusterName))
+      }
+    }
+
+  }
+
   // Pre:
   // - cluster exists in the DB with status Creating
   // - dataproc DAO returns status CREATING, UNKNOWN, or UPDATING

@@ -137,9 +137,19 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @return ScheduleMonitorPass
     */
   private def handleNotReadyCluster(status: ClusterStatus, instances: Set[Instance]): Future[ClusterMonitorMessage] = {
-    logger.info(s"Cluster ${cluster.projectNameString} is not ready yet (cluster status = $status, instance statuses = ${instances.groupBy(_.status).mapValues(_.size)}). Checking again in ${monitorConfig.pollPeriod.toString}.")
-    persistInstances(instances).map { _ =>
-      ScheduleMonitorPass
+    val currTimeElapsed: Long = (System.currentTimeMillis() - startTime)
+
+    if (monitorConfig.monitorStatusTimeouts.keySet.contains(status) &&
+          currTimeElapsed > monitorConfig.monitorStatusTimeouts(status).toMillis) {
+
+        logger.info(s"Detected that ${cluster.projectNameString} has been stuck in status $status too long. Failing it. Current timeout config: ${monitorConfig.monitorStatusTimeouts.toString}")
+        Metrics.newRelic.incrementCounterIO(s"$status-timeout").unsafeRunSync()
+        handleFailedCluster(ClusterErrorDetails(Code.DEADLINE_EXCEEDED.value, Some(s"Failed to transition ${cluster.projectNameString} from status $status within the time limit:  ${monitorConfig.monitorStatusTimeouts.toString}")), instances)
+    } else {
+      logger.info(s"Cluster ${cluster.projectNameString} is not ready yet and has taken ${currTimeElapsed.toString} so far (cluster status = $status, instance statuses = ${instances.groupBy(_.status).mapValues(_.size)}). Checking again in ${monitorConfig.pollPeriod.toString}.")
+      persistInstances(instances).map { _ =>
+        ScheduleMonitorPass
+      }
     }
   }
 
@@ -219,6 +229,7 @@ class ClusterMonitorActor(val cluster: Cluster,
 
   private def shouldRecreateCluster(code: Int, message: Option[String]): Boolean = {
     // TODO: potentially add more checks here as we learn which errors are recoverable
+    logger.info(s"determining if we should re-create cluster ${cluster.projectNameString}")
     monitorConfig.recreateCluster && (code == Code.UNKNOWN.value)
   }
 

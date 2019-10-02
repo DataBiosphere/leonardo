@@ -2,13 +2,16 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.io.File
 
+import com.typesafe.config.Config
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterResource
+import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 
 import scala.collection.JavaConverters._
+import scala.concurrent.duration.FiniteDuration
 
 package object config {
   implicit val swaggerReader: ValueReader[SwaggerConfig] = ValueReader.relative { config =>
@@ -26,7 +29,6 @@ package object config {
       GoogleProject(config.getString("leoGoogleProject")),
       config.getString("jupyterImage"),
       config.getString("clusterUrlBase"),
-      toScalaDuration(config.getDuration("defaultExecutionTimeout")),
       config.getString("jupyterServerName"),
       config.getString("rstudioServerName"),
       config.getString("welderServerName"),
@@ -102,8 +104,19 @@ package object config {
   }
 
   implicit val monitorConfigReader: ValueReader[MonitorConfig] = ValueReader.relative { config =>
-    MonitorConfig(toScalaDuration(config.getDuration("pollPeriod")), config.getInt("maxRetries"), config.getBoolean("recreateCluster"))
+
+    MonitorConfig(toScalaDuration(config.getDuration("pollPeriod")), config.getInt("maxRetries"), config.getBoolean("recreateCluster"), getTimeoutMap(config))
   }
+
+   def getTimeoutMap(config: Config): Map[ClusterStatus, FiniteDuration] = {
+     Map(
+       ClusterStatus.Creating -> toScalaDuration(config.getDuration("creatingTimeLimit")),
+       ClusterStatus.Starting -> toScalaDuration(config.getDuration("startingTimeLimit")),
+       ClusterStatus.Stopping -> toScalaDuration(config.getDuration("stoppingTimeLimit")),
+       ClusterStatus.Deleting -> toScalaDuration(config.getDuration("deletingTimeLimit")),
+       ClusterStatus.Updating -> toScalaDuration(config.getDuration("updatingTimeLimit"))
+     )
+   }
 
   implicit val samConfigReader: ValueReader[SamConfig] = ValueReader.relative { config =>
     SamConfig(config.getString("server"))
