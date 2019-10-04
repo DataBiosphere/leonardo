@@ -140,11 +140,12 @@ class ClusterMonitorActor(val cluster: Cluster,
     val currTimeElapsed: Long = (System.currentTimeMillis() - startTime)
 
     if (monitorConfig.monitorStatusTimeouts.keySet.contains(status) &&
-          currTimeElapsed > monitorConfig.monitorStatusTimeouts(status).toMillis) {
+        currTimeElapsed > monitorConfig.monitorStatusTimeouts(status).toMillis) {
 
-        logger.info(s"Detected that ${cluster.projectNameString} has been stuck in status $status too long. Failing it. Current timeout config: ${monitorConfig.monitorStatusTimeouts.toString}")
-        Metrics.newRelic.incrementCounterIO(s"$status-timeout").unsafeRunSync()
-        handleFailedCluster(ClusterErrorDetails(Code.DEADLINE_EXCEEDED.value, Some(s"Failed to transition ${cluster.projectNameString} from status $status within the time limit:  ${monitorConfig.monitorStatusTimeouts.toString}")), instances)
+      logger.info(s"Detected that ${cluster.projectNameString} has been stuck in status $status too long. Failing it. Current timeout config: ${monitorConfig.monitorStatusTimeouts.toString}")
+    
+      Metrics.newRelic.incrementCounterIO(s"ClusterTransitionTimeout/$status").unsafeRunSync()
+      handleFailedCluster(ClusterErrorDetails(Code.DEADLINE_EXCEEDED.value, Some(s"Failed to transition ${cluster.projectNameString} from status $status within the time limit:  ${monitorConfig.monitorStatusTimeouts.toString}")), instances)
     } else {
       logger.info(s"Cluster ${cluster.projectNameString} is not ready yet and has taken ${currTimeElapsed.toString} so far (cluster status = $status, instance statuses = ${instances.groupBy(_.status).mapValues(_.size)}). Checking again in ${monitorConfig.pollPeriod.toString}.")
       persistInstances(instances).map { _ =>
