@@ -518,8 +518,12 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     val clusterCreateResponse =
       failingLeo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
 
+    // confirm the cluster is in Error status and doesn't have a google id
     eventually(timeout(Span(5, Minutes))) {
-      dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Error)
+      val dbClusterOpt = dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }
+      dbClusterOpt shouldBe 'defined
+      dbClusterOpt.get.status shouldBe ClusterStatus.Error
+      dbClusterOpt.get.dataprocInfo.googleId shouldBe None
     }
 
     // delete the cluster
