@@ -494,15 +494,43 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
           gdDAO.clusters should contain key clusterName
         }
 
-        // change cluster status to Running so that it can be deleted
-        dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots")) }
+        // change cluster status to Error
+        dbFutureValue { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Error) }
 
         // delete the cluster
         leo.deleteCluster(userInfo, project, clusterName).futureValue
 
         // check that the cluster no longer exists
         gdDAO.clusters should not contain key(clusterName)
+
+        // cluster should be in Deleting state (the cluster monitor transitions it to Deleted)
+        dbFutureValue { _.clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(ClusterStatus.Deleting)
     }
+  }
+
+  it should "delete a cluster that has status Error and does not have a google id" in isolatedDbTest {
+    //we need to use a special version of the MockGoogleIamDAO to simulate an error when adding IAM roles
+    val iamDAO = new ErroredMockGoogleIamDAO
+    val clusterHelper = new ClusterHelper(DbSingleton.ref, dataprocConfig, mockGoogleDataprocDAO, computeDAO, iamDAO)
+    val failingLeo = new LeonardoService(dataprocConfig, MockWelderDAO, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, mockGoogleDataprocDAO, computeDAO, projectDAO, storageDAO, mockPetGoogleDAO, DbSingleton.ref, authProvider, serviceAccountProvider, bucketHelper, clusterHelper, contentSecurityPolicy)
+
+    // create the cluster
+    val clusterCreateResponse =
+      failingLeo.processClusterCreationRequest(userInfo, project, name1, testClusterRequest).futureValue
+
+    // confirm the cluster is in Error status and doesn't have a google id
+    eventually(timeout(Span(5, Minutes))) {
+      val dbClusterOpt = dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }
+      dbClusterOpt shouldBe 'defined
+      dbClusterOpt.get.status shouldBe ClusterStatus.Error
+      dbClusterOpt.get.dataprocInfo.googleId shouldBe None
+    }
+
+    // delete the cluster
+    leo.deleteCluster(userInfo, project, name1).futureValue
+
+    // cluster should be in Deleted state
+    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Deleted)
   }
 
   it should "delete a cluster's instances" in isolatedDbTest {

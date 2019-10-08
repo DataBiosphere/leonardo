@@ -552,12 +552,16 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         _ <- clusterHelper.removeServiceAccountKey(cluster.googleProject, cluster.serviceAccountInfo.notebookServiceAccount, keyIdOpt).unsafeToFuture().recover { case NonFatal(e) =>
           logger.error(s"Error occurred removing service account key for ${cluster.googleProject} / ${cluster.clusterName}", e)
         }
+        hasGoogleId = cluster.dataprocInfo.googleId.isDefined
         // Delete the cluster in Google
-        _ <- gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName)
+        _ <- if (hasGoogleId) gdDAO.deleteCluster(cluster.googleProject, cluster.clusterName) else Future.unit
         // Change the cluster status to Deleting in the database
         // Note this also changes the instance status to Deleting
-        _ <- dbRef.inTransaction(dataAccess => dataAccess.clusterQuery.markPendingDeletion(cluster.id))
-      } yield { () }
+        _ <- dbRef.inTransaction { dataAccess =>
+          if (hasGoogleId) dataAccess.clusterQuery.markPendingDeletion(cluster.id)
+          else dataAccess.clusterQuery.completeDeletion(cluster.id)
+        }
+      } yield ()
     } else if (cluster.status == ClusterStatus.Creating) {
       Future.failed(ClusterCannotBeDeletedException(cluster.googleProject, cluster.clusterName))
     } else Future.unit
