@@ -160,6 +160,17 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterCreateResponse shouldEqual clusterGetResponse
   }
 
+  it should "fail cluster creation when machine type is highcpu and google project is free credit project" in isolatedDbTest {
+    val freecreditProject = GoogleProject("fccredits-hassium-bistre-9234")
+    val request = testClusterRequest.copy(machineConfig = Some(MachineConfig(None, Some("n1-highcpu-96"), None, None, None, None, None)))
+
+    // create a cluster
+    val exception = leo.createCluster(userInfo, freecreditProject, name1, request).failed.futureValue
+
+    // check the create response and get response are the same
+    exception shouldEqual InvalidClusterMachineType(s"free credit project ${freecreditProject.value} doesn't support n1-highcpu-96")
+  }
+
   it should "create and get a cluster via v2 API" in isolatedDbTest {
     implicit val patienceConfig = PatienceConfig(timeout = 1.second)
 

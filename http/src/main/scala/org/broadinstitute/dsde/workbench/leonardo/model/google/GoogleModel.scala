@@ -161,7 +161,7 @@ object GoogleJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   case class EnumEntryFormat[T <: EnumEntry](create: String => T) extends RootJsonFormat[T] {
     def read(obj: JsValue): T = obj match {
       case JsString(value) => create(value)
-      case _ => throw new DeserializationException(s"could not deserialize $obj")
+      case _ => throw DeserializationException(s"could not deserialize $obj")
     }
 
     def write(obj: T): JsValue = JsString(obj.entryName)

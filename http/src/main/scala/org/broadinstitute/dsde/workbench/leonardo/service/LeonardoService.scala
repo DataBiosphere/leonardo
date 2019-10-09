@@ -81,6 +81,8 @@ case class ClusterCannotBeUpdatedException(cluster: Cluster)
 case class ClusterMachineTypeCannotBeChangedException(cluster: Cluster)
   extends LeoException(s"Cluster ${cluster.projectNameString} in ${cluster.status} status must be stopped in order to change machine type", StatusCodes.Conflict)
 
+final case class InvalidClusterMachineType(msg: String) extends LeoException(msg, StatusCodes.BadRequest)
+
 case class ClusterDiskSizeCannotBeDecreasedException(cluster: Cluster)
   extends LeoException(s"Cluster ${cluster.projectNameString}: decreasing master disk size is not allowed", StatusCodes.PreconditionFailed)
 
@@ -168,6 +170,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                     clusterRequest: ClusterRequest): Future[Cluster] = {
     val traceId = TraceId(randomUUID)
     for {
+    // Disallow users creating `highcpu` machine type with free credit projects
+      _ <- if(googleProject.value.startsWith("fccredits") && clusterRequest.machineConfig.exists(_.masterMachineType.exists(_.contains("highcpu"))))
+        Future.failed(InvalidClusterMachineType(s"free credit project ${googleProject.value} doesn't support ${clusterRequest.machineConfig.flatMap(_.masterMachineType).get}"))
+      else Future.unit
       _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
 
       // Grab the service accounts from serviceAccountProvider for use later
