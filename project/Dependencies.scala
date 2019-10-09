@@ -1,6 +1,8 @@
 import sbt._
 
 object Dependencies {
+  val scalaV = "2.12"
+
   val akkaV         = "2.5.22"
   val akkaHttpV     = "10.1.8"
   val jacksonV      = "2.9.9"
@@ -40,6 +42,9 @@ object Dependencies {
   val excludeGoogleError = ExclusionRule(organization = "com.google.errorprone", name = "error_prone_annotations")
   val excludeHttpComponent      = ExclusionRule(organization = "org.apache.httpcomponents", name = "httpclient")
   val excludeReactiveStream     = ExclusionRule(organization = "org.reactivestreams", name = "reactive-streams")
+  val excludeAutoValue = ExclusionRule(organization = "com.google.auto.value", name = "auto-value_" + scalaV)
+  val excludeAutoValueAnnotation = ExclusionRule(organization = "com.google.auto.value", name = "auto-value_annotations_" + scalaV)
+  val excludeFirestore = ExclusionRule(organization = "com.google.cloud", name = s"google-cloud-firestore")
 
   val jacksonAnnotations: ModuleID = "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonV
   val jacksonDatabind: ModuleID =    "com.fasterxml.jackson.core" % "jackson-databind"    % jacksonDatabindV excludeAll(excludeJacksonAnnotation)
@@ -61,8 +66,8 @@ object Dependencies {
   val akkaTestKit: ModuleID =       "com.typesafe.akka"   %%  "akka-testkit"         % akkaV     % "test"
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka"   %%  "akka-http-testkit"    % akkaHttpV % "test"
 
-  val googleDataproc: ModuleID =    "com.google.apis"     % "google-api-services-dataproc" % s"v1-rev91-$googleV" excludeAll(excludeGuavaJDK5, excludeJacksonCore, excludeFindbugsJsr, excludeHttpComponent)
-  val googleRpc: ModuleID = "io.grpc" % "grpc-core" % "1.24.0" excludeAll(excludeGuava, excludeGson, excludeFindbugsJsr)
+  val googleDataproc: ModuleID =    "com.google.apis"     % "google-api-services-dataproc" % s"v1-rev91-$googleV" excludeAll(excludeGuavaJDK5, excludeJacksonCore, excludeFindbugsJsr, excludeHttpComponent, excludeFirestore)
+  val googleRpc: ModuleID = "io.grpc" % "grpc-core" % "1.24.0" excludeAll(excludeGuava, excludeGson, excludeFindbugsJsr, excludeAutoValueAnnotation, excludeAutoValue)
   val googleOAuth2: ModuleID = "com.google.auth" % "google-auth-library-oauth2-http" % "0.9.1" excludeAll(excludeGuava, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleApiClientJackson2, excludeGoogleHttpClient, excludeHttpComponent)
   val googleSourceRepositories: ModuleID = "com.google.apis" % "google-api-services-sourcerepo" % s"v1-rev21-$googleV" excludeAll(excludeGuavaJDK5)
 
@@ -73,8 +78,8 @@ object Dependencies {
   // workbench-google pulls in workbench-{util, model, metrics} and workbcan ench-metrics pulls in workbench-util.
   val workbenchUtil: ModuleID       = "org.broadinstitute.dsde.workbench" %% "workbench-util"    % workbenchUtilV   excludeAll(excludeWorkbenchModel, excludeGoogleError)
   val workbenchModel: ModuleID      = "org.broadinstitute.dsde.workbench" %% "workbench-model"   % workbenchModelV  excludeAll(excludeGoogleError)
-  val workbenchGoogle: ModuleID     = "org.broadinstitute.dsde.workbench" %% "workbench-google"  % workbenchGoogleV excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics, excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent)
-  val workbenchGoogle2: ModuleID     = "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics, excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent)
+  val workbenchGoogle: ModuleID     = "org.broadinstitute.dsde.workbench" %% "workbench-google"  % workbenchGoogleV excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics, excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent, excludeAutoValue, excludeAutoValueAnnotation)
+  val workbenchGoogle2: ModuleID     = "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel, excludeWorkbenchMetrics, excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent, excludeAutoValue, excludeAutoValueAnnotation, excludeFirestore)
   val workbenchGoogleTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-google"  % workbenchGoogleV % "test" classifier "tests" excludeAll(excludeWorkbenchUtil, excludeWorkbenchModel)
   val workbenchGoogle2Test: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-google2" % workbenchGoogle2V % "test" classifier "tests" //for generators
   val workbenchMetrics: ModuleID    = "org.broadinstitute.dsde.workbench" %% "workbench-metrics" % workbenchMetricsV excludeAll(excludeWorkbenchUtil, excludeSlf4j)
@@ -155,7 +160,6 @@ object Dependencies {
   )
 
   val serviceTestV = "0.16-e6493d5"
-  val scalaV = "2.12"
   val excludeGuavaJdk5       = ExclusionRule(organization = "com.google.guava", name = "guava-jdk5")
   val excludeApacheHttpClient = ExclusionRule(organization = "org.apache.httpcomponents", name = "httpclient")
   val excludeGoogleJsr305    = ExclusionRule(organization = "com.google.code.findbugs", name = "jsr305")
@@ -184,6 +188,8 @@ object Dependencies {
       excludeApacheHttpClient,
       excludeGoogleJsr305,
       excludeJacksonCore),
+    "com.google.auto.value" % "auto-value" % "1.6.6",
+    "com.google.auto.value" % "auto-value-annotations" % "1.6.6",
 
     "com.typesafe.akka"   %%  "akka-http-core"      % akkaHttpV,
     "com.typesafe.akka"   %%  "akka-stream-testkit" % akkaV    % "test",
