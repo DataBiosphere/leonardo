@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
 import java.io.ByteArrayInputStream
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import _root_.io.circe.{Decoder, Json, KeyDecoder}
@@ -16,7 +17,7 @@ import com.google.api.client.json.jackson2.JacksonFactory
 import com.google.api.services.plus.PlusScopes
 import com.google.api.services.storage.StorageScopes
 import com.google.auth.oauth2.ServiceAccountCredentials
-import com.google.common.cache.{CacheBuilder, CacheLoader}
+import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -39,12 +40,13 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig)(implicit logger: Logger[F]) extends SamDAO[F] with Http4sClientDsl[F] {
   private val saScopes = Seq(PlusScopes.USERINFO_EMAIL, PlusScopes.USERINFO_PROFILE, StorageScopes.DEVSTORAGE_READ_ONLY)
 
-  private[leonardo] def petTokenCache(implicit ev: ApplicativeAsk[F, TraceId]) = CacheBuilder.newBuilder()
+  private[leonardo] val petTokenCache: LoadingCache[UserEmailAndProject, Option[String]] = CacheBuilder.newBuilder()
     .expireAfterWrite(config.petCacheExpiryTime.toMinutes, TimeUnit.MINUTES)
     .maximumSize(config.petCacheMaxSize)
     .build(
       new CacheLoader[UserEmailAndProject, Option[String]] {
         def load(userEmailAndProject: UserEmailAndProject): Option[String] = {
+          implicit val traceId = ApplicativeAsk.const[F, TraceId](TraceId(UUID.randomUUID()))
           getPetAccessToken(userEmailAndProject.userEmail, userEmailAndProject.googleProject).toIO.unsafeRunSync()
         }
       }
