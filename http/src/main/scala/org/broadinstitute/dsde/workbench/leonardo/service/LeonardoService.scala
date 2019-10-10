@@ -237,10 +237,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   // If the google project does not have an active cluster with the given name,
   // we start creating one.
   private def initiateClusterCreation(userEmail: WorkbenchEmail,
-                              serviceAccountInfo: ServiceAccountInfo,
-                              googleProject: GoogleProject,
-                              clusterName: ClusterName,
-                              clusterRequest: ClusterRequest)(implicit ev: ApplicativeAsk[IO, TraceId]): Future[Cluster] = {
+                                      serviceAccountInfo: ServiceAccountInfo,
+                                      googleProject: GoogleProject,
+                                      clusterName: ClusterName,
+                                      clusterRequest: ClusterRequest)(implicit ev: ApplicativeAsk[IO, TraceId]): Future[Cluster] = {
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getActiveClusterByNameMinimal(googleProject, clusterName)
     } flatMap {
