@@ -2,14 +2,15 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.time.{Duration, Instant}
+import java.util.UUID
 
 import akka.actor.SupervisorStrategy.Restart
 import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props, Timers}
 import cats.effect.IO
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
-import java.util.UUID.randomUUID
 
+import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterBucketConfig, DataprocConfig, MonitorConfig}
@@ -28,7 +29,7 @@ import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
 object ClusterMonitorSupervisor {
-  def props(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleStorageDAO: GoogleStorageDAO, google2StorageDAO: GoogleStorageService[IO], dbRef: DbReference, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO, rstudioProxyDAO: RStudioDAO, welderDAO: WelderDAO, leonardoService: LeonardoService, clusterHelper: ClusterHelper): Props =
+  def props(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleStorageDAO: GoogleStorageDAO, google2StorageDAO: GoogleStorageService[IO], dbRef: DbReference, authProvider: LeoAuthProvider[IO], autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO, rstudioProxyDAO: RStudioDAO, welderDAO: WelderDAO, leonardoService: LeonardoService, clusterHelper: ClusterHelper): Props =
     Props(new ClusterMonitorSupervisor(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleStorageDAO, google2StorageDAO, dbRef, authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, welderDAO, leonardoService, clusterHelper))
 
   sealed trait ClusterSupervisorMessage
@@ -58,7 +59,7 @@ object ClusterMonitorSupervisor {
   private case object CheckForClusters extends ClusterSupervisorMessage
 }
 
-class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleStorageDAO: GoogleStorageDAO, google2StorageDAO: GoogleStorageService[IO], dbRef: DbReference, authProvider: LeoAuthProvider, autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO, rstudioProxyDAO: RStudioDAO, welderProxyDAO: WelderDAO, leonardoService: LeonardoService, clusterHelper: ClusterHelper)
+class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleStorageDAO: GoogleStorageDAO, google2StorageDAO: GoogleStorageService[IO], dbRef: DbReference, authProvider: LeoAuthProvider[IO], autoFreezeConfig: AutoFreezeConfig, jupyterProxyDAO: JupyterDAO, rstudioProxyDAO: RStudioDAO, welderProxyDAO: WelderDAO, leonardoService: LeonardoService, clusterHelper: ClusterHelper)
   extends Actor with Timers with LazyLogging {
   import context.dispatcher
 
@@ -91,7 +92,9 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
       startClusterMonitorActor(cluster, None)
 
     case RecreateCluster(cluster) =>
-      val traceId = TraceId(randomUUID)
+      val traceId = UUID.randomUUID()
+      implicit val traceIdIO = ApplicativeAsk.const[IO, TraceId](TraceId(traceId))
+
       if (monitorConfig.recreateCluster) {
         logger.info(s"[$traceId] Recreating cluster ${cluster.projectNameString}...")
         dbRef.inTransaction { dataAccess =>
@@ -110,7 +113,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig, dataprocConfig: Dat
               Some(cluster.autopauseThreshold),
               cluster.defaultClientId,
               cluster.clusterImages.find(_.tool == Jupyter).map(_.dockerImage).flatMap(s => ContainerImage.stringToJupyterDockerImage(s)))
-            val createFuture = leonardoService.internalCreateCluster(cluster.auditInfo.creator, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest, traceId)
+            val createFuture = leonardoService.internalCreateCluster(cluster.auditInfo.creator, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest)
             createFuture.failed.foreach { e =>
               logger.error(s"[$traceId] Error occurred recreating cluster ${cluster.projectNameString}", e)
             }

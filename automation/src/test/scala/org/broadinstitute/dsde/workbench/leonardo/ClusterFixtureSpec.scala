@@ -27,11 +27,21 @@ abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAl
   //  debug = true
   //  mockedCluster = mockCluster("gpalloc-dev-master-0h7pzni","automation-test-apm25lvlz")
   val debug: Boolean = false //if true, will not spin up and tear down a cluster on each test. Used in conjunction with mockedCluster
-  var mockedCluster: Cluster = _ // mockCluster("gpalloc-dev-master-0dkewwf", "automation-test-aktfcd0cz") //_ //must specify a google project name and cluster name via the mockCluster utility method in NotebookTestUtils
+  var mockedCluster: Cluster = _ //mockCluster("gpalloc-dev-master-0wmkqka", "automation-test-adhkmuanz") //_ //must specify a google project name and cluster name via the mockCluster utility method in NotebookTestUtils
 
   def mockCluster(googleProject: String, clusterName: String): Cluster = {
-    Cluster(ClusterName(clusterName), java.util.UUID.randomUUID(), GoogleProject(googleProject),
-      ServiceAccountInfo(Map()), MachineConfig(), new java.net.URL("https://FAKE/URL/IF_YOU_SEE_THIS_INVESTIGATE_YOUR_USAGE_OF_MOCKCLUSTER_METHOD/"), OperationName(""), ClusterStatus.Running, None, WorkbenchEmail(""), Instant.now(), None, Map(), None, None, None, List(), Instant.now(), None, false, Set())
+    Cluster(
+      ClusterName(clusterName),
+      GoogleProject(googleProject),
+      ServiceAccountInfo(None, None),
+      MachineConfig(),
+      ClusterStatus.Running,
+      WorkbenchEmail(""),
+      Map(),
+      None,
+      List(),
+      Instant.now(),
+      false)
   }
 
   /**

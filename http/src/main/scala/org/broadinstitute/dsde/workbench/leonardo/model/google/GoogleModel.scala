@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.model.google
+package org.broadinstitute.dsde.workbench.leonardo
+package model.google
 
 import java.time.Instant
 import java.util.UUID
@@ -16,14 +17,6 @@ case class InstanceName(value: String) extends ValueObject
 case class ZoneUri(value: String) extends ValueObject
 case class MachineType(value: String) extends ValueObject
 
-// Cluster machine configuration
-case class MachineConfig(numberOfWorkers: Option[Int] = None,
-                         masterMachineType: Option[String] = None,
-                         masterDiskSize: Option[Int] = None,  //min 10
-                         workerMachineType: Option[String] = None,
-                         workerDiskSize: Option[Int] = None,   //min 10
-                         numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
-                         numberOfPreemptibleWorkers: Option[Int] = None)
 
 final case class CreateClusterConfig(machineConfig: MachineConfig,
                                      initScripts: List[GcsPath],

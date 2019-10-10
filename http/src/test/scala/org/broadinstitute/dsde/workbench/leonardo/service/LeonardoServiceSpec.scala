@@ -9,6 +9,7 @@ import java.util.UUID
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.IO
+import cats.mtl.ApplicativeAsk
 import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
 import com.google.api.client.testing.json.MockJsonFactory
 import com.typesafe.scalalogging.LazyLogging
@@ -16,8 +17,7 @@ import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterEnrichments.stripFieldsForListCluster
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{MockPetClusterServiceAccountProvider, MockSwaggerSamClient}
-import org.broadinstitute.dsde.workbench.leonardo.dao.MockWelderDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, LeoComponent, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RStudio, Welder}
@@ -37,7 +37,7 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Minutes, Span}
 
 import scala.concurrent.duration._
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{Await, Future}
 
 class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with FlatSpecLike with Matchers
   with BeforeAndAfter with BeforeAndAfterAll with TestComponent with ScalaFutures
@@ -48,11 +48,11 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
   private var iamDAO: MockGoogleIamDAO = _
   private var projectDAO: MockGoogleProjectDAO = _
   private var storageDAO: MockGoogleStorageDAO = _
-  private var samClient: MockSwaggerSamClient = _
+  private var samDao: MockSamDAO = _
   private var bucketHelper: BucketHelper = _
   private var clusterHelper: ClusterHelper = _
   private var leo: LeonardoService = _
-  private var authProvider: LeoAuthProvider = _
+  private var authProvider: LeoAuthProvider[IO] = _
 
   val mockPetGoogleDAO: String => GoogleStorageDAO = _ => {
     new MockGoogleStorageDAO
@@ -70,7 +70,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // Pre-populate the juptyer extension bucket in the mock storage DAO, as it is passed in some requests
     storageDAO.buckets += jupyterExtensionUri.bucketName -> Set((jupyterExtensionUri.objectName, new ByteArrayInputStream("foo".getBytes())))
 
-    samClient = serviceAccountProvider.asInstanceOf[MockPetClusterServiceAccountProvider].mockSwaggerSamClient
+    samDao = serviceAccountProvider.samDao
     authProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider)
 
     bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
@@ -136,9 +136,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
         // a service account key should only have been created if using a notebook service account
         if (notebookServiceAccount(project).isDefined) {
-          iamDAO.serviceAccountKeys should contain key (samClient.serviceAccount)
+          iamDAO.serviceAccountKeys should contain key (samDao.petSA)
         } else {
-          iamDAO.serviceAccountKeys should not contain key(samClient.serviceAccount)
+          iamDAO.serviceAccountKeys should not contain key(samDao.petSA)
         }
 
         val dbInitBucketOpt = dbFutureValue { _.clusterQuery.getInitBucket(project, clusterName) }
@@ -435,7 +435,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
   it should "delete a cluster" in isolatedDbTest {
     // need a specialized LeonardoService for this test, so we can spy on its authProvider
-    val spyProvider: LeoAuthProvider = spy(authProvider)
+    val spyProvider: LeoAuthProvider[IO] = spy(authProvider)
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
       new MockGoogleStorageDAO
     }
@@ -454,9 +454,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
           gdDAO.clusters should contain key (clusterName)
           // a service account key should only have been created if using a notebook service account
           if (notebookServiceAccount(project).isDefined) {
-            iamDAO.serviceAccountKeys should contain key (samClient.serviceAccount)
+            iamDAO.serviceAccountKeys should contain key (samDao.petSA)
           } else {
-            iamDAO.serviceAccountKeys should not contain key(samClient.serviceAccount)
+            iamDAO.serviceAccountKeys should not contain key(samDao.petSA)
           }
         }
 
@@ -468,7 +468,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
 
         // check that the cluster no longer exists
         gdDAO.clusters should not contain key(clusterName)
-        iamDAO.serviceAccountKeys should not contain key(samClient.serviceAccount)
+        iamDAO.serviceAccountKeys should not contain key(samDao.petSA)
 
         // the cluster has transitioned to the Deleting state (Cluster Monitor will later transition it to Deleted)
 
@@ -476,7 +476,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
           .map(_.status) shouldBe Some(ClusterStatus.Deleting)
 
         // the auth provider should have not yet been notified of deletion
-        verify(spyProvider, never).notifyClusterDeleted(mockitoEq(cluster.internalId), mockitoEq(userInfo.userEmail), mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(clusterName))(any[ExecutionContext])
+        verify(spyProvider, never).notifyClusterDeleted(mockitoEq(cluster.internalId), mockitoEq(userInfo.userEmail), mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(clusterName))(any[ApplicativeAsk[IO, TraceId]])
     }
   }
 

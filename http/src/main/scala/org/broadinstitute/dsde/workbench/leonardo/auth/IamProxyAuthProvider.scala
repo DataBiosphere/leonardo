@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit
 import cats.implicits._
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
+import cats.mtl.ApplicativeAsk
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.config.Config
 import net.ceedubs.ficus.Ficus._
@@ -26,11 +27,11 @@ object IamProxyAuthProvider {
   private case class ProjectAuthCacheKey(userEmail: WorkbenchEmail, userToken: OAuth2BearerToken, googleProject: GoogleProject, executionContext: ExecutionContext) extends CacheKey
 }
 
-class IamProxyAuthProvider(config: Config, serviceAccountProvider: ServiceAccountProvider) extends LeoAuthProvider(config, serviceAccountProvider) {
+class IamProxyAuthProvider(config: Config, saProvider: ServiceAccountProvider[Future])(implicit val ec: ExecutionContext) extends LeoAuthProvider[Future] {
+  override def serviceAccountProvider: ServiceAccountProvider[Future] = saProvider
 
   // Create implicit actor needed by the GoogleIamDAO.
   implicit val system = ActorSystem("iam-proxy-auth-actor-system")
-
   // Load config values.
   private val cacheEnabled = config.getOrElse("cacheEnabled", true)
   private val cacheMaxSize = config.getAs[Int]("cacheMaxSize").getOrElse(1000)
@@ -47,18 +48,18 @@ class IamProxyAuthProvider(config: Config, serviceAccountProvider: ServiceAccoun
       new CacheLoader[CacheKey, Future[Boolean]] {
         def load(key: CacheKey) = {
           key match {
-            case ProjectAuthCacheKey(userEmail, userToken, googleProject, executionContext) =>
-              checkUserAccessFromIam(userEmail, userToken, googleProject)(executionContext)
+            case ProjectAuthCacheKey(userEmail, userToken, googleProject, _) =>
+              checkUserAccessFromIam(userEmail, userToken, googleProject)
           }
         }
       }
     )
 
-  protected def userGoogleIamDao(token: String)(implicit executionContext: ExecutionContext): GoogleIamDAO = {
+  protected def userGoogleIamDao(token: String): GoogleIamDAO = {
     new HttpGoogleIamDAO(applicationName, Token(() => token), "google")
   }
 
-  protected def checkUserAccessFromIam(userEmail: WorkbenchEmail, userToken: OAuth2BearerToken, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  protected def checkUserAccessFromIam(userEmail: WorkbenchEmail, userToken: OAuth2BearerToken, googleProject: GoogleProject): Future[Boolean] = {
     val iamDAO: GoogleIamDAO = userGoogleIamDao(userToken.token)
     iamDAO.testIamPermission(googleProject, requiredPermissions).map {
       foundPermissions => {
@@ -67,9 +68,9 @@ class IamProxyAuthProvider(config: Config, serviceAccountProvider: ServiceAccoun
     }
   }
 
-  protected def checkUserAccess(userInfo: UserInfo, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean] = {
+  protected def checkUserAccess(userInfo: UserInfo, googleProject: GoogleProject): Future[Boolean] = {
     if (cacheEnabled) {
-      notebookAuthCache.get(ProjectAuthCacheKey(userInfo.userEmail, userInfo.accessToken, googleProject, executionContext))
+      notebookAuthCache.get(ProjectAuthCacheKey(userInfo.userEmail, userInfo.accessToken, googleProject, ec))
     } else {
       checkUserAccessFromIam(userInfo.userEmail, userInfo.accessToken, googleProject)
     }
@@ -81,7 +82,7 @@ class IamProxyAuthProvider(config: Config, serviceAccountProvider: ServiceAccoun
     * @param googleProject The Google project to check in
     * @return If the given user has permissions in this project to perform the specified action.
     */
-  override def hasProjectPermission(userInfo: UserInfo, action: ProjectAction, googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Future[Boolean]  = {
+  override def hasProjectPermission(userInfo: UserInfo, action: ProjectAction, googleProject: GoogleProject)(implicit ev: ApplicativeAsk[Future, TraceId]): Future[Boolean]  = {
     checkUserAccess(userInfo, googleProject)
   }
 
@@ -92,7 +93,8 @@ class IamProxyAuthProvider(config: Config, serviceAccountProvider: ServiceAccoun
     * @param clusterName The user-provided name of the Dataproc cluster
     * @return If the userEmail has permission on this individual notebook cluster to perform this action
     */
-  override def hasNotebookClusterPermission(internalId: ClusterInternalId, userInfo: UserInfo, action: NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Boolean]  = {
+  override def hasNotebookClusterPermission(internalId: ClusterInternalId, userInfo: UserInfo, action: NotebookClusterAction, googleProject: GoogleProject, clusterName: ClusterName)
+                                           (implicit ev: ApplicativeAsk[Future, TraceId]): Future[Boolean]  = {
     checkUserAccess(userInfo, googleProject)
   }
 
@@ -104,7 +106,8 @@ class IamProxyAuthProvider(config: Config, serviceAccountProvider: ServiceAccoun
     * @param clusters All non-deleted clusters from the database
     * @return         Filtered list of clusters that the user is allowed to see
     */
-  override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterName)])(implicit executionContext: ExecutionContext): Future[List[(GoogleProject, ClusterName)]] = {
+  override def filterUserVisibleClusters(userInfo: UserInfo, clusters: List[(GoogleProject, ClusterInternalId)])
+                                        (implicit ev: ApplicativeAsk[Future, TraceId]): Future[List[(GoogleProject, ClusterInternalId)]] = {
     // Check each project for user-access exactly once, then filter by project.
     val projects = clusters.map(lv => lv._1).toSet
     val projectAccess = projects.map(p => p.value -> checkUserAccess(userInfo, p)).toMap
@@ -127,7 +130,8 @@ class IamProxyAuthProvider(config: Config, serviceAccountProvider: ServiceAccoun
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterCreated(internalId: ClusterInternalId, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName, traceId: TraceId = TraceId(java.util.UUID.randomUUID))(implicit executionContext: ExecutionContext): Future[Unit] = Future.unit
+  override def notifyClusterCreated(internalId: ClusterInternalId, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)
+                                   (implicit ev: ApplicativeAsk[Future, TraceId]): Future[Unit] = Future.unit
 
   /**
     * Leo calls this method to notify the auth provider that a notebook cluster has been destroyed.
@@ -141,6 +145,7 @@ class IamProxyAuthProvider(config: Config, serviceAccountProvider: ServiceAccoun
     * @param clusterName   The user-provided name of the Dataproc cluster
     * @return A Future that will complete when the auth provider has finished doing its business.
     */
-  def notifyClusterDeleted(internalId: ClusterInternalId, userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit executionContext: ExecutionContext): Future[Unit] = Future.unit
+  override def notifyClusterDeleted(internalId: ClusterInternalId, userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)
+                                   (implicit ev: ApplicativeAsk[Future, TraceId]): Future[Unit] = Future.unit
 
 }

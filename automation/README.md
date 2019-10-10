@@ -30,14 +30,6 @@ Note: Leonardo integration tests are not currently web-based but may fail due to
 * service root
     * the name of your local clone of leonardo if not `leonardo`
 	
-##### Using a local UI
-
-Set `LOCAL_UI=true` before calling `render-local-env.sh`.   When starting your UI, run:
-
-```bash
-FIAB=true ./config/docker-rsync-local-ui.sh
-```
-	
 ### Run tests
 
 `sbt -Djsse.enableSNIExtension=false -Dheadless=false "project automation" test`
@@ -48,6 +40,9 @@ IntelliJ
 - set Working dir to local dir
 - use classpath and SDK of the leonardoTests module
 - should be able to right-click-run
+- If you get an error like `selenium.common.exceptions.SessionNotCreatedException: Message: session not created: This version of ChromeDriver only supports Chrome version 75`,
+download the chrome driver from `https://sites.google.com/a/chromium.org/chromedriver/downloads` that has the same version of your local chrome. Update `chromeSettings.chromedriverPath`
+in `application.conf` to the new chrome driver that you just downloaded
 
 Note: If the test you're trying to run is annotated with `@DoNotDiscover`, do the following for running the individual test
 - Comment out `@DoNotDiscover` of the test you are running

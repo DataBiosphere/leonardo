@@ -5,6 +5,7 @@ import java.io.ByteArrayInputStream
 import akka.http.scaladsl.model.headers.{HttpCookiePair, `Set-Cookie`}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
+import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleIamDAO, MockGoogleProjectDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
@@ -26,6 +27,8 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with CommonTestData
 
   implicit val cs = IO.contextShift(executor)
   implicit val timer = IO.timer(executor)
+  implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
+
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
   val mockGoogleProjectDAO = new MockGoogleProjectDAO

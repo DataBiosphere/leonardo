@@ -69,7 +69,7 @@
     </logger>
     -->
 
-    <root level="warn">
+    <root level="info">
         <appender-ref ref="file"/>
         <appender-ref ref="console"/>
         <appender-ref ref="SYSLOG"/>

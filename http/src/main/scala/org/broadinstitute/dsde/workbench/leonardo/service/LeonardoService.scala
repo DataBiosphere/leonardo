@@ -12,14 +12,12 @@ import cats.Monoid
 import cats.data.{Ior, OptionT}
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
+import cats.mtl.ApplicativeAsk
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
-import java.util.UUID.randomUUID
-
 import org.broadinstitute.dsde.workbench.google.{GoogleProjectDAO, GoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.leonardo._
-import org.broadinstitute.dsde.workbench.leonardo.config.{AutoFreezeConfig, ClusterDefaultsConfig, ClusterFilesConfig, ClusterResourcesConfig, DataprocConfig, ProxyConfig, SwaggerConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
@@ -40,10 +38,10 @@ import org.broadinstitute.dsde.workbench.util.Retry
 import slick.dbio.DBIO
 import spray.json._
 
-import scala.collection.immutable
-import scala.concurrent.{ExecutionContext, Future}
-import scala.concurrent.duration._
 import scala.collection.JavaConverters._
+import scala.collection.immutable
+import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, Future}
 import scala.io.Source
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
@@ -119,8 +117,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                       protected val leoGoogleStorageDAO: GoogleStorageDAO,
                       protected val petGoogleStorageDAO: String => GoogleStorageDAO,
                       protected val dbRef: DbReference,
-                      protected val authProvider: LeoAuthProvider,
-                      protected val serviceAccountProvider: ServiceAccountProvider,
+                      protected val authProvider: LeoAuthProvider[IO],
+                      protected val serviceAccountProvider: ServiceAccountProvider[IO],
                       protected val bucketHelper: BucketHelper,
                       protected val clusterHelper: ClusterHelper,
                       protected val contentSecurityPolicy: String)
@@ -139,43 +137,48 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     network = dataprocConfig.vpcNetwork.map(VPCNetworkName),
     targetTags = List(NetworkTag(dataprocConfig.networkTag)))
 
-  protected def checkProjectPermission(userInfo: UserInfo, action: ProjectAction, project: GoogleProject): Future[Unit] = {
-    authProvider.hasProjectPermission(userInfo, action, project) map {
-      case false => throw AuthorizationError(Option(userInfo.userEmail))
-      case true => ()
+  protected def checkProjectPermission(userInfo: UserInfo, action: ProjectAction, project: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = {
+    authProvider.hasProjectPermission(userInfo, action, project) flatMap {
+      case false => IO.raiseError(AuthorizationError(Option(userInfo.userEmail)))
+      case true => IO.unit
     }
   }
 
   //Throws 404 and pretends we don't even know there's a cluster there, by default.
   //If the cluster really exists and you're OK with the user knowing that, set throw401 = true.
-  protected def checkClusterPermission(userInfo: UserInfo, action: NotebookClusterAction, cluster: Cluster, throw403: Boolean = false): Future[Unit] = {
-    authProvider.hasNotebookClusterPermission(cluster.internalId, userInfo, action, cluster.googleProject, cluster.clusterName) map {
-      case false =>
-        logger.warn(s"User ${userInfo.userEmail} does not have the notebook permission for " +
-          s"${cluster.googleProject}/${cluster.clusterName}")
-
-        if (throw403)
-          throw AuthorizationError(Option(userInfo.userEmail))
-        else
-          throw ClusterNotFoundException(cluster.googleProject, cluster.clusterName)
-      case true => ()
-    }
+  protected def checkClusterPermission(userInfo: UserInfo, action: NotebookClusterAction, cluster: Cluster, throw403: Boolean = false)
+                                      (implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = {
+    for {
+      traceId <- ev.ask
+      hasPermission <- authProvider.hasNotebookClusterPermission(cluster.internalId, userInfo, action, cluster.googleProject, cluster.clusterName)
+      _ <- hasPermission match {
+        case false =>
+          IO(logger.warn(s"${traceId} | User ${userInfo.userEmail} does not have the notebook permission ${action} for " +
+            s"${cluster.googleProject}/${cluster.clusterName}")).flatMap {
+            _ =>
+              if (throw403)
+                IO.raiseError(AuthorizationError(Some(userInfo.userEmail)))
+              else
+                IO.raiseError(ClusterNotFoundException(cluster.googleProject, cluster.clusterName))
+          }
+        case true => IO.unit
+      }
+    } yield ()
   }
 
   def createCluster(userInfo: UserInfo,
                     googleProject: GoogleProject,
                     clusterName: ClusterName,
-                    clusterRequest: ClusterRequest): Future[Cluster] = {
-    val traceId = TraceId(randomUUID)
+                    clusterRequest: ClusterRequest)(implicit ev: ApplicativeAsk[IO, TraceId]): Future[Cluster] = {
     for {
-      _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
+      _ <- checkProjectPermission(userInfo, CreateClusters, googleProject).unsafeToFuture()
 
       // Grab the service accounts from serviceAccountProvider for use later
-      clusterServiceAccountOpt <- serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject)
-      notebookServiceAccountOpt <- serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject)
+      clusterServiceAccountOpt <- serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject).unsafeToFuture()
+      notebookServiceAccountOpt <- serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject).unsafeToFuture()
       serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountOpt, notebookServiceAccountOpt)
 
-      cluster <- internalCreateCluster(userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest, traceId)
+      cluster <- internalCreateCluster(userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
     } yield cluster
   }
 
@@ -183,8 +186,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                             serviceAccountInfo: ServiceAccountInfo,
                             googleProject: GoogleProject,
                             clusterName: ClusterName,
-                            clusterRequest: ClusterRequest,
-                            traceId: TraceId): Future[Cluster] = {
+                            clusterRequest: ClusterRequest)(implicit ev: ApplicativeAsk[IO, TraceId]): Future[Cluster] = {
     // Check if the google project has an active cluster with the same name. If not, we can create it
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getActiveClusterByName(googleProject, clusterName)
@@ -200,7 +202,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           _ <- if (clusterRequest.enableWelder.getOrElse(false)) Metrics.newRelic.incrementCounterFuture("numberOfWelderEnabledCreateClusterRequests") else Future.unit
 
           // Notify the auth provider that the cluster has been created
-          _ <- authProvider.notifyClusterCreated(internalId, userEmail, googleProject, clusterName, traceId)
+          _ <- authProvider.notifyClusterCreated(internalId, userEmail, googleProject, clusterName).unsafeToFuture()
 
           // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
           _ <- validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest)
@@ -210,9 +212,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
           // Save the cluster in the database
           savedCluster <- dbRef.inTransaction(_.clusterQuery.save(cluster, Option(GcsPath(initBucket, GcsObjectName(""))), serviceAccountKeyOpt.map(_.id)))
-        } yield {
-          savedCluster
-        }
+        } yield savedCluster
     }
   }
 
@@ -221,18 +221,16 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   def processClusterCreationRequest(userInfo: UserInfo,
                                     googleProject: GoogleProject,
                                     clusterName: ClusterName,
-                                    clusterRequest: ClusterRequest): Future[Cluster] = {
-    val traceId = TraceId(randomUUID)
+                                    clusterRequest: ClusterRequest)(implicit ev: ApplicativeAsk[IO, TraceId]): Future[Cluster] = {
     for {
-      _ <- checkProjectPermission(userInfo, CreateClusters, googleProject)
-
+      _ <- checkProjectPermission(userInfo, CreateClusters, googleProject).unsafeToFuture()
       // Grab the service accounts from serviceAccountProvider for use later
-      clusterServiceAccountOpt <- serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject)
-      notebookServiceAccountOpt <- serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject)
+      clusterServiceAccountOpt <- serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject).unsafeToFuture()
+      notebookServiceAccountOpt <- serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject).unsafeToFuture()
       serviceAccountInfo = ServiceAccountInfo(clusterServiceAccountOpt, notebookServiceAccountOpt)
 
       cluster <- initiateClusterCreation(
-        userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest, traceId)
+        userInfo.userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest)
     } yield cluster
   }
 
@@ -242,15 +240,14 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                               serviceAccountInfo: ServiceAccountInfo,
                               googleProject: GoogleProject,
                               clusterName: ClusterName,
-                              clusterRequest: ClusterRequest,
-                              traceId: TraceId): Future[Cluster] = {
+                              clusterRequest: ClusterRequest)(implicit ev: ApplicativeAsk[IO, TraceId]): Future[Cluster] = {
     dbRef.inTransaction { dataAccess =>
       dataAccess.clusterQuery.getActiveClusterByNameMinimal(googleProject, clusterName)
     } flatMap {
       case Some(existingCluster) =>
         throw ClusterAlreadyExistsException(googleProject, clusterName, existingCluster.status)
       case None =>
-        stageClusterCreation(userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest, traceId)
+        stageClusterCreation(userEmail, serviceAccountInfo, googleProject, clusterName, clusterRequest).unsafeToFuture()
     }
   }
 
@@ -258,8 +255,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                    serviceAccountInfo: ServiceAccountInfo,
                                    googleProject: GoogleProject,
                                    clusterName: ClusterName,
-                                   clusterRequest: ClusterRequest,
-                                   traceId: TraceId): Future[Cluster] = {
+                                   clusterRequest: ClusterRequest)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Cluster] = {
     val internalId = ClusterInternalId(UUID.randomUUID().toString)
     val augmentedClusterRequest = augmentClusterRequest(serviceAccountInfo, googleProject, clusterName, userEmail, clusterRequest)
     val clusterImages = processClusterImages(clusterRequest)
@@ -274,26 +270,20 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
     // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
     // and if so, save the cluster creation request parameters in DB
-    val attemptToSaveClusterInDb: Future[Cluster] = validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest)
-      .flatMap { _ =>
-        logger.info(s"[$traceId] Attempting to notify the AuthProvider for creation of cluster '$clusterName' " +
-          s"on Google project '$googleProject'...")
-        authProvider.notifyClusterCreated(internalId, userEmail, googleProject, clusterName, traceId) }
-      .flatMap { _ =>
-        logger.info(s"[$traceId] Successfully notified the AuthProvider for creation of cluster '$clusterName' " +
-          s"on Google project '$googleProject'.")
-
-        dbRef.inTransaction { _.clusterQuery.save(initialClusterToSave) }
+    for {
+      traceId <- ev.ask
+      _ <- IO.fromFuture(IO(validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest)))
+      _ <- IO(logger.info(s"[$traceId] Attempting to notify the AuthProvider for creation of cluster '$clusterName' " +
+        s"on Google project '$googleProject'..."))
+      _ <- authProvider.notifyClusterCreated(internalId, userEmail, googleProject, clusterName).handleErrorWith {
+        t =>
+          IO(logger.info(s"[$traceId] Failed to notify the AuthProvider for creation of cluster '$clusterName' " +
+            s"on Google project '$googleProject'.")) >> IO.raiseError(t)
       }
-
-    // For the success case, register the following callbacks...
-    attemptToSaveClusterInDb foreach { savedInitialCluster =>
-      logger.info(s"[$traceId] Inserted an initial record into the DB for cluster '$clusterName' " +
-        s"on Google project '$googleProject'.")
-
-      logger.info(s"[$traceId] Attempting to asynchronously create cluster '$clusterName' " +
-        s"on Google project '$googleProject'...")
-
+      savedInitialCluster <- IO.fromFuture(IO(dbRef.inTransaction[Cluster] { _.clusterQuery.save(initialClusterToSave) }))
+      _ <- IO(logger.info(s"[$traceId] Inserted an initial record into the DB for cluster '$clusterName' " +
+        s"on Google project '$googleProject'. Attemping to create cluster in google"))
+    } yield {
       completeClusterCreation(userEmail, savedInitialCluster, augmentedClusterRequest)
         .onComplete {
           case Success(updatedCluster) =>
@@ -307,15 +297,14 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
             // We also want to record the error in database for future reference.
             persistErrorInDb(e, clusterName, savedInitialCluster.id, googleProject)
         }
+      savedInitialCluster
     }
-
-    attemptToSaveClusterInDb
   }
 
   // Meant to be run asynchronously to the clusterCreate API request
   private def completeClusterCreation(userEmail: WorkbenchEmail,
                                       cluster: Cluster,
-                                      clusterRequest: ClusterRequest): Future[Cluster] = {
+                                      clusterRequest: ClusterRequest)(implicit ev: ApplicativeAsk[IO, TraceId]): Future[Cluster] = {
     logger.info(s"Submitting to Google the request to create cluster '${cluster.clusterName}' " +
       s"on Google project '${cluster.googleProject}'...")
 
@@ -335,11 +324,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   //throws 404 if nonexistent or no permissions
-  def getActiveClusterDetails(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Cluster] = {
+  def getActiveClusterDetails(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): Future[Cluster] = {
     for {
       cluster <- internalGetActiveClusterDetails(googleProject, clusterName) //throws 404 if nonexistent
-      _ <- checkClusterPermission(userInfo, GetClusterStatus, cluster) //throws 404 if no auth
-    } yield { cluster }
+      _ <- checkClusterPermission(userInfo, GetClusterStatus, cluster).unsafeToFuture() //throws 404 if no auth
+    } yield cluster
   }
 
   def internalGetActiveClusterDetails(googleProject: GoogleProject, clusterName: ClusterName): Future[Cluster] = {
@@ -351,11 +340,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   def updateCluster(userInfo: UserInfo,
                     googleProject: GoogleProject,
                     clusterName: ClusterName,
-                    clusterRequest: ClusterRequest): Future[Cluster] = {
+                    clusterRequest: ClusterRequest)(implicit ev: ApplicativeAsk[IO, TraceId]): Future[Cluster] = {
     for {
       cluster <- internalGetActiveClusterDetails(googleProject, clusterName) //throws 404 if nonexistent
 
-      _ <- checkClusterPermission(userInfo, ModifyCluster, cluster) //throws 404 if no auth
+      _ <- checkClusterPermission(userInfo, ModifyCluster, cluster).unsafeToFuture() //throws 404 if no auth
 
       updatedCluster <- internalUpdateCluster(cluster, clusterRequest)
     } yield { updatedCluster }
@@ -446,7 +435,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
               // Typically we will revoke this role in the monitor after everything is complete, but if Google fails to resize the cluster we need to revoke it manually here
               clusterHelper.removeClusterIamRoles(existingCluster.googleProject, existingCluster.serviceAccountInfo).unsafeToFuture()
               logger.error(s"Could not successfully update cluster ${existingCluster.projectNameString}", gjre)
-              throw InvalidDataprocMachineConfigException(gjre.getMessage)
+              Future.failed(InvalidDataprocMachineConfigException(gjre.getMessage))
           }
 
           // Update the DB
@@ -531,13 +520,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     }
   }
 
-  def deleteCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Unit] = {
+  def deleteCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): Future[Unit] = {
     for {
       //throws 404 if no permissions
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
 
       //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually destroy it
-      _ <- checkClusterPermission(userInfo,  DeleteCluster, cluster, throw403 = true)
+      _ <- checkClusterPermission(userInfo,  DeleteCluster, cluster, throw403 = true).unsafeToFuture()
 
       _ <- internalDeleteCluster(userInfo.userEmail, cluster)
     } yield { () }
@@ -567,13 +556,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } else Future.unit
   }
 
-  def stopCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Unit] = {
+  def stopCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): Future[Unit] = {
     for {
       //throws 404 if no permissions
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
 
       //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually stop it
-      _ <- checkClusterPermission(userInfo, StopStartCluster, cluster, throw403 = true)
+      _ <- checkClusterPermission(userInfo, StopStartCluster, cluster, throw403 = true).unsafeToFuture()
 
       _ <- internalStopCluster(cluster)
     } yield ()
@@ -604,13 +593,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } else Future.failed(ClusterCannotBeStoppedException(cluster.googleProject, cluster.clusterName, cluster.status))
   }
 
-  def startCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName): Future[Unit] = {
+  def startCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): Future[Unit] = {
     for {
       //throws 404 if no permissions
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
 
       //if you've got to here you at least have GetClusterDetails permissions so a 401 is appropriate if you can't actually stop it
-      _ <- checkClusterPermission(userInfo, StopStartCluster, cluster, throw403 = true)
+      _ <- checkClusterPermission(userInfo, StopStartCluster, cluster, throw403 = true).unsafeToFuture()
 
       _ <- internalStartCluster(userInfo.userEmail, cluster)
     } yield ()
@@ -652,11 +641,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } else Future.failed(ClusterCannotBeStartedException(cluster.googleProject, cluster.clusterName, cluster.status))
   }
 
-  def listClusters(userInfo: UserInfo, params: LabelMap, googleProjectOpt: Option[GoogleProject] = None): Future[Seq[Cluster]] = {
+  def listClusters(userInfo: UserInfo, params: LabelMap, googleProjectOpt: Option[GoogleProject] = None)(implicit ev: ApplicativeAsk[IO, TraceId]): Future[Seq[Cluster]] = {
     for {
       paramMap <- processListClustersParameters(params)
       clusterList <- dbRef.inTransaction { da => da.clusterQuery.listByLabels(paramMap._1, paramMap._2, googleProjectOpt) }
-      samVisibleClusters <- authProvider.filterUserVisibleClusters(userInfo, clusterList.map(c => (c.googleProject, c.clusterName)).toList)
+      samVisibleClusters <- authProvider.filterUserVisibleClusters(userInfo, clusterList.map(c => (c.googleProject, c.internalId)).toList).unsafeToFuture()
     } yield {
       // Making the assumption that users will always be able to access clusters that they create
       // Fix for https://github.com/DataBiosphere/leonardo/issues/821
@@ -676,7 +665,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private[service] def createGoogleCluster(userEmail: WorkbenchEmail,
                                            cluster: Cluster,
                                            clusterRequest: ClusterRequest)
-                                          (implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
+                                          (implicit executionContext: ExecutionContext, ev: ApplicativeAsk[IO, TraceId]): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
     createGoogleCluster(cluster.internalId, userEmail, cluster.serviceAccountInfo, cluster.googleProject, cluster.clusterName, clusterRequest, cluster.clusterImages)
   }
 
@@ -692,7 +681,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                            clusterName: ClusterName,
                                            clusterRequest: ClusterRequest,
                                            clusterImages: Set[ClusterImage])
-                                          (implicit executionContext: ExecutionContext): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
+                                          (implicit executionContext: ExecutionContext, ev: ApplicativeAsk[IO, TraceId]): Future[(Cluster, GcsBucketName, Option[ServiceAccountKey])] = {
     val initBucketName = generateUniqueBucketName("leoinit-"+clusterName.value)
     val stagingBucketName = generateUniqueBucketName("leostaging-"+clusterName.value)
 
@@ -862,10 +851,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   private def validateClusterRequestBucketObjectUri(userEmail: WorkbenchEmail, googleProject: GoogleProject, clusterRequest: ClusterRequest)
-                                                   (implicit executionContext: ExecutionContext): Future[Unit] = {
+                                                   (implicit executionContext: ExecutionContext, ev: ApplicativeAsk[IO, TraceId]): Future[Unit] = {
     val transformed = for {
       // Get a pet token from Sam. If we can't get a token, we won't do validation but won't fail cluster creation.
-      petToken <- OptionT(serviceAccountProvider.getAccessToken(userEmail, googleProject).recover { case e =>
+      petToken <- OptionT(serviceAccountProvider.getAccessToken(userEmail, googleProject).unsafeToFuture().recover { case e =>
         logger.warn(s"Could not acquire pet service account access token for user ${userEmail.value} in project $googleProject. " +
           s"Skipping validation of bucket objects in the cluster request.", e)
         None
@@ -935,7 +924,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
                                                contentSecurityPolicy: String,
                                                clusterImages: Set[ClusterImage],
                                                stagingBucket: GcsBucketName): Future[Unit] = {
-
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
     val clusterInit = ClusterInitValues(googleProject, clusterName, initBucketName, clusterRequest, dataprocConfig,
       clusterFilesConfig, clusterResourcesConfig, proxyConfig, serviceAccountKey, userEmail, contentSecurityPolicy, clusterImages, stagingBucket,
@@ -1170,7 +1158,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, None, cluster.auditInfo.creator,
       contentSecurityPolicy, cluster.clusterImages, dummyStagingBucket, cluster.welderEnabled)
     val replacements: Map[String, String] = clusterInit.toMap ++ Map("deployWelder" -> (welderAction == DeployWelder).toString, "updateWelder" -> (welderAction == UpdateWelder).toString)
-
     val startupScriptContent = templateResource(clusterResourcesConfig.startupScript, replacements)
 
     immutable.Map(googleKey -> startupScriptContent)

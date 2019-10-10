@@ -21,7 +21,8 @@ object Settings {
     javaOptions += "-Xmx2G",
     javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
     scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings"), //disable unused fatal warning in console
-    scalacOptions in Test --= List("-Ywarn-dead-code", "-deprecation", "-Xfatal-warnings")
+    scalacOptions in Test --= List("-Ywarn-dead-code", "-deprecation", "-Xfatal-warnings"),
+    addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
   )
 
   val commonCompilerSettings = Seq(
@@ -83,10 +84,16 @@ object Settings {
   val commonSettings =
     commonBuildSettings ++ List(
     organization  := "org.broadinstitute.dsde.workbench",
-    scalaVersion  := "2.12.8",
+    scalaVersion  := "2.12.10",
     resolvers ++= commonResolvers,
     scalacOptions ++= commonCompilerSettings
   )
+
+  val coreSettings = commonSettings ++ commonTestSettings ++ List(
+    libraryDependencies ++= coreDependencies
+    //the version is applied in rootVersionSettings and is set to 0.1-githash.
+    //we don't really use it for anything but we might when we publish our model
+  ) ++ rootVersionSettings
 
   //the full list of settings for the root project that's ultimately the one we build into a fat JAR and run
   //coreDefaultSettings (inside commonSettings) sets the project name, which we want to override, so ordering is important.

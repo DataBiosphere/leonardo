@@ -1,77 +1,28 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.net.URL
 import java.time.Instant
-import java.util.UUID
 
-import scala.language.implicitConversions
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.StringValueClass.LabelMap
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
+import scala.language.implicitConversions
 
 sealed trait StringValueClass extends Any
 case class ClusterName(string: String) extends AnyVal with StringValueClass
 case class GoogleServiceAccount(string: String) extends AnyVal with StringValueClass
-case class IP(string: String) extends AnyVal with StringValueClass
-case class OperationName(string: String) extends AnyVal with StringValueClass
-
-case class MachineConfig(numberOfWorkers: Option[Int] = None,
-                         masterMachineType: Option[String] = None,
-                         masterDiskSize: Option[Int] = None,  //min 10
-                         workerMachineType: Option[String] = None,
-                         workerDiskSize: Option[Int] = None,   //min 10
-                         numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
-                         numberOfPreemptibleWorkers: Option[Int] = None
-                        )
-object MachineConfig {
-  // TODO: something less hacky
-  def apply(m: Map[String, String]): MachineConfig = MachineConfig(
-    m.get("numberOfWorkers").map(Integer.parseInt),
-    m.get("masterMachineType"),
-    m.get("masterDiskSize").map(Integer.parseInt),
-    m.get("workerMachineType"),
-    m.get("workerDiskSize").map(Integer.parseInt),
-    m.get("numberOfWorkerLocalSSDs").map(Integer.parseInt),
-    m.get("numberOfPreemptibleWorkers").map(Integer.parseInt)
-  )
-}
-
-case class ServiceAccountInfo(clusterServiceAccount: Option[WorkbenchEmail],
-                              notebookServiceAccount: Option[WorkbenchEmail])
-
-object ServiceAccountInfo {
-  // TODO: something less hacky, please!
-  // If we're going to use Jackson we should use it the right way, with annotations in our model.
-  // Otherwise we should rip out LeonardoModelCopy + ClusterKluge and just use Leo model objects + spray json (my prefrence).
-  def apply(m: Map[String, String]): ServiceAccountInfo = ServiceAccountInfo(
-    m.get("clusterServiceAccount").map(WorkbenchEmail),
-    m.get("notebookServiceAccount").map(WorkbenchEmail)
-  )
-}
-
 
 case class Cluster(clusterName: ClusterName,
-                   googleId: UUID,
                    googleProject: GoogleProject,
                    serviceAccountInfo: ServiceAccountInfo,
                    machineConfig: MachineConfig,
-                   clusterUrl: URL,
-                   operationName: OperationName,
                    status: ClusterStatus,
-                   hostIp: Option[IP],
                    creator: WorkbenchEmail,
-                   createdDate: Instant,
-                   destroyedDate: Option[Instant],
                    labels: LabelMap,
-                   jupyterExtensionUri: Option[GcsPath],
-                   jupyterUserScriptUri: Option[GcsPath],
                    stagingBucket:Option[GcsBucketName],
                    errors:List[ClusterError],
                    dateAccessed: Instant,
-                   defaultClientId: Option[String],
-                   stopAfterCreation: Boolean,
-                   scopes: Set[String]) {
+                   stopAfterCreation: Boolean) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.string}"
 }
 
@@ -95,12 +46,6 @@ case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
                                       serverExtensions: Map[String, String] = Map(),
                                       combinedExtensions: Map[String, String] = Map(),
                                       labExtensions: Map[String, String] = Map())
-
-
-case class ClusterError(errorMessage: String,
-                        errorCode: Int,
-                        timestamp: String
-                       )
 
 case class DefaultLabels(clusterName: ClusterName,
                          googleProject: GoogleProject,

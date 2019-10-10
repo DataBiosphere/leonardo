@@ -4,6 +4,8 @@ import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
+import cats.effect.IO
+import cats.mtl.ApplicativeAsk
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
@@ -16,11 +18,9 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool.{Jupyter, RS
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.model.google._
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId, ServiceAccountPrivateKeyData, _}
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.concurrent.ScalaFutures
-
-import scala.concurrent.ExecutionContext
-
+import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 
 // values common to multiple tests, to reduce boilerplate
 
@@ -60,7 +60,6 @@ trait CommonTestData{ this: ScalaFutures =>
   val clusterToolConfig = config.as[ClusterToolConfig](path = "clusterToolMonitor")
   val dnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")
   val clusterUrlBase = dataprocConfig.clusterUrlBase
-  val serviceAccountsConfig = config.getConfig("serviceAccounts.config")
   val monitorConfig = config.as[MonitorConfig]("monitor")
   val clusterBucketConfig = config.as[ClusterBucketConfig]("clusterBucket")
   val contentSecurityPolicy = config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
@@ -146,17 +145,19 @@ trait CommonTestData{ this: ScalaFutures =>
 
   // TODO look into parameterized tests so both provider impls can be tested
   // Also remove code duplication with LeonardoServiceSpec, TestLeoRoutes, and CommonTestData
-  val serviceAccountProvider = new MockPetClusterServiceAccountProvider(serviceAccountsConfig)
+  val serviceAccountProvider = new MockPetClusterServiceAccountProvider
   val whitelistAuthProvider = new WhitelistAuthProvider(whitelistAuthConfig, serviceAccountProvider)
 
   val userExtConfig = UserJupyterExtensionConfig(Map("nbExt1"->"abc", "nbExt2"->"def"), Map("serverExt1"->"pqr"), Map("combinedExt1"->"xyz"))
 
-  protected def clusterServiceAccount(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Option[WorkbenchEmail] = {
-    serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject).futureValue
+  implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID())) //we don't care much about traceId in unit tests, hence providing a constant UUID here
+
+  protected def clusterServiceAccount(googleProject: GoogleProject): Option[WorkbenchEmail] = {
+    serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject).unsafeRunSync()
   }
 
-  protected def notebookServiceAccount(googleProject: GoogleProject)(implicit executionContext: ExecutionContext): Option[WorkbenchEmail] = {
-    serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject).futureValue
+  protected def notebookServiceAccount(googleProject: GoogleProject): Option[WorkbenchEmail] = {
+    serviceAccountProvider.getNotebookServiceAccount(userInfo, googleProject).unsafeRunSync()
   }
 
   val masterInstance = Instance(

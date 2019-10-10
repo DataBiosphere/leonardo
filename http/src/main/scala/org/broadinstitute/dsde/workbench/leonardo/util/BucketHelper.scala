@@ -1,15 +1,18 @@
-package org.broadinstitute.dsde.workbench.leonardo.util
+package org.broadinstitute.dsde.workbench.leonardo
+package util
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import cats.data.OptionT
+import cats.effect.IO
 import cats.implicits._
+import cats.mtl.ApplicativeAsk
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{Config, DataprocConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoException, ServiceAccountInfo, ServiceAccountProvider}
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.leonardo.model.{LeoException, ServiceAccountProvider}
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GcsEntityTypes.{Group, User}
 import org.broadinstitute.dsde.workbench.model.google.GcsRoles.{GcsRole, Owner, Reader}
 import org.broadinstitute.dsde.workbench.model.google.ProjectTeamTypes.{Editors, Owners, Viewers}
@@ -31,9 +34,10 @@ class BucketHelper(dataprocConfig: DataprocConfig,
                    gdDAO: GoogleDataprocDAO,
                    googleComputeDAO: GoogleComputeDAO,
                    googleStorageDAO: GoogleStorageDAO,
-                   serviceAccountProvider: ServiceAccountProvider)
+                   serviceAccountProvider: ServiceAccountProvider[IO])
                   (implicit val executionContext: ExecutionContext, val system: ActorSystem)
   extends LazyLogging with Retry {
+  val leoEntity = userEntity(Config.serviceAccountProviderConfig.leoServiceAccount)
 
   /**
     * Creates the dataproc init bucket and sets the necessary ACLs.
@@ -44,7 +48,6 @@ class BucketHelper(dataprocConfig: DataprocConfig,
       // Leo service account -> Owner
       // available service accounts ((cluster or default SA) and notebook SA, if they exist) -> Reader
       bucketSAs <- getBucketSAs(googleProject, serviceAccountInfo)
-      leoEntity = userEntity(serviceAccountProvider.getLeoServiceAccountAndKey._1)
       // When we receive a lot of simultaneous cluster creation requests in the same project,
       // we hit Google bucket creation/deletion request quota of one per approx. two seconds.
       // Therefore, we are adding a second layer of retries on top of the one existing within
@@ -58,7 +61,7 @@ class BucketHelper(dataprocConfig: DataprocConfig,
   /**
     * Creates the dataproc staging bucket and sets the necessary ACLs.
     */
-  def createStagingBucket(userEmail: WorkbenchEmail, googleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo): Future[GcsBucketName] = {
+  def createStagingBucket(userEmail: WorkbenchEmail, googleProject: GoogleProject, bucketName: GcsBucketName, serviceAccountInfo: ServiceAccountInfo)(implicit ev: ApplicativeAsk[IO, TraceId]): Future[GcsBucketName] = {
     for {
       // The staging bucket is created in the cluster's project.
       // Leo service account -> Owner
@@ -69,9 +72,8 @@ class BucketHelper(dataprocConfig: DataprocConfig,
       //    editors-<project number> -> Owner
       //    owners-<project number> -> Owner
       bucketSAs <- getBucketSAs(googleProject, serviceAccountInfo)
-      leoEntity = userEntity(serviceAccountProvider.getLeoServiceAccountAndKey._1)
-      providerReaders <- serviceAccountProvider.listUsersStagingBucketReaders(userEmail).map(_.map(userEntity))
-      providerGroups <- serviceAccountProvider.listGroupsStagingBucketReaders(userEmail).map(_.map(groupEntity))
+      providerReaders <- serviceAccountProvider.listUsersStagingBucketReaders(userEmail).map(_.map(userEntity)).unsafeToFuture()
+      providerGroups <- serviceAccountProvider.listGroupsStagingBucketReaders(userEmail).map(_.map(groupEntity)).unsafeToFuture()
 
       projectNumberOpt <- googleComputeDAO.getProjectNumber(googleProject)
       (projectViewers, projectEditors, projectOwners) <- getConvenienceEntities(googleProject, projectNumberOpt)

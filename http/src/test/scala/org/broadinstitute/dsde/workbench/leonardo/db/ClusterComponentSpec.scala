@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.db
+package org.broadinstitute.dsde.workbench.leonardo
+package db
 
 import java.sql.SQLException
 import java.time.Instant

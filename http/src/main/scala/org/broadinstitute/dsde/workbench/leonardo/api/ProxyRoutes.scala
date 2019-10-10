@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
+import java.util.UUID
+
 import akka.actor.ActorSystem
 import akka.event.{Logging, LoggingAdapter}
 import akka.http.scaladsl.model._
@@ -13,9 +15,11 @@ import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.server.RouteResult.Complete
 import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
 import akka.stream.Materializer
+import cats.effect.IO
+import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.ConnectToCluster
 import org.broadinstitute.dsde.workbench.leonardo.util.CookieHelper
-import org.broadinstitute.dsde.workbench.model.UserInfo
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
 import scala.concurrent.ExecutionContext
 
@@ -28,6 +32,7 @@ trait ProxyRoutes extends UserInfoDirectives with CorsSupport with CookieHelper 
   protected val proxyRoutes: Route =
     //note that the "notebooks" path prefix is deprecated
     pathPrefix("proxy" | "notebooks") {
+      implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
       corsHandler {
 

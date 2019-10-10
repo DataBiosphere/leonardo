@@ -4,7 +4,7 @@ FROM bigtruedata/sbt
 ENV GIT_HASH="0.0.1"
 
 COPY automation/src /app/automation/src
-COPY http/src /app/http/src
+COPY core/src /app/core/src
 COPY project /app/project
 COPY build.sbt /app
 COPY automation-tests-docker-entrypoint.sh /app

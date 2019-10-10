@@ -13,6 +13,7 @@ object LeonardoConfig extends CommonConfig {
     val pythonImageUrl: String = leonardo.getString("pythonImageUrl")
     val hailImageUrl: String = leonardo.getString("hailImageUrl")
     val gatkImageUrl: String = leonardo.getString("gatkImageUrl")
+    val baseImageUrl: String = leonardo.getString("baseImageUrl") //TODO: Use this for most tests other than Notebook*Spec
   }
 
   // for qaEmail and pathToQAPem and pathToQAJson

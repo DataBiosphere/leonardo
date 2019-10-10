@@ -1,291 +1,186 @@
-package org.broadinstitute.dsde.workbench.leonardo.auth.sam
+package org.broadinstitute.dsde.workbench.leonardo
+package auth.sam
 
 import akka.actor.ActorSystem
+import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import akka.testkit.TestKit
-import com.typesafe.config.Config
+import cats.effect.IO
 import com.typesafe.scalalogging.LazyLogging
-import io.swagger.client.ApiException
-import java.util.UUID.randomUUID
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleIamDAO}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData
-import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProvider.NotebookAuthCacheKey
+import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.model.ClusterInternalId
 import org.broadinstitute.dsde.workbench.leonardo.model.NotebookClusterActions.{DeleteCluster, SyncDataToCluster}
 import org.broadinstitute.dsde.workbench.leonardo.model.ProjectActions.CreateClusters
-import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
-import org.mockito.Mockito._
+import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchUserId}
+import org.http4s.HttpApp
+import org.http4s.client.Client
 import org.scalatest._
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.mockito.MockitoSugar
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
 
-class TestSamAuthProvider(authConfig: Config, serviceAccountProvider: ServiceAccountProvider) extends SamAuthProvider(authConfig, serviceAccountProvider)  {
-  override lazy val samClient = new MockSwaggerSamClient()
-}
-
-class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with FreeSpecLike with Matchers with TestComponent with CommonTestData with ScalaFutures with BeforeAndAfterAll with MockitoSugar with LazyLogging {
-
+class SamAuthProviderSpec extends TestKit(ActorSystem("leonardotest")) with FreeSpecLike with Matchers with TestComponent with CommonTestData with ScalaFutures with BeforeAndAfterAll with LazyLogging {
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)
     super.afterAll()
   }
 
-  private def getSamAuthProvider: TestSamAuthProvider = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"),serviceAccountProvider)
-
   val gdDAO = new MockGoogleDataprocDAO
   val iamDAO = new MockGoogleIamDAO
+  val samAuthProviderConfigWithoutCache: SamAuthProviderConfig = SamAuthProviderConfig(
+    false,
+    10,
+    1.minutes
+  )
 
-  "should add and delete a notebook-cluster resource with correct actions for the user when a cluster is created and then destroyed" in isolatedDbTest {
-    val samAuthProvider = getSamAuthProvider
+  val fakeUserInfo = UserInfo(OAuth2BearerToken(s"TokenFor${userEmail}"), WorkbenchUserId("user1"), userEmail, 0)
+  val mockSam = new MockSamDAO
+  val samAuthProvider = new SamAuthProvider(mockSam, samAuthProviderConfigWithoutCache, serviceAccountProvider)
+  val fakeUserAuthorization = MockSamDAO.userEmailToAuthorization(fakeUserInfo.userEmail)
 
-    samAuthProvider.samClient.billingProjects += (project, userInfo.userEmail) -> Set("launch_notebook_cluster")
-    // check the sam auth provider has no notebook-cluster resource
-    samAuthProvider.samClient.notebookClusters shouldBe empty
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "status") shouldBe false
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "connect") shouldBe false
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "sync") shouldBe false
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "delete") shouldBe false
+  val samAuthProviderConfigWithCache: SamAuthProviderConfig = SamAuthProviderConfig(
+    true,
+    10,
+    1.minutes
+  )
+  val samAuthProviderWithCache = new SamAuthProvider(mockSam, samAuthProviderConfigWithCache, serviceAccountProvider)
+
+
+  "should add and delete a notebook-cluster resource with correct actions for the user when a cluster is created and then destroyed" in {
+    mockSam.billingProjects += (project, fakeUserAuthorization) -> Set("launch_notebook_cluster")
+//     check the sam auth provider has no notebook-cluster resource
+    mockSam.notebookClusters shouldBe empty
+    val defaultPermittedActions = List("status", "connect", "sync", "delete")
+    defaultPermittedActions.foreach {
+      action =>
+        mockSam.hasResourcePermission(internalId, action, ResourceTypeName.NotebookCluster, fakeUserAuthorization).unsafeRunSync() shouldBe false
+    }
 
     // creating a cluster would call notify
-    samAuthProvider.notifyClusterCreated(internalId, userInfo.userEmail, project, name1).futureValue
+    samAuthProvider.notifyClusterCreated(internalId, fakeUserInfo.userEmail, project, name1).unsafeRunSync()
 
     // check the resource exists for the user and actions
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "status") shouldBe true
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "connect") shouldBe true
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "sync") shouldBe true
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "delete") shouldBe true
-
+    defaultPermittedActions.foreach {
+      action =>
+        mockSam.hasResourcePermission(internalId, action, ResourceTypeName.NotebookCluster, fakeUserAuthorization).unsafeRunSync() shouldBe true
+    }
     // deleting a cluster would call notify
-    samAuthProvider.notifyClusterDeleted(internalId, userInfo.userEmail, userInfo.userEmail, project, name1).futureValue
+    samAuthProvider.notifyClusterDeleted(internalId, fakeUserInfo.userEmail, fakeUserInfo.userEmail, project, name1).unsafeRunSync()
 
-    samAuthProvider.samClient.notebookClusters shouldBe empty
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "status") shouldBe false
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "connect") shouldBe false
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "sync") shouldBe false
-    samAuthProvider.samClient.hasActionOnNotebookClusterResource(internalId, userInfo, "delete") shouldBe false
+    mockSam.notebookClusters shouldBe empty
+    defaultPermittedActions.foreach {
+      action =>
+        mockSam.hasResourcePermission(internalId, action, ResourceTypeName.NotebookCluster, fakeUserAuthorization).unsafeRunSync() shouldBe false
+    }
 
-    samAuthProvider.samClient.billingProjects.remove((project, userInfo.userEmail))
-
+    mockSam.billingProjects.remove((project, fakeUserAuthorization))
   }
 
-  "hasProjectPermission should return true if user has project permissions and false if they do not" in isolatedDbTest {
-    val samAuthProvider = getSamAuthProvider
+  "hasProjectPermission should return true if user has project permissions and false if they do not" in {
+    mockSam.billingProjects += (project, fakeUserAuthorization) -> Set("launch_notebook_cluster")
+    samAuthProvider.hasProjectPermission(fakeUserInfo, CreateClusters, project).unsafeRunSync() shouldBe true
 
-    samAuthProvider.samClient.billingProjects += (project, userInfo.userEmail) -> Set("launch_notebook_cluster")
-    samAuthProvider.hasProjectPermission(userInfo, CreateClusters, project).futureValue shouldBe true
+    samAuthProvider.hasProjectPermission(unauthorizedUserInfo, CreateClusters, project).unsafeRunSync() shouldBe false
+    samAuthProvider.hasProjectPermission(fakeUserInfo, CreateClusters, GoogleProject("leo-fake-project")).unsafeRunSync() shouldBe false
 
-    samAuthProvider.hasProjectPermission(unauthorizedUserInfo, CreateClusters, project).futureValue shouldBe false
-    samAuthProvider.hasProjectPermission(userInfo, CreateClusters, GoogleProject("leo-fake-project")).futureValue shouldBe false
-
-    samAuthProvider.samClient.billingProjects.remove((project, userInfo.userEmail))
+    mockSam.billingProjects.remove((project, fakeUserAuthorization))
   }
 
-  "hasNotebookClusterPermission should return true if user has notebook cluster permissions and false if they do not" in isolatedDbTest {
-    val samAuthProvider = getSamAuthProvider
+  "hasNotebookClusterPermission should return true if user has notebook cluster permissions and false if they do not" in {
+    mockSam.notebookClusters += (internalId, fakeUserAuthorization) -> Set("sync")
+    samAuthProvider.hasNotebookClusterPermission(internalId, fakeUserInfo, SyncDataToCluster, project, name1).unsafeRunSync() shouldBe true
 
-    samAuthProvider.samClient.notebookClusters += (internalId, userInfo.userEmail) -> Set("sync")
-    samAuthProvider.hasNotebookClusterPermission(internalId, userInfo, SyncDataToCluster, project, name1).futureValue shouldBe true
-
-    samAuthProvider.hasNotebookClusterPermission(internalId, unauthorizedUserInfo, SyncDataToCluster, project, name1).futureValue shouldBe false
-    samAuthProvider.hasNotebookClusterPermission(internalId, userInfo, DeleteCluster, project, name1).futureValue shouldBe false
-    samAuthProvider.samClient.notebookClusters.remove((internalId, userInfo.userEmail))
+    samAuthProvider.hasNotebookClusterPermission(internalId, unauthorizedUserInfo, SyncDataToCluster, project, name1).unsafeRunSync() shouldBe false
+    samAuthProvider.hasNotebookClusterPermission(internalId, fakeUserInfo, DeleteCluster, project, name1).unsafeRunSync() shouldBe false
+    mockSam.notebookClusters.remove((internalId, fakeUserAuthorization))
   }
 
-  "hasNotebookClusterPermission should return true if user does not have notebook cluster permissions but does have project permissions" in isolatedDbTest {
-    val samAuthProvider = getSamAuthProvider
+  "hasNotebookClusterPermission should return true if user does not have notebook cluster permissions but does have project permissions" in {
+    mockSam.billingProjects += (project, fakeUserAuthorization) -> Set("sync_notebook_cluster")
+    mockSam.notebookClusters += (internalId, fakeUserAuthorization) -> Set()
 
-    samAuthProvider.samClient.billingProjects += (project, userInfo.userEmail) -> Set("sync_notebook_cluster")
-    samAuthProvider.samClient.notebookClusters += (internalId, userInfo.userEmail) -> Set()
+    samAuthProvider.hasNotebookClusterPermission(internalId, fakeUserInfo, SyncDataToCluster, project, name1).unsafeRunSync() shouldBe true
 
-    samAuthProvider.hasNotebookClusterPermission(internalId, userInfo, SyncDataToCluster, project, name1).futureValue shouldBe true
-
-    samAuthProvider.samClient.billingProjects.remove((project, userInfo.userEmail))
-    samAuthProvider.samClient.notebookClusters.remove((internalId, userInfo.userEmail))
+    mockSam.billingProjects.remove((project, fakeUserAuthorization))
+    mockSam.notebookClusters.remove((internalId, fakeUserAuthorization))
   }
 
-  "notifyClusterCreated should create a new cluster resource" in isolatedDbTest {
-    val samAuthProvider = getSamAuthProvider
-
-    samAuthProvider.samClient.notebookClusters shouldBe empty
-    samAuthProvider.notifyClusterCreated(internalId, userInfo.userEmail, project, name1).futureValue
-    samAuthProvider.samClient.notebookClusters.toList should contain ((internalId, userInfo.userEmail) -> Set("connect", "read_policies", "status", "delete", "sync"))
-    samAuthProvider.samClient.notebookClusters.remove((internalId, userInfo.userEmail))
+  "notifyClusterCreated should create a new cluster resource" in {
+    mockSam.notebookClusters shouldBe empty
+    samAuthProvider.notifyClusterCreated(internalId, fakeUserInfo.userEmail, project, name1).unsafeRunSync()
+    mockSam.notebookClusters.toList should contain ((internalId, fakeUserAuthorization) -> Set("connect", "read_policies", "status", "delete", "sync"))
+    mockSam.notebookClusters.remove((internalId, fakeUserAuthorization))
   }
 
-  "notifyClusterDeleted should delete a cluster resource" in isolatedDbTest {
-    val samAuthProvider = getSamAuthProvider
-    samAuthProvider.samClient.notebookClusters += (internalId, userInfo.userEmail) -> Set()
+  "notifyClusterDeleted should delete a cluster resource" in {
+    mockSam.notebookClusters += (internalId, fakeUserAuthorization) -> Set()
 
-    samAuthProvider.notifyClusterDeleted(internalId, userInfo.userEmail, userInfo.userEmail, project, name1).futureValue
-    samAuthProvider.samClient.notebookClusters.toList should not contain ((project, name1, userInfo.userEmail) -> Set("connect", "read_policies", "status", "delete", "sync"))
+    samAuthProvider.notifyClusterDeleted(internalId, userInfo.userEmail, userInfo.userEmail, project, name1).unsafeRunSync()
+    mockSam.notebookClusters.toList should not contain ((internalId, fakeUserAuthorization) -> Set("connect", "read_policies", "status", "delete", "sync"))
   }
 
-  "should cache hasNotebookClusterPermission results" in isolatedDbTest {
-    val samAuthProvider = getSamAuthProvider
-
+  "should cache hasNotebookClusterPermission results" in {
     // cache should be empty
-    samAuthProvider.notebookAuthCache.size shouldBe 0
+    samAuthProviderWithCache.notebookAuthCache.size shouldBe 0
 
     // populate backing samClient
-    samAuthProvider.samClient.notebookClusters += (internalId, userInfo.userEmail) -> Set("sync")
+    mockSam.notebookClusters += (internalId, fakeUserAuthorization) -> Set("sync")
 
     // call provider method
-    samAuthProvider.hasNotebookClusterPermission(internalId, userInfo, SyncDataToCluster, project, name1).futureValue shouldBe true
+    samAuthProviderWithCache.hasNotebookClusterPermission(internalId, fakeUserInfo, SyncDataToCluster, project, name1).unsafeRunSync() shouldBe true
 
     // cache should contain 1 entry
-    samAuthProvider.notebookAuthCache.size shouldBe 1
-    val key = NotebookAuthCacheKey(internalId, userInfo, SyncDataToCluster, project, name1, implicitly[ExecutionContext])
-    samAuthProvider.notebookAuthCache.asMap.containsKey(key) shouldBe true
-    samAuthProvider.notebookAuthCache.asMap.get(key).futureValue shouldBe true
-
+    samAuthProviderWithCache.notebookAuthCache.size shouldBe 1
+    val key = NotebookAuthCacheKey(internalId, fakeUserAuthorization, SyncDataToCluster, project, name1)
+    samAuthProviderWithCache.notebookAuthCache.asMap.containsKey(key) shouldBe true
+    samAuthProviderWithCache.notebookAuthCache.asMap.get(key) shouldBe true
     // remove info from samClient
-    samAuthProvider.samClient.notebookClusters.remove((internalId, userInfo.userEmail))
-
+    mockSam.notebookClusters.remove((internalId, fakeUserAuthorization))
     // provider should still return true because the info is cached
-    samAuthProvider.hasNotebookClusterPermission(internalId, userInfo, SyncDataToCluster, project, name1).futureValue shouldBe true
+    samAuthProviderWithCache.hasNotebookClusterPermission(internalId, fakeUserInfo, SyncDataToCluster, project, name1).unsafeRunSync() shouldBe true
   }
 
-  "should consider userInfo objects with different tokenExpiresIn values as the same" in isolatedDbTest {
-    val samAuthProvider = getSamAuthProvider
-
+  "should consider userInfo objects with different tokenExpiresIn values as the same" in {
+    samAuthProviderWithCache.notebookAuthCache.invalidateAll()
     // cache should be empty
-    samAuthProvider.notebookAuthCache.size shouldBe 0
+    samAuthProviderWithCache.notebookAuthCache.size shouldBe 0
 
     // populate backing samClient
-    samAuthProvider.samClient.notebookClusters += (internalId, userInfo.userEmail) -> Set("sync")
+    mockSam.notebookClusters += (internalId, fakeUserAuthorization) -> Set("sync")
 
     // call provider method
-    samAuthProvider.hasNotebookClusterPermission(internalId, userInfo, SyncDataToCluster, project, name1).futureValue shouldBe true
+    samAuthProviderWithCache.hasNotebookClusterPermission(internalId, fakeUserInfo, SyncDataToCluster, project, name1).unsafeRunSync() shouldBe true
 
-    samAuthProvider.hasNotebookClusterPermission(internalId, userInfo.copy(tokenExpiresIn = userInfo.tokenExpiresIn + 10), SyncDataToCluster, project, name1).futureValue shouldBe true
+    samAuthProviderWithCache.hasNotebookClusterPermission(internalId, fakeUserInfo.copy(tokenExpiresIn = userInfo.tokenExpiresIn + 10), SyncDataToCluster, project, name1).unsafeRunSync() shouldBe true
 
-    samAuthProvider.notebookAuthCache.size shouldBe 1
-
+    samAuthProviderWithCache.notebookAuthCache.size shouldBe 1
   }
 
-  "filterClusters should return clusters that were created by the user or whose project is owned by the user" in isolatedDbTest {
-    val samAuthProvider = getSamAuthProvider
-
+  "filterClusters should return clusters that were created by the user or whose project is owned by the user" in {
+    val cluster1 = ClusterInternalId(name1.value)
+    val cluster2 = ClusterInternalId(name2.value)
     // initial filterClusters should return empty list
-    samAuthProvider.filterUserVisibleClusters(userInfo, List(project -> name1, project -> name2)).futureValue shouldBe List.empty
+    samAuthProvider.filterUserVisibleClusters(fakeUserInfo, List(project -> cluster1, project -> cluster2)).unsafeRunSync() shouldBe List.empty
 
+    val notebookClusterPolicy = SamNotebookClusterPolicy(AccessPolicyName.Creator, cluster2)
     // pretend user created name2
-    samAuthProvider.samClient.clusterCreators += userInfo.userEmail -> Set(project -> name2)
+    mockSam.clusterCreators += fakeUserAuthorization -> Set(notebookClusterPolicy)
 
     // name2 should now be returned
-    samAuthProvider.filterUserVisibleClusters(userInfo, List(project -> name1, project -> name2)).futureValue shouldBe List(project -> name2)
+    samAuthProvider.filterUserVisibleClusters(fakeUserInfo, List(project -> cluster1, project -> cluster2)).unsafeRunSync() shouldBe List(project -> cluster2)
 
+    val projectPolicy = SamProjectPolicy(AccessPolicyName.Owner, project)
     // pretend user owns the project
-    samAuthProvider.samClient.projectOwners += userInfo.userEmail -> Set(project)
+    mockSam.projectOwners += fakeUserAuthorization -> Set(projectPolicy)
 
     // name1 and name2 should now be returned
-    samAuthProvider.filterUserVisibleClusters(userInfo, List(project -> name1, project -> name2)).futureValue shouldBe List(project -> name1, project -> name2)
+    samAuthProvider.filterUserVisibleClusters(fakeUserInfo, List(project -> cluster1, project -> cluster2)).unsafeRunSync() shouldBe List(project -> cluster1, project -> cluster2)
   }
+}
 
-  "notifyClusterCreated should retry errors and invalidate the pet token cache" in isolatedDbTest {
-    logger.info("testing retries, stack traces expected")
-    val dummyTraceId = TraceId(randomUUID)
-
-    // should retry 401s
-    val samClientThrowing401 = mock[MockSwaggerSamClient]
-    when {
-      samClientThrowing401.createNotebookClusterResource(mockitoEq(internalId), mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(name1))
-    } thenThrow new ApiException(401, "unauthorized")
-
-    val providerThrowing401 = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider) {
-      override lazy val samClient = samClientThrowing401
-    }
-
-    providerThrowing401.notifyClusterCreated(internalId, userInfo.userEmail, project, name1, dummyTraceId).failed.futureValue shouldBe a [ApiException]
-    verify(samClientThrowing401, times(3)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
-
-    // should retry 500s
-    val samClientThrowing500 = mock[MockSwaggerSamClient]
-    when {
-      samClientThrowing500.createNotebookClusterResource(mockitoEq(internalId), mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(name1))
-    } thenThrow new ApiException(500, "internal error")
-
-    val providerThrowing500 = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider) {
-      override lazy val samClient = samClientThrowing500
-    }
-    providerThrowing500.notifyClusterCreated(internalId, userInfo.userEmail, project, name1, dummyTraceId).failed.futureValue shouldBe a [ApiException]
-    verify(samClientThrowing500, times(3)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
-
-    // should not retry 404s
-    val samClientThrowing404 = mock[MockSwaggerSamClient]
-    when {
-      samClientThrowing404.createNotebookClusterResource(mockitoEq(internalId), mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(name1))
-    } thenThrow new ApiException(404, "not found")
-
-    val providerThrowing404 = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider) {
-      override lazy val samClient = samClientThrowing404
-    }
-
-    providerThrowing404.notifyClusterCreated(internalId, userInfo.userEmail, project, name1, dummyTraceId).failed.futureValue shouldBe a [ApiException]
-    verify(samClientThrowing404, never).invalidatePetAccessToken(any[WorkbenchEmail], any[GoogleProject])
-  }
-
-  "notifyClusterDeleted should retry errors and invalidate the pet token cache" in isolatedDbTest {
-    logger.info("testing retries, stack traces expected")
-
-    // should retry 401s
-    val samClientThrowing401 = mock[MockSwaggerSamClient]
-    when {
-      samClientThrowing401.deleteNotebookClusterResource(mockitoEq(internalId), mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(name1))
-    } thenThrow new ApiException(401, "unauthorized")
-
-    val providerThrowing401 = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider) {
-      override lazy val samClient = samClientThrowing401
-    }
-
-    providerThrowing401.notifyClusterDeleted(internalId, userInfo.userEmail, userInfo.userEmail, project, name1).failed.futureValue shouldBe a [ApiException]
-    verify(samClientThrowing401, times(3)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
-
-    // should retry 500s
-    val samClientThrowing500 = mock[MockSwaggerSamClient]
-    when {
-      samClientThrowing500.deleteNotebookClusterResource(mockitoEq(internalId), mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(name1))
-    } thenThrow new ApiException(500, "internal error")
-
-    val providerThrowing500 = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider) {
-      override lazy val samClient = samClientThrowing500
-    }
-
-    providerThrowing500.notifyClusterDeleted(internalId, userInfo.userEmail, userInfo.userEmail, project, name1).failed.futureValue shouldBe a [ApiException]
-    verify(samClientThrowing500, times(3)).invalidatePetAccessToken(mockitoEq(userInfo.userEmail), mockitoEq(project))
-
-    // should not retry 400s
-    val samClientThrowing400 = mock[MockSwaggerSamClient]
-    when {
-      samClientThrowing400.deleteNotebookClusterResource(mockitoEq(internalId), mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(name1))
-    } thenThrow new ApiException(400, "bad request")
-
-    val providerThrowing400 = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider) {
-      override lazy val samClient = samClientThrowing400
-    }
-
-    providerThrowing400.notifyClusterDeleted(internalId, userInfo.userEmail, userInfo.userEmail, project, name1).failed.futureValue shouldBe a [ApiException]
-    verify(samClientThrowing400, never).invalidatePetAccessToken(any[WorkbenchEmail], any[GoogleProject])
-  }
-
-  "notifyClusterDeleted should recover 404s from Sam" in isolatedDbTest {
-    val samClientThrowing404 = mock[MockSwaggerSamClient]
-    when {
-      samClientThrowing404.deleteNotebookClusterResource(mockitoEq(internalId), mockitoEq(userInfo.userEmail), mockitoEq(project), mockitoEq(name1))
-    } thenThrow new ApiException(404, "not found")
-
-    val providerThrowing404 = new TestSamAuthProvider(config.getConfig("auth.samAuthProviderConfig"), serviceAccountProvider) {
-      override lazy val samClient = samClientThrowing404
-    }
-
-    // provider should not throw an exception
-    providerThrowing404.notifyClusterDeleted(internalId, userInfo.userEmail, userInfo.userEmail, project, name1).futureValue shouldBe (())
-    // request should not have been retried
-    verify(samClientThrowing404, never).invalidatePetAccessToken(any[WorkbenchEmail], any[GoogleProject])
-  }
-
+object SamAuthProviderSpec {
+  def testClient(app: HttpApp[IO]): Client[IO] =
+    Client.fromHttpApp[IO](app)
 }
