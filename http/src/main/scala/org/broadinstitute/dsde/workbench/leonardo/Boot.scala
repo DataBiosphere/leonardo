@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
+import cats.effect.concurrent.Semaphore
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift, ExitCode, IO, IOApp, Resource, Timer}
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
@@ -85,7 +86,8 @@ object Boot extends IOApp with LazyLogging {
   def createDependencies[F[_]: Logger: ContextShift: ConcurrentEffect: Timer](pathToCredentialJson: String): Resource[F, AppDependencies[F]] = for {
     blockingEc <- ExecutionContexts.cachedThreadPool[F]
     blocker = Blocker.liftExecutionContext(blockingEc)
-    storage <- GoogleStorageService.resource[F](pathToCredentialJson, blocker)
+    semaphore <- Resource.liftF(Semaphore[F](255L))
+    storage <- GoogleStorageService.resource[F](pathToCredentialJson, blocker, Some(semaphore))
     httpClient <- blaze.BlazeClientBuilder[F](
       blockingEc
     ).resource
