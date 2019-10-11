@@ -229,10 +229,10 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig,
               }
             }
             if (maxKernelActiveTimeExceeded){
-              metrics.incrementCounter("maxKernelExceededClusters").unsafeRunAsync(_ => ())
+              metrics.incrementCounter("autoPause/maxKernelActiveTimeExceeded").unsafeRunAsync(_ => ())
               logger.info(s"Auto pausing ${cluster.googleProject}/${cluster.clusterName} due to exceeded max kernel active time")
             } else {
-              metrics.incrementCounter("activeKernelClusters").unsafeRunAsync(_ => ())
+              metrics.incrementCounter("autoPause/activeKernelClusters").unsafeRunAsync(_ => ())
               logger.info(s"Not going to auto pause cluster ${cluster.googleProject}/${cluster.clusterName} due to active kernels")
             }
             maxKernelActiveTimeExceeded
@@ -240,7 +240,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig,
           } else isIdle
         }
     }
-    _ <- metrics.gauge("autopausedClusters", pauseableClusters.length).unsafeToFuture()
+    _ <- metrics.gauge("autoPause/numOfCusters", pauseableClusters.length).unsafeToFuture()
     _ <- pauseableClusters.traverse { cl =>
       logger.info(s"Auto freezing cluster ${cl.clusterName} in project ${cl.googleProject}")
       leonardoService.internalStopCluster(cl).attempt.map { e =>

@@ -28,9 +28,9 @@ class HttpWelderDAO[F[_]: Async](val clusterDnsCache: ClusterDnsCache, client: C
           logger.error(s"fail to get target host name for welder for ${googleProject}/${clusterName}").as(false)
       }
     _ <- if(res)
-      metrics.incrementCounter("flushWelderCacheSuccess")
+      metrics.incrementCounter("welder/flushcache/Success")
     else
-      metrics.incrementCounter("flushWelderCacheFailure")
+      metrics.incrementCounter("welder/flushcache/Failure")
     } yield ()
   }
 
@@ -47,9 +47,9 @@ class HttpWelderDAO[F[_]: Async](val clusterDnsCache: ClusterDnsCache, client: C
           logger.error(s"fail to get target host name for welder for ${googleProject}/${clusterName}").as(false)
       }
       _ <- if(res)
-        metrics.incrementCounter("flushWelderCacheSuccess")
+        metrics.incrementCounter("welder/status/success")
       else
-        metrics.incrementCounter("flushWelderCacheFailure")
+        metrics.incrementCounter("welder/status/failure")
     } yield res
   }
 }

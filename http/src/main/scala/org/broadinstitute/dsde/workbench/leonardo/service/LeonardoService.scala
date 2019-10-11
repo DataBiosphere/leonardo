@@ -200,8 +200,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         val clusterImages = processClusterImages(clusterRequest)
         for {
           // Metrics
-          _ <- metrics.incrementCounterFuture("numberOfCreateClusterRequests")
-          _ <- if (clusterRequest.enableWelder.getOrElse(false)) metrics.incrementCounterFuture("numberOfWelderEnabledCreateClusterRequests") else Future.unit
+          _ <- metrics.incrementCounterFuture("createCluster/numberOfRequests")
+          _ <- if (clusterRequest.enableWelder.getOrElse(false)) metrics.incrementCounterFuture("createCluster/numberOfWelderEnabledRequests") else Future.unit
 
           // Notify the auth provider that the cluster has been created
           _ <- authProvider.notifyClusterCreated(internalId, userEmail, googleProject, clusterName).unsafeToFuture()
@@ -728,10 +728,10 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       operation <- retryResult match {
         case Right((errors, op)) if errors == List.empty => Future.successful(op)
         case Right((errors, op)) =>
-          metrics.incrementCounter("zoneCapacityClusterCreationFailure", errors.length).unsafeRunAsync(_ => ())
+          metrics.incrementCounter("createCluster/error/zoneCapacityClusterCreationFailure", errors.length).unsafeRunAsync(_ => ())
           Future.successful(op)
         case Left(errors) =>
-          metrics.incrementCounter("zoneCapacityClusterCreationFailure", errors.filter(whenGoogleZoneCapacityIssue).length).unsafeRunAsync(_ => ())
+          metrics.incrementCounter("createCluster/error/zoneCapacityClusterCreationFailure", errors.filter(whenGoogleZoneCapacityIssue).length).unsafeRunAsync(_ => ())
           Future.failed(errors.head)
       }
       cluster = Cluster.create(clusterRequest, internalId, userEmail, clusterName, googleProject, serviceAccountInfo,
@@ -1137,7 +1137,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   private def updateWelder(cluster: Cluster): IO[Cluster] = {
     for {
       _ <- IO(logger.info(s"Will deploy welder to cluster ${cluster.projectNameString}"))
-      _ <- metrics.incrementCounter("welderDeployed")
+      _ <- metrics.incrementCounter("welder/deploy")
       epochMilli <- timer.clock.realTime(MILLISECONDS)
       now = Instant.ofEpochMilli(epochMilli)
       welderImage = ClusterImage(Welder, dataprocConfig.welderDockerImage, now)
