@@ -1352,7 +1352,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     computeDAO.instanceMetadata.values.map(_.keys).flatten.toSet shouldBe Set("startup-script")
   }
 
-  it should "outdated cluster should successfully start and be labelled" in isolatedDbTest {
+  it should "label and start an outdated cluster" in isolatedDbTest {
     // check that the cluster does not exist
     gdDAO.clusters should not contain key(name1)
 
@@ -1376,9 +1376,10 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     // cluster status should Running and have new label
     val cluster = dbFutureValue { _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse) }.get
 
-    cluster.status shouldBe ClusterStatus.Running
-    cluster.labels.exists(_ == "welderInstallFailed" -> "true")
-
+    eventually {
+      cluster.status shouldBe ClusterStatus.Running
+      cluster.labels.exists(_ == "welderInstallFailed" -> "true")
+    }
     // cluster should still exist in Google
     gdDAO.clusters should contain key name1
   }
