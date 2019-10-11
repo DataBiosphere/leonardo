@@ -1383,7 +1383,7 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     gdDAO.clusters should contain key name1
   }
 
-  it should "update disv size for 0 workers when a consumer specifies numberOfPreemptibleWorkers" in isolatedDbTest {
+  it should "update disk size for 0 workers when a consumer specifies numberOfPreemptibleWorkers" in isolatedDbTest {
     val clusterRequest = testClusterRequest.copy(
       machineConfig = Some(singleNodeDefaultMachineConfig),
       stopAfterCreation = Some(true))
