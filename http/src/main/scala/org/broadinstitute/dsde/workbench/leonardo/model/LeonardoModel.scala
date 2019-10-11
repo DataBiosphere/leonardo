@@ -429,6 +429,7 @@ object WelderAction extends Enum[WelderAction] {
   case object UpdateWelder extends WelderAction
   case object NoAction extends WelderAction
   case object ClusterOutOfDate extends WelderAction
+  case object DisableDelocalization extends WelderAction
 }
 
 object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {

@@ -20,7 +20,9 @@ export WELDER_ENABLED=$(welderEnabled)
 export DEPLOY_WELDER=$(deployWelder)
 export UPDATE_WELDER=$(updateWelder)
 export WELDER_DOCKER_IMAGE=$(welderDockerImage)
+export DISABLE_DELOCALIZATION=$(disableDelocalization)
 
+# TODO: remove this block once data syncing is rolled out to Terra
 if [ "$DEPLOY_WELDER" == "true" ] ; then
     echo "Deploying Welder on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
@@ -34,6 +36,13 @@ if [ "$DEPLOY_WELDER" == "true" ] ; then
     # Enable welder in /etc/jupyter/nbconfig/notebook.json (which powers the front-end extensions like edit.js and safe.js)
     docker exec -u root -i $JUPYTER_SERVER_NAME bash -c \
       "test -f /etc/jupyter/nbconfig/notebook.json && jq '.welderEnabled=\"true\"' /etc/jupyter/nbconfig/notebook.json > /etc/jupyter/nbconfig/notebook.json.tmp && mv /etc/jupyter/nbconfig/notebook.json.tmp /etc/jupyter/nbconfig/notebook.json || true"
+fi
+
+# TODO: remove this block once data syncing is rolled out to Terra
+if [ "$DISABLE_DELOCALIZATION" == "true" ] ; then
+    echo "Disabling localization on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
+
+    docker exec -i jupyter-server bash -c "find /home/jupyter-user -name .cache -prune -or -name .delocalize.json -exec rm -f {} \;"
 fi
 
 if [ "$UPDATE_WELDER" == "true" ] ; then
