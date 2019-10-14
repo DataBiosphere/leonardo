@@ -1352,7 +1352,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     computeDAO.instanceMetadata.values.map(_.keys).flatten.toSet shouldBe Set("startup-script")
   }
 
+  // TODO: remove this test once data syncing release is complete
   it should "label and start an outdated cluster" in isolatedDbTest {
+    implicit val patienceConfig = PatienceConfig(timeout = 5.minutes)
     // check that the cluster does not exist
     gdDAO.clusters should not contain key(name1)
 
