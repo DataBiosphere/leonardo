@@ -1352,7 +1352,9 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     computeDAO.instanceMetadata.values.map(_.keys).flatten.toSet shouldBe Set("startup-script")
   }
 
-  it should "fail to start an old cluster" in isolatedDbTest {
+  // TODO: remove this test once data syncing release is complete
+  it should "label and start an outdated cluster" in isolatedDbTest {
+    implicit val patienceConfig = PatienceConfig(timeout = 1.second)
     // check that the cluster does not exist
     gdDAO.clusters should not contain key(name1)
 
@@ -1370,13 +1372,16 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     dbFutureValue { _.clusterQuery.updateClusterStatus(clusterCreateResponse.id, ClusterStatus.Stopped) }
     dbFutureValue { _.clusterQuery.updateClusterCreatedDate(clusterCreateResponse.id, new SimpleDateFormat("yyyy-MM-dd").parse("2018-12-31").toInstant) }
 
-    // start the cluster and verify exception
-    leo.startCluster(userInfo, project, name1).failed.futureValue shouldBe a [ClusterOutOfDateException]
+    // start the cluster
+    leo.startCluster(userInfo, project, name1).futureValue
 
-    // cluster status should still be Stopped in the DB
-    dbFutureValue { _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse) }.get
-      .status shouldBe ClusterStatus.Stopped
+    // cluster status should Running and have new label
+    val cluster = dbFutureValue { _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse) }.get
 
+    eventually {
+      cluster.status shouldBe ClusterStatus.Starting
+      cluster.labels.exists(_ == "welderInstallFailed" -> "true")
+    }
     // cluster should still exist in Google
     gdDAO.clusters should contain key name1
   }
