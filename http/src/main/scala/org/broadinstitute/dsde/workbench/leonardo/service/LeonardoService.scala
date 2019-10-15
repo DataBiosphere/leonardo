@@ -612,9 +612,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         // Check if welder should be deployed or updated
         updatedCluster <- welderAction match {
           case DeployWelder | UpdateWelder => updateWelder(cluster).unsafeToFuture()
-          case NoAction => Future.successful(cluster)
+          case NoAction | DisableDelocalization => Future.successful(cluster)
           case ClusterOutOfDate => Future.failed(ClusterOutOfDateException())
         }
+
+        _ <- if (welderAction == DisableDelocalization)
+          dbRef.inTransaction { _.labelQuery.save(cluster.id, "welderInstallFailed", "true") }
+        else Future.unit
 
         // Add back the preemptible instances
         _ <- if (updatedCluster.machineConfig.numberOfPreemptibleWorkers.exists(_ > 0))
@@ -1117,7 +1121,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       // Welder is not enabled; do we need to deploy it?
       val labelFound = dataprocConfig.deployWelderLabel.exists(cluster.labels.contains)
       if (labelFound) {
-        if (isClusterBeforeCutoffDate(cluster)) ClusterOutOfDate
+        if (isClusterBeforeCutoffDate(cluster)) DisableDelocalization
         else DeployWelder
       }
       else NoAction
@@ -1157,7 +1161,12 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val clusterInit = ClusterInitValues(cluster.googleProject, cluster.clusterName, dummyInitBucket, dummyClusterRequest,
       dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, None, cluster.auditInfo.creator,
       contentSecurityPolicy, cluster.clusterImages, dummyStagingBucket, cluster.welderEnabled)
-    val replacements: Map[String, String] = clusterInit.toMap ++ Map("deployWelder" -> (welderAction == DeployWelder).toString, "updateWelder" -> (welderAction == UpdateWelder).toString)
+    val replacements: Map[String, String] = clusterInit.toMap ++
+      Map(
+        "deployWelder" -> (welderAction == DeployWelder).toString,
+        "updateWelder" -> (welderAction == UpdateWelder).toString,
+        "disableDelocalization" -> (welderAction == DisableDelocalization).toString
+      )
     val startupScriptContent = templateResource(clusterResourcesConfig.startupScript, replacements)
 
     immutable.Map(googleKey -> startupScriptContent)
