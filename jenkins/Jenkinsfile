@@ -132,7 +132,7 @@ pipeline {
           description: "Is not currently baked into the image, but is here for future functionality")
     string(name: "leonardo_jupyter", defaultValue: "5c51ce6935da",
           description: "The tag of the jupyter image to pull in docker image build. Used in the prepare script.")
-    string(name: "welder_server", defaultValue: "latest",
+    string(name: "welder_server", defaultValue: "6a783a5",
           description: "The tag of the welder image to pull in docker image build. Used in the prepare script.")
     string(name: "openidc_proxy", defaultValue: "2.3.1_2",
           description:"The tag of the openidc proxy image to pull in docker image build. Used in the prepare script.")
@@ -336,7 +336,7 @@ pipeline {
       stage('Notify Slack') {
         when { expression { !shouldAbortBuild } }
         steps {
-          slackSend(channel: '#dsp-callisto', message: "Jenkins has successfully built a custom leo dataproc image with the name:  $IMAGE_BASE_NAME-$imageID. \nIf you would like to check the status of the PR, click: $prLink")
+          slackSend(channel: '#dsp-callist-internal', message: "Jenkins has successfully built a custom leo dataproc image with the name:  $IMAGE_BASE_NAME-$imageID. \nIf you would like to check the status of the PR, click: $prLink")
         }
       }
 
