@@ -35,3 +35,4 @@ services:
       NOTEBOOKS_DIR: "${NOTEBOOKS_DIR}"
     env_file:
       - /etc/google_application_credentials.env
+      - /etc/custom_env_vars.env

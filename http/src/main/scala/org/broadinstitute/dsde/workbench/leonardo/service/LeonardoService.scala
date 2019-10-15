@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package service
 
-import java.io.File
+import java.io.{File, PrintWriter}
 import java.text.SimpleDateFormat
 import java.time.Instant
 import java.util.UUID
@@ -936,11 +936,22 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       clusterRequest.enableWelder.getOrElse(false))
     val replacements: Map[String, String] = clusterInit.toMap
 
+    val tmpCustomEnvVarFile = File.createTempFile("custom-env-vars", "env")
+    tmpCustomEnvVarFile.deleteOnExit()
+    val pw = new PrintWriter(tmpCustomEnvVarFile)
+    clusterRequest.customClusterEnvironmentVariables match {
+      case Some(envVarMap) => for ((key, value) <- envVarMap) {
+        pw.println(s"$key=$value")
+      }
+      case None => ()
+    }
+
     // Raw files to upload to the bucket, no additional processing needed.
     val filesToUpload = List(
       clusterFilesConfig.jupyterServerCrt,
       clusterFilesConfig.jupyterServerKey,
-      clusterFilesConfig.jupyterRootCaPem)
+      clusterFilesConfig.jupyterRootCaPem,
+      tmpCustomEnvVarFile)
 
     // Raw resources to upload to the bucket, no additional processing needed.
     // Note: initActionsScript and jupyterGoogleSignInJs are not included

@@ -92,6 +92,8 @@ if [ ! -z ${SERVICE_ACCOUNT_CREDENTIALS} ] ; then
   export GOOGLE_APPLICATION_CREDENTIALS=/etc/${SERVICE_ACCOUNT_CREDENTIALS}
 fi
 
+gsutil cp 'custom-env-vars.json' /etc
+
 # Only initialize tool and proxy docker containers on the master
 if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_HOME=/etc/jupyter

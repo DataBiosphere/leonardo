@@ -84,7 +84,8 @@ final case class ClusterRequest(labels: LabelMap = Map.empty,
                                 rstudioDockerImage: Option[String] = None,
                                 welderDockerImage: Option[String] = None,
                                 scopes: Set[String] = Set.empty,
-                                enableWelder: Option[Boolean] = None)
+                                enableWelder: Option[Boolean] = None,
+                                customClusterEnvironmentVariables: Option[Map[String, String]] = None)
 
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
@@ -306,6 +307,7 @@ final case class ClusterInitValues private (googleProject: String,
 
 object ClusterInitValues {
   val serviceAccountCredentialsFilename = "service-account-credentials.json"
+  val customEnvVarFilename = "custom-env-vars.env"
 
   def apply(googleProject: GoogleProject, clusterName: ClusterName, stagingBucketName: GcsBucketName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, dataprocConfig: DataprocConfig,
             clusterFilesConfig: ClusterFilesConfig, clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig,
