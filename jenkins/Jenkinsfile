@@ -82,7 +82,7 @@ def LinkedHashMap<String,String> getVersionMap(ArrayList<String> imageNames, Str
 }
 
 def String getChangeDescription(LinkedHashMap<String,String> versionMap) {
-  def title = "Automated custom image hash update [jenkins-generated-message]."
+  def title = "[jenkins-generated-pr] Automated custom image hash update"
   def body = "$title"
   def version = ""
   println("version map in getChangeDescription: " + versionMap.toString())
