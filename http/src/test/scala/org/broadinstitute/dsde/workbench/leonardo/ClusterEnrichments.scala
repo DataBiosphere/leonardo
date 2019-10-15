@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.leonardo.model.LeonardoJsonSupport._
-import org.broadinstitute.dsde.workbench.leonardo.model.google.GoogleJsonSupport.MachineConfigFormat
 import org.broadinstitute.dsde.workbench.leonardo.model.{Cluster, ClusterRequest}
 import org.scalactic.Equality
 import spray.json.RootJsonWriter
