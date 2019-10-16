@@ -939,11 +939,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     val tmpCustomEnvVarFile = File.createTempFile("custom-env-vars", "env")
     tmpCustomEnvVarFile.deleteOnExit()
     val pw = new PrintWriter(tmpCustomEnvVarFile)
-    clusterRequest.customClusterEnvironmentVariables match {
-      case Some(envVarMap) => for ((key, value) <- envVarMap) {
-        pw.println(s"$key=$value")
-      }
-      case None => ()
+    for ((key, value) <- clusterRequest.customClusterEnvironmentVariables) {
+      pw.println(s"$key=$value")
     }
 
     // Raw files to upload to the bucket, no additional processing needed.
