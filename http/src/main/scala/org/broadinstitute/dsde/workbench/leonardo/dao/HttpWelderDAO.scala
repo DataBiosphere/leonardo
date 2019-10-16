@@ -7,7 +7,7 @@ import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache._
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
-import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.http4s.client.Client
 import org.http4s.{Method, Request, Uri}
@@ -58,5 +58,3 @@ trait WelderDAO[F[_]] {
   def flushCache(googleProject: GoogleProject, clusterName: ClusterName): F[Unit]
   def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): F[Boolean]
 }
-
-final case class FlushCacheRequest(stagingBucket: GcsPath)
