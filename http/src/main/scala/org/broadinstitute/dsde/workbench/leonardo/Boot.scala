@@ -62,14 +62,14 @@ object Boot extends IOApp with LazyLogging {
 
     if (leoExecutionModeConfig.backLeo) {
       val dataprocImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group"
-      val dataprocImageUserGoogleGroupEmail = WorkbenchEmail(dataprocImageUserGoogleGroupName)
+      val dataprocImageUserGoogleGroupEmail = WorkbenchEmail(s"$dataprocImageUserGoogleGroupName@test.firecloud.org")
       val dataprocImageUserGoogleGroupDisplayName = s"$dataprocImageUserGoogleGroupName-displayname"
-      logger.info(s"Checking if Dataproc image user Google group '${dataprocImageUserGoogleGroupName}' already exists...")
+      logger.info(s"Checking if Dataproc image user Google group '${dataprocImageUserGoogleGroupEmail}' already exists...")
       googleDirectoryDAO.getGoogleGroup(dataprocImageUserGoogleGroupEmail) foreach {
         case Some(group) =>
-          logger.info(s"Dataproc image user Google group '${dataprocImageUserGoogleGroupName}' already exists: $group \n Won't attempt to create it.")
+          logger.info(s"Dataproc image user Google group '${dataprocImageUserGoogleGroupEmail}' already exists: $group \n Won't attempt to create it.")
         case None =>
-          logger.info(s"Dataproc image user Google group '${dataprocImageUserGoogleGroupName}' does not exist. Attempting to create it...")
+          logger.info(s"Dataproc image user Google group '${dataprocImageUserGoogleGroupEmail}' does not exist. Attempting to create it...")
           googleDirectoryDAO.createGroup(dataprocImageUserGoogleGroupDisplayName, dataprocImageUserGoogleGroupEmail, Option(googleDirectoryDAO.lockedDownGroupSettings))
       }
     }
