@@ -580,7 +580,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
         // Flush the welder cache to disk
         _ <- if(cluster.welderEnabled) {
-          welderDao.flushCache(cluster.googleProject, cluster.clusterName).handleError(e => logger.error(s"fail to flush welder cache for ${cluster}", e)).unsafeToFuture()
+          welderDao.flushCache(cluster.googleProject, cluster.clusterName).handleError(e => logger.error(s"failed to flush welder cache for ${cluster}", e)).unsafeToFuture()
         } else Future.unit
 
         // Now stop each instance individually
@@ -1147,7 +1147,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   // Startup script to install on the cluster master node. This allows Jupyter to start back up after
-  // a cluster is resumed.
+  // a cluster is resumed.roxy-docker-compose.yaml
   private def getMasterInstanceStartupScript(cluster: Cluster, welderAction: WelderAction): immutable.Map[String, String] = {
     val googleKey = "startup-script"  // required; see https://cloud.google.com/compute/docs/startupscript
 
