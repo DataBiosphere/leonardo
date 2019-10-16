@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import java.security.{KeyStore, Security}
+
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
@@ -8,8 +10,11 @@ import cats.effect.{Blocker, ConcurrentEffect, ContextShift, ExitCode, IO, IOApp
 import cats.effect.{ExitCode, IO, IOApp, Resource}
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
+import com.typesafe.sslconfig.akka.AkkaSSLConfig
+import com.typesafe.sslconfig.ssl.KeyManagerConfig
 import io.chrisdavenport.log4cats.Logger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+import javax.net.ssl.{KeyManagerFactory, SSLContext}
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Pem, Token}
 import org.broadinstitute.dsde.workbench.google.{GoogleStorageDAO, HttpGoogleIamDAO, HttpGoogleProjectDAO, HttpGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
@@ -44,12 +49,13 @@ object Boot extends IOApp with LazyLogging {
       new HttpGoogleStorageDAO(dataprocConfig.applicationName, Token(() => token), "google")
     }
 
+    val keyManagerConfig = AkkaSSLConfig().config.keyManagerConfig
     val pem = Pem(serviceAccountProviderConfig.leoServiceAccount, serviceAccountProviderConfig.leoPemFile)
     val googleStorageDAO = new HttpGoogleStorageDAO(dataprocConfig.applicationName, pem, "google")
     val googleProjectDAO = new HttpGoogleProjectDAO(dataprocConfig.applicationName, pem, "google")
     implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
 
-    createDependencies(leoServiceAccountJsonFile, pem).use {
+    createDependencies(leoServiceAccountJsonFile, pem, keyManagerConfig).use {
       appDependencies =>
         implicit val metrics = appDependencies.metrics
         val serviceAccountProvider = new PetClusterServiceAccountProvider[IO](appDependencies.samDAO)
@@ -83,7 +89,7 @@ object Boot extends IOApp with LazyLogging {
     }
   }
 
-  def createDependencies[F[_]: Logger: ContextShift: ConcurrentEffect: Timer](pathToCredentialJson: String, pem: Pem)
+  def createDependencies[F[_]: Logger: ContextShift: ConcurrentEffect: Timer](pathToCredentialJson: String, pem: Pem, keyManagerConfig: KeyManagerConfig)
                         (implicit ec: ExecutionContext, as: ActorSystem): Resource[F, AppDependencies[F]] = {
     implicit val metrics = NewRelicMetrics.fromNewRelic[F]("leonardo")
 
@@ -92,19 +98,43 @@ object Boot extends IOApp with LazyLogging {
       semaphore <- Resource.liftF(Semaphore[F](255L))
       blocker = Blocker.liftExecutionContext(blockingEc)
       storage <- GoogleStorageService.resource[F](pathToCredentialJson, blocker, Some(semaphore))
-      httpClient <- blaze.BlazeClientBuilder[F](blockingEc).resource
       retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))
+
+      httpClient <- blaze.BlazeClientBuilder[F](blockingEc).resource
       clientWithRetry = Retry(retryPolicy)(httpClient)
       clientWithRetryAndLogging = Http4sLogger[F](logHeaders = true, logBody = false)(clientWithRetry)
       samDao = new HttpSamDAO[F](clientWithRetryAndLogging, httpSamDap2Config)
+
+      httpClientWithCustomSSL <- blaze.BlazeClientBuilder[F](blockingEc, Some(getSSLContext(keyManagerConfig))).resource
+      clientWithRetryWithCustomSSL = Retry(retryPolicy)(httpClientWithCustomSSL)
+      clientWithRetryAndLogging = Http4sLogger[F](logHeaders = true, logBody = false)(clientWithRetryWithCustomSSL)
+
       dbRef <- Resource.make(ConcurrentEffect[F].delay(DbReference.init(liquibaseConfig)))(db => ConcurrentEffect[F].delay(db.database.close))
       clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, clusterDnsCacheConfig)
       welderDao = new HttpWelderDAO[F](clusterDnsCache, clientWithRetryAndLogging)
+
       googleIamDAO = new HttpGoogleIamDAO(dataprocConfig.applicationName, pem, "google")
       googleComputeDAO = new HttpGoogleComputeDAO(dataprocConfig.applicationName, pem, "google")
       gdDAO = new HttpGoogleDataprocDAO(dataprocConfig.applicationName, pem, "google", NetworkTag(dataprocConfig.networkTag), dataprocConfig.dataprocDefaultRegion, dataprocConfig.dataprocZone)
       clusterHelper = new ClusterHelper(dbRef, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO)
     } yield AppDependencies(storage, dbRef, clusterDnsCache, googleComputeDAO, gdDAO, samDao, welderDao, clusterHelper, metrics)
+  }
+
+  private def getSSLContext(keyManagerConfig: KeyManagerConfig): SSLContext = {
+    val ksConfig = keyManagerConfig.keyStoreConfigs(0)
+    val ksStream = this.getClass.getResourceAsStream(ksConfig.filePath.get)
+    val ks = KeyStore.getInstance(ksConfig.storeType)
+    ks.load(ksStream, ksConfig.password.get.toCharArray)
+    ksStream.close()
+
+    val kmf = KeyManagerFactory.getInstance(keyManagerConfig.algorithm)
+
+    kmf.init(ks, ksConfig.password.get.toCharArray)
+
+    val context = SSLContext.getInstance("TLS")
+    context.init(kmf.getKeyManagers, null, null)
+
+    context
   }
 
   override def run(args: List[String]): IO[ExitCode] = startup().as(ExitCode.Success)
