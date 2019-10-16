@@ -11,7 +11,8 @@ case class ClusterResourcesConfig(initActionsScript: ClusterResource,
                                   welderDockerCompose: ClusterResource,
                                   proxySiteConf: ClusterResource,
                                   jupyterNotebookConfigUri: ClusterResource,
-                                  jupyterNotebookFrontendConfigUri: ClusterResource
+                                  jupyterNotebookFrontendConfigUri: ClusterResource,
+                                  customEnvVarsConfigUri: ClusterResource
                                  )
 
 object ClusterResourcesConfig {

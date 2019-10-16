@@ -936,19 +936,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       clusterRequest.enableWelder.getOrElse(false))
     val replacements: Map[String, String] = clusterInit.toMap
 
-    val tmpCustomEnvVarFile = File.createTempFile("custom-env-vars", "env")
-    tmpCustomEnvVarFile.deleteOnExit()
-    val pw = new PrintWriter(tmpCustomEnvVarFile)
-    for ((key, value) <- clusterRequest.customClusterEnvironmentVariables) {
-      pw.println(s"$key=$value")
-    }
+    val customEnvVars = clusterRequest.customClusterEnvironmentVariables.foldLeft("")({case (memo, (key, value)) => memo + s"$key=$value\n"})
 
     // Raw files to upload to the bucket, no additional processing needed.
     val filesToUpload = List(
       clusterFilesConfig.jupyterServerCrt,
       clusterFilesConfig.jupyterServerKey,
-      clusterFilesConfig.jupyterRootCaPem,
-      tmpCustomEnvVarFile)
+      clusterFilesConfig.jupyterRootCaPem)
 
     // Raw resources to upload to the bucket, no additional processing needed.
     // Note: initActionsScript and jupyterGoogleSignInJs are not included
@@ -982,6 +976,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
       // Upload the juptyer notebook frontend config file
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookFrontendConfigUri.value), jupyterNotebookFrontendConfigContent, "text/plain")
+
+      // Upload the custom environment variables config file
+      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.customEnvVarsConfigUri.value), customEnvVars, "text/plain")
 
       // Upload raw files (like certs) to the bucket
       _ <- Future.traverse(filesToUpload)(file => leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(file.getName), file, "text/plain"))

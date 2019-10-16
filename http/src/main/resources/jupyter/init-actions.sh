@@ -92,8 +92,6 @@ if [ ! -z ${SERVICE_ACCOUNT_CREDENTIALS} ] ; then
   export GOOGLE_APPLICATION_CREDENTIALS=/etc/${SERVICE_ACCOUNT_CREDENTIALS}
 fi
 
-gsutil cp 'custom-env-vars.json' /etc
-
 # Only initialize tool and proxy docker containers on the master
 if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_HOME=/etc/jupyter
@@ -133,6 +131,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_USER_SCRIPT_OUTPUT_URI=$(jupyterUserScriptOutputUri)
     JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
     JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
+    CUSTOM_ENV_VARS_CONFIG_URI=$(customEnvVarsConfigUri)
 
     STEP_TIMINGS+=($(date +%s))
 
@@ -253,6 +252,14 @@ if [[ "${ROLE}" == 'Master' ]]; then
         gsutil cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /etc
         JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
         docker cp /etc/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
+      fi
+
+      # Install env var config
+      if [ ! -z ${CUSTOM_ENV_VARS_CONFIG_URI} ] ; then
+        log 'Copy custom env vars config...'
+        gsutil cp ${CUSTOM_ENV_VARS_CONFIG_URI} /etc
+        CUSTOM_ENV_VARS=`basename ${CUSTOM_ENV_VARS_CONFIG_URI}`
+        docker cp /etc/${CUSTOM_ENV_VARS} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/
       fi
 
       STEP_TIMINGS+=($(date +%s))
