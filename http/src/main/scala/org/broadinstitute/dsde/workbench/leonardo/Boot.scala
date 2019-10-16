@@ -1,28 +1,25 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.security.{KeyStore, Security}
-
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
 import cats.effect.concurrent.Semaphore
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift, ExitCode, IO, IOApp, Resource, Timer}
-import cats.effect.{ExitCode, IO, IOApp, Resource}
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 import com.typesafe.sslconfig.akka.AkkaSSLConfig
-import com.typesafe.sslconfig.ssl.KeyManagerConfig
+import com.typesafe.sslconfig.akka.util.AkkaLoggerFactory
+import com.typesafe.sslconfig.ssl.ConfigSSLContextBuilder
 import io.chrisdavenport.log4cats.Logger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
-import javax.net.ssl.{KeyManagerFactory, SSLContext}
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Pem, Token}
 import org.broadinstitute.dsde.workbench.google.{GoogleStorageDAO, HttpGoogleIamDAO, HttpGoogleProjectDAO, HttpGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.api.{LeoRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
+import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{HttpGoogleComputeDAO, HttpGoogleDataprocDAO}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{HttpJupyterDAO, HttpRStudioDAO, HttpSamDAO, HttpWelderDAO, ToolDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model.google.NetworkTag
@@ -49,13 +46,12 @@ object Boot extends IOApp with LazyLogging {
       new HttpGoogleStorageDAO(dataprocConfig.applicationName, Token(() => token), "google")
     }
 
-    val keyManagerConfig = AkkaSSLConfig().config.keyManagerConfig
     val pem = Pem(serviceAccountProviderConfig.leoServiceAccount, serviceAccountProviderConfig.leoPemFile)
     val googleStorageDAO = new HttpGoogleStorageDAO(dataprocConfig.applicationName, pem, "google")
     val googleProjectDAO = new HttpGoogleProjectDAO(dataprocConfig.applicationName, pem, "google")
     implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
 
-    createDependencies(leoServiceAccountJsonFile, pem, keyManagerConfig).use {
+    createDependencies(leoServiceAccountJsonFile, pem).use {
       appDependencies =>
         implicit val metrics = appDependencies.metrics
         val serviceAccountProvider = new PetClusterServiceAccountProvider[IO](appDependencies.samDAO)
@@ -89,7 +85,7 @@ object Boot extends IOApp with LazyLogging {
     }
   }
 
-  def createDependencies[F[_]: Logger: ContextShift: ConcurrentEffect: Timer](pathToCredentialJson: String, pem: Pem, keyManagerConfig: KeyManagerConfig)
+  def createDependencies[F[_]: Logger: ContextShift: ConcurrentEffect: Timer](pathToCredentialJson: String, pem: Pem)
                         (implicit ec: ExecutionContext, as: ActorSystem): Resource[F, AppDependencies[F]] = {
     implicit val metrics = NewRelicMetrics.fromNewRelic[F]("leonardo")
 
@@ -105,7 +101,8 @@ object Boot extends IOApp with LazyLogging {
       clientWithRetryAndLogging = Http4sLogger[F](logHeaders = true, logBody = false)(clientWithRetry)
       samDao = new HttpSamDAO[F](clientWithRetryAndLogging, httpSamDap2Config)
 
-      httpClientWithCustomSSL <- blaze.BlazeClientBuilder[F](blockingEc, Some(getSSLContext(keyManagerConfig))).resource
+      sslContext = getSSLContext
+      httpClientWithCustomSSL <- blaze.BlazeClientBuilder[F](blockingEc, Some(sslContext)).resource
       clientWithRetryWithCustomSSL = Retry(retryPolicy)(httpClientWithCustomSSL)
       clientWithRetryAndLogging = Http4sLogger[F](logHeaders = true, logBody = false)(clientWithRetryWithCustomSSL)
 
@@ -120,21 +117,15 @@ object Boot extends IOApp with LazyLogging {
     } yield AppDependencies(storage, dbRef, clusterDnsCache, googleComputeDAO, gdDAO, samDao, welderDao, clusterHelper, metrics)
   }
 
-  private def getSSLContext(keyManagerConfig: KeyManagerConfig): SSLContext = {
-    val ksConfig = keyManagerConfig.keyStoreConfigs(0)
-    val ksStream = this.getClass.getResourceAsStream(ksConfig.filePath.get)
-    val ks = KeyStore.getInstance(ksConfig.storeType)
-    ks.load(ksStream, ksConfig.password.get.toCharArray)
-    ksStream.close()
-
-    val kmf = KeyManagerFactory.getInstance(keyManagerConfig.algorithm)
-
-    kmf.init(ks, ksConfig.password.get.toCharArray)
-
-    val context = SSLContext.getInstance("TLS")
-    context.init(kmf.getKeyManagers, null, null)
-
-    context
+  private def getSSLContext(implicit actorSystem: ActorSystem) = {
+    val akkaSSLConfig = AkkaSSLConfig()
+    val config = akkaSSLConfig.config
+    val logger = new AkkaLoggerFactory(actorSystem)
+    new ConfigSSLContextBuilder(
+      logger,
+      config,
+      akkaSSLConfig.buildKeyManagerFactory(config),
+      akkaSSLConfig.buildTrustManagerFactory(config)).build()
   }
 
   override def run(args: List[String]): IO[ExitCode] = startup().as(ExitCode.Success)

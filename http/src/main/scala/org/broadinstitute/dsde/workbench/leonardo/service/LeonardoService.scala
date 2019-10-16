@@ -275,7 +275,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     for {
       traceId <- ev.ask
       _ <- IO.fromFuture(IO(validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest)))
-      _ <- IO(logger.debug(s"[$traceId] Attempting to notify the AuthProvider for creation of cluster '$clusterName' " +
+      _ <- IO(logger.info(s"[$traceId] Attempting to notify the AuthProvider for creation of cluster '$clusterName' " +
         s"on Google project '$googleProject'..."))
       _ <- authProvider.notifyClusterCreated(internalId, userEmail, googleProject, clusterName).handleErrorWith {
         t =>
@@ -283,7 +283,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
             s"on Google project '$googleProject'.")) >> IO.raiseError(t)
       }
       savedInitialCluster <- IO.fromFuture(IO(dbRef.inTransaction[Cluster] { _.clusterQuery.save(initialClusterToSave) }))
-      _ <- IO(logger.debug(s"[$traceId] Inserted an initial record into the DB for cluster '$clusterName' " +
+      _ <- IO(logger.info(s"[$traceId] Inserted an initial record into the DB for cluster '$clusterName' " +
         s"on Google project '$googleProject'. Attemping to create cluster in google"))
     } yield {
       completeClusterCreation(userEmail, savedInitialCluster, augmentedClusterRequest)
@@ -1147,7 +1147,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
   }
 
   // Startup script to install on the cluster master node. This allows Jupyter to start back up after
-  // a cluster is resumed.roxy-docker-compose.yaml
+  // a cluster is resumed.
   private def getMasterInstanceStartupScript(cluster: Cluster, welderAction: WelderAction): immutable.Map[String, String] = {
     val googleKey = "startup-script"  // required; see https://cloud.google.com/compute/docs/startupscript
 
