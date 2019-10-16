@@ -616,7 +616,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           case ClusterOutOfDate => Future.failed(ClusterOutOfDateException())
         }
 
-        _ <- if (welderAction == DisableDelocalization)
+        _ <- if (welderAction == DisableDelocalization && !cluster.labels.contains("welderInstallFailed"))
           dbRef.inTransaction { _.labelQuery.save(cluster.id, "welderInstallFailed", "true") }
         else Future.unit
 
