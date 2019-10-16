@@ -60,21 +60,24 @@ object Boot extends IOApp with LazyLogging {
     val clusterHelper = new ClusterHelper(dbRef, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO)
     implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
 
-    val dataprocImageUserGoogleGroupName = ???
-    val dataprocImageUserGoogleGroupEmail = WorkbenchEmail(dataprocImageUserGoogleGroupName)
-    val dataprocImageUserGoogleGroupDisplayName = ???
-    logger.info(s"Checking if Dataproc image user Google group '${dataprocImageUserGoogleGroupName}' already exists...")
-    googleDirectoryDAO.getGoogleGroup(dataprocImageUserGoogleGroupEmail) foreach {
-      case Some(_) =>
-        logger.info(s"Dataproc image user Google group '${dataprocImageUserGoogleGroupName}' already exists. Won't attempt to create it.")
-      case None =>
-        logger.info(s"Dataproc image user Google group '${dataprocImageUserGoogleGroupName}' does not exist. Attempting to create it...")
-        googleDirectoryDAO.createGroup(dataprocImageUserGoogleGroupDisplayName, dataprocImageUserGoogleGroupEmail)
+    if (leoExecutionModeConfig.backLeo) {
+      val dataprocImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group"
+      val dataprocImageUserGoogleGroupEmail = WorkbenchEmail(dataprocImageUserGoogleGroupName)
+      val dataprocImageUserGoogleGroupDisplayName = s"$dataprocImageUserGoogleGroupName-displayname"
+      logger.info(s"Checking if Dataproc image user Google group '${dataprocImageUserGoogleGroupName}' already exists...")
+      googleDirectoryDAO.getGoogleGroup(dataprocImageUserGoogleGroupEmail) foreach {
+        case Some(group) =>
+          logger.info(s"Dataproc image user Google group '${dataprocImageUserGoogleGroupName}' already exists: $group \n Won't attempt to create it.")
+        case None =>
+          logger.info(s"Dataproc image user Google group '${dataprocImageUserGoogleGroupName}' does not exist. Attempting to create it...")
+          googleDirectoryDAO.createGroup(dataprocImageUserGoogleGroupDisplayName, dataprocImageUserGoogleGroupEmail, Option(googleDirectoryDAO.lockedDownGroupSettings))
+      }
     }
-    // if it doesn't exist, create the group
-
+    
     createDependencies[IO](leoServiceAccountJsonFile).use {
       appDependencies =>
+        val clusterDateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, dbRef))
+
         val serviceAccountProvider = new PetClusterServiceAccountProvider[IO](appDependencies.samDAO)
         val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, googleComputeDAO, googleStorageDAO, serviceAccountProvider)
         val authProvider: LeoAuthProvider[IO] = new SamAuthProvider(appDependencies.samDAO, samAuthConfig, serviceAccountProvider)
@@ -83,8 +86,6 @@ object Boot extends IOApp with LazyLogging {
         val proxyService = new ProxyService(proxyConfig, gdDAO, dbRef, clusterDnsCache, authProvider, clusterDateAccessedActor)
         val statusService = new StatusService(gdDAO, appDependencies.samDAO, dbRef, dataprocConfig)
         val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with StandardUserInfoDirectives
-
-        val clusterDateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, dbRef))
 
         if (leoExecutionModeConfig.backLeo) {
           val jupyterDAO = new HttpJupyterDAO(clusterDnsCache)
