@@ -22,8 +22,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{HttpGoogleComputeDAO, HttpGoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.model.google.NetworkTag
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterTool, LeoAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterDateAccessedActor, ClusterMonitorSupervisor, ClusterToolMonitor, ZombieClusterMonitor}
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
@@ -61,6 +61,7 @@ object Boot extends IOApp with LazyLogging {
         if(leoExecutionModeConfig.backLeo) {
           val jupyterDAO = new HttpJupyterDAO(appDependencies.clusterDnsCache)
           val rstudioDAO = new HttpRStudioDAO(appDependencies.clusterDnsCache)
+          implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDAO, appDependencies.welderDAO, rstudioDAO)
           system.actorOf(ClusterMonitorSupervisor.props(monitorConfig, dataprocConfig, clusterBucketConfig, appDependencies.googleDataprocDAO, appDependencies.googleComputeDAO, googleStorageDAO, appDependencies.google2StorageDao, appDependencies.dbReference, authProvider, autoFreezeConfig, jupyterDAO, rstudioDAO, appDependencies.welderDAO, leonardoService, appDependencies.clusterHelper))
           system.actorOf(ZombieClusterMonitor.props(zombieClusterMonitorConfig, appDependencies.googleDataprocDAO, googleProjectDAO, appDependencies.dbReference))
           system.actorOf(
@@ -69,7 +70,6 @@ object Boot extends IOApp with LazyLogging {
               appDependencies.googleDataprocDAO,
               googleProjectDAO,
               appDependencies.dbReference,
-              Map(ClusterTool.Jupyter ->  ToolDAO.jupyterToolDAO(jupyterDAO), ClusterTool.Welder -> ToolDAO.welderToolDAO(appDependencies.welderDAO)),
               appDependencies.metrics))
         }
         val clusterDateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, appDependencies.dbReference))
@@ -96,16 +96,12 @@ object Boot extends IOApp with LazyLogging {
       storage <- GoogleStorageService.resource[F](pathToCredentialJson, blocker, Some(semaphore))
       retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))
 
-      httpClient <- blaze.BlazeClientBuilder[F](blockingEc).resource
-      clientWithRetry = Retry(retryPolicy)(httpClient)
-      clientWithRetryAndLogging = Http4sLogger[F](logHeaders = true, logBody = false)(clientWithRetry)
-      samDao = new HttpSamDAO[F](clientWithRetryAndLogging, httpSamDap2Config)
-
       sslContext = getSSLContext
       httpClientWithCustomSSL <- blaze.BlazeClientBuilder[F](blockingEc, Some(sslContext)).resource
       clientWithRetryWithCustomSSL = Retry(retryPolicy)(httpClientWithCustomSSL)
       clientWithRetryAndLogging = Http4sLogger[F](logHeaders = true, logBody = false)(clientWithRetryWithCustomSSL)
 
+      samDao = new HttpSamDAO[F](clientWithRetryAndLogging, httpSamDap2Config)
       dbRef <- Resource.make(ConcurrentEffect[F].delay(DbReference.init(liquibaseConfig)))(db => ConcurrentEffect[F].delay(db.database.close))
       clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, clusterDnsCacheConfig)
       welderDao = new HttpWelderDAO[F](clusterDnsCache, clientWithRetryAndLogging)

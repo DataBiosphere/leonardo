@@ -43,7 +43,9 @@ object ClusterMonitorSupervisor {
             rstudioProxyDAO: RStudioDAO,
             welderDAO: WelderDAO[IO],
             leonardoService: LeonardoService,
-            clusterHelper: ClusterHelper)(implicit metrics: NewRelicMetrics[IO]): Props =
+            clusterHelper: ClusterHelper)
+           (implicit metrics: NewRelicMetrics[IO],
+            clusterToolToToolDao: ClusterTool => ToolDAO[ClusterTool]): Props =
     Props(new ClusterMonitorSupervisor(monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleStorageDAO, google2StorageDAO, dbRef, authProvider, autoFreezeConfig, jupyterProxyDAO, rstudioProxyDAO, welderDAO, leonardoService, clusterHelper))
 
   sealed trait ClusterSupervisorMessage
@@ -87,7 +89,8 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig,
                                rstudioProxyDAO: RStudioDAO,
                                welderProxyDAO: WelderDAO[IO],
                                leonardoService: LeonardoService,
-                               clusterHelper: ClusterHelper)(implicit metrics: NewRelicMetrics[IO])
+                               clusterHelper: ClusterHelper)(implicit metrics: NewRelicMetrics[IO],
+                                                             clusterToolToToolDao: ClusterTool => ToolDAO[ClusterTool])
   extends Actor with Timers with LazyLogging {
   import context.dispatcher
 
@@ -189,12 +192,7 @@ class ClusterMonitorSupervisor(monitorConfig: MonitorConfig,
   }
 
   def createChildActor(cluster: Cluster): ActorRef = {
-    val proxyDAOs: Map[ClusterTool, ToolDAO] = Map(
-      ClusterTool.Jupyter -> ToolDAO.jupyterToolDAO(jupyterProxyDAO),
-      ClusterTool.RStudio -> ToolDAO.rSutdioToolDAO(rstudioProxyDAO),
-      ClusterTool.Welder -> ToolDAO.welderToolDAO(welderProxyDAO)
-    )
-    context.actorOf(ClusterMonitorActor.props(cluster, monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleStorageDAO, google2StorageDAO, dbRef, authProvider, proxyDAOs, clusterHelper))
+    context.actorOf(ClusterMonitorActor.props(cluster, monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleStorageDAO, google2StorageDAO, dbRef, authProvider, clusterHelper))
   }
 
   def startClusterMonitorActor(cluster: Cluster, watchMessageOpt: Option[ClusterSupervisorMessage] = None): Unit = {
