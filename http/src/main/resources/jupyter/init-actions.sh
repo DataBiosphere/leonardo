@@ -155,6 +155,12 @@ if [[ "${ROLE}" == 'Master' ]]; then
     touch /hadoop_gcs_connector_metadata_cache
     touch auth_openidc.conf
 
+    # Install env var config
+    if [ ! -z ${CUSTOM_ENV_VARS_CONFIG_URI} ] ; then
+      log 'Copy custom env vars config...'
+      gsutil cp ${CUSTOM_ENV_VARS_CONFIG_URI} /etc
+    fi
+
     if [ ! -z ${SERVICE_ACCOUNT_CREDENTIALS} ] ; then
       echo "GOOGLE_APPLICATION_CREDENTIALS=/etc/${SERVICE_ACCOUNT_CREDENTIALS}" > /etc/google_application_credentials.env
     else
@@ -252,14 +258,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
         gsutil cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /etc
         JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
         docker cp /etc/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
-      fi
-
-      # Install env var config
-      if [ ! -z ${CUSTOM_ENV_VARS_CONFIG_URI} ] ; then
-        log 'Copy custom env vars config...'
-        gsutil cp ${CUSTOM_ENV_VARS_CONFIG_URI} /tmp
-        CUSTOM_ENV_VARS=`basename ${CUSTOM_ENV_VARS_CONFIG_URI}`
-        docker cp /tmp/${CUSTOM_ENV_VARS} ${JUPYTER_SERVER_NAME}:/etc
       fi
 
       STEP_TIMINGS+=($(date +%s))
