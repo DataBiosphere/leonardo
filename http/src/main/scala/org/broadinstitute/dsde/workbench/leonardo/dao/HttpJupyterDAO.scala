@@ -57,8 +57,9 @@ object HttpJupyterDAO {
   implicit val sessionDecoder: Decoder[Session] = Decoder.forProduct1("kernel")(Session)
 }
 
-trait JupyterDAO extends ToolDAO {
+trait JupyterDAO {
   def isAllKernalsIdle(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean]
+  def isProxyAvailable(googleProject: GoogleProject, clusterName: ClusterName): Future[Boolean]
 }
 
 sealed abstract class ExecutionState

@@ -183,7 +183,21 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
   }
 
   it should "create a map of ClusterInitValues object" in isolatedDbTest {
-    val clusterInit = ClusterInitValues(project, name1, initBucketPath, testClusterRequestWithExtensionAndScript, dataprocConfig, clusterFilesConfig, clusterResourcesConfig, proxyConfig, Some(serviceAccountKey), userInfo.userEmail, contentSecurityPolicy, Set(jupyterImage, welderImage), stagingBucketName, true)
+    val clusterInit = ClusterInitValues(project,
+      name1,
+      stagingBucketName,
+      initBucketPath,
+      testClusterRequestWithExtensionAndScript,
+      dataprocConfig,
+      clusterFilesConfig,
+      clusterResourcesConfig,
+      proxyConfig,
+      Some(serviceAccountKey),
+      userInfo.userEmail,
+      contentSecurityPolicy,
+      Set(jupyterImage, welderImage),
+      stagingBucketName,
+      true)
     val clusterInitMap = clusterInit.toMap
 
     clusterInitMap("googleProject") shouldBe project.value
@@ -194,7 +208,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     clusterInitMap("welderDockerImage") shouldBe welderImage.dockerImage
     clusterInitMap("welderEnabled") shouldBe "true"
 
-    clusterInitMap.size shouldBe 32
+    clusterInitMap.size shouldBe 33
   }
 
   "DockerRegistry regex" should "match expected image url format" in {

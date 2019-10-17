@@ -19,6 +19,7 @@ import io.grpc.Status.Code
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo.config.{ClusterBucketConfig, DataprocConfig, MonitorConfig}
+import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -29,6 +30,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterMonitorSupervis
 import org.broadinstitute.dsde.workbench.leonardo.util.ClusterHelper
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsLifecycleTypes, GoogleProject}
+import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.broadinstitute.dsde.workbench.util.{Retry, addJitter}
 import slick.dbio.DBIOAction
 
@@ -43,8 +45,21 @@ object ClusterMonitorActor {
   /**
     * Creates a Props object used for creating a {{{ClusterMonitorActor}}}.
     */
-  def props(cluster: Cluster, monitorConfig: MonitorConfig, dataprocConfig: DataprocConfig, clusterBucketConfig: ClusterBucketConfig, gdDAO: GoogleDataprocDAO, googleComputeDAO: GoogleComputeDAO, googleStorageDAO: GoogleStorageDAO, google2StorageDAO: GoogleStorageService[IO], dbRef: DbReference, authProvider: LeoAuthProvider[IO], proxyDao: Map[ClusterTool, Function0[Future[Boolean]]], clusterHelper: ClusterHelper): Props =
-    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleStorageDAO, google2StorageDAO, dbRef, authProvider, proxyDao, clusterHelper))
+  def props(cluster: Cluster,
+            monitorConfig: MonitorConfig,
+            dataprocConfig: DataprocConfig,
+            clusterBucketConfig: ClusterBucketConfig,
+            gdDAO: GoogleDataprocDAO,
+            googleComputeDAO: GoogleComputeDAO,
+            googleStorageDAO: GoogleStorageDAO,
+            google2StorageDAO: GoogleStorageService[IO],
+            dbRef: DbReference,
+            authProvider: LeoAuthProvider[IO],
+            clusterHelper: ClusterHelper)
+           (implicit metrics: NewRelicMetrics[IO],
+            clusterToolToToolDao: ClusterTool => ToolDAO[ClusterTool]
+           ): Props =
+    Props(new ClusterMonitorActor(cluster, monitorConfig, dataprocConfig, clusterBucketConfig, gdDAO, googleComputeDAO, googleStorageDAO, google2StorageDAO, dbRef, authProvider, clusterHelper))
 
   // ClusterMonitorActor messages:
 
@@ -77,9 +92,11 @@ class ClusterMonitorActor(val cluster: Cluster,
                           val google2StorageDAO: GoogleStorageService[IO],
                           val dbRef: DbReference,
                           val authProvider: LeoAuthProvider[IO],
-                          proxyDao: Map[ClusterTool, Function0[Future[Boolean]]],
                           val clusterHelper: ClusterHelper,
-                          val startTime: Long = System.currentTimeMillis()) extends Actor with LazyLogging with Retry {
+                          val startTime: Long = System.currentTimeMillis())
+                         (implicit metrics: NewRelicMetrics[IO],
+                          clusterToolToToolDao: ClusterTool => ToolDAO[ClusterTool]
+                         ) extends Actor with LazyLogging with Retry {
   import context._
 
   // the Retry trait needs a reference to the ActorSystem
@@ -148,8 +165,8 @@ class ClusterMonitorActor(val cluster: Cluster,
 
       logger.info(s"Detected that ${cluster.projectNameString} has been stuck in status $status too long. Failing it. Current timeout config: ${monitorConfig.monitorStatusTimeouts.toString}")
     
-      Metrics.newRelic.incrementCounterIO(s"ClusterTransitionTimeout/$status").unsafeRunSync()
-      handleFailedCluster(ClusterErrorDetails(Code.DEADLINE_EXCEEDED.value, Some(s"Failed to transition ${cluster.projectNameString} from status $status within the time limit:  ${monitorConfig.monitorStatusTimeouts.toString}")), instances)
+      metrics.incrementCounter(s"ClusterTransitionTimeout/$status").unsafeToFuture() >>
+        handleFailedCluster(ClusterErrorDetails(Code.DEADLINE_EXCEEDED.value, Some(s"Failed to transition ${cluster.projectNameString} from status $status within the time limit:  ${monitorConfig.monitorStatusTimeouts.toString}")), instances)
     } else {
       logger.info(s"Cluster ${cluster.projectNameString} is not ready yet and has taken ${currTimeElapsed.toString} so far (Dataproc cluster status = $status, GCE instance statuses = ${instances.groupBy(_.status).mapValues(_.size)}). Checking again in ${monitorConfig.pollPeriod.toString}.")
       persistInstances(instances).map { _ =>
@@ -336,7 +353,7 @@ class ClusterMonitorActor(val cluster: Cluster,
               // in that state - at least with the way HttpJupyterDAO.isProxyAvailable works
               dbRef.inTransaction { _.clusterQuery.updateClusterHostIp(cluster.id, Some(ip)) }.flatMap { _ =>
                 dbRef.inTransaction { _.clusterImageQuery.getAllForCluster(cluster.id)}.flatMap { images =>
-                  Future.traverse(images) { image => isProxyAvailable(image.tool) }.map { isAvailable =>
+                  Future.traverse(images) { image => image.tool.isProxyAvailable(cluster.googleProject, cluster.clusterName) }.map { isAvailable =>
                     if (isAvailable.forall(_ == true))
                       ReadyCluster(ip, googleInstances)
                     else
@@ -363,10 +380,6 @@ class ClusterMonitorActor(val cluster: Cluster,
         case _ => Future.successful(NotReadyCluster(googleStatus, googleInstances))
       }
     } yield result
-  }
-
-  private def isProxyAvailable(clusterTool: ClusterTool): Future[Boolean] = {
-    proxyDao.get(clusterTool).fold[Future[Boolean]](Future.failed(ProxyDAONotFound(cluster.clusterName, cluster.googleProject, clusterTool)))(f => f())
   }
 
   private def persistInstances(instances: Set[Instance]): Future[Unit] = {
@@ -505,8 +518,8 @@ class ClusterMonitorActor(val cluster: Cluster,
       counterName = s"${baseName}/count"
       timerName = s"${baseName}/timer"
       duration = (endTime - startTime).millis
-      _ <- Metrics.newRelic.incrementCounterIO(counterName)
-      _ <- Metrics.newRelic.recordResponseTimeIO(timerName, duration)
+      _ <- metrics.incrementCounter(counterName)
+      _ <- metrics.recordResponseTime(timerName, duration)
     } yield ()
   }
 }
