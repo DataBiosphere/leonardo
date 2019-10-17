@@ -48,7 +48,8 @@ object Boot extends IOApp with LazyLogging {
       new HttpGoogleStorageDAO(dataprocConfig.applicationName, Token(() => token), workbenchMetricsBaseName)
     }
 
-    val pem = Pem(serviceAccountProviderConfig.leoServiceAccount, serviceAccountProviderConfig.leoPemFile)
+    val googleAdminEmail = WorkbenchEmail("google@test.firecloud.org")
+    val pem = Pem(serviceAccountProviderConfig.leoServiceAccount, serviceAccountProviderConfig.leoPemFile, Option(googleAdminEmail))
     val gdDAO = new HttpGoogleDataprocDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName, NetworkTag(dataprocConfig.networkTag), dataprocConfig.dataprocDefaultRegion, dataprocConfig.dataprocZone)
     val googleComputeDAO = new HttpGoogleComputeDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
     // TODO: applicationName doesn't seem specific to DataprocConfig. Move it out?
