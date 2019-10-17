@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.StatusCodes
 import akka.stream.ActorMaterializer
 import cats.effect.concurrent.Semaphore
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift, ExitCode, IO, IOApp, Resource, Timer}
@@ -20,7 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{HttpJupyterDAO, HttpRStud
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.ClusterDnsCache
 import org.broadinstitute.dsde.workbench.leonardo.model.google.NetworkTag
-import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterTool, LeoAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterTool, LeoAuthProvider, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterDateAccessedActor, ClusterMonitorSupervisor, ClusterToolMonitor, ZombieClusterMonitor}
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, ProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
@@ -63,7 +64,7 @@ object Boot extends IOApp with LazyLogging {
     implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
 
     if (leoExecutionModeConfig.backLeo) {
-      val dataprocImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-5"
+      val dataprocImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-6"
       val dataprocImageUserGoogleGroupEmail = WorkbenchEmail(s"$dataprocImageUserGoogleGroupName@test.firecloud.org")
       logger.info(s"Service account being used is ${serviceAccountProviderConfig.leoServiceAccount}")
       logger.info(s"Checking if Dataproc image user Google group '${dataprocImageUserGoogleGroupEmail}' already exists...")
@@ -74,6 +75,14 @@ object Boot extends IOApp with LazyLogging {
         case None =>
           logger.info(s"Dataproc image user Google group '${dataprocImageUserGoogleGroupEmail}' does not exist. Attempting to create it...")
           googleDirectoryDAO.createGroup(dataprocImageUserGoogleGroupName, dataprocImageUserGoogleGroupEmail, Option(googleDirectoryDAO.lockedDownGroupSettings))
+      }
+
+      googleDirectoryDAO.getGoogleGroup(dataprocImageUserGoogleGroupEmail) flatMap {
+        case Some(group) =>
+          logger.info(s"Successfully created the Dataproc image user Google group '${dataprocImageUserGoogleGroupEmail}'")
+          Future.successful(group)
+        case None =>
+          Future.failed(FailedGoogleGroupCreationException(dataprocImageUserGoogleGroupEmail))
       }
     }
     
@@ -147,3 +156,6 @@ object Boot extends IOApp with LazyLogging {
 }
 
 final case class AppDependencies[F[_]](google2StorageDao: GoogleStorageService[F], samDAO: HttpSamDAO[F])
+
+final case class FailedGoogleGroupCreationException(googleGroup: WorkbenchEmail)
+  extends LeoException(s"Failed to create the Google group '${googleGroup}'", StatusCodes.InternalServerError)
