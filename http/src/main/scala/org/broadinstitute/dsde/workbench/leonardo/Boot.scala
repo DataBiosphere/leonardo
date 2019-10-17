@@ -7,6 +7,7 @@ import akka.stream.ActorMaterializer
 import cats.effect.concurrent.Semaphore
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift, ExitCode, IO, IOApp, Resource, Timer}
 import cats.implicits._
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.typesafe.scalalogging.LazyLogging
 import io.chrisdavenport.log4cats.Logger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
@@ -64,25 +65,21 @@ object Boot extends IOApp with LazyLogging {
     implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
 
     if (leoExecutionModeConfig.backLeo) {
-      val dataprocImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-6"
-      val dataprocImageUserGoogleGroupEmail = WorkbenchEmail(s"$dataprocImageUserGoogleGroupName@test.firecloud.org")
-      logger.info(s"Service account being used is ${serviceAccountProviderConfig.leoServiceAccount}")
-      logger.info(s"Checking if Dataproc image user Google group '${dataprocImageUserGoogleGroupEmail}' already exists...")
-      googleDirectoryDAO.getGoogleGroup(dataprocImageUserGoogleGroupEmail) flatMap {
+      val dpImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-6"
+      val dpImageUserGoogleGroupEmail = WorkbenchEmail(s"$dpImageUserGoogleGroupName@test.firecloud.org")
+      logger.info(s"Checking if Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' already exists...")
+      googleDirectoryDAO.getGoogleGroup(dpImageUserGoogleGroupEmail) flatMap {
+        case None =>
+          logger.info(s"Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' does not exist. Attempting to create it...")
+          googleDirectoryDAO
+            .createGroup(dpImageUserGoogleGroupName, dpImageUserGoogleGroupEmail, Option(googleDirectoryDAO.lockedDownGroupSettings))
+            .recover { // in case group creation is attempted concurrently by multiple Leo instances
+              case e: GoogleJsonResponseException if e.getDetails.getCode == StatusCodes.Conflict.intValue => Future.unit
+              case _ => Future.failed(FailedGoogleGroupCreationException(dpImageUserGoogleGroupEmail))
+            }
         case Some(group) =>
-          logger.info(s"Dataproc image user Google group '${dataprocImageUserGoogleGroupEmail}' already exists: $group \n Won't attempt to create it.")
+          logger.info(s"Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' already exists: $group \n Won't attempt to create it.")
           Future.unit
-        case None =>
-          logger.info(s"Dataproc image user Google group '${dataprocImageUserGoogleGroupEmail}' does not exist. Attempting to create it...")
-          googleDirectoryDAO.createGroup(dataprocImageUserGoogleGroupName, dataprocImageUserGoogleGroupEmail, Option(googleDirectoryDAO.lockedDownGroupSettings))
-      }
-
-      googleDirectoryDAO.getGoogleGroup(dataprocImageUserGoogleGroupEmail) flatMap {
-        case Some(group) =>
-          logger.info(s"Successfully created the Dataproc image user Google group '${dataprocImageUserGoogleGroupEmail}'")
-          Future.successful(group)
-        case None =>
-          Future.failed(FailedGoogleGroupCreationException(dataprocImageUserGoogleGroupEmail))
       }
     }
     
@@ -129,28 +126,6 @@ object Boot extends IOApp with LazyLogging {
     clientWithRetryAndLogging = Http4sLogger(logHeaders = true, logBody = false)(clientWithRetry)
     samDao = new HttpSamDAO[F](clientWithRetryAndLogging, httpSamDap2Config)
   } yield AppDependencies(storage, samDao)
-
-//  override def getOrCreateDataprocImageUserGroup(directoryDAO: DirectoryDAO, group: )
-//                                     (implicit executionContext: ExecutionContext): Future[WorkbenchGroup] = {
-//    val dpImageUserGroupName = "kyuksel-test-dataproc-image-group-3"
-//    val dpImageUserGoogleGroupEmail = WorkbenchEmail(s"$dataprocImageUserGoogleGroupName@test.firecloud.org")
-//    val dpImageUserGoogleGroupDisplayName = s"$dataprocImageUserGoogleGroupName-displayname"
-//    val dpImageUserGroup = BasicWorkbenchGroup(dpImageUserGroupName, Set.empty, dpImageUserGoogleGroupEmail)
-//    for {
-//      createdGroup <- directoryDAO.createGroup(dpImageUserGroup).unsafeToFuture() recover {
-//        case e: WorkbenchExceptionWithErrorReport if e.errorReport.statusCode == Option(StatusCodes.Conflict) => dpImageUserGroup
-//      }
-//      existingGoogleGroup <- googleDirectoryDAO.getGoogleGroup(createdGroup.email)
-//      _ <- existingGoogleGroup match {
-//        case None =>
-//          googleDirectoryDAO.createGroup(createdGroup.id.toString, createdGroup.email, Option(googleDirectoryDAO.lockedDownGroupSettings)) recover {
-//            case e: GoogleJsonResponseException if e.getDetails.getCode == StatusCodes.Conflict.intValue => ()
-//          }
-//        case Some(_) => Future.successful(())
-//      }
-//
-//    } yield createdGroup
-//  }
 
   override def run(args: List[String]): IO[ExitCode] = startup().as(ExitCode.Success)
 }
