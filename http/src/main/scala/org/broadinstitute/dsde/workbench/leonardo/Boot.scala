@@ -62,7 +62,7 @@ object Boot extends IOApp with LazyLogging {
     implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
 
     if (leoExecutionModeConfig.backLeo) {
-      val dataprocImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group"
+      val dataprocImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-2"
       val dataprocImageUserGoogleGroupEmail = WorkbenchEmail(s"$dataprocImageUserGoogleGroupName@test.firecloud.org")
       val dataprocImageUserGoogleGroupDisplayName = s"$dataprocImageUserGoogleGroupName-displayname"
       logger.info(s"Service account being used is ${serviceAccountProviderConfig.leoServiceAccount}")
