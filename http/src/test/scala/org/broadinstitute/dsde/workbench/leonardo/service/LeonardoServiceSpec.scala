@@ -100,7 +100,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
     clusterFilesConfig.jupyterRootCaPem.getName,
     clusterResourcesConfig.proxySiteConf.value,
     clusterResourcesConfig.jupyterNotebookConfigUri.value,
-    clusterResourcesConfig.jupyterNotebookFrontendConfigUri.value
+    clusterResourcesConfig.jupyterNotebookFrontendConfigUri.value,
+    clusterResourcesConfig.customEnvVarsConfigUri.value
   )
 
   lazy val initFiles = (configFiles ++ serviceAccountCredentialFile).map(GcsObjectName(_))
@@ -687,7 +688,8 @@ class LeonardoServiceSpec extends TestKit(ActorSystem("leonardotest")) with Flat
           |"${testClusterRequestWithExtensionAndScript.userJupyterExtensionConfig.get.combinedExtensions.values.mkString(" ")}"
           |"${GcsPath(stagingBucketName, GcsObjectName("userscript_output.txt")).toUri}"
           |"${GcsPath(initBucketPath, GcsObjectName("jupyter_notebook_config.py")).toUri}"
-          |"${GcsPath(initBucketPath, GcsObjectName("notebook.json")).toUri}"""".stripMargin
+          |"${GcsPath(initBucketPath, GcsObjectName("notebook.json")).toUri}"
+          |"${GcsPath(initBucketPath, GcsObjectName("custom_env_vars.env")).toUri}"""".stripMargin
 
     result shouldEqual expected
   }

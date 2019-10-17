@@ -208,7 +208,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     clusterInitMap("welderDockerImage") shouldBe welderImage.dockerImage
     clusterInitMap("welderEnabled") shouldBe "true"
 
-    clusterInitMap.size shouldBe 33
+    clusterInitMap.size shouldBe 34
   }
 
   "DockerRegistry regex" should "match expected image url format" in {
