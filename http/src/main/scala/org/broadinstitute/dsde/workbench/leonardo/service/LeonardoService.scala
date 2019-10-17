@@ -936,6 +936,11 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       clusterRequest.enableWelder.getOrElse(false))
     val replacements: Map[String, String] = clusterInit.toMap
 
+    // Jupyter allows setting of arbitrary environment variables on cluster creation if they are passed in to
+    // docker-compose as a file of format:
+    //     var1=value1
+    //     var2=value2
+    // etc. We're building a string of that format here.
     val customEnvVars = clusterRequest.customClusterEnvironmentVariables.foldLeft("")({case (memo, (key, value)) => memo + s"$key=$value\n"})
 
     // Raw files to upload to the bucket, no additional processing needed.
