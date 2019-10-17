@@ -242,7 +242,7 @@ class ClusterMonitorActor(val cluster: Cluster,
         for {
           // update the cluster status to Error
           _ <- dbRef.inTransaction { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Error) }
-          _ <- Metrics.newRelic.incrementCounterFuture(s"AsyncClusterCreationFailure/${errorDetails.code}")
+          _ <- metrics.incrementCounterFuture(s"AsyncClusterCreationFailure/${errorDetails.code}")
 
           // Remove the Dataproc Worker IAM role for the pet service account
           // Only happens if the cluster was created with the pet service account.
