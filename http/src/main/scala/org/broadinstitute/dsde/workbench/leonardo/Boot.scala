@@ -65,7 +65,7 @@ object Boot extends IOApp with LazyLogging {
     implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
 
     if (leoExecutionModeConfig.backLeo) {
-      val dpImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-6"
+      val dpImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-7"
       val dpImageUserGoogleGroupEmail = WorkbenchEmail(s"$dpImageUserGoogleGroupName@test.firecloud.org")
       logger.info(s"Checking if Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' already exists...")
       googleDirectoryDAO.getGoogleGroup(dpImageUserGoogleGroupEmail) flatMap {
