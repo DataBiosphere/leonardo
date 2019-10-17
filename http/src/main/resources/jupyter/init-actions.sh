@@ -257,9 +257,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
       # Install env var config
       if [ ! -z ${CUSTOM_ENV_VARS_CONFIG_URI} ] ; then
         log 'Copy custom env vars config...'
-        gsutil cp ${CUSTOM_ENV_VARS_CONFIG_URI} /etc
+        gsutil cp ${CUSTOM_ENV_VARS_CONFIG_URI} /tmp
         CUSTOM_ENV_VARS=`basename ${CUSTOM_ENV_VARS_CONFIG_URI}`
-        docker cp /etc/${CUSTOM_ENV_VARS} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/
+        docker cp /tmp/${CUSTOM_ENV_VARS} ${JUPYTER_SERVER_NAME}:/etc
       fi
 
       STEP_TIMINGS+=($(date +%s))
