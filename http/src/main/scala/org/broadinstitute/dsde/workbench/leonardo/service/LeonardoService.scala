@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package service
 
-import java.io.{File, PrintWriter}
+import java.io.File
 import java.text.SimpleDateFormat
 import java.time.Instant
 import java.util.UUID
