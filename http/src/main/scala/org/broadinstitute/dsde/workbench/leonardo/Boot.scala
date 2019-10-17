@@ -75,14 +75,14 @@ object Boot extends IOApp with LazyLogging {
             .createGroup(dpImageUserGoogleGroupName, dpImageUserGoogleGroupEmail, Option(googleDirectoryDAO.lockedDownGroupSettings))
             .recover { // in case group creation is attempted concurrently by multiple Leo instances
               case e: GoogleJsonResponseException if e.getDetails.getCode == StatusCodes.Conflict.intValue => Future.unit
-              case _ => Future.failed(FailedGoogleGroupCreationException(dpImageUserGoogleGroupEmail))
+              case _ => Future.failed(GoogleGroupCreationException(dpImageUserGoogleGroupEmail))
             }
         case Some(group) =>
           logger.info(s"Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' already exists: $group \n Won't attempt to create it.")
           Future.unit
       }
     }
-    
+
     createDependencies[IO](leoServiceAccountJsonFile).use {
       appDependencies =>
         val clusterDateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, dbRef))
@@ -132,5 +132,5 @@ object Boot extends IOApp with LazyLogging {
 
 final case class AppDependencies[F[_]](google2StorageDao: GoogleStorageService[F], samDAO: HttpSamDAO[F])
 
-final case class FailedGoogleGroupCreationException(googleGroup: WorkbenchEmail)
+final case class GoogleGroupCreationException(googleGroup: WorkbenchEmail)
   extends LeoException(s"Failed to create the Google group '${googleGroup}'", StatusCodes.InternalServerError)
