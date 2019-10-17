@@ -18,6 +18,4 @@ object ToolDAO {
     case Welder => (googleProject: GoogleProject, clusterName: ClusterName) => welderDAO.isProxyAvailable(googleProject, clusterName).unsafeToFuture()
     case RStudio => (googleProject: GoogleProject, clusterName: ClusterName) => rstudioDAO.isProxyAvailable(googleProject, clusterName)
   }
-
-  def apply[A](implicit ev: ToolDAO[A]): ToolDAO[A] = ev
 }
