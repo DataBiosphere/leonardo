@@ -63,20 +63,17 @@ object Boot extends IOApp with LazyLogging {
     implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
 
     if (leoExecutionModeConfig.backLeo) {
-      val dataprocImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-4"
+      val dataprocImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-5"
       val dataprocImageUserGoogleGroupEmail = WorkbenchEmail(s"$dataprocImageUserGoogleGroupName@test.firecloud.org")
       logger.info(s"Service account being used is ${serviceAccountProviderConfig.leoServiceAccount}")
       logger.info(s"Checking if Dataproc image user Google group '${dataprocImageUserGoogleGroupEmail}' already exists...")
-      googleDirectoryDAO.getGoogleGroup(dataprocImageUserGoogleGroupEmail) flatMap { groupOpt =>
-        logger.info(s"groupOpt is ${groupOpt}")
-        groupOpt match {
-          case Some(group) =>
-            logger.info(s"Dataproc image user Google group '${dataprocImageUserGoogleGroupEmail}' already exists: $group \n Won't attempt to create it.")
-            Future.unit
-          case None =>
-            logger.info(s"Dataproc image user Google group '${dataprocImageUserGoogleGroupEmail}' does not exist. Attempting to create it...")
-            googleDirectoryDAO.createGroup(dataprocImageUserGoogleGroupName, dataprocImageUserGoogleGroupEmail, Option(googleDirectoryDAO.lockedDownGroupSettings))
-        }
+      googleDirectoryDAO.getGoogleGroup(dataprocImageUserGoogleGroupEmail) flatMap {
+        case Some(group) =>
+          logger.info(s"Dataproc image user Google group '${dataprocImageUserGoogleGroupEmail}' already exists: $group \n Won't attempt to create it.")
+          Future.unit
+        case None =>
+          logger.info(s"Dataproc image user Google group '${dataprocImageUserGoogleGroupEmail}' does not exist. Attempting to create it...")
+          googleDirectoryDAO.createGroup(dataprocImageUserGoogleGroupName, dataprocImageUserGoogleGroupEmail, Option(googleDirectoryDAO.lockedDownGroupSettings))
       }
     }
     
