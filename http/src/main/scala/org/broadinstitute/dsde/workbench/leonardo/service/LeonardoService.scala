@@ -617,7 +617,6 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           case NoAction | DisableDelocalization => Future.successful(cluster)
           case ClusterOutOfDate => Future.failed(ClusterOutOfDateException())
         }
-
         _ <- if (welderAction == DisableDelocalization && !cluster.labels.contains("welderInstallFailed"))
           dbRef.inTransaction { _.labelQuery.save(cluster.id, "welderInstallFailed", "true") }
         else Future.unit
@@ -1118,15 +1117,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
       if (labelFound && imageChanged) UpdateWelder
       else NoAction
-    }
-    else {
+    } else {
       // Welder is not enabled; do we need to deploy it?
       val labelFound = dataprocConfig.deployWelderLabel.exists(cluster.labels.contains)
       if (labelFound) {
         if (isClusterBeforeCutoffDate(cluster)) DisableDelocalization
         else DeployWelder
-      }
-      else NoAction
+      } else NoAction
     }
   }
 
@@ -1170,8 +1167,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
         "updateWelder" -> (welderAction == UpdateWelder).toString,
         "disableDelocalization" -> (welderAction == DisableDelocalization).toString
       )
-    val startupScriptContent = templateResource(clusterResourcesConfig.startupScript, replacements)
 
+    val startupScriptContent = templateResource(clusterResourcesConfig.startupScript, replacements)
     immutable.Map(googleKey -> startupScriptContent)
   }
 
