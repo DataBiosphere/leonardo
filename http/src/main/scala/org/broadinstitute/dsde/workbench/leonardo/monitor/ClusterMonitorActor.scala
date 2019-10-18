@@ -67,7 +67,7 @@ object ClusterMonitorActor {
   private[monitor] case object ScheduleMonitorPass extends ClusterMonitorMessage
   private[monitor] case object QueryForCluster extends ClusterMonitorMessage
   private[monitor] case class ReadyCluster(publicIP: IP, instances: Set[Instance]) extends ClusterMonitorMessage
-  private[monitor] case class NotReadyCluster(status: ClusterStatus, instances: Set[Instance]) extends ClusterMonitorMessage
+  private[monitor] case class NotReadyCluster(status: ClusterStatus, instances: Set[Instance], msg: Option[String] = None) extends ClusterMonitorMessage
   private[monitor] case class FailedCluster(errorDetails: ClusterErrorDetails, instances: Set[Instance]) extends ClusterMonitorMessage
   private[monitor] case object DeletedCluster extends ClusterMonitorMessage
   private[monitor] case class StoppedCluster(instances: Set[Instance]) extends ClusterMonitorMessage
@@ -116,8 +116,8 @@ class ClusterMonitorActor(val cluster: Cluster,
     case QueryForCluster =>
       checkCluster pipeTo self
 
-    case NotReadyCluster(status, instances) =>
-      handleNotReadyCluster(status, instances) pipeTo self
+    case NotReadyCluster(status, instances, msg) =>
+      handleNotReadyCluster(status, instances, msg) pipeTo self
 
     case ReadyCluster(ip, instances) =>
       handleReadyCluster(ip, instances) pipeTo self
@@ -157,7 +157,7 @@ class ClusterMonitorActor(val cluster: Cluster,
     * @param status the ClusterStatus from Google
     * @return ScheduleMonitorPass
     */
-  private def handleNotReadyCluster(status: ClusterStatus, instances: Set[Instance]): Future[ClusterMonitorMessage] = {
+  private def handleNotReadyCluster(status: ClusterStatus, instances: Set[Instance], msg: Option[String]): Future[ClusterMonitorMessage] = {
     val currTimeElapsed: Long = (System.currentTimeMillis() - startTime)
 
     if (monitorConfig.monitorStatusTimeouts.keySet.contains(status) &&
@@ -168,7 +168,7 @@ class ClusterMonitorActor(val cluster: Cluster,
       metrics.incrementCounter(s"ClusterTransitionTimeout/$status").unsafeToFuture() >>
         handleFailedCluster(ClusterErrorDetails(Code.DEADLINE_EXCEEDED.value, Some(s"Failed to transition ${cluster.projectNameString} from status $status within the time limit:  ${monitorConfig.monitorStatusTimeouts.toString}")), instances)
     } else {
-      logger.info(s"Cluster ${cluster.projectNameString} is not ready yet and has taken ${currTimeElapsed.toString} so far (Dataproc cluster status = $status, GCE instance statuses = ${instances.groupBy(_.status).mapValues(_.size)}). Checking again in ${monitorConfig.pollPeriod.toString}.")
+      logger.info(s"Cluster ${cluster.projectNameString} is not ready yet and has taken ${currTimeElapsed.toString} so far (Dataproc cluster status = $status, GCE instance statuses = ${instances.groupBy(_.status).mapValues(_.size)}). Checking again in ${monitorConfig.pollPeriod.toString}. ${msg.getOrElse("")}")
       persistInstances(instances).map { _ =>
         ScheduleMonitorPass
       }
@@ -353,11 +353,11 @@ class ClusterMonitorActor(val cluster: Cluster,
               // in that state - at least with the way HttpJupyterDAO.isProxyAvailable works
               dbRef.inTransaction { _.clusterQuery.updateClusterHostIp(cluster.id, Some(ip)) }.flatMap { _ =>
                 dbRef.inTransaction { _.clusterImageQuery.getAllForCluster(cluster.id)}.flatMap { images =>
-                  Future.traverse(images) { image => image.tool.isProxyAvailable(cluster.googleProject, cluster.clusterName) }.map { isAvailable =>
-                    if (isAvailable.forall(_ == true))
+                  Future.traverse(images) { image => image.tool.isProxyAvailable(cluster.googleProject, cluster.clusterName).map(b => (image.tool, b)) }.map { case isAvailable =>
+                    if (isAvailable.forall(x => x._2 == true))
                       ReadyCluster(ip, googleInstances)
                     else
-                      NotReadyCluster(ClusterStatus.Running, googleInstances)
+                      NotReadyCluster(ClusterStatus.Running, googleInstances, Some(s"Services not available: ${isAvailable.collect { case x if x._2 == false => x._1}}"))
                   }
                 }
               }

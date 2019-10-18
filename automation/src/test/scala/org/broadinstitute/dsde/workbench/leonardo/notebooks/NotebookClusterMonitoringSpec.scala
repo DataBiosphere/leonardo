@@ -189,7 +189,8 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
 
       withNewCluster(billingProject, request = defaultClusterRequest.copy(
         enableWelder = Some(false),
-        labels = Map(deployWelderLabel -> "true"))
+        labels = Map(deployWelderLabel -> "true"),
+        jupyterDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl))
       ) { cluster =>
         withWebDriver { implicit driver =>
           // Verify welder is not running
@@ -201,7 +202,6 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
             notebookPage.executeCell(s"""! cat foo.txt""") shouldBe Some("foo")
             notebookPage.saveAndCheckpoint()
           }
-
           // Stop the cluster
           stopAndMonitor(cluster.googleProject, cluster.clusterName)
 
