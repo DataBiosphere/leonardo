@@ -115,7 +115,7 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
         withWebDriver { implicit driver =>
           withNewNotebook(cluster, Python3) { notebookPage =>
             notebookPage.executeCell("""import os""")
-            val envVar = notebookPage.executeCell("""os.getenv()['KEY']""")
+            val envVar = notebookPage.executeCell("""os.getenv('KEY')""")
             envVar.shouldBe("value")
           }
         }
