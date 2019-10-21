@@ -4,6 +4,7 @@ package monitor
 import java.time.{Duration, Instant}
 
 import akka.actor.{Actor, Props, Timers}
+import cats.effect.IO
 import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
@@ -14,12 +15,13 @@ import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ZombieClusterMonitor._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 
 import scala.concurrent.Future
 
 object ZombieClusterMonitor {
 
-  def props(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference): Props = {
+  def props(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference)(implicit metrics: NewRelicMetrics[IO]): Props = {
     Props(new ZombieClusterMonitor(config, gdDAO, googleProjectDAO, dbRef))
   }
 
@@ -31,7 +33,7 @@ object ZombieClusterMonitor {
 /**
   * This monitor periodically sweeps the Leo database and checks for clusters which no longer exist in Google.
   */
-class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference) extends Actor with Timers with LazyLogging {
+class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO, googleProjectDAO: GoogleProjectDAO, dbRef: DbReference)(implicit metrics: NewRelicMetrics[IO]) extends Actor with Timers with LazyLogging {
   import context._
 
   override def preStart(): Unit = {
@@ -111,7 +113,7 @@ class ZombieClusterMonitor(config: ZombieClusterConfig, gdDAO: GoogleDataprocDAO
 
   private def handleZombieCluster(cluster: Cluster): Future[Unit] = {
     logger.info(s"Deleting zombie cluster: ${cluster.projectNameString}")
-    Metrics.newRelic.incrementCounterIO("zombieClusters").unsafeRunAsync(_ => ())
+    metrics.incrementCounter("zombieClusters").unsafeRunAsync(_ => ())
     dbRef.inTransaction { dataAccess =>
       for {
         _ <- dataAccess.clusterQuery.completeDeletion(cluster.id)

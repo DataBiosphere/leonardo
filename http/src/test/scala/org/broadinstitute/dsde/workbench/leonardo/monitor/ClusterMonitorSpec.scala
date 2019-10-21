@@ -114,7 +114,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     super.afterAll()
   }
 
-  def createClusterSupervisor(gdDAO: GoogleDataprocDAO, computeDAO: GoogleComputeDAO, iamDAO: GoogleIamDAO, projectDAO: GoogleProjectDAO, storageDAO: GoogleStorageDAO, storage2DAO: GoogleStorageService[IO], authProvider: LeoAuthProvider[IO], jupyterDAO: JupyterDAO, rstudioDAO: RStudioDAO, welderDAO: WelderDAO): ActorRef = {
+  def createClusterSupervisor(gdDAO: GoogleDataprocDAO, computeDAO: GoogleComputeDAO, iamDAO: GoogleIamDAO, projectDAO: GoogleProjectDAO, storageDAO: GoogleStorageDAO, storage2DAO: GoogleStorageService[IO], authProvider: LeoAuthProvider[IO], jupyterDAO: JupyterDAO, rstudioDAO: RStudioDAO, welderDAO: WelderDAO[IO]): ActorRef = {
     val bucketHelper = new BucketHelper(dataprocConfig, gdDAO, computeDAO, storageDAO, serviceAccountProvider)
     val clusterHelper = new ClusterHelper(DbSingleton.ref, dataprocConfig, gdDAO, computeDAO, iamDAO)
     val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => new MockGoogleStorageDAO
@@ -140,7 +140,7 @@ class ClusterMonitorSpec extends TestKit(ActorSystem("leonardotest")) with FlatS
     supervisorActor
   }
 
-  def withClusterSupervisor[T](gdDAO: GoogleDataprocDAO, computeDAO: GoogleComputeDAO, iamDAO: GoogleIamDAO, projectDAO: GoogleProjectDAO, storageDAO: GoogleStorageDAO, storage2DAO: GoogleStorageService[IO], authProvider: LeoAuthProvider[IO], jupyterDAO: JupyterDAO = MockJupyterDAO, rstudioDAO: RStudioDAO = MockRStudioDAO, welderDAO: WelderDAO = MockWelderDAO, runningChild: Boolean = true)(testCode: ActorRef => T): T = {
+  def withClusterSupervisor[T](gdDAO: GoogleDataprocDAO, computeDAO: GoogleComputeDAO, iamDAO: GoogleIamDAO, projectDAO: GoogleProjectDAO, storageDAO: GoogleStorageDAO, storage2DAO: GoogleStorageService[IO], authProvider: LeoAuthProvider[IO], jupyterDAO: JupyterDAO = MockJupyterDAO, rstudioDAO: RStudioDAO = MockRStudioDAO, welderDAO: WelderDAO[IO] = MockWelderDAO, runningChild: Boolean = true)(testCode: ActorRef => T): T = {
     val supervisor = createClusterSupervisor(gdDAO, computeDAO, iamDAO, projectDAO, storageDAO, storage2DAO, authProvider, jupyterDAO, rstudioDAO, welderDAO)
     val testResult = Try(testCode(supervisor))
     testKit watch supervisor

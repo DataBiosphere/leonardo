@@ -13,6 +13,7 @@ services:
     environment:
       # TODO what env vars are actually needed here?
       GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
+      STAGING_BUCKET: "${STAGING_BUCKET}"
       CLUSTER_NAME: "${CLUSTER_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
     volumes:

@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.NoopActor
 import org.broadinstitute.dsde.workbench.leonardo.service.{LeonardoService, MockProxyService, StatusService}
 import org.broadinstitute.dsde.workbench.leonardo.util.{BucketHelper, ClusterHelper}
 import org.broadinstitute.dsde.workbench.model.UserInfo
+import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
 import org.scalatest.Matchers
 
 import scala.concurrent.duration._
@@ -27,6 +28,7 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with CommonTestData
 
   implicit val cs = IO.contextShift(executor)
   implicit val timer = IO.timer(executor)
+  private implicit val nr = FakeNewRelicMetricsInterpreter
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
 
   val mockGoogleIamDAO = new MockGoogleIamDAO
@@ -43,7 +45,25 @@ trait TestLeoRoutes { this: ScalatestRouteTest with Matchers with CommonTestData
   val clusterMonitorSupervisor = system.actorOf(NoopActor.props)
   val bucketHelper = new BucketHelper(dataprocConfig, mockGoogleDataprocDAO, mockGoogleComputeDAO, mockGoogleStorageDAO, serviceAccountProvider)
   val clusterHelper = new ClusterHelper(DbSingleton.ref, dataprocConfig, mockGoogleDataprocDAO, mockGoogleComputeDAO, mockGoogleIamDAO)
-  val leonardoService = new LeonardoService(dataprocConfig, MockWelderDAO, clusterFilesConfig, clusterResourcesConfig, clusterDefaultsConfig, proxyConfig, swaggerConfig, autoFreezeConfig, mockGoogleDataprocDAO, mockGoogleComputeDAO, mockGoogleProjectDAO, mockGoogleStorageDAO, mockPetGoogleStorageDAO, DbSingleton.ref, whitelistAuthProvider, serviceAccountProvider, bucketHelper, clusterHelper, contentSecurityPolicy)
+  val leonardoService = new LeonardoService(dataprocConfig,
+    MockWelderDAO,
+    clusterFilesConfig,
+    clusterResourcesConfig,
+    clusterDefaultsConfig,
+    proxyConfig,
+    swaggerConfig,
+    autoFreezeConfig,
+    mockGoogleDataprocDAO,
+    mockGoogleComputeDAO,
+    mockGoogleProjectDAO,
+    mockGoogleStorageDAO,
+    mockPetGoogleStorageDAO,
+    DbSingleton.ref,
+    whitelistAuthProvider,
+    serviceAccountProvider,
+    bucketHelper,
+    clusterHelper,
+    contentSecurityPolicy)
   val clusterDnsCache = new ClusterDnsCache(proxyConfig, DbSingleton.ref, dnsCacheConfig)
   val proxyService = new MockProxyService(proxyConfig, mockGoogleDataprocDAO, DbSingleton.ref, whitelistAuthProvider, clusterDnsCache)
   val statusService = new StatusService(mockGoogleDataprocDAO, mockSamDAO, DbSingleton.ref, dataprocConfig, pollInterval = 1.second)

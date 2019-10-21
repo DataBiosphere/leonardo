@@ -93,11 +93,11 @@ class ProxyService(proxyConfig: ProxyConfig,
       }
     )
 
-  def getCachedClusterInternalId(googleProject: GoogleProject, clusterName: ClusterName): Future[ClusterInternalId] = {
+  def getCachedClusterInternalId(googleProject: GoogleProject, clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): Future[ClusterInternalId] = {
     clusterInternalIdCache.get((googleProject, clusterName)).flatMap {
       case Some(clusterInternalId) => Future.successful(clusterInternalId)
       case None =>
-        logger.error(s"Unable to look up an internal ID for cluster ${googleProject.value} / ${clusterName.value}")
+        logger.error(s"${ev.ask.unsafeRunSync()} | Unable to look up an internal ID for cluster ${googleProject.value} / ${clusterName.value}")
         Future.failed[ClusterInternalId](ProxyException(googleProject, clusterName))
     }
   }

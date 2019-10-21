@@ -2,8 +2,9 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import akka.actor.{ActorRef, ActorSystem, Terminated}
 import akka.testkit.TestKit
+import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleProjectDAO}
-import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, MockJupyterDAO, MockWelderDAO, ToolDAO, WelderDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, MockJupyterDAO, MockRStudioDAO, MockWelderDAO, ToolDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GcsPathUtils}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbSingleton, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterStatus
@@ -14,7 +15,6 @@ import org.scalatest.mockito.MockitoSugar
 import org.broadinstitute.dsde.workbench.newrelic.NewRelicMetrics
 import org.mockito.ArgumentMatchers
 import org.scalatest.concurrent.Eventually.eventually
-import org.broadinstitute.dsde.workbench.leonardo.model.ClusterTool
 
 import scala.concurrent.duration._
 import scala.util.Try
@@ -80,10 +80,11 @@ class ClusterToolMonitorSpec  extends TestKit(ActorSystem("leonardotest")) with
     }
   }
 
-  private def withServiceActor[T](newRelic: NewRelicMetrics =  mock[NewRelicMetrics], welderDAO: WelderDAO = new MockWelderDAO(), jupyterDAO: JupyterDAO = new MockJupyterDAO())
-                                (testCode: (ActorRef, NewRelicMetrics) => T): T = {
-    val toolMap: Map[ClusterTool, ToolDAO] = Map(ClusterTool.Jupyter -> jupyterDAO, ClusterTool.Welder -> welderDAO)
-    val actor = system.actorOf(ClusterToolMonitor.props(clusterToolConfig, gdDAO = new MockGoogleDataprocDAO, googleProjectDAO = new MockGoogleProjectDAO, DbSingleton.ref, toolMap, newRelic))
+  private def withServiceActor[T](newRelic: NewRelicMetrics[IO] =  mock[NewRelicMetrics[IO]], welderDAO: WelderDAO[IO] = new MockWelderDAO(), jupyterDAO: JupyterDAO = new MockJupyterDAO())
+                                (testCode: (ActorRef, NewRelicMetrics[IO]) => T): T = {
+    implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDAO, welderDAO, MockRStudioDAO)
+
+    val actor = system.actorOf(ClusterToolMonitor.props(clusterToolConfig, gdDAO = new MockGoogleDataprocDAO, googleProjectDAO = new MockGoogleProjectDAO, DbSingleton.ref, newRelic))
     val testResult = Try(testCode(actor, newRelic))
 
     // shut down the actor and wait for it to terminate

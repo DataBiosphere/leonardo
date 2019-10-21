@@ -183,13 +183,14 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
 
     "should deploy welder on a cluster" in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
-      val deployWelderLabel = "TEST_ONLY_DEPLOY_WELDER"  // matches deployWelderLabel in Leo reference.conf
+      val deployWelderLabel = "saturnVersion"  // matches deployWelderLabel in Leo reference.conf
 
       // Create a cluster with welder disabled
 
       withNewCluster(billingProject, request = defaultClusterRequest.copy(
         enableWelder = Some(false),
-        labels = Map(deployWelderLabel -> "true"))
+        labels = Map(deployWelderLabel -> "true"),
+        jupyterDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl))
       ) { cluster =>
         withWebDriver { implicit driver =>
           // Verify welder is not running
@@ -201,7 +202,6 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
             notebookPage.executeCell(s"""! cat foo.txt""") shouldBe Some("foo")
             notebookPage.saveAndCheckpoint()
           }
-
           // Stop the cluster
           stopAndMonitor(cluster.googleProject, cluster.clusterName)
 

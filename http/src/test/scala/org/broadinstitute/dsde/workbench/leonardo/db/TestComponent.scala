@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.Cluster
 import org.broadinstitute.dsde.workbench.leonardo.model.google.ClusterName
 import org.broadinstitute.dsde.workbench.leonardo.{GcsPathUtils, TestExecutionContext}
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKeyId}
+import org.broadinstitute.dsde.workbench.newrelic.mock.FakeNewRelicMetricsInterpreter
 import org.scalatest.Matchers
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
@@ -20,6 +21,7 @@ import scala.concurrent.ExecutionContext
 trait TestComponent extends Matchers with ScalaFutures with LeoComponent with GcsPathUtils{
   override val profile: JdbcProfile = DbSingleton.ref.dataAccess.profile
   override implicit val executionContext: ExecutionContext = TestExecutionContext.testExecutionContext
+  implicit val metrics = FakeNewRelicMetricsInterpreter
   implicit override val patienceConfig = PatienceConfig(timeout = scaled(Span(10, Seconds)))
   implicit val loggerIO: Logger[IO] = Slf4jLogger.getLogger[IO]
 
