@@ -116,7 +116,7 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
           withNewNotebook(cluster, Python3) { notebookPage =>
             notebookPage.executeCell("""import os""")
             val envVar = notebookPage.executeCell("""os.getenv('KEY')""")
-            envVar.shouldBe("value")
+            envVar.get shouldBe("value")
           }
         }
       }
