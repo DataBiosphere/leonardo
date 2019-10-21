@@ -113,7 +113,17 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
 
       withNewCluster(billingProject, request = defaultClusterRequest.copy(customClusterEnvironmentVariables = Map("KEY" -> "value"))) { cluster =>
         withWebDriver { implicit driver =>
-          withNewNotebook(cluster) { notebookPage =>
+          withNewNotebook(cluster, Python3) { notebookPage =>
+            notebookPage.executeCell("import os")
+            val envVar = notebookPage.executeCell("os.getenv('KEY')")
+            envVar shouldBe Some("'value'")
+          }
+        }
+      }
+
+      withNewCluster(billingProject, request = defaultClusterRequest.copy(customClusterEnvironmentVariables = Map("KEY" -> "value"))) { cluster =>
+        withWebDriver { implicit driver =>
+          withNewNotebook(cluster, RKernel) { notebookPage =>
             val envVar = notebookPage.executeCell("Sys.getenv('KEY')")
             envVar shouldBe Some("'value'")
           }
