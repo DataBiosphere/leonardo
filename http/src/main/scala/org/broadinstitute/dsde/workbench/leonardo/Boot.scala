@@ -137,7 +137,7 @@ object Boot extends IOApp with LazyLogging {
 
   private def createDataprocImageUserGoogleGroupIfDoesntExist(googleDirectoryDAO: GoogleDirectoryDAO)
                                                 (implicit ec: ExecutionContext): Future[Unit] = {
-    val dpImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-7"
+    val dpImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-8"
     val dpImageUserGoogleGroupEmail = WorkbenchEmail(s"$dpImageUserGoogleGroupName@test.firecloud.org")
     logger.info(s"Checking if Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' already exists...")
     googleDirectoryDAO.getGoogleGroup(dpImageUserGoogleGroupEmail) flatMap {
