@@ -3,14 +3,14 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, Leonardo, LeonardoConfig}
 import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.broadinstitute.dsde.workbench.service.util.Tags
-import org.scalatest.DoNotDiscover
+//import org.scalatest.DoNotDiscover
 
 import scala.concurrent.duration.DurationLong
 
 /**
   * This spec verifies notebook functionality specifically around the Python 3 kernel.
   */
-@DoNotDiscover
+//@DoNotDiscover
 class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
 
   override val jupyterDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.pythonImageUrl)
@@ -168,6 +168,7 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
             notebookPage.executeCell("! echo $WORKSPACE_NAMESPACE").get shouldBe clusterFixture.cluster.googleProject.value
             notebookPage.executeCell("! echo $WORKSPACE_NAME").get shouldBe "notebooks"
             notebookPage.executeCell("! echo $OWNER_EMAIL").get shouldBe ronEmail
+            notebookPage.executeCell("! echo $WORKSPACE_NAME").get shouldBe "idk"
             // workspace bucket is not wired up in tests
             notebookPage.executeCell("! echo $WORKSPACE_BUCKET").get shouldBe ""
           }
