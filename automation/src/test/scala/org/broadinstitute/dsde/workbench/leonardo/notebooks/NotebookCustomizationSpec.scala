@@ -110,18 +110,18 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
     "should populate user-specified environment variables" in  { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
 
-
       withNewCluster(billingProject, request = defaultClusterRequest.copy(customClusterEnvironmentVariables = Map("KEY" -> "value"))) { cluster =>
         withWebDriver { implicit driver =>
-          withNewNotebook(cluster, Python3) { notebookPage =>
-            notebookPage.executeCell("import os")
-            val envVar = notebookPage.executeCell("os.getenv('KEY')")
-            envVar shouldBe Some("'value'")
-          }
-
-          withNewNotebook(cluster, RKernel) { notebookPage =>
-            val envVar = notebookPage.executeCell("Sys.getenv('KEY')")
-            envVar shouldBe Some("'value'")
+          withNotebooksListPage(cluster) { listPage =>
+            listPage.withNewNotebook(Python3) { notebookPage =>
+              notebookPage.executeCell("import os")
+              val envVar = notebookPage.executeCell("os.getenv('KEY')")
+              envVar shouldBe Some("'value'")
+            }
+            listPage.withNewNotebook(RKernel) { notebookPage =>
+              val envVar = notebookPage.executeCell("Sys.getenv('KEY')")
+              envVar shouldBe Some("'value'")
+            }
           }
         }
       }
