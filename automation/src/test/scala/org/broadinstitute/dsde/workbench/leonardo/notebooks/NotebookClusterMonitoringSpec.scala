@@ -140,7 +140,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
         val ronPetEntity = EmailGcsEntity(Group, ronProxyGroup)
         googleStorageDAO.setObjectAccessControl(destPath.bucketName, destPath.objectName, ronPetEntity, Reader).futureValue
 
-        val request = defaultClusterRequest.copy(machineConfig = Option(MachineConfig(
+        val request = defaultClusterRequest.copy(jupyterDockerImage = None, machineConfig = Option(MachineConfig(
           // need at least 2 regular workers to enable preemptibles
           numberOfWorkers = Option(2),
           numberOfPreemptibleWorkers = Option(10)
