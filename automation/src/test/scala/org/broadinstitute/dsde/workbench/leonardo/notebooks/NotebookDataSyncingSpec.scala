@@ -27,8 +27,8 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
   "NotebookDataSyncingSpec" - {
 
     "Welder should be up" in { clusterFixture =>
-      val resp: HttpResponse = Welder.getWelderStatus(clusterFixture.cluster)
-      resp.status.isSuccess() shouldBe true
+      val resp = Welder.getWelderStatus(clusterFixture.cluster)
+      resp.attempt.unsafeRunSync().isRight shouldBe true
     }
 
     "open notebook in edit mode should work" in { clusterFixture =>

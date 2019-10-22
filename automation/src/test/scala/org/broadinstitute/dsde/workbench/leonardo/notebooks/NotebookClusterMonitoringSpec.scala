@@ -12,7 +12,6 @@ import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
-
 import scala.concurrent.duration._
 
 /**
@@ -194,7 +193,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
       ) { cluster =>
         withWebDriver { implicit driver =>
           // Verify welder is not running
-          Welder.getWelderStatus(cluster).status.isSuccess() shouldBe false
+          Welder.getWelderStatus(cluster).attempt.unsafeRunSync().isRight shouldBe false
 
           // Create a notebook and execute cells to create a local file
           withNewNotebook(cluster, kernel = Python3) { notebookPage =>
@@ -209,12 +208,42 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
           startAndMonitor(cluster.googleProject, cluster.clusterName)
 
           // Verify welder is now running
-          Welder.getWelderStatus(cluster).status.isSuccess() shouldBe true
+          Welder.getWelderStatus(cluster).attempt.unsafeRunSync().isRight shouldBe true
 
           // Make a new notebook and verify the file still exists
           withNewNotebook(cluster, kernel = Python3) { notebookPage =>
             notebookPage.executeCell(s"""! cat foo.txt""") shouldBe Some("foo")
           }
+        }
+      }
+    }
+
+    "should update welder on a cluster" in { billingProject =>
+      implicit val ronToken: AuthToken = ronAuthToken
+      val deployWelderLabel = "saturnVersion"  // matches deployWelderLabel in Leo reference.conf
+
+      // Create a cluster with welder disabled
+
+      withNewCluster(billingProject, request = defaultClusterRequest.copy(
+        enableWelder = Some(true),
+        labels = Map(deployWelderLabel -> "true"),
+        welderDockerImage = Some(LeonardoConfig.Leonardo.oldWelderDockerImage))
+      ) { cluster =>
+        withWebDriver { implicit driver =>
+          // Verify welder is running with old version
+          val statusResponse = Welder.getWelderStatus(cluster).unsafeRunSync()
+          val oldWelderHash = LeonardoConfig.Leonardo.oldWelderDockerImage.split(":")(1)
+          statusResponse.gitHeadCommit should startWith (oldWelderHash)
+
+          // Stop the cluster
+          stopAndMonitor(cluster.googleProject, cluster.clusterName)
+
+          // Start the cluster
+          startAndMonitor(cluster.googleProject, cluster.clusterName)
+
+          // Verify welder is now running
+          val curWelderHash = LeonardoConfig.Leonardo.curWelderDockerImage.split(":")(1)
+          Welder.getWelderStatus(cluster).unsafeRunSync().gitHeadCommit should startWith (curWelderHash)
         }
       }
     }
