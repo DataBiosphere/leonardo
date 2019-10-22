@@ -150,6 +150,9 @@ class ClusterHelper(dbRef: DbReference,
       "serviceusage.quotas.get", "serviceusage.services.get", "serviceusage.services.list"
     ).map(IamPermission)
 
+    logger.info(s"customDataprocImage is '$customDataprocImage'")
+    logger.info(s"imageProject is '${dataprocConfig.customDataprocImage.flatMap(parseImageProject)}'")
+    
     for {
       imageProject <- dataprocConfig.customDataprocImage.flatMap(parseImageProject) match {
         case Some(project) => Future(project)
