@@ -2,21 +2,23 @@ package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import akka.actor.ActorSystem
+import akka.http.scaladsl.model.StatusCodes
 import cats.effect._
 import cats.implicits._
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
+import org.broadinstitute.dsde.workbench.google.{GoogleDirectoryDAO, GoogleIamDAO}
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleComputeDAO, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKey, ServiceAccountKeyId}
+import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, IamPermission, ServiceAccountKey, ServiceAccountKeyId}
 import org.broadinstitute.dsde.workbench.util.Retry
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 case class ClusterIamSetupException(googleProject: GoogleProject)
   extends LeoException(s"Error occurred setting up IAM roles in project ${googleProject.value}")
@@ -25,7 +27,7 @@ class ClusterHelper(dbRef: DbReference,
                     dataprocConfig: DataprocConfig,
                     gdDAO: GoogleDataprocDAO,
                     googleComputeDAO: GoogleComputeDAO,
-                    googleIamDAO: GoogleIamDAO)
+                    val googleIamDAO: GoogleIamDAO)
                    (implicit val executionContext: ExecutionContext, val system: ActorSystem, val contextShift: ContextShift[IO]) extends LazyLogging with Retry {
 
   def createClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo): IO[Unit] = {
@@ -116,6 +118,53 @@ class ClusterHelper(dbRef: DbReference,
     (serviceAccountEmailOpt, serviceAccountKeyIdOpt).mapN { case (email, keyId) =>
       IO.fromFuture(IO(googleIamDAO.removeServiceAccountKey(googleProject, email, keyId)))
     } getOrElse IO.unit
+  }
+
+  def createDataprocImageUserGoogleGroupIfDoesntExist(googleDirectoryDAO: GoogleDirectoryDAO,
+                                                      dpImageUserGoogleGroupName: String,
+                                                      dpImageUserGoogleGroupEmail: WorkbenchEmail) = {
+    logger.info(s"Checking if Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' already exists...")
+    googleDirectoryDAO.getGoogleGroup(dpImageUserGoogleGroupEmail) flatMap {
+      case None =>
+        logger.info(s"Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' does not exist. Attempting to create it...")
+        googleDirectoryDAO
+          .createGroup(dpImageUserGoogleGroupName, dpImageUserGoogleGroupEmail, Option(googleDirectoryDAO.lockedDownGroupSettings))
+          .recover {
+            // In case group creation is attempted concurrently by multiple Leo instances
+            case e: GoogleJsonResponseException if e.getDetails.getCode == StatusCodes.Conflict.intValue => Future.unit
+            case _ => Future.failed(GoogleGroupCreationException(dpImageUserGoogleGroupEmail))
+          }
+      case Some(group) =>
+        logger.info(s"Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' already exists: $group \n Won't attempt to create it.")
+        Future.unit
+    }
+  }
+
+  def addDataprocImageUserIamRole(googleIamDAO: GoogleIamDAO,
+                                  customDataprocImage: Option[String],
+                                  dpImageUserGoogleGroupEmail: WorkbenchEmail) = {
+    val role = Set("roles/compute.imageUser")
+    val requiredPermissions = Set(
+      "compute.images.get", "compute.images.getFromFamily", "compute.images.list", "compute.images.useReadOnly",
+      "resourcemanager.projects.get", "resourcemanager.projects.list",
+      "serviceusage.quotas.get", "serviceusage.services.get", "serviceusage.services.list"
+    ).map(IamPermission)
+
+    for {
+      imageProject <- dataprocConfig.customDataprocImage.flatMap(parseImageProject) match {
+        case Some(project) => Future(project)
+        case None => Future.failed(ImageProjectNotFoundException())
+      }
+      foundPermissions <- googleIamDAO.testIamPermission(imageProject, requiredPermissions)
+      alreadyHasPermissions = foundPermissions == requiredPermissions
+    } yield if (alreadyHasPermissions) {
+      logger.info(s"'$imageProject' already has the compute.imageUser permissions for '$dpImageUserGoogleGroupEmail'.")
+    }
+    else {
+      logger.info(s"Adding compute.imageUser permissions to '$imageProject' for '$dpImageUserGoogleGroupEmail'...")
+      val failureMessage = s"IAM policy change failed for Google project '$imageProject'"
+      retryExponentially(when409, failureMessage) { () => googleIamDAO.addIamRolesForUser(imageProject, dpImageUserGoogleGroupEmail, role) }
+    }
   }
 
   // See https://cloud.google.com/dataproc/docs/guides/dataproc-images#custom_image_uri

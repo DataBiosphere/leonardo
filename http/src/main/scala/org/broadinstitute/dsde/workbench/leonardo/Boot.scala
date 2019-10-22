@@ -7,7 +7,6 @@ import akka.stream.ActorMaterializer
 import cats.effect.concurrent.Semaphore
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift, ExitCode, IO, IOApp, Resource, Timer}
 import cats.implicits._
-import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.typesafe.scalalogging.LazyLogging
 import com.typesafe.sslconfig.akka.AkkaSSLConfig
 import com.typesafe.sslconfig.akka.util.AkkaLoggerFactory
@@ -15,7 +14,7 @@ import com.typesafe.sslconfig.ssl.ConfigSSLContextBuilder
 import io.chrisdavenport.log4cats.Logger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Pem, Token}
-import org.broadinstitute.dsde.workbench.google.{GoogleDirectoryDAO, GoogleStorageDAO, HttpGoogleDirectoryDAO, HttpGoogleIamDAO, HttpGoogleProjectDAO, HttpGoogleStorageDAO}
+import org.broadinstitute.dsde.workbench.google.{GoogleStorageDAO, HttpGoogleDirectoryDAO, HttpGoogleIamDAO, HttpGoogleProjectDAO, HttpGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.api.{LeoRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAccountProvider, SamAuthProvider}
@@ -35,17 +34,17 @@ import org.broadinstitute.dsde.workbench.util.ExecutionContexts
 import org.http4s.client.blaze
 import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
 object Boot extends IOApp with LazyLogging {
   private def startup(): IO[Unit] = {
-    // we need an ActorSystem to host our application in
+    // We need an ActorSystem to host our application in
     implicit val system = ActorSystem("leonardo")
     implicit val materializer = ActorMaterializer()
-    val workbenchMetricsBaseName = "google"
     import system.dispatcher
 
+    val workbenchMetricsBaseName = "google"
     val petGoogleStorageDAO: String => GoogleStorageDAO = token => {
       new HttpGoogleStorageDAO(dataprocConfig.applicationName, Token(() => token), workbenchMetricsBaseName)
     }
@@ -54,11 +53,7 @@ object Boot extends IOApp with LazyLogging {
     val pem = Pem(serviceAccountProviderConfig.leoServiceAccount, serviceAccountProviderConfig.leoPemFile, Option(googleAdminEmail))
     val googleStorageDAO = new HttpGoogleStorageDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
     val googleProjectDAO = new HttpGoogleProjectDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
-    // TODO: applicationName doesn't seem specific to DataprocConfig. Move it out?
-    val googleDirectoryDAO = new HttpGoogleDirectoryDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
     implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
-
-    if (leoExecutionModeConfig.backLeo) createDataprocImageUserGoogleGroupIfDoesntExist(googleDirectoryDAO)
 
     createDependencies(leoServiceAccountJsonFile, pem, workbenchMetricsBaseName).use {
       appDependencies =>
@@ -81,6 +76,15 @@ object Boot extends IOApp with LazyLogging {
               googleProjectDAO,
               appDependencies.dbReference,
               appDependencies.metrics))
+
+          // TODO Template and get the group and domain values from config
+          val dpImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-8"
+          val dpImageUserGoogleGroupEmail = WorkbenchEmail(s"$dpImageUserGoogleGroupName@test.firecloud.org")
+          val ch = appDependencies.clusterHelper
+          ch.createDataprocImageUserGoogleGroupIfDoesntExist(appDependencies.googleDirectoryDAO, dpImageUserGoogleGroupName, dpImageUserGoogleGroupEmail)
+            .flatMap { _ =>
+              ch.addDataprocImageUserIamRole(ch.googleIamDAO, dataprocConfig.customDataprocImage, dpImageUserGoogleGroupEmail)
+            }
         }
         val clusterDateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, appDependencies.dbReference))
         val proxyService = new ProxyService(proxyConfig, appDependencies.googleDataprocDAO, appDependencies.dbReference, appDependencies.clusterDnsCache, authProvider, clusterDateAccessedActor)
@@ -117,11 +121,13 @@ object Boot extends IOApp with LazyLogging {
       clusterDnsCache = new ClusterDnsCache(proxyConfig, dbRef, clusterDnsCacheConfig)
       welderDao = new HttpWelderDAO[F](clusterDnsCache, clientWithRetryAndLogging)
 
-      googleIamDAO = new HttpGoogleIamDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
-      googleComputeDAO = new HttpGoogleComputeDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
+      // TODO: applicationName doesn't seem specific to DataprocConfig. Move it out?
       gdDAO = new HttpGoogleDataprocDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName, NetworkTag(dataprocConfig.networkTag), dataprocConfig.dataprocDefaultRegion, dataprocConfig.dataprocZone)
+      googleComputeDAO = new HttpGoogleComputeDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
+      googleDirectoryDAO = new HttpGoogleDirectoryDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
+      googleIamDAO = new HttpGoogleIamDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
       clusterHelper = new ClusterHelper(dbRef, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO)
-    } yield AppDependencies(storage, dbRef, clusterDnsCache, googleComputeDAO, gdDAO, samDao, welderDao, clusterHelper, metrics)
+    } yield AppDependencies(storage, dbRef, clusterDnsCache, googleComputeDAO, gdDAO, googleDirectoryDAO, samDao, welderDao, clusterHelper, metrics)
   }
 
   private def getSSLContext(implicit actorSystem: ActorSystem) = {
@@ -135,27 +141,6 @@ object Boot extends IOApp with LazyLogging {
       akkaSSLConfig.buildTrustManagerFactory(config)).build()
   }
 
-  private def createDataprocImageUserGoogleGroupIfDoesntExist(googleDirectoryDAO: GoogleDirectoryDAO)
-                                                (implicit ec: ExecutionContext): Future[Unit] = {
-    val dpImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-8"
-    val dpImageUserGoogleGroupEmail = WorkbenchEmail(s"$dpImageUserGoogleGroupName@test.firecloud.org")
-    logger.info(s"Checking if Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' already exists...")
-    googleDirectoryDAO.getGoogleGroup(dpImageUserGoogleGroupEmail) flatMap {
-      case None =>
-        logger.info(s"Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' does not exist. Attempting to create it...")
-        googleDirectoryDAO
-          .createGroup(dpImageUserGoogleGroupName, dpImageUserGoogleGroupEmail, Option(googleDirectoryDAO.lockedDownGroupSettings))
-          .recover {
-            // In case group creation is attempted concurrently by multiple Leo instances
-            case e: GoogleJsonResponseException if e.getDetails.getCode == StatusCodes.Conflict.intValue => Future.unit
-            case _ => Future.failed(GoogleGroupCreationException(dpImageUserGoogleGroupEmail))
-          }
-      case Some(group) =>
-        logger.info(s"Dataproc image user Google group '${dpImageUserGoogleGroupEmail}' already exists: $group \n Won't attempt to create it.")
-        Future.unit
-    }
-  }
-
   override def run(args: List[String]): IO[ExitCode] = startup().as(ExitCode.Success)
 }
 
@@ -164,6 +149,7 @@ final case class AppDependencies[F[_]](google2StorageDao: GoogleStorageService[F
                                        clusterDnsCache: ClusterDnsCache,
                                        googleComputeDAO: HttpGoogleComputeDAO,
                                        googleDataprocDAO: HttpGoogleDataprocDAO,
+                                       googleDirectoryDAO: HttpGoogleDirectoryDAO,
                                        samDAO: HttpSamDAO[F],
                                        welderDAO: HttpWelderDAO[F],
                                        clusterHelper: ClusterHelper,
@@ -171,3 +157,6 @@ final case class AppDependencies[F[_]](google2StorageDao: GoogleStorageService[F
 
 final case class GoogleGroupCreationException(googleGroup: WorkbenchEmail)
   extends LeoException(s"Failed to create the Google group '${googleGroup}'", StatusCodes.InternalServerError)
+
+final case class ImageProjectNotFoundException()
+  extends LeoException("Custom Dataproc image project not found", StatusCodes.NotFound)
