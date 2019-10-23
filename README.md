@@ -80,6 +80,11 @@ Once you're done, tear down MySQL.
 ./docker/run-mysql.sh stop leonardo
 ```
 
+## Run scalafmt
+Learn more about [scalafmt](https://scalameta.org/scalafmt/docs/installation.html)
+- Format main code `sbt scalafmt`
+- Format testing code `sbt test:scalafmt`
+
 ## Building Leonardo docker image
 
 To install git-secrets
