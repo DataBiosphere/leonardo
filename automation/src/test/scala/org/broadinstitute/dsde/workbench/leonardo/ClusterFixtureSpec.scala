@@ -12,7 +12,7 @@ import org.scalatest.{BeforeAndAfterAll, Outcome, fixture}
 /**
   * trait BeforeAndAfterAll - One cluster per Scalatest Spec.
   */
-abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils with GPAllocBeforeAndAfterAll {
+abstract class ClusterFixtureSpec extends fixture.FreeSpec with BeforeAndAfterAll with LeonardoTestUtils {
 
   implicit val ronToken: AuthToken = ronAuthToken
 
