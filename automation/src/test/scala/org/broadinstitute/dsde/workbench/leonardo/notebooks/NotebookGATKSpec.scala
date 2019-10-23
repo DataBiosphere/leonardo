@@ -36,18 +36,5 @@ class NotebookGATKSpec extends ClusterFixtureSpec with NotebookTestUtils {
         }
       }
     }
-
-    "should have the workspace-related environment variables set" in { clusterFixture =>
-      withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
-          notebookPage.executeCell("! echo $GOOGLE_PROJECT").get shouldBe clusterFixture.cluster.googleProject.value
-          notebookPage.executeCell("! echo $WORKSPACE_NAMESPACE").get shouldBe clusterFixture.cluster.googleProject.value
-          notebookPage.executeCell("! echo $WORKSPACE_NAME").get shouldBe "notebooks" // TODO: change to "jupyter-user" once https://github.com/DataBiosphere/terra-docker/pull/49 is merged
-          notebookPage.executeCell("! echo $OWNER_EMAIL").get shouldBe ronEmail
-          // workspace bucket is not wired up in tests
-          notebookPage.executeCell("! echo $WORKSPACE_BUCKET").get shouldBe ""
-        }
-      }
-    }
   }
 }

@@ -247,6 +247,25 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
         }
       }
     }
+
+    // TODO: remove this test once we stop supporting the legacy image
+    "should set environment variables for old image" in { billingProject =>
+      implicit val ronToken: AuthToken = ronAuthToken
+
+      withNewCluster(billingProject, request = defaultClusterRequest.copy(jupyterDockerImage = None)) { cluster =>
+        withWebDriver { implicit driver =>
+          withNewNotebook(cluster, Python3) { notebookPage =>
+            notebookPage.executeCell("! echo $GOOGLE_PROJECT").get shouldBe billingProject.value
+            notebookPage.executeCell("! echo $WORKSPACE_NAMESPACE").get shouldBe billingProject.value
+            notebookPage.executeCell("! echo $WORKSPACE_NAME").get shouldBe "jupyter-user"
+            notebookPage.executeCell("! echo $OWNER_EMAIL").get shouldBe ronEmail
+            // workspace bucket is not wired up in tests
+            notebookPage.executeCell("! echo $WORKSPACE_BUCKET").get shouldBe ""
+          }
+        }
+      }
+    }
+
   }
 
 }
