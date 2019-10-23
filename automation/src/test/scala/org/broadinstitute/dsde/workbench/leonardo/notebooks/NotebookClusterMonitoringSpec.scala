@@ -252,7 +252,7 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
     "should set environment variables for old image" in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
 
-      withNewCluster(billingProject, request = defaultClusterRequest.copy(jupyterDockerImage = None)) { cluster =>
+      withNewCluster(billingProject, request = defaultClusterRequest.copy(jupyterDockerImage = None, enableWelder = Some(true))) { cluster =>
         withWebDriver { implicit driver =>
           withNewNotebook(cluster, Python3) { notebookPage =>
             notebookPage.executeCell("! echo $GOOGLE_PROJECT").get shouldBe billingProject.value
