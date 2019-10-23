@@ -59,6 +59,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
   lazy val ronEmail = ronCreds.email
 
   val clusterPatience = PatienceConfig(timeout = scaled(Span(10, Minutes)), interval = scaled(Span(20, Seconds)))
+  val clusterStopAfterCreatePatience = PatienceConfig(timeout = scaled(Span(20, Minutes)), interval = scaled(Span(20, Seconds)))
   val localizePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
   val saPatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
   val storagePatience = PatienceConfig(timeout = scaled(Span(1, Minutes)), interval = scaled(Span(1, Seconds)))
@@ -194,10 +195,12 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   def monitorCreate(googleProject: GoogleProject, clusterName: ClusterName, clusterRequest: ClusterRequest, creatingCluster: Cluster)(implicit token: AuthToken): Cluster = {
     // wait for "Running", "Stopped", or error (fail fast)
-    implicit val patienceConfig: PatienceConfig = clusterPatience
+    val stopAfterCreate = clusterRequest.stopAfterCreation.getOrElse(false)
+
+    implicit val patienceConfig: PatienceConfig = if (stopAfterCreate) clusterStopAfterCreatePatience else clusterPatience
 
     val expectedStatuses =
-      if (clusterRequest.stopAfterCreation.getOrElse(false)) {
+      if (stopAfterCreate) {
         List(ClusterStatus.Stopped, ClusterStatus.Error)
       } else {
         List(ClusterStatus.Running, ClusterStatus.Error)

@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
-import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec
+import org.broadinstitute.dsde.workbench.leonardo.{GPAllocFixtureSpec, LeonardoConfig}
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.broadinstitute.dsde.workbench.service.util.Tags
@@ -110,15 +110,19 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
     "should populate user-specified environment variables" in  { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
 
-      withNewCluster(billingProject, request = defaultClusterRequest.copy(customClusterEnvironmentVariables = Map("KEY" -> "value"))) { cluster =>
+      // Note: the R image includes R and python 3 kernels
+      val clusterRequest = defaultClusterRequest.copy(
+        jupyterDockerImage = Some(LeonardoConfig.Leonardo.rImageUrl),
+        customClusterEnvironmentVariables = Map("KEY" -> "value")
+      )
+
+      withNewCluster(billingProject, request = clusterRequest) { cluster =>
         withWebDriver { implicit driver =>
           withNewNotebook(cluster, Python3) { notebookPage =>
             notebookPage.executeCell("import os")
             val envVar = notebookPage.executeCell("os.getenv('KEY')")
             envVar shouldBe Some("'value'")
           }
-        }
-        withWebDriver { implicit driver =>
           withNewNotebook(cluster, RKernel) { notebookPage =>
             val envVar = notebookPage.executeCell("Sys.getenv('KEY')")
             envVar shouldBe Some("'value'")
