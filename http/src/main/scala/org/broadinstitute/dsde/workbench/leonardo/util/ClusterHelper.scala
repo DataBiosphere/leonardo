@@ -153,20 +153,13 @@ class ClusterHelper(dbRef: DbReference,
     logger.info(s"customDataprocImage is '$customDataprocImage'")
     logger.info(s"imageProject is '${dataprocConfig.customDataprocImage.flatMap(parseImageProject)}'")
     
-    for {
-      imageProject <- dataprocConfig.customDataprocImage.flatMap(parseImageProject) match {
-        case Some(project) => Future(project)
-        case None => Future.failed(ImageProjectNotFoundException())
-      }
-      foundPermissions <- googleIamDAO.testIamPermission(imageProject, requiredPermissions)
-      alreadyHasPermissions = foundPermissions == requiredPermissions
-    } yield if (alreadyHasPermissions) {
-      logger.info(s"'$imageProject' already has the compute.imageUser permissions for '$dpImageUserGoogleGroupEmail'.")
-    }
-    else {
-      logger.info(s"Adding compute.imageUser permissions to '$imageProject' for '$dpImageUserGoogleGroupEmail'...")
-      val failureMessage = s"IAM policy change failed for Google project '$imageProject'"
-      retryExponentially(when409, failureMessage) { () => googleIamDAO.addIamRolesForUser(imageProject, dpImageUserGoogleGroupEmail, role) }
+    dataprocConfig.customDataprocImage.flatMap(parseImageProject) match {
+      case None =>
+        Future.failed(ImageProjectNotFoundException())
+      case Some(imageProject) =>
+        logger.info(s"Attempting to add compute.imageUser permissions to '$imageProject' for '$dpImageUserGoogleGroupEmail'...")
+        retryExponentially(when409, s"IAM policy change failed for '$dpImageUserGoogleGroupEmail' on Google project '$imageProject'.") { () =>
+          googleIamDAO.addIamRolesForUser(imageProject, dpImageUserGoogleGroupEmail, role) }
     }
   }
 

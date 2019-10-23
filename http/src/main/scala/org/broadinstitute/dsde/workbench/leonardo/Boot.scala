@@ -86,6 +86,7 @@ object Boot extends IOApp with LazyLogging {
               ch.addDataprocImageUserIamRole(ch.googleIamDAO, dataprocConfig.customDataprocImage, dpImageUserGoogleGroupEmail)
             }
         }
+
         val clusterDateAccessedActor = system.actorOf(ClusterDateAccessedActor.props(autoFreezeConfig, appDependencies.dbReference))
         val proxyService = new ProxyService(proxyConfig, appDependencies.googleDataprocDAO, appDependencies.dbReference, appDependencies.clusterDnsCache, authProvider, clusterDateAccessedActor)
         val statusService = new StatusService(appDependencies.googleDataprocDAO, appDependencies.samDAO, appDependencies.dbReference, dataprocConfig)
