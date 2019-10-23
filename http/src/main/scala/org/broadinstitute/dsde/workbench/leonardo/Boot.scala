@@ -51,6 +51,7 @@ object Boot extends IOApp with LazyLogging {
     // TODO Template and get the value from config
     val googleAdminEmail = WorkbenchEmail("google@test.firecloud.org")
     val pem = Pem(serviceAccountProviderConfig.leoServiceAccount, serviceAccountProviderConfig.leoPemFile)
+    // We need the Pem below for DirectoryDAO to be able to make user-impersonating calls (e.g. createGroup)
     val pemWithServiceAccountUser = Pem(pem.serviceAccountClientId, pem.pemFile, Option(googleAdminEmail))
     val googleStorageDAO = new HttpGoogleStorageDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
     val googleProjectDAO = new HttpGoogleProjectDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)

@@ -143,13 +143,7 @@ class ClusterHelper(dbRef: DbReference,
   def addDataprocImageUserIamRole(googleIamDAO: GoogleIamDAO,
                                   customDataprocImage: Option[String],
                                   dpImageUserGoogleGroupEmail: WorkbenchEmail) = {
-    val role = Set("roles/compute.imageUser")
-    val requiredPermissions = Set(
-      "compute.images.get", "compute.images.getFromFamily", "compute.images.list", "compute.images.useReadOnly",
-      "resourcemanager.projects.get", "resourcemanager.projects.list",
-      "serviceusage.quotas.get", "serviceusage.services.get", "serviceusage.services.list"
-    ).map(IamPermission)
-
+    val computeImageUserRole = Set("roles/compute.imageUser")
     logger.info(s"customDataprocImage is '$customDataprocImage'")
     logger.info(s"imageProject is '${dataprocConfig.customDataprocImage.flatMap(parseImageProject)}'")
     
@@ -159,7 +153,7 @@ class ClusterHelper(dbRef: DbReference,
       case Some(imageProject) =>
         logger.info(s"Attempting to add compute.imageUser permissions to '$imageProject' for '$dpImageUserGoogleGroupEmail'...")
         retryExponentially(when409, s"IAM policy change failed for '$dpImageUserGoogleGroupEmail' on Google project '$imageProject'.") { () =>
-          googleIamDAO.addIamRolesForUser(imageProject, dpImageUserGoogleGroupEmail, role) }
+          googleIamDAO.addIamRolesForUser(imageProject, dpImageUserGoogleGroupEmail, computeImageUserRole) }
     }
   }
 
