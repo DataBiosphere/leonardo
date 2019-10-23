@@ -123,6 +123,8 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
             val envVar = notebookPage.executeCell("os.getenv('KEY')")
             envVar shouldBe Some("'value'")
           }
+        }
+        withWebDriver { implicit driver =>
           withNewNotebook(cluster, RKernel) { notebookPage =>
             val envVar = notebookPage.executeCell("Sys.getenv('KEY')")
             envVar shouldBe Some("'value'")
