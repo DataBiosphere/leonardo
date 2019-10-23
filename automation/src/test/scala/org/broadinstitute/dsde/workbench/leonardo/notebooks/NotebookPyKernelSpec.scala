@@ -166,7 +166,7 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
           withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
             notebookPage.executeCell("! echo $GOOGLE_PROJECT").get shouldBe clusterFixture.cluster.googleProject.value
             notebookPage.executeCell("! echo $WORKSPACE_NAMESPACE").get shouldBe clusterFixture.cluster.googleProject.value
-            notebookPage.executeCell("! echo $WORKSPACE_NAME").get shouldBe "jupyter-user" // TODO: change to "jupyter-user" once https://github.com/DataBiosphere/terra-docker/pull/49 is merged
+            notebookPage.executeCell("! echo $WORKSPACE_NAME").get shouldBe "jupyter-user" 
             notebookPage.executeCell("! echo $OWNER_EMAIL").get shouldBe ronEmail
             // workspace bucket is not wired up in tests
             notebookPage.executeCell("! echo $WORKSPACE_BUCKET").get shouldBe ""
