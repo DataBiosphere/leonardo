@@ -8,6 +8,7 @@ import cats.implicits._
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
+import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.{GoogleDirectoryDAO, GoogleIamDAO}
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.leonardo.config.DataprocConfig
@@ -153,7 +154,7 @@ class ClusterHelper(dbRef: DbReference,
       case Some(imageProject) =>
         logger.info(s"Attempting to add compute.imageUser permissions to '$imageProject' for '$dpImageUserGoogleGroupEmail'...")
         retryExponentially(when409, s"IAM policy change failed for '$dpImageUserGoogleGroupEmail' on Google project '$imageProject'.") { () =>
-          googleIamDAO.addIamRolesForUser(imageProject, dpImageUserGoogleGroupEmail, computeImageUserRole) }
+          googleIamDAO.addIamRoles(imageProject, dpImageUserGoogleGroupEmail, MemberType.Group, computeImageUserRole) }
     }
   }
 
