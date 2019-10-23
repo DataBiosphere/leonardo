@@ -31,7 +31,7 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
           GcsRoles.Owner)
 
         // Add the user script to the bucket
-        val userScriptString = "#!/usr/bin/env bash\n\npip2 install dummy"
+        val userScriptString = "#!/usr/bin/env bash\n\npip3 install mock"
         val userScriptObjectName = GcsObjectName("user-script.sh")
         val userScriptUri = s"gs://${bucketName.value}/${userScriptObjectName.value}"
 
@@ -48,9 +48,9 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
             Thread.sleep(10000)
             withWebDriver { implicit driver =>
               // Create a notebook that will check if the user script ran
-              withNewNotebook(cluster, Python2) { notebookPage =>
-                notebookPage.executeCell("""print('Hello Notebook!')""") shouldBe Some("Hello Notebook!")
-                notebookPage.executeCell("""import dummy""") shouldBe None
+              withNewNotebook(cluster, Python3) { notebookPage =>
+                notebookPage.executeCell("""print("Hello Notebook!")""") shouldBe Some("Hello Notebook!")
+                notebookPage.executeCell("""import mock""") shouldBe None
               }
             }
           }(ronAuthToken)

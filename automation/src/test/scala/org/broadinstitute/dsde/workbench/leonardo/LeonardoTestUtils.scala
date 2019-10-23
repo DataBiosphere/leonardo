@@ -341,7 +341,7 @@ trait LeonardoTestUtils extends WebBrowserSpec with Matchers with Eventually wit
 
   def randomClusterName: ClusterName = ClusterName(s"automation-test-a${makeRandomId().toLowerCase}z")
 
-  def defaultClusterRequest: ClusterRequest = ClusterRequest(Map("foo" -> makeRandomId()), enableWelder = Some(enableWelder))
+  def defaultClusterRequest: ClusterRequest = ClusterRequest(Map("foo" -> makeRandomId()), enableWelder = Some(enableWelder), jupyterDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl))
 
   def createNewCluster(googleProject: GoogleProject,
                        name: ClusterName = randomClusterName,
