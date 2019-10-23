@@ -111,22 +111,13 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
       implicit val ronToken: AuthToken = ronAuthToken
 
       // Note: the R image includes R and python 3 kernels
-      val clusterRequest = defaultClusterRequest.copy(
-        jupyterDockerImage = Some(LeonardoConfig.Leonardo.rImageUrl),
-        customClusterEnvironmentVariables = Map("KEY" -> "value")
-      )
+      val clusterRequest = defaultClusterRequest.copy(customClusterEnvironmentVariables = Map("KEY" -> "value"))
 
       withNewCluster(billingProject, request = clusterRequest) { cluster =>
         withWebDriver { implicit driver =>
           withNewNotebook(cluster, Python3) { notebookPage =>
             notebookPage.executeCell("import os")
             val envVar = notebookPage.executeCell("os.getenv('KEY')")
-            envVar shouldBe Some("'value'")
-          }
-        }
-        withWebDriver { implicit driver =>
-          withNewNotebook(cluster, RKernel) { notebookPage =>
-            val envVar = notebookPage.executeCell("Sys.getenv('KEY')")
             envVar shouldBe Some("'value'")
           }
         }
