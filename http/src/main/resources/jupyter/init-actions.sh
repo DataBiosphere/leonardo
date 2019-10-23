@@ -369,6 +369,14 @@ if [[ "${ROLE}" == 'Master' ]]; then
 
       STEP_TIMINGS+=($(date +%s))
 
+      # fix for https://broadworkbench.atlassian.net/browse/IA-1453
+      # TODO: remove this when we stop supporting the legacy docker image
+      if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
+        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} sed -i -e 's/"$(basename "$PWD")"/"$(basename $(dirname "$PWD"))"/' ${JUPYTER_HOME}/scripts/kernel/kernel_bootstrap.sh
+      fi
+
+      STEP_TIMINGS+=($(date +%s))
+
       log 'Starting Jupyter Notebook...'
       retry 3 docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}
       log 'All done!'

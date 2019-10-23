@@ -149,7 +149,7 @@ class NotebookRKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
         withNewNotebook(clusterFixture.cluster, RKernel) { notebookPage =>
           notebookPage.executeCell("Sys.getenv('GOOGLE_PROJECT')").get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
           notebookPage.executeCell("Sys.getenv('WORKSPACE_NAMESPACE')").get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
-          notebookPage.executeCell("Sys.getenv('WORKSPACE_NAME')").get shouldBe "'notebooks'"
+          notebookPage.executeCell("Sys.getenv('WORKSPACE_NAME')").get shouldBe "'jupyter-user'"
           // workspace bucket is not wired up in tests
           notebookPage.executeCell("Sys.getenv('WORKSPACE_BUCKET')").get shouldBe "''"
         }
