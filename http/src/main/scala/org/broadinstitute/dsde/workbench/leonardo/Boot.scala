@@ -50,12 +50,13 @@ object Boot extends IOApp with LazyLogging {
     }
     // TODO Template and get the value from config
     val googleAdminEmail = WorkbenchEmail("google@test.firecloud.org")
-    val pem = Pem(serviceAccountProviderConfig.leoServiceAccount, serviceAccountProviderConfig.leoPemFile, Option(googleAdminEmail))
+    val pem = Pem(serviceAccountProviderConfig.leoServiceAccount, serviceAccountProviderConfig.leoPemFile)
+    val pemWithServiceAccountUser = Pem(pem.serviceAccountClientId, pem.pemFile, Option(googleAdminEmail))
     val googleStorageDAO = new HttpGoogleStorageDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
     val googleProjectDAO = new HttpGoogleProjectDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
     implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
 
-    createDependencies(leoServiceAccountJsonFile, pem, workbenchMetricsBaseName).use {
+    createDependencies(leoServiceAccountJsonFile, pem, pemWithServiceAccountUser, workbenchMetricsBaseName).use {
       appDependencies =>
         implicit val metrics = appDependencies.metrics
         val serviceAccountProvider = new PetClusterServiceAccountProvider[IO](appDependencies.samDAO)
@@ -101,7 +102,7 @@ object Boot extends IOApp with LazyLogging {
     }
   }
 
-  def createDependencies[F[_]: Logger: ContextShift: ConcurrentEffect: Timer](pathToCredentialJson: String, pem: Pem, workbenchMetricsBaseName: String)
+  def createDependencies[F[_]: Logger: ContextShift: ConcurrentEffect: Timer](pathToCredentialJson: String, pem: Pem, pemWithServiceAccountUser: Pem, workbenchMetricsBaseName: String)
                                                                              (implicit ec: ExecutionContext, as: ActorSystem): Resource[F, AppDependencies[F]] = {
     implicit val metrics = NewRelicMetrics.fromNewRelic[F]("leonardo")
 
@@ -125,7 +126,7 @@ object Boot extends IOApp with LazyLogging {
       // TODO: applicationName doesn't seem specific to DataprocConfig. Move it out?
       gdDAO = new HttpGoogleDataprocDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName, NetworkTag(dataprocConfig.networkTag), dataprocConfig.dataprocDefaultRegion, dataprocConfig.dataprocZone)
       googleComputeDAO = new HttpGoogleComputeDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
-      googleDirectoryDAO = new HttpGoogleDirectoryDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
+      googleDirectoryDAO = new HttpGoogleDirectoryDAO(dataprocConfig.applicationName, pemWithServiceAccountUser, workbenchMetricsBaseName)
       googleIamDAO = new HttpGoogleIamDAO(dataprocConfig.applicationName, pem, workbenchMetricsBaseName)
       clusterHelper = new ClusterHelper(dbRef, dataprocConfig, gdDAO, googleComputeDAO, googleIamDAO)
     } yield AppDependencies(storage, dbRef, clusterDnsCache, googleComputeDAO, gdDAO, googleDirectoryDAO, samDao, welderDao, clusterHelper, metrics)
