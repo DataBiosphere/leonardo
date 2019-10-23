@@ -935,6 +935,13 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       clusterRequest.enableWelder.getOrElse(false))
     val replacements: Map[String, String] = clusterInit.toMap
 
+    // Jupyter allows setting of arbitrary environment variables on cluster creation if they are passed in to
+    // docker-compose as a file of format:
+    //     var1=value1
+    //     var2=value2
+    // etc. We're building a string of that format here.
+    val customEnvVars = clusterRequest.customClusterEnvironmentVariables.foldLeft("")({case (memo, (key, value)) => memo + s"$key=$value\n"})
+
     // Raw files to upload to the bucket, no additional processing needed.
     val filesToUpload = List(
       clusterFilesConfig.jupyterServerCrt,
@@ -973,6 +980,9 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
 
       // Upload the juptyer notebook frontend config file
       _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookFrontendConfigUri.value), jupyterNotebookFrontendConfigContent, "text/plain")
+
+      // Upload the custom environment variables config file
+      _ <- leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(clusterResourcesConfig.customEnvVarsConfigUri.value), customEnvVars, "text/plain")
 
       // Upload raw files (like certs) to the bucket
       _ <- Future.traverse(filesToUpload)(file => leoGoogleStorageDAO.storeObject(initBucketName, GcsObjectName(file.getName), file, "text/plain"))

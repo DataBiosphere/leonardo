@@ -64,5 +64,5 @@ object ClusterEnrichments {
       userJupyterExtensionConfig = None)
   }
 
-  implicit val clusterRequestWriter: RootJsonWriter[ClusterRequest] = jsonFormat15(ClusterRequest)
+  implicit val clusterRequestWriter: RootJsonWriter[ClusterRequest] = jsonFormat16(ClusterRequest)
 }

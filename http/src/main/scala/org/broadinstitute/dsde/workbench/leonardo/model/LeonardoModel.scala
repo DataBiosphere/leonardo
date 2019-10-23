@@ -84,7 +84,8 @@ final case class ClusterRequest(labels: LabelMap = Map.empty,
                                 rstudioDockerImage: Option[String] = None,
                                 welderDockerImage: Option[String] = None,
                                 scopes: Set[String] = Set.empty,
-                                enableWelder: Option[Boolean] = None)
+                                enableWelder: Option[Boolean] = None,
+                                customClusterEnvironmentVariables: Map[String, String] = Map.empty)
 
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
@@ -300,12 +301,14 @@ final case class ClusterInitValues private (googleProject: String,
                              jupyterNotebookFrontendConfigUri: String,
                              googleClientId: String,
                              welderEnabled: String,
-                             notebooksDir: String
+                             notebooksDir: String,
+                             customEnvVarsConfigUri: String
                             ){
   def toMap: Map[String, String] = this.getClass.getDeclaredFields.map(_.getName).zip(this.productIterator.to).toMap.mapValues(_.toString)}
 
 object ClusterInitValues {
   val serviceAccountCredentialsFilename = "service-account-credentials.json"
+  val customEnvVarFilename = "custom_env_vars.env"
 
   def apply(googleProject: GoogleProject, clusterName: ClusterName, stagingBucketName: GcsBucketName, initBucketName: GcsBucketName, clusterRequest: ClusterRequest, dataprocConfig: DataprocConfig,
             clusterFilesConfig: ClusterFilesConfig, clusterResourcesConfig: ClusterResourcesConfig, proxyConfig: ProxyConfig,
@@ -344,7 +347,8 @@ object ClusterInitValues {
       GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.jupyterNotebookFrontendConfigUri.value)).toUri,
       clusterRequest.defaultClientId.getOrElse(""),
       welderEnabled.toString,  // TODO: remove this and conditional below when welder is rolled out to all clusters
-      if (welderEnabled) dataprocConfig.welderEnabledNotebooksDir else dataprocConfig.welderDisabledNotebooksDir
+      if (welderEnabled) dataprocConfig.welderEnabledNotebooksDir else dataprocConfig.welderDisabledNotebooksDir,
+      GcsPath(initBucketName, GcsObjectName(clusterResourcesConfig.customEnvVarsConfigUri.value)).toUri
     )
 }
 
@@ -497,7 +501,8 @@ object LeonardoJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
       fieldsWithoutNull.get("rstudioDockerImage").map(_.convertTo[String]),
       fieldsWithoutNull.get("welderDockerImage").map(_.convertTo[String]),
       fieldsWithoutNull.get("scopes").map(_.convertTo[Set[String]]).getOrElse(Set.empty),
-      fieldsWithoutNull.get("enableWelder").map(_.convertTo[Boolean])
+      fieldsWithoutNull.get("enableWelder").map(_.convertTo[Boolean]),
+      fieldsWithoutNull.get("customClusterEnvironmentVariables").map(_.convertTo[Map[String, String]]).getOrElse(Map.empty)
     )
   }
 

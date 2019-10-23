@@ -76,7 +76,8 @@ object Config {
       ClusterResource(config.getString("welderDockerCompose")),
       ClusterResource(config.getString("proxySiteConf")),
       ClusterResource(config.getString("jupyterNotebookConfigUri")),
-      ClusterResource(config.getString("jupyterNotebookFrontendConfigUri"))
+      ClusterResource(config.getString("jupyterNotebookFrontendConfigUri")),
+      ClusterResource(config.getString("customEnvVarsConfigUri"))
     )
   }
 
