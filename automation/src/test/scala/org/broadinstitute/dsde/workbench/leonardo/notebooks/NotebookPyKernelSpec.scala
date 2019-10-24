@@ -163,13 +163,14 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
     Seq(Python3).foreach { kernel =>
       s"should have the workspace-related environment variables set in ${kernel.toString} kernel" in { clusterFixture =>
         withWebDriver { implicit driver =>
-          withNewNotebook(clusterFixture.cluster, kernel) { notebookPage =>
-            notebookPage.executeCell("! echo $GOOGLE_PROJECT").get shouldBe clusterFixture.cluster.googleProject.value
-            notebookPage.executeCell("! echo $WORKSPACE_NAMESPACE").get shouldBe clusterFixture.cluster.googleProject.value
-            notebookPage.executeCell("! echo $WORKSPACE_NAME").get shouldBe "jupyter-user"
-            notebookPage.executeCell("! echo $OWNER_EMAIL").get shouldBe ronEmail
+          withNewNotebookInSubfolder(clusterFixture.cluster, Python3) { notebookPage =>
+            notebookPage.executeCell("import os")
+            notebookPage.executeCell("os.getenv('GOOGLE_PROJECT')").get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
+            notebookPage.executeCell("os.getenv('WORKSPACE_NAMESPACE')").get shouldBe s"'${clusterFixture.cluster.googleProject.value}'"
+            notebookPage.executeCell("os.getenv('WORKSPACE_NAME')").get shouldBe "'Untitled Folder'"
+            notebookPage.executeCell("os.getenv('OWNER_EMAIL')").get shouldBe s"'${ronEmail}'"
             // workspace bucket is not wired up in tests
-            notebookPage.executeCell("! echo $WORKSPACE_BUCKET").get shouldBe ""
+            notebookPage.executeCell("os.getenv('WORKSPACE_BUCKET')") shouldBe None
           }
         }
       }

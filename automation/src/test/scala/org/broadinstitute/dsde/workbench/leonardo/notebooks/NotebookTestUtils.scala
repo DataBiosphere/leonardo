@@ -108,6 +108,29 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     }
   }
 
+  // Creates a notebook with the directory structure:
+  //   ~jupyter-user/notebooks/Untitled Folder/Untitled Folder/Untitled.ipynb
+  // This roughly simulates an real-life directory structure like:
+  //   ~jupyter-user/notebooks/Workspace Name/edit/notebook.ipynb
+  // Ideally we would name the directories similarly but the Jupyter UI doesn't make that easy.
+  def withNewNotebookInSubfolder[T](cluster: Cluster, kernel: NotebookKernel = Python3, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+    withNotebooksListPage(cluster) { notebooksListPage =>
+      notebooksListPage.withSubFolder(timeout) { notebooksListPage =>
+        notebooksListPage.withSubFolder(timeout) { notebooksListPage =>
+          logger.info(s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}...")
+          val result: Future[T] = retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds, 2 minutes) { () =>
+            Future(
+              notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
+                testCode(notebookPage)
+              }
+            )
+          }
+          Await.result(result, 10 minutes)
+        }
+      }
+    }
+  }
+
   def withOpenNotebook[T](cluster: Cluster, notebookPath: File, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     withNotebooksListPage(cluster) { notebooksListPage =>
       logger.info(s"Opening notebook ${notebookPath.getAbsolutePath} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.string}...")

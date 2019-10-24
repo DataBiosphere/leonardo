@@ -48,6 +48,12 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
   val uploadNewButton: Query = cssSelector("[title='Click to browse for a file to upload.']")
   val finishUploadButton: Query = cssSelector("[class='btn btn-primary btn-xs upload_button']")
   val newButton: Query = cssSelector("[id='new-buttons']")
+  val newFolder: Query = cssSelector("ul#new-menu > li[id='new-folder'] > a")
+  val rowItems: Query = cssSelector("[class='item_name']")
+
+  def findUntitledFolder: Option[Element] = {
+    findAll(rowItems).find(_.text == "Untitled Folder")
+  }
 
   def upload(file: File): Unit = {
     uploadNewButton.findElement.get.underlying.sendKeys(file.getAbsolutePath)
@@ -63,7 +69,7 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
     notebookPage.awaitReadyKernel(timeout)
     val result = Try { testCode(notebookPage) }
     Try(notebookPage.shutdownKernel()).recover { case e =>
-      logger.error(s"Error occured shutting down kernel for notebook ${file.getAbsolutePath}", e)
+      logger.error(s"Error occurred shutting down kernel for notebook ${file.getAbsolutePath}", e)
     }
     result.get
   }
@@ -80,9 +86,23 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
     notebookPage.awaitReadyKernel(timeout)
     val result = Try { testCode(notebookPage) }
     Try(notebookPage.shutdownKernel()).recover { case e =>
-      logger.error(s"Error occured shutting down ${kernel} kernel", e)
+      logger.error(s"Error occurred shutting down ${kernel} kernel", e)
     }
     result.get
+  }
+
+  def withSubFolder[T](timeout: FiniteDuration = 1.minutes)(testCode: NotebooksListPage => T): T = {
+    if (!findUntitledFolder.isDefined) {
+      await visible (newButton, timeout.toSeconds)
+      click on newButton
+      await visible (newFolder, timeout.toSeconds)
+      click on newFolder
+    }
+    await condition(findUntitledFolder.isDefined, timeout.toSeconds)
+    click on findUntitledFolder.get
+    await condition(!findUntitledFolder.isDefined, timeout.toSeconds)
+    val newListPage = new NotebooksListPage(currentUrl)
+    testCode(newListPage)
   }
 
 }
