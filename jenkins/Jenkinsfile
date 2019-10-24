@@ -138,7 +138,7 @@ pipeline {
     string(name: "leonardo_jupyter", defaultValue: "5c51ce6935da",
           description: "The tag of the jupyter image to pull in docker image build. Used in the prepare script.")
     string(name: "welder_server", defaultValue: "6a783a5",
-          description: "The tag of the welder image to pull in docker image build. Used in the prepare script.")
+          description: "The tag of the welder image to pull in docker image build. Used in the prepare script. Please note this default is possibly an old hash.")
     string(name: "openidc_proxy", defaultValue: "2.3.1_2",
           description:"The tag of the openidc proxy image to pull in docker image build. Used in the prepare script.")
   }
