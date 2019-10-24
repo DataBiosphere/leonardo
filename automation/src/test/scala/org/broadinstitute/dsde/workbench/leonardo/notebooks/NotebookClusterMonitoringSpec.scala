@@ -256,10 +256,10 @@ class NotebookClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTest
         withWebDriver { implicit driver =>
           withNewNotebookInSubfolder(cluster, Python3) { notebookPage =>
             notebookPage.executeCell("import os")
-            notebookPage.executeCell("os.getenv('GOOGLE_PROJECT')").get shouldBe billingProject.value
-            notebookPage.executeCell("os.getenv('WORKSPACE_NAMESPACE')").get shouldBe billingProject.value
-            notebookPage.executeCell("os.getenv('WORKSPACE_NAME')").get shouldBe "Untitled Folder"
-            notebookPage.executeCell("os.getenv('OWNER_EMAIL')").get shouldBe ronEmail
+            notebookPage.executeCell("os.getenv('GOOGLE_PROJECT')").get shouldBe s"'${billingProject.value}'"
+            notebookPage.executeCell("os.getenv('WORKSPACE_NAMESPACE')").get shouldBe s"'${billingProject.value}'"
+            notebookPage.executeCell("os.getenv('WORKSPACE_NAME')").get shouldBe "'Untitled Folder'"
+            notebookPage.executeCell("os.getenv('OWNER_EMAIL')").get shouldBe s"'${ronEmail}'"
             // workspace bucket is not wired up in tests
             notebookPage.executeCell("os.getenv('WORKSPACE_BUCKET')") shouldBe None
           }
