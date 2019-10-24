@@ -43,9 +43,9 @@ class ClusterHelper(dbRef: DbReference,
     val retryIam: (GoogleProject, WorkbenchEmail, Set[String]) => IO[Boolean] = (project, email, roles) =>
       IO.fromFuture[Boolean](IO(retryExponentially(when409, s"IAM policy change failed for Google project '$project'") { () =>
         if (create) {
-          googleIamDAO.addIamRolesForUser(project, email, roles)
+          googleIamDAO.addIamRoles(project, email, MemberType.User, roles)
         } else {
-          googleIamDAO.removeIamRolesForUser(project, email, roles)
+          googleIamDAO.removeIamRoles(project, email, MemberType.User, roles)
         }
       }))
 
