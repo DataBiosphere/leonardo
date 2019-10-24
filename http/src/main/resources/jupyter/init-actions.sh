@@ -372,7 +372,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
       # fix for https://broadworkbench.atlassian.net/browse/IA-1453
       # TODO: remove this when we stop supporting the legacy docker image
       if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
-        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} sed -i -e 's/export WORKSPACE_NAME=.*/export WORKSPACE_NAME="$(basename "$(dirname "$PWD")")"/' ${JUPYTER_HOME}/scripts/kernel/kernel_bootstrap.sh
+        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} sed -i -e 's/export WORKSPACE_NAME=.*/export WORKSPACE_NAME="$(basename "$(dirname "$(pwd)")")"/' ${JUPYTER_HOME}/scripts/kernel/kernel_bootstrap.sh
       fi
 
       STEP_TIMINGS+=($(date +%s))
