@@ -80,7 +80,7 @@ object Boot extends IOApp with LazyLogging {
               appDependencies.metrics))
 
           // TODO Template and get the group and domain values from config
-          val dpImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-8"
+          val dpImageUserGoogleGroupName = "kyuksel-test-dataproc-image-group-9"
           val dpImageUserGoogleGroupEmail = WorkbenchEmail(s"$dpImageUserGoogleGroupName@test.firecloud.org")
           val ch = appDependencies.clusterHelper
           ch.createDataprocImageUserGoogleGroupIfDoesntExist(appDependencies.googleDirectoryDAO, dpImageUserGoogleGroupName, dpImageUserGoogleGroupEmail)

@@ -145,9 +145,7 @@ class ClusterHelper(dbRef: DbReference,
                                   customDataprocImage: Option[String],
                                   dpImageUserGoogleGroupEmail: WorkbenchEmail) = {
     val computeImageUserRole = Set("roles/compute.imageUser")
-    logger.info(s"customDataprocImage is '$customDataprocImage'")
-    logger.info(s"imageProject is '${dataprocConfig.customDataprocImage.flatMap(parseImageProject)}'")
-    
+
     dataprocConfig.customDataprocImage.flatMap(parseImageProject) match {
       case None =>
         Future.failed(ImageProjectNotFoundException())
