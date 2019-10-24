@@ -150,7 +150,7 @@ class ClusterHelper(dbRef: DbReference,
       case None =>
         Future.failed(ImageProjectNotFoundException())
       case Some(imageProject) =>
-        logger.info(s"Attempting to add compute.imageUser permissions to '$imageProject' for '$dpImageUserGoogleGroupEmail'...")
+        logger.info(s"Attempting to grant 'compute.imageUser' permissions to '$dpImageUserGoogleGroupEmail' on project '$imageProject' ...")
         retryExponentially(when409, s"IAM policy change failed for '$dpImageUserGoogleGroupEmail' on Google project '$imageProject'.") { () =>
           googleIamDAO.addIamRoles(imageProject, dpImageUserGoogleGroupEmail, MemberType.Group, computeImageUserRole) }
     }
