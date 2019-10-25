@@ -159,8 +159,8 @@ else
     log "ERROR-VAR_NULL_OR_UNSET: docker_image_var_names. Will not pull docker images."
 fi
 
-# Install Python 3.7
-export PYTHON_VERSION="3.7.4"
+# Install Python 3.6.8
+export PYTHON_VERSION="3.6.8"
 python_source_archive_name="Python-${PYTHON_VERSION:?}.tar.xz"
 python_source_archive_download_url="https://www.python.org/ftp/python/${PYTHON_VERSION%%[a-z]*}/${python_source_archive_name:?}"
 python_target_archive_name="python.tar.xz"
