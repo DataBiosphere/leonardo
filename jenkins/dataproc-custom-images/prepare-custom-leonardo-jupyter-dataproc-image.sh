@@ -27,7 +27,7 @@ terra_jupyter_hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:0.0.1"
 
 #leonardo_jupyter will be discontinued soon
 leonardo_jupyter="us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:5c51ce6935da"
-welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:latest"
+welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:6a783a5"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
 
 # this array determines which of the above images are baked into the custom image
