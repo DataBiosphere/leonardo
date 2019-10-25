@@ -18,7 +18,8 @@ object ClusterDateAccessedActor {
 
   sealed trait ClusterAccessDateMessage
 
-  case class UpdateDateAccessed(clusterName: ClusterName, googleProject: GoogleProject, dateAccessed: Instant) extends ClusterAccessDateMessage
+  case class UpdateDateAccessed(clusterName: ClusterName, googleProject: GoogleProject, dateAccessed: Instant)
+      extends ClusterAccessDateMessage
 
   case object Flush extends ClusterAccessDateMessage
 
@@ -32,7 +33,10 @@ class ClusterDateAccessedActor(autoFreezeConfig: AutoFreezeConfig, dbRef: DbRefe
 
   override def preStart(): Unit = {
     super.preStart()
-    system.scheduler.schedule(autoFreezeConfig.dateAccessedMonitorScheduler, autoFreezeConfig.dateAccessedMonitorScheduler, self, Flush)
+    system.scheduler.schedule(autoFreezeConfig.dateAccessedMonitorScheduler,
+                              autoFreezeConfig.dateAccessedMonitorScheduler,
+                              self,
+                              Flush)
   }
 
   override def receive: Receive = {
@@ -48,9 +52,11 @@ class ClusterDateAccessedActor(autoFreezeConfig: AutoFreezeConfig, dbRef: DbRefe
   private def updateDateAccessed(clusterName: ClusterName, googleProject: GoogleProject, dateAccessed: Instant) = {
     logger.info(s"Update dateAccessed for $clusterName in project $googleProject to $dateAccessed")
     dbRef.inTransaction { dataAccess =>
-      dataAccess.clusterQuery.clearKernelFoundBusyDateByProjectAndName(googleProject, clusterName).flatMap(
-        _ => dataAccess.clusterQuery.updateDateAccessedByProjectAndName(googleProject, clusterName, dateAccessed)
-      )
+      dataAccess.clusterQuery
+        .clearKernelFoundBusyDateByProjectAndName(googleProject, clusterName)
+        .flatMap(
+          _ => dataAccess.clusterQuery.updateDateAccessedByProjectAndName(googleProject, clusterName, dateAccessed)
+        )
     }
   }
 }

@@ -11,7 +11,9 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 
 object Proxy {
-  def getTargetHost(clusterDnsCache: ClusterDnsCache, googleProject: GoogleProject, clusterName: ClusterName): Future[HostStatus] = {
+  def getTargetHost(clusterDnsCache: ClusterDnsCache,
+                    googleProject: GoogleProject,
+                    clusterName: ClusterName): Future[HostStatus] = {
     implicit val timeout: Timeout = Timeout(5 seconds)
     clusterDnsCache.getHostStatus(DnsCacheKey(googleProject, clusterName)).mapTo[HostStatus]
   }

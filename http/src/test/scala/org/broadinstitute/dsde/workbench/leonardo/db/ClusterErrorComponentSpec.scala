@@ -14,8 +14,8 @@ class ClusterErrorComponentSpec extends TestComponent with FlatSpecLike with Com
     lazy val timestamp = Instant.now().truncatedTo(ChronoUnit.SECONDS)
     val clusterError = ClusterError("Some Error", 10, timestamp)
 
-    dbFutureValue {_.clusterErrorQuery.get(savedCluster1.id)} shouldEqual List.empty
-    dbFutureValue {_.clusterErrorQuery.save(savedCluster1.id, clusterError)}
-    dbFutureValue {_.clusterErrorQuery.get(savedCluster1.id)} shouldEqual List(clusterError)
+    dbFutureValue { _.clusterErrorQuery.get(savedCluster1.id) } shouldEqual List.empty
+    dbFutureValue { _.clusterErrorQuery.save(savedCluster1.id, clusterError) }
+    dbFutureValue { _.clusterErrorQuery.get(savedCluster1.id) } shouldEqual List(clusterError)
   }
 }

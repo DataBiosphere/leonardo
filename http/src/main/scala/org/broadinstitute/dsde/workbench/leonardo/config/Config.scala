@@ -119,7 +119,10 @@ object Config {
       ClusterStatus.Updating -> toScalaDuration(config.getDuration("updatingTimeLimit"))
     )
 
-    MonitorConfig(toScalaDuration(config.getDuration("pollPeriod")), config.getInt("maxRetries"), config.getBoolean("recreateCluster"), timeouts)
+    MonitorConfig(toScalaDuration(config.getDuration("pollPeriod")),
+                  config.getInt("maxRetries"),
+                  config.getBoolean("recreateCluster"),
+                  timeouts)
   }
 
   implicit val samConfigReader: ValueReader[SamConfig] = ValueReader.relative { config =>
@@ -172,17 +175,18 @@ object Config {
     SamAuthProviderConfig(
       config.getOrElse("notebookAuthCacheEnabled", true),
       config.getAs[Int]("notebookAuthCacheMaxSize").getOrElse(1000),
-      config.getAs[FiniteDuration]("notebookAuthCacheExpiryTime").getOrElse(15 minutes),
+      config.getAs[FiniteDuration]("notebookAuthCacheExpiryTime").getOrElse(15 minutes)
     )
   }
   implicit val workbenchEmailValueReader: ValueReader[WorkbenchEmail] = stringValueReader.map(WorkbenchEmail)
   implicit val fileValueReader: ValueReader[File] = stringValueReader.map(s => new File(s))
-  implicit val serviceAccountProviderConfigValueReader: ValueReader[ServiceAccountProviderConfig] = ValueReader.relative { config =>
-    ServiceAccountProviderConfig(
-      config.as[WorkbenchEmail]("leoServiceAccountEmail"),
-      config.as[File]("leoServiceAccountPemFile")
-    )
-  }
+  implicit val serviceAccountProviderConfigValueReader: ValueReader[ServiceAccountProviderConfig] =
+    ValueReader.relative { config =>
+      ServiceAccountProviderConfig(
+        config.as[WorkbenchEmail]("leoServiceAccountEmail"),
+        config.as[File]("leoServiceAccountPemFile")
+      )
+    }
 
   val serviceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.providerConfig")
 
@@ -205,7 +209,8 @@ object Config {
   val monitorConfig = config.as[MonitorConfig]("monitor")
   val samConfig = config.as[SamConfig]("sam")
   val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
-  val contentSecurityPolicy = config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
+  val contentSecurityPolicy =
+    config.as[Option[String]]("jupyterConfig.contentSecurityPolicy").getOrElse("default-src: 'self'")
   val zombieClusterMonitorConfig = config.as[ZombieClusterConfig]("zombieClusterMonitor")
   val clusterToolMonitorConfig = config.as[ClusterToolConfig](path = "clusterToolMonitor")
   val clusterDnsCacheConfig = config.as[ClusterDnsCacheConfig]("clusterDnsCache")

@@ -13,9 +13,19 @@ trait ToolDAO[A] {
 }
 
 object ToolDAO {
-  def clusterToolToToolDao(jupyterDAO: JupyterDAO, welderDAO: WelderDAO[IO], rstudioDAO: RStudioDAO): ClusterTool => ToolDAO[ClusterTool] = clusterTool => clusterTool match {
-    case Jupyter => (googleProject: GoogleProject, clusterName: ClusterName) => jupyterDAO.isProxyAvailable(googleProject, clusterName)
-    case Welder => (googleProject: GoogleProject, clusterName: ClusterName) => welderDAO.isProxyAvailable(googleProject, clusterName).unsafeToFuture()
-    case RStudio => (googleProject: GoogleProject, clusterName: ClusterName) => rstudioDAO.isProxyAvailable(googleProject, clusterName)
-  }
+  def clusterToolToToolDao(jupyterDAO: JupyterDAO,
+                           welderDAO: WelderDAO[IO],
+                           rstudioDAO: RStudioDAO): ClusterTool => ToolDAO[ClusterTool] =
+    clusterTool =>
+      clusterTool match {
+        case Jupyter =>
+          (googleProject: GoogleProject, clusterName: ClusterName) =>
+            jupyterDAO.isProxyAvailable(googleProject, clusterName)
+        case Welder =>
+          (googleProject: GoogleProject, clusterName: ClusterName) =>
+            welderDAO.isProxyAvailable(googleProject, clusterName).unsafeToFuture()
+        case RStudio =>
+          (googleProject: GoogleProject, clusterName: ClusterName) =>
+            rstudioDAO.isProxyAvailable(googleProject, clusterName)
+      }
 }

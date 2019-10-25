@@ -23,9 +23,19 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 
 /**
-  * Created by rtitle on 8/10/17.
-  */
-class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfter with ScalatestRouteTest with ScalaFutures with CommonTestData with TestLeoRoutes with TestProxy with TestComponent with GcsPathUtils {
+ * Created by rtitle on 8/10/17.
+ */
+class ProxyRoutesSpec
+    extends FlatSpec
+    with BeforeAndAfterAll
+    with BeforeAndAfter
+    with ScalatestRouteTest
+    with ScalaFutures
+    with CommonTestData
+    with TestLeoRoutes
+    with TestProxy
+    with TestComponent
+    with GcsPathUtils {
   implicit val patience = PatienceConfig(timeout = scaled(Span(30, Seconds)))
   implicit val routeTimeout = RouteTestTimeout(10 seconds)
 
@@ -48,12 +58,13 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
 
   before {
     proxyService.googleTokenCache.invalidateAll()
-    proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(clusterName)), Future.successful(Some(internalId)))
+    proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(clusterName)),
+                                            Future.successful(Some(internalId)))
   }
 
   val pathPrefixes = Set("notebooks", "proxy")
 
-  for(prefix <- pathPrefixes) {
+  for (prefix <- pathPrefixes) {
     "ProxyRoutes" should s"listen on /$prefix/{project}/{name}/... ($prefix)" in {
       Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
         handled shouldBe true
@@ -66,7 +77,8 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
         validateCors()
       }
       val newName = "aDifferentClusterName"
-      proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(newName)), Future.successful(Some(internalId)))
+      proxyService.clusterInternalIdCache.put((GoogleProject(googleProject), ClusterName(newName)),
+                                              Future.successful(Some(internalId)))
       Get(s"/$prefix/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
         handled shouldBe true
         status shouldEqual StatusCodes.NotFound
@@ -98,7 +110,8 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
     }
 
     it should s"404 when using a non-white-listed user ($prefix)" in {
-      Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(unauthorizedTokenCookie)) ~> leoRoutes.route ~> check {
+      Get(s"/$prefix/$googleProject/$clusterName")
+        .addHeader(Cookie(unauthorizedTokenCookie)) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.NotFound
       }
     }
@@ -120,7 +133,8 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
       Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
         responseAs[Data].qs shouldBe None
       }
-      Get(s"/$prefix/$googleProject/$clusterName?foo=bar&baz=biz").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+      Get(s"/$prefix/$googleProject/$clusterName?foo=bar&baz=biz")
+        .addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
         responseAs[Data].qs shouldEqual Some("foo=bar&baz=biz")
       }
     }
@@ -138,7 +152,8 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
     }
 
     it should s"pass through headers ($prefix)" in {
-      Get(s"/$prefix/$googleProject/$clusterName").addHeader(Cookie(tokenCookie))
+      Get(s"/$prefix/$googleProject/$clusterName")
+        .addHeader(Cookie(tokenCookie))
         .addHeader(RawHeader("foo", "bar"))
         .addHeader(RawHeader("baz", "biz")) ~> leoRoutes.route ~> check {
         responseAs[Data].headers.toList should contain allElementsOf Map("foo" -> "bar", "baz" -> "biz").toList
@@ -147,8 +162,11 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
 
     it should s"remove utf-8'' from content-disposition header filenames ($prefix)" in {
       // The TestProxy adds the Content-Disposition header to the response, we can't do it from here
-      Get(s"/$prefix/$googleProject/$clusterName/content-disposition-test").addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
-        responseAs[HttpResponse].headers should contain(`Content-Disposition`(ContentDispositionTypes.attachment, Map("filename" -> "notebook.ipynb")))
+      Get(s"/$prefix/$googleProject/$clusterName/content-disposition-test")
+        .addHeader(Cookie(tokenCookie)) ~> leoRoutes.route ~> check {
+        responseAs[HttpResponse].headers should contain(
+          `Content-Disposition`(ContentDispositionTypes.attachment, Map("filename" -> "notebook.ipynb"))
+        )
       }
     }
 
@@ -162,20 +180,25 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
       val outgoing = Source.single(TextMessage("Leonardo"))
 
       // Flow to hit the proxy server
-      val webSocketFlow = Http().webSocketClientFlow(WebSocketRequest(Uri(s"ws://localhost:9000/$prefix/$googleProject/$clusterName/websocket"), immutable.Seq(Cookie(tokenCookie)))).map {
-        case m: TextMessage.Strict => m.text
-        case _ => throw new IllegalArgumentException("ProxyRoutesSpec only supports strict messages")
-      }
+      val webSocketFlow = Http()
+        .webSocketClientFlow(
+          WebSocketRequest(Uri(s"ws://localhost:9000/$prefix/$googleProject/$clusterName/websocket"),
+                           immutable.Seq(Cookie(tokenCookie)))
+        )
+        .map {
+          case m: TextMessage.Strict => m.text
+          case _                     => throw new IllegalArgumentException("ProxyRoutesSpec only supports strict messages")
+        }
 
       // Glue together the source, sink, and flow. This materializes the Flow and actually initiates the HTTP request.
       // Returns a tuple of:
       //  - `upgradeResponse` is a Future[WebSocketUpgradeResponse] that completes or fails when the connection succeeds or fails.
       //  - `result` is a Future[String] with the stream completion from the incoming sink.
       val (upgradeResponse, result) =
-      outgoing
-        .viaMat(webSocketFlow)(Keep.right)
-        .toMat(incoming)(Keep.both)
-        .run()
+        outgoing
+          .viaMat(webSocketFlow)(Keep.right)
+          .toMat(incoming)(Keep.both)
+          .run()
 
       // The connection future should have returned the HTTP 101 status code
       upgradeResponse.futureValue.response.status shouldBe StatusCodes.SwitchingProtocols
@@ -262,9 +285,9 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
   }
 
   /**
-    * Akka-http TestKit doesn't seem to support websocket servers.
-    * So for websocket tests, manually create a server binding on port 9000 for the proxy.
-    */
+   * Akka-http TestKit doesn't seem to support websocket servers.
+   * So for websocket tests, manually create a server binding on port 9000 for the proxy.
+   */
   def withWebsocketProxy[T](testCode: => T): T = {
     val bindingFuture = Http().bindAndHandle(leoRoutes.route, "0.0.0.0", 9000)
     try {
@@ -277,14 +300,17 @@ class ProxyRoutesSpec extends FlatSpec with BeforeAndAfterAll with BeforeAndAfte
   private def validateCors(origin: Option[String] = None, optionsRequest: Boolean = false): Unit = {
     // Issue 272: CORS headers should not be double set
     headers.count(_.is(`Access-Control-Allow-Origin`.lowercaseName)) shouldBe 1
-    header[`Access-Control-Allow-Origin`] shouldBe origin.map(`Access-Control-Allow-Origin`(_)).orElse(Some(`Access-Control-Allow-Origin`.*))
+    header[`Access-Control-Allow-Origin`] shouldBe origin
+      .map(`Access-Control-Allow-Origin`(_))
+      .orElse(Some(`Access-Control-Allow-Origin`.*))
     header[`Access-Control-Allow-Credentials`] shouldBe Some(`Access-Control-Allow-Credentials`(true))
-    header[`Access-Control-Allow-Headers`] shouldBe Some(`Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin", "X-App-Id"))
+    header[`Access-Control-Allow-Headers`] shouldBe Some(
+      `Access-Control-Allow-Headers`("Authorization", "Content-Type", "Accept", "Origin", "X-App-Id")
+    )
     header[`Access-Control-Max-Age`] shouldBe Some(`Access-Control-Max-Age`(1728000))
     header[`Access-Control-Allow-Methods`] shouldBe (
       if (optionsRequest) Some(`Access-Control-Allow-Methods`(OPTIONS, POST, PUT, GET, DELETE, HEAD, PATCH))
       else None
-      )
+    )
   }
 }
-

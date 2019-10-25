@@ -12,8 +12,7 @@ case class ClusterResourcesConfig(initActionsScript: ClusterResource,
                                   proxySiteConf: ClusterResource,
                                   jupyterNotebookConfigUri: ClusterResource,
                                   jupyterNotebookFrontendConfigUri: ClusterResource,
-                                  customEnvVarsConfigUri: ClusterResource
-                                 )
+                                  customEnvVarsConfigUri: ClusterResource)
 
 object ClusterResourcesConfig {
   val basePath = "jupyter"

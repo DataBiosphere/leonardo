@@ -19,31 +19,35 @@ import org.broadinstitute.dsde.workbench.util.Retry
 import scala.concurrent.ExecutionContext
 
 case class ClusterIamSetupException(googleProject: GoogleProject)
-  extends LeoException(s"Error occurred setting up IAM roles in project ${googleProject.value}")
+    extends LeoException(s"Error occurred setting up IAM roles in project ${googleProject.value}")
 
-class ClusterHelper(dbRef: DbReference,
-                    dataprocConfig: DataprocConfig,
-                    gdDAO: GoogleDataprocDAO,
-                    googleComputeDAO: GoogleComputeDAO,
-                    googleIamDAO: GoogleIamDAO)
-                   (implicit val executionContext: ExecutionContext, val system: ActorSystem, val contextShift: ContextShift[IO]) extends LazyLogging with Retry {
+class ClusterHelper(
+  dbRef: DbReference,
+  dataprocConfig: DataprocConfig,
+  gdDAO: GoogleDataprocDAO,
+  googleComputeDAO: GoogleComputeDAO,
+  googleIamDAO: GoogleIamDAO
+)(implicit val executionContext: ExecutionContext, val system: ActorSystem, val contextShift: ContextShift[IO])
+    extends LazyLogging
+    with Retry {
 
-  def createClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo): IO[Unit] = {
+  def createClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo): IO[Unit] =
     updateClusterIamRoles(googleProject, serviceAccountInfo, true)
-  }
 
-  def removeClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo): IO[Unit] = {
+  def removeClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo): IO[Unit] =
     updateClusterIamRoles(googleProject, serviceAccountInfo, false)
-  }
 
-  private def updateClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: ServiceAccountInfo, create: Boolean): IO[Unit] = {
+  private def updateClusterIamRoles(googleProject: GoogleProject,
+                                    serviceAccountInfo: ServiceAccountInfo,
+                                    create: Boolean): IO[Unit] = {
     val retryIam: (GoogleProject, WorkbenchEmail, Set[String]) => IO[Boolean] = (project, email, roles) =>
-      IO.fromFuture[Boolean](IO(retryExponentially(when409, s"IAM policy change failed for Google project '$project'") { () =>
-        if (create) {
-          googleIamDAO.addIamRolesForUser(project, email, roles)
-        } else {
-          googleIamDAO.removeIamRolesForUser(project, email, roles)
-        }
+      IO.fromFuture[Boolean](IO(retryExponentially(when409, s"IAM policy change failed for Google project '$project'") {
+        () =>
+          if (create) {
+            googleIamDAO.addIamRolesForUser(project, email, roles)
+          } else {
+            googleIamDAO.removeIamRolesForUser(project, email, roles)
+          }
       }))
 
     // Add the Dataproc Worker role in the user's project to the cluster service account, if present.
@@ -53,12 +57,13 @@ class ClusterHelper(dbRef: DbReference,
       // Note: don't remove the role if there are existing active clusters owned by the same user,
       // because it could potentially break other clusters. We only check this for the 'remove' case,
       // it's ok to re-add the roles.
-      IO.fromFuture(IO(dbRef.inTransaction { _.clusterQuery.countActiveByClusterServiceAccount(email) })).flatMap { count =>
-        if (count > 0 && create == false) {
-          IO.unit
-        } else {
-          retryIam(googleProject, email, Set("roles/dataproc.worker"))
-        }
+      IO.fromFuture(IO(dbRef.inTransaction { _.clusterQuery.countActiveByClusterServiceAccount(email) })).flatMap {
+        count =>
+          if (count > 0 && create == false) {
+            IO.unit
+          } else {
+            retryIam(googleProject, email, Set("roles/dataproc.worker"))
+          }
       }
     } getOrElse IO.unit
 
@@ -69,7 +74,7 @@ class ClusterHelper(dbRef: DbReference,
     // This is needed in order to use a custom dataproc VM image.
     // If a custom image is not being used, this is not necessary.
     val computeImageUserIO = dataprocConfig.customDataprocImage.flatMap(parseImageProject) match {
-      case None => IO.unit
+      case None                                                => IO.unit
       case Some(imageProject) if imageProject == googleProject => IO.unit
       case Some(imageProject) =>
         IO.fromFuture(IO(dbRef.inTransaction { _.clusterQuery.countActiveByProject(googleProject) })).flatMap { count =>
@@ -80,7 +85,9 @@ class ClusterHelper(dbRef: DbReference,
             IO.unit
           } else {
             for {
-              projectNumber <- IO.fromFuture(IO(googleComputeDAO.getProjectNumber(googleProject))).flatMap(_.fold(IO.raiseError[Long](ClusterIamSetupException(imageProject)))(IO.pure))
+              projectNumber <- IO
+                .fromFuture(IO(googleComputeDAO.getProjectNumber(googleProject)))
+                .flatMap(_.fold(IO.raiseError[Long](ClusterIamSetupException(imageProject)))(IO.pure))
               roles = Set("roles/compute.imageUser")
 
               // The Dataproc SA is used to retrieve the image. However projects created prior to 2016
@@ -101,29 +108,31 @@ class ClusterHelper(dbRef: DbReference,
 
   private def when400(throwable: Throwable): Boolean = throwable match {
     case t: HttpResponseException => t.getStatusCode == 400
-    case _ => false
+    case _                        => false
   }
 
-  def generateServiceAccountKey(googleProject: GoogleProject, serviceAccountEmailOpt: Option[WorkbenchEmail]): IO[Option[ServiceAccountKey]] = {
+  def generateServiceAccountKey(googleProject: GoogleProject,
+                                serviceAccountEmailOpt: Option[WorkbenchEmail]): IO[Option[ServiceAccountKey]] =
     // TODO: implement google2 version of GoogleIamDAO
     serviceAccountEmailOpt.traverse { email =>
       IO.fromFuture(IO(googleIamDAO.createServiceAccountKey(googleProject, email)))
     }
-  }
 
-  def removeServiceAccountKey(googleProject: GoogleProject, serviceAccountEmailOpt: Option[WorkbenchEmail], serviceAccountKeyIdOpt: Option[ServiceAccountKeyId]): IO[Unit] = {
+  def removeServiceAccountKey(googleProject: GoogleProject,
+                              serviceAccountEmailOpt: Option[WorkbenchEmail],
+                              serviceAccountKeyIdOpt: Option[ServiceAccountKeyId]): IO[Unit] =
     // TODO: implement google2 version of GoogleIamDAO
-    (serviceAccountEmailOpt, serviceAccountKeyIdOpt).mapN { case (email, keyId) =>
-      IO.fromFuture(IO(googleIamDAO.removeServiceAccountKey(googleProject, email, keyId)))
+    (serviceAccountEmailOpt, serviceAccountKeyIdOpt).mapN {
+      case (email, keyId) =>
+        IO.fromFuture(IO(googleIamDAO.removeServiceAccountKey(googleProject, email, keyId)))
     } getOrElse IO.unit
-  }
 
   // See https://cloud.google.com/dataproc/docs/guides/dataproc-images#custom_image_uri
   private def parseImageProject(customDataprocImage: String): Option[GoogleProject] = {
     val regex = ".*projects/(.*)/global/images/(.*)".r
     customDataprocImage match {
       case regex(project, _) => Some(GoogleProject(project))
-      case _ => None
+      case _                 => None
     }
   }
 

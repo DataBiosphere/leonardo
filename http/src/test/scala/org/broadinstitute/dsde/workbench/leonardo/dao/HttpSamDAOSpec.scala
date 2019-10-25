@@ -29,11 +29,10 @@ class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
   implicit val cs = IO.contextShift(global)
 
   val config = HttpSamDaoConfig(Uri.unsafeFromString("localhost"),
-    false,
-    1 seconds,
-    10,
-    ServiceAccountProviderConfig(WorkbenchEmail("leo@gmail.com"), new File("test"))
-  )
+                                false,
+                                1 seconds,
+                                10,
+                                ServiceAccountProviderConfig(WorkbenchEmail("leo@gmail.com"), new File("test")))
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
   implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID())) //we don't care much about traceId in unit tests, hence providing a constant UUID here
 
@@ -64,12 +63,15 @@ class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     )
 
     val samDao = new HttpSamDAO(okSam, config)
-    val expectedResponse = StatusCheckResponse(true,
-      Map(OpenDJ -> SubsystemStatus(true, None),
+    val expectedResponse = StatusCheckResponse(
+      true,
+      Map(
+        OpenDJ -> SubsystemStatus(true, None),
         GoogleIam -> SubsystemStatus(true, None),
         GoogleGroups -> SubsystemStatus(true, None),
         GooglePubSub -> SubsystemStatus(true, None)
-      ))
+      )
+    )
     samDao.getStatus.unsafeRunSync() shouldBe expectedResponse
   }
 
@@ -113,7 +115,10 @@ class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     )
 
     val samDao = new HttpSamDAO(okSam, config)
-    val expectedResponse = StatusCheckResponse(false, Map(GoogleIam -> SubsystemStatus(true, None), OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!")))))
+    val expectedResponse =
+      StatusCheckResponse(false,
+                          Map(GoogleIam -> SubsystemStatus(true, None),
+                              OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!")))))
 
     samDao.getStatus.unsafeRunSync() shouldBe expectedResponse
   }
@@ -122,7 +127,9 @@ class HttpSamDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     var hitCount = -1
     val retryPolicy = RetryPolicy[IO](RetryPolicy.exponentialBackoff(5 milliseconds, 4))
     val errorSam = Client.fromHttpApp[IO](
-      HttpApp{ _ => IO(hitCount = hitCount + 1) >>IO.raiseError[Response[IO]](FakeException(s"retried ${hitCount + 1} times"))}
+      HttpApp { _ =>
+        IO(hitCount = hitCount + 1) >> IO.raiseError[Response[IO]](FakeException(s"retried ${hitCount + 1} times"))
+      }
     )
     val clientWithRetry = Retry(retryPolicy)(errorSam)
     val samDao = new HttpSamDAO(clientWithRetry, config)

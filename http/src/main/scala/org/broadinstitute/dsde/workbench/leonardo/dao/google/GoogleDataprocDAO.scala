@@ -10,7 +10,9 @@ import org.broadinstitute.dsde.workbench.model.google._
 import scala.concurrent.Future
 
 trait GoogleDataprocDAO {
-  def createCluster(googleProject: GoogleProject, clusterName: ClusterName, createClusterConfig: CreateClusterConfig): Future[Operation]
+  def createCluster(googleProject: GoogleProject,
+                    clusterName: ClusterName,
+                    createClusterConfig: CreateClusterConfig): Future[Operation]
 
   def deleteCluster(googleProject: GoogleProject, clusterName: ClusterName): Future[Unit]
 
@@ -20,13 +22,17 @@ trait GoogleDataprocDAO {
 
   def getClusterMasterInstance(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[InstanceKey]]
 
-  def getClusterInstances(googleProject: GoogleProject, clusterName: ClusterName): Future[Map[DataprocRole, Set[InstanceKey]]]
+  def getClusterInstances(googleProject: GoogleProject,
+                          clusterName: ClusterName): Future[Map[DataprocRole, Set[InstanceKey]]]
 
   def getClusterStagingBucket(googleProject: GoogleProject, clusterName: ClusterName): Future[Option[GcsBucketName]]
 
   def getClusterErrorDetails(operationName: Option[OperationName]): Future[Option[ClusterErrorDetails]]
 
-  def resizeCluster(googleProject: GoogleProject, clusterName: ClusterName, numWorkers: Option[Int] = None, numPreemptibles: Option[Int] = None): Future[Unit]
+  def resizeCluster(googleProject: GoogleProject,
+                    clusterName: ClusterName,
+                    numWorkers: Option[Int] = None,
+                    numPreemptibles: Option[Int] = None): Future[Unit]
 
   def getUserInfoAndExpirationFromAccessToken(accessToken: String): Future[(UserInfo, Instant)]
 }

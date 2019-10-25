@@ -18,13 +18,14 @@ import scala.concurrent.Future
 import scala.io.Source
 
 /**
-  * Leonardo API service client.
-  */
+ * Leonardo API service client.
+ */
 object DummyClient extends RestClient with LazyLogging {
 
   private val url = LeonardoConfig.Leonardo.apiUrl
 
-  def get(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken, webDriver: WebDriver): DummyClientPage = {
+  def get(googleProject: GoogleProject, clusterName: ClusterName)(implicit token: AuthToken,
+                                                                  webDriver: WebDriver): DummyClientPage = {
     val localhost = java.net.InetAddress.getLocalHost.getHostName
     val url = s"http://$localhost:9090/${googleProject.value}/${clusterName.string}/client?token=${token.value}"
     logger.info(s"Get dummy client: $url")
@@ -47,7 +48,8 @@ object DummyClient extends RestClient with LazyLogging {
         parameter('token.as[String]) { token =>
           complete {
             logger.info(s"Serving dummy client for $googleProject/$clusterName")
-            HttpEntity(ContentTypes.`text/html(UTF-8)`, getContent(GoogleProject(googleProject), ClusterName(clusterName), LeoAuthToken(token)))
+            HttpEntity(ContentTypes.`text/html(UTF-8)`,
+                       getContent(GoogleProject(googleProject), ClusterName(clusterName), LeoAuthToken(token)))
           }
         }
       }
@@ -63,8 +65,9 @@ object DummyClient extends RestClient with LazyLogging {
       "token" -> token.value,
       "googleClientId" -> "some-client"
     )
-    replacementMap.foldLeft(raw) { case (source, (key, replacement)) =>
-      source.replaceAllLiterally("$("+key+")", s"""'$replacement'""")
+    replacementMap.foldLeft(raw) {
+      case (source, (key, replacement)) =>
+        source.replaceAllLiterally("$(" + key + ")", s"""'$replacement'""")
     }
   }
 }

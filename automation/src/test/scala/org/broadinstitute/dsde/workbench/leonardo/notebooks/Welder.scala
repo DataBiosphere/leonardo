@@ -13,8 +13,8 @@ import WelderJsonCodec._
 import scala.concurrent.ExecutionContext.global
 
 /**
-  * Welder API service client.
-  */
+ * Welder API service client.
+ */
 object Welder extends RestClient with LazyLogging {
 
   val localSafeModeBaseDirectory = "safe"
@@ -23,11 +23,13 @@ object Welder extends RestClient with LazyLogging {
   implicit val cs: ContextShift[IO] = IO.contextShift(global)
   private val url = LeonardoConfig.Leonardo.apiUrl
 
-  case class Metadata(syncMode: String, syncStatus: Option[String], lastLockedBy: Option[String], storageLink: Map[String,String])
+  case class Metadata(syncMode: String,
+                      syncStatus: Option[String],
+                      lastLockedBy: Option[String],
+                      storageLink: Map[String, String])
 
-  def welderBasePath(googleProject: GoogleProject, clusterName: ClusterName): String = {
+  def welderBasePath(googleProject: GoogleProject, clusterName: ClusterName): String =
     s"${url}proxy/${googleProject.value}/${clusterName.string}/welder"
-  }
 
   def getWelderStatus(cluster: Cluster)(implicit token: AuthToken): IO[StatusResponse] = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName)
@@ -58,15 +60,17 @@ object Welder extends RestClient with LazyLogging {
     postRequest(path, payload, httpHeaders = List(cookie))
   }
 
-def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(implicit token: AuthToken): String = {
+  def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(implicit token: AuthToken): String = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/objects"
 
     val payload = Map(
       "action" -> "localize",
-      "entries" -> Array(Map(
-        "sourceUri" -> cloudStoragePath.toUri,
-        "localDestinationPath" -> getLocalPath(cloudStoragePath, isEditMode)
-      ))
+      "entries" -> Array(
+        Map(
+          "sourceUri" -> cloudStoragePath.toUri,
+          "localDestinationPath" -> getLocalPath(cloudStoragePath, isEditMode)
+        )
+      )
     )
 
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
@@ -75,7 +79,9 @@ def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(i
     postRequest(path, payload, httpHeaders = List(cookie))
   }
 
-  def getMetadata(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(implicit token: AuthToken): Metadata = {
+  def getMetadata(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(
+    implicit token: AuthToken
+  ): Metadata = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/objects/metadata"
 
     val payload = Map(
@@ -88,21 +94,20 @@ def localize(cluster: Cluster, cloudStoragePath: GcsPath, isEditMode: Boolean)(i
     parseMetadataResponse(postRequest(path, payload, httpHeaders = List(cookie)))
   }
 
-  def parseMetadataResponse(response: String): Metadata = {
+  def parseMetadataResponse(response: String): Metadata =
     mapper.readValue(response, classOf[Metadata])
-  }
 
-  def getLocalPath(cloudStoragePath: GcsPath, isEditMode: Boolean): String = {
+  def getLocalPath(cloudStoragePath: GcsPath, isEditMode: Boolean): String =
     (if (isEditMode) {
-      localBaseDirectory
-    } else {
-      localSafeModeBaseDirectory
-    }) + "/" + cloudStoragePath.objectName.value
-  }
+       localBaseDirectory
+     } else {
+       localSafeModeBaseDirectory
+     }) + "/" + cloudStoragePath.objectName.value
 }
 
 object WelderJsonCodec {
-  implicit val statusResponseDecoder: Decoder[StatusResponse] = Decoder.forProduct1("gitHeadCommit")(StatusResponse.apply)
+  implicit val statusResponseDecoder: Decoder[StatusResponse] =
+    Decoder.forProduct1("gitHeadCommit")(StatusResponse.apply)
 }
 
 final case class StatusResponse(gitHeadCommit: String)

@@ -40,8 +40,10 @@ case object RKernel extends NotebookKernel {
   override def cssSelectorString: String = super.cssSelectorString + "[title='Create a new notebook with R']"
 }
 
-class NotebooksListPage(override val url: String)(override implicit val authToken: AuthToken, override implicit val webDriver: WebDriver)
-  extends JupyterPage with LazyLogging {
+class NotebooksListPage(override val url: String)(implicit override val authToken: AuthToken,
+                                                  implicit override val webDriver: WebDriver)
+    extends JupyterPage
+    with LazyLogging {
 
   override def open(implicit webDriver: WebDriver): NotebooksListPage = super.open.asInstanceOf[NotebooksListPage]
 
@@ -51,9 +53,8 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
   val newFolder: Query = cssSelector("ul#new-menu > li[id='new-folder'] > a")
   val rowItems: Query = cssSelector("[class='item_name']")
 
-  def findUntitledFolder: Option[Element] = {
+  def findUntitledFolder: Option[Element] =
     findAll(rowItems).find(_.text == "Untitled Folder")
-  }
 
   def upload(file: File): Unit = {
     uploadNewButton.findElement.get.underlying.sendKeys(file.getAbsolutePath)
@@ -68,13 +69,15 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
     val notebookPage = new NotebookPage(url + "/notebooks/" + file.getPath).open
     notebookPage.awaitReadyKernel(timeout)
     val result = Try { testCode(notebookPage) }
-    Try(notebookPage.shutdownKernel()).recover { case e =>
-      logger.error(s"Error occurred shutting down kernel for notebook ${file.getAbsolutePath}", e)
+    Try(notebookPage.shutdownKernel()).recover {
+      case e =>
+        logger.error(s"Error occurred shutting down kernel for notebook ${file.getAbsolutePath}", e)
     }
     result.get
   }
 
-  def withNewNotebook[T](kernel: NotebookKernel = Python2, timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T): T = {
+  def withNewNotebook[T](kernel: NotebookKernel = Python2,
+                         timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T): T = {
     switchToNewTab {
       await visible (newButton, timeout.toSeconds)
       click on newButton
@@ -85,8 +88,9 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
     val notebookPage = new NotebookPage(currentUrl)
     notebookPage.awaitReadyKernel(timeout)
     val result = Try { testCode(notebookPage) }
-    Try(notebookPage.shutdownKernel()).recover { case e =>
-      logger.error(s"Error occurred shutting down ${kernel} kernel", e)
+    Try(notebookPage.shutdownKernel()).recover {
+      case e =>
+        logger.error(s"Error occurred shutting down ${kernel} kernel", e)
     }
     result.get
   }
@@ -98,9 +102,9 @@ class NotebooksListPage(override val url: String)(override implicit val authToke
       await visible (newFolder, timeout.toSeconds)
       click on newFolder
     }
-    await condition(findUntitledFolder.isDefined, timeout.toSeconds)
+    await condition (findUntitledFolder.isDefined, timeout.toSeconds)
     click on findUntitledFolder.get
-    await condition(!findUntitledFolder.isDefined, timeout.toSeconds)
+    await condition (!findUntitledFolder.isDefined, timeout.toSeconds)
     val newListPage = new NotebooksListPage(currentUrl)
     testCode(newListPage)
   }

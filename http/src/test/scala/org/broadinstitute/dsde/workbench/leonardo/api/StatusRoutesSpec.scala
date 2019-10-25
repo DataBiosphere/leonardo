@@ -25,10 +25,16 @@ import org.scalatest.{FlatSpec, Matchers}
 import scala.concurrent.duration._
 
 /**
-  * Created by rtitle on 10/26/17.
-  */
-class StatusRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest with CommonTestData with TestLeoRoutes with TestComponent {
-  override implicit val patienceConfig = PatienceConfig(timeout = 1.second)
+ * Created by rtitle on 10/26/17.
+ */
+class StatusRoutesSpec
+    extends FlatSpec
+    with Matchers
+    with ScalatestRouteTest
+    with CommonTestData
+    with TestLeoRoutes
+    with TestComponent {
+  implicit override val patienceConfig = PatienceConfig(timeout = 1.second)
 
   "GET /version" should "give 200 for ok" in {
     eventually {
@@ -42,8 +48,10 @@ class StatusRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest wi
   "GET /status" should "give 200 for ok" in {
     eventually {
       Get("/status") ~> leoRoutes.route ~> check {
-        responseAs[StatusCheckResponse] shouldEqual StatusCheckResponse(
-          true, Map(GoogleDataproc -> HealthMonitor.OkStatus, Database -> HealthMonitor.OkStatus, Sam -> HealthMonitor.OkStatus))
+        responseAs[StatusCheckResponse] shouldEqual StatusCheckResponse(true,
+                                                                        Map(GoogleDataproc -> HealthMonitor.OkStatus,
+                                                                            Database -> HealthMonitor.OkStatus,
+                                                                            Sam -> HealthMonitor.OkStatus))
         status shouldEqual StatusCodes.OK
       }
     }
@@ -51,25 +59,50 @@ class StatusRoutesSpec extends FlatSpec with Matchers with ScalatestRouteTest wi
 
   it should "give 500 for not ok" in {
     val badSam = new SamDAO[IO] {
-      override def getStatus(implicit ev: ApplicativeAsk[IO, TraceId]): IO[StatusCheckResponse] = IO.pure(StatusCheckResponse(false, Map(OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!"))))))
+      override def getStatus(implicit ev: ApplicativeAsk[IO, TraceId]): IO[StatusCheckResponse] =
+        IO.pure(StatusCheckResponse(false, Map(OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!"))))))
 
-      override def hasResourcePermission(resourceId: ValueObject, action: String, resourceTypeName: ResourceTypeName, authHeader: Authorization)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
+      override def hasResourcePermission(
+        resourceId: ValueObject,
+        action: String,
+        resourceTypeName: ResourceTypeName,
+        authHeader: Authorization
+      )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = ???
 
-      override def getResourcePolicies[A](authHeader: Authorization, resourseTypeName: ResourceTypeName)(implicit decoder: EntityDecoder[IO, List[A]], ev: ApplicativeAsk[IO, TraceId]): IO[List[A]] = ???
+      override def getResourcePolicies[A](authHeader: Authorization, resourseTypeName: ResourceTypeName)(
+        implicit decoder: EntityDecoder[IO, List[A]],
+        ev: ApplicativeAsk[IO, TraceId]
+      ): IO[List[A]] = ???
 
-      override def createClusterResource(internalId: ClusterInternalId, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
+      override def createClusterResource(internalId: ClusterInternalId,
+                                         creatorEmail: WorkbenchEmail,
+                                         googleProject: GoogleProject,
+                                         clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+        ???
 
-      override def deleteClusterResource(internalId: ClusterInternalId, userEmail: WorkbenchEmail, creatorEmail: WorkbenchEmail, googleProject: GoogleProject, clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
+      override def deleteClusterResource(internalId: ClusterInternalId,
+                                         userEmail: WorkbenchEmail,
+                                         creatorEmail: WorkbenchEmail,
+                                         googleProject: GoogleProject,
+                                         clusterName: ClusterName)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+        ???
 
-      override def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Option[WorkbenchEmail]] = ???
+      override def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(
+        implicit ev: ApplicativeAsk[IO, TraceId]
+      ): IO[Option[WorkbenchEmail]] = ???
 
-      override def getUserProxy(userEmail: WorkbenchEmail)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Option[WorkbenchEmail]] = ???
+      override def getUserProxy(userEmail: WorkbenchEmail)(
+        implicit ev: ApplicativeAsk[IO, TraceId]
+      ): IO[Option[WorkbenchEmail]] = ???
 
-      override def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Option[String]] = ???
+      override def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
+        implicit ev: ApplicativeAsk[IO, TraceId]
+      ): IO[Option[String]] = ???
     }
     val badDataproc = new MockGoogleDataprocDAO(false)
     val statusService = new StatusService(badDataproc, badSam, DbSingleton.ref, dataprocConfig, pollInterval = 1.second)
-    val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with MockUserInfoDirectives {
+    val leoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig)
+    with MockUserInfoDirectives {
       override val userInfo: UserInfo = defaultUserInfo
     }
 

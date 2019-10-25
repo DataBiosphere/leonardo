@@ -18,7 +18,7 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTest
     val missingId = Random.nextLong()
     dbFutureValue { _.labelQuery.getAllForCluster(missingId) } shouldEqual Map.empty
     dbFutureValue { _.labelQuery.get(missingId, "missing") } shouldEqual None
-    dbFailure { _.labelQuery.save(missingId, "key1", "value1") } shouldBe a [SQLException]
+    dbFailure { _.labelQuery.save(missingId, "key1", "value1") } shouldBe a[SQLException]
 
     val cluster1Id = savedCluster1.id
 
@@ -47,5 +47,5 @@ class LabelComponentSpec extends TestComponent with FlatSpecLike with CommonTest
     dbFutureValue { _.labelQuery.deleteAllForCluster(cluster2Id) } shouldEqual 2
     dbFutureValue { _.labelQuery.deleteAllForCluster(cluster2Id) } shouldEqual 0
     dbFutureValue { _.labelQuery.getAllForCluster(cluster2Id) } shouldEqual Map.empty
-   }
+  }
 }
