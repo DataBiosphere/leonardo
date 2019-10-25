@@ -28,7 +28,7 @@ class NotebookPyKernelSpec extends ClusterFixtureSpec with NotebookTestUtils {
               |bx.bitset.sys.copyright""".stripMargin
 
           notebookPage.executeCell("1+1") shouldBe Some("2")
-          notebookPage.executeCell(getPythonVersion) shouldBe Some("3.7.4")
+          notebookPage.executeCell(getPythonVersion) should contain ("3.7")
           notebookPage.executeCell(getBxPython).get should include("Copyright (c)")
         }
       }
