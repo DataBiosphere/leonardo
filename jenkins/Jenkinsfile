@@ -162,7 +162,7 @@ pipeline {
 
     stage('Leonardo Git') {
       steps {
-        git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'rt-downgrade-python'
+        git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/leonardo.git', branch: 'develop'
       }
     }
 
