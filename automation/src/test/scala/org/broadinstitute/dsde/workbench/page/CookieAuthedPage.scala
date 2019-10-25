@@ -14,9 +14,9 @@ trait CookieAuthedPage[P <: Page] extends Page with PageUtil[P] with WebBrowserU
   override def open(implicit webDriver: WebDriver): P = {
     go to this
     addCookie("LeoToken", authToken.value)
-    Try (super.open) match {
+    Try(super.open) match {
       case Success(page) => page
-      case Failure(_) => super.open // anonymously retry open
+      case Failure(_)    => super.open // anonymously retry open
     }
   }
 }

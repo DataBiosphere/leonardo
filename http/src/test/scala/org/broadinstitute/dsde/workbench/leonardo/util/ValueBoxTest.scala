@@ -3,8 +3,8 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 import org.scalatest.FunSuite
 
 /**
-  * Copied from https://github.com/broadinstitute/dig-loam-stream/blob/master/src/test/scala/loamstream/util/ValueBoxTest.scala
-  */
+ * Copied from https://github.com/broadinstitute/dig-loam-stream/blob/master/src/test/scala/loamstream/util/ValueBoxTest.scala
+ */
 final class ValueBoxTest extends FunSuite {
   test("mutateAndGet") {
     val v: ValueBox[Int] = ValueBox(42)

@@ -23,27 +23,31 @@ trait ClusterErrorComponent extends LeoComponent {
 
     def cluster = foreignKey("FK_CLUSTER_ID", clusterId, clusterQuery)(_.id)
 
-    def * = (id, clusterId, errorMessage, errorCode, timestamp) <> (ClusterErrorRecord.tupled, ClusterErrorRecord.unapply)
+    def * =
+      (id, clusterId, errorMessage, errorCode, timestamp) <> (ClusterErrorRecord.tupled, ClusterErrorRecord.unapply)
   }
 
   object clusterErrorQuery extends TableQuery(new ClusterErrorTable(_)) {
 
-    def save(clusterId: Long, clusterError: ClusterError): DBIO[Int] = {
-      clusterErrorQuery += ClusterErrorRecord(0, clusterId, clusterError.errorMessage, clusterError.errorCode, Timestamp.from(clusterError.timestamp))
-    }
+    def save(clusterId: Long, clusterError: ClusterError): DBIO[Int] =
+      clusterErrorQuery += ClusterErrorRecord(0,
+                                              clusterId,
+                                              clusterError.errorMessage,
+                                              clusterError.errorCode,
+                                              Timestamp.from(clusterError.timestamp))
 
-    def get(clusterId: Long): DBIO[List[ClusterError]] = {
+    def get(clusterId: Long): DBIO[List[ClusterError]] =
       clusterErrorQuery.filter(_.clusterId === clusterId).result map { recs =>
         val errors = recs map { rec =>
           unmarshallClusterErrorRecord(rec)
         }
         errors.toList
       }
-    }
 
-    def unmarshallClusterErrorRecord(clusterErrorRecord: ClusterErrorRecord) : ClusterError = {
-      ClusterError(clusterErrorRecord.errorMessage, clusterErrorRecord.errorCode, clusterErrorRecord.timestamp.toInstant)
-    }
+    def unmarshallClusterErrorRecord(clusterErrorRecord: ClusterErrorRecord): ClusterError =
+      ClusterError(clusterErrorRecord.errorMessage,
+                   clusterErrorRecord.errorCode,
+                   clusterErrorRecord.timestamp.toInstant)
 
   }
 

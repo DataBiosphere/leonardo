@@ -18,9 +18,9 @@ import slick.jdbc.JdbcProfile
 
 import scala.concurrent.ExecutionContext
 
-trait TestComponent extends Matchers with ScalaFutures with LeoComponent with GcsPathUtils{
+trait TestComponent extends Matchers with ScalaFutures with LeoComponent with GcsPathUtils {
   override val profile: JdbcProfile = DbSingleton.ref.dataAccess.profile
-  override implicit val executionContext: ExecutionContext = TestExecutionContext.testExecutionContext
+  implicit override val executionContext: ExecutionContext = TestExecutionContext.testExecutionContext
   implicit val metrics = FakeNewRelicMetricsInterpreter
   implicit override val patienceConfig = PatienceConfig(timeout = scaled(Span(10, Seconds)))
   implicit val loggerIO: Logger[IO] = Slf4jLogger.getLogger[IO]
@@ -31,7 +31,7 @@ trait TestComponent extends Matchers with ScalaFutures with LeoComponent with Gc
   def dbFailure[T](f: DataAccess => DBIO[T]): Throwable = DbSingleton.ref.inTransaction(f).failed.futureValue
 
   // clean up after tests
-  def isolatedDbTest[T](testCode: => T): T = {
+  def isolatedDbTest[T](testCode: => T): T =
     try {
       dbFutureValue(_.truncateAll())
       testCode
@@ -40,21 +40,21 @@ trait TestComponent extends Matchers with ScalaFutures with LeoComponent with Gc
     } finally {
       dbFutureValue(_.truncateAll())
     }
-  }
 
-  protected def getClusterId(cluster: Cluster): Long = {
+  protected def getClusterId(cluster: Cluster): Long =
     getClusterId(cluster.googleProject, cluster.clusterName, cluster.auditInfo.destroyedDate)
-  }
 
   protected def getClusterId(googleProject: GoogleProject,
                              clusterName: ClusterName,
-                             destroyedDateOpt: Option[Instant]): Long = {
+                             destroyedDateOpt: Option[Instant]): Long =
     dbFutureValue { _.clusterQuery.getIdByUniqueKey(googleProject, clusterName, destroyedDateOpt) }.get
-  }
 
   implicit class ClusterExtensions(cluster: Cluster) {
-    def save(serviceAccountKeyId: Option[ServiceAccountKeyId] = Some(defaultServiceAccountKeyId)) = {
-      dbFutureValue { _.clusterQuery.save(cluster, Option(gcsPath("gs://bucket" + cluster.clusterName.toString().takeRight(1))), serviceAccountKeyId) }
-    }
+    def save(serviceAccountKeyId: Option[ServiceAccountKeyId] = Some(defaultServiceAccountKeyId)) =
+      dbFutureValue {
+        _.clusterQuery.save(cluster,
+                            Option(gcsPath("gs://bucket" + cluster.clusterName.toString().takeRight(1))),
+                            serviceAccountKeyId)
+      }
   }
 }

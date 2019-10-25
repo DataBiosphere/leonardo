@@ -7,7 +7,12 @@ import io.circe.parser
 import HttpJupyterDAO.sessionDecoder
 import org.broadinstitute.dsde.workbench.leonardo.dao.ExecutionState.Idle
 
-class HttpJupyterDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll with ScalatestRouteTest with ScalaFutures {
+class HttpJupyterDAOSpec
+    extends FlatSpec
+    with Matchers
+    with BeforeAndAfterAll
+    with ScalatestRouteTest
+    with ScalaFutures {
   "HttpJupyterDAO" should "decode jupyter list sessions response successfully" in {
     val response =
       """
@@ -37,6 +42,6 @@ class HttpJupyterDAOSpec extends FlatSpec with Matchers with BeforeAndAfterAll w
       resp <- json.as[List[Session]]
     } yield resp
 
-    res shouldBe(Right(List(Session(Kernel(Idle)))))
+    res shouldBe (Right(List(Session(Kernel(Idle)))))
   }
 }

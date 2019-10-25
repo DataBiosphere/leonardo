@@ -8,16 +8,21 @@ import org.scalatest.FlatSpecLike
 
 import scala.util.Random
 
-class ExtensionComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils{
+class ExtensionComponentSpec extends TestComponent with FlatSpecLike with CommonTestData with GcsPathUtils {
   "ExtensionComponent" should "save, get,and delete" in isolatedDbTest {
-    val savedCluster1 = makeCluster(1).copy(jupyterExtensionUri = Some(jupyterExtensionUri),
-                                       jupyterUserScriptUri = Some(jupyterUserScriptUri)).save()
+    val savedCluster1 = makeCluster(1)
+      .copy(jupyterExtensionUri = Some(jupyterExtensionUri), jupyterUserScriptUri = Some(jupyterUserScriptUri))
+      .save()
 
     val savedCluster2 = makeCluster(2).save()
 
     val missingId = Random.nextLong()
-    dbFutureValue { _.extensionQuery.getAllForCluster(missingId) } shouldEqual UserJupyterExtensionConfig(Map(), Map(), Map())
-    dbFailure { _.extensionQuery.save(missingId, ExtensionType.NBExtension.toString, "extName", "extValue") } shouldBe a [SQLException]
+    dbFutureValue { _.extensionQuery.getAllForCluster(missingId) } shouldEqual UserJupyterExtensionConfig(Map(),
+                                                                                                          Map(),
+                                                                                                          Map())
+    dbFailure { _.extensionQuery.save(missingId, ExtensionType.NBExtension.toString, "extName", "extValue") } shouldBe a[
+      SQLException
+    ]
 
     dbFutureValue { _.extensionQuery.saveAllForCluster(savedCluster1.id, Some(userExtConfig)) }
     dbFutureValue { _.extensionQuery.getAllForCluster(savedCluster1.id) } shouldEqual userExtConfig

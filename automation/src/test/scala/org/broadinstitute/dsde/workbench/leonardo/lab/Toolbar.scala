@@ -14,4 +14,3 @@ trait Toolbar {
   lazy val kernelStatus: String = "jp-Toolbar-kernelStatus"
 
 }
-

@@ -12,8 +12,8 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 import scala.concurrent.duration._
 
 /**
-  * This spec verfies different cluster creation options, such as user scripts, extensions, etc.
-  */
+ * This spec verfies different cluster creation options, such as user scripts, extensions, etc.
+ */
 @DoNotDiscover
 final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils {
 
@@ -25,10 +25,9 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
       // Create a new bucket
       withNewGoogleBucket(billingProject) { bucketName =>
         val ronPetServiceAccount = Sam.user.petServiceAccountEmail(billingProject.value)(ronAuthToken)
-        googleStorageDAO.setBucketAccessControl(
-          bucketName,
-          EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
-          GcsRoles.Owner)
+        googleStorageDAO.setBucketAccessControl(bucketName,
+                                                EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
+                                                GcsRoles.Owner)
 
         // Add the user script to the bucket
         val userScriptString = "#!/usr/bin/env bash\n\npip3 install mock"
@@ -36,11 +35,10 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
         val userScriptUri = s"gs://${bucketName.value}/${userScriptObjectName.value}"
 
         withNewBucketObject(bucketName, userScriptObjectName, userScriptString, "text/plain") { objectName =>
-          googleStorageDAO.setObjectAccessControl(
-            bucketName,
-            objectName,
-            EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
-            GcsRoles.Owner)
+          googleStorageDAO.setObjectAccessControl(bucketName,
+                                                  objectName,
+                                                  EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
+                                                  GcsRoles.Owner)
 
           // Create a new cluster using the URI of the user script
           val clusterRequestWithUserScript = defaultClusterRequest.copy(Map(), None, Option(userScriptUri))
@@ -64,40 +62,55 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
       implicit val ronToken: AuthToken = ronAuthToken
 
       val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
-      withResourceFileInBucket(billingProject, translateExtensionFile, "application/x-gzip") { translateExtensionBucketPath =>
-        val extensionConfig = multiExtensionClusterRequest.copy(nbExtensions = multiExtensionClusterRequest.nbExtensions + ("translate" -> translateExtensionBucketPath.toUri))
-        withNewCluster(billingProject, request = defaultClusterRequest.copy(userJupyterExtensionConfig = Some(extensionConfig))) { cluster =>
-          withWebDriver { implicit driver =>
-            withNewNotebook(cluster, Python3) { notebookPage =>
-              // Check the extensions were installed
-              val nbExt = notebookPage.executeCell("! jupyter nbextension list")
-              nbExt.get should include("jupyter-gmaps/extension  enabled")
-              nbExt.get should include("pizzabutton/index  enabled")
-              nbExt.get should include("translate_nbextension/main  enabled")
-              // should be installed by default
-              nbExt.get should include("toc2/main  enabled")
+      withResourceFileInBucket(billingProject, translateExtensionFile, "application/x-gzip") {
+        translateExtensionBucketPath =>
+          val extensionConfig = multiExtensionClusterRequest.copy(
+            nbExtensions = multiExtensionClusterRequest.nbExtensions + ("translate" -> translateExtensionBucketPath.toUri)
+          )
+          withNewCluster(billingProject,
+                         request = defaultClusterRequest.copy(userJupyterExtensionConfig = Some(extensionConfig))) {
+            cluster =>
+              withWebDriver { implicit driver =>
+                withNewNotebook(cluster, Python3) { notebookPage =>
+                  // Check the extensions were installed
+                  val nbExt = notebookPage.executeCell("! jupyter nbextension list")
+                  nbExt.get should include("jupyter-gmaps/extension  enabled")
+                  nbExt.get should include("pizzabutton/index  enabled")
+                  nbExt.get should include("translate_nbextension/main  enabled")
+                  // should be installed by default
+                  nbExt.get should include("toc2/main  enabled")
 
-              val serverExt = notebookPage.executeCell("! jupyter serverextension list")
-              serverExt.get should include("pizzabutton  enabled")
-              serverExt.get should include("jupyterlab  enabled")
-              // should be installed by default
-              serverExt.get should include("jupyter_nbextensions_configurator  enabled")
+                  val serverExt = notebookPage.executeCell("! jupyter serverextension list")
+                  serverExt.get should include("pizzabutton  enabled")
+                  serverExt.get should include("jupyterlab  enabled")
+                  // should be installed by default
+                  serverExt.get should include("jupyter_nbextensions_configurator  enabled")
 
-              // Exercise the translate extension
-              notebookPage.translateMarkup("Hello") should include("Salut")
-            }
+                  // Exercise the translate extension
+                  notebookPage.translateMarkup("Hello") should include("Salut")
+                }
+              }
           }
-        }
       }
     }
 
     "should give cluster user-specified scopes" in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
 
-      withNewCluster(billingProject, request = defaultClusterRequest.copy(scopes = Set("https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/source.read_only"))) { cluster =>
+      withNewCluster(
+        billingProject,
+        request = defaultClusterRequest.copy(
+          scopes = Set(
+            "https://www.googleapis.com/auth/userinfo.email",
+            "https://www.googleapis.com/auth/userinfo.profile",
+            "https://www.googleapis.com/auth/source.read_only"
+          )
+        )
+      ) { cluster =>
         withWebDriver { implicit driver =>
           withNewNotebook(cluster) { notebookPage =>
-            val query = """! bq query --disable_ssl_validation --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
+            val query =
+              """! bq query --disable_ssl_validation --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
 
             val result = notebookPage.executeCell(query, timeout = 5.minutes).get
             result should include("BigQuery error in query operation")
@@ -107,7 +120,7 @@ final class NotebookCustomizationSpec extends GPAllocFixtureSpec with ParallelTe
       }
     }
 
-    "should populate user-specified environment variables" in  { billingProject =>
+    "should populate user-specified environment variables" in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
 
       // Note: the R image includes R and python 3 kernels

@@ -11,7 +11,13 @@ import com.google.api.client.http.HttpResponseException
 import com.google.api.services.cloudresourcemanager.CloudResourceManager
 import com.google.api.services.compute.model.Firewall.Allowed
 import com.google.api.services.compute.model.Metadata.Items
-import com.google.api.services.compute.model.{DisksResizeRequest, Firewall, InstancesSetMachineTypeRequest, Metadata, Instance => GoogleInstance}
+import com.google.api.services.compute.model.{
+  DisksResizeRequest,
+  Firewall,
+  InstancesSetMachineTypeRequest,
+  Metadata,
+  Instance => GoogleInstance
+}
 import com.google.api.services.compute.{Compute, ComputeScopes}
 import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
@@ -26,15 +32,17 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
 /**
-  * Created by rtitle on 2/13/18.
-  */
-class HttpGoogleComputeDAO(appName: String,
-                           googleCredentialMode: GoogleCredentialMode,
-                           override val workbenchMetricBaseName: String)
-                          (implicit override val system: ActorSystem, override val executionContext: ExecutionContext)
-  extends AbstractHttpGoogleDAO(appName, googleCredentialMode, workbenchMetricBaseName) with GoogleComputeDAO {
+ * Created by rtitle on 2/13/18.
+ */
+class HttpGoogleComputeDAO(
+  appName: String,
+  googleCredentialMode: GoogleCredentialMode,
+  override val workbenchMetricBaseName: String
+)(implicit override val system: ActorSystem, override val executionContext: ExecutionContext)
+    extends AbstractHttpGoogleDAO(appName, googleCredentialMode, workbenchMetricBaseName)
+    with GoogleComputeDAO {
 
-  override implicit val service: GoogleInstrumentedService = GoogleInstrumentedService.Compute
+  implicit override val service: GoogleInstrumentedService = GoogleInstrumentedService.Compute
 
   override val scopes: Seq[String] = Seq(ComputeScopes.COMPUTE)
 
@@ -42,19 +50,21 @@ class HttpGoogleComputeDAO(appName: String,
 
   private lazy val compute = {
     new Compute.Builder(httpTransport, jsonFactory, googleCredential)
-      .setApplicationName(appName).build()
+      .setApplicationName(appName)
+      .build()
   }
 
   private lazy val cloudResourceManager = {
     val resourceManagerCredential = googleCredential.createScoped(resourceManagerScopes.asJava)
     new CloudResourceManager.Builder(httpTransport, jsonFactory, resourceManagerCredential)
-      .setApplicationName(appName).build()
+      .setApplicationName(appName)
+      .build()
   }
 
   override def getInstance(instanceKey: InstanceKey): Future[Option[Instance]] = {
     val request = compute.instances().get(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value)
 
-    retryWithRecover(retryPredicates:_*) { () =>
+    retryWithRecover(retryPredicates: _*) { () =>
       Option(executeGoogleRequest(request)) map { gi =>
         Instance(
           instanceKey,
@@ -62,7 +72,8 @@ class HttpGoogleComputeDAO(appName: String,
           InstanceStatus.withNameInsensitive(gi.getStatus),
           getInstanceIP(gi),
           dataprocRole = None,
-          parseGoogleTimestamp(gi.getCreationTimestamp).getOrElse(Instant.now))
+          parseGoogleTimestamp(gi.getCreationTimestamp).getOrElse(Instant.now)
+        )
       }
     } {
       case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => None
@@ -72,18 +83,19 @@ class HttpGoogleComputeDAO(appName: String,
   override def stopInstance(instanceKey: InstanceKey): Future[Unit] = {
     val request = compute.instances().stop(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value)
 
-    retry(retryPredicates:_*)(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
+    retry(retryPredicates: _*)(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
   }
 
   override def startInstance(instanceKey: InstanceKey): Future[Unit] = {
     val request = compute.instances.start(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value)
 
-    retry(retryPredicates:_*)(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
+    retry(retryPredicates: _*)(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
   }
 
   override def addInstanceMetadata(instanceKey: InstanceKey, metadata: Map[String, String]): Future[Unit] = {
-    val getInstanceRequest = compute.instances().get(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value)
-    retry(retryPredicates:_*)(() => executeGoogleRequest(getInstanceRequest)).flatMap { googleInstance =>
+    val getInstanceRequest =
+      compute.instances().get(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value)
+    retry(retryPredicates: _*)(() => executeGoogleRequest(getInstanceRequest)).flatMap { googleInstance =>
       val curMetadataOpt = for {
         instance <- Option(googleInstance)
         metadata <- Option(instance.getMetadata)
@@ -94,30 +106,37 @@ class HttpGoogleComputeDAO(appName: String,
 
       val newMetadata = new Metadata()
         .setFingerprint(fingerprint)
-        .setItems((curItems.filterNot(i => metadata.contains(i.getKey)) ++ metadata.toList.map { case (k, v) => new Items().setKey(k).setValue(v) }).asJava)
-      val setMetadataRequest = compute.instances.setMetadata(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value, newMetadata)
-      retry(retryPredicates:_*)(() => executeGoogleRequest(setMetadataRequest)).void.handleGoogleException(instanceKey)
+        .setItems((curItems.filterNot(i => metadata.contains(i.getKey)) ++ metadata.toList.map {
+          case (k, v) => new Items().setKey(k).setValue(v)
+        }).asJava)
+      val setMetadataRequest = compute.instances.setMetadata(instanceKey.project.value,
+                                                             instanceKey.zone.value,
+                                                             instanceKey.name.value,
+                                                             newMetadata)
+      retry(retryPredicates: _*)(() => executeGoogleRequest(setMetadataRequest)).void.handleGoogleException(instanceKey)
     }
   }
 
   override def updateFirewallRule(googleProject: GoogleProject, firewallRule: FirewallRule): Future[Unit] = {
     val request = compute.firewalls().get(googleProject.value, firewallRule.name.value)
-    val response = retryWithRecover(retryPredicates:_*) { () =>
+    val response = retryWithRecover(retryPredicates: _*) { () =>
       executeGoogleRequest(request)
       ()
     } {
-      case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => addFirewallRule(googleProject, firewallRule)
+      case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue =>
+        addFirewallRule(googleProject, firewallRule)
     }
 
     response.handleGoogleException(googleProject, Some(firewallRule.name.value))
   }
 
   /**
-    * Adds a firewall rule in the given google project. This firewall rule allows ingress traffic through a specified port for all
-    * VMs with the network tag "leonardo". This rule should only be added once per project.
-    * To think about: do we want to remove this rule if a google project no longer has any clusters? */
+   * Adds a firewall rule in the given google project. This firewall rule allows ingress traffic through a specified port for all
+   * VMs with the network tag "leonardo". This rule should only be added once per project.
+   * To think about: do we want to remove this rule if a google project no longer has any clusters? */
   private def addFirewallRule(googleProject: GoogleProject, firewallRule: FirewallRule): Future[Unit] = {
-    val allowed = new Allowed().setIPProtocol(firewallRule.protocol.value).setPorts(firewallRule.ports.map(_.value).asJava)
+    val allowed =
+      new Allowed().setIPProtocol(firewallRule.protocol.value).setPorts(firewallRule.ports.map(_.value).asJava)
     val googleFirewall = new Firewall()
       .setName(firewallRule.name.value)
       .setNetwork(firewallRule.network.map(_.value).orNull)
@@ -126,30 +145,30 @@ class HttpGoogleComputeDAO(appName: String,
 
     val request = compute.firewalls().insert(googleProject.value, googleFirewall)
     logger.info(s"Creating firewall rule with name '${firewallRule.name.value}' in project ${googleProject.value}")
-    retry(retryPredicates:_*)(() => executeGoogleRequest(request)).void
+    retry(retryPredicates: _*)(() => executeGoogleRequest(request)).void
   }
 
-  override def getComputeEngineDefaultServiceAccount(googleProject: GoogleProject): Future[Option[WorkbenchEmail]] = {
-    getProjectNumber(googleProject).map { numberOpt =>
-      numberOpt.map { number =>
-        // Service account email format documented in:
-        // https://cloud.google.com/compute/docs/access/service-accounts#compute_engine_default_service_account
-        WorkbenchEmail(s"$number-compute@developer.gserviceaccount.com")
+  override def getComputeEngineDefaultServiceAccount(googleProject: GoogleProject): Future[Option[WorkbenchEmail]] =
+    getProjectNumber(googleProject)
+      .map { numberOpt =>
+        numberOpt.map { number =>
+          // Service account email format documented in:
+          // https://cloud.google.com/compute/docs/access/service-accounts#compute_engine_default_service_account
+          WorkbenchEmail(s"$number-compute@developer.gserviceaccount.com")
+        }
       }
-    }.handleGoogleException(googleProject)
-  }
+      .handleGoogleException(googleProject)
 
-  private def parseGoogleTimestamp(googleTimestamp: String): Option[Instant] = {
+  private def parseGoogleTimestamp(googleTimestamp: String): Option[Instant] =
     Try {
       new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX").parse(googleTimestamp)
     }.toOption map { date =>
       Instant.ofEpochMilli(date.getTime)
     }
-  }
 
   override def getProjectNumber(googleProject: GoogleProject): Future[Option[Long]] = {
     val request = cloudResourceManager.projects().get(googleProject.value)
-    retryWithRecover(retryPredicates:_*) { () =>
+    retryWithRecover(retryPredicates: _*) { () =>
       Option(executeGoogleRequest(request).getProjectNumber).map(_.toLong)
     } {
       case e: HttpResponseException if e.getStatusCode == StatusCodes.NotFound.intValue => None
@@ -157,53 +176,61 @@ class HttpGoogleComputeDAO(appName: String,
   }
 
   /**
-    * Gets the public IP from a google Instance, with error handling.
-    * @param instance the Google instance
-    * @return error or public IP, as a String
-    */
-  private def getInstanceIP(instance: GoogleInstance): Option[IP] = {
+   * Gets the public IP from a google Instance, with error handling.
+   * @param instance the Google instance
+   * @return error or public IP, as a String
+   */
+  private def getInstanceIP(instance: GoogleInstance): Option[IP] =
     for {
       interfaces <- Option(instance.getNetworkInterfaces)
       interface <- interfaces.asScala.headOption
       accessConfigs <- Option(interface.getAccessConfigs)
       accessConfig <- accessConfigs.asScala.headOption
     } yield IP(accessConfig.getNatIP)
-  }
 
   override def setMachineType(instanceKey: InstanceKey, newMachineType: MachineType): Future[Unit] = {
-    val request = compute.instances().setMachineType(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value,
-      new InstancesSetMachineTypeRequest().setMachineType(buildMachineTypeUri(instanceKey, newMachineType.value)))
+    val request = compute
+      .instances()
+      .setMachineType(
+        instanceKey.project.value,
+        instanceKey.zone.value,
+        instanceKey.name.value,
+        new InstancesSetMachineTypeRequest().setMachineType(buildMachineTypeUri(instanceKey, newMachineType.value))
+      )
 
-    retry(retryPredicates:_*)(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
+    retry(retryPredicates: _*)(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
   }
 
   override def resizeDisk(instanceKey: InstanceKey, newSizeGb: Int): Future[Unit] = {
-    val request = compute.disks().resize(instanceKey.project.value, instanceKey.zone.value, instanceKey.name.value,
-      new DisksResizeRequest().setSizeGb(newSizeGb.toLong))
+    val request = compute
+      .disks()
+      .resize(instanceKey.project.value,
+              instanceKey.zone.value,
+              instanceKey.name.value,
+              new DisksResizeRequest().setSizeGb(newSizeGb.toLong))
 
-    retry(retryPredicates:_*)(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
+    retry(retryPredicates: _*)(() => executeGoogleRequest(request)).void.handleGoogleException(instanceKey)
   }
 
-  private def buildMachineTypeUri(instanceKey: InstanceKey, machineType: String): String = {
+  private def buildMachineTypeUri(instanceKey: InstanceKey, machineType: String): String =
     s"zones/${instanceKey.zone.value}/machineTypes/$machineType"
-  }
 
-  private implicit class GoogleExceptionSupport[A](future: Future[A]) {
-    def handleGoogleException(project: GoogleProject, context: Option[String] = None): Future[A] = {
+  implicit private class GoogleExceptionSupport[A](future: Future[A]) {
+    def handleGoogleException(project: GoogleProject, context: Option[String] = None): Future[A] =
       future.recover {
         case e: GoogleJsonResponseException =>
-          val msg = s"Call to Google API failed for ${project.value} ${context.map(c => s"/ $c").getOrElse("")}. Status: ${e.getStatusCode}. Message: ${e.getDetails.getMessage}"
+          val msg =
+            s"Call to Google API failed for ${project.value} ${context.map(c => s"/ $c").getOrElse("")}. Status: ${e.getStatusCode}. Message: ${e.getDetails.getMessage}"
           logger.error(msg, e)
           throw new WorkbenchException(msg, e)
         case e: IllegalArgumentException =>
-          val msg = s"Illegal argument passed to Google request for ${project.value} ${context.map(c => s"/ $c").getOrElse("")}. Message: ${e.getMessage}"
+          val msg =
+            s"Illegal argument passed to Google request for ${project.value} ${context.map(c => s"/ $c").getOrElse("")}. Message: ${e.getMessage}"
           logger.error(msg, e)
           throw new WorkbenchException(msg, e)
       }
-    }
 
-    def handleGoogleException(instanceKey: InstanceKey): Future[A] = {
+    def handleGoogleException(instanceKey: InstanceKey): Future[A] =
       handleGoogleException(instanceKey.project, Some(instanceKey.name.value))
-    }
   }
 }

@@ -16,8 +16,11 @@ class RStudioSpec extends GPAllocFixtureSpec with ParallelTestExecution with Leo
 
     // TODO re-enable when RStudio is supported
     "should install RStudio" taggedAs Tags.SmokeTest ignore { billingProject =>
-      withNewCluster(billingProject, request = defaultClusterRequest.copy(rstudioDockerImage = Some("us.gcr.io/broad-dsp-gcr-public/leonardo-rstudio:860d5862f3f5"))) { cluster =>
-        withWebDriver {_ =>
+      withNewCluster(billingProject,
+                     request = defaultClusterRequest.copy(
+                       rstudioDockerImage = Some("us.gcr.io/broad-dsp-gcr-public/leonardo-rstudio:860d5862f3f5")
+                     )) { cluster =>
+        withWebDriver { _ =>
           val getResult = Try(RStudio.getApi(billingProject, cluster.clusterName))
           getResult.isSuccess shouldBe true
           getResult.get should not include "ProxyException"

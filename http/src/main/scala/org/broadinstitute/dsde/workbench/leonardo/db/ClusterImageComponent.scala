@@ -5,10 +5,7 @@ import java.sql.Timestamp
 
 import org.broadinstitute.dsde.workbench.leonardo.model.{ClusterImage, ClusterTool}
 
-case class ClusterImageRecord(clusterId: Long,
-                              tool: String,
-                              dockerImage: String,
-                              timestamp: Timestamp)
+case class ClusterImageRecord(clusterId: Long, tool: String, dockerImage: String, timestamp: Timestamp)
 
 trait ClusterImageComponent extends LeoComponent {
   this: ClusterComponent =>
@@ -35,52 +32,45 @@ trait ClusterImageComponent extends LeoComponent {
 
   object clusterImageQuery extends TableQuery(new ClusterImageTable(_)) {
 
-    def save(clusterId: Long, clusterImage: ClusterImage): DBIO[Int] = {
+    def save(clusterId: Long, clusterImage: ClusterImage): DBIO[Int] =
       clusterImageQuery += marshallClusterImage(clusterId, clusterImage)
-    }
 
-    def saveAllForCluster(clusterId: Long, clusterImages: Seq[ClusterImage]): DBIO[Option[Int]] = {
+    def saveAllForCluster(clusterId: Long, clusterImages: Seq[ClusterImage]): DBIO[Option[Int]] =
       clusterImageQuery ++= clusterImages.map { c =>
         marshallClusterImage(clusterId, c)
       }
-    }
 
-    def upsert(clusterId: Long, clusterImage: ClusterImage): DBIO[Int] = {
+    def upsert(clusterId: Long, clusterImage: ClusterImage): DBIO[Int] =
       clusterImageQuery.insertOrUpdate(marshallClusterImage(clusterId, clusterImage))
-    }
 
-    def get(clusterId: Long, tool: ClusterTool): DBIO[Option[ClusterImage]] = {
+    def get(clusterId: Long, tool: ClusterTool): DBIO[Option[ClusterImage]] =
       clusterImageQuery
         .filter { _.clusterId === clusterId }
         .filter { _.tool === tool.toString }
         .result
         .headOption
         .map(_.map(unmarshalClusterImage))
-    }
 
-    def getAllForCluster(clusterId: Long): DBIO[Seq[ClusterImage]] = {
+    def getAllForCluster(clusterId: Long): DBIO[Seq[ClusterImage]] =
       clusterImageQuery
         .filter { _.clusterId === clusterId }
         .result
         .map(_.map(unmarshalClusterImage))
-    }
 
-    def marshallClusterImage(clusterId: Long, clusterImage: ClusterImage): ClusterImageRecord = {
+    def marshallClusterImage(clusterId: Long, clusterImage: ClusterImage): ClusterImageRecord =
       ClusterImageRecord(
         clusterId,
         clusterImage.tool.toString,
         clusterImage.dockerImage,
         Timestamp.from(clusterImage.timestamp)
       )
-    }
 
-    def unmarshalClusterImage(clusterImageRecord: ClusterImageRecord): ClusterImage = {
+    def unmarshalClusterImage(clusterImageRecord: ClusterImageRecord): ClusterImage =
       ClusterImage(
         ClusterTool.withName(clusterImageRecord.tool),
         clusterImageRecord.dockerImage,
         clusterImageRecord.timestamp.toInstant
       )
-    }
 
   }
 

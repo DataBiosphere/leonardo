@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.api
 
-import akka.http.scaladsl.model.headers.{OAuth2BearerToken, `Set-Cookie`}
+import akka.http.scaladsl.model.headers.{`Set-Cookie`, OAuth2BearerToken}
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.testkit.TestDuration
@@ -26,8 +26,10 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
   private val googleProject2 = GoogleProject("test-project2")
   private val clusterName = ClusterName("test-cluster")
 
-  val invalidUserLeoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig) with MockUserInfoDirectives {
-    override val userInfo: UserInfo =  UserInfo(OAuth2BearerToken(tokenValue), WorkbenchUserId("badUser"), WorkbenchEmail("badUser@example.com"), 0)
+  val invalidUserLeoRoutes = new LeoRoutes(leonardoService, proxyService, statusService, swaggerConfig)
+  with MockUserInfoDirectives {
+    override val userInfo: UserInfo =
+      UserInfo(OAuth2BearerToken(tokenValue), WorkbenchUserId("badUser"), WorkbenchEmail("badUser@example.com"), 0)
   }
 
   val defaultClusterRequest = ClusterRequest(Map.empty, None, properties = Map.empty)
@@ -38,7 +40,13 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
   }
 
   it should "200 when creating and getting cluster" in isolatedDbTest {
-    val newCluster = ClusterRequest(Map.empty, Some(jupyterExtensionUri), Some(jupyterUserScriptUri), None, Map.empty, None, Some(UserJupyterExtensionConfig(Map("abc" ->"def"))))
+    val newCluster = ClusterRequest(Map.empty,
+                                    Some(jupyterExtensionUri),
+                                    Some(jupyterUserScriptUri),
+                                    None,
+                                    Map.empty,
+                                    None,
+                                    Some(UserJupyterExtensionConfig(Map("abc" -> "def"))))
 
     forallClusterCreationVersions(clusterName) { (version, clstrName, statusCode) =>
       Put(s"/api/cluster$version/${googleProject.value}/$clstrName", newCluster.toJson) ~> timedLeoRoutes.route ~> check {
@@ -55,8 +63,12 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
 
         val responseCluster = responseAs[Cluster]
         responseCluster.clusterName.value shouldEqual cn
-        responseCluster.serviceAccountInfo.clusterServiceAccount shouldEqual serviceAccountProvider.getClusterServiceAccount(defaultUserInfo, googleProject).unsafeRunSync()
-        responseCluster.serviceAccountInfo.notebookServiceAccount shouldEqual serviceAccountProvider.getNotebookServiceAccount(defaultUserInfo, googleProject).unsafeRunSync()
+        responseCluster.serviceAccountInfo.clusterServiceAccount shouldEqual serviceAccountProvider
+          .getClusterServiceAccount(defaultUserInfo, googleProject)
+          .unsafeRunSync()
+        responseCluster.serviceAccountInfo.notebookServiceAccount shouldEqual serviceAccountProvider
+          .getNotebookServiceAccount(defaultUserInfo, googleProject)
+          .unsafeRunSync()
         responseCluster.jupyterExtensionUri shouldEqual Some(jupyterExtensionUri)
 
         validateCookie { header[`Set-Cookie`] }
@@ -82,7 +94,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
       dbFutureValue { dataAccess =>
         dataAccess.clusterQuery.getActiveClusterByName(googleProject, ClusterName(clstrName)).flatMap {
           case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"))
-          case None => DBIO.successful(0)
+          case None          => DBIO.successful(0)
         }
       }
 
@@ -112,7 +124,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
     dbFutureValue { dataAccess =>
       dataAccess.clusterQuery.getActiveClusterByName(googleProject, ClusterName(clusterName)).flatMap {
         case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"))
-        case None => DBIO.successful(0)
+        case None          => DBIO.successful(0)
       }
     }
 
@@ -169,10 +181,9 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
         cluster.googleProject shouldEqual googleProject
         cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccount(googleProject)
         cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccount(googleProject)
-        cluster.labels shouldEqual  Map(
-          "clusterName" -> cluster.clusterName.value,
-          "creator" -> "user1@example.com",
-          "googleProject" -> googleProject.value) ++ serviceAccountLabels
+        cluster.labels shouldEqual Map("clusterName" -> cluster.clusterName.value,
+                                       "creator" -> "user1@example.com",
+                                       "googleProject" -> googleProject.value) ++ serviceAccountLabels
       }
 
       validateCookie { header[`Set-Cookie`] }
@@ -206,11 +217,10 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
       cluster.clusterName shouldEqual ClusterName("test-cluster-6")
       cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccount(googleProject)
       cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccount(googleProject)
-      cluster.labels shouldEqual Map(
-        "clusterName" -> "test-cluster-6",
-        "creator" -> "user1@example.com",
-        "googleProject" -> googleProject.value,
-        "label6" -> "value6") ++ serviceAccountLabels
+      cluster.labels shouldEqual Map("clusterName" -> "test-cluster-6",
+                                     "creator" -> "user1@example.com",
+                                     "googleProject" -> googleProject.value,
+                                     "label6" -> "value6") ++ serviceAccountLabels
 
       validateCookie { header[`Set-Cookie`] }
     }
@@ -226,11 +236,10 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
       cluster.clusterName shouldEqual ClusterName("test-cluster-4")
       cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccount(googleProject)
       cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccount(googleProject)
-      cluster.labels shouldEqual Map(
-        "clusterName" -> "test-cluster-4",
-        "creator" -> "user1@example.com",
-        "googleProject" -> googleProject.value,
-        "label4" -> "value4") ++ serviceAccountLabels
+      cluster.labels shouldEqual Map("clusterName" -> "test-cluster-4",
+                                     "creator" -> "user1@example.com",
+                                     "googleProject" -> googleProject.value,
+                                     "label4" -> "value4") ++ serviceAccountLabels
 
       validateCookie { header[`Set-Cookie`] }
     }
@@ -256,7 +265,6 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
       responseClusters shouldBe List.empty[Cluster]
     }
 
-
     for (i <- 1 to 5) {
       Put(s"/api/cluster/${googleProject.value}/${clusterName.value}-$i", newCluster.toJson) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.OK
@@ -278,10 +286,9 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
         cluster.googleProject shouldEqual googleProject
         cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccount(googleProject)
         cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccount(googleProject)
-        cluster.labels shouldEqual  Map(
-          "clusterName" -> cluster.clusterName.value,
-          "creator" -> "user1@example.com",
-          "googleProject" -> googleProject.value) ++ serviceAccountLabels
+        cluster.labels shouldEqual Map("clusterName" -> cluster.clusterName.value,
+                                       "creator" -> "user1@example.com",
+                                       "googleProject" -> googleProject.value) ++ serviceAccountLabels
       }
 
       validateCookie { header[`Set-Cookie`] }
@@ -296,10 +303,9 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
         cluster.googleProject shouldEqual googleProject2
         cluster.serviceAccountInfo.clusterServiceAccount shouldEqual clusterServiceAccount(googleProject2)
         cluster.serviceAccountInfo.notebookServiceAccount shouldEqual notebookServiceAccount(googleProject2)
-        cluster.labels shouldEqual  Map(
-          "clusterName" -> cluster.clusterName.value,
-          "creator" -> "user1@example.com",
-          "googleProject" -> googleProject2.value) ++ serviceAccountLabels
+        cluster.labels shouldEqual Map("clusterName" -> cluster.clusterName.value,
+                                       "creator" -> "user1@example.com",
+                                       "googleProject" -> googleProject2.value) ++ serviceAccountLabels
       }
 
       validateCookie { header[`Set-Cookie`] }
@@ -325,7 +331,7 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
       dbFutureValue { dataAccess =>
         dataAccess.clusterQuery.getActiveClusterByName(googleProject, ClusterName(clstrName)).flatMap {
           case Some(cluster) => dataAccess.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4"))
-          case None => DBIO.successful(0)
+          case None          => DBIO.successful(0)
         }
       }
 
@@ -353,7 +359,11 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
 
   Seq(true, false).foreach { stopAfterCreation =>
     it should s"create a cluster with stopAfterCreation = $stopAfterCreation" in isolatedDbTest {
-      val request = ClusterRequest(Map.empty, Some(jupyterExtensionUri), Some(jupyterUserScriptUri), stopAfterCreation = Some(stopAfterCreation), properties = Map.empty)
+      val request = ClusterRequest(Map.empty,
+                                   Some(jupyterExtensionUri),
+                                   Some(jupyterUserScriptUri),
+                                   stopAfterCreation = Some(stopAfterCreation),
+                                   properties = Map.empty)
 
       forallClusterCreationVersions(clusterName) { (version, clstrName, statusCode) =>
         Put(s"/api/cluster$version/${googleProject.value}/$clstrName", request.toJson) ~> timedLeoRoutes.route ~> check {
@@ -368,28 +378,35 @@ class LeoRoutesSpec extends FlatSpec with ScalatestRouteTest with CommonTestData
 
   it should s"reject create a cluster if cluster name is invalid" in isolatedDbTest {
     val invalidClusterName = "MyCluster"
-    val request = ClusterRequest(Map.empty, Some(jupyterExtensionUri), Some(jupyterUserScriptUri), stopAfterCreation = None, properties = Map.empty)
+    val request = ClusterRequest(Map.empty,
+                                 Some(jupyterExtensionUri),
+                                 Some(jupyterUserScriptUri),
+                                 stopAfterCreation = None,
+                                 properties = Map.empty)
 
     val pathPrefixes = List("/api/cluster/", "/api/cluster/v2/")
-    pathPrefixes.map{
-      prefix =>
-        Put(s"$prefix${googleProject.value}/$invalidClusterName", request.toJson) ~> timedLeoRoutes.route ~> check {
-          responseAs[String] shouldBe(s"invalid cluster name $invalidClusterName. Only lowercase alphanumeric characters, numbers and dashes are allowed in cluster name")
-          status shouldEqual StatusCodes.BadRequest
-        }
+    pathPrefixes.map { prefix =>
+      Put(s"$prefix${googleProject.value}/$invalidClusterName", request.toJson) ~> timedLeoRoutes.route ~> check {
+        responseAs[String] shouldBe (s"invalid cluster name $invalidClusterName. Only lowercase alphanumeric characters, numbers and dashes are allowed in cluster name")
+        status shouldEqual StatusCodes.BadRequest
+      }
     }
   }
 
-  private def serviceAccountLabels: Map[String, String] = {
+  private def serviceAccountLabels: Map[String, String] =
     (
-      clusterServiceAccount(googleProject).map { sa => Map("clusterServiceAccount" -> sa.value) } getOrElse Map.empty
+      clusterServiceAccount(googleProject).map { sa =>
+        Map("clusterServiceAccount" -> sa.value)
+      } getOrElse Map.empty
     ) ++ (
-      notebookServiceAccount(googleProject).map { sa => Map("notebookServiceAccount" -> sa.value) } getOrElse Map.empty
+      notebookServiceAccount(googleProject).map { sa =>
+        Map("notebookServiceAccount" -> sa.value)
+      } getOrElse Map.empty
     )
-  }
 
-  private def forallClusterCreationVersions(baseClusterName: ClusterName)
-                                           (testCode: (String, String, StatusCode) => Any) = {
+  private def forallClusterCreationVersions(
+    baseClusterName: ClusterName
+  )(testCode: (String, String, StatusCode) => Any) = {
     val v1Params = ("", baseClusterName.value, StatusCodes.OK)
     val v2Params = ("/v2", s"${baseClusterName.value}-v2", StatusCodes.Accepted)
 
