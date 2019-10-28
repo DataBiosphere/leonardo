@@ -20,7 +20,8 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     auditInfo = auditInfo.copy(createdDate = exampleTime, dateAccessed = exampleTime),
     jupyterExtensionUri = Some(jupyterExtensionUri),
     stopAfterCreation = true,
-    clusterImages = Set(jupyterImage.copy(timestamp = exampleTime))
+    clusterImages = Set(jupyterImage.copy(timestamp = exampleTime), welderImage.copy(timestamp = exampleTime)),
+    welderEnabled = true
   )
 
   "ClusterRequestFormat" should "successfully decode json" in isolatedDbTest {
@@ -120,10 +121,14 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
         |    { "tool": "Jupyter",
         |      "dockerImage": "jupyter/jupyter-base:latest",
         |      "timestamp": "2018-08-07T10:12:35Z"
+        |      },
+        |    { "tool": "Welder",
+        |      "dockerImage": "welder/welder:latest",
+        |      "timestamp": "2018-08-07T10:12:35Z"
         |      }
         |    ],
         |  "scopes":["https://www.googleapis.com/auth/userinfo.email","https://www.googleapis.com/auth/userinfo.profile","https://www.googleapis.com/auth/bigquery","https://www.googleapis.com/auth/source.read_only"],
-        |  "welderEnabled": false
+        |  "welderEnabled": true
         |}
       """.stripMargin.parseJson
 
@@ -200,7 +205,7 @@ class LeonardoModelSpec extends TestComponent with FlatSpecLike with Matchers wi
     clusterInitMap("clusterName") shouldBe name1.value
     clusterInitMap("jupyterDockerImage") shouldBe jupyterImage.dockerImage
     clusterInitMap("proxyDockerImage") shouldBe proxyConfig.jupyterProxyDockerImage
-    clusterInitMap("googleClientId") shouldBe testClusterRequestWithExtensionAndScript.defaultClientId.getOrElse("")
+    clusterInitMap("googleClientId") shouldBe cluster.defaultClientId.getOrElse("")
     clusterInitMap("welderDockerImage") shouldBe welderImage.dockerImage
     clusterInitMap("welderEnabled") shouldBe "true"
 

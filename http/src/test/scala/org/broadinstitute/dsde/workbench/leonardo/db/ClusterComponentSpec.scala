@@ -350,10 +350,12 @@ class ClusterComponentSpec extends TestComponent with FlatSpecLike with CommonTe
     val savedCluster2 = makeCluster(2).copy(dataprocInfo = DataprocInfo(None, None, None, None)).save()
 
     // listMonitored should only return clusters that have google info defined
-    dbFutureValue { _.clusterQuery.listMonitoredClusterOnly() } shouldBe Seq(savedCluster1)
+    dbFutureValue { _.clusterQuery.listMonitoredClusterOnly() }.toSet shouldBe Set(savedCluster1, savedCluster2)
       .map(stripFieldsForListCluster)
       .map(_.copy(labels = Map.empty))
-    dbFutureValue { _.clusterQuery.listMonitored() } shouldBe Seq(savedCluster1).map(stripFieldsForListCluster)
-    dbFutureValue { _.clusterQuery.listMonitoredFullCluster() } shouldBe Seq(savedCluster1)
+    dbFutureValue { _.clusterQuery.listMonitored() }.toSet shouldBe Set(savedCluster1, savedCluster2).map(
+      stripFieldsForListCluster
+    )
+    dbFutureValue { _.clusterQuery.listMonitoredFullCluster() }.toSet shouldBe Set(savedCluster1, savedCluster2)
   }
 }
