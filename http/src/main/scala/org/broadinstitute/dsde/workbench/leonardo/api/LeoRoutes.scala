@@ -12,6 +12,7 @@ import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, Logg
 import akka.http.scaladsl.server._
 import akka.stream.Materializer
 import akka.stream.scaladsl._
+import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 import org.broadinstitute.dsde.workbench.leonardo.errorReportSource
@@ -80,7 +81,6 @@ abstract class LeoRoutes(
                         .map { cluster =>
                           StatusCodes.Accepted -> cluster
                         }
-                        .unsafeToFuture()
                     }
                   }
                 }
@@ -98,7 +98,6 @@ abstract class LeoRoutes(
                           .map { cluster =>
                             StatusCodes.Accepted -> cluster
                           }
-                          .unsafeToFuture()
                       }
                     }
                   } ~
@@ -110,7 +109,6 @@ abstract class LeoRoutes(
                             .map { cluster =>
                               StatusCodes.OK -> cluster
                             }
-                            .unsafeToFuture()
                         }
                       }
                     } ~
@@ -121,17 +119,12 @@ abstract class LeoRoutes(
                           .map { clusterDetails =>
                             StatusCodes.OK -> clusterDetails
                           }
-                          .unsafeToFuture()
                       }
                     } ~
                     delete {
                       complete {
                         leonardoService
-                          .deleteCluster(userInfo, GoogleProject(googleProject), clusterName)
-                          .map { _ =>
-                            StatusCodes.Accepted
-                          }
-                          .unsafeToFuture()
+                          .deleteCluster(userInfo, GoogleProject(googleProject), clusterName).as(StatusCodes.Accepted)
                       }
                     }
                 } ~
@@ -139,11 +132,7 @@ abstract class LeoRoutes(
                     post {
                       complete {
                         leonardoService
-                          .stopCluster(userInfo, GoogleProject(googleProject), clusterName)
-                          .map { _ =>
-                            StatusCodes.Accepted
-                          }
-                          .unsafeToFuture()
+                          .stopCluster(userInfo, GoogleProject(googleProject), clusterName).as(StatusCodes.Accepted)
                       }
                     }
                   } ~
@@ -151,11 +140,7 @@ abstract class LeoRoutes(
                     post {
                       complete {
                         leonardoService
-                          .startCluster(userInfo, GoogleProject(googleProject), clusterName)
-                          .map { _ =>
-                            StatusCodes.Accepted
-                          }
-                          .unsafeToFuture()
+                          .startCluster(userInfo, GoogleProject(googleProject), clusterName).as(StatusCodes.Accepted)
                       }
                     }
                   }
@@ -172,7 +157,6 @@ abstract class LeoRoutes(
                       .map { clusters =>
                         StatusCodes.OK -> clusters
                       }
-                      .unsafeToFuture()
                   }
                 }
               } ~
@@ -184,7 +168,6 @@ abstract class LeoRoutes(
                         .map { clusters =>
                           StatusCodes.OK -> clusters
                         }
-                        .unsafeToFuture()
                     }
                   }
                 }
