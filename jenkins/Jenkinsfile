@@ -201,7 +201,7 @@ pipeline {
         script {
           def shouldUpdate = hasHashChanges(images)
           shouldAbortBuild = !shouldUpdate //set variable to control if future steps get run
-          versionMap = getVersionMap(images) 
+          versionMap = getVersionMap(images)
 
           if (shouldUpdate) {
             for (String image: images) {
@@ -268,7 +268,7 @@ pipeline {
             cd jenkins/dataproc-custom-images/dataproc-custom-images
             python generate_custom_image.py \
               --image-name "$IMAGE_BASE_NAME-$imageID" \
-              --dataproc-version "1.2.79-debian9" \
+              --dataproc-version "1.4.15-debian9" \
               --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
               --zone us-central1-a \
               --gcs-bucket $BUCKET_NAME \
@@ -306,7 +306,7 @@ pipeline {
 
       stage('Create PR') {
         when { expression { !shouldAbortBuild } }
-       
+
         steps {
           script {
 
@@ -317,8 +317,8 @@ pipeline {
 
                 docker rm -f hub-runtime | true
 
-                docker run -itd --name=hub-runtime -u root -v ${WORKSPACE}:/app/leo us.gcr.io/broad-dsp-gcr-public/hub:1 
-                
+                docker run -itd --name=hub-runtime -u root -v ${WORKSPACE}:/app/leo us.gcr.io/broad-dsp-gcr-public/hub:1
+
                 docker cp \$token hub-runtime:/home/dsde-jenkins/.config/hub
                 docker exec hub-runtime sudo chmod 777 /home/dsde-jenkins/.config/hub
 
