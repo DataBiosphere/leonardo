@@ -234,19 +234,16 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
       traceId <- ev.ask
       _ <- validateClusterRequestBucketObjectUri(userEmail, googleProject, augmentedClusterRequest)
       _ <- log.info(
-        s"[$traceId] Attempting to notify the AuthProvider for creation of cluster '$clusterName' " +
-          s"on Google project '$googleProject'..."
+        s"[$traceId] Attempting to notify the AuthProvider for creation of cluster ${initialClusterToSave.projectNameString}"
       )
       _ <- authProvider.notifyClusterCreated(internalId, userEmail, googleProject, clusterName).handleErrorWith { t =>
         log.info(
-          s"[$traceId] Failed to notify the AuthProvider for creation of cluster '$clusterName' " +
-            s"on Google project '$googleProject'."
+          s"[$traceId] Failed to notify the AuthProvider for creation of cluster ${initialClusterToSave.projectNameString}"
         ) >> IO.raiseError(t)
       }
       cluster <- dbRef.inTransactionIO { _.clusterQuery.save(initialClusterToSave) }
       _ <- log.info(
-        s"[$traceId] Inserted an initial record into the DB for cluster '$clusterName' " +
-          s"on Google project '$googleProject'. Attemping to create cluster in google"
+        s"[$traceId] Inserted an initial record into the DB for cluster ${cluster.projectNameString}"
       )
 
     } yield cluster
@@ -363,7 +360,7 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     updatedNumWorkersAndPreemptiblesOpt match {
       case Some(updatedNumWorkersAndPreemptibles) =>
         for {
-          _ <- log.info(s"New machine config present. Resizing cluster '${existingCluster.projectNameString}'...")
+          _ <- log.info(s"New machine config present. Resizing cluster ${existingCluster.projectNameString}...")
           // Resize the cluster
           _ <- clusterHelper.resizeCluster(existingCluster,
                                            updatedNumWorkersAndPreemptibles.left,

@@ -367,28 +367,31 @@ class ClusterMonitorActor(
   }
 
   private def createClusterInGoogle(implicit ev: ApplicativeAsk[IO, TraceId]): Future[ClusterMonitorMessage] = {
-    logger.info(s"Attempting to create cluster ${cluster.projectNameString} in Google...")
-    val future = for {
+    val createClusterFuture = for {
+      _ <- IO(logger.info(s"Attempting to create cluster ${cluster.projectNameString} in Google...")).unsafeToFuture()
       clusterResult <- clusterHelper.createCluster(cluster).unsafeToFuture()
       (cluster, initBucket, saKey) = clusterResult
       _ <- dbRef.inTransaction {
         _.clusterQuery.updateAsyncClusterCreationFields(Some(GcsPath(initBucket, GcsObjectName(""))), saKey, cluster)
       }
-      _ = logger.info(
-        s"Cluster ${cluster.projectNameString} was successfully created. Will monitor the creation process."
-      )
+      _ <- IO(
+        logger.info(
+          s"Cluster ${cluster.projectNameString} was successfully created. Will monitor the creation process."
+        )
+      ).unsafeToFuture()
     } yield NotReadyCluster(cluster.status, Set.empty)
 
-    future.recover {
+    createClusterFuture.recoverWith {
       case e =>
-        logger.error(s"Failed to create cluster ${cluster.projectNameString} in Google", e)
-        val errorMessage = e match {
-          case leoEx: LeoException =>
-            ErrorReport.loggableString(leoEx.toErrorReport)
-          case _ =>
-            s"Failed to create cluster ${cluster.projectNameString} due to ${e.toString}"
-        }
-        FailedCluster(ClusterErrorDetails(-1, Some(errorMessage)), Set.empty)
+        for {
+          _ <- IO(logger.error(s"Failed to create cluster ${cluster.projectNameString} in Google", e)).unsafeToFuture()
+          errorMessage = e match {
+            case leoEx: LeoException =>
+              ErrorReport.loggableString(leoEx.toErrorReport)
+            case _ =>
+              s"Failed to create cluster ${cluster.projectNameString} due to ${e.toString}"
+          }
+        } yield FailedCluster(ClusterErrorDetails(-1, Some(errorMessage)), Set.empty)
     }
   }
 
@@ -403,8 +406,9 @@ class ClusterMonitorActor(
             createClusterInGoogle
           }
         case status =>
-          logger.info(s"Stopping monitoring of cluster ${cluster.projectNameString} in status ${status}")
-          Future.successful(ShutdownActor(RemoveFromList(cluster)))
+          IO(logger.info(s"Stopping monitoring of cluster ${cluster.projectNameString} in status ${status}"))
+            .unsafeToFuture() >>
+            Future.successful(ShutdownActor(RemoveFromList(cluster)))
       }
     } yield next
 
