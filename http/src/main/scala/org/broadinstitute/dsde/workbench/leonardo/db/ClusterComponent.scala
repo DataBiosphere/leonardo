@@ -265,17 +265,15 @@ trait ClusterComponent extends LeoComponent {
       }
 
     def listMonitored(): DBIO[Seq[Cluster]] =
-      clusterLabelQuery
-        .filter { _._1.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }
-        .result map { recs =>
-        unmarshalMinimalCluster(recs)
+      clusterLabelQuery.filter { _._1.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }.result map {
+        recs =>
+          unmarshalMinimalCluster(recs)
       }
 
     def listMonitoredFullCluster(): DBIO[Seq[Cluster]] =
-      fullClusterQuery
-        .filter { _._1.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }
-        .result map { recs =>
-        unmarshalFullCluster(recs)
+      fullClusterQuery.filter { _._1.status inSetBind ClusterStatus.monitoredStatuses.map(_.toString) }.result map {
+        recs =>
+          unmarshalFullCluster(recs)
       }
 
     def listRunningOnly(): DBIO[Seq[Cluster]] =

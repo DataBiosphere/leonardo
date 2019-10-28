@@ -463,7 +463,8 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
     } yield ()
 
   //NOTE: This function MUST ALWAYS complete ALL steps. i.e. if deleting thing1 fails, it must still proceed to delete thing2
-  def internalDeleteCluster(userEmail: WorkbenchEmail, cluster: Cluster): IO[Unit] =
+  def internalDeleteCluster(userEmail: WorkbenchEmail,
+                            cluster: Cluster)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
     if (cluster.status.isDeletable) {
       for {
         // Delete the notebook service account key in Google, if present
@@ -487,6 +488,14 @@ class LeonardoService(protected val dataprocConfig: DataprocConfig,
           if (hasGoogleId) dataAccess.clusterQuery.markPendingDeletion(cluster.id)
           else dataAccess.clusterQuery.completeDeletion(cluster.id)
         }
+        _ <- if (hasGoogleId) IO.unit
+        else
+          authProvider
+            .notifyClusterDeleted(cluster.internalId,
+                                  cluster.auditInfo.creator,
+                                  cluster.auditInfo.creator,
+                                  cluster.googleProject,
+                                  cluster.clusterName)
       } yield ()
     } else if (cluster.status == ClusterStatus.Creating) {
       IO.raiseError(ClusterCannotBeDeletedException(cluster.googleProject, cluster.clusterName))

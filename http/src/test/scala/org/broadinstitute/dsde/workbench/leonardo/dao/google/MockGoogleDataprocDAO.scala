@@ -141,12 +141,12 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
               .toSet
         )
         .getOrElse(Set.empty)
-      val existingSecondaryInstances = instances(clusterName)(SecondaryWorker)
-      val existingMasterInstance = instances(clusterName)(Master)
+      val existingSecondaryInstances = instances.get(clusterName).flatMap(_.get(SecondaryWorker))
+      val existingMasterInstance = instances.get(clusterName).flatMap(_.get(Master))
 
-      instances += (clusterName -> mutable.Map(Master -> existingMasterInstance,
+      instances += (clusterName -> mutable.Map(Master -> existingMasterInstance.getOrElse(Set.empty),
                                                Worker -> workerInstances,
-                                               SecondaryWorker -> existingSecondaryInstances))
+                                               SecondaryWorker -> existingSecondaryInstances.getOrElse(Set.empty)))
     }
 
     if (numPreemptibles.isDefined) {
@@ -160,11 +160,11 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
               .toSet
         )
         .getOrElse(Set.empty)
-      val existingWorkerInstances = instances(clusterName)(Worker)
-      val existingMasterInstance = instances(clusterName)(Master)
+      val existingWorkerInstances = instances.get(clusterName).flatMap(_.get(Worker))
+      val existingMasterInstance = instances.get(clusterName).flatMap(_.get(Master))
 
-      instances += (clusterName -> mutable.Map(Master -> existingMasterInstance,
-                                               Worker -> existingWorkerInstances,
+      instances += (clusterName -> mutable.Map(Master -> existingMasterInstance.getOrElse(Set.empty),
+                                               Worker -> existingWorkerInstances.getOrElse(Set.empty),
                                                SecondaryWorker -> secondaryWorkerInstances))
     }
 

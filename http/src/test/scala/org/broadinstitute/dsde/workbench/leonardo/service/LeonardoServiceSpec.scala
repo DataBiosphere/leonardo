@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package service
 
 import java.io.ByteArrayInputStream
+import java.nio.charset.StandardCharsets
 import java.text.SimpleDateFormat
 import java.util.UUID
 
@@ -42,9 +43,7 @@ import org.broadinstitute.dsde.workbench.util.Retry
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
 import org.mockito.Mockito.{never, verify, _}
 import org.scalatest._
-import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.time.{Minutes, Span}
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
@@ -177,7 +176,7 @@ class LeonardoServiceSpec
     clusterCreateResponse.defaultClientId shouldBe testClusterRequest.defaultClientId
     clusterCreateResponse.stopAfterCreation shouldBe testClusterRequest.stopAfterCreation.getOrElse(false)
     clusterCreateResponse.clusterImages.map(_.tool) shouldBe Set(Jupyter)
-    clusterCreateResponse.scopes shouldBe testClusterRequest.scopes
+    clusterCreateResponse.scopes shouldBe dataprocConfig.defaultScopes
     clusterCreateResponse.welderEnabled shouldBe false
 
     // check the cluster persisted to the database matches the create response
@@ -410,18 +409,7 @@ class LeonardoServiceSpec
 
     // check that the cluster was deleted
     val dbDeletingCluster = dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }
-    dbDeletingCluster.map(_.status) shouldBe Some(ClusterStatus.Deleting)
-
-    // recreate cluster with same project and cluster name
-    // should throw ClusterAlreadyExistsException since the cluster is still Deleting
-    leo
-      .createCluster(userInfo, project, name0, testClusterRequest)
-      .unsafeToFuture
-      .failed
-      .futureValue shouldBe a[ClusterAlreadyExistsException]
-
-    // flip the cluster to Deleted in the database
-    dbFutureValue { _.clusterQuery.completeDeletion(cluster.id) }
+    dbDeletingCluster.map(_.status) shouldBe Some(ClusterStatus.Deleted)
 
     // recreate cluster with same project and cluster name
     val cluster2 = leo.createCluster(userInfo, project, name0, testClusterRequest).unsafeToFuture.futureValue
@@ -504,6 +492,13 @@ class LeonardoServiceSpec
     dbCluster.map(_.status) shouldBe Some(ClusterStatus.Creating)
 
     // change cluster status to Running so that it can be deleted
+    dbFutureValue {
+      _.clusterQuery.updateAsyncClusterCreationFields(
+        Some(GcsPath(initBucketPath, GcsObjectName(""))),
+        Some(serviceAccountKey),
+        cluster.copy(dataprocInfo = DataprocInfo(Some(UUID.randomUUID())))
+      )
+    }
     dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots")) }
 
     // delete the cluster
@@ -548,6 +543,13 @@ class LeonardoServiceSpec
     dbCluster.map(_.status) shouldBe Some(ClusterStatus.Creating)
 
     // change the cluster status to Error
+    dbFutureValue {
+      _.clusterQuery.updateAsyncClusterCreationFields(
+        Some(GcsPath(initBucketPath, GcsObjectName(""))),
+        Some(serviceAccountKey),
+        cluster.copy(dataprocInfo = DataprocInfo(Some(UUID.randomUUID())))
+      )
+    }
     dbFutureValue { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Error) }
 
     // delete the cluster
@@ -567,21 +569,27 @@ class LeonardoServiceSpec
 
   it should "delete a cluster's instances" in isolatedDbTest {
     // create the cluster
-    val clusterCreateResponse =
+    val cluster =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
     // check that the cluster was created
-    val dbCluster = dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }
+    val dbCluster = dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }
     dbCluster.map(_.status) shouldBe Some(ClusterStatus.Creating)
 
     // populate some instances for the cluster
     dbFutureValue {
-      _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse),
-                                        Seq(masterInstance, workerInstance1, workerInstance2))
+      _.instanceQuery.saveAllForCluster(getClusterId(cluster), Seq(masterInstance, workerInstance1, workerInstance2))
     }
 
     // change cluster status to Running so that it can be deleted
-    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("numbers.and.dots")) }
+    dbFutureValue {
+      _.clusterQuery.updateAsyncClusterCreationFields(
+        Some(GcsPath(initBucketPath, GcsObjectName(""))),
+        Some(serviceAccountKey),
+        cluster.copy(dataprocInfo = DataprocInfo(Some(UUID.randomUUID())))
+      )
+    }
+    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("numbers.and.dots")) }
 
     // delete the cluster
     leo.deleteCluster(userInfo, project, name1).unsafeToFuture.futureValue
@@ -591,58 +599,8 @@ class LeonardoServiceSpec
       .map(_.status) shouldBe Some(ClusterStatus.Deleting)
 
     // check that the instances are still in the DB (they get removed by the ClusterMonitorActor)
-    val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse)) }
+    val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(cluster)) }
     instances.toSet shouldBe Set(masterInstance, workerInstance1, workerInstance2)
-  }
-
-  // TODO move to ClusterHelperSpec
-  it should "initialize bucket with correct files" in isolatedDbTest {
-    // create the bucket and add files
-    val bucketName = generateUniqueBucketName(name1.value + "-init")
-    bucketHelper
-      .createInitBucket(project, bucketName, ServiceAccountInfo(None, Some(serviceAccountEmail)))
-      .compile
-      .drain
-      .unsafeToFuture
-      .futureValue
-    clusterHelper
-      .initializeBucketObjects(testCluster, bucketName, Some(serviceAccountKey), Map.empty)
-      .compile
-      .drain
-      .unsafeToFuture
-      .futureValue
-
-    // our bucket should now exist
-    storageDAO.buckets should contain key (bucketName)
-
-    val bucketObjects = storageDAO.buckets(bucketName).map(_._1).map(objName => GcsPath(bucketName, objName))
-
-    // check the init files were added to the bucket
-    initFiles.map(initFile => bucketObjects should contain(GcsPath(bucketName, initFile)))
-
-    // check that the service account key was added to the bucket
-    bucketObjects should contain(
-      GcsPath(bucketName, GcsObjectName(ClusterInitValues.serviceAccountCredentialsFilename))
-    )
-  }
-
-  it should "create a firewall rule in a project only once when the first cluster is added" in isolatedDbTest {
-    val clusterName2 = ClusterName("test-cluster-2")
-
-    // Our google project should have no firewall rules
-    computeDAO.firewallRules.toList should not contain (project, dataprocConfig.firewallRuleName)
-
-    // create the first cluster, this should create a firewall rule in our project
-    leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
-
-    // check that there is exactly 1 firewall rule for our project
-    computeDAO.firewallRules.filterKeys(_ == project) should have size 1
-
-    // create the second cluster. This should check that our project has a firewall rule and not try to add it again
-    leo.createCluster(userInfo, project, clusterName2, testClusterRequest).unsafeToFuture.futureValue
-
-    // check that there is still exactly 1 firewall rule in our project
-    computeDAO.firewallRules.filterKeys(_ == project) should have size 1
   }
 
   // TODO move to TemplateHelperSpec
@@ -664,7 +622,7 @@ class LeonardoServiceSpec
     val result = TemplateHelper
       .templateResource(replacements, clusterResourcesConfig.initActionsScript, blocker)
       .compile
-      .drain
+      .to[Array]
       .unsafeToFuture
       .futureValue
 
@@ -677,20 +635,17 @@ class LeonardoServiceSpec
           |"${jupyterImage.dockerImage}"
           |"${rstudioImage.dockerImage}"
           |"${proxyConfig.jupyterProxyDockerImage}"
-          |"${jupyterUserScriptUri.toUri}"
+          |"${testCluster.jupyterUserScriptUri.get.toUri}"
           |"${GcsPath(initBucketPath, GcsObjectName(ClusterInitValues.serviceAccountCredentialsFilename)).toUri}"
-          |"${testClusterRequestWithExtensionAndScript.userJupyterExtensionConfig.get.serverExtensions.values
-           .mkString(" ")}"
-          |"${testClusterRequestWithExtensionAndScript.userJupyterExtensionConfig.get.nbExtensions.values
-           .mkString(" ")}"
-          |"${testClusterRequestWithExtensionAndScript.userJupyterExtensionConfig.get.combinedExtensions.values
-           .mkString(" ")}"
-          |"${GcsPath(stagingBucketName, GcsObjectName("userscript_output.txt")).toUri}"
+          |""
+          |""
+          |""
+          |"${GcsPath(testCluster.dataprocInfo.stagingBucket.get, GcsObjectName("userscript_output.txt")).toUri}"
           |"${GcsPath(initBucketPath, GcsObjectName("jupyter_notebook_config.py")).toUri}"
           |"${GcsPath(initBucketPath, GcsObjectName("notebook.json")).toUri}"
           |"${GcsPath(initBucketPath, GcsObjectName("custom_env_vars.env")).toUri}"""".stripMargin
 
-    result shouldEqual expected
+    new String(result, StandardCharsets.UTF_8) shouldEqual expected
   }
 
   it should "throw a JupyterExtensionException when the extensionUri is too long" in isolatedDbTest {
@@ -745,10 +700,7 @@ class LeonardoServiceSpec
   it should "error when trying to delete a creating cluster" in isolatedDbTest {
     // create cluster
     leo.createCluster(userInfo, project, name0, testClusterRequest).unsafeToFuture.futureValue
-    eventually {
-      // check that the cluster was created
-      gdDAO.clusters should contain key (name0)
-    }
+
     // should fail to delete because cluster is in Creating status
     leo
       .deleteCluster(userInfo, project, name0)
@@ -950,54 +902,33 @@ class LeonardoServiceSpec
       .toSet shouldBe Set.empty
   }
 
-  it should "delete the init bucket if cluster creation fails" in isolatedDbTest {
-    // create the cluster
-    val clusterCreateResponse =
-      leo.createCluster(userInfo, project, gdDAO.badClusterName, testClusterRequest).unsafeToFuture.failed.futureValue
-
-    clusterCreateResponse shouldBe a[Exception] // thrown by MockGoogleDataprocDAO
-
-    // check the firewall rule was created for the project
-    computeDAO.firewallRules should contain key (project)
-    computeDAO.firewallRules(project).name.value shouldBe dataprocConfig.firewallRuleName
-
-    //staging bucket lives on!
-    storageDAO.buckets.keys.find(bucket => bucket.value.contains("leoinit-")).size shouldBe 0
-    storageDAO.buckets.keys.find(bucket => bucket.value.contains("leostaging-")).size shouldBe 1
-  }
-
   it should "stop a cluster" in isolatedDbTest {
-    // check that the cluster does not exist
-    gdDAO.clusters should not contain key(name1)
-
     // create the cluster
-    val clusterCreateResponse =
+    val cluster =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
     // check that the cluster was created
-    gdDAO.clusters should contain key name1
+    val dbCluster = dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }
+    dbCluster.map(_.status) shouldBe Some(ClusterStatus.Creating)
 
     // populate some instances for the cluster
     val clusterInstances = Seq(masterInstance, workerInstance1, workerInstance2)
-    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), clusterInstances) }
+    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(cluster), clusterInstances) }
     computeDAO.instances ++= clusterInstances.groupBy(_.key).mapValues(_.head)
     computeDAO.instanceMetadata ++= clusterInstances.groupBy(_.key).mapValues(_ => Map.empty)
 
     // set the cluster to Running
-    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
+    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4")) }
 
     // stop the cluster
     leo.stopCluster(userInfo, project, name1).unsafeToFuture.futureValue
 
-    // cluster should still exist in Google
-    gdDAO.clusters should contain key (name1)
-
     // cluster status should be Stopping in the DB
-    dbFutureValue { _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse) }.get.status shouldBe ClusterStatus.Stopping
+    dbFutureValue { _.clusterQuery.getClusterByUniqueKey(cluster) }.get.status shouldBe ClusterStatus.Stopping
 
     // instance status should still be Running in the DB
     // the ClusterMonitorActor is what updates instance status
-    val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse)) }
+    val instances = dbFutureValue { _.instanceQuery.getAllForCluster(getClusterId(cluster)) }
     instances.size shouldBe 3
     instances.map(_.status).toSet shouldBe Set(InstanceStatus.Running)
 
@@ -1010,11 +941,15 @@ class LeonardoServiceSpec
 
   it should "resize a cluster" in isolatedDbTest {
     // create the cluster
-    val clusterCreateResponse =
+    val cluster =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
+    // check that the cluster was created
+    val dbCluster = dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }
+    dbCluster.map(_.status) shouldBe Some(ClusterStatus.Creating)
+
     // set the cluster to Running
-    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
+    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4")) }
 
     leo
       .updateCluster(userInfo,
@@ -1028,157 +963,25 @@ class LeonardoServiceSpec
     //handles that but we will check as much as we can
 
     //check that status of cluster is Updating
-    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Updating)
+    dbFutureValue { _.clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(ClusterStatus.Updating)
 
     //check that the machine config has been updated
-    dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.machineConfig.numberOfWorkers shouldBe Some(
+    dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }.get.machineConfig.numberOfWorkers shouldBe Some(
       2
     )
   }
 
-  it should "gracefully handle an invalid machine config being specific during cluster resize" in isolatedDbTest {
-    val mockPetGoogleDAO: String => GoogleStorageDAO = _ => {
-      new MockGoogleStorageDAO
-    }
-
-    //we meed to use a special version of the MockGoogleDataprocDAO to simulate an error during the call to resizeCluster
-    leo = new LeonardoService(dataprocConfig,
-                              MockWelderDAO,
-                              clusterDefaultsConfig,
-                              proxyConfig,
-                              swaggerConfig,
-                              autoFreezeConfig,
-                              mockPetGoogleDAO,
-                              DbSingleton.ref,
-                              authProvider,
-                              serviceAccountProvider,
-                              bucketHelper,
-                              clusterHelper)
-
-    // create the cluster
-    val clusterCreateResponse =
-      leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
-
-    // set the cluster to Running
-    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
-
-    intercept[InvalidDataprocMachineConfigException] {
-      Await.result(
-        leo
-          .updateCluster(userInfo,
-                         project,
-                         name1,
-                         testClusterRequest.copy(machineConfig = Some(MachineConfig(numberOfWorkers = Some(2)))))
-          .unsafeToFuture,
-        Duration.Inf
-      )
-    }
-
-    //check that status of cluster is still Running
-    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Running)
-
-    //check that the machine config was not updated
-    dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.machineConfig.numberOfWorkers shouldBe Some(
-      0
-    )
-  }
-
-  it should "cluster creation should end in Error state if adding IAM roles fails" in isolatedDbTest {
-    val mockPetGoogleDAO: String => GoogleStorageDAO = _ => {
-      new MockGoogleStorageDAO
-    }
-
-    //we meed to use a special version of the MockGoogleIamDAO to simulate an error when adding IAM roles
-    val iamDAO = new ErroredMockGoogleIamDAO
-    val clusterHelper = new ClusterHelper(DbSingleton.ref,
-                                          dataprocConfig,
-                                          proxyConfig,
-                                          clusterResourcesConfig,
-                                          clusterFilesConfig,
-                                          bucketHelper,
-                                          mockGoogleDataprocDAO,
-                                          computeDAO,
-                                          iamDAO,
-                                          projectDAO,
-                                          contentSecurityPolicy,
-                                          blocker)
-    leo = new LeonardoService(dataprocConfig,
-                              MockWelderDAO,
-                              clusterDefaultsConfig,
-                              proxyConfig,
-                              swaggerConfig,
-                              autoFreezeConfig,
-                              mockPetGoogleDAO,
-                              DbSingleton.ref,
-                              authProvider,
-                              serviceAccountProvider,
-                              bucketHelper,
-                              clusterHelper)
-
-    // create the cluster
-    val clusterCreateResponse =
-      leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
-
-    eventually(timeout(Span(5, Minutes))) {
-      dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Error)
-    }
-
-    // We make at most 3 IAM calls - they should not have been retried
-    // Assertion is <= 3 because calls are made in parallel with parSequence, so 1 or both may have been tried.
-    iamDAO.invocationCount should be <= 3
-  }
-
-  it should "retry 409 errors when adding IAM roles" in isolatedDbTest {
-    val mockPetGoogleDAO: String => GoogleStorageDAO = _ => {
-      new MockGoogleStorageDAO
-    }
-
-    //we meed to use a special version of the MockGoogleIamDAO to simulate a conflict when adding IAM roles
-    val iamDAO = new ErroredMockGoogleIamDAO(409)
-    val clusterHelper = new ClusterHelper(DbSingleton.ref,
-                                          dataprocConfig,
-                                          proxyConfig,
-                                          clusterResourcesConfig,
-                                          clusterFilesConfig,
-                                          bucketHelper,
-                                          mockGoogleDataprocDAO,
-                                          computeDAO,
-                                          iamDAO,
-                                          projectDAO,
-                                          contentSecurityPolicy,
-                                          blocker)
-    leo = new LeonardoService(dataprocConfig,
-                              MockWelderDAO,
-                              clusterDefaultsConfig,
-                              proxyConfig,
-                              swaggerConfig,
-                              autoFreezeConfig,
-                              mockPetGoogleDAO,
-                              DbSingleton.ref,
-                              authProvider,
-                              serviceAccountProvider,
-                              bucketHelper,
-                              clusterHelper)
-
-    // create the cluster
-    val clusterCreateResponse =
-      leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
-
-    eventually(timeout(Span(5, Minutes))) {
-      dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Error)
-    }
-
-    // IAM calls should have been retried exponentially
-    iamDAO.invocationCount should be > 3
-  }
-
   it should "update the autopause threshold for a cluster" in isolatedDbTest {
     // create the cluster
-    val clusterCreateResponse =
+    val cluster =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
+    // check that the cluster was created
+    val dbCluster = dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }
+    dbCluster.map(_.status) shouldBe Some(ClusterStatus.Creating)
+
     // set the cluster to Running
-    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
+    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4")) }
 
     leo
       .updateCluster(userInfo,
@@ -1189,19 +992,23 @@ class LeonardoServiceSpec
       .futureValue
 
     //check that status of cluster is still Running
-    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Running)
+    dbFutureValue { _.clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(ClusterStatus.Running)
 
     //check that the autopause threshold has been updated
-    dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.autopauseThreshold shouldBe 7
+    dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }.get.autopauseThreshold shouldBe 7
   }
 
   it should "update the master machine type for a cluster" in isolatedDbTest {
     // create the cluster
-    val clusterCreateResponse =
+    val cluster =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
+    // check that the cluster was created
+    val dbCluster = dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }
+    dbCluster.map(_.status) shouldBe Some(ClusterStatus.Creating)
+
     // set the cluster to Stopped
-    dbFutureValue { _.clusterQuery.updateClusterStatus(clusterCreateResponse.id, Stopped) }
+    dbFutureValue { _.clusterQuery.updateClusterStatus(cluster.id, Stopped) }
 
     val newMachineType = "n1-micro-1"
     leo
@@ -1215,21 +1022,25 @@ class LeonardoServiceSpec
       .futureValue
 
     //check that status of cluster is still Stopped
-    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Stopped)
+    dbFutureValue { _.clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(ClusterStatus.Stopped)
 
     //check that the machine config has been updated
-    dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.machineConfig.masterMachineType shouldBe Some(
+    dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }.get.machineConfig.masterMachineType shouldBe Some(
       newMachineType
     )
   }
 
   it should "not allow changing the master machine type for a cluster in RUNNING state" in isolatedDbTest {
     // create the cluster
-    val clusterCreateResponse =
+    val cluster =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
+    // check that the cluster was created
+    val dbCluster = dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }
+    dbCluster.map(_.status) shouldBe Some(ClusterStatus.Creating)
+
     // set the cluster to Running
-    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
+    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4")) }
 
     val newMachineType = "n1-micro-1"
     val failure = leo
@@ -1244,18 +1055,22 @@ class LeonardoServiceSpec
       .futureValue
 
     //check that status of cluster is still Running
-    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Running)
+    dbFutureValue { _.clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(ClusterStatus.Running)
 
     failure shouldBe a[ClusterMachineTypeCannotBeChangedException]
   }
 
   it should "update the master disk size for a cluster" in isolatedDbTest {
     // create the cluster
-    val clusterCreateResponse =
+    val cluster =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
+    // check that the cluster was created
+    val dbCluster = dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }
+    dbCluster.map(_.status) shouldBe Some(ClusterStatus.Creating)
+
     // set the cluster to Running
-    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
+    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4")) }
 
     val newDiskSize = 1000
     leo
@@ -1267,21 +1082,25 @@ class LeonardoServiceSpec
       .futureValue
 
     //check that status of cluster is still Running
-    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Running)
+    dbFutureValue { _.clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(ClusterStatus.Running)
 
     //check that the machine config has been updated
-    dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.machineConfig.masterDiskSize shouldBe Some(
+    dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }.get.machineConfig.masterDiskSize shouldBe Some(
       newDiskSize
     )
   }
 
   it should "not allow decreasing the master disk size for a cluster" in isolatedDbTest {
     // create the cluster
-    val clusterCreateResponse =
+    val cluster =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
+    // check that the cluster was created
+    val dbCluster = dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }
+    dbCluster.map(_.status) shouldBe Some(ClusterStatus.Creating)
+
     // set the cluster to Running
-    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
+    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4")) }
 
     val newDiskSize = 10
     val failure = leo
@@ -1294,7 +1113,7 @@ class LeonardoServiceSpec
       .futureValue
 
     //check that status of cluster is still Running
-    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Running)
+    dbFutureValue { _.clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(ClusterStatus.Running)
 
     failure shouldBe a[ClusterDiskSizeCannotBeDecreasedException]
   }
@@ -1302,12 +1121,16 @@ class LeonardoServiceSpec
   ClusterStatus.monitoredStatuses foreach { status =>
     it should s"not allow updating a cluster in ${status.toString} state" in isolatedDbTest {
       // create the cluster
-      val clusterCreateResponse =
+      val cluster =
         leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
+
+      // check that the cluster was created
+      val dbCluster = dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }
+      dbCluster.map(_.status) shouldBe Some(ClusterStatus.Creating)
 
       // set the cluster to Running
       dbFutureValue {
-        _.clusterQuery.updateClusterStatusAndHostIp(clusterCreateResponse.id, status, Some(IP("1.2.3.4")))
+        _.clusterQuery.updateClusterStatusAndHostIp(cluster.id, status, Some(IP("1.2.3.4")))
       }
 
       intercept[ClusterCannotBeUpdatedException] {
@@ -1326,42 +1149,37 @@ class LeonardoServiceSpec
       //handles that but we will check as much as we can
 
       //check that status of cluster is Updating
-      dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(status)
+      dbFutureValue { _.clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(status)
     }
   }
 
   it should "start a cluster" in isolatedDbTest {
-    // check that the cluster does not exist
-    gdDAO.clusters should not contain key(name1)
-
     // create the cluster
-    val clusterCreateResponse =
+    val cluster =
       leo.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
     // check that the cluster was created
-    gdDAO.clusters should contain key name1
+    val dbCluster = dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }
+    dbCluster.map(_.status) shouldBe Some(ClusterStatus.Creating)
 
     // populate some instances for the cluster and set its status to Stopped
     val clusterInstances =
       Seq(masterInstance, workerInstance1, workerInstance2).map(_.copy(status = InstanceStatus.Stopped))
-    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(clusterCreateResponse), clusterInstances) }
-    dbFutureValue { _.clusterQuery.updateClusterStatus(clusterCreateResponse.id, ClusterStatus.Stopped) }
+    dbFutureValue { _.instanceQuery.saveAllForCluster(getClusterId(cluster), clusterInstances) }
+    dbFutureValue { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Stopped) }
     computeDAO.instances ++= clusterInstances.groupBy(_.key).mapValues(_.head)
     computeDAO.instanceMetadata ++= clusterInstances.groupBy(_.key).mapValues(_ => Map.empty)
 
     // start the cluster
     leo.startCluster(userInfo, project, name1).unsafeToFuture.futureValue
 
-    // cluster should still exist in Google
-    gdDAO.clusters should contain key (name1)
-
     // cluster status should be Starting in the DB
-    dbFutureValue { _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse) }.get.status shouldBe ClusterStatus.Starting
+    dbFutureValue { _.clusterQuery.getClusterByUniqueKey(cluster) }.get.status shouldBe ClusterStatus.Starting
 
     // instance status should still be Stopped in the DB
     // the ClusterMonitorActor is what updates instance status
     val instances = dbFutureValue {
-      _.instanceQuery.getAllForCluster(getClusterId(clusterCreateResponse))
+      _.instanceQuery.getAllForCluster(getClusterId(cluster))
     }
     instances.size shouldBe 3
     instances.map(_.status).toSet shouldBe Set(InstanceStatus.Stopped)
@@ -1375,48 +1193,40 @@ class LeonardoServiceSpec
 
   // TODO: remove this test once data syncing release is complete
   it should "label and start an outdated cluster" in isolatedDbTest {
-    implicit val patienceConfig = PatienceConfig(timeout = 1.second)
-    // check that the cluster does not exist
-    gdDAO.clusters should not contain key(name1)
-
     // create the cluster
     val request = testClusterRequest.copy(labels = Map("TEST_ONLY_DEPLOY_WELDER" -> "yes"))
-    val clusterCreateResponse =
-      leo.createCluster(userInfo, project, name1, request).unsafeToFuture.futureValue
+    val cluster = leo.createCluster(userInfo, project, name1, request).unsafeToFuture.futureValue
 
-    eventually {
-      // check that the cluster was created
-      gdDAO.clusters should contain key name1
-    }
+    // check that the cluster was created
+    dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }.map(_.status) shouldBe Some(ClusterStatus.Creating)
 
     // set its status to Stopped and update its createdDate
-    dbFutureValue { _.clusterQuery.updateClusterStatus(clusterCreateResponse.id, ClusterStatus.Stopped) }
+    dbFutureValue { _.clusterQuery.updateClusterStatus(cluster.id, ClusterStatus.Stopped) }
     dbFutureValue {
-      _.clusterQuery.updateClusterCreatedDate(clusterCreateResponse.id,
+      _.clusterQuery.updateClusterCreatedDate(cluster.id,
                                               new SimpleDateFormat("yyyy-MM-dd").parse("2018-12-31").toInstant)
     }
 
     // start the cluster
     leo.startCluster(userInfo, project, name1).unsafeToFuture.futureValue
 
-    // cluster status should Running and have new label
-    val cluster = dbFutureValue { _.clusterQuery.getClusterByUniqueKey(clusterCreateResponse) }.get
-
-    eventually {
-      cluster.status shouldBe ClusterStatus.Starting
-      cluster.labels.exists(_ == "welderInstallFailed" -> "true")
-    }
-    // cluster should still exist in Google
-    gdDAO.clusters should contain key name1
+    // cluster status should Starting and have new label
+    val dbCluster = dbFutureValue { _.clusterQuery.getClusterByUniqueKey(cluster) }.get
+    dbCluster.status shouldBe ClusterStatus.Starting
+    dbCluster.labels.exists(_ == "welderInstallFailed" -> "true")
   }
 
   it should "update disk size for 0 workers when a consumer specifies numberOfPreemptibleWorkers" in isolatedDbTest {
     val clusterRequest =
       testClusterRequest.copy(machineConfig = Some(singleNodeDefaultMachineConfig), stopAfterCreation = Some(true))
 
-    val clusterCreateResponse = leo.createCluster(userInfo, project, name1, clusterRequest).unsafeToFuture.futureValue
+    val cluster = leo.createCluster(userInfo, project, name1, clusterRequest).unsafeToFuture.futureValue
 
-    dbFutureValue { _.clusterQuery.setToRunning(clusterCreateResponse.id, IP("1.2.3.4")) }
+    // check that the cluster was created
+    val dbCluster = dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }
+    dbCluster.map(_.status) shouldBe Some(ClusterStatus.Creating)
+
+    dbFutureValue { _.clusterQuery.setToRunning(cluster.id, IP("1.2.3.4")) }
 
     val newDiskSize = 1000
     leo
@@ -1432,10 +1242,10 @@ class LeonardoServiceSpec
       .futureValue
 
     //check that status of cluster is still Running
-    dbFutureValue { _.clusterQuery.getClusterStatus(clusterCreateResponse.id) } shouldBe Some(ClusterStatus.Running)
+    dbFutureValue { _.clusterQuery.getClusterStatus(cluster.id) } shouldBe Some(ClusterStatus.Running)
 
     //check that the machine config has been updated
-    dbFutureValue { _.clusterQuery.getClusterById(clusterCreateResponse.id) }.get.machineConfig.masterDiskSize shouldBe Some(
+    dbFutureValue { _.clusterQuery.getClusterById(cluster.id) }.get.machineConfig.masterDiskSize shouldBe Some(
       newDiskSize
     )
   }

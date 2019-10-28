@@ -333,10 +333,12 @@ class ClusterHelper(
   }
 
   /* Process the templated cluster init script and put all initialization files in the init bucket */
-  private[leonardo] def initializeBucketObjects(cluster: Cluster,
-                                      initBucketName: GcsBucketName,
-                                      serviceAccountKey: Option[ServiceAccountKey],
-                                      customClusterEnvironmentVariables: Map[String, String]): Stream[IO, Unit] = {
+  private[leonardo] def initializeBucketObjects(
+    cluster: Cluster,
+    initBucketName: GcsBucketName,
+    serviceAccountKey: Option[ServiceAccountKey],
+    customClusterEnvironmentVariables: Map[String, String]
+  ): Stream[IO, Unit] = {
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
     val replacements = ClusterInitValues(cluster,
                                          initBucketName,

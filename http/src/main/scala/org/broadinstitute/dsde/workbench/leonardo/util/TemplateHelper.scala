@@ -30,7 +30,9 @@ object TemplateHelper {
 
   def resourceStream[F[_]: ContextShift: Sync](clusterResource: ClusterResource, blocker: Blocker): Stream[F, Byte] = {
     val inputStream =
-      Sync[F].delay(getClass.getClassLoader.getResourceAsStream(s"${ClusterResourcesConfig.basePath}/${clusterResource.value}"))
+      Sync[F].delay(
+        getClass.getClassLoader.getResourceAsStream(s"${ClusterResourcesConfig.basePath}/${clusterResource.value}")
+      )
     io.readInputStream[F](inputStream, 4096, blocker)
   }
 
