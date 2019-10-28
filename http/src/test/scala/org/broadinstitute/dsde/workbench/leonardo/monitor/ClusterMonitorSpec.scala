@@ -901,18 +901,8 @@ class ClusterMonitorSpec
                           MockWelderDAO,
                           false) { actor =>
       eventually {
-        val oldCluster = dbFutureValue {
-          _.clusterQuery.getClusterById(savedCreatingCluster.id)
-        }
-
-        oldCluster shouldBe 'defined
-        oldCluster.map(_.status) shouldBe Some(ClusterStatus.Deleted)
-        oldCluster.flatMap(_.dataprocInfo.hostIp) shouldBe None
-        oldCluster.map(_.instances) shouldBe Some(Set.empty)
-        oldCluster.flatMap(_.userJupyterExtensionConfig) shouldBe Some(userExtConfig)
-
         val newCluster = dbFutureValue {
-          _.clusterQuery.getActiveClusterByName(creatingCluster.googleProject, creatingCluster.clusterName)
+          _.clusterQuery.getClusterById(savedCreatingCluster.id)
         }
         val newClusterBucket = dbFutureValue {
           _.clusterQuery.getInitBucket(creatingCluster.googleProject, creatingCluster.clusterName)

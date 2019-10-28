@@ -146,6 +146,7 @@ class ClusterMonitorSupervisor(
 
       if (monitorConfig.recreateCluster) {
         logger.info(s"[$traceId] Recreating cluster ${cluster.projectNameString}...")
+        removeFromMonitoredClusters(cluster)
         dbRef
           .inTransaction { dataAccess =>
             dataAccess.clusterQuery.clearAsyncClusterCreationFields(cluster) >>
